@@ -7,7 +7,7 @@ material (keys). For signatures, we rely on `signature::Signature`, which may be
 - concrete implementations of the following signature schemes that implement the recommended traits required for 
 cryptographic agility. The following schemes are implemented (wrappers over existing popular crates):
     - ed25519 (EdDSA), backed by the [ed25519-consensus](https://github.com/penumbra-zone/ed25519-consensus) crate.
-    - Secp256k1, backed by the [k256](https://crates.io/crates/secp256k1/0.23.1) crate. 
+    - Secp256k1, backed by the [secp256k1](https://crates.io/crates/secp256k1/0.23.1) crate. 
     - BLS12-381, backed by the [blst](https://github.com/supranational/blst) crate.
     - BLS12-377, backed by the [ark_bls12_377](https://docs.rs/ark-bls12-377/0.3.0/ark_bls12_377/) crate. *Note that this
 implementation is under the non-default conditional compilation feature `celo`, and is not compiled or linked without 
