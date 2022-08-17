@@ -9,7 +9,7 @@ mod ed25519_benches {
     use super::*;
     use blake2::digest::Update;
     use criterion::*;
-    use crypto::{
+    use fastcrypto::{
         bls12377::{BLS12377KeyPair, BLS12377Signature},
         bls12381::{BLS12381KeyPair, BLS12381Signature},
         ed25519::*,
@@ -89,7 +89,7 @@ mod ed25519_benches {
                 .collect();
 
             let msg: Vec<u8> = {
-                crypto::blake2b_256(|hasher| {
+                fastcrypto::blake2b_256(|hasher| {
                     hasher.update(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
                 })
                 .to_vec()

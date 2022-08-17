@@ -54,10 +54,10 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: cargo test
         run: |
-          cargo nextest run --features celo --profile ci
+          cargo nextest run --all-features
       - name: Doctests
         run: |
-          cargo test --doc --features celo
+          cargo test --doc --all-features
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
 
