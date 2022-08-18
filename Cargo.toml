@@ -5,6 +5,8 @@ license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
 publish = false
+description = "Common cryptographic library used at Mysten Labs"
+repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 ark-bls12-377 = { version = "0.3.0", features = ["std"], optional = true }

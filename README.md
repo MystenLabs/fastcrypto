@@ -2,9 +2,9 @@
 Common cryptographic library used in software at Mysten Labs.
 
 This crate contains:
-- useful traits that should be implemented by concrete types that represent digital cryptographic 
+- Useful traits that should be implemented by concrete types that represent digital cryptographic 
 material (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
-- concrete implementations of the following signature schemes that implement the recommended traits required for 
+- Concrete implementations of the following signature schemes that implement the recommended traits required for 
 cryptographic agility. The following schemes are implemented (wrappers over existing popular crates):
     - ed25519 (EdDSA), backed by the [ed25519-consensus](https://github.com/penumbra-zone/ed25519-consensus) crate.
     - Secp256k1, backed by the [secp256k1](https://crates.io/crates/secp256k1/0.23.1) crate. 
