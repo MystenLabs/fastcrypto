@@ -1,5 +1,5 @@
 # fastcrypto
-Common cryptographic library used in softwares at Mysten Labs.
+Common cryptographic library used in software at Mysten Labs.
 
 This crate contains:
 - useful traits that should be implemented by concrete types that represent digital cryptographic 
