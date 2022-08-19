@@ -82,9 +82,6 @@ impl<T: VerifyingKey, const N: usize> Copy for PublicKeyBytes<T, N> {}
 // This guarantees the security of the constructor of a `PublicKeyBytes` instance
 // TODO: replace this clunky sealed marker trait once feature(associated_const_equality) stabilizes
 mod sealed {
-    #[cfg(feature = "celo")]
-    use crate::bls12377::BLS12377PublicKeyBytes;
-
     use crate::{
         bls12381::BLS12381PublicKeyBytes, ed25519::Ed25519PublicKeyBytes,
         secp256k1::Secp256k1PublicKeyBytes,
@@ -94,6 +91,4 @@ mod sealed {
     impl SealedPublicKeyLength for Ed25519PublicKeyBytes {}
     impl SealedPublicKeyLength for BLS12381PublicKeyBytes {}
     impl SealedPublicKeyLength for Secp256k1PublicKeyBytes {}
-    #[cfg(feature = "celo")]
-    impl SealedPublicKeyLength for BLS12377PublicKeyBytes {}
 }
