@@ -33,12 +33,6 @@ pub mod ed25519_tests;
 #[path = "tests/secp256k1_tests.rs"]
 pub mod secp256k1_tests;
 
-#[cfg(all(test, feature = "celo"))]
-#[path = "tests/bls12377_tests.rs"]
-pub mod bls12377_tests;
-
-#[cfg(feature = "celo")]
-pub mod bls12377;
 #[cfg(test)]
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
