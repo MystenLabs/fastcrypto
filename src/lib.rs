@@ -9,7 +9,10 @@
 )]
 
 use base64ct::{Base64, Encoding};
-use blake2::{digest::VariableOutput, VarBlake2b};
+use blake2::{
+    digest::{Update, VariableOutput},
+    VarBlake2b,
+};
 
 use rand::{rngs::OsRng, CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -170,5 +173,13 @@ impl<Signature: traits::Authenticator> SignatureService<Signature> {
         receiver
             .await
             .expect("Failed to receive signature from Signature Service")
+    }
+}
+
+impl Hash for &[u8] {
+    type TypedDigest = Digest;
+
+    fn digest(&self) -> Digest {
+        Digest(blake2b_256(|hasher| hasher.update(self)))
     }
 }

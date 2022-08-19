@@ -11,20 +11,11 @@ use crate::{
     hkdf::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-use blake2::digest::Update;
 use ed25519_consensus::VerificationKey;
 use rand::{rngs::StdRng, SeedableRng as _};
 use serde_reflection::{Samples, Tracer, TracerConfig};
 use sha3::Sha3_256;
 use signature::{Signer, Verifier};
-
-impl Hash for &[u8] {
-    type TypedDigest = Digest;
-
-    fn digest(&self) -> Digest {
-        Digest(blake2b_256(|hasher| hasher.update(self)))
-    }
-}
 
 pub fn keys() -> Vec<Ed25519KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
