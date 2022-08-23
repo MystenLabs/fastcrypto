@@ -187,9 +187,9 @@ pub trait AggregateAuthenticator:
         message: &[u8],
     ) -> Result<(), Error>;
 
-    fn batch_verify(
-        sigs: &[Self],
-        pks: &[&[Self::PubKey]],
+    fn batch_verify<'a>(
+        sigs: &[&Self],
+        pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), Error>;
 }
