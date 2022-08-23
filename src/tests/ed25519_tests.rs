@@ -302,8 +302,8 @@ fn verify_batch_aggregate_signature() {
         verify_batch_aggregate_signature_inputs();
 
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1, aggregated_signature2],
-        &[&pubkeys1[..], &pubkeys2[..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter(), pubkeys2.iter()],
         &[&digest1[..], &digest2[..]]
     )
     .is_ok());
@@ -316,28 +316,28 @@ fn verify_batch_missing_parameters_length_mismatch() {
 
     // Fewer pubkeys than signatures
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1.clone(), aggregated_signature2.clone()],
-        &[&pubkeys1[..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter()],
         &[&digest1[..], &digest2[..]]
     )
     .is_err());
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1.clone(), aggregated_signature2.clone()],
-        &[&pubkeys1[..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter()],
         &[&digest1[..]]
     )
     .is_err());
 
     // Fewer messages than signatures
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1.clone(), aggregated_signature2.clone()],
-        &[&pubkeys1[..], &pubkeys2[..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter(), pubkeys2.iter()],
         &[&digest1[..]]
     )
     .is_err());
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1, aggregated_signature2],
-        &[&pubkeys1[..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter()],
         &[&digest1[..]]
     )
     .is_err());
@@ -350,16 +350,16 @@ fn verify_batch_missing_keys_in_batch() {
 
     // Pubkeys missing at the end
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1.clone(), aggregated_signature2.clone()],
-        &[&pubkeys1[..], &pubkeys2[1..]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter(), pubkeys2[1..].iter()],
         &[&digest1[..], &digest2[..]]
     )
     .is_err());
 
     // Pubkeys missing at the start
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[aggregated_signature1.clone(), aggregated_signature2.clone()],
-        &[&pubkeys1[..], &pubkeys2[..pubkeys2.len() - 1]],
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter(), pubkeys2[..pubkeys2.len() - 1].iter()],
         &[&digest1[..], &digest2[..]]
     )
     .is_err());
@@ -378,11 +378,8 @@ fn verify_batch_missing_keys_in_batch() {
     assert!(res.is_ok());
 
     assert!(Ed25519AggregateSignature::batch_verify(
-        &[
-            signatures1_with_extra.clone(),
-            signatures2_with_extra.clone()
-        ],
-        &[&pubkeys1[..]],
+        &[&signatures1_with_extra, &signatures2_with_extra],
+        vec![pubkeys1.iter()],
         &[&digest1[..], &digest2[..]]
     )
     .is_err());

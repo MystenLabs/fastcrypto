@@ -563,14 +563,15 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 
-    fn batch_verify(
-        signatures: &[Self],
-        pks: &[&[Self::PubKey]],
+    fn batch_verify<'a>(
+        signatures: &[&Self],
+        pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), signature::Error> {
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(signature::Error::new());
         }
+        let mut pk_iter = pks.into_iter();
         for i in 0..signatures.len() {
             let sig = signatures[i].sig;
             let result = sig
@@ -579,7 +580,11 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                     true,
                     messages[i],
                     DST,
-                    &pks[i].iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
+                    &pk_iter
+                        .next()
+                        .unwrap()
+                        .map(|x| &x.pubkey)
+                        .collect::<Vec<_>>()[..],
                 );
             if result != BLST_ERROR::BLST_SUCCESS {
                 return Err(signature::Error::new());
