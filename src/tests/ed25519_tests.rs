@@ -6,7 +6,7 @@ use super::*;
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
-        Ed25519PublicKeyBytes, Ed25519Signature,
+        Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
     hkdf::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
@@ -498,4 +498,54 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+}
+
+// Checks if the private keys zeroed out
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+    let bytes_ptr: *const u8;
+
+    let mut sk_bytes = Vec::new();
+
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+        let kp = Ed25519KeyPair::generate(&mut rng);
+        let sk = kp.private();
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk.0) as *const u8;
+        bytes_ptr = &sk.as_ref()[0] as *const u8;
+
+        // SigningKey.zeroize() zeroizes seed and s value in the struct,
+        // (the rest does not contain private key material), hence shifting the bytes by 192.
+        // pub struct SigningKey {
+        //     seed: [u8; 32],
+        //     s: Scalar,
+        //     prefix: [u8; 32],
+        //     vk: VerificationKey,
+        // }
+        // Starting at index 192 is precisely the 32 bytes of the private key.
+        unsafe {
+            for (i, &byte) in sk_bytes.iter().enumerate().take(ED25519_PRIVATE_KEY_LENGTH) {
+                assert_eq!(*ptr.add(i + 192), byte);
+            }
+        }
+
+        let sk_memory: &[u8] =
+            unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Starting at index 192 where the 32 bytes of the private key lives, is zeroized.
+    unsafe {
+        for i in 0..ED25519_PRIVATE_KEY_LENGTH {
+            assert_eq!(*ptr.add(i + 192), 0);
+        }
+    }
+
+    // Check that self.bytes is taken by the OnceCell default value.
+    let sk_memory: &[u8] =
+        unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+    assert_ne!(sk_memory, &sk_bytes[..]);
 }

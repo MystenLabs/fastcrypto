@@ -16,6 +16,7 @@ use std::{
     fmt::{self, Display},
     str::FromStr,
 };
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
     pubkey_bytes::PublicKeyBytes,
@@ -42,7 +43,7 @@ pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
-#[derive(Debug)]
+#[derive(Debug, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
@@ -490,7 +491,7 @@ impl KeyPair for Ed25519KeyPair {
     }
 
     fn private(self) -> Self::PrivKey {
-        self.secret
+        Ed25519PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
     #[cfg(feature = "copy_key")]
@@ -555,5 +556,19 @@ impl TryFrom<Ed25519PublicKeyBytes> for Ed25519PublicKey {
 impl From<&Ed25519PublicKey> for Ed25519PublicKeyBytes {
     fn from(pk: &Ed25519PublicKey) -> Self {
         Ed25519PublicKeyBytes::new(pk.0.to_bytes())
+    }
+}
+
+impl zeroize::Zeroize for Ed25519KeyPair {
+    fn zeroize(&mut self) {
+        self.secret.0.zeroize()
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Ed25519KeyPair {}
+
+impl Drop for Ed25519KeyPair {
+    fn drop(&mut self) {
+        self.zeroize();
     }
 }
