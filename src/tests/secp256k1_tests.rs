@@ -11,6 +11,7 @@ use crate::{
 };
 
 use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants;
 use signature::{Signer, Verifier};
 
 pub fn keys() -> Vec<Secp256k1KeyPair> {
@@ -266,6 +267,42 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+}
+
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+    let bytes_ptr: *const u8;
+
+    let mut sk_bytes = Vec::new();
+
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+        let kp = Secp256k1KeyPair::generate(&mut rng);
+        let sk = kp.private();
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk.privkey) as *const u8;
+        bytes_ptr = &sk.as_ref()[0] as *const u8;
+
+        let sk_memory: &[u8] =
+            unsafe { ::std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
+        // Assert that this is equal to sk_bytes before deletion
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
+    unsafe {
+        for i in 0..constants::SECRET_KEY_SIZE - 1 {
+            assert!(*ptr.add(i) == 0);
+        }
+        assert!(*ptr.add(constants::SECRET_KEY_SIZE - 1) == 1);
+    }
+
+    // Check that self.bytes is zeroized
+    let sk_memory: &[u8] =
+        unsafe { ::std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
+    assert_ne!(sk_memory, &sk_bytes[..]);
 }
 
 use proptest::arbitrary::Arbitrary;

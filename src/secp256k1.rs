@@ -18,6 +18,7 @@ use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
+use zeroize::Zeroize;
 
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -347,7 +348,7 @@ impl KeyPair for Secp256k1KeyPair {
     }
 
     fn private(self) -> Self::PrivKey {
-        self.secret
+        Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
     fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
@@ -435,5 +436,34 @@ impl Secp256k1Signature {
             },
             Err(_) => Err(signature::Error::new()),
         }
+    }
+}
+
+impl zeroize::Zeroize for Secp256k1PrivateKey {
+    fn zeroize(&mut self) {
+        self.privkey = rust_secp256k1::ONE_KEY;
+        self.bytes.take().zeroize();
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Secp256k1PrivateKey {}
+
+impl Drop for Secp256k1PrivateKey {
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl zeroize::Zeroize for Secp256k1KeyPair {
+    fn zeroize(&mut self) {
+        self.secret.zeroize()
+    }
+}
+
+impl zeroize::ZeroizeOnDrop for Secp256k1KeyPair {}
+
+impl Drop for Secp256k1KeyPair {
+    fn drop(&mut self) {
+        self.secret.zeroize();
     }
 }
