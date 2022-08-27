@@ -6,11 +6,11 @@ use crate::{
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 use base64ct::{Base64, Encoding};
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
     constants,
     ecdsa::{RecoverableSignature, RecoveryId},
-    Message, PublicKey, Secp256k1, SecretKey,
+    All, Message, PublicKey, Secp256k1, SecretKey,
 };
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
@@ -19,6 +19,9 @@ use std::{
     str::FromStr,
 };
 use zeroize::Zeroize;
+
+pub static SECP256K1: Lazy<rust_secp256k1::Secp256k1<All>> =
+    Lazy::new(rust_secp256k1::Secp256k1::new);
 
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -91,7 +94,7 @@ impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
         let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
 
         // If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability, signature.verify_ecdsa() is not used since it will verify [r, s, v] and [r, s, -v].
+        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
         match signature.sig.recover(&message) {
             Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => Ok(()),
             _ => Err(signature::Error::new()),
@@ -113,6 +116,16 @@ impl Secp256k1PublicKey {
                 _ => Err(signature::Error::new()),
             },
             _ => Err(signature::Error::new()),
+        }
+    }
+
+    /// util function to parse wycheproof test key from DER format.
+    #[cfg(test)]
+    pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
+        let pubkey = PublicKey::from_slice(uncompressed).unwrap();
+        Self {
+            pubkey,
+            bytes: OnceCell::new(),
         }
     }
 }
@@ -179,9 +192,8 @@ impl<'de> Deserialize<'de> for Secp256k1PublicKey {
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
-        let secp = Secp256k1::new();
         Secp256k1PublicKey {
-            pubkey: secret.privkey.public_key(&secp),
+            pubkey: secret.privkey.public_key(&SECP256K1),
             bytes: OnceCell::new(),
         }
     }
@@ -352,8 +364,7 @@ impl KeyPair for Secp256k1KeyPair {
     }
 
     fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
-        let secp = Secp256k1::new();
-        let (privkey, pubkey) = secp.generate_keypair(rng);
+        let (privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
         Secp256k1KeyPair {
             name: Secp256k1PublicKey {
