@@ -16,6 +16,7 @@ use rand::{rngs::StdRng, SeedableRng as _};
 use serde_reflection::{Samples, Tracer, TracerConfig};
 use sha3::Sha3_256;
 use signature::{Signer, Verifier};
+use wycheproof::{eddsa::TestSet, TestResult};
 
 pub fn keys() -> Vec<Ed25519KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -548,4 +549,25 @@ fn test_sk_zeroization_on_drop() {
     let sk_memory: &[u8] =
         unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
     assert_ne!(sk_memory, &sk_bytes[..]);
+}
+
+#[test]
+fn wycheproof_test() {
+    let test_set = TestSet::load(wycheproof::eddsa::TestName::Ed25519).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Ed25519PublicKey::from_bytes(&test_group.key.pk).unwrap();
+        for test in test_group.tests {
+            let sig = match <Ed25519Signature as ToFromBytes>::from_bytes(&test.sig) {
+                Ok(s) => s,
+                Err(_) => {
+                    assert_eq!(test.result, TestResult::Invalid);
+                    continue;
+                }
+            };
+            match pk.verify(&test.msg, &sig) {
+                Ok(_) => assert_eq!(test.result, TestResult::Valid),
+                Err(_) => assert_eq!(test.result, TestResult::Invalid),
+            }
+        }
+    }
 }

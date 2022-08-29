@@ -10,9 +10,11 @@ use crate::{
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 
+use digest::Digest;
 use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants;
+use rust_secp256k1::{constants, ecdsa::Signature};
 use signature::{Signer, Verifier};
+use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 
 pub fn keys() -> Vec<Secp256k1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -306,6 +308,7 @@ fn test_sk_zeroization_on_drop() {
 }
 
 use proptest::arbitrary::Arbitrary;
+use wycheproof::TestResult;
 
 proptest::proptest! {
     #[test]
@@ -368,5 +371,49 @@ proptest::proptest! {
         // use k256 keypair to verify sig constructed by ffi-implementation
         let typed_sig = k256::ecdsa::recoverable::Signature::try_from(signature.as_ref()).unwrap();
         assert!(pub_key_1.verify(message, &typed_sig).is_ok());
+    }
+}
+
+#[test]
+fn wycheproof_test() {
+    let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Secp256k1PublicKey::from_uncompressed(&test_group.key.key);
+        for test in test_group.tests {
+            let bytes = match Signature::from_der(&test.sig) {
+                Ok(s) => s.serialize_compact(),
+                Err(_) => {
+                    assert!(test.result == wycheproof::TestResult::Invalid);
+                    continue;
+                }
+            };
+
+            // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
+            let mut n_bytes = [0u8; 65];
+            n_bytes[..64].copy_from_slice(&bytes[..]);
+            let mut res = TestResult::Invalid;
+
+            for i in 0..4 {
+                n_bytes[64] = i;
+                let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                if pk
+                    .verify_hashed(&k256::sha2::Sha256::digest(&test.msg), &sig)
+                    .is_ok()
+                {
+                    res = TestResult::Valid;
+                    break;
+                } else {
+                    continue;
+                }
+            }
+            assert_eq!(map_result(test.result), res);
+        }
+    }
+}
+
+fn map_result(t: TestResult) -> TestResult {
+    match t {
+        TestResult::Valid => TestResult::Valid,
+        _ => TestResult::Invalid, // Treat Acceptable as Invalid
     }
 }
