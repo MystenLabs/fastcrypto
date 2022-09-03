@@ -640,3 +640,13 @@ impl Drop for BLS12381KeyPair {
         self.zeroize();
     }
 }
+
+impl ToFromBytes for BLS12381AggregateSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| signature::Error::new())?;
+        Ok(BLS12381AggregateSignature {
+            sig: Some(sig),
+            bytes: OnceCell::new(),
+        })
+    }
+}
