@@ -54,7 +54,7 @@ pub fn hkdf_generate_from_ikm<'a, H: OutputSizeUser, K: KeyPair>(
     info: Option<&'a [u8]>, // Optional domain
 ) -> Result<K, signature::Error>
 where
-    // This is a tad tedious, because of hkdf's use of a sealed trait. But mostly harmless.
+    // This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless.
     H: CoreProxy + OutputSizeUser,
     H::Core: HashMarker
         + UpdateCore
@@ -68,8 +68,8 @@ where
     let info = info.unwrap_or(&DEFAULT_DOMAIN);
     let hk = hkdf::Hkdf::<H, Hmac<H>>::new(Some(salt), ikm);
 
-    // we need the HKDF to be able to expand precisely to the byte length of a Private key for the chosen KeyPair parameter.
-    // This check is a tad over constraining (check Hkdf impl for a more relaxed variant) but is always correct.
+    // We need the HKDF to be able to expand precisely to the byte length of a Private key for the chosen KeyPair parameter.
+    // This check is a tad over constraining (check HKDF impl for a more relaxed variant) but is always correct.
     if H::OutputSize::USIZE != K::PrivKey::LENGTH {
         return Err(signature::Error::from_source(hkdf::InvalidLength));
     }

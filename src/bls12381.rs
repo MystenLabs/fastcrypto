@@ -58,9 +58,9 @@ pub struct BLS12381PrivateKey {
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
+// There is a strong requirement for this specific impl. in Fab benchmarks.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")] // necessary so as not to deser under a != type
+#[serde(tag = "type")] // necessary so as not to deserialize under a != type.
 pub struct BLS12381KeyPair {
     name: BLS12381PublicKey,
     secret: BLS12381PrivateKey,
@@ -139,7 +139,7 @@ impl Display for BLS12381PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
+// There is a strong requirement for this specific impl. in Fab benchmarks.
 impl Serialize for BLS12381PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -149,7 +149,7 @@ impl Serialize for BLS12381PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
+// There is a strong requirement for this specific impl. in Fab benchmarks.
 impl<'de> Deserialize<'de> for BLS12381PublicKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -198,7 +198,11 @@ impl VerifyingKey for BLS12381PublicKey {
     ) -> Result<(), eyre::Report> {
         let num_sigs = sigs.len();
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behavious can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(eyre!(
+                "Critical Error! This behaviour can signal something dangerous, and \
+            that someone may be trying to bypass signature verification through providing empty \
+            batches."
+            ));
         }
         if sigs.len() != pks.len() {
             return Err(eyre!(
@@ -208,7 +212,7 @@ impl VerifyingKey for BLS12381PublicKey {
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(num_sigs);
         let mut rng = OsRng;
 
-        for _i in 0..num_sigs {
+        for _ in 0..num_sigs {
             let mut vals = [0u64; 4];
             vals[0] = rng.next_u64();
             while vals[0] == 0 {
@@ -384,15 +388,15 @@ impl From<BLS12381PrivateKey> for BLS12381KeyPair {
 }
 
 impl EncodeDecodeBase64 for BLS12381KeyPair {
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
-    }
-
     fn encode_base64(&self) -> String {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
         base64ct::Base64::encode_string(&bytes[..])
+    }
+
+    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
+        keypair_decode_base64(value)
     }
 }
 
@@ -401,20 +405,20 @@ impl KeyPair for BLS12381KeyPair {
     type PrivKey = BLS12381PrivateKey;
     type Sig = BLS12381Signature;
 
-    #[cfg(feature = "copy_key")]
-    fn copy(&self) -> Self {
-        BLS12381KeyPair {
-            name: self.name.clone(),
-            secret: BLS12381PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
-        }
-    }
-
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
     }
 
     fn private(self) -> Self::PrivKey {
         BLS12381PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
+    }
+
+    #[cfg(feature = "copy_key")]
+    fn copy(&self) -> Self {
+        BLS12381KeyPair {
+            name: self.name.clone(),
+            secret: BLS12381PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
+        }
     }
 
     fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
@@ -490,9 +494,9 @@ impl Default for BLS12381AggregateSignature {
 }
 
 impl AggregateAuthenticator for BLS12381AggregateSignature {
-    type PrivKey = BLS12381PrivateKey;
-    type PubKey = BLS12381PublicKey;
     type Sig = BLS12381Signature;
+    type PubKey = BLS12381PublicKey;
+    type PrivKey = BLS12381PrivateKey;
 
     /// Parse a key from its byte representation
     fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {

@@ -296,9 +296,9 @@ fn test_sk_zeroization_on_drop() {
     // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
     unsafe {
         for i in 0..constants::SECRET_KEY_SIZE - 1 {
-            assert!(*ptr.add(i) == 0);
+            assert_eq!(*ptr.add(i), 0);
         }
-        assert!(*ptr.add(constants::SECRET_KEY_SIZE - 1) == 1);
+        assert_eq!(*ptr.add(constants::SECRET_KEY_SIZE - 1), 1);
     }
 
     // Check that self.bytes is zeroized
@@ -318,7 +318,7 @@ proptest::proptest! {
         let message: &[u8] = b"hello world!";
         let hashed_msg = rust_secp256k1::Message::from_slice(<sha3::Keccak256 as sha3::digest::Digest>::digest(message).as_slice()).unwrap();
 
-        // contruct private key with bytes and signs message
+        // construct private key with bytes and signs message
         let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
         let key_pair = Secp256k1KeyPair::from(priv_key);
         let key_pair_copied = key_pair.copy();
@@ -337,7 +337,7 @@ proptest::proptest! {
         }
         let malleated_signature: Secp256k1Signature = <Secp256k1Signature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
 
-        // malleated signature with opposite sign fails to verify
+        // malleable(altered) signature with opposite sign fails to verify
         assert!(key_pair.public().verify(message, &malleated_signature).is_err());
 
         // use k256 to construct private key with the same bytes and signs the same message
@@ -383,7 +383,7 @@ fn wycheproof_test() {
             let bytes = match Signature::from_der(&test.sig) {
                 Ok(s) => s.serialize_compact(),
                 Err(_) => {
-                    assert!(test.result == wycheproof::TestResult::Invalid);
+                    assert_eq!(test.result, wycheproof::TestResult::Invalid);
                     continue;
                 }
             };
