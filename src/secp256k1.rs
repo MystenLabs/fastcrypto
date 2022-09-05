@@ -34,7 +34,6 @@ pub type Secp256k1PublicKeyBytes =
     PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 #[readonly::make]
-#[derive(Debug)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
     pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,
@@ -214,6 +213,18 @@ impl ToFromBytes for Secp256k1PrivateKey {
             }),
             Err(_) => Err(signature::Error::new()),
         }
+    }
+}
+
+impl Display for Secp256k1PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[elided Secp256k1PrivateKey]")
+    }
+}
+
+impl Debug for Secp256k1PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
