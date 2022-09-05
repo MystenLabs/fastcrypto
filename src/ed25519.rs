@@ -13,7 +13,7 @@ use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
 use signature::{rand_core::OsRng, Signature, Signer, Verifier};
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Display, Debug},
     str::FromStr,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -43,7 +43,7 @@ pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
@@ -200,6 +200,18 @@ impl ToFromBytes for Ed25519PrivateKey {
         ed25519_consensus::SigningKey::try_from(bytes)
             .map(Ed25519PrivateKey)
             .map_err(|_| signature::Error::new())
+    }
+}
+
+impl Display for Ed25519PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[elided Ed25519PrivateKey]")
+    }
+}
+
+impl Debug for Ed25519PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
