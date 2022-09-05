@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     mem::MaybeUninit,
     str::FromStr,
 };
@@ -52,7 +52,7 @@ pub struct BLS12381PublicKey {
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 #[readonly::make]
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
@@ -369,6 +369,18 @@ impl Signer<BLS12381Signature> for BLS12381PrivateKey {
             sig,
             bytes: OnceCell::new(),
         })
+    }
+}
+
+impl Display for BLS12381PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "[elided BLS12381 private key]")
+    }
+}
+
+impl Debug for BLS12381PrivateKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self)
     }
 }
 
