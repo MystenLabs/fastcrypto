@@ -374,7 +374,7 @@ impl Signer<BLS12381Signature> for BLS12381PrivateKey {
 
 impl Display for BLS12381PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[elided BLS12381 private key]")
+        write!(f, "[elided BLS12381PrivateKey]")
     }
 }
 

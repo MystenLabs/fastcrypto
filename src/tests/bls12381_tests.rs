@@ -436,3 +436,13 @@ fn test_sk_zeroization_on_drop() {
         unsafe { ::std::slice::from_raw_parts(bytes_ptr, BLS12381PrivateKey::LENGTH) };
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
+
+#[test]
+fn dont_display_secrets() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|keypair| {
+        let sk = keypair.private();
+        assert_eq!(format!("{}", sk), "[elided BLS12381PrivateKey]");
+        assert_eq!(format!("{:?}", sk), "[elided BLS12381PrivateKey]");
+    });
+}
