@@ -475,6 +475,7 @@ fn test_public_key_bytes_conversion() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
 fn test_copy_key_pair() {
     let kp = keys().pop().unwrap();
     let kp_copied = kp.copy();
