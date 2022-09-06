@@ -13,7 +13,7 @@ use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
 use signature::{rand_core::OsRng, Signature, Signer, Verifier};
 use std::{
-    fmt::{self, Display, Debug},
+    fmt::{self, Debug, Display},
     str::FromStr,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
