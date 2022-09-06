@@ -205,7 +205,7 @@ fn verify_batch_missing_parameters_length_mismatch() {
     let (digest1, digest2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
         verify_batch_aggregate_signature_inputs();
 
-    // Fewer pubkeys than signatures
+    // Fewer PubKeys than signatures
     assert!(BLS12381AggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1.iter()],
@@ -239,7 +239,7 @@ fn verify_batch_missing_keys_in_batch() {
     let (digest1, digest2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
         verify_batch_aggregate_signature_inputs();
 
-    // Pubkeys missing at the end
+    // PubKeys missing at the end
     assert!(BLS12381AggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1.iter(), pubkeys2[1..].iter()],
@@ -247,7 +247,7 @@ fn verify_batch_missing_keys_in_batch() {
     )
     .is_err());
 
-    // Pubkeys missing at the start
+    // PubKeys missing at the start
     assert!(BLS12381AggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1.iter(), pubkeys2[..pubkeys2.len() - 1].iter()],
@@ -427,7 +427,7 @@ fn test_sk_zeroization_on_drop() {
     // Check that self.privkey is zeroized
     unsafe {
         for i in 0..BLS12381PrivateKey::LENGTH {
-            assert!(*ptr.add(i) == 0);
+            assert_eq!(*ptr.add(i), 0);
         }
     }
 

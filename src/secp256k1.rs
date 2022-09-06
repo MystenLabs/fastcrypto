@@ -338,15 +338,15 @@ pub struct Secp256k1KeyPair {
 }
 
 impl EncodeDecodeBase64 for Secp256k1KeyPair {
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
-    }
-
     fn encode_base64(&self) -> String {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
         base64ct::Base64::encode_string(&bytes[..])
+    }
+
+    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
+        keypair_decode_base64(value)
     }
 }
 
@@ -363,6 +363,14 @@ impl KeyPair for Secp256k1KeyPair {
         Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
+    #[cfg(feature = "copy_key")]
+    fn copy(&self) -> Self {
+        Secp256k1KeyPair {
+            name: self.name.clone(),
+            secret: Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
+        }
+    }
+
     fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
         let (privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
@@ -375,14 +383,6 @@ impl KeyPair for Secp256k1KeyPair {
                 privkey,
                 bytes: OnceCell::new(),
             },
-        }
-    }
-
-    #[cfg(feature = "copy_key")]
-    fn copy(&self) -> Self {
-        Secp256k1KeyPair {
-            name: self.name.clone(),
-            secret: Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
         }
     }
 }

@@ -396,8 +396,8 @@ impl Display for Ed25519AggregateSignature {
 
 impl AggregateAuthenticator for Ed25519AggregateSignature {
     type Sig = Ed25519Signature;
-    type PrivKey = Ed25519PrivateKey;
     type PubKey = Ed25519PublicKey;
+    type PrivKey = Ed25519PrivateKey;
 
     /// Parse a key from its byte representation
     fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
@@ -469,15 +469,15 @@ impl From<Ed25519PrivateKey> for Ed25519KeyPair {
 }
 
 impl EncodeDecodeBase64 for Ed25519KeyPair {
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
-    }
-
     fn encode_base64(&self) -> String {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
         base64ct::Base64::encode_string(&bytes[..])
+    }
+
+    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
+        keypair_decode_base64(value)
     }
 }
 
