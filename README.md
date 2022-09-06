@@ -1,4 +1,4 @@
-# [fastcrypto]
+# `fastcrypto`
 
 [![crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
@@ -6,8 +6,7 @@
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
 
-`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is published as an independent crate to encourage reusability across different applications and domains. It is a wrapper library around several carefully selected crates with the following considerations: 
-
+`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is published independently encouraging reusability across different applications and domains. It is a wrapper library around several carefully selected crates with following considerations: 
 - Security: Whether the libraries are vulnerable to known attack vectors or possible misuses. 
 - Performance: Whether the crate performs cryptographic operations with speed after extensive benchmarking. This is critical for the Sui Network to be performant when signing and verifying large amounts of transactions and certificates. 
 - Determinism: Whether the signature is non-malleable.
