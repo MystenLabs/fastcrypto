@@ -4,7 +4,7 @@ version = "0.1.2"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
-publish = true
+publish = ["crates-io"]
 description = "Common cryptographic library used at Mysten Labs"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
