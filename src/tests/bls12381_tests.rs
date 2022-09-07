@@ -442,7 +442,10 @@ fn dont_display_secrets() {
     let keypairs = keys();
     keypairs.into_iter().for_each(|keypair| {
         let sk = keypair.private();
-        assert_eq!(format!("{}", sk), "[elided BLS12381PrivateKey]");
-        assert_eq!(format!("{:?}", sk), "[elided BLS12381PrivateKey]");
+        assert_eq!(format!("{}", sk), "<elided secret for BLS12381PrivateKey>");
+        assert_eq!(
+            format!("{:?}", sk),
+            "<elided secret for BLS12381PrivateKey>"
+        );
     });
 }

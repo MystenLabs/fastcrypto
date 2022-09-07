@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use base64ct::{Base64, Encoding};
+use diem_crypto_derive::{SilentDebug, SilentDisplay};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
@@ -43,7 +44,7 @@ pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
-#[derive(Zeroize, ZeroizeOnDrop)]
+#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
@@ -200,18 +201,6 @@ impl ToFromBytes for Ed25519PrivateKey {
         ed25519_consensus::SigningKey::try_from(bytes)
             .map(Ed25519PrivateKey)
             .map_err(|_| signature::Error::new())
-    }
-}
-
-impl Display for Ed25519PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[elided Ed25519PrivateKey]")
-    }
-}
-
-impl Debug for Ed25519PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
     }
 }
 

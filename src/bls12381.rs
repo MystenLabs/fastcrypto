@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
+use diem_crypto_derive::{SilentDebug, SilentDisplay};
 use std::{
     fmt::{self, Debug, Display},
     mem::MaybeUninit,
@@ -52,7 +52,7 @@ pub struct BLS12381PublicKey {
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 #[readonly::make]
-#[derive(Default)]
+#[derive(SilentDebug, SilentDisplay, Default)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
@@ -369,18 +369,6 @@ impl Signer<BLS12381Signature> for BLS12381PrivateKey {
             sig,
             bytes: OnceCell::new(),
         })
-    }
-}
-
-impl Display for BLS12381PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "[elided BLS12381PrivateKey]")
-    }
-}
-
-impl Debug for BLS12381PrivateKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self)
     }
 }
 

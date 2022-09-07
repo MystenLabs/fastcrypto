@@ -425,7 +425,10 @@ fn dont_display_secrets() {
     let keypairs = keys();
     keypairs.into_iter().for_each(|keypair| {
         let sk = keypair.private();
-        assert_eq!(format!("{}", sk), "[elided Secp256k1PrivateKey]");
-        assert_eq!(format!("{:?}", sk), "[elided Secp256k1PrivateKey]");
+        assert_eq!(format!("{}", sk), "<elided secret for Secp256k1PrivateKey>");
+        assert_eq!(
+            format!("{:?}", sk),
+            "<elided secret for Secp256k1PrivateKey>"
+        );
     });
 }

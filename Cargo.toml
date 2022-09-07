@@ -36,6 +36,7 @@ blst = "0.3.10"
 digest = "0.10.3"
 once_cell = "1.13.1"
 readonly = "0.2.2"
+diem-crypto-derive = "0.0.3"
 
 [[bench]]
 name = "crypto"
