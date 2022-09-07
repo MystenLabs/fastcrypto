@@ -41,7 +41,7 @@ This crate contains:
     - Pedersen Commitment: Function to create a Pedersen commitment with a value and a blinding factor. Add or subtract Ristretto points that represent Pedersen commitments.
     - Bulletproofs Range Proof: Function to prove that a committed value is an unsigned integer that is within the range [0, 2^bits). Function to verify that the commitment is a Pedersen commitment of some value with an unsigned bit length, a value is an integer within the range [0, 2^bits)
 
-4. A asynchronous signature service is provided for testing and benchmarking.
+- A asynchronous signature service is provided for testing and benchmarking.
 ## Tests and Benchmarks
 There exist tests for all the three schemes, which can be run by:  
 ```
