@@ -202,16 +202,21 @@ pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + 
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
-/// Trait impl'd by encryptors for a symmetric encryption scheme
-pub trait Encryptor {
+/// Trait impl'd by symmetric ciphers
+pub trait Cipher {
     type K: EncryptionKey;
 
-    fn encrypt(&self, key: &Self::K, plain_text: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
-}
+    fn encrypt(
+        &self, 
+        key: &Self::K, 
+        plain_text: &[u8], 
+        buffer: &mut [u8]
+    ) -> Result<(), Error>;
 
-/// Trait impl'd by encryptors for a symmetric encryption scheme
-pub trait Decryptor {
-    type K: EncryptionKey;
-
-    fn decrypt(&self, key: &Self::K, cipher_text: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    fn decrypt(
+        &self, 
+        key: &Self::K,
+        cipher_text: &[u8],
+        buffer: &mut [u8]
+    ) -> Result<(), Error>;
 }
