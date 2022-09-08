@@ -104,3 +104,31 @@ fn test_aes256cbc_encrypt_and_decrypt() {
     // Verify that the decrypted text equals the plaintext
     assert_eq!(buffer2[0..13], PLAINTEXT);
 }
+
+#[test]
+fn test_aes256ctr_encrypt_and_decrypt_fail() {
+
+    const PLAINTEXT: [u8; 13] = *b"Hello, world!";
+
+    // Generate key
+    let mut rng = StdRng::from_seed([9; 32]);
+    let key: Key<32> = Key::generate(&mut rng);
+
+    // Set IV
+    let iv = [0x24; 16];
+
+    // Encrypt into buffer1 with extra space for padding
+    let mut buffer1 = [0u8; 13];
+    let cipher = Aes256Ctr {iv};
+    cipher.encrypt(&key, &PLAINTEXT, &mut buffer1).unwrap();
+
+    // Modify the cipher text
+    buffer1[0] += 1;
+
+    // Decrypt into buffer2
+    let mut buffer2 = [0u8; 13];
+    cipher.decrypt(&key, &buffer1, &mut buffer2).unwrap();
+
+    // Verify that the decrypted text does NOT equal the plaintext
+    assert_ne!(buffer2[0..13], PLAINTEXT);
+}

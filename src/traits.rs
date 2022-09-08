@@ -195,6 +195,7 @@ pub trait AggregateAuthenticator:
 }
 
 /// Trait impl'd by encryption keys in symmetric cryptography
+///
 pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
 {
     const LENGTH: usize;
@@ -202,21 +203,24 @@ pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + 
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
-/// Trait impl'd by symmetric ciphers
+/// Trait impl'd by symmetric ciphers. This should also keep anything needed to encrypt and decrypt besides the key, for instance IV/nonce.
+/// 
 pub trait Cipher {
     type K: EncryptionKey;
 
+    /// Encrypt `plaintext` and write result to `buffer`
     fn encrypt(
         &self, 
         key: &Self::K, 
-        plain_text: &[u8], 
+        plaintext: &[u8], 
         buffer: &mut [u8]
     ) -> Result<(), Error>;
 
+    /// Decrypt `ciphertext` and write result to `buffer`
     fn decrypt(
         &self, 
         key: &Self::K,
-        cipher_text: &[u8],
+        ciphertext: &[u8],
         buffer: &mut [u8]
     ) -> Result<(), Error>;
 }
