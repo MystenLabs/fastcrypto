@@ -48,7 +48,7 @@ use hkdf::hmac::Hmac;
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
-pub fn hkdf_generate_from_ikm<'a, H, K>(
+pub fn hkdf_generate_from_ikm<H, K>(
     ikm: &[u8],  // IKM (32 bytes).
     salt: &[u8], // Salt (can be empty).
     info: &[u8], // Info (can be empty).
