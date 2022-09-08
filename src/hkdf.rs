@@ -5,7 +5,7 @@ use digest::{
     block_buffer::Eager,
     consts::U256,
     core_api::{BlockSizeUser, BufferKindUser, CoreProxy, FixedOutputCore, UpdateCore},
-    typenum::{IsLess, Le, NonZero, Unsigned},
+    typenum::{IsLess, Le, NonZero},
     HashMarker, OutputSizeUser,
 };
 use hkdf::hmac::Hmac;
@@ -48,7 +48,7 @@ use hkdf::hmac::Hmac;
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
-pub fn hkdf_generate_from_ikm<'a, H: OutputSizeUser, K: KeyPair>(
+pub fn hkdf_generate_from_ikm<'a, H, K>(
     ikm: &[u8],             // IKM (32 bytes)
     salt: &[u8],            // Optional salt
     info: Option<&'a [u8]>, // Optional domain
@@ -64,15 +64,10 @@ where
         + Clone,
     <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
     Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    K: KeyPair,
 {
     let info = info.unwrap_or(&DEFAULT_DOMAIN);
     let hk = hkdf::Hkdf::<H, Hmac<H>>::new(Some(salt), ikm);
-
-    // We need the HKDF to be able to expand precisely to the byte length of a Private key for the chosen KeyPair parameter.
-    // This check is a tad over constraining (check HKDF impl for a more relaxed variant) but is always correct.
-    if H::OutputSize::USIZE != K::PrivKey::LENGTH {
-        return Err(signature::Error::from_source(hkdf::InvalidLength));
-    }
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
     hk.expand(info, &mut okm)
