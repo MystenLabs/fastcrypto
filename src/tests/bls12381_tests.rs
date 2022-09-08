@@ -369,8 +369,8 @@ fn test_hkdf_generate_from_ikm() {
         5, 4,
     ];
     let salt = &[3, 2, 1];
-    let kp = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(seed, salt, Some(&[1])).unwrap();
-    let kp2 = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(seed, salt, Some(&[1])).unwrap();
+    let kp = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(seed, salt, &[]).unwrap();
+    let kp2 = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(seed, salt, &[]).unwrap();
 
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
 }

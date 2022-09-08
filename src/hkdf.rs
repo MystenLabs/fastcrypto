@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::traits::{KeyPair, SigningKey, ToFromBytes, DEFAULT_DOMAIN};
+use crate::traits::{KeyPair, SigningKey, ToFromBytes};
 use digest::{
     block_buffer::Eager,
     consts::U256,
@@ -21,11 +21,11 @@ use hkdf::hmac::Hmac;
 /// use fastcrypto::hkdf::hkdf_generate_from_ikm;
 /// # fn main() {
 ///     let ikm = b"some_ikm";
-///     let domain = b"my_app";
+///     let info = b"my_app";
 ///     let salt = b"some_salt";
-///     let my_keypair = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(ikm, salt, Some(domain));
+///     let my_keypair = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(ikm, salt, info);
 ///
-///     let my_keypair_default_domain = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(ikm, salt, None);
+///     let my_keypair_default_info = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(ikm, salt, &[]);
 /// # }
 /// ```
 ///
@@ -39,19 +39,19 @@ use hkdf::hmac::Hmac;
 ///
 /// # fn main() {
 ///     let ikm = b"02345678001234567890123456789012";
-///     let domain = b"my_app";
+///     let info = b"my_app";
 ///     let salt = b"some_salt";
 
-///     let my_keypair = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(ikm, salt, Some(domain)).unwrap();
-///     let native_sk = blst::min_sig::SecretKey::key_gen_v4_5(ikm, salt, domain).unwrap();
+///     let my_keypair = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(ikm, salt, info).unwrap();
+///     let native_sk = blst::min_sig::SecretKey::key_gen_v4_5(ikm, salt, info).unwrap();
 
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
 pub fn hkdf_generate_from_ikm<'a, H, K>(
-    ikm: &[u8],             // IKM (32 bytes)
-    salt: &[u8],            // Optional salt
-    info: Option<&'a [u8]>, // Optional domain
+    ikm: &[u8],  // IKM (32 bytes).
+    salt: &[u8], // Salt (can be empty).
+    info: &[u8], // Info (can be empty).
 ) -> Result<K, signature::Error>
 where
     // This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless.
@@ -66,7 +66,6 @@ where
     Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
     K: KeyPair,
 {
-    let info = info.unwrap_or(&DEFAULT_DOMAIN);
     let hk = hkdf::Hkdf::<H, Hmac<H>>::new(Some(salt), ikm);
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
