@@ -193,3 +193,25 @@ pub trait AggregateAuthenticator:
         messages: &[&[u8]],
     ) -> Result<(), Error>;
 }
+
+/// Trait impl'd by encryption keys in symmetric cryptography
+pub trait EncryptionKey: ToFromBytes + 'static //+ Serialize + DeserializeOwned + Send + Sync + 
+{
+    const LENGTH: usize;
+
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+}
+
+/// Trait impl'd by encryptors for a symmetric encryption scheme
+pub trait Encryptor {
+    type K: EncryptionKey;
+
+    fn encrypt(&self, key: &Self::K, plain_text: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+}
+
+/// Trait impl'd by encryptors for a symmetric encryption scheme
+pub trait Decryptor {
+    type K: EncryptionKey;
+
+    fn decrypt(&self, key: &Self::K, cipher_text: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+}
