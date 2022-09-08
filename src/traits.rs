@@ -195,7 +195,7 @@ pub trait AggregateAuthenticator:
 }
 
 /// Trait impl'd by encryption keys in symmetric cryptography
-pub trait EncryptionKey: ToFromBytes + 'static //+ Serialize + DeserializeOwned + Send + Sync + 
+pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
 {
     const LENGTH: usize;
 

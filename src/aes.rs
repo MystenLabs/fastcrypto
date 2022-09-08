@@ -5,8 +5,9 @@ use crate::traits::{EncryptionKey, ToFromBytes, Encryptor, Decryptor};
 
 use digest::crypto_common::KeyIvInit;
 use ctr::cipher::StreamCipher;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Aes128Key {
     pub bytes: [u8; 16]
 }
