@@ -66,6 +66,8 @@ where
     Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
     K: KeyPair,
 {
+    // When HMAC is applied, salt is padded with zeros if shorter than the H's block size
+    // (both for Some(&[]) and None as the value of salt).
     let hk = hkdf::Hkdf::<H, Hmac<H>>::new(Some(salt), ikm);
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
@@ -77,3 +79,6 @@ where
     let keypair = K::from(secret_key);
     Ok(keypair)
 }
+
+// TODO: Add a regression test for checking that Hkdf::<H, Hmac<H>>::new(None, _) and Hkdf::<H, Hmac<H>>::new(Some(&[]), _)
+// are equivalent.
