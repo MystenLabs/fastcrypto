@@ -203,24 +203,22 @@ pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + 
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
-/// Trait impl'd by symmetric ciphers. This should also keep anything needed to encrypt and decrypt besides the key, for instance IV/nonce.
+/// Trait impl'd by symmetric ciphers. This should also keep anything needed to encrypt and decrypt including keys and IVs
 /// 
 pub trait Cipher {
-    type K: EncryptionKey;
 
     /// Encrypt `plaintext` and write result to `buffer`
-    fn encrypt(
+    fn encrypt_b2b(
         &self, 
-        key: &Self::K, 
         plaintext: &[u8], 
         buffer: &mut [u8]
     ) -> Result<(), Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer`
-    fn decrypt(
+    fn decrypt_b2b(
         &self, 
-        key: &Self::K,
         ciphertext: &[u8],
         buffer: &mut [u8]
     ) -> Result<(), Error>;
+
 }
