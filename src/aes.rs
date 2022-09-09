@@ -106,7 +106,7 @@ impl Cipher for Aes128CbcPkcs7 {
     fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
-            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext.into(), buffer)
+            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
             .unwrap();
         Ok(())
     }
@@ -114,7 +114,7 @@ impl Cipher for Aes128CbcPkcs7 {
     fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Decryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
-            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext.into(), buffer)
+            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
             .unwrap();
         Ok(())
     }
@@ -132,7 +132,7 @@ impl Cipher for Aes256CbcPkcs7 {
     fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
-            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext.into(), buffer)
+            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
             .unwrap();
         Ok(())
     }
@@ -140,7 +140,7 @@ impl Cipher for Aes256CbcPkcs7 {
     fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Decryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
-            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext.into(), buffer)
+            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
             .unwrap();
         Ok(())
     }
@@ -158,14 +158,14 @@ impl Cipher for Aes128Cfb {
     fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher =
             cfb_mode::Encryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.encrypt_b2b(plaintext.into(), buffer).unwrap();
+        cipher.encrypt_b2b(plaintext, buffer).unwrap();
         Ok(())
     }
 
     fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher =
             cfb_mode::Decryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.decrypt_b2b(ciphertext.into(), buffer).unwrap();
+        cipher.decrypt_b2b(ciphertext, buffer).unwrap();
         Ok(())
     }
 }
