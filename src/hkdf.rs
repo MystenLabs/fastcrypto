@@ -79,6 +79,3 @@ where
     let keypair = K::from(secret_key);
     Ok(keypair)
 }
-
-// TODO: Add a regression test for checking that Hkdf::<H, Hmac<H>>::new(None, _) and Hkdf::<H, Hmac<H>>::new(Some(&[]), _)
-// are equivalent.

@@ -44,6 +44,10 @@ pub mod bls12381_tests;
 #[path = "tests/bulletproofs_tests.rs"]
 pub mod bulletproofs_tests;
 
+#[cfg(test)]
+#[path = "tests/hkdf_tests.rs"]
+pub mod hkdf_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
