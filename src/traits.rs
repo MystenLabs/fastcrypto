@@ -196,7 +196,8 @@ pub trait AggregateAuthenticator:
 
 /// Trait impl'd by encryption keys in symmetric cryptography
 ///
-pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
+pub trait EncryptionKey:
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
 {
     const LENGTH: usize;
 
@@ -204,21 +205,11 @@ pub trait EncryptionKey: ToFromBytes + 'static + Serialize + DeserializeOwned + 
 }
 
 /// Trait impl'd by symmetric ciphers. This should also keep anything needed to encrypt and decrypt including keys and IVs
-/// 
+///
 pub trait Cipher {
-
     /// Encrypt `plaintext` and write result to `buffer`
-    fn encrypt_b2b(
-        &self, 
-        plaintext: &[u8], 
-        buffer: &mut [u8]
-    ) -> Result<(), Error>;
+    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer`
-    fn decrypt_b2b(
-        &self, 
-        ciphertext: &[u8],
-        buffer: &mut [u8]
-    ) -> Result<(), Error>;
-
+    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
 }
