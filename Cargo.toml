@@ -47,7 +47,7 @@ name = "crypto"
 harness = false
 
 [features]
-default = ["copy_key"]
+default = []
 copy_key = []
 
 [dev-dependencies]
