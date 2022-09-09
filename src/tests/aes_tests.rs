@@ -104,10 +104,10 @@ fn test_cipher<const KEY_SIZE: usize, C: Cipher, F: Fn(Key<KEY_SIZE>, &[u8;16]) 
 
  fn test_cipher_padded<const KEY_SIZE: usize, C: Cipher, F: Fn(Key<KEY_SIZE>, &[u8;16]) -> C> (cipher_builder: F) {
 
-     const PLAINTEXT: [u8; 13] = *b"Hello, world!";
+    const PLAINTEXT: [u8; 13] = *b"Hello, world!";
 
-     // Because of the padding, the buffer needs to have length which is a muliple of 16
-     const BUFFER_SIZE: usize = ((PLAINTEXT.len() / 16) + 1) * 16;
+    // Because of the padding, the buffer needs to have length which is a muliple of 16
+    const BUFFER_SIZE: usize = ((PLAINTEXT.len() / 16) + 1) * 16;
     
     // Generate key
     let mut rng = StdRng::from_seed([9; 32]);
