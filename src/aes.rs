@@ -25,7 +25,7 @@ pub struct Key<const N: usize>  {
 
 impl <const N: usize> AsRef<[u8]> for Key<N> {
     fn as_ref(&self) -> &[u8] {
-        todo!()
+        self.bytes.as_ref()
     }
 }
 
