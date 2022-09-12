@@ -104,7 +104,7 @@ pub struct Aes128CbcPkcs7 {
     pub key: Key<16>,
 }
 
-impl<'a> Cipher for Aes128CbcPkcs7 {
+impl Cipher for Aes128CbcPkcs7 {
     fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher

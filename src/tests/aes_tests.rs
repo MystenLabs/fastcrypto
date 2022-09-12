@@ -81,7 +81,7 @@ fn test_cipher<
 >(
     cipher_builder: F,
 ) {
-    test_cipher_padded::<KEY_SIZE, IV_SIZE, C, F>(cipher_builder, &|s| s.clone());
+    test_cipher_padded::<KEY_SIZE, IV_SIZE, C, F>(cipher_builder, &|s| *s);
 }
 
 fn test_cipher_padded<
@@ -124,7 +124,7 @@ fn single_wycheproof_test_128<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
         key: Key::<16>::from_bytes(&test.key).unwrap(),
         aad: &test.aad,
     };
-    return single_wycheproof_test::<NonceSize, Aes128Gcm<'_, NonceSize>>(test, cipher);
+    single_wycheproof_test::<NonceSize, Aes128Gcm<'_, NonceSize>>(test, cipher)
 }
 
 fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
@@ -135,7 +135,7 @@ fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
         key: Key::<32>::from_bytes(&test.key).unwrap(),
         aad: &test.aad,
     };
-    return single_wycheproof_test::<NonceSize, Aes256Gcm<'_, NonceSize>>(test, cipher);
+    single_wycheproof_test::<NonceSize, Aes256Gcm<'_, NonceSize>>(test, cipher)
 }
 
 /// Verify a single wycheproof test with the given cipher
@@ -163,7 +163,7 @@ fn single_wycheproof_test<NonceSize: ArrayLength<u8>, C: Cipher>(test: &Test, ci
         return false;
     }
 
-    return true;
+    true
 }
 
 #[test]
