@@ -13,8 +13,6 @@ use std::{
     str::FromStr,
 };
 
-pub const DEFAULT_DOMAIN: [u8; 16] = [0u8; 16];
-
 /// Trait impl'd by concrete types that represent digital cryptographic material
 /// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
 ///

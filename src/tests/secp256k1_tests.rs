@@ -253,6 +253,37 @@ fn verify_invalid_signature() {
     assert!(kp.public().verify(&digest.0, &signature).is_err());
 }
 
+#[test]
+fn fail_to_verify_if_upper_s() {
+    // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
+    let msg =
+        hex::decode("d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6").unwrap();
+    let pk = Secp256k1PublicKey::from_bytes(
+        &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
+    )
+    .unwrap();
+    let mut sig = rust_secp256k1::ecdsa::Signature::from_compact(&hex::decode("638a54215d80a6713c8d523a6adc4e6e73652d859103a36b700851cb0e61b66b8ebfc1a610c57d732ec6e0a8f06a9a7a28df5051ece514702ff9cdff0b11f454").unwrap()).unwrap();
+
+    // Append 0 to the end of the signature to make it a recoverable signature.
+    let mut sig_bytes = [0u8; 65];
+    sig_bytes[..64].copy_from_slice(&sig.serialize_compact());
+    sig_bytes[64] = 0;
+    let rec_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
+
+    // Failed to verify with upper S.
+    assert!(pk.verify(&msg, &rec_sig).is_err());
+
+    // Nomralize S to be less than N/2.
+    sig.normalize_s();
+    let mut sig_bytes1 = [0u8; 65];
+    sig_bytes1[..64].copy_from_slice(&sig.serialize_compact());
+    sig_bytes1[64] = 0;
+    let normalized_rec_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes1).unwrap();
+
+    // Verify with normalized lower S.
+    assert!(pk.verify_hashed(&msg, &normalized_rec_sig).is_ok());
+}
+
 #[tokio::test]
 async fn signature_service() {
     // Get a keypair.
