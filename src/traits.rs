@@ -208,8 +208,8 @@ pub trait EncryptionKey:
 ///
 pub trait Cipher {
     /// Encrypt `plaintext` and write result to `buffer`
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer`
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
 }

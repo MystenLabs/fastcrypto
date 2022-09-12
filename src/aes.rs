@@ -3,7 +3,8 @@
 
 use crate::traits::{Cipher, EncryptionKey, ToFromBytes};
 
-use aes::cipher::{block_padding::Pkcs7, AsyncStreamCipher, BlockDecryptMut, BlockEncryptMut};
+use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut};
+use aes_gcm::{KeyInit, AeadInPlace};
 use ctr::cipher::StreamCipher;
 use digest::crypto_common::KeyIvInit;
 use serde::{Deserialize, Serialize};
@@ -59,13 +60,13 @@ pub struct Aes128Ctr {
 }
 
 impl Cipher for Aes128Ctr {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let mut cipher = ctr::Ctr128BE::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher.apply_keystream_b2b(plaintext, buffer).unwrap();
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let mut cipher = ctr::Ctr128BE::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher.apply_keystream_b2b(ciphertext, buffer).unwrap();
         Ok(())
@@ -81,13 +82,13 @@ pub struct Aes256Ctr {
 }
 
 impl Cipher for Aes256Ctr {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let mut cipher = ctr::Ctr128BE::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher.apply_keystream_b2b(plaintext, buffer).unwrap();
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let mut cipher = ctr::Ctr128BE::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher.apply_keystream_b2b(ciphertext, buffer).unwrap();
         Ok(())
@@ -103,7 +104,7 @@ pub struct Aes128CbcPkcs7 {
 }
 
 impl Cipher for Aes128CbcPkcs7 {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
             .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
@@ -111,7 +112,7 @@ impl Cipher for Aes128CbcPkcs7 {
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Decryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
             .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
@@ -129,7 +130,7 @@ pub struct Aes256CbcPkcs7 {
 }
 
 impl Cipher for Aes256CbcPkcs7 {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
             .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
@@ -137,7 +138,7 @@ impl Cipher for Aes256CbcPkcs7 {
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Decryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
             .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
@@ -147,97 +148,55 @@ impl Cipher for Aes256CbcPkcs7 {
 }
 
 ///
-/// Aes128 in CFB mode
+/// Aes128 in GCM mode (AEAD)
 ///
-pub struct Aes128Cfb {
-    pub iv: [u8; 16],
+pub struct Aes128Gcm<'a> {
+    pub iv: [u8; 12],
     pub key: Key<16>,
+    pub aad: &'a [u8]
 }
 
-impl Cipher for Aes128Cfb {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Encryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.encrypt_b2b(plaintext, buffer).unwrap();
+impl <'a> Cipher for Aes128Gcm<'a> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
+        let cipher = aes_gcm::Aes128Gcm::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher.encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Decryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.decrypt_b2b(ciphertext, buffer).unwrap();
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
+        let cipher = aes_gcm::Aes128Gcm::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher.decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 }
 
 ///
-/// Aes256 in CFB mode
+/// Aes128 in GCM mode (AEAD)
 ///
-pub struct Aes256Cfb {
-    pub iv: [u8; 16],
+pub struct Aes256Gcm<'a> {
+    pub iv: [u8; 12],
     pub key: Key<32>,
+    pub aad: &'a [u8]
 }
 
-impl Cipher for Aes256Cfb {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Encryptor::<aes::Aes256>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.encrypt_b2b(plaintext, buffer).unwrap();
+impl <'a> Cipher for Aes256Gcm<'a> {
+    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
+        let cipher = aes_gcm::Aes256Gcm::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher.encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Decryptor::<aes::Aes256>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.decrypt_b2b(ciphertext, buffer).unwrap();
-        Ok(())
-    }
-}
-
-///
-/// Aes128 in CFB-8 mode
-///
-pub struct Aes128Cfb8 {
-    pub iv: [u8; 16],
-    pub key: Key<16>,
-}
-
-impl Cipher for Aes128Cfb8 {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb8::Encryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.encrypt_b2b(plaintext, buffer).unwrap();
-        Ok(())
-    }
-
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb8::Decryptor::<aes::Aes128>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.decrypt_b2b(ciphertext, buffer).unwrap();
-        Ok(())
-    }
-}
-
-///
-/// Aes256 in CFB-8 mode
-///
-pub struct Aes256Cfb8 {
-    pub iv: [u8; 16],
-    pub key: Key<32>,
-}
-
-impl Cipher for Aes256Cfb8 {
-    fn encrypt_b2b(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Encryptor::<aes::Aes256>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.encrypt_b2b(plaintext, buffer).unwrap();
-        Ok(())
-    }
-
-    fn decrypt_b2b(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher =
-            cfb_mode::Decryptor::<aes::Aes256>::new(self.key.as_bytes().into(), &self.iv.into());
-        cipher.decrypt_b2b(ciphertext, buffer).unwrap();
+    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        let cipher = aes_gcm::Aes256Gcm::new_from_slice(self.key.as_bytes()).unwrap();
+        let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
+        cipher.decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 }
