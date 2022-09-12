@@ -4,9 +4,12 @@
 use crate::traits::{Cipher, EncryptionKey, ToFromBytes};
 
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut};
-use aes_gcm::{KeyInit, AeadInPlace};
+use aes_gcm::{AeadInPlace, KeyInit};
 use ctr::cipher::StreamCipher;
-use digest::crypto_common::KeyIvInit;
+use digest::{
+    crypto_common::KeyIvInit,
+    generic_array::{ArrayLength, GenericArray},
+};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -42,8 +45,6 @@ impl<const N: usize> ToFromBytes for Key<N> {
 }
 
 impl<const N: usize> EncryptionKey for Key<N> {
-    const LENGTH: usize = N;
-
     fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
         let mut bytes = [0u8; N];
         rng.fill_bytes(&mut bytes);
@@ -103,7 +104,7 @@ pub struct Aes128CbcPkcs7 {
     pub key: Key<16>,
 }
 
-impl Cipher for Aes128CbcPkcs7 {
+impl<'a> Cipher for Aes128CbcPkcs7 {
     fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
         let cipher = cbc::Encryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
         cipher
@@ -148,54 +149,78 @@ impl Cipher for Aes256CbcPkcs7 {
 }
 
 ///
-/// Aes128 in GCM mode (AEAD)
+/// Aes128 in GCM mode (Authenticated)
 ///
-pub struct Aes128Gcm<'a> {
-    pub iv: [u8; 12],
+pub struct Aes128Gcm<'a, NonceSize: ArrayLength<u8>> {
+    pub iv: &'a GenericArray<u8, NonceSize>,
     pub key: Key<16>,
-    pub aad: &'a [u8]
+    pub aad: &'a [u8],
 }
 
-impl <'a> Cipher for Aes128Gcm<'a> {
+impl<'a, NonceSize: ArrayLength<u8>> Cipher for Aes128Gcm<'a, NonceSize> {
     fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        if self.iv.is_empty() {
+            return Err(signature::Error::new());
+        }
         let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
-        let cipher = aes_gcm::Aes128Gcm::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher.encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        let cipher =
+            aes_gcm::AesGcm::<aes::Aes128, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher
+            .encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
+            .unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 
     fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        if self.iv.is_empty() {
+            return Err(signature::Error::new());
+        }
         let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
-        let cipher = aes_gcm::Aes128Gcm::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher.decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        let cipher =
+            aes_gcm::AesGcm::<aes::Aes128, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher
+            .decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
+            .unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 }
 
 ///
-/// Aes128 in GCM mode (AEAD)
+/// Aes256 in GCM mode (Authenticated)
 ///
-pub struct Aes256Gcm<'a> {
-    pub iv: [u8; 12],
+pub struct Aes256Gcm<'a, NonceSize: ArrayLength<u8>> {
+    pub iv: &'a GenericArray<u8, NonceSize>,
     pub key: Key<32>,
-    pub aad: &'a [u8]
+    pub aad: &'a [u8],
 }
 
-impl <'a> Cipher for Aes256Gcm<'a> {
+impl<'a, NonceSize: ArrayLength<u8>> Cipher for Aes256Gcm<'a, NonceSize> {
     fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
+        if self.iv.is_empty() {
+            return Err(signature::Error::new());
+        }
         let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
-        let cipher = aes_gcm::Aes256Gcm::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher.encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        let cipher =
+            aes_gcm::AesGcm::<aes::Aes256, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher
+            .encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
+            .unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 
     fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher = aes_gcm::Aes256Gcm::new_from_slice(self.key.as_bytes()).unwrap();
+        if self.iv.is_empty() {
+            return Err(signature::Error::new());
+        }
         let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
-        cipher.decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp).unwrap();
+        let cipher =
+            aes_gcm::AesGcm::<aes::Aes256, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher
+            .decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
+            .unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }

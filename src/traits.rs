@@ -199,8 +199,6 @@ pub trait AggregateAuthenticator:
 pub trait EncryptionKey:
     ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
 {
-    const LENGTH: usize;
-
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
