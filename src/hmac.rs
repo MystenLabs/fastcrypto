@@ -1,6 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::traits::{KeyPair, SigningKey, ToFromBytes};
+use crate::{
+    traits::{KeyPair, SigningKey, ToFromBytes},
+    Digest, DIGEST_LEN,
+};
 use digest::{
     block_buffer::Eager,
     consts::U256,
@@ -8,7 +11,7 @@ use digest::{
     typenum::{IsLess, Le, NonZero},
     HashMarker, OutputSizeUser,
 };
-use hkdf::hmac::Hmac;
+use hkdf::hmac::{Hmac, Mac};
 
 /// Creation of a keypair using the [RFC 5869](https://tools.ietf.org/html/rfc5869) HKDF specification.
 /// This requires choosing an HMAC function of the correct length (conservatively, the size of a private key for this curve).
@@ -78,4 +81,26 @@ where
 
     let keypair = K::from(secret_key);
     Ok(keypair)
+}
+
+////////////////
+/// HMAC
+
+pub fn hmac(key: &[u8], message: &[u8]) -> Digest {
+    let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
+    hash.update(message);
+    let output: [u8; DIGEST_LEN] = hash.finalize().into_bytes().as_slice().try_into().unwrap();
+    Digest::new(output)
+}
+
+pub fn hkdf(
+    ikm: &[u8],
+    salt: &[u8],
+    info: &[u8],
+    output: &mut [u8],
+) -> Result<(), signature::Error> {
+    let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm);
+    hk.expand(info, output)
+        .map_err(|_| signature::Error::new())?;
+    Ok(())
 }
