@@ -42,8 +42,7 @@ blst = "0.3.10"
 digest = "0.10.3"
 once_cell = "1.13.1"
 readonly = "0.2.2"
-sha2 = "0.10.5"
-hmac = "0.12.1"
+sha2 = "0.10.2"
 
 fastcrypto-derive = { path = "./fastcrypto-derive", version = "0.1.0" }
 
