@@ -1,15 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::traits::{Cipher, EncryptionKey, ToFromBytes};
+use std::marker::PhantomData;
 
-use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut};
+use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, ToFromBytes};
+
+use aes::cipher::{BlockDecryptMut, BlockEncryptMut};
 use aes_gcm::{AeadInPlace, KeyInit};
 use ctr::cipher::StreamCipher;
-use digest::{
-    crypto_common::KeyIvInit,
-    generic_array::{ArrayLength, GenericArray},
-};
+use digest::{crypto_common::KeyIvInit, generic_array::ArrayLength, typenum::U16};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -53,175 +52,216 @@ impl<const N: usize> EncryptionKey for Key<N> {
 }
 
 ///
-/// Aes128 in CTR mode
+/// Aes in CTR mode
 ///
-pub struct Aes128Ctr {
-    pub iv: [u8; 16],
-    pub key: Key<16>,
+pub struct AesCtr<const KEY_SIZE: usize, Aes> {
+    key: Key<KEY_SIZE>,
+    algorithm: PhantomData<Aes>,
 }
 
-impl Cipher for Aes128Ctr {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let mut cipher = ctr::Ctr128BE::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
+impl<const KEY_SIZE: usize, Aes> AesCtr<KEY_SIZE, Aes> {
+    pub fn new(key: Key<KEY_SIZE>) -> Self {
+        Self {
+            key,
+            algorithm: PhantomData,
+        }
+    }
+}
+
+impl<const KEY_SIZE: usize, Aes> Cipher for AesCtr<KEY_SIZE, Aes>
+where
+    Aes: aes::cipher::KeySizeUser
+        + aes::cipher::KeyInit
+        + aes::cipher::BlockCipher
+        + aes::cipher::BlockSizeUser<BlockSize = U16>
+        + aes::cipher::BlockEncrypt
+        + aes::cipher::BlockDecrypt,
+{
+    fn encrypt(
+        &self,
+        iv: &[u8],
+        plaintext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.into());
         cipher.apply_keystream_b2b(plaintext, buffer).unwrap();
         Ok(())
     }
 
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let mut cipher = ctr::Ctr128BE::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
+    fn decrypt(
+        &self,
+        iv: &[u8],
+        ciphertext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.into());
         cipher.apply_keystream_b2b(ciphertext, buffer).unwrap();
         Ok(())
     }
 }
 
+pub type Aes128Ctr = AesCtr<16, aes::Aes128>;
+
+pub type Aes256Ctr = AesCtr<32, aes::Aes256>;
+
 ///
-/// Aes256 in CTR mode
+/// Aes in CBC mode
 ///
-pub struct Aes256Ctr {
-    pub iv: [u8; 16],
-    pub key: Key<32>,
+pub struct AesCbc<const KEY_SIZE: usize, Aes, Padding> {
+    key: Key<KEY_SIZE>,
+    algorithm: PhantomData<Aes>,
+    padding: PhantomData<Padding>,
 }
 
-impl Cipher for Aes256Ctr {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let mut cipher = ctr::Ctr128BE::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
-        cipher.apply_keystream_b2b(plaintext, buffer).unwrap();
-        Ok(())
+impl<const KEY_SIZE: usize, Aes, Padding> AesCbc<KEY_SIZE, Aes, Padding> {
+    pub fn new(key: Key<KEY_SIZE>) -> Self {
+        Self {
+            key,
+            algorithm: PhantomData,
+            padding: PhantomData,
+        }
     }
-
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let mut cipher = ctr::Ctr128BE::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
-        cipher.apply_keystream_b2b(ciphertext, buffer).unwrap();
-        Ok(())
-    }
 }
 
-///
-/// Aes128 in CBC mode with PKCS#7 padding
-///
-pub struct Aes128CbcPkcs7 {
-    pub iv: [u8; 16],
-    pub key: Key<16>,
-}
-
-impl Cipher for Aes128CbcPkcs7 {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher = cbc::Encryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
+impl<const KEY_SIZE: usize, Aes, Padding> Cipher for AesCbc<KEY_SIZE, Aes, Padding>
+where
+    Aes: aes::cipher::KeySizeUser
+        + aes::cipher::KeyInit
+        + aes::cipher::BlockCipher
+        + aes::cipher::BlockSizeUser<BlockSize = U16>
+        + aes::cipher::BlockEncrypt
+        + aes::cipher::BlockDecrypt,
+    Padding: aes::cipher::block_padding::Padding<U16>,
+{
+    fn encrypt(
+        &self,
+        iv: &[u8],
+        plaintext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        let cipher = cbc::Encryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.into());
         cipher
-            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
+            .encrypt_padded_b2b_mut::<Padding>(plaintext, buffer)
             .unwrap();
         Ok(())
     }
 
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher = cbc::Decryptor::<aes::Aes128>::new(&self.key.bytes.into(), &self.iv.into());
+    fn decrypt(
+        &self,
+        iv: &[u8],
+        ciphertext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        let cipher = cbc::Decryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.into());
         cipher
-            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
-            .unwrap();
-        Ok(())
-    }
-}
-
-///
-/// Aes256 in CBC mode using PKCS#7 padding
-///
-pub struct Aes256CbcPkcs7 {
-    pub iv: [u8; 16],
-    pub key: Key<32>,
-}
-
-impl Cipher for Aes256CbcPkcs7 {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher = cbc::Encryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
-        cipher
-            .encrypt_padded_b2b_mut::<Pkcs7>(plaintext, buffer)
-            .unwrap();
-        Ok(())
-    }
-
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        let cipher = cbc::Decryptor::<aes::Aes256>::new(&self.key.bytes.into(), &self.iv.into());
-        cipher
-            .decrypt_padded_b2b_mut::<Pkcs7>(ciphertext, buffer)
+            .decrypt_padded_b2b_mut::<Padding>(ciphertext, buffer)
             .unwrap();
         Ok(())
     }
 }
 
-///
-/// Aes128 in GCM mode (Authenticated)
-///
-pub struct Aes128Gcm<'a, NonceSize: ArrayLength<u8>> {
-    pub iv: &'a GenericArray<u8, NonceSize>,
-    pub key: Key<16>,
-    pub aad: &'a [u8],
+pub type Aes128CbcPkcs7 = AesCbc<16, aes::Aes128, aes::cipher::block_padding::Pkcs7>;
+
+pub type Aes256CbcPkcs7 = AesCbc<32, aes::Aes256, aes::cipher::block_padding::Pkcs7>;
+
+pub type Aes128CbcIso10126 = AesCbc<16, aes::Aes128, aes::cipher::block_padding::Iso10126>;
+
+pub type Aes256CbcIso10126 = AesCbc<32, aes::Aes256, aes::cipher::block_padding::Iso10126>;
+
+pub type Aes128CbcAnsiX923 = AesCbc<16, aes::Aes128, aes::cipher::block_padding::AnsiX923>;
+
+pub type Aes256CbcAnsiX923 = AesCbc<32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
+
+pub struct AesGcm<const KEY_SIZE: usize, Aes, NonceSize> {
+    key: Key<KEY_SIZE>,
+    algorithm: PhantomData<Aes>,
+    nonce_size: PhantomData<NonceSize>,
 }
 
-impl<'a, NonceSize: ArrayLength<u8>> Cipher for Aes128Gcm<'a, NonceSize> {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        if self.iv.is_empty() {
+impl<const KEY_SIZE: usize, Aes, NonceSize> AesGcm<KEY_SIZE, Aes, NonceSize> {
+    pub fn new(key: Key<KEY_SIZE>) -> Self {
+        Self {
+            key,
+            algorithm: PhantomData,
+            nonce_size: PhantomData,
+        }
+    }
+}
+
+impl<const KEY_SIZE: usize, Aes, NonceSize> AuthenticatedCipher for AesGcm<KEY_SIZE, Aes, NonceSize>
+where
+    Aes: aes::cipher::KeySizeUser
+        + aes::cipher::KeyInit
+        + aes::cipher::BlockCipher
+        + aes::cipher::BlockSizeUser<BlockSize = U16>
+        + aes::cipher::BlockEncrypt,
+    NonceSize: ArrayLength<u8>,
+{
+    fn encrypt_authenticated(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        if iv.is_empty() {
             return Err(signature::Error::new());
         }
         let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
         let cipher =
-            aes_gcm::AesGcm::<aes::Aes128, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher
-            .encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
-            .unwrap();
+            aes_gcm::AesGcm::<Aes, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher.encrypt_in_place(iv.into(), aad, &mut tmp).unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        if self.iv.is_empty() {
+    fn decrypt_authenticated(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        if iv.is_empty() {
             return Err(signature::Error::new());
         }
         let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
         let cipher =
-            aes_gcm::AesGcm::<aes::Aes128, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher
-            .decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
-            .unwrap();
+            aes_gcm::AesGcm::<Aes, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
+        cipher.decrypt_in_place(iv.into(), aad, &mut tmp).unwrap();
         buffer[..tmp.len()].copy_from_slice(&tmp);
         Ok(())
     }
 }
 
-///
-/// Aes256 in GCM mode (Authenticated)
-///
-pub struct Aes256Gcm<'a, NonceSize: ArrayLength<u8>> {
-    pub iv: &'a GenericArray<u8, NonceSize>,
-    pub key: Key<32>,
-    pub aad: &'a [u8],
-}
-
-impl<'a, NonceSize: ArrayLength<u8>> Cipher for Aes256Gcm<'a, NonceSize> {
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        if self.iv.is_empty() {
-            return Err(signature::Error::new());
-        }
-        let mut tmp: Vec<u8> = Vec::<u8>::from(plaintext);
-        let cipher =
-            aes_gcm::AesGcm::<aes::Aes256, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher
-            .encrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
-            .unwrap();
-        buffer[..tmp.len()].copy_from_slice(&tmp);
-        Ok(())
+impl<const KEY_SIZE: usize, Aes, NonceSize> Cipher for AesGcm<KEY_SIZE, Aes, NonceSize>
+where
+    Aes: aes::cipher::KeySizeUser
+        + aes::cipher::KeyInit
+        + aes::cipher::BlockCipher
+        + aes::cipher::BlockSizeUser<BlockSize = U16>
+        + aes::cipher::BlockEncrypt,
+    NonceSize: ArrayLength<u8>,
+{
+    fn encrypt(
+        &self,
+        iv: &[u8],
+        plaintext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        self.encrypt_authenticated(iv, b"", plaintext, buffer)
     }
 
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), signature::Error> {
-        if self.iv.is_empty() {
-            return Err(signature::Error::new());
-        }
-        let mut tmp: Vec<u8> = Vec::<u8>::from(ciphertext);
-        let cipher =
-            aes_gcm::AesGcm::<aes::Aes256, NonceSize>::new_from_slice(self.key.as_bytes()).unwrap();
-        cipher
-            .decrypt_in_place(self.iv.as_slice().into(), self.aad, &mut tmp)
-            .unwrap();
-        buffer[..tmp.len()].copy_from_slice(&tmp);
-        Ok(())
+    fn decrypt(
+        &self,
+        iv: &[u8],
+        ciphertext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), signature::Error> {
+        self.decrypt_authenticated(iv, b"", ciphertext, buffer)
     }
 }
+
+pub type Aes128Gcm<NonceSize> = AesGcm<16, aes::Aes128, NonceSize>;
+
+pub type Aes256Gcm<NonceSize> = AesGcm<32, aes::Aes256, NonceSize>;

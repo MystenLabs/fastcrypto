@@ -200,12 +200,33 @@ pub trait EncryptionKey:
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
-/// Trait impl'd by symmetric ciphers. This should also keep anything needed to encrypt and decrypt including keys and IVs
+/// Trait impl'd by symmetric ciphers.
 ///
 pub trait Cipher {
-    /// Encrypt `plaintext` and write result to `buffer`
-    fn encrypt(&self, plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    /// Encrypt `plaintext` and write result to `buffer` using the given IV
+    fn encrypt(&self, iv: &[u8], plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
 
-    /// Decrypt `ciphertext` and write result to `buffer`
-    fn decrypt(&self, ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    /// Decrypt `ciphertext` and write result to `buffer` using the given IV
+    fn decrypt(&self, iv: &[u8], ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+}
+
+/// Trait impl'd by symmetric ciphers for authenticated encryption.
+pub trait AuthenticatedCipher {
+    /// Encrypt `plaintext` and write result to `buffer` using the given IV and authentication data
+    fn encrypt_authenticated(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        plaintext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), Error>;
+
+    /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
+    fn decrypt_authenticated(
+        &self,
+        iv: &[u8],
+        aad: &[u8],
+        ciphertext: &[u8],
+        buffer: &mut [u8],
+    ) -> Result<(), Error>;
 }
