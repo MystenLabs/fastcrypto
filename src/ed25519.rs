@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use base64ct::{Base64, Encoding};
-use diem_crypto_derive::{SilentDebug, SilentDisplay};
+use crypto_derive::{SilentDebug, SilentDisplay};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use once_cell::sync::OnceCell;

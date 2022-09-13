@@ -7,7 +7,7 @@ use crate::{
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 use base64ct::{Base64, Encoding};
-use diem_crypto_derive::{SilentDebug, SilentDisplay};
+use crypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
     constants,

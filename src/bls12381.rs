@@ -1,6 +1,5 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use diem_crypto_derive::{SilentDebug, SilentDisplay};
 use std::{
     fmt::{self, Debug, Display},
     mem::MaybeUninit,
@@ -14,6 +13,8 @@ use blst::min_sig as blst;
 use once_cell::sync::OnceCell;
 use rand::{rngs::OsRng, RngCore};
 use zeroize::Zeroize;
+
+use crypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
     pubkey_bytes::PublicKeyBytes,

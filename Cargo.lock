@@ -436,6 +436,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.43",
+ "quote 1.0.21",
+ "syn 1.0.99",
+]
+
+[[package]]
 name = "crypto-mac"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -531,17 +540,6 @@ name = "derivative"
 version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2 1.0.43",
- "quote 1.0.21",
- "syn 1.0.99",
-]
-
-[[package]]
-name = "diem-crypto-derive"
-version = "0.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04451964c7d9fb6a9579fbe1878fe35705f07d22e8766c6993cafba567df0251"
 dependencies = [
  "proc-macro2 1.0.43",
  "quote 1.0.21",
@@ -646,8 +644,8 @@ dependencies = [
  "blst",
  "bulletproofs",
  "criterion",
+ "crypto-derive",
  "curve25519-dalek-ng",
- "diem-crypto-derive",
  "digest 0.10.3",
  "ed25519-consensus",
  "eyre",
