@@ -161,5 +161,31 @@ fn test_regression_of_hkdf() {
 
 #[test]
 fn test_sanity_hkdf() {
-    // TODO
+    // Short salt should be padded with zeros.
+    let mut okm1 = [1u8; 100];
+    hkdf(&[], &[], &[], &mut okm1).unwrap();
+    let mut okm2 = [1u8; 100];
+    hkdf(&[], &[0], &[], &mut okm2).unwrap();
+    let mut okm3 = [1u8; 100];
+    hkdf(&[], &[0; 10], &[], &mut okm3).unwrap();
+    assert_eq!(okm1, okm2);
+    assert_eq!(okm1, okm3);
+
+    // All inputs are being used.
+    let mut okm1 = [1u8; 100];
+    hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 9], &mut okm1).unwrap();
+    let mut okm2 = [1u8; 100];
+    hkdf(&[1, 2, 0], &[4, 5, 6], &[7, 8, 9], &mut okm2).unwrap();
+    let mut okm3 = [1u8; 100];
+    hkdf(&[1, 2, 3], &[4, 5, 0], &[7, 8, 9], &mut okm3).unwrap();
+    let mut okm4 = [1u8; 100];
+    hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 0], &mut okm4).unwrap();
+    assert_ne!(okm1, okm2);
+    assert_ne!(okm1, okm3);
+    assert_ne!(okm1, okm4);
+
+    // Edge cases
+    hkdf(&[], &[], &[], &mut okm1).unwrap();
+    let okm: &mut [u8] = &mut [];
+    hkdf(&[], &[], &[], okm).unwrap();
 }

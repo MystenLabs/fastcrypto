@@ -83,8 +83,8 @@ where
     Ok(keypair)
 }
 
-////////////////
-/// HMAC
+////////////////////////////////////////////////////////////////////////
+/// HMAC-SHA256 based functions
 
 pub fn hmac(key: &[u8], message: &[u8]) -> Digest {
     let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
