@@ -21,7 +21,7 @@ use hkdf::hmac::{Hmac, Mac};
 /// ```rust
 /// use sha3::Sha3_256;
 /// use fastcrypto::ed25519::Ed25519KeyPair;
-/// use fastcrypto::hkdf::hkdf_generate_from_ikm;
+/// use fastcrypto::hmac::hkdf_generate_from_ikm;
 /// # fn main() {
 ///     let ikm = b"some_ikm";
 ///     let info = b"my_app";
@@ -38,7 +38,7 @@ use hkdf::hmac::{Hmac, Mac};
 /// use sha3::Sha3_256;
 /// use fastcrypto::bls12381::BLS12381KeyPair;
 /// use fastcrypto::traits::{KeyPair, SigningKey, ToFromBytes};
-/// use fastcrypto::hkdf::hkdf_generate_from_ikm;
+/// use fastcrypto::hmac::hkdf_generate_from_ikm;
 ///
 /// # fn main() {
 ///     let ikm = b"02345678001234567890123456789012";
