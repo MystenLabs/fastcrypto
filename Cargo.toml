@@ -20,7 +20,7 @@ rust_secp256k1 = { version = "0.24.0", package = "secp256k1", features = ["recov
 serde = { version = "1.0.143", features = ["derive"] }
 serde_bytes = "0.11.7"
 serde_with = "2.0.1"
-signature = { version = "1.6.0", features = ["rand-preview"] }
+signature = { version = "1.6.1", features = ["rand-preview"] }
 tokio = { version = "1.21.1", features = ["sync", "rt", "macros"] }
 zeroize = "1.5.7"
 bulletproofs = "4.0.0"
