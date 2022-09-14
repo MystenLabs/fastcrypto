@@ -99,6 +99,8 @@ where
 
 pub type Aes128Ctr = AesCtr<16, aes::Aes128>;
 
+pub type Aes192Ctr = AesCtr<24, aes::Aes192>;
+
 pub type Aes256Ctr = AesCtr<32, aes::Aes256>;
 
 ///

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
     aes::{
-        Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
+        Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
         AesKey,
     },
     traits::{AuthenticatedCipher, Cipher, EncryptionKey, ToFromBytes},
@@ -15,6 +15,11 @@ use wycheproof::aead::Test;
 #[test]
 fn test_aes128ctr_encrypt_and_decrypt() {
     test_cipher::<16, 16, _, _>(Aes128Ctr::new);
+}
+
+#[test]
+fn test_aes192ctr_encrypt_and_decrypt() {
+    test_cipher::<24, 16, _, _>(Aes192Ctr::new);
 }
 
 #[test]
