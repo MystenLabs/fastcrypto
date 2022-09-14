@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use crate::{
-    aes::{Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm, Key},
+    aes::{
+        Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
+        AesKey,
+    },
     traits::{AuthenticatedCipher, Cipher, EncryptionKey, ToFromBytes},
 };
 use digest::consts::*;
@@ -21,76 +24,63 @@ fn test_aes256ctr_encrypt_and_decrypt() {
 
 #[test]
 fn test_aes128cbc_encrypt_and_decrypt() {
-    test_cipher_padded::<16, 16, _, _>(Aes128CbcPkcs7::new, &|s| ((s / 16) + 1) * 16);
+    test_cipher::<16, 16, _, _>(Aes128CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes256cbc_encrypt_and_decrypt() {
-    test_cipher_padded::<32, 16, _, _>(Aes256CbcPkcs7::new, &|s| ((s / 16) + 1) * 16);
+    test_cipher::<32, 16, _, _>(Aes256CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes128gcm_encrypt_and_decrypt() {
-    test_cipher_padded::<16, 12, _, _>(Aes128Gcm::<U12>::new, &|s| s + 16);
+    test_cipher::<16, 12, _, _>(Aes128Gcm::<U12>::new);
 }
 
 #[test]
 fn test_aes256gcm_encrypt_and_decrypt() {
-    test_cipher_padded::<32, 12, _, _>(Aes256Gcm::<U12>::new, &|s| s + 16);
+    test_cipher::<32, 12, _, _>(Aes256Gcm::<U12>::new);
 }
 
 fn test_cipher<
     const KEY_SIZE: usize,
     const IV_SIZE: usize,
     C: Cipher,
-    F: Fn(Key<KEY_SIZE>) -> C,
+    F: Fn(AesKey<KEY_SIZE>) -> C,
 >(
     cipher_builder: F,
-) {
-    test_cipher_padded::<KEY_SIZE, IV_SIZE, C, F>(cipher_builder, &|s| *s);
-}
-
-fn test_cipher_padded<
-    const KEY_SIZE: usize,
-    const IV_SIZE: usize,
-    C: Cipher,
-    F: Fn(Key<KEY_SIZE>) -> C,
->(
-    cipher_builder: F,
-    padding_length: &dyn Fn(&usize) -> usize,
 ) {
     const PLAINTEXT: [u8; 13] = *b"Hello, world!";
 
-    // If this cipher uses padding or adds a tag, the buffer may need to be larger than the plain text
-    let buffer_size: usize = padding_length(&PLAINTEXT.len());
-
     // Generate key
     let mut rng = StdRng::from_seed([9; 32]);
-    let key: Key<KEY_SIZE> = Key::generate(&mut rng);
+    let key: AesKey<KEY_SIZE> = AesKey::generate(&mut rng);
 
     let iv = [0x24; IV_SIZE];
 
     let cipher = cipher_builder(key);
 
     // Encrypt into buffer1
-    let mut buffer1 = vec![0u8; buffer_size];
-    cipher.encrypt(&iv, &PLAINTEXT, &mut buffer1).unwrap();
+    let ciphertext = cipher.encrypt(&iv, &PLAINTEXT).unwrap();
 
     // Decrypt into buffer2
-    let mut buffer2 = vec![0u8; buffer_size];
-    cipher.decrypt(&iv, &buffer1, &mut buffer2).unwrap();
+    let plaintext = cipher.decrypt(&iv, &ciphertext).unwrap();
 
     // Verify that the decrypted text equals the plaintext
-    assert_eq!(buffer2[..PLAINTEXT.len()], PLAINTEXT);
+    assert_eq!(plaintext[..PLAINTEXT.len()], PLAINTEXT);
 }
 
-fn single_wycheproof_test_128<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
-    let cipher = Aes128Gcm::new(Key::<16>::from_bytes(&test.key).unwrap());
+fn single_wycheproof_test_128<NonceSize: ArrayLength<u8>>(
+    test: &Test,
+) -> Result<(), signature::Error> {
+    let cipher = Aes128Gcm::new(AesKey::<16>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes128Gcm<NonceSize>>(test, cipher)
 }
 
-fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
-    let cipher = Aes256Gcm::new(Key::<32>::from_bytes(&test.key).unwrap());
+fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(
+    test: &Test,
+) -> Result<(), signature::Error> {
+    let cipher = Aes256Gcm::new(AesKey::<32>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes256Gcm<NonceSize>>(test, cipher)
 }
 
@@ -98,37 +88,24 @@ fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(test: &Test) -> bool {
 fn single_wycheproof_test<NonceSize: ArrayLength<u8>, C: AuthenticatedCipher>(
     test: &Test,
     cipher: C,
-) -> bool {
-    let mut ct_buffer = vec![0u8; test.pt.len() + 16];
-    if cipher
-        .encrypt_authenticated(&test.nonce, &test.aad, &test.pt, &mut ct_buffer)
-        .is_err()
-    {
-        return false;
-    }
+) -> Result<(), signature::Error> {
+    let ciphertext = cipher.encrypt_authenticated(&test.nonce, &test.aad, &test.pt)?;
 
     // Verify that the cipher text is
-    if test.ct != ct_buffer[..test.pt.len()] {
-        return false;
+    if test.ct != ciphertext[..test.pt.len()] {
+        return Err(signature::Error::new());
     }
 
-    if test.tag != ct_buffer[test.pt.len()..] {
-        return false;
+    if test.tag != ciphertext[test.pt.len()..] {
+        return Err(signature::Error::new());
     }
 
-    let mut pt_buffer = vec![0u8; test.pt.len()];
-    if cipher
-        .decrypt_authenticated(&test.nonce, &test.aad, &ct_buffer, &mut pt_buffer)
-        .is_err()
-    {
-        return false;
-    }
+    let plaintext = cipher.decrypt_authenticated(&test.nonce, &test.aad, &ciphertext)?;
 
-    if test.pt != pt_buffer {
-        return false;
+    if test.pt != plaintext {
+        return Err(signature::Error::new());
     }
-
-    true
+    Ok(())
 }
 
 #[test]
@@ -176,8 +153,8 @@ fn wycheproof_test() {
                 (_, _) => panic!(), // Unhandled error
             };
 
-            // Test returns true if it succeeded
-            assert_eq!(result, !test.result.must_fail());
+            // Test returns Ok if succesful and Err if it fails
+            assert_eq!(result.is_err(), test.result.must_fail());
         }
     }
 }

@@ -28,7 +28,7 @@ curve25519-dalek-ng = "4.1.1"
 merlin = "3.0.0"
 aes = "0.8.1"
 ctr = "0.9.1"
-cbc = "0.1.2"
+cbc = { version = "0.1.2", features = ["std"] }
 aes-gcm = "0.10.1"
 
 ark-ec = { version = "0.3.0", features = ["std"], optional = true }

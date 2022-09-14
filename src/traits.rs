@@ -195,7 +195,7 @@ pub trait AggregateAuthenticator:
 /// Trait impl'd by encryption keys in symmetric cryptography
 ///
 pub trait EncryptionKey:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized
 {
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
@@ -204,10 +204,10 @@ pub trait EncryptionKey:
 ///
 pub trait Cipher {
     /// Encrypt `plaintext` and write result to `buffer` using the given IV
-    fn encrypt(&self, iv: &[u8], plaintext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    fn encrypt(&self, iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV
-    fn decrypt(&self, iv: &[u8], ciphertext: &[u8], buffer: &mut [u8]) -> Result<(), Error>;
+    fn decrypt(&self, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
 /// Trait impl'd by symmetric ciphers for authenticated encryption.
@@ -218,8 +218,7 @@ pub trait AuthenticatedCipher {
         iv: &[u8],
         aad: &[u8],
         plaintext: &[u8],
-        buffer: &mut [u8],
-    ) -> Result<(), Error>;
+    ) -> Result<Vec<u8>, Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
     fn decrypt_authenticated(
@@ -227,6 +226,5 @@ pub trait AuthenticatedCipher {
         iv: &[u8],
         aad: &[u8],
         ciphertext: &[u8],
-        buffer: &mut [u8],
-    ) -> Result<(), Error>;
+    ) -> Result<Vec<u8>, Error>;
 }
