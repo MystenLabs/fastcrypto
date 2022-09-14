@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["ED25519_PRIVATE_KEY_LENGTH",""],["ED25519_PUBLIC_KEY_LENGTH",""],["ED25519_SIGNATURE_LENGTH",""]],"struct":[["Ed25519AggregateSignature",""],["Ed25519KeyPair",""],["Ed25519PrivateKey",""],["Ed25519PublicKey","Define Structs"],["Ed25519Signature",""]],"type":[["Ed25519PublicKeyBytes",""]]};
