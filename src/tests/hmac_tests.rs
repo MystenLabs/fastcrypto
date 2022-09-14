@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::FastCryptoError;
 use crate::hmac::{hkdf, hmac};
 use digest::{
     block_buffer::Eager,
@@ -179,5 +180,8 @@ fn test_sanity_hkdf() {
     // Edge cases
     let _ = hkdf(&[], &[], &[], 100).unwrap();
     let _ = hkdf(&[], &[], &[], 0).unwrap();
-    assert!(hkdf(&[], &[], &[], 255 * 1000).is_err());
+    assert_eq!(
+        hkdf(&[], &[], &[], 255 * 1000),
+        Err(FastCryptoError::InputTooLong(255 * 32))
+    );
 }

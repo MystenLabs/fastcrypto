@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::error::FastCryptoError;
 use crate::{
     traits::{KeyPair, SigningKey, ToFromBytes},
     Digest, DIGEST_LEN,
@@ -55,7 +56,7 @@ pub fn hkdf_generate_from_ikm<H, K>(
     ikm: &[u8],  // IKM (32 bytes).
     salt: &[u8], // Salt (can be empty).
     info: &[u8], // Info (can be empty).
-) -> Result<K, signature::Error>
+) -> Result<K, FastCryptoError>
 where
     // This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless.
     H: CoreProxy + OutputSizeUser,
@@ -75,9 +76,9 @@ where
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
     hk.expand(info, &mut okm)
-        .map_err(|_| signature::Error::new())?;
+        .map_err(|_| FastCryptoError::GeneralError)?;
 
-    let secret_key = K::PrivKey::from_bytes(&okm[..]).map_err(|_| signature::Error::new())?;
+    let secret_key = K::PrivKey::from_bytes(&okm[..]).unwrap();
 
     let keypair = K::from(secret_key);
     Ok(keypair)
@@ -98,13 +99,15 @@ pub fn hkdf(
     salt: &[u8],
     info: &[u8],
     output_length: usize,
-) -> Result<Vec<u8>, signature::Error> {
+) -> Result<Vec<u8>, FastCryptoError> {
     if output_length > sha2::Sha256::output_size() * 255 {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::InputTooLong(
+            sha2::Sha256::output_size() * 255,
+        ));
     }
     let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm);
     let mut output: Vec<u8> = vec![0; output_length];
     hk.expand(info, output.as_mut_slice())
-        .map_err(|_| signature::Error::new())?;
+        .map_err(|_| FastCryptoError::GeneralError)?;
     Ok(output)
 }
