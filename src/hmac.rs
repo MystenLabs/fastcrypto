@@ -97,10 +97,14 @@ pub fn hkdf(
     ikm: &[u8],
     salt: &[u8],
     info: &[u8],
-    output: &mut [u8],
-) -> Result<(), signature::Error> {
+    output_length: usize,
+) -> Result<Vec<u8>, signature::Error> {
+    if output_length > sha2::Sha256::output_size() * 255 {
+        return Err(signature::Error::new());
+    }
     let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm);
-    hk.expand(info, output)
+    let mut output: Vec<u8> = vec![0; output_length];
+    hk.expand(info, output.as_mut_slice())
         .map_err(|_| signature::Error::new())?;
-    Ok(())
+    Ok(output)
 }

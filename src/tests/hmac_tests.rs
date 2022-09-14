@@ -153,8 +153,7 @@ fn test_regression_of_hkdf() {
         let salt = hex::decode(t.salt).unwrap();
         let info = hex::decode(t.info).unwrap();
         let expected = hex::decode(t.expected_output).unwrap();
-        let mut okm = vec![0u8; expected.len()];
-        hkdf(ikm.as_ref(), salt.as_ref(), info.as_ref(), &mut okm).unwrap();
+        let okm = hkdf(ikm.as_ref(), salt.as_ref(), info.as_ref(), expected.len()).unwrap();
         assert_eq!(okm, expected);
     }
 }
@@ -162,30 +161,23 @@ fn test_regression_of_hkdf() {
 #[test]
 fn test_sanity_hkdf() {
     // Short salt should be padded with zeros.
-    let mut okm1 = [1u8; 100];
-    hkdf(&[], &[], &[], &mut okm1).unwrap();
-    let mut okm2 = [1u8; 100];
-    hkdf(&[], &[0], &[], &mut okm2).unwrap();
-    let mut okm3 = [1u8; 100];
-    hkdf(&[], &[0; 10], &[], &mut okm3).unwrap();
-    assert_eq!(okm1, okm2);
-    assert_eq!(okm1, okm3);
+    assert_eq!(
+        hkdf(&[], &[], &[], 100).unwrap(),
+        hkdf(&[], &[0], &[], 100).unwrap()
+    );
+    assert_eq!(
+        hkdf(&[], &[], &[], 100).unwrap(),
+        hkdf(&[], &[0; 10], &[], 100).unwrap()
+    );
 
     // All inputs are being used.
-    let mut okm1 = [1u8; 100];
-    hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 9], &mut okm1).unwrap();
-    let mut okm2 = [1u8; 100];
-    hkdf(&[1, 2, 0], &[4, 5, 6], &[7, 8, 9], &mut okm2).unwrap();
-    let mut okm3 = [1u8; 100];
-    hkdf(&[1, 2, 3], &[4, 5, 0], &[7, 8, 9], &mut okm3).unwrap();
-    let mut okm4 = [1u8; 100];
-    hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 0], &mut okm4).unwrap();
-    assert_ne!(okm1, okm2);
-    assert_ne!(okm1, okm3);
-    assert_ne!(okm1, okm4);
+    let okm = hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 9], 100).unwrap();
+    assert_ne!(okm, hkdf(&[1, 2, 0], &[4, 5, 6], &[7, 8, 9], 100).unwrap());
+    assert_ne!(okm, hkdf(&[1, 2, 3], &[4, 5, 0], &[7, 8, 9], 100).unwrap());
+    assert_ne!(okm, hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 0], 100).unwrap());
 
     // Edge cases
-    hkdf(&[], &[], &[], &mut okm1).unwrap();
-    let okm: &mut [u8] = &mut [];
-    hkdf(&[], &[], &[], okm).unwrap();
+    let _ = hkdf(&[], &[], &[], 100).unwrap();
+    let _ = hkdf(&[], &[], &[], 0).unwrap();
+    assert!(hkdf(&[], &[], &[], 255 * 1000).is_err());
 }
