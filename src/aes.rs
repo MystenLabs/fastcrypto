@@ -233,7 +233,7 @@ impl<const KEY_SIZE: usize, Aes, NonceSize> AesGcm<KEY_SIZE, Aes, NonceSize> {
     }
 }
 
-impl<'a, const KEY_SIZE: usize, Aes, NonceSize> AuthenticatedCipher
+impl<const KEY_SIZE: usize, Aes, NonceSize> AuthenticatedCipher
     for AesGcm<KEY_SIZE, Aes, NonceSize>
 where
     Aes: aes::cipher::KeySizeUser
