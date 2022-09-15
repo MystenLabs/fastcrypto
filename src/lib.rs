@@ -62,8 +62,8 @@ pub mod secp256k1;
 pub mod bulletproofs;
 
 // Other tooling
-
-mod error;
+pub mod error;
+pub mod private_seed;
 pub mod pubkey_bytes;
 pub mod serde_helpers;
 
