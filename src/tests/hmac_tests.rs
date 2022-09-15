@@ -160,7 +160,7 @@ fn test_regression_of_hkdf() {
         let info = hex::decode(t.info).unwrap();
         let expected = hex::decode(t.expected_output).unwrap();
         let okm = hkdf(
-            &HkdfIkm::from_bytes(&ikm.as_ref()).unwrap(),
+            &HkdfIkm::from_bytes(ikm.as_ref()).unwrap(),
             salt.as_ref(),
             info.as_ref(),
             expected.len(),
