@@ -69,7 +69,7 @@ fn test_aes256gcm_encrypt_and_decrypt() {
 fn test_cipher<
     KeySize: ArrayLength<u8> + Debug,
     IvSize: ArrayLength<u8> + Debug,
-    C: Cipher<NonceType = InitializationVector<IvSize>>,
+    C: Cipher<IVType = InitializationVector<IvSize>>,
     F: Fn(AesKey<KeySize>) -> C,
 >(
     cipher_builder: F,
@@ -110,7 +110,7 @@ fn single_wycheproof_test_256<NonceSize: ArrayLength<u8> + Debug>(
 /// Verify a single wycheproof test with the given cipher
 fn single_wycheproof_test<
     NonceSize: ArrayLength<u8> + Debug,
-    C: AuthenticatedCipher<NonceType = InitializationVector<NonceSize>>,
+    C: AuthenticatedCipher<IVType = InitializationVector<NonceSize>>,
 >(
     test: &Test,
     cipher: C,

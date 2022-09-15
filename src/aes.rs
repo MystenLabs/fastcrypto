@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 use typenum::{U16, U24, U32};
 
+/// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "N: ArrayLength<u8>")]
 pub struct GenericByteArray<N: ArrayLength<u8>> {
@@ -83,9 +84,9 @@ where
         + aes::cipher::BlockEncrypt
         + aes::cipher::BlockDecrypt,
 {
-    type NonceType = InitializationVector<U16>;
+    type IVType = InitializationVector<U16>;
 
-    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         let mut buffer: Vec<u8> = vec![0; plaintext.len()];
         let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
@@ -96,7 +97,7 @@ where
 
     fn decrypt(
         &self,
-        iv: &Self::NonceType,
+        iv: &Self::IVType,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
@@ -108,10 +109,13 @@ where
     }
 }
 
+/// AES128 in CTR-mode.
 pub type Aes128Ctr = AesCtr<U16, aes::Aes128>;
 
+/// AES192 in CTR-mode.
 pub type Aes192Ctr = AesCtr<U24, aes::Aes192>;
 
+/// AES256 in CTR-mode.
 pub type Aes256Ctr = AesCtr<U32, aes::Aes256>;
 
 ///
@@ -143,16 +147,16 @@ where
         + aes::cipher::BlockDecrypt,
     Padding: aes::cipher::block_padding::Padding<U16>,
 {
-    type NonceType = InitializationVector<U16>;
+    type IVType = InitializationVector<U16>;
 
-    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         let cipher = cbc::Encryptor::<Aes>::new(&self.key.bytes, &iv.bytes);
         Ok(cipher.encrypt_padded_vec_mut::<Padding>(plaintext))
     }
 
     fn decrypt(
         &self,
-        iv: &Self::NonceType,
+        iv: &Self::IVType,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
         let cipher = cbc::Decryptor::<Aes>::new(&self.key.bytes, &iv.bytes);
@@ -162,16 +166,22 @@ where
     }
 }
 
+/// AES128 in CBC-mode using PKCS #7 padding.
 pub type Aes128CbcPkcs7 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Pkcs7>;
 
+/// AES256 in CBC-mode using PKCS #7 padding.
 pub type Aes256CbcPkcs7 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Pkcs7>;
 
+/// AES128 in CBC-mode using ISO 10126 padding.
 pub type Aes128CbcIso10126 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Iso10126>;
 
+/// AES256 in CBC-mode using ISO 10126 padding.
 pub type Aes256CbcIso10126 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Iso10126>;
 
+/// AES128 in CBC-mode using ANSI X9.23 padding.
 pub type Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::AnsiX923>;
 
+/// AES256 in CBC-mode using ANSI X9.23 padding.
 pub type Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
 pub struct AesGcm<KeySize: ArrayLength<u8>, Aes, NonceSize> {
@@ -200,11 +210,11 @@ where
         + aes::cipher::BlockEncrypt,
     NonceSize: ArrayLength<u8> + Debug,
 {
-    type NonceType = InitializationVector<NonceSize>;
+    type IVType = InitializationVector<NonceSize>;
 
     fn encrypt_authenticated(
         &self,
-        iv: &Self::NonceType,
+        iv: &Self::IVType,
         aad: &[u8],
         plaintext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
@@ -221,7 +231,7 @@ where
 
     fn decrypt_authenticated(
         &self,
-        iv: &Self::NonceType,
+        iv: &Self::IVType,
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
@@ -246,21 +256,23 @@ where
         + aes::cipher::BlockEncrypt,
     NonceSize: ArrayLength<u8> + Debug,
 {
-    type NonceType = InitializationVector<NonceSize>;
+    type IVType = InitializationVector<NonceSize>;
 
-    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         self.encrypt_authenticated(iv, b"", plaintext)
     }
 
     fn decrypt(
         &self,
-        iv: &Self::NonceType,
+        iv: &Self::IVType,
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
         self.decrypt_authenticated(iv, b"", ciphertext)
     }
 }
 
+/// AES128 in GCM-mode (authenticated) using the given nonce size.
 pub type Aes128Gcm<NonceSize> = AesGcm<U16, aes::Aes128, NonceSize>;
 
+/// AES256 in GCM-mode (authenticated) using the given nonce size.
 pub type Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>;
