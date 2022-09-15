@@ -200,22 +200,34 @@ pub trait EncryptionKey:
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
+/// Trait impl'd by nonces and IV's used in symmetric cryptography
+///
+pub trait Nonce:
+    ToFromBytes + 'static + Send + Sync + Sized
+{
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+}
+
 /// Trait impl'd by symmetric ciphers.
 ///
 pub trait Cipher {
+    type NonceType: Nonce;
+
     /// Encrypt `plaintext` and write result to `buffer` using the given IV
-    fn encrypt(&self, iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, Error>;
+    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, Error>;
 
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV
-    fn decrypt(&self, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, iv: &Self::NonceType, ciphertext: &[u8]) -> Result<Vec<u8>, Error>;
 }
 
 /// Trait impl'd by symmetric ciphers for authenticated encryption.
 pub trait AuthenticatedCipher {
+    type NonceType: Nonce;
+
     /// Encrypt `plaintext` and write result to `buffer` using the given IV and authentication data
     fn encrypt_authenticated(
         &self,
-        iv: &[u8],
+        iv: &Self::NonceType,
         aad: &[u8],
         plaintext: &[u8],
     ) -> Result<Vec<u8>, Error>;
@@ -223,7 +235,7 @@ pub trait AuthenticatedCipher {
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
     fn decrypt_authenticated(
         &self,
-        iv: &[u8],
+        iv: &Self::NonceType,
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, Error>;

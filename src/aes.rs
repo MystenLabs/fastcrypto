@@ -5,11 +5,13 @@ use std::marker::PhantomData;
 
 use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, ToFromBytes};
 
+use crate::traits::Nonce;
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut};
 use aes_gcm::{AeadInPlace, KeyInit};
 use core::fmt::Debug;
 use ctr::cipher::StreamCipher;
 use digest::{crypto_common::KeyIvInit, generic_array::ArrayLength, typenum::U16};
+use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -53,6 +55,47 @@ impl<const N: usize> EncryptionKey for AesKey<N> {
 }
 
 ///
+/// Initialization vector consisting of `N` bytes.
+///
+#[derive(Clone, Debug)]
+pub struct InitializationVector<N: ArrayLength<u8>> {
+    // We need to use GenericArray and ArrayLength because it is used by the underlying crates for nonces
+    bytes: GenericArray<u8, N>,
+}
+
+impl<N: ArrayLength<u8>> AsRef<[u8]> for InitializationVector<N> {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes.as_ref()
+    }
+}
+
+impl<N> ToFromBytes for InitializationVector<N>
+where
+    N: ArrayLength<u8> + Debug,
+{
+    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+        Ok(InitializationVector {
+            bytes: GenericArray::from_slice(bytes).to_owned(),
+        })
+    }
+
+    fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+}
+
+impl<N> Nonce for InitializationVector<N>
+where
+    N: ArrayLength<u8> + Debug,
+{
+    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+        let mut bytes = GenericArray::<u8, N>::default();
+        rng.fill_bytes(&mut bytes);
+        InitializationVector { bytes }
+    }
+}
+
+///
 /// Aes in CTR mode
 ///
 pub struct AesCtr<const KEY_SIZE: usize, Aes> {
@@ -78,18 +121,26 @@ where
         + aes::cipher::BlockEncrypt
         + aes::cipher::BlockDecrypt,
 {
-    fn encrypt(&self, iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    type NonceType = InitializationVector<U16>;
+
+    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         let mut buffer: Vec<u8> = vec![0; plaintext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.into());
+        let mut cipher =
+            ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.as_bytes().into());
         cipher
             .apply_keystream_b2b(plaintext, &mut buffer)
             .map_err(|_| signature::Error::new())?;
         Ok(buffer)
     }
 
-    fn decrypt(&self, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(
+        &self,
+        iv: &Self::NonceType,
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, signature::Error> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.into());
+        let mut cipher =
+            ctr::Ctr128BE::<Aes>::new(self.key.as_bytes().into(), iv.as_bytes().into());
         cipher
             .apply_keystream_b2b(ciphertext, &mut buffer)
             .map_err(|_| signature::Error::new())?;
@@ -132,13 +183,21 @@ where
         + aes::cipher::BlockDecrypt,
     Padding: aes::cipher::block_padding::Padding<U16>,
 {
-    fn encrypt(&self, iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
-        let cipher = cbc::Encryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.into());
+    type NonceType = InitializationVector<U16>;
+
+    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+        let cipher =
+            cbc::Encryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.as_bytes().into());
         Ok(cipher.encrypt_padded_vec_mut::<Padding>(plaintext))
     }
 
-    fn decrypt(&self, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
-        let cipher = cbc::Decryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.into());
+    fn decrypt(
+        &self,
+        iv: &Self::NonceType,
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, signature::Error> {
+        let cipher =
+            cbc::Decryptor::<Aes>::new(self.key.bytes.as_slice().into(), iv.as_bytes().into());
         cipher
             .decrypt_padded_vec_mut::<Padding>(ciphertext)
             .map_err(|_| signature::Error::new())
@@ -173,47 +232,50 @@ impl<const KEY_SIZE: usize, Aes, NonceSize> AesGcm<KEY_SIZE, Aes, NonceSize> {
     }
 }
 
-impl<const KEY_SIZE: usize, Aes, NonceSize> AuthenticatedCipher for AesGcm<KEY_SIZE, Aes, NonceSize>
+impl<'a, const KEY_SIZE: usize, Aes, NonceSize> AuthenticatedCipher
+    for AesGcm<KEY_SIZE, Aes, NonceSize>
 where
     Aes: aes::cipher::KeySizeUser
         + aes::cipher::KeyInit
         + aes::cipher::BlockCipher
         + aes::cipher::BlockSizeUser<BlockSize = U16>
         + aes::cipher::BlockEncrypt,
-    NonceSize: ArrayLength<u8>,
+    NonceSize: ArrayLength<u8> + Debug,
 {
+    type NonceType = InitializationVector<NonceSize>;
+
     fn encrypt_authenticated(
         &self,
-        iv: &[u8],
+        iv: &Self::NonceType,
         aad: &[u8],
         plaintext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
-        if iv.is_empty() {
+        if iv.as_bytes().is_empty() {
             return Err(signature::Error::new());
         }
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new_from_slice(self.key.as_bytes())
             .map_err(|_| signature::Error::new())?;
         let mut buffer: Vec<u8> = plaintext.to_vec();
         cipher
-            .encrypt_in_place(iv.into(), aad, &mut buffer)
+            .encrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
             .map_err(|_| signature::Error::new())?;
         Ok(buffer)
     }
 
     fn decrypt_authenticated(
         &self,
-        iv: &[u8],
+        iv: &Self::NonceType,
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, signature::Error> {
-        if iv.is_empty() {
+        if iv.as_bytes().is_empty() {
             return Err(signature::Error::new());
         }
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new_from_slice(self.key.as_bytes())
             .map_err(|_| signature::Error::new())?;
         let mut buffer: Vec<u8> = ciphertext.to_vec();
         cipher
-            .decrypt_in_place(iv.into(), aad, &mut buffer)
+            .decrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
             .map_err(|_| signature::Error::new())?;
         Ok(buffer)
     }
@@ -226,13 +288,19 @@ where
         + aes::cipher::BlockCipher
         + aes::cipher::BlockSizeUser<BlockSize = U16>
         + aes::cipher::BlockEncrypt,
-    NonceSize: ArrayLength<u8>,
+    NonceSize: ArrayLength<u8> + Debug,
 {
-    fn encrypt(&self, iv: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    type NonceType = InitializationVector<NonceSize>;
+
+    fn encrypt(&self, iv: &Self::NonceType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         self.encrypt_authenticated(iv, b"", plaintext)
     }
 
-    fn decrypt(&self, iv: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(
+        &self,
+        iv: &Self::NonceType,
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, signature::Error> {
         self.decrypt_authenticated(iv, b"", ciphertext)
     }
 }

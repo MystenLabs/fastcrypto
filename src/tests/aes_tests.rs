@@ -3,10 +3,11 @@
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
-        AesKey,
+        AesKey, InitializationVector,
     },
-    traits::{AuthenticatedCipher, Cipher, EncryptionKey, ToFromBytes},
+    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Nonce, ToFromBytes},
 };
+use core::fmt::Debug;
 use digest::consts::*;
 use digest::generic_array::ArrayLength;
 use rand::{rngs::StdRng, SeedableRng};
@@ -14,43 +15,43 @@ use wycheproof::aead::Test;
 
 #[test]
 fn test_aes128ctr_encrypt_and_decrypt() {
-    test_cipher::<16, 16, _, _>(Aes128Ctr::new);
+    test_cipher::<16, U16, _, _>(Aes128Ctr::new);
 }
 
 #[test]
 fn test_aes192ctr_encrypt_and_decrypt() {
-    test_cipher::<24, 16, _, _>(Aes192Ctr::new);
+    test_cipher::<24, U16, _, _>(Aes192Ctr::new);
 }
 
 #[test]
 fn test_aes256ctr_encrypt_and_decrypt() {
-    test_cipher::<32, 16, _, _>(Aes256Ctr::new);
+    test_cipher::<32, U16, _, _>(Aes256Ctr::new);
 }
 
 #[test]
 fn test_aes128cbc_encrypt_and_decrypt() {
-    test_cipher::<16, 16, _, _>(Aes128CbcPkcs7::new);
+    test_cipher::<16, U16, _, _>(Aes128CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes256cbc_encrypt_and_decrypt() {
-    test_cipher::<32, 16, _, _>(Aes256CbcPkcs7::new);
+    test_cipher::<32, U16, _, _>(Aes256CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes128gcm_encrypt_and_decrypt() {
-    test_cipher::<16, 12, _, _>(Aes128Gcm::<U12>::new);
+    test_cipher::<16, U12, _, _>(Aes128Gcm::<U12>::new);
 }
 
 #[test]
 fn test_aes256gcm_encrypt_and_decrypt() {
-    test_cipher::<32, 12, _, _>(Aes256Gcm::<U12>::new);
+    test_cipher::<32, U12, _, _>(Aes256Gcm::<U12>::new);
 }
 
 fn test_cipher<
     const KEY_SIZE: usize,
-    const IV_SIZE: usize,
-    C: Cipher,
+    IvSize: ArrayLength<u8> + Debug,
+    C: Cipher<NonceType = InitializationVector<IvSize>>,
     F: Fn(AesKey<KEY_SIZE>) -> C,
 >(
     cipher_builder: F,
@@ -61,7 +62,7 @@ fn test_cipher<
     let mut rng = StdRng::from_seed([9; 32]);
     let key: AesKey<KEY_SIZE> = AesKey::generate(&mut rng);
 
-    let iv = [0x24; IV_SIZE];
+    let iv = InitializationVector::generate(&mut rng);
 
     let cipher = cipher_builder(key);
 
@@ -75,14 +76,14 @@ fn test_cipher<
     assert_eq!(plaintext[..PLAINTEXT.len()], PLAINTEXT);
 }
 
-fn single_wycheproof_test_128<NonceSize: ArrayLength<u8>>(
+fn single_wycheproof_test_128<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
 ) -> Result<(), signature::Error> {
     let cipher = Aes128Gcm::new(AesKey::<16>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes128Gcm<NonceSize>>(test, cipher)
 }
 
-fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(
+fn single_wycheproof_test_256<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
 ) -> Result<(), signature::Error> {
     let cipher = Aes256Gcm::new(AesKey::<32>::from_bytes(&test.key).unwrap());
@@ -90,11 +91,16 @@ fn single_wycheproof_test_256<NonceSize: ArrayLength<u8>>(
 }
 
 /// Verify a single wycheproof test with the given cipher
-fn single_wycheproof_test<NonceSize: ArrayLength<u8>, C: AuthenticatedCipher>(
+fn single_wycheproof_test<
+    NonceSize: ArrayLength<u8> + Debug,
+    C: AuthenticatedCipher<NonceType = InitializationVector<NonceSize>>,
+>(
     test: &Test,
     cipher: C,
 ) -> Result<(), signature::Error> {
-    let ciphertext = cipher.encrypt_authenticated(&test.nonce, &test.aad, &test.pt)?;
+    let iv = InitializationVector::from_bytes(test.nonce.as_slice()).unwrap();
+
+    let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt)?;
 
     // Verify that the cipher text is
     if test.ct != ciphertext[..test.pt.len()] {
@@ -105,7 +111,7 @@ fn single_wycheproof_test<NonceSize: ArrayLength<u8>, C: AuthenticatedCipher>(
         return Err(signature::Error::new());
     }
 
-    let plaintext = cipher.decrypt_authenticated(&test.nonce, &test.aad, &ciphertext)?;
+    let plaintext = cipher.decrypt_authenticated(&iv, &test.aad, &ciphertext)?;
 
     if test.pt != plaintext {
         return Err(signature::Error::new());

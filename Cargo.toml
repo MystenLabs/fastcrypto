@@ -30,6 +30,7 @@ aes = "0.8.1"
 ctr = "0.9.1"
 cbc = { version = "0.1.2", features = ["std"] }
 aes-gcm = "0.10.1"
+generic-array = "0.14.6"
 
 ark-ec = { version = "0.3.0", features = ["std"], optional = true }
 ark-ff = { version = "0.3.0", features = ["std"], optional = true }

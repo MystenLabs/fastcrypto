@@ -716,6 +716,7 @@ dependencies = [
  "digest 0.10.3",
  "ed25519-consensus",
  "eyre",
+ "generic-array",
  "hex",
  "hex-literal",
  "hkdf",
