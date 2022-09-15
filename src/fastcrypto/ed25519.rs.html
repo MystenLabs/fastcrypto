@@ -572,9 +572,11 @@
 <span id="572">572</span>
 <span id="573">573</span>
 <span id="574">574</span>
+<span id="575">575</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
+<span class="kw">use </span>crypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
 <span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -587,7 +589,7 @@
 <span class="kw">use </span>serde_with::serde_as;
 <span class="kw">use </span>signature::{rand_core::OsRng, Signature, Signer, Verifier};
 <span class="kw">use </span>std::{
-    fmt::{<span class="self">self</span>, Display},
+    fmt::{<span class="self">self</span>, Debug, Display},
     str::FromStr,
 };
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
@@ -617,7 +619,7 @@
 
 <span class="kw">pub type </span>Ed25519PublicKeyBytes = PublicKeyBytes&lt;Ed25519PublicKey, { Ed25519PublicKey::LENGTH }&gt;;
 
-<span class="attribute">#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+<span class="attribute">#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 </span><span class="kw">pub struct </span>Ed25519PrivateKey(<span class="kw">pub </span>ed25519_consensus::SigningKey);
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
@@ -1147,4 +1149,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (17cbdfd07 2022-09-13)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (750bd1a7f 2022-09-14)" ></div></body></html>

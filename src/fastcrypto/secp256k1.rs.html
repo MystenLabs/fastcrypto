@@ -478,14 +478,18 @@
 <span id="478">478</span>
 <span id="479">479</span>
 <span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
 </span><span class="kw">use crate</span>::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 <span class="kw">use </span>base64ct::{Base64, Encoding};
+<span class="kw">use </span>crypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::{Lazy, OnceCell};
 <span class="kw">use </span>rust_secp256k1::{
     constants,
@@ -514,7 +518,7 @@
     PublicKeyBytes&lt;Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }&gt;;
 
 <span class="attribute">#[readonly::make]
-#[derive(Debug)]
+#[derive(SilentDebug, SilentDisplay)]
 </span><span class="kw">pub struct </span>Secp256k1PrivateKey {
     <span class="kw">pub </span>privkey: SecretKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; constants::SECRET_KEY_SIZE]&gt;,
@@ -959,4 +963,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (17cbdfd07 2022-09-13)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (750bd1a7f 2022-09-14)" ></div></body></html>

@@ -654,11 +654,11 @@
 <span id="654">654</span>
 <span id="655">655</span>
 <span id="656">656</span>
+<span id="657">657</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
 </span><span class="kw">use </span>std::{
-    fmt::{<span class="self">self</span>, Display},
+    fmt::{<span class="self">self</span>, Debug, Display},
     mem::MaybeUninit,
     str::FromStr,
 };
@@ -670,6 +670,8 @@
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>rand::{rngs::OsRng, RngCore};
 <span class="kw">use </span>zeroize::Zeroize;
+
+<span class="kw">use </span>crypto_derive::{SilentDebug, SilentDisplay};
 
 <span class="kw">use crate</span>::{
     pubkey_bytes::PublicKeyBytes,
@@ -708,7 +710,7 @@
 <span class="kw">pub type </span>BLS12381PublicKeyBytes = PublicKeyBytes&lt;BLS12381PublicKey, { BLS12381PublicKey::LENGTH }&gt;;
 
 <span class="attribute">#[readonly::make]
-#[derive(Default, Debug)]
+#[derive(SilentDebug, SilentDisplay, Default)]
 </span><span class="kw">pub struct </span>BLS12381PrivateKey {
     <span class="kw">pub </span>privkey: blst::SecretKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; BLS_PRIVATE_KEY_LENGTH]&gt;,
@@ -1311,4 +1313,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (17cbdfd07 2022-09-13)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (750bd1a7f 2022-09-14)" ></div></body></html>
