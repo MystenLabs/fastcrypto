@@ -95,11 +95,7 @@ where
         Ok(buffer)
     }
 
-    fn decrypt(
-        &self,
-        iv: &Self::IVType,
-        ciphertext: &[u8],
-    ) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
         let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
@@ -154,11 +150,7 @@ where
         Ok(cipher.encrypt_padded_vec_mut::<Padding>(plaintext))
     }
 
-    fn decrypt(
-        &self,
-        iv: &Self::IVType,
-        ciphertext: &[u8],
-    ) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         let cipher = cbc::Decryptor::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
             .decrypt_padded_vec_mut::<Padding>(ciphertext)
@@ -262,11 +254,7 @@ where
         self.encrypt_authenticated(iv, b"", plaintext)
     }
 
-    fn decrypt(
-        &self,
-        iv: &Self::IVType,
-        ciphertext: &[u8],
-    ) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
         self.decrypt_authenticated(iv, b"", ciphertext)
     }
 }

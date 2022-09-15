@@ -225,7 +225,7 @@ pub trait Cipher {
 }
 
 /// Trait impl'd by symmetric ciphers for authenticated encryption.
-/// 
+///
 pub trait AuthenticatedCipher {
     type IVType: Nonce;
 
