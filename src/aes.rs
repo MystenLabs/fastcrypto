@@ -49,11 +49,11 @@ where
     }
 }
 
-/// A key of `N` bytes. Used with AES ciphers.
+/// A key of `N` bytes used with AES ciphers.
 pub type AesKey<N> = GenericByteArray<N>;
 impl<N> EncryptionKey for AesKey<N> where N: ArrayLength<u8> + Debug {}
 
-/// A `N` byte nonce.
+/// An `N` byte initialization vector used with AES ciphers.
 pub type InitializationVector<N> = GenericByteArray<N>;
 impl<N> Nonce for InitializationVector<N> where N: ArrayLength<u8> + Debug {}
 
