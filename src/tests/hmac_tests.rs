@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError;
-use crate::hmac::{hkdf, hmac};
+use crate::hmac::{hkdf, hmac, HkdfIkm, HmacKey};
+use crate::traits::{FromUniformBytes, ToFromBytes};
 use digest::{
     block_buffer::Eager,
     consts::U256,
@@ -12,6 +13,7 @@ use digest::{
     HashMarker, OutputSizeUser,
 };
 use hkdf::hmac::Hmac;
+use rand::{rngs::StdRng, SeedableRng};
 use sha3::{Keccak256, Sha3_256};
 
 fn hkdf_wrapper<H>(salt: Option<&[u8]>) -> Vec<u8>
@@ -95,9 +97,9 @@ fn test_regression_of_hmac() {
     let test6 = HmacTestVector{key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e", expected_output: "9b09ffa71b942fcb27635fbcd5b0e944bfdc63644f0713938a7f51535c3a35e2"};
 
     for t in [test1, test2, test3, test4, test5, test6] {
-        let k = hex::decode(t.key).unwrap();
+        let k = HmacKey::from_bytes(hex::decode(t.key).unwrap().as_ref()).unwrap();
         let m = hex::decode(t.message).unwrap();
-        let d = hmac(k.as_ref(), m.as_ref());
+        let d = hmac(&k, m.as_ref());
         let expected = hex::decode(t.expected_output).unwrap();
         assert_eq!(d.to_vec(), expected);
     }
@@ -107,21 +109,24 @@ fn test_regression_of_hmac() {
 fn test_sanity_hmac_key() {
     // Empty/short keys are be padded.
     let message = [1u8; 30];
-    let r = hmac(&[], &message);
-    assert_eq!(r, hmac(&[0; 32], &message));
-    assert_eq!(r, hmac(&[0], &message));
-    assert_ne!(r, hmac(&[0; 100], &message)); // Large keys are hashed.
+    let r = hmac(&HmacKey::from_bytes(&[]).unwrap(), &message);
+    assert_eq!(r, hmac(&HmacKey::from_bytes(&[0; 32]).unwrap(), &message));
+    assert_eq!(r, hmac(&HmacKey::from_bytes(&[0]).unwrap(), &message));
+    assert_ne!(r, hmac(&HmacKey::from_bytes(&[0; 100]).unwrap(), &message)); // Large keys are hashed.
 }
 
 #[test]
 fn test_sanity_hmac_message() {
     // Message is not padded, thus any change is significant.
     let key = [11u8; 30];
-    assert_ne!(hmac(&key, &[0]), hmac(&key, &[]));
+    assert_ne!(
+        hmac(&HmacKey::from_bytes(&key).unwrap(), &[0]),
+        hmac(&HmacKey::from_bytes(&key).unwrap(), &[])
+    );
     // Also with an empty key.
-    let _ = hmac(&[], &[]);
+    let _ = hmac(&HmacKey::from_bytes(&[]).unwrap(), &[]);
     // And with a long message.
-    let _ = hmac(&[0], &[11u8; 1000000]);
+    let _ = hmac(&HmacKey::from_bytes(&[0]).unwrap(), &[11u8; 1000000]);
 }
 
 #[test]
@@ -154,7 +159,13 @@ fn test_regression_of_hkdf() {
         let salt = hex::decode(t.salt).unwrap();
         let info = hex::decode(t.info).unwrap();
         let expected = hex::decode(t.expected_output).unwrap();
-        let okm = hkdf(ikm.as_ref(), salt.as_ref(), info.as_ref(), expected.len()).unwrap();
+        let okm = hkdf(
+            &HkdfIkm::from_bytes(&ikm.as_ref()).unwrap(),
+            salt.as_ref(),
+            info.as_ref(),
+            expected.len(),
+        )
+        .unwrap();
         assert_eq!(okm, expected);
     }
 }
@@ -163,25 +174,67 @@ fn test_regression_of_hkdf() {
 fn test_sanity_hkdf() {
     // Short salt should be padded with zeros.
     assert_eq!(
-        hkdf(&[], &[], &[], 100).unwrap(),
-        hkdf(&[], &[0], &[], 100).unwrap()
+        hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[], &[], 100).unwrap(),
+        hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[0], &[], 100).unwrap()
     );
     assert_eq!(
-        hkdf(&[], &[], &[], 100).unwrap(),
-        hkdf(&[], &[0; 10], &[], 100).unwrap()
+        hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[], &[], 100).unwrap(),
+        hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[0; 10], &[], 100).unwrap()
     );
 
     // All inputs are being used.
-    let okm = hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 9], 100).unwrap();
-    assert_ne!(okm, hkdf(&[1, 2, 0], &[4, 5, 6], &[7, 8, 9], 100).unwrap());
-    assert_ne!(okm, hkdf(&[1, 2, 3], &[4, 5, 0], &[7, 8, 9], 100).unwrap());
-    assert_ne!(okm, hkdf(&[1, 2, 3], &[4, 5, 6], &[7, 8, 0], 100).unwrap());
+    let okm = hkdf(
+        &HkdfIkm::from_bytes(&[1, 2, 3]).unwrap(),
+        &[4, 5, 6],
+        &[7, 8, 9],
+        100,
+    )
+    .unwrap();
+    assert_ne!(
+        okm,
+        hkdf(
+            &HkdfIkm::from_bytes(&[1, 2, 0]).unwrap(),
+            &[4, 5, 6],
+            &[7, 8, 9],
+            100
+        )
+        .unwrap()
+    );
+    assert_ne!(
+        okm,
+        hkdf(
+            &HkdfIkm::from_bytes(&[1, 2, 3]).unwrap(),
+            &[4, 5, 0],
+            &[7, 8, 9],
+            100
+        )
+        .unwrap()
+    );
+    assert_ne!(
+        okm,
+        hkdf(
+            &HkdfIkm::from_bytes(&[1, 2, 3]).unwrap(),
+            &[4, 5, 6],
+            &[7, 8, 0],
+            100
+        )
+        .unwrap()
+    );
 
     // Edge cases
-    let _ = hkdf(&[], &[], &[], 100).unwrap();
-    let _ = hkdf(&[], &[], &[], 0).unwrap();
+    let _ = hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[], &[], 100).unwrap();
+    let _ = hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[], &[], 0).unwrap();
     assert_eq!(
-        hkdf(&[], &[], &[], 255 * 1000),
+        hkdf(&HkdfIkm::from_bytes(&[]).unwrap(), &[], &[], 255 * 1000),
         Err(FastCryptoError::InputTooLong(255 * 32))
     );
+}
+
+#[test]
+fn test_sanity_seed_generation() {
+    let mut rng = StdRng::from_seed([11; 32]);
+    let hmac_key = HmacKey::generate(&mut rng);
+    let hkdf_key = HkdfIkm::generate(&mut rng);
+    assert_eq!(hmac_key.as_ref().len(), 32);
+    assert_eq!(hkdf_key.as_ref().len(), 16);
 }

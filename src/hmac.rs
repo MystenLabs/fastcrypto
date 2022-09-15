@@ -12,6 +12,8 @@ use digest::{
     typenum::{IsLess, Le, NonZero},
     HashMarker, OutputSizeUser,
 };
+
+use crate::private_seed::PrivateSeed;
 use hkdf::hmac::{Hmac, Mac};
 
 /// Creation of a keypair using the [RFC 5869](https://tools.ietf.org/html/rfc5869) HKDF specification.
@@ -87,15 +89,21 @@ where
 ////////////////////////////////////////////////////////////////////////
 /// HMAC-SHA256 based functions
 
-pub fn hmac(key: &[u8], message: &[u8]) -> Digest {
-    let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key).unwrap();
+const HMAC_KEY_RECOMMENDED_LENGTH: usize = 32;
+const HKDF_KEY_RECOMMENDED_LENGTH: usize = 16;
+
+pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
+pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
+
+pub fn hmac(key: &HmacKey, message: &[u8]) -> Digest {
+    let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     let output: [u8; DIGEST_LEN] = hash.finalize().into_bytes().as_slice().try_into().unwrap();
     Digest::new(output)
 }
 
 pub fn hkdf(
-    ikm: &[u8],
+    ikm: &HkdfIkm,
     salt: &[u8],
     info: &[u8],
     output_length: usize,
@@ -105,7 +113,7 @@ pub fn hkdf(
             sha2::Sha256::output_size() * 255,
         ));
     }
-    let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm);
+    let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm.as_bytes());
     let mut output: Vec<u8> = vec![0; output_length];
     hk.expand(info, output.as_mut_slice())
         .map_err(|_| FastCryptoError::GeneralError)?;
