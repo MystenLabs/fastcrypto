@@ -110,6 +110,7 @@ fn import_export_secret_key() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
 fn test_copy_key_pair() {
     let kp = keys().pop().unwrap();
     let kp_copied = kp.copy();
@@ -343,6 +344,7 @@ use wycheproof::TestResult;
 
 proptest::proptest! {
     #[test]
+    #[cfg(feature = "copy_key")]
     fn test_k256_against_secp256k1_lib_with_recovery(
         r in <[u8; 32]>::arbitrary()
 ) {
@@ -447,4 +449,17 @@ fn map_result(t: TestResult) -> TestResult {
         TestResult::Valid => TestResult::Valid,
         _ => TestResult::Invalid, // Treat Acceptable as Invalid
     }
+}
+
+#[test]
+fn dont_display_secrets() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|keypair| {
+        let sk = keypair.private();
+        assert_eq!(format!("{}", sk), "<elided secret for Secp256k1PrivateKey>");
+        assert_eq!(
+            format!("{:?}", sk),
+            "<elided secret for Secp256k1PrivateKey>"
+        );
+    });
 }

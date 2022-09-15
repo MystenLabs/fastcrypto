@@ -1,11 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
 use crate::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 use base64ct::{Base64, Encoding};
+use crypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
     constants,
@@ -34,7 +36,7 @@ pub type Secp256k1PublicKeyBytes =
     PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 #[readonly::make]
-#[derive(Debug)]
+#[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
     pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,

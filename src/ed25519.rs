@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use base64ct::{Base64, Encoding};
+use crypto_derive::{SilentDebug, SilentDisplay};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
@@ -13,7 +14,7 @@ use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
 use signature::{rand_core::OsRng, Signature, Signer, Verifier};
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     str::FromStr,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -43,7 +44,7 @@ pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
-#[derive(Debug, Zeroize, ZeroizeOnDrop)]
+#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks

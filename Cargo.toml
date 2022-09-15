@@ -4,13 +4,13 @@ version = "0.1.2"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
-publish = true
+publish = ["crates-io"]
 description = "Common cryptographic library used at Mysten Labs"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 ark-bls12-377 = { version = "0.3.0", features = ["std"], optional = true }
-base64ct = { version = "1.5.1", features = ["alloc"] }
+base64ct = { version = "1.5.2", features = ["alloc"] }
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 eyre = "0.6.8"
 hex = "0.4.3"
@@ -19,9 +19,9 @@ rand = { version = "0.8.5", features = ["std"] }
 rust_secp256k1 = { version = "0.24.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde = { version = "1.0.143", features = ["derive"] }
 serde_bytes = "0.11.7"
-serde_with = "2.0.0"
-signature = { version = "1.6.0", features = ["rand-preview"] }
-tokio = { version = "1.20.1", features = ["sync", "rt", "macros"] }
+serde_with = "2.0.1"
+signature = { version = "1.6.1", features = ["rand-preview"] }
+tokio = { version = "1.21.1", features = ["sync", "rt", "macros"] }
 zeroize = "1.5.7"
 bulletproofs = "4.0.0"
 curve25519-dalek-ng = "4.1.1"
@@ -43,6 +43,8 @@ digest = "0.10.3"
 once_cell = "1.13.1"
 readonly = "0.2.2"
 
+crypto-derive = { path = "./crypto-derive", version = "0.1.0" }
+
 [[bench]]
 name = "crypto"
 harness = false
@@ -58,7 +60,7 @@ hex-literal = "0.3.4"
 k256 = { version = "0.11.4", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.0.0"
 proptest-derive = "0.3.0"
-serde_json = "1.0.83"
+serde_json = "1.0.85"
 sha3 = "0.10.2"
 serde-reflection = "0.3.6"
 wycheproof = "0.4.0"
