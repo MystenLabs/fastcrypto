@@ -192,6 +192,8 @@ pub trait AggregateAuthenticator:
     ) -> Result<(), Error>;
 }
 
+/// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
+///
 pub trait Generate {
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }

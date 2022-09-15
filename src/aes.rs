@@ -1,24 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::marker::PhantomData;
-
-use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, ToFromBytes};
-
-use crate::traits::Nonce;
+use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes};
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
 use aes_gcm::AeadInPlace;
-use core::fmt::Debug;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
+use std::fmt::Debug;
+use std::marker::PhantomData;
 use typenum::{U16, U24, U32};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound = "N: ArrayLength<u8>")]
 pub struct GenericByteArray<N: ArrayLength<u8>> {
-    // This is needed to derive Serialize and Deserialize since serde does not support derive for arrays
-    // longer than 32 or of generic size. We do not really need it since N currently is either 16 or 32
-    // but it allows generifying the code.
+    // We use GenericArrays because they are used by the underlying crates.
     bytes: GenericArray<u8, N>,
 }
 

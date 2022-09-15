@@ -10,8 +10,26 @@ use crate::{
 use core::fmt::Debug;
 use generic_array::ArrayLength;
 use rand::{rngs::StdRng, SeedableRng};
-use typenum::consts::*;
+use typenum::consts::{U0, U1, U12, U128, U15, U16, U2, U20, U24, U257, U32, U4, U6, U64, U8};
 use wycheproof::aead::Test;
+
+#[test]
+fn serialize_deserialize_key() {
+    let mut rng = StdRng::from_seed([9; 32]);
+    let key = AesKey::<U16>::generate(&mut rng);
+    let bytes = bincode::serialize(&key).unwrap();
+    let key2 = bincode::deserialize::<AesKey<U16>>(&bytes).unwrap();
+    assert_eq!(key.as_bytes(), key2.as_bytes());
+}
+
+#[test]
+fn serialize_deserialize_iv() {
+    let mut rng = StdRng::from_seed([9; 32]);
+    let iv = InitializationVector::<U16>::generate(&mut rng);
+    let bytes = bincode::serialize(&iv).unwrap();
+    let iv2 = bincode::deserialize::<InitializationVector<U16>>(&bytes).unwrap();
+    assert_eq!(iv.as_bytes(), iv2.as_bytes());
+}
 
 #[test]
 fn test_aes128ctr_encrypt_and_decrypt() {
