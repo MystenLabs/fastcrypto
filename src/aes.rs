@@ -57,7 +57,8 @@ impl<const N: usize> EncryptionKey for AesKey<N> {
 ///
 /// Initialization vector consisting of `N` bytes.
 ///
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(bound = "N: ArrayLength<u8>")]
 pub struct InitializationVector<N: ArrayLength<u8>> {
     // We need to use GenericArray and ArrayLength because it is used by the underlying crates for nonces
     bytes: GenericArray<u8, N>,

@@ -203,7 +203,7 @@ pub trait EncryptionKey:
 /// Trait impl'd by nonces and IV's used in symmetric cryptography
 ///
 pub trait Nonce:
-    ToFromBytes + 'static + Send + Sync + Sized
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized
 {
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }

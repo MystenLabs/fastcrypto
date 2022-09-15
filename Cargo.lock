@@ -736,6 +736,7 @@ dependencies = [
  "sha3 0.10.2",
  "signature",
  "tokio",
+ "typenum",
  "wycheproof",
  "zeroize",
 ]
@@ -771,6 +772,7 @@ version = "0.14.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bff49e947297f3312447abdca79f45f4738097cc82b06e72054d2223f601f1b9"
 dependencies = [
+ "serde",
  "typenum",
  "version_check",
 ]
