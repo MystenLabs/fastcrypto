@@ -7,7 +7,6 @@
     rust_2018_idioms,
     rust_2021_compatibility
 )]
-
 use base64ct::{Base64, Encoding};
 use blake2::{
     digest::{Update, VariableOutput},

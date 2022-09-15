@@ -1,8 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{
-    fmt::{self, Display},
+    fmt::{self, Debug, Display},
     mem::MaybeUninit,
     str::FromStr,
 };
@@ -14,6 +13,8 @@ use blst::min_sig as blst;
 use once_cell::sync::OnceCell;
 use rand::{rngs::OsRng, RngCore};
 use zeroize::Zeroize;
+
+use crypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
     pubkey_bytes::PublicKeyBytes,
@@ -52,7 +53,7 @@ pub struct BLS12381PublicKey {
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 #[readonly::make]
-#[derive(Default, Debug)]
+#[derive(SilentDebug, SilentDisplay, Default)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,

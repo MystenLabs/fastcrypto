@@ -475,6 +475,7 @@ fn test_public_key_bytes_conversion() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
 fn test_copy_key_pair() {
     let kp = keys().pop().unwrap();
     let kp_copied = kp.copy();
@@ -570,4 +571,14 @@ fn wycheproof_test() {
             }
         }
     }
+}
+
+#[test]
+fn dont_display_secrets() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|keypair| {
+        let sk = keypair.private();
+        assert_eq!(format!("{}", sk), "<elided secret for Ed25519PrivateKey>");
+        assert_eq!(format!("{:?}", sk), "<elided secret for Ed25519PrivateKey>");
+    });
 }

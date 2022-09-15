@@ -436,6 +436,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2 1.0.43",
+ "quote 1.0.21",
+ "syn 1.0.99",
+]
+
+[[package]]
 name = "crypto-mac"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -635,6 +644,7 @@ dependencies = [
  "blst",
  "bulletproofs",
  "criterion",
+ "crypto-derive",
  "curve25519-dalek-ng",
  "digest 0.10.3",
  "ed25519-consensus",
