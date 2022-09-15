@@ -5,54 +5,54 @@ use crate::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
         AesKey, InitializationVector,
     },
-    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Nonce, ToFromBytes},
+    traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
 use core::fmt::Debug;
-use digest::consts::*;
-use digest::generic_array::ArrayLength;
+use generic_array::ArrayLength;
 use rand::{rngs::StdRng, SeedableRng};
+use typenum::consts::*;
 use wycheproof::aead::Test;
 
 #[test]
 fn test_aes128ctr_encrypt_and_decrypt() {
-    test_cipher::<16, U16, _, _>(Aes128Ctr::new);
+    test_cipher::<U16, U16, _, _>(Aes128Ctr::new);
 }
 
 #[test]
 fn test_aes192ctr_encrypt_and_decrypt() {
-    test_cipher::<24, U16, _, _>(Aes192Ctr::new);
+    test_cipher::<U24, U16, _, _>(Aes192Ctr::new);
 }
 
 #[test]
 fn test_aes256ctr_encrypt_and_decrypt() {
-    test_cipher::<32, U16, _, _>(Aes256Ctr::new);
+    test_cipher::<U32, U16, _, _>(Aes256Ctr::new);
 }
 
 #[test]
 fn test_aes128cbc_encrypt_and_decrypt() {
-    test_cipher::<16, U16, _, _>(Aes128CbcPkcs7::new);
+    test_cipher::<U16, U16, _, _>(Aes128CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes256cbc_encrypt_and_decrypt() {
-    test_cipher::<32, U16, _, _>(Aes256CbcPkcs7::new);
+    test_cipher::<U32, U16, _, _>(Aes256CbcPkcs7::new);
 }
 
 #[test]
 fn test_aes128gcm_encrypt_and_decrypt() {
-    test_cipher::<16, U12, _, _>(Aes128Gcm::<U12>::new);
+    test_cipher::<U16, U12, _, _>(Aes128Gcm::<U12>::new);
 }
 
 #[test]
 fn test_aes256gcm_encrypt_and_decrypt() {
-    test_cipher::<32, U12, _, _>(Aes256Gcm::<U12>::new);
+    test_cipher::<U32, U12, _, _>(Aes256Gcm::<U12>::new);
 }
 
 fn test_cipher<
-    const KEY_SIZE: usize,
+    KeySize: ArrayLength<u8> + Debug,
     IvSize: ArrayLength<u8> + Debug,
     C: Cipher<NonceType = InitializationVector<IvSize>>,
-    F: Fn(AesKey<KEY_SIZE>) -> C,
+    F: Fn(AesKey<KeySize>) -> C,
 >(
     cipher_builder: F,
 ) {
@@ -60,8 +60,7 @@ fn test_cipher<
 
     // Generate key
     let mut rng = StdRng::from_seed([9; 32]);
-    let key: AesKey<KEY_SIZE> = AesKey::generate(&mut rng);
-
+    let key = AesKey::generate(&mut rng);
     let iv = InitializationVector::generate(&mut rng);
 
     let cipher = cipher_builder(key);
@@ -79,14 +78,14 @@ fn test_cipher<
 fn single_wycheproof_test_128<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
 ) -> Result<(), signature::Error> {
-    let cipher = Aes128Gcm::new(AesKey::<16>::from_bytes(&test.key).unwrap());
+    let cipher = Aes128Gcm::new(AesKey::<U16>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes128Gcm<NonceSize>>(test, cipher)
 }
 
 fn single_wycheproof_test_256<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
 ) -> Result<(), signature::Error> {
-    let cipher = Aes256Gcm::new(AesKey::<32>::from_bytes(&test.key).unwrap());
+    let cipher = Aes256Gcm::new(AesKey::<U32>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes256Gcm<NonceSize>>(test, cipher)
 }
 

@@ -192,20 +192,22 @@ pub trait AggregateAuthenticator:
     ) -> Result<(), Error>;
 }
 
+pub trait Generate {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+}
+
 /// Trait impl'd by encryption keys in symmetric cryptography
 ///
 pub trait EncryptionKey:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
 {
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
 /// Trait impl'd by nonces and IV's used in symmetric cryptography
 ///
 pub trait Nonce:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
 {
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
 }
 
 /// Trait impl'd by symmetric ciphers.
