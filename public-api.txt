@@ -18,7 +18,6 @@ pub const fastcrypto::secp256k1::Secp256k1PrivateKey::LENGTH: usize
 pub const fastcrypto::secp256k1::Secp256k1PublicKey::LENGTH: usize
 pub const fastcrypto::secp256k1::Secp256k1Signature::LENGTH: usize
 pub const fastcrypto::traits::Authenticator::LENGTH: usize
-pub const fastcrypto::traits::DEFAULT_DOMAIN: [u8; 16]
 pub const fastcrypto::traits::SigningKey::LENGTH: usize
 pub const fastcrypto::traits::VerifyingKey::LENGTH: usize
 pub fn fastcrypto::Digest::as_ref(&self) -> &[u8]
@@ -38,6 +37,25 @@ pub fn fastcrypto::Digest::to_vec(&self) -> Vec<u8>
 pub fn fastcrypto::Hash::digest(&self) -> <Self as >::TypedDigest
 pub fn fastcrypto::SignatureService::clone(&self) -> SignatureService<Signature>
 pub fn fastcrypto::SignatureService::new<S>(signer: S) -> Self where S: signature::Signer<Signature> + Send + 'static
+pub fn fastcrypto::aes::AesCbc::decrypt(&self, iv: &<Self as >::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesCbc::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesCbc::new(key: AesKey<KeySize>) -> Self
+pub fn fastcrypto::aes::AesCtr::decrypt(&self, iv: &<Self as >::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesCtr::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesCtr::new(key: AesKey<KeySize>) -> Self
+pub fn fastcrypto::aes::AesGcm::decrypt(&self, iv: &<Self as >::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesGcm::decrypt_authenticated(&self, iv: &<Self as >::IVType, aad: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesGcm::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesGcm::encrypt_authenticated(&self, iv: &<Self as >::IVType, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, signature::Error>
+pub fn fastcrypto::aes::AesGcm::new(key: AesKey<KeySize>) -> Self
+pub fn fastcrypto::aes::GenericByteArray::as_bytes(&self) -> &[u8]
+pub fn fastcrypto::aes::GenericByteArray::as_ref(&self) -> &[u8]
+pub fn fastcrypto::aes::GenericByteArray::clone(&self) -> GenericByteArray<N>
+pub fn fastcrypto::aes::GenericByteArray::deserialize<__D>(__deserializer: __D) -> _serde::__private::Result<Self, <__D as >::Error> where __D: _serde::Deserializer<'de>
+pub fn fastcrypto::aes::GenericByteArray::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
+pub fn fastcrypto::aes::GenericByteArray::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
+pub fn fastcrypto::aes::GenericByteArray::generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> AesKey<N>
+pub fn fastcrypto::aes::GenericByteArray::serialize<__S>(&self, __serializer: __S) -> _serde::__private::Result<<__S as >::Ok, <__S as >::Error> where __S: _serde::Serializer
 pub fn fastcrypto::blake2b_256<F: Fn(&mut blake2::VarBlake2b)>(closure: F) -> [u8; 32]
 pub fn fastcrypto::bls12381::BLS12381AggregateSignature::add_aggregate(&mut self, signature: Self) -> Result<(), signature::Error>
 pub fn fastcrypto::bls12381::BLS12381AggregateSignature::add_signature(&mut self, signature: <Self as >::Sig) -> Result<(), signature::Error>
@@ -69,7 +87,8 @@ pub fn fastcrypto::bls12381::BLS12381PrivateKey::as_ref(&self) -> &[u8]
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::default() -> BLS12381PrivateKey
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error> where D: de::Deserializer<'de>
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::drop(&mut self)
-pub fn fastcrypto::bls12381::BLS12381PrivateKey::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
+pub fn fastcrypto::bls12381::BLS12381PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
+pub fn fastcrypto::bls12381::BLS12381PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::serialize<S>(&self, serializer: S) -> Result<<S as >::Ok, <S as >::Error> where S: serde::Serializer
 pub fn fastcrypto::bls12381::BLS12381PrivateKey::try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error>
@@ -147,7 +166,8 @@ pub fn fastcrypto::ed25519::Ed25519KeyPair::zeroize(&mut self)
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::as_ref(&self) -> &[u8]
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error> where D: de::Deserializer<'de>
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::drop(&mut self)
-pub fn fastcrypto::ed25519::Ed25519PrivateKey::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
+pub fn fastcrypto::ed25519::Ed25519PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
+pub fn fastcrypto::ed25519::Ed25519PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::serialize<S>(&self, serializer: S) -> Result<<S as >::Ok, <S as >::Error> where S: serde::Serializer
 pub fn fastcrypto::ed25519::Ed25519PrivateKey::zeroize(&mut self)
@@ -179,7 +199,7 @@ pub fn fastcrypto::ed25519::Ed25519Signature::from_bytes(bytes: &[u8]) -> Result
 pub fn fastcrypto::ed25519::Ed25519Signature::serialize<S>(&self, serializer: S) -> Result<<S as >::Ok, <S as >::Error> where S: serde::Serializer
 pub fn fastcrypto::generate_keypair<K: traits::KeyPair, R>(csprng: &mut R) -> K where R: CryptoRng + RngCore
 pub fn fastcrypto::generate_production_keypair<K: traits::KeyPair>() -> K
-pub fn fastcrypto::hkdf::hkdf_generate_from_ikm<'a, H: OutputSizeUser, K: KeyPair>(ikm: &[u8], salt: &[u8], info: Option<&'a [u8]>) -> Result<K, signature::Error> where H: CoreProxy + OutputSizeUser, <H as >::Core: HashMarker + UpdateCore + FixedOutputCore + BufferKindUser<BufferKind = Eager> + Default + Clone, <<H as >::Core as BlockSizeUser>::BlockSize: IsLess<U256>, Le<<<H as >::Core as BlockSizeUser>::BlockSize, U256>: NonZero
+pub fn fastcrypto::hkdf::hkdf_generate_from_ikm<H, K>(ikm: &[u8], salt: &[u8], info: &[u8]) -> Result<K, signature::Error> where H: CoreProxy + OutputSizeUser, <H as >::Core: HashMarker + UpdateCore + FixedOutputCore + BufferKindUser<BufferKind = Eager> + Default + Clone, <<H as >::Core as BlockSizeUser>::BlockSize: IsLess<U256>, Le<<<H as >::Core as BlockSizeUser>::BlockSize, U256>: NonZero, K: KeyPair
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::as_ref(&self) -> &[u8]
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::clone(&self) -> PublicKeyBytes<T, usize>
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::cmp(&self, other: &PublicKeyBytes<T, usize>) -> $crate::cmp::Ordering
@@ -210,7 +230,8 @@ pub fn fastcrypto::secp256k1::Secp256k1KeyPair::zeroize(&mut self)
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::as_ref(&self) -> &[u8]
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::deserialize<D>(deserializer: D) -> Result<Self, <D as >::Error> where D: de::Deserializer<'de>
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::drop(&mut self)
-pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
+pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
+pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::fmt(&self, f: &mut ::std::fmt::Formatter<'_>) -> ::std::fmt::Result
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::serialize<S>(&self, serializer: S) -> Result<<S as >::Ok, <S as >::Error> where S: serde::Serializer
 pub fn fastcrypto::secp256k1::Secp256k1PrivateKey::zeroize(&mut self)
@@ -252,8 +273,13 @@ pub fn fastcrypto::traits::AggregateAuthenticator::add_signature(&mut self, sign
 pub fn fastcrypto::traits::AggregateAuthenticator::aggregate(signatures: Vec<<Self as >::Sig>) -> Result<Self, Error>
 pub fn fastcrypto::traits::AggregateAuthenticator::batch_verify<'a>(sigs: &[&Self], pks: Vec<impl ExactSizeIterator<Item = &'a <Self as >::PubKey>>, messages: &[&[u8]]) -> Result<(), Error>
 pub fn fastcrypto::traits::AggregateAuthenticator::verify(&self, pks: &[<<Self as >::Sig as Authenticator>::PubKey], message: &[u8]) -> Result<(), Error>
+pub fn fastcrypto::traits::AuthenticatedCipher::decrypt_authenticated(&self, iv: &<Self as >::IVType, aad: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, Error>
+pub fn fastcrypto::traits::AuthenticatedCipher::encrypt_authenticated(&self, iv: &<Self as >::IVType, aad: &[u8], plaintext: &[u8]) -> Result<Vec<u8>, Error>
+pub fn fastcrypto::traits::Cipher::decrypt(&self, iv: &<Self as >::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, Error>
+pub fn fastcrypto::traits::Cipher::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, Error>
 pub fn fastcrypto::traits::EncodeDecodeBase64::decode_base64(value: &str) -> Result<Self, eyre::Report>
 pub fn fastcrypto::traits::EncodeDecodeBase64::encode_base64(&self) -> String
+pub fn fastcrypto::traits::Generate::generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self
 pub fn fastcrypto::traits::KeyPair::generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self
 pub fn fastcrypto::traits::KeyPair::private(self) -> <Self as >::PrivKey
 pub fn fastcrypto::traits::KeyPair::public(&self) -> &<Self as >::PubKey
@@ -261,6 +287,7 @@ pub fn fastcrypto::traits::ToFromBytes::as_bytes(&self) -> &[u8]
 pub fn fastcrypto::traits::ToFromBytes::from_bytes(bytes: &[u8]) -> Result<Self, Error>
 pub fn fastcrypto::traits::VerifyingKey::verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[<Self as >::Sig]) -> Result<(), eyre::Report>
 pub mod fastcrypto
+pub mod fastcrypto::aes
 pub mod fastcrypto::bls12381
 pub mod fastcrypto::bulletproofs
 pub mod fastcrypto::ed25519
@@ -270,8 +297,12 @@ pub mod fastcrypto::secp256k1
 pub mod fastcrypto::serde_helpers
 pub mod fastcrypto::traits
 pub static fastcrypto::secp256k1::SECP256K1: Lazy<rust_secp256k1::Secp256k1<All>>
-pub struct fastcrypto::Digest
+pub struct fastcrypto::Digest(_)
 pub struct fastcrypto::SignatureService<Signature: traits::Authenticator>
+pub struct fastcrypto::aes::AesCbc<KeySize: ArrayLength<u8>, Aes, Padding>
+pub struct fastcrypto::aes::AesCtr<KeySize: ArrayLength<u8>, Aes>
+pub struct fastcrypto::aes::AesGcm<KeySize: ArrayLength<u8>, Aes, NonceSize>
+pub struct fastcrypto::aes::GenericByteArray<N: ArrayLength<u8>>
 pub struct fastcrypto::bls12381::BLS12381AggregateSignature
 pub struct fastcrypto::bls12381::BLS12381KeyPair
 pub struct fastcrypto::bls12381::BLS12381PrivateKey
@@ -279,10 +310,10 @@ pub struct fastcrypto::bls12381::BLS12381PublicKey
 pub struct fastcrypto::bls12381::BLS12381Signature
 pub struct fastcrypto::bulletproofs::BulletproofsRangeProof
 pub struct fastcrypto::bulletproofs::PedersenCommitment
-pub struct fastcrypto::ed25519::Ed25519AggregateSignature
+pub struct fastcrypto::ed25519::Ed25519AggregateSignature(pub Vec<ed25519_consensus::Signature>)
 pub struct fastcrypto::ed25519::Ed25519KeyPair
-pub struct fastcrypto::ed25519::Ed25519PrivateKey
-pub struct fastcrypto::ed25519::Ed25519PublicKey
+pub struct fastcrypto::ed25519::Ed25519PrivateKey(pub ed25519_consensus::SigningKey)
+pub struct fastcrypto::ed25519::Ed25519PublicKey(pub ed25519_consensus::VerificationKey)
 pub struct fastcrypto::ed25519::Ed25519Signature
 pub struct fastcrypto::pubkey_bytes::PublicKeyBytes<T, const N: usize>
 pub struct fastcrypto::secp256k1::Secp256k1KeyPair
@@ -299,9 +330,6 @@ pub struct field fastcrypto::bls12381::BLS12381PublicKey::bytes: OnceCell<[u8; 9
 pub struct field fastcrypto::bls12381::BLS12381PublicKey::pubkey: blst::PublicKey
 pub struct field fastcrypto::bls12381::BLS12381Signature::bytes: OnceCell<[u8; 48]>
 pub struct field fastcrypto::bls12381::BLS12381Signature::sig: blst::Signature
-pub struct field fastcrypto::ed25519::Ed25519AggregateSignature::0: Vec<ed25519_consensus::Signature>
-pub struct field fastcrypto::ed25519::Ed25519PrivateKey::0: ed25519_consensus::SigningKey
-pub struct field fastcrypto::ed25519::Ed25519PublicKey::0: ed25519_consensus::VerificationKey
 pub struct field fastcrypto::ed25519::Ed25519Signature::bytes: OnceCell<[u8; 64]>
 pub struct field fastcrypto::ed25519::Ed25519Signature::sig: ed25519_consensus::Signature
 pub struct field fastcrypto::secp256k1::Secp256k1KeyPair::name: Secp256k1PublicKey
@@ -316,14 +344,36 @@ pub trait fastcrypto::Hash
 pub trait fastcrypto::Verifier<S> where S: Signature
 pub trait fastcrypto::_
 pub trait fastcrypto::traits::AggregateAuthenticator
+pub trait fastcrypto::traits::AuthenticatedCipher
 pub trait fastcrypto::traits::Authenticator
+pub trait fastcrypto::traits::Cipher
 pub trait fastcrypto::traits::EncodeDecodeBase64
+pub trait fastcrypto::traits::EncryptionKey
+pub trait fastcrypto::traits::Generate
 pub trait fastcrypto::traits::KeyPair
+pub trait fastcrypto::traits::Nonce
 pub trait fastcrypto::traits::Signer<S> where S: Signature
 pub trait fastcrypto::traits::SigningKey
 pub trait fastcrypto::traits::ToFromBytes
 pub trait fastcrypto::traits::VerifyingKey
 pub type fastcrypto::Hash::TypedDigestInto<Digest> + std::fmt::Display + std::hash::Hash + Eq + Ord + Copy
+pub type fastcrypto::aes::Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::AnsiX923>
+pub type fastcrypto::aes::Aes128CbcIso10126 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Iso10126>
+pub type fastcrypto::aes::Aes128CbcPkcs7 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Pkcs7>
+pub type fastcrypto::aes::Aes128Ctr = AesCtr<U16, aes::Aes128>
+pub type fastcrypto::aes::Aes128Gcm<NonceSize> = AesGcm<U16, aes::Aes128, NonceSize>
+pub type fastcrypto::aes::Aes192Ctr = AesCtr<U24, aes::Aes192>
+pub type fastcrypto::aes::Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>
+pub type fastcrypto::aes::Aes256CbcIso10126 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Iso10126>
+pub type fastcrypto::aes::Aes256CbcPkcs7 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Pkcs7>
+pub type fastcrypto::aes::Aes256Ctr = AesCtr<U32, aes::Aes256>
+pub type fastcrypto::aes::Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>
+pub type fastcrypto::aes::AesCbc::IVType = GenericByteArray<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>>
+pub type fastcrypto::aes::AesCtr::IVType = GenericByteArray<UInt<UInt<UInt<UInt<UInt<UTerm, B1>, B0>, B0>, B0>, B0>>
+pub type fastcrypto::aes::AesGcm::IVType = GenericByteArray<NonceSize>
+pub type fastcrypto::aes::AesGcm::IVType = GenericByteArray<NonceSize>
+pub type fastcrypto::aes::AesKey<N> = GenericByteArray<N>
+pub type fastcrypto::aes::InitializationVector<N> = GenericByteArray<N>
 pub type fastcrypto::bls12381::BLS12381AggregateSignature::PrivKey = BLS12381PrivateKey
 pub type fastcrypto::bls12381::BLS12381AggregateSignature::PubKey = BLS12381PublicKey
 pub type fastcrypto::bls12381::BLS12381AggregateSignature::Sig = BLS12381Signature
@@ -372,8 +422,10 @@ pub type fastcrypto::secp256k1::Secp256k1Signature::PubKey = Secp256k1PublicKey
 pub type fastcrypto::traits::AggregateAuthenticator::PrivKeySigningKey<Sig = <Self as >::Sig>
 pub type fastcrypto::traits::AggregateAuthenticator::PubKeyVerifyingKey<Sig = <Self as >::Sig>
 pub type fastcrypto::traits::AggregateAuthenticator::SigAuthenticator<PubKey = <Self as >::PubKey>
+pub type fastcrypto::traits::AuthenticatedCipher::IVTypeNonce
 pub type fastcrypto::traits::Authenticator::PrivKeySigningKey<Sig = Self>
 pub type fastcrypto::traits::Authenticator::PubKeyVerifyingKey<Sig = Self>
+pub type fastcrypto::traits::Cipher::IVTypeNonce
 pub type fastcrypto::traits::KeyPair::PrivKeySigningKey<PubKey = <Self as >::PubKey, Sig = <Self as >::Sig>
 pub type fastcrypto::traits::KeyPair::PubKeyVerifyingKey<PrivKey = <Self as >::PrivKey, Sig = <Self as >::Sig>
 pub type fastcrypto::traits::KeyPair::SigAuthenticator<PubKey = <Self as >::PubKey, PrivKey = <Self as >::PrivKey>

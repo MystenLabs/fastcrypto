@@ -1,4 +1,4 @@
-# [fastcrypto]
+# fastcrypto
 
 [![crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
@@ -29,7 +29,7 @@ This crate contains:
     - [`AggregateAuthenticator`]: Trait implemented by the aggregated signature, which allows adding signatures to the aggregated signature and verifying against the public keys with the corresponding messages.
     - [`KeyPair`]: Trait that represents a public/private keypair, which includes the common get priv/pub key functions and a keypair generation function with seeded randomness.
     - [`ToFromBytes`]: Trait that aims to minimize the number of steps involved in obtaining a serializable key.
-[`EncodeDecodeBase64`]: Trait that extends `ToFromBytes` for immediate conversion to/from Base64 strings. This is the format in which cryptographic materials are stored.
+    - [`EncodeDecodeBase64`]: Trait that extends `ToFromBytes` for immediate conversion to/from Base64 strings. This is the format in which cryptographic materials are stored.
 
 - Concrete signature schemes of type that implement the recommended traits required for cryptographic agility.
     - Ed25519: Backed by [`ed25519-consensus`](https://github.com/penumbra-zone/ed25519-consensus) crate. Compliant to [ZIP-215](https://zips.z.cash/zip-0215) that defines the signature validity that is lacking from RFC8032 but critical for consensus algorithms. [`ed25519-dalek`](https://github.com/dalek-cryptography/ed25519-dalek) is fully deprecated due to the recently discovered [Chalkias double pub-key api vulnerability](https://github.com/MystenLabs/ed25519-unsafe-libs).
