@@ -191,3 +191,57 @@ pub trait AggregateAuthenticator:
         messages: &[&[u8]],
     ) -> Result<(), Error>;
 }
+
+/// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
+///
+pub trait Generate {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+}
+
+/// Trait impl'd by encryption keys in symmetric cryptography
+///
+pub trait EncryptionKey:
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+/// Trait impl'd by nonces and IV's used in symmetric cryptography
+///
+pub trait Nonce:
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+/// Trait impl'd by symmetric ciphers.
+///
+pub trait Cipher {
+    type IVType: Nonce;
+
+    /// Encrypt `plaintext` and write result to `buffer` using the given IV
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, Error>;
+
+    /// Decrypt `ciphertext` and write result to `buffer` using the given IV
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, Error>;
+}
+
+/// Trait impl'd by symmetric ciphers for authenticated encryption.
+///
+pub trait AuthenticatedCipher {
+    type IVType: Nonce;
+
+    /// Encrypt `plaintext` and write result to `buffer` using the given IV and authentication data
+    fn encrypt_authenticated(
+        &self,
+        iv: &Self::IVType,
+        aad: &[u8],
+        plaintext: &[u8],
+    ) -> Result<Vec<u8>, Error>;
+
+    /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
+    fn decrypt_authenticated(
+        &self,
+        iv: &Self::IVType,
+        aad: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, Error>;
+}

@@ -44,6 +44,10 @@ pub mod bls12381_tests;
 pub mod bulletproofs_tests;
 
 #[cfg(test)]
+#[path = "tests/aes_tests.rs"]
+pub mod aes_tests;
+
+#[cfg(test)]
 #[path = "tests/hkdf_tests.rs"]
 pub mod hkdf_tests;
 
@@ -55,6 +59,8 @@ pub mod ed25519;
 pub mod secp256k1;
 
 pub mod bulletproofs;
+
+pub mod aes;
 
 // Other tooling
 pub mod hkdf;
