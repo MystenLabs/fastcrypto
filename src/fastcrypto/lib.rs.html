@@ -168,6 +168,12 @@
 <span id="168">168</span>
 <span id="169">169</span>
 <span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -214,6 +220,10 @@
 </span><span class="kw">pub mod </span>bulletproofs_tests;
 
 <span class="attribute">#[cfg(test)]
+#[path = <span class="string">&quot;tests/aes_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>aes_tests;
+
+<span class="attribute">#[cfg(test)]
 #[path = <span class="string">&quot;tests/hkdf_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>hkdf_tests;
 
@@ -225,6 +235,8 @@
 <span class="kw">pub mod </span>secp256k1;
 
 <span class="kw">pub mod </span>bulletproofs;
+
+<span class="kw">pub mod </span>aes;
 
 <span class="comment">// Other tooling
 </span><span class="kw">pub mod </span>hkdf;
@@ -339,4 +351,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (750bd1a7f 2022-09-14)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0-nightly (cf9ed0dd5 2022-09-15)" ></div></body></html>
