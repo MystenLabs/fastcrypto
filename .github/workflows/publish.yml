@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - ci-2
 env:
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -33,8 +34,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
-        with:
-          persist-credentials: false
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v1
         with:
