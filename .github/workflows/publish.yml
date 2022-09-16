@@ -31,18 +31,23 @@ jobs:
     name: Publish to crates.io
     continue-on-error: false
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package:
+          - fastcrypto-derive
+          - fastcrypto
     steps:
       - name: Checkout
         uses: actions/checkout@v3
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v1
         with:
-          crate-name: fastcrypto
-          version-tag-prefix: fastcrypto-v
+          crate-name: ${{ matrix.package }}
+          version-tag-prefix: ${{ matrix.package }}-v
       - id: check
         run: |
           set +e
-          ./scripts/is_version_already_uploaded.sh fastcrypto
+          ./scripts/is_version_already_uploaded.sh ${{ matrix.package }}
           export EXIT_CODE="$?"
           set -e
           if [[ "$EXIT_CODE" == "7" ]]; then
@@ -57,13 +62,18 @@ jobs:
         if: steps.check.outputs.is_new_version == 'yes'
         run: |
           set -euxo pipefail
-          export CURRENT_VERSION="$(./scripts/get_current_version.sh fastcrypto)"
-          git tag "fastcrypto-v$CURRENT_VERSION"
-          git push origin "fastcrypto-v$CURRENT_VERSION"
+          export CURRENT_VERSION="$(./scripts/get_current_version.sh ${{ matrix.package }})"
+          git tag "${{ matrix.package }}-v$CURRENT_VERSION"
+          git push origin "${{ matrix.package }}-v$CURRENT_VERSION"
       - uses: actions-rs/toolchain@v1
         if: steps.check.outputs.is_new_version == 'yes'
-      - name: Publish
-        if: steps.check.outputs.is_new_version == 'yes'
+      - name: Publish fastcrypto
+        if: steps.check.outputs.is_new_version == 'yes' && ${{ matrix.package }} == "fastcrypto"
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --dry-run
+      - name: Publish fastcrypto-derive
+        if: steps.check.outputs.is_new_version == 'yes' && ${{ matrix.package }} == "fastcrypto-derive"
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cd fastcrypto-derive && cargo publish --dry-run
