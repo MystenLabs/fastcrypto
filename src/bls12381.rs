@@ -14,7 +14,7 @@ use once_cell::sync::OnceCell;
 use rand::{rngs::OsRng, RngCore};
 use zeroize::Zeroize;
 
-use crypto_derive::{SilentDebug, SilentDisplay};
+use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
     pubkey_bytes::PublicKeyBytes,

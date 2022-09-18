@@ -1,6 +1,6 @@
 [package]
-name = "crypto-derive"
-version = "0.1.0"
+name = "fastcrypto-derive"
+version = "0.1.1"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
