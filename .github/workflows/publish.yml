@@ -3,7 +3,6 @@ on:
   push:
     branches:
       - main
-      - ci1
 env:
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
