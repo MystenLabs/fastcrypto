@@ -48,22 +48,22 @@ pub mod bulletproofs_tests;
 pub mod aes_tests;
 
 #[cfg(test)]
-#[path = "tests/hkdf_tests.rs"]
-pub mod hkdf_tests;
+#[path = "tests/hmac_tests.rs"]
+pub mod hmac_tests;
 
 // Signing traits
 pub mod traits;
 // Key scheme implementations
+pub mod aes;
 pub mod bls12381;
+pub mod bulletproofs;
 pub mod ed25519;
+pub mod hmac;
 pub mod secp256k1;
 
-pub mod bulletproofs;
-
-pub mod aes;
-
 // Other tooling
-pub mod hkdf;
+pub mod error;
+pub mod private_seed;
 pub mod pubkey_bytes;
 pub mod serde_helpers;
 
