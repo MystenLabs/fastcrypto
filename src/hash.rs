@@ -1,9 +1,12 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use base64ct::{Base64, Encoding};
+use blake2::digest::{Update, VariableOutput};
 use digest::OutputSizeUser;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
-use std::fmt;
-use typenum::U32;
+use std::{fmt, marker::PhantomData};
 
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
@@ -11,8 +14,7 @@ pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(GenericArray<u8, Dige
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
     pub fn from_bytes(val: &[u8]) -> Self {
-        let array = GenericArray::from_slice(val);
-        Digest(array.to_owned())
+        Digest(GenericArray::<u8, DigestLength>::clone_from_slice(val))
     }
 
     pub fn to_vec(&self) -> Vec<u8> {
@@ -50,24 +52,29 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable<DigestLength: ArrayLength<u8> + 'static> {
-    fn digest(&self) -> Digest<DigestLength>;
+    fn digest<H: HashFunction<DigestLength>>(&self) -> Digest<DigestLength>;
 }
 
-impl Hashable<U32> for &[u8] {
-    fn digest(&self) -> Digest<U32> {
-        Sha256::default().digest(self)
+impl<DigestLength: ArrayLength<u8> + 'static> Hashable<DigestLength> for &[u8] {
+    /// Hash this data using the given hash function.
+    fn digest<H: HashFunction<DigestLength>>(&self) -> Digest<DigestLength> {
+        H::digest(self)
     }
 }
 
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction<DigestLength: ArrayLength<u8>>: OutputSizeUser + Sized + Default {
+
+    /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
 
+    /// Retrieve result and consume hash function.
     fn finalize(self) -> Digest<DigestLength>;
 
-    fn digest(mut self, data: &[u8]) -> Digest<DigestLength> {
-        self.update(data);
-        self.finalize()
+    fn digest(data: &[u8]) -> Digest<DigestLength> {
+        let mut h = Self::default();
+        h.update(data);
+        h.finalize()
     }
 }
 
@@ -112,5 +119,31 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 pub type Keccak384 = HashFunctionWrapper<sha3::Keccak384>;
 pub type Keccak512 = HashFunctionWrapper<sha3::Keccak512>;
 
-// Blake
-pub type Blake2b512 = HashFunctionWrapper<blake2::Blake2b>;
+// BLAKE2
+pub type Blake2b = HashFunctionWrapper<blake2::Blake2b>;
+pub type Blake2s = HashFunctionWrapper<blake2::Blake2s>;
+
+#[derive(Default)]
+pub struct Blake2bVariable<DigestLength: ArrayLength<u8>> {
+    variant: blake2::VarBlake2b,
+    digest_length: PhantomData<DigestLength>,
+}
+
+impl<DigestLength: ArrayLength<u8>> OutputSizeUser for Blake2bVariable<DigestLength> {
+    type OutputSize = DigestLength;
+}
+
+impl<DigestLength: ArrayLength<u8> + Sized> HashFunction<DigestLength>
+    for Blake2bVariable<DigestLength>
+{
+    fn update(&mut self, data: &[u8]) {
+        self.variant.update(data)
+    }
+
+    fn finalize(self) -> Digest<DigestLength> {
+        let mut array = GenericArray::<u8, DigestLength>::default();
+        self.variant
+            .finalize_variable(|buffer| array.copy_from_slice(buffer));
+        Digest(array)
+    }
+}
