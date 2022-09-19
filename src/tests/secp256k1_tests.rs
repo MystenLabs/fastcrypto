@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::{
+    hash::Hashable,
     secp256k1::{
         Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1PublicKeyBytes,
         Secp256k1Signature,
@@ -137,10 +138,10 @@ fn verify_valid_signature() {
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
 
-    let signature = kp.sign(&digest.0);
+    let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
 #[test]
@@ -170,7 +171,7 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Si
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(digest.as_ref());
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -244,14 +245,14 @@ fn verify_invalid_signature() {
     let digest = message.digest();
 
     // Verify the signature against good digest passes.
-    let signature = kp.sign(&digest.0);
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    let signature = kp.sign(digest.as_ref());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = bad_message.digest();
 
-    assert!(kp.public().verify(&digest.0, &signature).is_err());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
 #[test]
@@ -297,7 +298,9 @@ async fn signature_service() {
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
-    let signature = service.request_signature(digest).await;
+    let signature = service.request_signature(digest.clone()).await;
+
+    //    digest.into()
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());

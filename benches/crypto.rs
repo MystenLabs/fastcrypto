@@ -7,7 +7,6 @@ extern crate rand;
 
 mod ed25519_benches {
     use super::*;
-    use blake2::digest::Update;
     use criterion::*;
     use fastcrypto::{
         bls12381::{BLS12381KeyPair, BLS12381Signature},
@@ -74,12 +73,10 @@ mod ed25519_benches {
                 .map(|_| BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
-            let msg: Vec<u8> = {
-                fastcrypto::blake2b_256(|hasher| {
-                    hasher.update(b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
-                })
-                .to_vec()
-            };
+            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest(
+                &b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
+            )
+            .to_vec();
 
             let ed_signatures: Vec<_> = ed_keypairs.iter().map(|key| key.sign(&msg)).collect();
             let ed_public_keys: Vec<_> =

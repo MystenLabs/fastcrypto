@@ -6,11 +6,13 @@ use crate::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
         BLS12381PublicKeyBytes, BLS12381Signature,
     },
+    hash::Hashable,
     hkdf::hkdf_generate_from_ikm,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
+use base64ct::Encoding;
 use rand::{rngs::StdRng, SeedableRng as _};
 use sha3::Sha3_256;
 use signature::{Signer, Verifier};
@@ -60,10 +62,10 @@ fn verify_valid_signature() {
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
 
-    let signature = kp.sign(&digest.0);
+    let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
 #[test]
@@ -75,13 +77,13 @@ fn verify_invalid_signature() {
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
 
-    let signature = kp.sign(&digest.0);
+    let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
     let bad_message: &[u8] = b"Bad message!";
     let digest = bad_message.digest();
 
-    assert!(kp.public().verify(&digest.0, &signature).is_err());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
@@ -92,7 +94,7 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Sign
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(digest.as_ref());
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -158,7 +160,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest1.0);
+            let sig = kp.sign(digest1.as_ref());
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -171,7 +173,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
         .into_iter()
         .take(2)
         .map(|kp| {
-            let sig = kp.sign(&digest2.0);
+            let sig = kp.sign(digest2.as_ref());
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -395,7 +397,7 @@ async fn signature_service() {
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest();
-    let signature = service.request_signature(digest).await;
+    let signature = service.request_signature(digest.clone()).await;
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
