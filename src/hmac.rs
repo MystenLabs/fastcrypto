@@ -90,7 +90,7 @@ where
 /// HMAC-SHA256 based functions
 
 const HMAC_KEY_RECOMMENDED_LENGTH: usize = 32;
-const HKDF_KEY_RECOMMENDED_LENGTH: usize = 16;
+const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 
 pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;

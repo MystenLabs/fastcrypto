@@ -236,5 +236,5 @@ fn test_sanity_seed_generation() {
     let hmac_key = HmacKey::generate(&mut rng);
     let hkdf_key = HkdfIkm::generate(&mut rng);
     assert_eq!(hmac_key.as_ref().len(), 32);
-    assert_eq!(hkdf_key.as_ref().len(), 16);
+    assert_eq!(hkdf_key.as_ref().len(), 32);
 }
