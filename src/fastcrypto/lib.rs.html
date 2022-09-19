@@ -224,22 +224,22 @@
 </span><span class="kw">pub mod </span>aes_tests;
 
 <span class="attribute">#[cfg(test)]
-#[path = <span class="string">&quot;tests/hkdf_tests.rs&quot;</span>]
-</span><span class="kw">pub mod </span>hkdf_tests;
+#[path = <span class="string">&quot;tests/hmac_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>hmac_tests;
 
 <span class="comment">// Signing traits
 </span><span class="kw">pub mod </span>traits;
 <span class="comment">// Key scheme implementations
-</span><span class="kw">pub mod </span>bls12381;
+</span><span class="kw">pub mod </span>aes;
+<span class="kw">pub mod </span>bls12381;
+<span class="kw">pub mod </span>bulletproofs;
 <span class="kw">pub mod </span>ed25519;
+<span class="kw">pub mod </span>hmac;
 <span class="kw">pub mod </span>secp256k1;
 
-<span class="kw">pub mod </span>bulletproofs;
-
-<span class="kw">pub mod </span>aes;
-
 <span class="comment">// Other tooling
-</span><span class="kw">pub mod </span>hkdf;
+</span><span class="kw">pub mod </span>error;
+<span class="kw">pub mod </span>private_seed;
 <span class="kw">pub mod </span>pubkey_bytes;
 <span class="kw">pub mod </span>serde_helpers;
 

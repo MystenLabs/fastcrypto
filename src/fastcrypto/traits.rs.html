@@ -245,6 +245,15 @@
 <span id="245">245</span>
 <span id="246">246</span>
 <span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -252,7 +261,6 @@
 <span class="kw">use </span>eyre::eyre;
 
 <span class="kw">use </span>rand::{CryptoRng, RngCore};
-
 <span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
 <span class="kw">pub use </span>signature::{Error, Signer};
 <span class="kw">use </span>std::{
@@ -491,6 +499,16 @@
         aad: <span class="kw-2">&amp;</span>[u8],
         ciphertext: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt;;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by a keys/secret seeds for generating a secure instance.
+///
+</span><span class="kw">pub trait </span>FromUniformBytes&lt;<span class="kw">const </span>LENGTH: usize&gt;: ToFromBytes {
+    <span class="kw">fn </span>generate&lt;R: rand::CryptoRng + rand::RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; LENGTH];
+        rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
+        <span class="self">Self</span>::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap()
+    }
 }
 </code></pre></div>
 </section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (a37499ae6 2022-09-18)" ></div></body></html>
