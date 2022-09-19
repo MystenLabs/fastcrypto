@@ -91,3 +91,26 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: EmbarkStudios/cargo-deny-action@v1
+
+  check-public-api-changes:
+    runs-on: ubuntu-latest
+    steps:
+      # Full git history needed
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      # Install nightly (stable is already installed)
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly-2022-08-15
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+      # Install and run cargo public-api and deny any API diff
+      - run: cargo install cargo-public-api@0.14.0
+      - run: |
+          diff -u public-api.txt <(cargo +nightly-2022-08-15 public-api) ||
+              (echo '\nFAIL: Public API changed! To bless, `git commit` the result of `cargo +nightly-2022-08-15 public-api > public-api.txt`' && exit 1)
