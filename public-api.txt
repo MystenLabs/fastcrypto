@@ -20,6 +20,11 @@ pub const fastcrypto::secp256k1::Secp256k1Signature::LENGTH: usize
 pub const fastcrypto::traits::Authenticator::LENGTH: usize
 pub const fastcrypto::traits::SigningKey::LENGTH: usize
 pub const fastcrypto::traits::VerifyingKey::LENGTH: usize
+pub enum fastcrypto::error::FastCryptoError
+pub enum variant fastcrypto::error::FastCryptoError::GeneralError
+pub enum variant fastcrypto::error::FastCryptoError::InputTooLong(usize)
+pub enum variant fastcrypto::error::FastCryptoError::InputTooShort(usize)
+pub enum variant fastcrypto::error::FastCryptoError::InvalidInput
 pub fn fastcrypto::Digest::as_ref(&self) -> &[u8]
 pub fn fastcrypto::Digest::clone(&self) -> Digest
 pub fn fastcrypto::Digest::cmp(&self, other: &Digest) -> $crate::cmp::Ordering
@@ -37,6 +42,9 @@ pub fn fastcrypto::Digest::to_vec(&self) -> Vec<u8>
 pub fn fastcrypto::Hash::digest(&self) -> <Self as >::TypedDigest
 pub fn fastcrypto::SignatureService::clone(&self) -> SignatureService<Signature>
 pub fn fastcrypto::SignatureService::new<S>(signer: S) -> Self where S: signature::Signer<Signature> + Send + 'static
+pub fn fastcrypto::Verifier::verify(&self, msg: &[u8], signature: &S) -> Result<(), Error>
+pub fn fastcrypto::_::as_bytes(&self) -> &[u8]
+pub fn fastcrypto::_::from_bytes(bytes: &[u8]) -> Result<Self, Error>
 pub fn fastcrypto::aes::AesCbc::decrypt(&self, iv: &<Self as >::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error>
 pub fn fastcrypto::aes::AesCbc::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error>
 pub fn fastcrypto::aes::AesCbc::new(key: AesKey<KeySize>) -> Self
@@ -197,9 +205,21 @@ pub fn fastcrypto::ed25519::Ed25519Signature::fmt(&self, f: &mut $crate::fmt::Fo
 pub fn fastcrypto::ed25519::Ed25519Signature::fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error>
 pub fn fastcrypto::ed25519::Ed25519Signature::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
 pub fn fastcrypto::ed25519::Ed25519Signature::serialize<S>(&self, serializer: S) -> Result<<S as >::Ok, <S as >::Error> where S: serde::Serializer
+pub fn fastcrypto::error::FastCryptoError::eq(&self, other: &FastCryptoError) -> bool
+pub fn fastcrypto::error::FastCryptoError::fmt(&self, __formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result
+pub fn fastcrypto::error::FastCryptoError::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
 pub fn fastcrypto::generate_keypair<K: traits::KeyPair, R>(csprng: &mut R) -> K where R: CryptoRng + RngCore
 pub fn fastcrypto::generate_production_keypair<K: traits::KeyPair>() -> K
-pub fn fastcrypto::hkdf::hkdf_generate_from_ikm<H, K>(ikm: &[u8], salt: &[u8], info: &[u8]) -> Result<K, signature::Error> where H: CoreProxy + OutputSizeUser, <H as >::Core: HashMarker + UpdateCore + FixedOutputCore + BufferKindUser<BufferKind = Eager> + Default + Clone, <<H as >::Core as BlockSizeUser>::BlockSize: IsLess<U256>, Le<<<H as >::Core as BlockSizeUser>::BlockSize, U256>: NonZero, K: KeyPair
+pub fn fastcrypto::hmac::hkdf(ikm: &HkdfIkm, salt: &[u8], info: &[u8], output_length: usize) -> Result<Vec<u8>, FastCryptoError>
+pub fn fastcrypto::hmac::hkdf_generate_from_ikm<H, K>(ikm: &[u8], salt: &[u8], info: &[u8]) -> Result<K, FastCryptoError> where H: CoreProxy + OutputSizeUser, <H as >::Core: HashMarker + UpdateCore + FixedOutputCore + BufferKindUser<BufferKind = Eager> + Default + Clone, <<H as >::Core as BlockSizeUser>::BlockSize: IsLess<U256>, Le<<<H as >::Core as BlockSizeUser>::BlockSize, U256>: NonZero, K: KeyPair
+pub fn fastcrypto::hmac::hmac(key: &HmacKey, message: &[u8]) -> Digest
+pub fn fastcrypto::private_seed::PrivateSeed::as_bytes(&self) -> &[u8]
+pub fn fastcrypto::private_seed::PrivateSeed::as_ref(&self) -> &[u8]
+pub fn fastcrypto::private_seed::PrivateSeed::drop(&mut self)
+pub fn fastcrypto::private_seed::PrivateSeed::eq(&self, other: &PrivateSeed<usize, bool>) -> bool
+pub fn fastcrypto::private_seed::PrivateSeed::fmt(&self, f: &mut $crate::fmt::Formatter<'_>) -> $crate::fmt::Result
+pub fn fastcrypto::private_seed::PrivateSeed::from_bytes(bytes: &[u8]) -> Result<Self, signature::Error>
+pub fn fastcrypto::private_seed::PrivateSeed::zeroize(&mut self)
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::as_ref(&self) -> &[u8]
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::clone(&self) -> PublicKeyBytes<T, usize>
 pub fn fastcrypto::pubkey_bytes::PublicKeyBytes::cmp(&self, other: &PublicKeyBytes<T, usize>) -> $crate::cmp::Ordering
@@ -279,10 +299,13 @@ pub fn fastcrypto::traits::Cipher::decrypt(&self, iv: &<Self as >::IVType, ciphe
 pub fn fastcrypto::traits::Cipher::encrypt(&self, iv: &<Self as >::IVType, plaintext: &[u8]) -> Result<Vec<u8>, Error>
 pub fn fastcrypto::traits::EncodeDecodeBase64::decode_base64(value: &str) -> Result<Self, eyre::Report>
 pub fn fastcrypto::traits::EncodeDecodeBase64::encode_base64(&self) -> String
+pub fn fastcrypto::traits::FromUniformBytes::generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self
 pub fn fastcrypto::traits::Generate::generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self
 pub fn fastcrypto::traits::KeyPair::generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self
 pub fn fastcrypto::traits::KeyPair::private(self) -> <Self as >::PrivKey
 pub fn fastcrypto::traits::KeyPair::public(&self) -> &<Self as >::PubKey
+pub fn fastcrypto::traits::Signer::sign(&self, msg: &[u8]) -> S
+pub fn fastcrypto::traits::Signer::try_sign(&self, msg: &[u8]) -> Result<S, Error>
 pub fn fastcrypto::traits::ToFromBytes::as_bytes(&self) -> &[u8]
 pub fn fastcrypto::traits::ToFromBytes::from_bytes(bytes: &[u8]) -> Result<Self, Error>
 pub fn fastcrypto::traits::VerifyingKey::verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[<Self as >::Sig]) -> Result<(), eyre::Report>
@@ -291,7 +314,9 @@ pub mod fastcrypto::aes
 pub mod fastcrypto::bls12381
 pub mod fastcrypto::bulletproofs
 pub mod fastcrypto::ed25519
-pub mod fastcrypto::hkdf
+pub mod fastcrypto::error
+pub mod fastcrypto::hmac
+pub mod fastcrypto::private_seed
 pub mod fastcrypto::pubkey_bytes
 pub mod fastcrypto::secp256k1
 pub mod fastcrypto::serde_helpers
@@ -315,6 +340,7 @@ pub struct fastcrypto::ed25519::Ed25519KeyPair
 pub struct fastcrypto::ed25519::Ed25519PrivateKey(pub ed25519_consensus::SigningKey)
 pub struct fastcrypto::ed25519::Ed25519PublicKey(pub ed25519_consensus::VerificationKey)
 pub struct fastcrypto::ed25519::Ed25519Signature
+pub struct fastcrypto::private_seed::PrivateSeed<const RECOMMENDED_LENGTH: usize, const FIXED_LENGTH_ONLY: bool>
 pub struct fastcrypto::pubkey_bytes::PublicKeyBytes<T, const N: usize>
 pub struct fastcrypto::secp256k1::Secp256k1KeyPair
 pub struct fastcrypto::secp256k1::Secp256k1PrivateKey
@@ -349,6 +375,7 @@ pub trait fastcrypto::traits::Authenticator
 pub trait fastcrypto::traits::Cipher
 pub trait fastcrypto::traits::EncodeDecodeBase64
 pub trait fastcrypto::traits::EncryptionKey
+pub trait fastcrypto::traits::FromUniformBytes<const LENGTH: usize>
 pub trait fastcrypto::traits::Generate
 pub trait fastcrypto::traits::KeyPair
 pub trait fastcrypto::traits::Nonce
@@ -406,6 +433,8 @@ pub type fastcrypto::ed25519::Ed25519PublicKey::Sig = Ed25519Signature
 pub type fastcrypto::ed25519::Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, usize>
 pub type fastcrypto::ed25519::Ed25519Signature::PrivKey = Ed25519PrivateKey
 pub type fastcrypto::ed25519::Ed25519Signature::PubKey = Ed25519PublicKey
+pub type fastcrypto::hmac::HkdfIkm = PrivateSeed<usize, bool>
+pub type fastcrypto::hmac::HmacKey = PrivateSeed<usize, bool>
 pub type fastcrypto::pubkey_bytes::PublicKeyBytes::Err = Report
 pub type fastcrypto::secp256k1::Secp256k1KeyPair::Err = Report
 pub type fastcrypto::secp256k1::Secp256k1KeyPair::PrivKey = Secp256k1PrivateKey
