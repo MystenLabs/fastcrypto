@@ -704,7 +704,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.3"
+version = "1.0.0"
 dependencies = [
  "aes",
  "aes-gcm",

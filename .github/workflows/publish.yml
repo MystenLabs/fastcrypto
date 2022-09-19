@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - ci1
 env:
   CARGO_TERM_COLOR: always
   # Disable incremental compilation.
@@ -26,26 +27,6 @@ env:
   RUST_BACKTRACE: short
 
 jobs:
-  deny-public-api-changes:
-    runs-on: ubuntu-latest
-    steps:
-      # Full git history needed
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      # Install nightly (stable is already installed)
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly
-          override: true
-
-      # Install and run cargo public-api and deny any API diff
-      - run: cargo install cargo-public-api@0.14.0
-      - run: |
-          diff -u public-api.txt <(cargo +nightly-2022-08-15 public-api) ||
-              (echo '\nFAIL: Public API changed! To bless, `git commit` the result of `cargo +nightly-2022-08-15 public-api > public-api.txt`' && exit 1)
   publish:
     name: Publish to crates.io
     continue-on-error: false
@@ -85,8 +66,8 @@ jobs:
           git push origin "${{ matrix.package }}-v$CURRENT_VERSION"
       - uses: actions-rs/toolchain@v1
         if: steps.check.outputs.is_new_version == 'yes'
+      - name: Login
+        run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish fastcrypto
         if: steps.check.outputs.is_new_version == 'yes'
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish
+        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
