@@ -58,8 +58,8 @@ pub mod bls12381;
 pub mod ed25519;
 pub mod hmac;
 pub mod secp256k1;
-
 pub mod bulletproofs;
+pub mod aes;
 
 // Other tooling
 pub mod error;
