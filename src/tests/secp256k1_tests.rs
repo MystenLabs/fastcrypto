@@ -348,7 +348,7 @@ proptest::proptest! {
         r in <[u8; 32]>::arbitrary()
 ) {
         let message: &[u8] = b"hello world!";
-        let hashed_msg = rust_secp256k1::Message::from_slice(message.digest::<Sha256>().as_ref()).unwrap();
+        let hashed_msg = rust_secp256k1::Message::from_slice(message.digest::<Keccak256>().as_ref()).unwrap();
 
         // construct private key with bytes and signs message
         let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
