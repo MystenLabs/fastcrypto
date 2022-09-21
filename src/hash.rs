@@ -2,18 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::{Base64, Encoding};
-use blake2::digest::{Update, VariableOutput};
 use digest::OutputSizeUser;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
-use std::{fmt, marker::PhantomData};
+use std::fmt;
 
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(GenericArray<u8, DigestLength>);
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
-
     /// Clone the given slice into a new `Digest`.
     pub fn from_bytes(val: &[u8]) -> Self {
         Digest(GenericArray::<u8, DigestLength>::clone_from_slice(val))
@@ -68,7 +66,6 @@ impl<DigestLength: ArrayLength<u8> + 'static> Hashable<DigestLength> for &[u8] {
 
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction<DigestLength: ArrayLength<u8>>: OutputSizeUser + Sized + Default {
-
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
 
@@ -109,3 +106,6 @@ pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256>;
 
 // KECCAK
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
+
+// BLAKE2
+pub type Blake2b = HashFunctionWrapper<blake2::Blake2b>;
