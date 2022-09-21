@@ -75,7 +75,7 @@ mod ed25519_benches {
                 .collect();
 
             let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Sha256>(
-                &b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
             )
             .to_vec();
 
