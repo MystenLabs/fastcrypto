@@ -746,6 +746,7 @@ dependencies = [
  "sha2 0.10.6",
  "sha3 0.10.5",
  "signature",
+ "thiserror",
  "tokio",
  "typenum",
  "wycheproof",
