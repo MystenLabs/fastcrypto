@@ -11,7 +11,7 @@ mod ed25519_benches {
     use fastcrypto::{
         bls12381::{BLS12381KeyPair, BLS12381Signature},
         ed25519::*,
-        hash::Blake2bVariable,
+        hash::Blake2b,
         secp256k1::{Secp256k1KeyPair, Secp256k1Signature},
         traits::{KeyPair, VerifyingKey},
         Verifier,
@@ -75,7 +75,7 @@ mod ed25519_benches {
                 .map(|_| BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
-            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Blake2bVariable<U32>>(
+            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Blake2b<U32>>(
                 b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
             )
             .to_vec();
