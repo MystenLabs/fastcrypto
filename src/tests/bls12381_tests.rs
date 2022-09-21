@@ -6,8 +6,8 @@ use crate::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
         BLS12381PublicKeyBytes, BLS12381Signature,
     },
+    hmac::hkdf_generate_from_ikm,
     hash::{Hashable, Sha256},
-    hkdf::hkdf_generate_from_ikm,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },

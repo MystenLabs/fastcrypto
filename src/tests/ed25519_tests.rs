@@ -9,7 +9,7 @@ use crate::{
         Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
     hash::{Hashable, Sha256},
-    hkdf::hkdf_generate_from_ikm,
+    hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 use base64ct::Encoding;

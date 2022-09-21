@@ -9,9 +9,10 @@ use std::fmt;
 
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
-pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(GenericArray<u8, DigestLength>);
+pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
+
     /// Clone the given slice into a new `Digest`.
     pub fn from_bytes(val: &[u8]) -> Self {
         Digest(GenericArray::<u8, DigestLength>::clone_from_slice(val))
