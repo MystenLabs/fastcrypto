@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::{Base64, Encoding};
+use blake2::digest::{Update, VariableOutput};
 use digest::OutputSizeUser;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{fmt, marker::PhantomData};
 
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
@@ -109,3 +110,28 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
 // BLAKE2
 pub type Blake2b = HashFunctionWrapper<blake2::Blake2b>;
+
+#[derive(Default)]
+pub struct Blake2bVariable<DigestLength: ArrayLength<u8>> {
+    variant: blake2::VarBlake2b,
+    digest_length: PhantomData<DigestLength>,
+}
+
+impl<DigestLength: ArrayLength<u8>> OutputSizeUser for Blake2bVariable<DigestLength> {
+    type OutputSize = DigestLength;
+}
+
+impl<DigestLength: ArrayLength<u8> + Sized> HashFunction<DigestLength>
+    for Blake2bVariable<DigestLength>
+{
+    fn update(&mut self, data: &[u8]) {
+        self.variant.update(data)
+    }
+
+    fn finalize(self) -> Digest<DigestLength> {
+        let mut array = GenericArray::<u8, DigestLength>::default();
+        self.variant
+            .finalize_variable(|buffer| array.copy_from_slice(buffer));
+        Digest(array)
+    }
+}
