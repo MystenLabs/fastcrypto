@@ -743,8 +743,8 @@ dependencies = [
  "serde_bytes",
  "serde_json",
  "serde_with",
- "sha2 0.10.2",
- "sha3 0.10.2",
+ "sha2 0.10.6",
+ "sha3 0.10.5",
  "signature",
  "thiserror",
  "tokio",
@@ -975,8 +975,8 @@ dependencies = [
  "cfg-if",
  "ecdsa",
  "elliptic-curve",
- "sha2 0.10.2",
- "sha3 0.10.2",
+ "sha2 0.10.6",
+ "sha3 0.10.5",
 ]
 
 [[package]]
@@ -1563,9 +1563,9 @@ dependencies = [
 
 [[package]]
 name = "sha2"
-version = "0.10.2"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55deaec60f81eefe3cce0dc50bda92d6d8e88f2a27df7c5033b42afeb1ed2676"
+checksum = "82e6b795fe2e3b1e845bafcb27aa35405c4d47cdfc92af5fc8d3002f76cebdc0"
 dependencies = [
  "cfg-if",
  "cpufeatures",
@@ -1586,9 +1586,9 @@ dependencies = [
 
 [[package]]
 name = "sha3"
-version = "0.10.2"
+version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a31480366ec990f395a61b7c08122d99bd40544fdb5abcfc1b06bb29994312c"
+checksum = "e2904bea16a1ae962b483322a1c7b81d976029203aea1f461e51cd7705db7ba9"
 dependencies = [
  "digest 0.10.5",
  "keccak",
