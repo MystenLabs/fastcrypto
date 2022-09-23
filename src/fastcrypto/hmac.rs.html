@@ -124,7 +124,7 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
 <span class="kw">use crate</span>::{
     traits::{KeyPair, SigningKey, ToFromBytes},
-    Digest, DIGEST_LEN,
+    Digest,
 };
 <span class="kw">use </span>digest::{
     block_buffer::Eager,
@@ -216,11 +216,11 @@
 <span class="kw">pub type </span>HmacKey = PrivateSeed&lt;HMAC_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 <span class="kw">pub type </span>HkdfIkm = PrivateSeed&lt;HKDF_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 
-<span class="kw">pub fn </span>hmac(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest {
+<span class="kw">pub fn </span>hmac(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;typenum::U32&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha2::Sha256&gt;::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
-    <span class="kw">let </span>output: [u8; DIGEST_LEN] = hash.finalize().into_bytes().as_slice().try_into().unwrap();
-    Digest::new(output)
+    <span class="kw">let </span>output = hash.finalize();
+    Digest(output.into_bytes())
 }
 
 <span class="kw">pub fn </span>hkdf(
@@ -241,4 +241,4 @@
     <span class="prelude-val">Ok</span>(output)
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (a37499ae6 2022-09-18)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (e7119a030 2022-09-22)" ></div></body></html>
