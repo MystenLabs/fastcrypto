@@ -3,7 +3,7 @@
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
-        AesKey, InitializationVector,
+        AesKey, InitializationVector, GenericByteArray,
     },
     traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
@@ -190,12 +190,12 @@ fn wycheproof_test() {
 #[test]
 fn test_sk_zeroization_on_drop() {
     let ptr: *const u8;
-
     let mut sk_bytes = Vec::new();
-
     {
         let mut rng = StdRng::from_seed([9; 32]);
-        let sk = AesKey::<U32>::generate(&mut rng);
+
+        // Both keys and nonces are GenericByteArrays
+        let sk = GenericByteArray::<U32>::generate(&mut rng);
         sk_bytes.extend_from_slice(sk.as_ref());
 
         ptr = std::ptr::addr_of!(sk) as *const u8;
