@@ -186,3 +186,29 @@ fn wycheproof_test() {
         }
     }
 }
+
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+
+    let mut sk_bytes = Vec::new();
+
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+        let sk = AesKey::<U32>::generate(&mut rng);
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk) as *const u8;
+
+        let sk_memory: &[u8] = unsafe { ::std::slice::from_raw_parts(ptr, 32) };
+        // Assert that this is equal to sk_bytes before deletion
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Check that sk is zeroized
+    unsafe {
+        for i in 0..32 {
+            assert_eq!(*ptr.add(i), 0);
+        }
+    }
+}
