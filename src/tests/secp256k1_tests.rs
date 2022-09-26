@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::{
+    hash::{Hashable, Keccak256, Sha256},
     secp256k1::{
         Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1PublicKeyBytes,
         Secp256k1Signature,
@@ -10,7 +11,6 @@ use crate::{
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 
-use digest::Digest;
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
 use signature::{Signer, Verifier};
@@ -76,7 +76,7 @@ fn test_public_key_recovery() {
     let message: &[u8] = b"Hello, world!";
     let signature: Secp256k1Signature = kp.sign(message);
     let recovered_key = signature
-        .recover(<sha3::Keccak256 as sha3::digest::Digest>::digest(message).as_slice())
+        .recover(message.digest::<Keccak256>().as_ref())
         .unwrap();
     assert_eq!(*kp.public(), recovered_key);
 }
@@ -92,7 +92,7 @@ fn test_public_key_recovery_error() {
     let signature = <Secp256k1Signature as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
     let message: &[u8] = b"Hello, world!";
     assert!(signature
-        .recover(<sha3::Keccak256 as sha3::digest::Digest>::digest(message).as_slice())
+        .recover(message.digest::<Keccak256>().as_ref())
         .is_err());
 
     let kp = keys().pop().unwrap();
@@ -135,12 +135,12 @@ fn verify_valid_signature() {
 
     // Sign over raw message, hashed to keccak256.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest();
+    let digest = message.digest::<Sha256>();
 
-    let signature = kp.sign(&digest.0);
+    let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
 #[test]
@@ -155,22 +155,19 @@ fn verify_valid_signature_against_hashed_msg() {
     // Verify the signature against hashed message.
     assert!(kp
         .public()
-        .verify_hashed(
-            <sha3::Keccak256 as sha3::digest::Digest>::digest(message).as_slice(),
-            &signature
-        )
+        .verify_hashed(message.digest::<Keccak256>().as_ref(), &signature)
         .is_ok());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest();
+    let digest = message.digest::<Sha256>();
     let (pubkeys, signatures): (Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(digest.as_ref());
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -241,17 +238,17 @@ fn verify_invalid_signature() {
 
     // Make signature.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest();
+    let digest = message.digest::<Sha256>();
 
     // Verify the signature against good digest passes.
-    let signature = kp.sign(&digest.0);
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    let signature = kp.sign(digest.as_ref());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
-    let digest = bad_message.digest();
+    let digest = bad_message.digest::<Sha256>();
 
-    assert!(kp.public().verify(&digest.0, &signature).is_err());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
 #[test]
@@ -296,8 +293,10 @@ async fn signature_service() {
 
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest();
-    let signature = service.request_signature(digest).await;
+    let digest = message.digest::<Sha256>();
+    let signature = service.request_signature(digest.clone()).await;
+
+    //    digest.into()
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
@@ -349,7 +348,7 @@ proptest::proptest! {
         r in <[u8; 32]>::arbitrary()
 ) {
         let message: &[u8] = b"hello world!";
-        let hashed_msg = rust_secp256k1::Message::from_slice(<sha3::Keccak256 as sha3::digest::Digest>::digest(message).as_slice()).unwrap();
+        let hashed_msg = rust_secp256k1::Message::from_slice(message.digest::<Keccak256>().as_ref()).unwrap();
 
         // construct private key with bytes and signs message
         let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
@@ -430,7 +429,7 @@ fn wycheproof_test() {
                 n_bytes[64] = i;
                 let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
                 if pk
-                    .verify_hashed(&k256::sha2::Sha256::digest(&test.msg), &sig)
+                    .verify_hashed(test.msg.as_slice().digest::<Sha256>().as_ref(), &sig)
                     .is_ok()
                 {
                     res = TestResult::Valid;
