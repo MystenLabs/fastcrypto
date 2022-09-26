@@ -3,7 +3,7 @@
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
-        AesKey, InitializationVector, GenericByteArray,
+        AesKey, GenericByteArray, InitializationVector,
     },
     traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
