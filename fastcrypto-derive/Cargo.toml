@@ -13,6 +13,6 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.64", features = ["derive"] }
+syn = { version = "1.0.64", features = ["full"] }
 proc-macro2 = "1.0.24"
 quote = "1.0.9"
