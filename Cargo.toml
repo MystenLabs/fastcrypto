@@ -46,7 +46,7 @@ sha2 = "0.10.6"
 sha3 = "0.10.5"
 thiserror = "1.0.36"
 
-fastcrypto-derive = { path = "./fastcrypto-derive", version = "0.1.0" }
+fastcrypto-derive = { path = "./fastcrypto-derive", version = "0.1.2" }
 
 [[bench]]
 name = "crypto"

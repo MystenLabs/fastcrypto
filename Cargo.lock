@@ -743,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-derive"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "proc-macro2 1.0.43",
  "quote 1.0.21",
