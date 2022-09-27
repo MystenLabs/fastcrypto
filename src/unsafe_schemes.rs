@@ -18,7 +18,10 @@ use std::{
 };
 
 use crate::{
-    error::FastCryptoError, pubkey_bytes::PublicKeyBytes, serde_helpers::keypair_decode_base64, hash::{Hashable, Sha3_256},
+    error::FastCryptoError,
+    hash::{Hashable, Sha3_256},
+    pubkey_bytes::PublicKeyBytes,
+    serde_helpers::keypair_decode_base64,
 };
 use serde::{
     de::{self},
