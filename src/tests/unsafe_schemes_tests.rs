@@ -175,7 +175,7 @@ fn verify_batch_aggregate_signature() {
 
     assert!(ZeroAggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
-        vec![pubkeys1[..].into_iter(), pubkeys2[..].into_iter()],
+        vec![pubkeys1[..].iter(), pubkeys2[..].iter()],
         &[&digest1.0[..], &digest2.0[..]]
     )
     .is_ok());
