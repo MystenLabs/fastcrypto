@@ -9,24 +9,22 @@
  *
  * Warning: All schemes in this file are completely unsafe to use in production.
  */
-use base64ct::{Base64, Encoding};
-use rand::Rng;
-use std::{
-    fmt::{self, Display},
-    str::FromStr,
-};
-
 use crate::{
-    error::FastCryptoError,
-    hash::{Hashable, Sha3_256},
-    pubkey_bytes::PublicKeyBytes,
+    error::FastCryptoError, hash::HashFunction, pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
 };
+use base64ct::{Base64, Encoding};
+use eyre::eyre;
+use rand::Rng;
 use serde::{
     de::{self},
     Deserialize, Serialize,
 };
 use serde_with::serde_as;
+use std::{
+    fmt::{self, Display},
+    str::FromStr,
+};
 
 use signature::{Signature, Signer, Verifier};
 
@@ -39,8 +37,9 @@ use crate::traits::{
 /// Define Structs
 ///
 
-const PRIVATE_KEY_LENGTH: usize = 32;
-const PUBLIC_KEY_LENGTH: usize = 32;
+const PRIVATE_KEY_LENGTH: usize = 16;
+const PUBLIC_KEY_LENGTH: usize = 16;
+const SIGNATURE_LENGTH: usize = 1;
 
 #[readonly::make]
 #[derive(Default, Debug, Clone)]
@@ -60,11 +59,11 @@ pub struct ZeroKeyPair {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ZeroSignature {}
+pub struct ZeroSignature(pub [u8; SIGNATURE_LENGTH]);
 
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ZeroAggregateSignature {}
+pub struct ZeroAggregateSignature(pub Vec<ZeroSignature>);
 
 ///
 /// Implement SigningKey
@@ -138,15 +137,19 @@ impl<'de> Deserialize<'de> for ZeroPublicKey {
 }
 
 impl Verifier<ZeroSignature> for ZeroPublicKey {
-    fn verify(&self, _msg: &[u8], _signature: &ZeroSignature) -> Result<(), signature::Error> {
-        Ok(())
+    fn verify(&self, _msg: &[u8], signature: &ZeroSignature) -> Result<(), signature::Error> {
+        // These signatures are valid if the first byte is zero and invalid otherwise. This allows for negative tests.
+        if signature.0[0] == 0 {
+            return Ok(());
+        }
+        Err(signature::Error::new())
     }
 }
 
 impl<'a> From<&'a ZeroPrivateKey> for ZeroPublicKey {
     fn from(secret: &'a ZeroPrivateKey) -> Self {
-        let result = secret.0.digest::<Sha3_256>();
-        let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[..PUBLIC_KEY_LENGTH]
+        let result = crate::hash::Sha256::digest(secret.0.as_ref());
+        let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[0..PUBLIC_KEY_LENGTH]
             .try_into()
             .map_err(|_| signature::Error::new())
             .unwrap();
@@ -162,10 +165,18 @@ impl VerifyingKey for ZeroPublicKey {
 
     fn verify_batch_empty_fail(
         _msg: &[u8],
-        _pks: &[Self],
-        _sigs: &[Self::Sig],
+        pks: &[Self],
+        sigs: &[Self::Sig],
     ) -> Result<(), eyre::Report> {
-        Ok(())
+        if pks
+            .iter()
+            .zip(sigs.iter())
+            .map(|(pk, sig)| pk.verify(_msg, sig))
+            .all(|v| v.is_ok())
+        {
+            return Ok(());
+        }
+        Err(eyre!("Verification failed!"))
     }
 }
 
@@ -175,7 +186,7 @@ impl VerifyingKey for ZeroPublicKey {
 
 impl AsRef<[u8]> for ZeroSignature {
     fn as_ref(&self) -> &[u8] {
-        &[]
+        &self.0
     }
 }
 
@@ -186,16 +197,18 @@ impl std::hash::Hash for ZeroSignature {
 }
 
 impl PartialEq for ZeroSignature {
-    fn eq(&self, _other: &Self) -> bool {
-        true
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
     }
 }
 
 impl Eq for ZeroSignature {}
 
 impl Signature for ZeroSignature {
-    fn from_bytes(_bytes: &[u8]) -> Result<Self, signature::Error> {
-        Ok(ZeroSignature {})
+    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+        let bytes_fixed: [u8; SIGNATURE_LENGTH] =
+            bytes.try_into().map_err(|_| signature::Error::new())?;
+        Ok(Self(bytes_fixed))
     }
 }
 
@@ -257,9 +270,10 @@ impl SigningKey for ZeroPrivateKey {
     const LENGTH: usize = PRIVATE_KEY_LENGTH;
 }
 
+// Valid signatures begin with a zero byte and have size SIGNATURE_LENGTH. By default we just create a signature with all zeros.
 impl Signer<ZeroSignature> for ZeroPrivateKey {
     fn try_sign(&self, _msg: &[u8]) -> Result<ZeroSignature, signature::Error> {
-        Ok(ZeroSignature {})
+        Ok(ZeroSignature([0; SIGNATURE_LENGTH]))
     }
 }
 
@@ -317,7 +331,7 @@ impl KeyPair for ZeroKeyPair {
 
 impl Signer<ZeroSignature> for ZeroKeyPair {
     fn try_sign(&self, _msg: &[u8]) -> Result<ZeroSignature, signature::Error> {
-        Ok(ZeroSignature {})
+        Ok(ZeroSignature([0; SIGNATURE_LENGTH]))
     }
 }
 
@@ -325,7 +339,7 @@ impl FromStr for ZeroKeyPair {
     type Err = FastCryptoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kp = Self::decode_base64(s).map_err(|_e| FastCryptoError::GeneralError)?;
+        let kp = Self::decode_base64(s).map_err(|_| FastCryptoError::GeneralError)?;
         Ok(kp)
     }
 }
@@ -355,31 +369,53 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
     type Sig = ZeroSignature;
 
     /// Parse a key from its byte representation
-    fn aggregate(_signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
-        Ok(ZeroAggregateSignature {})
+    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
+        Ok(ZeroAggregateSignature(signatures))
     }
 
-    fn add_signature(&mut self, _signature: Self::Sig) -> Result<(), signature::Error> {
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), signature::Error> {
+        self.0.push(signature);
         Ok(())
     }
 
-    fn add_aggregate(&mut self, _signature: Self) -> Result<(), signature::Error> {
+    fn add_aggregate(&mut self, signatures: Self) -> Result<(), signature::Error> {
+        self.0.extend(signatures.0);
         Ok(())
     }
 
     fn verify(
         &self,
-        _pks: &[<Self::Sig as Authenticator>::PubKey],
-        _message: &[u8],
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        msg: &[u8],
     ) -> Result<(), signature::Error> {
-        Ok(())
+        if pks
+            .iter()
+            .zip(self.0.iter())
+            .map(|(pk, sig)| pk.verify(msg, sig))
+            .all(|v| v.is_ok())
+        {
+            return Ok(());
+        }
+        Err(signature::Error::new())
     }
 
     fn batch_verify<'a>(
-        _sigs: &[&Self],
-        _pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
-        _messages: &[&[u8]],
+        sigs: &[&Self],
+        pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
+        messages: &[&[u8]],
     ) -> Result<(), signature::Error> {
+        if sigs.len() != pks.len() {
+            return Err(signature::Error::new());
+        }
+        let mut pks_iter = pks.into_iter();
+
+        for (msg, sig) in messages.iter().zip(sigs.iter().map(|sig| &sig.0)) {
+            for (j, key) in pks_iter.next().unwrap().enumerate() {
+                if key.verify(msg, &sig[j]).is_err() {
+                    return Err(signature::Error::new());
+                }
+            }
+        }
         Ok(())
     }
 }

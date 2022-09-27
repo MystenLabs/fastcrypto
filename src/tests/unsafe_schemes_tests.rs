@@ -55,8 +55,7 @@ fn test_serde_signatures_human_readable() {
     let signature = kp.sign(message);
 
     let serialized = serde_json::to_string(&signature).unwrap();
-    println!("{:?}", serialized);
-    assert_eq!("{}", serialized);
+    assert_eq!(format!("{:?}", signature.0), serialized);
     let deserialized: ZeroSignature = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized, signature);
 }
@@ -105,6 +104,23 @@ fn verify_valid_signature() {
 }
 
 #[test]
+fn verify_invalid_signature() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Make signature.
+    let message: &[u8] = b"Hello, world!";
+    let digest = message.digest::<Blake2b<U32>>();
+    let mut signature = kp.sign(&digest.0);
+
+    // Modify the first byte of the signature
+    signature.0[0] += 1;
+
+    // Verification should fail.
+    assert!(kp.public().verify(&digest.0, &signature).is_err());
+}
+
+#[test]
 fn verify_valid_batch() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
@@ -121,6 +137,28 @@ fn verify_valid_batch() {
     // Verify the batch.
     let res = ZeroPublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
     assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch() {
+    // Make signatures.
+    let message: &[u8] = b"Hello, world!";
+    let digest = message.digest::<Blake2b<U32>>();
+    let (pubkeys, mut signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(&digest.0);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    // Modify one of the signatures
+    signatures[1].0[0] += 1;
+
+    // Verify the batch.
+    let res = ZeroPublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
+    assert!(res.is_err(), "{:?}", res);
 }
 
 #[test]
@@ -142,6 +180,30 @@ fn verify_valid_aggregate_signature() {
     // // Verify the batch.
     let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
     assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_aggregate_signature() {
+    // Make signatures.
+    let message: &[u8] = b"Hello, world!";
+    let digest = message.digest::<Blake2b<U32>>();
+    let (pubkeys, mut signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(&digest.0);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    // Modify one of the signatures
+    signatures[1].0[0] += 1;
+
+    let aggregated_signature = ZeroAggregateSignature::aggregate(signatures).unwrap();
+
+    // // Verify the batch.
+    let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
+    assert!(res.is_err(), "{:?}", res);
 }
 
 #[test]
@@ -277,20 +339,20 @@ fn test_copy_key_pair() {
     assert_eq!(kp.private().as_bytes(), kp_copied.private().as_bytes());
 }
 
-// #[tokio::test]
-// async fn signature_service() {
-//     // Get a keypair.
-//     let kp = keys().pop().unwrap();
-//     let pk = kp.public().clone();
+#[tokio::test]
+async fn signature_service() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
 
-//     // Spawn the signature service.
-//     let mut service = SignatureService::new(kp);
+    // Spawn the signature service.
+    let mut service = SignatureService::new(kp);
 
-//     // Request signature from the service.
-//     let message: &[u8] = b"Hello, world!";
-//     let digest = message.digest::<Blake2b<U32>>();
-//     let signature = service.request_signature(digest).await;
+    // Request signature from the service.
+    let message: &[u8] = b"Hello, world!";
+    let digest = message.digest::<Blake2b<U32>>();
+    let signature = service.request_signature(digest.clone()).await;
 
-//     // Verify the signature we received.
-//     assert!(pk.verify(digest.0.as_slice(), &signature).is_ok());
-// }
+    // Verify the signature we received.
+    assert!(pk.verify(digest.0.as_slice(), &signature).is_ok());
+}
