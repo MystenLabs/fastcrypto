@@ -55,6 +55,7 @@ harness = false
 [features]
 default = []
 copy_key = []
+unsafe_schemes = []
 
 [dev-dependencies]
 bincode = "1.3.3"

@@ -47,6 +47,10 @@ pub mod aes_tests;
 #[path = "tests/hash_tests.rs"]
 pub mod hash_tests;
 
+#[cfg(all(test, feature = "unsafe_schemes"))]
+#[path = "tests/unsafe_schemes_tests.rs"]
+pub mod unsafe_schemes_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -63,6 +67,10 @@ pub mod error;
 pub mod private_seed;
 pub mod pubkey_bytes;
 pub mod serde_helpers;
+
+// Unsafe schemes
+#[cfg(feature = "unsafe_schemes")]
+pub mod unsafe_schemes;
 
 ////////////////////////////////////////////////////////////////
 // Generic Keypair
