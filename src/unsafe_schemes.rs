@@ -10,7 +10,6 @@
  * Warning: All schemes in this file are completely unsafe to use in production.
  */
 use base64ct::{Base64, Encoding};
-use digest::Digest;
 use rand::Rng;
 use std::{
     fmt::{self, Display},
