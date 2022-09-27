@@ -18,7 +18,7 @@ use std::{
 };
 
 use crate::{
-    error::FastCryptoError, pubkey_bytes::PublicKeyBytes, serde_helpers::keypair_decode_base64,
+    error::FastCryptoError, pubkey_bytes::PublicKeyBytes, serde_helpers::keypair_decode_base64, hash::{Hashable, Sha3_256},
 };
 use serde::{
     de::{self},
@@ -32,7 +32,6 @@ use crate::traits::{
     AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
     VerifyingKey,
 };
-use sha3::Sha3_256;
 
 ///
 /// Define Structs
@@ -144,10 +143,8 @@ impl Verifier<ZeroSignature> for ZeroPublicKey {
 
 impl<'a> From<&'a ZeroPrivateKey> for ZeroPublicKey {
     fn from(secret: &'a ZeroPrivateKey) -> Self {
-        let mut hasher = Sha3_256::new();
-        hasher.update(secret.0);
-        let result = hasher.finalize();
-        let bytes: [u8; PUBLIC_KEY_LENGTH] = result[..PUBLIC_KEY_LENGTH]
+        let result = secret.0.digest::<Sha3_256>();
+        let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[..PUBLIC_KEY_LENGTH]
             .try_into()
             .map_err(|_| signature::Error::new())
             .unwrap();
