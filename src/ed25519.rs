@@ -39,7 +39,7 @@ const RAW_FIELD_NAME: &str = "raw";
 /// Define Structs
 ///
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
@@ -140,6 +140,12 @@ impl Default for Ed25519PublicKey {
 impl Display for Ed25519PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.0.as_bytes()))
+    }
+}
+
+impl Debug for Ed25519PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
