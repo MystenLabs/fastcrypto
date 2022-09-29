@@ -44,7 +44,7 @@ pub const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 ///
 
 #[readonly::make]
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
     pub bytes: OnceCell<[u8; BLS_PUBLIC_KEY_LENGTH]>,
@@ -135,6 +135,12 @@ impl Ord for BLS12381PublicKey {
 }
 
 impl Display for BLS12381PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode_string(self.as_ref()))
+    }
+}
+
+impl Debug for BLS12381PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
