@@ -20,6 +20,7 @@ use std::{
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
+    error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
     traits::{
@@ -118,10 +119,10 @@ impl Verifier<Ed25519Signature> for Ed25519PublicKey {
 }
 
 impl ToFromBytes for Ed25519PublicKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ed25519_consensus::VerificationKey::try_from(bytes)
             .map(Ed25519PublicKey)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
@@ -197,10 +198,10 @@ impl SigningKey for Ed25519PrivateKey {
 }
 
 impl ToFromBytes for Ed25519PrivateKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ed25519_consensus::SigningKey::try_from(bytes)
             .map(Ed25519PrivateKey)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
@@ -401,16 +402,16 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     type PrivKey = Ed25519PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
+    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
         Ok(Self(signatures.iter().map(|s| s.sig).collect()))
     }
 
-    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), signature::Error> {
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         self.0.push(signature.sig);
         Ok(())
     }
 
-    fn add_aggregate(&mut self, mut signature: Self) -> Result<(), signature::Error> {
+    fn add_aggregate(&mut self, mut signature: Self) -> Result<(), FastCryptoError> {
         self.0.append(&mut signature.0);
         Ok(())
     }
@@ -419,9 +420,9 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         if pks.len() != self.0.len() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(self.0.len()));
         }
         let mut batch = batch::Verifier::new();
 
@@ -430,16 +431,18 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
             batch.queue((vk_bytes, self.0[i], message));
         }
 
-        batch.verify(OsRng).map_err(|_| signature::Error::new())
+        batch
+            .verify(OsRng)
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         if pks.len() != messages.len() || messages.len() != sigs.len() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(sigs.len()));
         }
         let mut batch = batch::Verifier::new();
 
@@ -447,14 +450,16 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         for i in 0..sigs.len() {
             let pk_list = &pk_iter.next().unwrap().map(|x| &x.0).collect::<Vec<_>>()[..];
             if pk_list.len() != sigs[i].0.len() {
-                return Err(signature::Error::new());
+                return Err(FastCryptoError::InvalidInput);
             }
             for (&pk, sig) in pk_list.iter().zip(&sigs[i].0) {
                 let vk_bytes = VerificationKeyBytes::from(*pk);
                 batch.queue((vk_bytes, *sig, messages[i]));
             }
         }
-        batch.verify(OsRng).map_err(|_| signature::Error::new())
+        batch
+            .verify(OsRng)
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 }
 

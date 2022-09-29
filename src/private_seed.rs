@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::traits::{FromUniformBytes, ToFromBytes};
+use crate::{
+    error::FastCryptoError,
+    traits::{FromUniformBytes, ToFromBytes},
+};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Private key/seed of any/fixed size.
@@ -22,9 +25,9 @@ impl<const N: usize, const B: bool> AsRef<[u8]> for PrivateSeed<N, B> {
 impl<const RECOMMENDED_LENGTH: usize, const FIXED_LENGTH_ONLY: bool> ToFromBytes
     for PrivateSeed<RECOMMENDED_LENGTH, FIXED_LENGTH_ONLY>
 {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if FIXED_LENGTH_ONLY && bytes.len() != RECOMMENDED_LENGTH {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(RECOMMENDED_LENGTH));
         }
         Ok(Self {
             bytes: bytes.to_vec(),

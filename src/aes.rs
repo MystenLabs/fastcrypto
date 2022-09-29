@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes};
+use crate::{
+    error::FastCryptoError,
+    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
+};
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
 use aes_gcm::AeadInPlace;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -30,10 +33,13 @@ impl<N> ToFromBytes for GenericByteArray<N>
 where
     N: ArrayLength<u8> + Debug,
 {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        Ok(GenericByteArray {
-            bytes: GenericArray::from_slice(bytes).to_owned(),
-        })
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        match bytes.len() == N::USIZE {
+            true => Ok(GenericByteArray {
+                bytes: GenericArray::from_slice(bytes).to_owned(),
+            }),
+            false => Err(FastCryptoError::InputLengthWrong(N::USIZE)),
+        }
     }
 
     fn as_bytes(&self) -> &[u8] {
@@ -108,21 +114,21 @@ where
 {
     type IVType = InitializationVector<U16>;
 
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let mut buffer: Vec<u8> = vec![0; plaintext.len()];
         let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
             .apply_keystream_b2b(plaintext, &mut buffer)
-            .map_err(|_| signature::Error::new())?;
+            .map_err(|_| FastCryptoError::GeneralError)?;
         Ok(buffer)
     }
 
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
         let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
             .apply_keystream_b2b(ciphertext, &mut buffer)
-            .map_err(|_| signature::Error::new())?;
+            .map_err(|_| FastCryptoError::GeneralError)?;
         Ok(buffer)
     }
 }
@@ -167,16 +173,16 @@ where
 {
     type IVType = InitializationVector<U16>;
 
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let cipher = cbc::Encryptor::<Aes>::new(&self.key.bytes, &iv.bytes);
         Ok(cipher.encrypt_padded_vec_mut::<Padding>(plaintext))
     }
 
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let cipher = cbc::Decryptor::<Aes>::new(&self.key.bytes, &iv.bytes);
         cipher
             .decrypt_padded_vec_mut::<Padding>(ciphertext)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 }
 
@@ -231,15 +237,15 @@ where
         iv: &Self::IVType,
         aad: &[u8],
         plaintext: &[u8],
-    ) -> Result<Vec<u8>, signature::Error> {
+    ) -> Result<Vec<u8>, FastCryptoError> {
         if iv.as_bytes().is_empty() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputTooShort(1));
         }
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = plaintext.to_vec();
         cipher
             .encrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
-            .map_err(|_| signature::Error::new())?;
+            .map_err(|_| FastCryptoError::GeneralError)?;
         Ok(buffer)
     }
 
@@ -248,15 +254,15 @@ where
         iv: &Self::IVType,
         aad: &[u8],
         ciphertext: &[u8],
-    ) -> Result<Vec<u8>, signature::Error> {
+    ) -> Result<Vec<u8>, FastCryptoError> {
         if iv.as_bytes().is_empty() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputTooShort(1));
         }
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = ciphertext.to_vec();
         cipher
             .decrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
-            .map_err(|_| signature::Error::new())?;
+            .map_err(|_| FastCryptoError::GeneralError)?;
         Ok(buffer)
     }
 }
@@ -272,11 +278,11 @@ where
 {
     type IVType = InitializationVector<NonceSize>;
 
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         self.encrypt_authenticated(iv, b"", plaintext)
     }
 
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, signature::Error> {
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         self.decrypt_authenticated(iv, b"", ciphertext)
     }
 }

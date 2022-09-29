@@ -11,7 +11,7 @@ use merlin::Transcript;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
 
-use crate::traits::ToFromBytes;
+use crate::{error::FastCryptoError, traits::ToFromBytes};
 
 //
 // Pedersen commitments
@@ -74,12 +74,14 @@ impl AsRef<[u8]> for PedersenCommitment {
 }
 
 impl ToFromBytes for PedersenCommitment {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != PEDERSEN_COMMITMENT_LENGTH {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(
+                PEDERSEN_COMMITMENT_LENGTH,
+            ));
         }
         let point = CompressedRistretto::from_slice(bytes);
-        let decompressed_point = point.decompress().ok_or_else(signature::Error::new)?;
+        let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
 
         Ok(PedersenCommitment {
             point: decompressed_point,
@@ -222,8 +224,8 @@ impl AsRef<[u8]> for BulletproofsRangeProof {
 }
 
 impl ToFromBytes for BulletproofsRangeProof {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let proof = RangeProof::from_bytes(bytes).map_err(|_| signature::Error::new())?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let proof = RangeProof::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BulletproofsRangeProof {
             proof,
             bytes: OnceCell::new(),

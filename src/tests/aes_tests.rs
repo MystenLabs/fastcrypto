@@ -5,6 +5,7 @@ use crate::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
         AesKey, GenericByteArray, InitializationVector,
     },
+    error::FastCryptoError,
     traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
 use core::fmt::Debug;
@@ -95,14 +96,14 @@ fn test_cipher<
 
 fn single_wycheproof_test_128<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let cipher = Aes128Gcm::new(AesKey::<U16>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes128Gcm<NonceSize>>(test, cipher)
 }
 
 fn single_wycheproof_test_256<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let cipher = Aes256Gcm::new(AesKey::<U32>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes256Gcm<NonceSize>>(test, cipher)
 }
@@ -114,24 +115,24 @@ fn single_wycheproof_test<
 >(
     test: &Test,
     cipher: C,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let iv = InitializationVector::from_bytes(test.nonce.as_slice()).unwrap();
 
     let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt)?;
 
     // Verify that the cipher text is
     if test.ct != ciphertext[..test.pt.len()] {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
 
     if test.tag != ciphertext[test.pt.len()..] {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
 
     let plaintext = cipher.decrypt_authenticated(&iv, &test.aad, &ciphertext)?;
 
     if test.pt != plaintext {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
     Ok(())
 }
