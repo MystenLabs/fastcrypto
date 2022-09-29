@@ -4,14 +4,16 @@
 use crate::traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes};
 use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
 use aes_gcm::AeadInPlace;
+use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use typenum::{U16, U24, U32};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay)]
 #[serde(bound = "N: ArrayLength<u8>")]
 pub struct GenericByteArray<N: ArrayLength<u8>> {
     // We use GenericArrays because they are used by the underlying crates.
@@ -49,6 +51,26 @@ where
         GenericByteArray { bytes }
     }
 }
+
+impl<N> Zeroize for GenericByteArray<N>
+where
+    N: ArrayLength<u8>,
+{
+    fn zeroize(&mut self) {
+        self.bytes.zeroize();
+    }
+}
+
+impl<N> Drop for GenericByteArray<N>
+where
+    N: ArrayLength<u8>,
+{
+    fn drop(&mut self) {
+        self.zeroize();
+    }
+}
+
+impl<N> ZeroizeOnDrop for GenericByteArray<N> where N: ArrayLength<u8> + Debug {}
 
 /// A key of `N` bytes used with AES ciphers.
 pub type AesKey<N> = GenericByteArray<N>;

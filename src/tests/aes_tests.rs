@@ -3,7 +3,7 @@
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
-        AesKey, InitializationVector,
+        AesKey, GenericByteArray, InitializationVector,
     },
     traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
@@ -183,6 +183,32 @@ fn wycheproof_test() {
 
             // Test returns Ok if succesful and Err if it fails
             assert_eq!(result.is_err(), test.result.must_fail());
+        }
+    }
+}
+
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+    let mut sk_bytes = Vec::new();
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+
+        // Both keys and nonces are GenericByteArrays
+        let sk = GenericByteArray::<U32>::generate(&mut rng);
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk) as *const u8;
+
+        let sk_memory: &[u8] = unsafe { ::std::slice::from_raw_parts(ptr, 32) };
+        // Assert that this is equal to sk_bytes before deletion
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Check that sk is zeroized
+    unsafe {
+        for i in 0..32 {
+            assert_eq!(*ptr.add(i), 0);
         }
     }
 }
