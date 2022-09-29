@@ -12,11 +12,6 @@ use std::fmt;
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
-    /// Clone the given slice into a new `Digest`.
-    pub fn from_bytes(val: &[u8]) -> Self {
-        Digest(GenericArray::<u8, DigestLength>::clone_from_slice(val))
-    }
-
     /// Copy the digest into a new vector.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
