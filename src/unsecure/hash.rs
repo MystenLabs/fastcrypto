@@ -10,15 +10,15 @@ use crate::hash::{Digest, HashFunction};
 /// Warning: This is NOT a cryptographic hash function and should NOT be in production.
 #[cfg(feature = "unsecure_schemes")]
 #[derive(Default)]
-pub struct XXH3 {
+pub struct XXH3Unsecure {
     instance: xxhash_rust::xxh3::Xxh3,
 }
 
-impl OutputSizeUser for XXH3 {
+impl OutputSizeUser for XXH3Unsecure {
     type OutputSize = typenum::U8;
 }
 
-impl HashFunction<typenum::U8> for XXH3 {
+impl HashFunction<typenum::U8> for XXH3Unsecure {
     fn update(&mut self, data: &[u8]) {
         self.instance.update(data);
     }
@@ -34,15 +34,15 @@ impl HashFunction<typenum::U8> for XXH3 {
 /// Warning: This is NOT a cryptographic hash function and should NOT be in production.
 #[cfg(feature = "unsecure_schemes")]
 #[derive(Default)]
-pub struct XXH128 {
+pub struct XXH128Unsecure {
     instance: xxhash_rust::xxh3::Xxh3,
 }
 
-impl OutputSizeUser for XXH128 {
+impl OutputSizeUser for XXH128Unsecure {
     type OutputSize = typenum::U16;
 }
 
-impl HashFunction<typenum::U16> for XXH128 {
+impl HashFunction<typenum::U16> for XXH128Unsecure {
     fn update(&mut self, data: &[u8]) {
         self.instance.update(data);
     }
