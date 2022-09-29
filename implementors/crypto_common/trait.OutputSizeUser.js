@@ -1,3 +1,3 @@
 (function() {var implementors = {
-"fastcrypto":[["impl&lt;Variant:&nbsp;Digest + 'static&gt; OutputSizeUser for <a class=\"struct\" href=\"fastcrypto/hash/struct.HashFunctionWrapper.html\" title=\"struct fastcrypto::hash::HashFunctionWrapper\">HashFunctionWrapper</a>&lt;Variant&gt;"]]
+"fastcrypto":[["impl&lt;Variant:&nbsp;Digest + 'static&gt; OutputSizeUser for <a class=\"struct\" href=\"fastcrypto/hash/struct.HashFunctionWrapper.html\" title=\"struct fastcrypto::hash::HashFunctionWrapper\">HashFunctionWrapper</a>&lt;Variant&gt;"],["impl OutputSizeUser for <a class=\"struct\" href=\"fastcrypto/hash/struct.Blake3.html\" title=\"struct fastcrypto::hash::Blake3\">Blake3</a>"]]
 };if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
