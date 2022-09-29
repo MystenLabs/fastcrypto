@@ -12,11 +12,6 @@ use std::fmt;
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
-    /// Clone the given slice into a new `Digest`.
-    pub fn from_bytes(val: &[u8]) -> Self {
-        Digest(GenericArray::<u8, DigestLength>::clone_from_slice(val))
-    }
-
     /// Copy the digest into a new vector.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -98,19 +93,19 @@ impl<Variant: digest::Digest + 'static + Default> HashFunction<Variant::OutputSi
     }
 }
 
-// SHA-2
+/// SHA-2
 pub type Sha256 = HashFunctionWrapper<sha2::Sha256>;
 
-// SHA-3
+/// SHA-3
 pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256>;
 
-// KECCAK
+/// KECCAK
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
-// BLAKE2
+/// BLAKE2
 pub type Blake2b<DigestLength> = HashFunctionWrapper<blake2::Blake2b<DigestLength>>;
 
-// BLAKE3
+/// BLAKE3
 #[derive(Default)]
 pub struct Blake3 {
     instance: blake3::Hasher,
