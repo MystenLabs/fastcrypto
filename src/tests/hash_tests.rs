@@ -3,7 +3,7 @@
 
 use generic_array::typenum::{U32, U64};
 
-use crate::hash::{Blake2b, HashFunction, Keccak256, Sha256, Sha3_256, XXH3};
+use crate::hash::{Blake2b, HashFunction, Keccak256, Sha256, Sha3_256};
 
 #[test]
 fn test_sha256() {
@@ -57,28 +57,5 @@ fn test_blake2b_512() {
     assert_eq!(
         digest.as_ref(),
         hex::decode("c4cc8d6a3fc41e284afb3d8549daf98b1f4dbb5bf021fd92daa45cf37a0b9cb78cce45006fb23d5e18512eb9a324d02a81eb903d6dbdffb1fbe9f2d36845d460").unwrap()
-    );
-}
-
-#[cfg(feature = "unsafe_schemes")]
-#[test]
-fn test_xxh3() {
-    let data =
-        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
-    let digest = XXH3::digest(&data);
-    assert_eq!(digest.as_ref(), hex::decode("A27C666A28F313B7").unwrap());
-}
-
-#[cfg(feature = "unsafe_schemes")]
-#[test]
-fn test_xxh128() {
-    use crate::hash::XXH128;
-
-    let data =
-        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
-    let digest = XXH128::digest(&data);
-    assert_eq!(
-        digest.as_ref(),
-        hex::decode("15A52E2CC34B8AC7A906AF85B364E8CD").unwrap()
     );
 }

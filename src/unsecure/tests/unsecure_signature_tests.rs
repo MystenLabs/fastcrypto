@@ -7,7 +7,7 @@ use crate::{
     hash::{Blake2b, Hashable},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-    unsafe_schemes::{
+    unsecure::signature::{
         ZeroAggregateSignature, ZeroKeyPair, ZeroPrivateKey, ZeroPublicKey, ZeroPublicKeyBytes,
         ZeroSignature,
     },
