@@ -109,3 +109,24 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
 // BLAKE2
 pub type Blake2b<DigestLength> = HashFunctionWrapper<blake2::Blake2b<DigestLength>>;
+
+// BLAKE3
+#[derive(Default)]
+pub struct Blake3 {
+    instance: blake3::Hasher,
+}
+
+impl OutputSizeUser for Blake3 {
+    type OutputSize = typenum::U32;
+}
+
+impl HashFunction<typenum::U32> for Blake3 {
+    fn update(&mut self, data: &[u8]) {
+        self.instance.update(data);
+    }
+
+    fn finalize(self) -> Digest<typenum::U32> {
+        let hash: [u8; 32] = self.instance.finalize().into();
+        Digest(hash.into())
+    }
+}

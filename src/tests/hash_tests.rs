@@ -3,7 +3,7 @@
 
 use generic_array::typenum::{U32, U64};
 
-use crate::hash::{Blake2b, HashFunction, Keccak256, Sha256, Sha3_256};
+use crate::hash::{Blake2b, Blake3, HashFunction, Keccak256, Sha256, Sha3_256};
 
 #[test]
 fn test_sha256() {
@@ -57,5 +57,16 @@ fn test_blake2b_512() {
     assert_eq!(
         digest.as_ref(),
         hex::decode("c4cc8d6a3fc41e284afb3d8549daf98b1f4dbb5bf021fd92daa45cf37a0b9cb78cce45006fb23d5e18512eb9a324d02a81eb903d6dbdffb1fbe9f2d36845d460").unwrap()
+    );
+}
+
+#[test]
+fn test_blake3() {
+    let data =
+        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
+    let digest = Blake3::digest(&data);
+    assert_eq!(
+        digest.as_ref(),
+        hex::decode("1b6d57a5017077b00cc9ce0641fb8ddcc136fbdb83325b31597fbe9441d9b269").unwrap()
     );
 }
