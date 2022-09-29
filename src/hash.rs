@@ -98,19 +98,19 @@ impl<Variant: digest::Digest + 'static + Default> HashFunction<Variant::OutputSi
     }
 }
 
-// SHA-2
+/// SHA-2
 pub type Sha256 = HashFunctionWrapper<sha2::Sha256>;
 
-// SHA-3
+/// SHA-3
 pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256>;
 
-// KECCAK
+/// KECCAK
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
-// BLAKE2
+/// BLAKE2
 pub type Blake2b<DigestLength> = HashFunctionWrapper<blake2::Blake2b<DigestLength>>;
 
-// BLAKE3
+/// BLAKE3
 #[derive(Default)]
 pub struct Blake3 {
     instance: blake3::Hasher,
