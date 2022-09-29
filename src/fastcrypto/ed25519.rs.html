@@ -573,6 +573,12 @@
 <span id="573">573</span>
 <span id="574">574</span>
 <span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
@@ -614,7 +620,7 @@
 /// Define Structs
 ///
 
-</span><span class="attribute">#[derive(Debug, Clone, PartialEq, Eq)]
+</span><span class="attribute">#[derive(Clone, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Ed25519PublicKey(<span class="kw">pub </span>ed25519_consensus::VerificationKey);
 
 <span class="kw">pub type </span>Ed25519PublicKeyBytes = PublicKeyBytes&lt;Ed25519PublicKey, { Ed25519PublicKey::LENGTH }&gt;;
@@ -715,6 +721,12 @@
 <span class="kw">impl </span>Display <span class="kw">for </span>Ed25519PublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="self">self</span>.<span class="number">0</span>.as_bytes()))
+    }
+}
+
+<span class="kw">impl </span>Debug <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="self">self</span>.as_ref()))
     }
 }
 

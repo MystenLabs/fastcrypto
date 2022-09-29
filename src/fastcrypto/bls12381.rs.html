@@ -655,6 +655,12 @@
 <span id="655">655</span>
 <span id="656">656</span>
 <span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{
@@ -701,7 +707,7 @@
 ///
 
 </span><span class="attribute">#[readonly::make]
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Clone)]
 </span><span class="kw">pub struct </span>BLS12381PublicKey {
     <span class="kw">pub </span>pubkey: blst::PublicKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; BLS_PUBLIC_KEY_LENGTH]&gt;,
@@ -792,6 +798,12 @@
 }
 
 <span class="kw">impl </span>Display <span class="kw">for </span>BLS12381PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="self">self</span>.as_ref()))
+    }
+}
+
+<span class="kw">impl </span>Debug <span class="kw">for </span>BLS12381PublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="self">self</span>.as_ref()))
     }
