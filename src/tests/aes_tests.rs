@@ -3,8 +3,9 @@
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
-        AesKey, InitializationVector,
+        AesKey, GenericByteArray, InitializationVector,
     },
+    error::FastCryptoError,
     traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
 };
 use core::fmt::Debug;
@@ -95,14 +96,14 @@ fn test_cipher<
 
 fn single_wycheproof_test_128<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let cipher = Aes128Gcm::new(AesKey::<U16>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes128Gcm<NonceSize>>(test, cipher)
 }
 
 fn single_wycheproof_test_256<NonceSize: ArrayLength<u8> + Debug>(
     test: &Test,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let cipher = Aes256Gcm::new(AesKey::<U32>::from_bytes(&test.key).unwrap());
     single_wycheproof_test::<NonceSize, Aes256Gcm<NonceSize>>(test, cipher)
 }
@@ -114,24 +115,24 @@ fn single_wycheproof_test<
 >(
     test: &Test,
     cipher: C,
-) -> Result<(), signature::Error> {
+) -> Result<(), FastCryptoError> {
     let iv = InitializationVector::from_bytes(test.nonce.as_slice()).unwrap();
 
     let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt)?;
 
     // Verify that the cipher text is
     if test.ct != ciphertext[..test.pt.len()] {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
 
     if test.tag != ciphertext[test.pt.len()..] {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
 
     let plaintext = cipher.decrypt_authenticated(&iv, &test.aad, &ciphertext)?;
 
     if test.pt != plaintext {
-        return Err(signature::Error::new());
+        return Err(FastCryptoError::GeneralError);
     }
     Ok(())
 }
@@ -183,6 +184,32 @@ fn wycheproof_test() {
 
             // Test returns Ok if succesful and Err if it fails
             assert_eq!(result.is_err(), test.result.must_fail());
+        }
+    }
+}
+
+#[test]
+fn test_sk_zeroization_on_drop() {
+    let ptr: *const u8;
+    let mut sk_bytes = Vec::new();
+    {
+        let mut rng = StdRng::from_seed([9; 32]);
+
+        // Both keys and nonces are GenericByteArrays
+        let sk = GenericByteArray::<U32>::generate(&mut rng);
+        sk_bytes.extend_from_slice(sk.as_ref());
+
+        ptr = std::ptr::addr_of!(sk) as *const u8;
+
+        let sk_memory: &[u8] = unsafe { ::std::slice::from_raw_parts(ptr, 32) };
+        // Assert that this is equal to sk_bytes before deletion
+        assert_eq!(sk_memory, &sk_bytes[..]);
+    }
+
+    // Check that sk is zeroized
+    unsafe {
+        for i in 0..32 {
+            assert_eq!(*ptr.add(i), 0);
         }
     }
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
+    error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
@@ -148,13 +149,13 @@ impl AsRef<[u8]> for Secp256k1PublicKey {
 }
 
 impl ToFromBytes for Secp256k1PublicKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match PublicKey::from_slice(bytes) {
             Ok(pubkey) => Ok(Secp256k1PublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             }),
-            Err(_) => Err(signature::Error::new()),
+            Err(_) => Err(FastCryptoError::InvalidInput),
         }
     }
 }
@@ -208,13 +209,13 @@ impl SigningKey for Secp256k1PrivateKey {
 }
 
 impl ToFromBytes for Secp256k1PrivateKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match SecretKey::from_slice(bytes) {
             Ok(privkey) => Ok(Secp256k1PrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             }),
-            Err(_) => Err(signature::Error::new()),
+            Err(_) => Err(FastCryptoError::InvalidInput),
         }
     }
 }
@@ -441,13 +442,13 @@ impl From<Secp256k1PrivateKey> for Secp256k1KeyPair {
 
 impl Secp256k1Signature {
     /// Recover public key from signature
-    pub fn recover(&self, hashed_msg: &[u8]) -> Result<Secp256k1PublicKey, signature::Error> {
+    pub fn recover(&self, hashed_msg: &[u8]) -> Result<Secp256k1PublicKey, FastCryptoError> {
         match rust_secp256k1::Message::from_slice(hashed_msg) {
             Ok(message) => match self.sig.recover(&message) {
                 Ok(pubkey) => Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
-                Err(_) => Err(signature::Error::new()),
+                Err(_) => Err(FastCryptoError::GeneralError),
             },
-            Err(_) => Err(signature::Error::new()),
+            Err(_) => Err(FastCryptoError::InvalidInput),
         }
     }
 }
