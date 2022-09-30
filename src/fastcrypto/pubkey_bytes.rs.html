@@ -92,11 +92,19 @@
 <span id="92">92</span>
 <span id="93">93</span>
 <span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="self">self</span>::sealed::SealedPublicKeyLength;
-<span class="kw">use </span><span class="kw">crate</span>::traits::{ToFromBytes, VerifyingKey};
+<span class="kw">use crate</span>::{
+    error::FastCryptoError,
+    traits::{ToFromBytes, VerifyingKey},
+};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_with::{serde_as, Bytes};
 <span class="kw">use </span>std::{fmt::Display, marker::PhantomData, str::FromStr};
@@ -128,8 +136,10 @@
 }
 
 <span class="kw">impl</span>&lt;T: VerifyingKey, <span class="kw">const </span>N: usize&gt; ToFromBytes <span class="kw">for </span>PublicKeyBytes&lt;T, N&gt; {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>bytes: [u8; N] = bytes.try_into().map_err(signature::Error::from_source)<span class="question-mark">?</span>;
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>bytes: [u8; N] = bytes
+            .try_into()
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InputLengthWrong(N))<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(PublicKeyBytes {
             bytes,
             phantom: PhantomData,

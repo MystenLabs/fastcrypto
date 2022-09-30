@@ -480,10 +480,12 @@
 <span id="480">480</span>
 <span id="481">481</span>
 <span id="482">482</span>
+<span id="483">483</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use crate</span>::{
+    error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
@@ -630,13 +632,13 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1PublicKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>PublicKey::from_slice(bytes) {
             <span class="prelude-val">Ok</span>(pubkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1PublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             }),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(signature::Error::new()),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
 }
@@ -690,13 +692,13 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1PrivateKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>SecretKey::from_slice(bytes) {
             <span class="prelude-val">Ok</span>(privkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1PrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             }),
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(signature::Error::new()),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
 }
@@ -923,13 +925,13 @@
 
 <span class="kw">impl </span>Secp256k1Signature {
     <span class="doccomment">/// Recover public key from signature
-    </span><span class="kw">pub fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, hashed_msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, signature::Error&gt; {
+    </span><span class="kw">pub fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, hashed_msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, FastCryptoError&gt; {
         <span class="kw">match </span>rust_secp256k1::Message::from_slice(hashed_msg) {
             <span class="prelude-val">Ok</span>(message) =&gt; <span class="kw">match </span><span class="self">self</span>.sig.recover(<span class="kw-2">&amp;</span>message) {
                 <span class="prelude-val">Ok</span>(pubkey) =&gt; Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
-                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(signature::Error::new()),
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError),
             },
-            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(signature::Error::new()),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
 }

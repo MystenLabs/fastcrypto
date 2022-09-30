@@ -230,6 +230,8 @@
 <span id="230">230</span>
 <span id="231">231</span>
 <span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::ops;
@@ -243,7 +245,7 @@
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
 
-<span class="kw">use </span><span class="kw">crate</span>::traits::ToFromBytes;
+<span class="kw">use crate</span>::{error::FastCryptoError, traits::ToFromBytes};
 
 <span class="comment">//
 // Pedersen commitments
@@ -306,12 +308,14 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>PedersenCommitment {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">if </span>bytes.len() != PEDERSEN_COMMITMENT_LENGTH {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(
+                PEDERSEN_COMMITMENT_LENGTH,
+            ));
         }
         <span class="kw">let </span>point = CompressedRistretto::from_slice(bytes);
-        <span class="kw">let </span>decompressed_point = point.decompress().ok_or_else(signature::Error::new)<span class="question-mark">?</span>;
+        <span class="kw">let </span>decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(PedersenCommitment {
             point: decompressed_point,
@@ -454,8 +458,8 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BulletproofsRangeProof {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>proof = RangeProof::from_bytes(bytes).map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>proof = RangeProof::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BulletproofsRangeProof {
             proof,
             bytes: OnceCell::new(),

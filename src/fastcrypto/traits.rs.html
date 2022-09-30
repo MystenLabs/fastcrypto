@@ -254,6 +254,8 @@
 <span id="254">254</span>
 <span id="255">255</span>
 <span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -262,11 +264,13 @@
 
 <span class="kw">use </span>rand::{CryptoRng, RngCore};
 <span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
-<span class="kw">pub use </span>signature::{Error, Signer};
+<span class="kw">pub use </span>signature::Signer;
 <span class="kw">use </span>std::{
     fmt::{Debug, Display},
     str::FromStr,
 };
+
+<span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
 
 <span class="doccomment">/// Trait impl&#39;d by concrete types that represent digital cryptographic material
 /// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
@@ -290,7 +294,7 @@
 // - and we need a trait to base the definition of EncodeDecodeBase64 as an extension trait on.
 </span><span class="kw">pub trait </span>ToFromBytes: AsRef&lt;[u8]&gt; + Debug + Sized {
     <span class="doccomment">/// Parse a key from its byte representation
-    </span><span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt;;
+    </span><span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
     <span class="doccomment">/// Borrow a byte slice representing the serialized form of this key
     </span><span class="kw">fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -299,8 +303,8 @@
 }
 
 <span class="kw">impl</span>&lt;T: signature::Signature&gt; ToFromBytes <span class="kw">for </span>T {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
-        &lt;<span class="self">Self </span><span class="kw">as </span>signature::Signature&gt;::from_bytes(bytes)
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        &lt;<span class="self">Self </span><span class="kw">as </span>signature::Signature&gt;::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
     }
 }
 
@@ -429,22 +433,22 @@
     <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
 
     <span class="doccomment">/// Parse a key from its byte representation
-    </span><span class="kw">fn </span>aggregate(signatures: Vec&lt;<span class="self">Self</span>::Sig&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt;;
+    </span><span class="kw">fn </span>aggregate(signatures: Vec&lt;<span class="self">Self</span>::Sig&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
-    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
-    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
+    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
     <span class="kw">fn </span>verify(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt;;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by cryptographic material that can be generated randomly such as keys and nonces.
@@ -473,10 +477,10 @@
     <span class="kw">type </span>IVType: Nonce;
 
     <span class="doccomment">/// Encrypt `plaintext` and write result to `buffer` using the given IV
-    </span><span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt;;
+    </span><span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
 
     <span class="doccomment">/// Decrypt `ciphertext` and write result to `buffer` using the given IV
-    </span><span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt;;
+    </span><span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by symmetric ciphers for authenticated encryption.
@@ -490,7 +494,7 @@
         iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
         aad: <span class="kw-2">&amp;</span>[u8],
         plaintext: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt;;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
 
     <span class="doccomment">/// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
     </span><span class="kw">fn </span>decrypt_authenticated(
@@ -498,7 +502,7 @@
         iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
         aad: <span class="kw-2">&amp;</span>[u8],
         ciphertext: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, Error&gt;;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by a keys/secret seeds for generating a secure instance.

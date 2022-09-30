@@ -286,10 +286,19 @@
 <span id="286">286</span>
 <span id="287">287</span>
 <span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes};
+</span><span class="kw">use crate</span>::{
+    error::FastCryptoError,
+    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
+};
 <span class="kw">use </span>aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
 <span class="kw">use </span>aes_gcm::AeadInPlace;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -318,10 +327,13 @@
 <span class="kw">where
     </span>N: ArrayLength&lt;u8&gt; + Debug,
 {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="prelude-val">Ok</span>(GenericByteArray {
-            bytes: GenericArray::from_slice(bytes).to_owned(),
-        })
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">match </span>bytes.len() == N::USIZE {
+            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(GenericByteArray {
+                bytes: GenericArray::from_slice(bytes).to_owned(),
+            }),
+            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(N::USIZE)),
+        }
     }
 
     <span class="kw">fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -396,21 +408,21 @@
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;U16&gt;;
 
-    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; plaintext.len()];
         <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         cipher
             .apply_keystream_b2b(plaintext, <span class="kw-2">&amp;mut </span>buffer)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(buffer)
     }
 
-    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; ciphertext.len()];
         <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         cipher
             .apply_keystream_b2b(ciphertext, <span class="kw-2">&amp;mut </span>buffer)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(buffer)
     }
 }
@@ -455,16 +467,16 @@
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;U16&gt;;
 
-    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">let </span>cipher = cbc::Encryptor::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         <span class="prelude-val">Ok</span>(cipher.encrypt_padded_vec_mut::&lt;Padding&gt;(plaintext))
     }
 
-    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">let </span>cipher = cbc::Decryptor::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         cipher
             .decrypt_padded_vec_mut::&lt;Padding&gt;(ciphertext)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
     }
 }
 
@@ -519,15 +531,15 @@
         iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
         aad: <span class="kw-2">&amp;</span>[u8],
         plaintext: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">if </span>iv.as_bytes().is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputTooShort(<span class="number">1</span>));
         }
         <span class="kw">let </span>cipher = aes_gcm::AesGcm::&lt;Aes, NonceSize&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes);
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = plaintext.to_vec();
         cipher
             .encrypt_in_place(iv.as_bytes().into(), aad, <span class="kw-2">&amp;mut </span>buffer)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(buffer)
     }
 
@@ -536,15 +548,15 @@
         iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
         aad: <span class="kw-2">&amp;</span>[u8],
         ciphertext: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">if </span>iv.as_bytes().is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputTooShort(<span class="number">1</span>));
         }
         <span class="kw">let </span>cipher = aes_gcm::AesGcm::&lt;Aes, NonceSize&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes);
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = ciphertext.to_vec();
         cipher
             .decrypt_in_place(iv.as_bytes().into(), aad, <span class="kw-2">&amp;mut </span>buffer)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(buffer)
     }
 }
@@ -560,11 +572,11 @@
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;NonceSize&gt;;
 
-    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="self">self</span>.encrypt_authenticated(iv, <span class="string">b&quot;&quot;</span>, plaintext)
     }
 
-    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, signature::Error&gt; {
+    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="self">self</span>.decrypt_authenticated(iv, <span class="string">b&quot;&quot;</span>, ciphertext)
     }
 }

@@ -661,6 +661,9 @@
 <span id="661">661</span>
 <span id="662">662</span>
 <span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{
@@ -680,6 +683,7 @@
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 <span class="kw">use crate</span>::{
+    error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, BlsSignature},
 };
@@ -763,8 +767,9 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>pubkey = blst::PublicKey::from_bytes(bytes).map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>pubkey =
+            blst::PublicKey::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -998,8 +1003,9 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>privkey = blst::SecretKey::from_bytes(bytes).map_err(|_e| signature::Error::new())<span class="question-mark">?</span>;
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>privkey =
+            blst::SecretKey::from_bytes(bytes).map_err(|_e| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BLS12381PrivateKey {
             privkey,
             bytes: OnceCell::new(),
@@ -1169,7 +1175,7 @@
     <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
 
     <span class="doccomment">/// Parse a key from its byte representation
-    </span><span class="kw">fn </span>aggregate(signatures: Vec&lt;<span class="self">Self</span>::Sig&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    </span><span class="kw">fn </span>aggregate(signatures: Vec&lt;<span class="self">Self</span>::Sig&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         blst::AggregateSignature::aggregate(
             <span class="kw-2">&amp;</span>signatures.iter().map(|x| <span class="kw-2">&amp;</span>x.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
             <span class="bool-val">true</span>,
@@ -1178,16 +1184,16 @@
             sig: <span class="prelude-val">Some</span>(sig.to_signature()),
             bytes: OnceCell::new(),
         })
-        .map_err(|<span class="kw">_</span>| signature::Error::new())
+        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
     }
 
-    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="kw">match </span><span class="self">self</span>.sig {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>sig) =&gt; {
                 <span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(sig);
                 aggr_sig
                     .add_signature(<span class="kw-2">&amp;</span>signature.sig, <span class="bool-val">true</span>)
-                    .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
                 <span class="self">self</span>.sig = <span class="prelude-val">Some</span>(aggr_sig.to_signature());
                 <span class="prelude-val">Ok</span>(())
             }
@@ -1198,12 +1204,12 @@
         }
     }
 
-    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="kw">match </span><span class="self">self</span>.sig {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref mut </span>sig) =&gt; <span class="kw">match </span>signature.sig {
                 <span class="prelude-val">Some</span>(to_add) =&gt; {
                     <span class="kw">let </span>result = blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[sig, <span class="kw-2">&amp;</span>to_add], <span class="bool-val">true</span>)
-                        .map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?
+                        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?
                         </span>.to_signature();
                     <span class="self">self</span>.sig = <span class="prelude-val">Some</span>(result);
                     <span class="prelude-val">Ok</span>(())
@@ -1221,10 +1227,10 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="kw">let </span>result = <span class="self">self
             </span>.sig
-            .ok_or_else(signature::Error::new)<span class="question-mark">?
+            .ok_or(FastCryptoError::GeneralError)<span class="question-mark">?
             </span>.fast_aggregate_verify(
                 <span class="bool-val">true</span>,
                 message,
@@ -1232,7 +1238,7 @@
                 <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
             );
         <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError);
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -1241,15 +1247,15 @@
         signatures: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
         }
         <span class="kw">let </span><span class="kw-2">mut </span>pk_iter = pks.into_iter();
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..signatures.len() {
             <span class="kw">let </span>sig = signatures[i].sig;
             <span class="kw">let </span>result = sig
-                .ok_or_else(signature::Error::new)<span class="question-mark">?
+                .ok_or(FastCryptoError::GeneralError)<span class="question-mark">?
                 </span>.fast_aggregate_verify(
                     <span class="bool-val">true</span>,
                     messages[i],
@@ -1261,7 +1267,7 @@
                         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
                 );
             <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+                <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError);
             }
         }
         <span class="prelude-val">Ok</span>(())
@@ -1316,8 +1322,8 @@
 }
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| signature::Error::new())<span class="question-mark">?</span>;
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BLS12381AggregateSignature {
             sig: <span class="prelude-val">Some</span>(sig),
             bytes: OnceCell::new(),
