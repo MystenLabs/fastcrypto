@@ -20,6 +20,9 @@ pub enum FastCryptoError {
     #[error("Expected input of length at most {0}")]
     InputTooLong(usize),
 
+    #[error("Expected input of length exactly {0}")]
+    InputLengthWrong(usize),
+
     #[error("General cryptographic error")]
     GeneralError,
 }

@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use self::sealed::SealedPublicKeyLength;
-use crate::traits::{ToFromBytes, VerifyingKey};
+use crate::{
+    error::FastCryptoError,
+    traits::{ToFromBytes, VerifyingKey},
+};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, Bytes};
 use std::{fmt::Display, marker::PhantomData, str::FromStr};
@@ -34,8 +37,10 @@ impl<T, const N: usize> Display for PublicKeyBytes<T, N> {
 }
 
 impl<T: VerifyingKey, const N: usize> ToFromBytes for PublicKeyBytes<T, N> {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let bytes: [u8; N] = bytes.try_into().map_err(signature::Error::from_source)?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let bytes: [u8; N] = bytes
+            .try_into()
+            .map_err(|_| FastCryptoError::InputLengthWrong(N))?;
         Ok(PublicKeyBytes {
             bytes,
             phantom: PhantomData,

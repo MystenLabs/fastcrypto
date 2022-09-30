@@ -17,6 +17,7 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
+    error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, BlsSignature},
 };
@@ -100,8 +101,9 @@ impl AsRef<[u8]> for BLS12381PublicKey {
 }
 
 impl ToFromBytes for BLS12381PublicKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let pubkey = blst::PublicKey::from_bytes(bytes).map_err(|_| signature::Error::new())?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let pubkey =
+            blst::PublicKey::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -335,8 +337,9 @@ impl AsRef<[u8]> for BLS12381PrivateKey {
 }
 
 impl ToFromBytes for BLS12381PrivateKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let privkey = blst::SecretKey::from_bytes(bytes).map_err(|_e| signature::Error::new())?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let privkey =
+            blst::SecretKey::from_bytes(bytes).map_err(|_e| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PrivateKey {
             privkey,
             bytes: OnceCell::new(),
@@ -506,7 +509,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     type PrivKey = BLS12381PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
+    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
         blst::AggregateSignature::aggregate(
             &signatures.iter().map(|x| &x.sig).collect::<Vec<_>>()[..],
             true,
@@ -515,16 +518,16 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             sig: Some(sig.to_signature()),
             bytes: OnceCell::new(),
         })
-        .map_err(|_| signature::Error::new())
+        .map_err(|_| FastCryptoError::GeneralError)
     }
 
-    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), signature::Error> {
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         match self.sig {
             Some(ref mut sig) => {
                 let mut aggr_sig = blst::AggregateSignature::from_signature(sig);
                 aggr_sig
                     .add_signature(&signature.sig, true)
-                    .map_err(|_| signature::Error::new())?;
+                    .map_err(|_| FastCryptoError::GeneralError)?;
                 self.sig = Some(aggr_sig.to_signature());
                 Ok(())
             }
@@ -535,12 +538,12 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         }
     }
 
-    fn add_aggregate(&mut self, signature: Self) -> Result<(), signature::Error> {
+    fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
         match self.sig {
             Some(ref mut sig) => match signature.sig {
                 Some(to_add) => {
                     let result = blst::AggregateSignature::aggregate(&[sig, &to_add], true)
-                        .map_err(|_| signature::Error::new())?
+                        .map_err(|_| FastCryptoError::GeneralError)?
                         .to_signature();
                     self.sig = Some(result);
                     Ok(())
@@ -558,10 +561,10 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         let result = self
             .sig
-            .ok_or_else(signature::Error::new)?
+            .ok_or(FastCryptoError::GeneralError)?
             .fast_aggregate_verify(
                 true,
                 message,
@@ -569,7 +572,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
             );
         if result != BLST_ERROR::BLST_SUCCESS {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::GeneralError);
         }
         Ok(())
     }
@@ -578,15 +581,15 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         signatures: &[&Self],
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }
         let mut pk_iter = pks.into_iter();
         for i in 0..signatures.len() {
             let sig = signatures[i].sig;
             let result = sig
-                .ok_or_else(signature::Error::new)?
+                .ok_or(FastCryptoError::GeneralError)?
                 .fast_aggregate_verify(
                     true,
                     messages[i],
@@ -598,7 +601,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                         .collect::<Vec<_>>()[..],
                 );
             if result != BLST_ERROR::BLST_SUCCESS {
-                return Err(signature::Error::new());
+                return Err(FastCryptoError::GeneralError);
             }
         }
         Ok(())
@@ -653,8 +656,8 @@ impl Drop for BLS12381KeyPair {
 }
 
 impl ToFromBytes for BLS12381AggregateSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let sig = blst::Signature::from_bytes(bytes).map_err(|_| signature::Error::new())?;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
             sig: Some(sig),
             bytes: OnceCell::new(),

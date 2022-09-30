@@ -6,11 +6,13 @@ use eyre::eyre;
 
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
-pub use signature::{Error, Signer};
+pub use signature::Signer;
 use std::{
     fmt::{Debug, Display},
     str::FromStr,
 };
+
+use crate::error::FastCryptoError;
 
 /// Trait impl'd by concrete types that represent digital cryptographic material
 /// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
@@ -34,7 +36,7 @@ use std::{
 // - and we need a trait to base the definition of EncodeDecodeBase64 as an extension trait on.
 pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
     /// Parse a key from its byte representation
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error>;
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError>;
 
     /// Borrow a byte slice representing the serialized form of this key
     fn as_bytes(&self) -> &[u8] {
@@ -43,8 +45,8 @@ pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
 }
 
 impl<T: signature::Signature> ToFromBytes for T {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        <Self as signature::Signature>::from_bytes(bytes)
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        <Self as signature::Signature>::from_bytes(bytes).map_err(|_| FastCryptoError::GeneralError)
     }
 }
 
@@ -173,22 +175,22 @@ pub trait AggregateAuthenticator:
     type PrivKey: SigningKey<Sig = Self::Sig>;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, Error>;
+    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError>;
 
-    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), Error>;
-    fn add_aggregate(&mut self, signature: Self) -> Result<(), Error>;
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError>;
+    fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError>;
 
     fn verify(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
-    ) -> Result<(), Error>;
+    ) -> Result<(), FastCryptoError>;
 
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
-    ) -> Result<(), Error>;
+    ) -> Result<(), FastCryptoError>;
 }
 
 /// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
@@ -217,10 +219,10 @@ pub trait Cipher {
     type IVType: Nonce;
 
     /// Encrypt `plaintext` and write result to `buffer` using the given IV
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, Error>;
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
 
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, Error>;
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
 }
 
 /// Trait impl'd by symmetric ciphers for authenticated encryption.
@@ -234,7 +236,7 @@ pub trait AuthenticatedCipher {
         iv: &Self::IVType,
         aad: &[u8],
         plaintext: &[u8],
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, FastCryptoError>;
 
     /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
     fn decrypt_authenticated(
@@ -242,7 +244,7 @@ pub trait AuthenticatedCipher {
         iv: &Self::IVType,
         aad: &[u8],
         ciphertext: &[u8],
-    ) -> Result<Vec<u8>, Error>;
+    ) -> Result<Vec<u8>, FastCryptoError>;
 }
 
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
