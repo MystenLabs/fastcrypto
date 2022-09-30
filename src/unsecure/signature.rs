@@ -69,8 +69,9 @@ impl AsRef<[u8]> for ZeroPublicKey {
 
 impl ToFromBytes for ZeroPublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let bytes_fixed: [u8; PUBLIC_KEY_LENGTH] =
-            bytes.try_into().map_err(|_| FastCryptoError::InputLengthWrong(PUBLIC_KEY_LENGTH))?;
+        let bytes_fixed: [u8; PUBLIC_KEY_LENGTH] = bytes
+            .try_into()
+            .map_err(|_| FastCryptoError::InputLengthWrong(PUBLIC_KEY_LENGTH))?;
         Ok(Self(bytes_fixed))
     }
 }
@@ -228,8 +229,9 @@ impl AsRef<[u8]> for ZeroPrivateKey {
 
 impl ToFromBytes for ZeroPrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let bytes: [u8; PRIVATE_KEY_LENGTH] =
-            bytes.try_into().map_err(|_| FastCryptoError::InputLengthWrong(PRIVATE_KEY_LENGTH))?;
+        let bytes: [u8; PRIVATE_KEY_LENGTH] = bytes
+            .try_into()
+            .map_err(|_| FastCryptoError::InputLengthWrong(PRIVATE_KEY_LENGTH))?;
         Ok(ZeroPrivateKey(bytes))
     }
 }
