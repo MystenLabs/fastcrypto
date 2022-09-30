@@ -68,9 +68,9 @@ impl AsRef<[u8]> for ZeroPublicKey {
 }
 
 impl ToFromBytes for ZeroPublicKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let bytes_fixed: [u8; PUBLIC_KEY_LENGTH] =
-            bytes.try_into().map_err(|_| signature::Error::new())?;
+            bytes.try_into().map_err(|_| FastCryptoError::InputLengthWrong(PUBLIC_KEY_LENGTH))?;
         Ok(Self(bytes_fixed))
     }
 }
@@ -143,7 +143,7 @@ impl<'a> From<&'a ZeroPrivateKey> for ZeroPublicKey {
         let result = crate::hash::Sha256::digest(secret.0.as_ref());
         let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[0..PUBLIC_KEY_LENGTH]
             .try_into()
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::GeneralError)
             .unwrap();
         ZeroPublicKey(bytes)
     }
@@ -227,9 +227,9 @@ impl AsRef<[u8]> for ZeroPrivateKey {
 }
 
 impl ToFromBytes for ZeroPrivateKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let bytes: [u8; PRIVATE_KEY_LENGTH] =
-            bytes.try_into().map_err(|_| signature::Error::new())?;
+            bytes.try_into().map_err(|_| FastCryptoError::InputLengthWrong(PRIVATE_KEY_LENGTH))?;
         Ok(ZeroPrivateKey(bytes))
     }
 }
@@ -361,16 +361,16 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
     type Sig = ZeroSignature;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, signature::Error> {
+    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
         Ok(ZeroAggregateSignature(signatures))
     }
 
-    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), signature::Error> {
+    fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         self.0.push(signature);
         Ok(())
     }
 
-    fn add_aggregate(&mut self, signatures: Self) -> Result<(), signature::Error> {
+    fn add_aggregate(&mut self, signatures: Self) -> Result<(), FastCryptoError> {
         self.0.extend(signatures.0);
         Ok(())
     }
@@ -379,7 +379,7 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         msg: &[u8],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         if pks
             .iter()
             .zip(self.0.iter())
@@ -388,23 +388,23 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
         {
             return Ok(());
         }
-        Err(signature::Error::new())
+        Err(FastCryptoError::GeneralError)
     }
 
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         if sigs.len() != pks.len() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InvalidInput);
         }
         let mut pks_iter = pks.into_iter();
 
         for (msg, sig) in messages.iter().zip(sigs.iter().map(|sig| &sig.0)) {
             for (j, key) in pks_iter.next().unwrap().enumerate() {
                 if key.verify(msg, &sig[j]).is_err() {
-                    return Err(signature::Error::new());
+                    return Err(FastCryptoError::GeneralError);
                 }
             }
         }
@@ -417,7 +417,7 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
 ///
 
 impl TryFrom<ZeroPublicKeyBytes> for ZeroPublicKey {
-    type Error = signature::Error;
+    type Error = FastCryptoError;
 
     fn try_from(bytes: ZeroPublicKeyBytes) -> Result<ZeroPublicKey, Self::Error> {
         ZeroPublicKey::from_bytes(bytes.as_ref())
