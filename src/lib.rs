@@ -51,10 +51,6 @@ pub mod hash_tests;
 #[path = "unsecure/tests/unsecure_signature_tests.rs"]
 pub mod unsecure_schemes_tests;
 
-#[cfg(all(test, feature = "unsecure_schemes"))]
-#[path = "unsecure/tests/unsecure_hash_tests.rs"]
-pub mod unsecure_hash_tests;
-
 // Signing traits
 pub mod traits;
 // Key scheme implementations
