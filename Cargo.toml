@@ -53,7 +53,7 @@ name = "crypto"
 harness = false
 
 [features]
-default = ["unsecure_schemes"]
+default = []
 copy_key = []
 unsecure_schemes = []
 
