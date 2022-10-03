@@ -103,11 +103,32 @@ fn verify_invalid_signature() {
     let digest = message.digest::<Blake2b<U32>>();
     let mut signature = kp.sign(&digest.0);
 
-    // Modify the first byte of the signature
-    signature.0[0] += 1;
+    // Modify the signature
+    signature.0[3] += 1;
 
     // Verification should fail.
     assert!(kp.public().verify(&digest.0, &signature).is_err());
+}
+
+#[test]
+fn different_messages_give_different_signatures() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    let message1 = b"message1";
+
+    // Make signature.
+    let signature1 = kp.sign(b"message1");
+    assert!(kp.public().verify(message1, &signature1).is_ok());
+
+    let message2 = b"message2";
+    let signature2 = kp.sign(b"message2");
+    assert!(kp.public().verify(message2, &signature2).is_ok());
+
+    // Signatures are different and should not verify on other messages
+    assert_ne!(signature1, signature2);
+    assert!(kp.public().verify(message1, &signature2).is_err());
+    assert!(kp.public().verify(message2, &signature1).is_err());
 }
 
 #[test]
