@@ -74,7 +74,7 @@ pub mod serde_helpers;
 /// away.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
-#[cfg(feature = "unsecure_schemes")]
+#[cfg(all(feature = "unsecure_schemes", debug_assertions))]
 pub mod unsecure;
 
 ////////////////////////////////////////////////////////////////
