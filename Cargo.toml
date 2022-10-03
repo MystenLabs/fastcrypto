@@ -45,7 +45,7 @@ once_cell = "1.15.0"
 readonly = "0.2.2"
 sha2 = "0.10.6"
 sha3 = "0.10.5"
-thiserror = "1.0.36"
+thiserror = "1.0.37"
 
 fastcrypto-derive = { path = "./fastcrypto-derive", version = "0.1.2" }
 
