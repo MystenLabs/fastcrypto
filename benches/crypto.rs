@@ -96,7 +96,7 @@ mod ed25519_benches {
                 BenchmarkId::new("BLS12381 aggregate verification", *size),
                 &(msg.clone(), blst_public_keys.clone(), aggregate_signature),
                 |b, i| {
-                    b.iter(|| i.2.verify(&i.1, &i.0[..]));
+                    b.iter(|| i.2.verify(&i.1, &i.0));
                 },
             );
 
