@@ -8,8 +8,8 @@ use crate::{
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
     unsecure::signature::{
-        ZeroAggregateSignature, ZeroKeyPair, ZeroPrivateKey, ZeroPublicKey, ZeroPublicKeyBytes,
-        ZeroSignature,
+        UnsecureAggregateSignature, UnsecureKeyPair, UnsecurePrivateKey, UnsecurePublicKey,
+        UnsecurePublicKeyBytes, UnsecureSignature,
     },
 };
 
@@ -17,9 +17,11 @@ use rand::{rngs::StdRng, SeedableRng as _};
 use sha3::Sha3_256;
 use signature::{Signer, Verifier};
 
-pub fn keys() -> Vec<ZeroKeyPair> {
+pub fn keys() -> Vec<UnsecureKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
-    (0..4).map(|_| ZeroKeyPair::generate(&mut rng)).collect()
+    (0..4)
+        .map(|_| UnsecureKeyPair::generate(&mut rng))
+        .collect()
 }
 
 #[test]
@@ -28,12 +30,12 @@ fn serialize_deserialize() {
     let public_key = kpref.public();
 
     let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<ZeroPublicKey>(&bytes).unwrap();
+    let pk2 = bincode::deserialize::<UnsecurePublicKey>(&bytes).unwrap();
     assert_eq!(*public_key, pk2);
 
     let private_key = kpref.private();
     let bytes = bincode::serialize(&private_key).unwrap();
-    let privkey = bincode::deserialize::<ZeroPublicKey>(&bytes).unwrap();
+    let privkey = bincode::deserialize::<UnsecurePublicKey>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 }
@@ -44,20 +46,8 @@ fn test_serde_signatures_non_human_readable() {
     // Test populated aggregate signature
     let sig = keys().pop().unwrap().sign(message);
     let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: ZeroSignature = bincode::deserialize(&serialized).unwrap();
+    let deserialized: UnsecureSignature = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, sig);
-}
-
-#[test]
-fn test_serde_signatures_human_readable() {
-    let kp = keys().pop().unwrap();
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign(message);
-
-    let serialized = serde_json::to_string(&signature).unwrap();
-    assert_eq!(format!("{:?}", signature.0), serialized);
-    let deserialized: ZeroSignature = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized, signature);
 }
 
 #[test]
@@ -65,7 +55,7 @@ fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
     let export = public_key.encode_base64();
-    let import = ZeroPublicKey::decode_base64(&export);
+    let import = UnsecurePublicKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(&import.unwrap(), public_key);
 }
@@ -75,7 +65,7 @@ fn import_export_secret_key() {
     let kpref = keys().pop().unwrap();
     let secret_key = kpref.private();
     let export = secret_key.encode_base64();
-    let import = ZeroPrivateKey::decode_base64(&export);
+    let import = UnsecurePrivateKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), secret_key.as_ref());
 }
@@ -84,7 +74,7 @@ fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world");
     let sig_bytes = signature.as_ref();
-    let rebuilt_sig = <ZeroSignature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
+    let rebuilt_sig = <UnsecureSignature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
     assert_eq!(rebuilt_sig, signature);
 }
 
@@ -125,7 +115,7 @@ fn verify_valid_batch() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest::<Blake2b<U32>>();
-    let (pubkeys, signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys, signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -135,7 +125,7 @@ fn verify_valid_batch() {
         .unzip();
 
     // Verify the batch.
-    let res = ZeroPublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
+    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
     assert!(res.is_ok(), "{:?}", res);
 }
 
@@ -144,7 +134,7 @@ fn verify_invalid_batch() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest::<Blake2b<U32>>();
-    let (pubkeys, mut signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys, mut signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -157,7 +147,7 @@ fn verify_invalid_batch() {
     signatures[1].0[0] += 1;
 
     // Verify the batch.
-    let res = ZeroPublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
+    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -166,7 +156,7 @@ fn verify_valid_aggregate_signature() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest::<Blake2b<U32>>();
-    let (pubkeys, signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys, signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -175,7 +165,7 @@ fn verify_valid_aggregate_signature() {
         })
         .unzip();
 
-    let aggregated_signature = ZeroAggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(signatures).unwrap();
 
     // // Verify the batch.
     let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
@@ -187,7 +177,7 @@ fn verify_invalid_aggregate_signature() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
     let digest = message.digest::<Blake2b<U32>>();
-    let (pubkeys, mut signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys, mut signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -199,7 +189,7 @@ fn verify_invalid_aggregate_signature() {
     // Modify one of the signatures
     signatures[1].0[0] += 1;
 
-    let aggregated_signature = ZeroAggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(signatures).unwrap();
 
     // // Verify the batch.
     let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
@@ -211,7 +201,7 @@ fn verify_batch_aggregate_signature() {
     // Make signatures.
     let message1: &[u8] = b"Hello, world!";
     let digest1 = message1.digest::<Blake2b<U32>>();
-    let (pubkeys1, signatures1): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys1, signatures1): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -219,12 +209,12 @@ fn verify_batch_aggregate_signature() {
             (kp.public().clone(), sig)
         })
         .unzip();
-    let aggregated_signature1 = ZeroAggregateSignature::aggregate(signatures1).unwrap();
+    let aggregated_signature1 = UnsecureAggregateSignature::aggregate(signatures1).unwrap();
 
     // Make signatures.
     let message2: &[u8] = b"Hello, world!";
     let digest2 = message2.digest::<Blake2b<U32>>();
-    let (pubkeys2, signatures2): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (pubkeys2, signatures2): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(2)
         .map(|kp| {
@@ -233,9 +223,9 @@ fn verify_batch_aggregate_signature() {
         })
         .unzip();
 
-    let aggregated_signature2 = ZeroAggregateSignature::aggregate(signatures2).unwrap();
+    let aggregated_signature2 = UnsecureAggregateSignature::aggregate(signatures2).unwrap();
 
-    assert!(ZeroAggregateSignature::batch_verify(
+    assert!(UnsecureAggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1[..].iter(), pubkeys2[..].iter()],
         &[&digest1.0[..], &digest2.0[..]]
@@ -246,13 +236,13 @@ fn verify_batch_aggregate_signature() {
 #[test]
 fn test_serialize_deserialize_aggregate_signatures() {
     // Test empty aggregate signature
-    let sig = ZeroAggregateSignature::default();
+    let sig = UnsecureAggregateSignature::default();
     let serialized = bincode::serialize(&sig).unwrap();
-    let _deserialized: ZeroAggregateSignature = bincode::deserialize(&serialized).unwrap();
+    let _deserialized: UnsecureAggregateSignature = bincode::deserialize(&serialized).unwrap();
 
     let message = b"hello, narwhal";
     // Test populated aggregate signature
-    let (_, signatures): (Vec<ZeroPublicKey>, Vec<ZeroSignature>) = keys()
+    let (_, signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -261,24 +251,25 @@ fn test_serialize_deserialize_aggregate_signatures() {
         })
         .unzip();
 
-    let sig = ZeroAggregateSignature::aggregate(signatures).unwrap();
+    let sig = UnsecureAggregateSignature::aggregate(signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
-    let _deserialized: ZeroAggregateSignature = bincode::deserialize(&serialized).unwrap();
+    let _deserialized: UnsecureAggregateSignature = bincode::deserialize(&serialized).unwrap();
 }
 
 #[test]
 fn test_add_signatures_to_aggregate() {
-    let pks: Vec<ZeroPublicKey> = keys()
+    let (kps, pks): (Vec<UnsecureKeyPair>, Vec<UnsecurePublicKey>) = keys()
         .into_iter()
         .take(3)
-        .map(|kp| kp.public().clone())
-        .collect();
+        .map(|kp| (kp.clone(), kp.public().clone()))
+        .unzip();
+
     let message = b"hello, narwhal";
 
     // Test 'add signature'
-    let mut sig1 = ZeroAggregateSignature::default();
+    let mut sig1 = UnsecureAggregateSignature::default();
     // Test populated aggregate signature
-    keys().into_iter().take(3).for_each(|kp| {
+    kps.clone().into_iter().for_each(|kp| {
         let sig = kp.sign(message);
         sig1.add_signature(sig).unwrap();
     });
@@ -286,17 +277,16 @@ fn test_add_signatures_to_aggregate() {
     assert!(sig1.verify(&pks, message).is_ok());
 
     // Test 'add aggregate signature'
-    let mut sig2 = ZeroAggregateSignature::default();
+    let mut sig2 = UnsecureAggregateSignature::default();
 
-    let kp = &keys()[0];
-    let sig = ZeroAggregateSignature::aggregate(vec![kp.sign(message)]).unwrap();
+    let kp = &kps[0];
+    let sig = UnsecureAggregateSignature::aggregate(vec![kp.sign(message)]).unwrap();
     sig2.add_aggregate(sig).unwrap();
 
     assert!(sig2.verify(&pks[0..1], message).is_ok());
 
-    let aggregated_signature = ZeroAggregateSignature::aggregate(
-        keys()
-            .into_iter()
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(
+        kps.into_iter()
             .take(3)
             .skip(1)
             .map(|kp| kp.sign(message))
@@ -316,16 +306,16 @@ fn test_hkdf_generate_from_ikm() {
         5, 4,
     ];
     let salt = &[3, 2, 1];
-    let kp = hkdf_generate_from_ikm::<Sha3_256, ZeroKeyPair>(seed, salt, &[]).unwrap();
-    let kp2 = hkdf_generate_from_ikm::<Sha3_256, ZeroKeyPair>(seed, salt, &[]).unwrap();
+    let kp = hkdf_generate_from_ikm::<Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
+    let kp2 = hkdf_generate_from_ikm::<Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
 }
 
 #[test]
 fn test_public_key_bytes_conversion() {
     let kp = keys().pop().unwrap();
-    let pk_bytes: ZeroPublicKeyBytes = kp.public().into();
-    let rebuilded_pk: ZeroPublicKey = pk_bytes.try_into().unwrap();
+    let pk_bytes: UnsecurePublicKeyBytes = kp.public().into();
+    let rebuilded_pk: UnsecurePublicKey = pk_bytes.try_into().unwrap();
     assert_eq!(kp.public().as_bytes(), rebuilded_pk.as_bytes());
 }
 

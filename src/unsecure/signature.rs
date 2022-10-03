@@ -2,11 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-    error::FastCryptoError, hash::HashFunction, pubkey_bytes::PublicKeyBytes,
+    error::FastCryptoError,
+    hash::{Digest, HashFunction},
+    pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
 };
 use base64ct::{Base64, Encoding};
 use eyre::eyre;
+use generic_array::ArrayLength;
 use rand::Rng;
 use serde::{
     de::{self},
@@ -25,49 +28,57 @@ use crate::traits::{
     VerifyingKey,
 };
 
+use super::hash::XXH128Unsecure;
+
 ///
 /// Define Structs
 ///
 
 const PRIVATE_KEY_LENGTH: usize = 16;
 const PUBLIC_KEY_LENGTH: usize = 16;
-const SIGNATURE_LENGTH: usize = 1;
+const SIGNATURE_LENGTH: usize = 16;
 
 #[readonly::make]
 #[derive(Default, Debug, Clone)]
-pub struct ZeroPublicKey(pub [u8; PUBLIC_KEY_LENGTH]);
+pub struct UnsecurePublicKey(pub [u8; SIGNATURE_LENGTH]);
 
-pub type ZeroPublicKeyBytes = PublicKeyBytes<ZeroPublicKey, { PUBLIC_KEY_LENGTH }>;
+pub type UnsecurePublicKeyBytes = PublicKeyBytes<UnsecurePublicKey, { PUBLIC_KEY_LENGTH }>;
 
-#[derive(Default, Debug)]
-pub struct ZeroPrivateKey(pub [u8; PRIVATE_KEY_LENGTH]);
+#[derive(Default, Debug, Clone)]
+pub struct UnsecurePrivateKey(pub [u8; PRIVATE_KEY_LENGTH]);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
-pub struct ZeroKeyPair {
-    name: ZeroPublicKey,
-    secret: ZeroPrivateKey,
+pub struct UnsecureKeyPair {
+    name: UnsecurePublicKey,
+    secret: UnsecurePrivateKey,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ZeroSignature(pub [u8; SIGNATURE_LENGTH]);
+pub struct UnsecureSignature(pub [u8; SIGNATURE_LENGTH]);
+
+impl<DigestLength: ArrayLength<u8>> From<Digest<DigestLength>> for UnsecureSignature {
+    fn from(digest: Digest<DigestLength>) -> Self {
+        UnsecureSignature(digest.to_vec().try_into().unwrap())
+    }
+}
 
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ZeroAggregateSignature(pub Vec<ZeroSignature>);
+pub struct UnsecureAggregateSignature(pub Vec<UnsecureSignature>);
 
 ///
 /// Implement SigningKey
 ///
 
-impl AsRef<[u8]> for ZeroPublicKey {
+impl AsRef<[u8]> for UnsecurePublicKey {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl ToFromBytes for ZeroPublicKey {
+impl ToFromBytes for UnsecurePublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let bytes_fixed: [u8; PUBLIC_KEY_LENGTH] = bytes
             .try_into()
@@ -76,39 +87,39 @@ impl ToFromBytes for ZeroPublicKey {
     }
 }
 
-impl std::hash::Hash for ZeroPublicKey {
+impl std::hash::Hash for UnsecurePublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
-impl PartialEq for ZeroPublicKey {
+impl PartialEq for UnsecurePublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for ZeroPublicKey {}
+impl Eq for UnsecurePublicKey {}
 
-impl PartialOrd for ZeroPublicKey {
+impl PartialOrd for UnsecurePublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_ref().partial_cmp(other.as_ref())
     }
 }
-impl Ord for ZeroPublicKey {
+impl Ord for UnsecurePublicKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other.as_ref())
     }
 }
 
-impl Display for ZeroPublicKey {
+impl Display for UnsecurePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for ZeroPublicKey {
+impl Serialize for UnsecurePublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -118,7 +129,7 @@ impl Serialize for ZeroPublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for ZeroPublicKey {
+impl<'de> Deserialize<'de> for UnsecurePublicKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -129,30 +140,35 @@ impl<'de> Deserialize<'de> for ZeroPublicKey {
     }
 }
 
-impl Verifier<ZeroSignature> for ZeroPublicKey {
-    fn verify(&self, _msg: &[u8], signature: &ZeroSignature) -> Result<(), signature::Error> {
-        // These signatures are valid if the first byte is zero and invalid otherwise. This allows for negative tests.
-        if signature.0[0] == 0 {
+impl Verifier<UnsecureSignature> for UnsecurePublicKey {
+    fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
+        // A signature for msg is equal to H(pk || msg)
+        let mut hash = XXH128Unsecure::default();
+        hash.update(self.as_bytes());
+        hash.update(msg);
+        let digest = hash.finalize();
+
+        if ToFromBytes::as_bytes(signature) == digest.as_ref() {
             return Ok(());
         }
         Err(signature::Error::new())
     }
 }
 
-impl<'a> From<&'a ZeroPrivateKey> for ZeroPublicKey {
-    fn from(secret: &'a ZeroPrivateKey) -> Self {
+impl<'a> From<&'a UnsecurePrivateKey> for UnsecurePublicKey {
+    fn from(secret: &'a UnsecurePrivateKey) -> Self {
         let result = crate::hash::Sha256::digest(secret.0.as_ref());
         let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[0..PUBLIC_KEY_LENGTH]
             .try_into()
             .map_err(|_| FastCryptoError::GeneralError)
             .unwrap();
-        ZeroPublicKey(bytes)
+        UnsecurePublicKey(bytes)
     }
 }
 
-impl VerifyingKey for ZeroPublicKey {
-    type PrivKey = ZeroPrivateKey;
-    type Sig = ZeroSignature;
+impl VerifyingKey for UnsecurePublicKey {
+    type PrivKey = UnsecurePrivateKey;
+    type Sig = UnsecureSignature;
 
     const LENGTH: usize = PUBLIC_KEY_LENGTH;
 
@@ -177,27 +193,27 @@ impl VerifyingKey for ZeroPublicKey {
 /// Implement Authenticator
 ///
 
-impl AsRef<[u8]> for ZeroSignature {
+impl AsRef<[u8]> for UnsecureSignature {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl std::hash::Hash for ZeroSignature {
+impl std::hash::Hash for UnsecureSignature {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
-impl PartialEq for ZeroSignature {
+impl PartialEq for UnsecureSignature {
     fn eq(&self, other: &Self) -> bool {
         self.0 == other.0
     }
 }
 
-impl Eq for ZeroSignature {}
+impl Eq for UnsecureSignature {}
 
-impl Signature for ZeroSignature {
+impl Signature for UnsecureSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         let bytes_fixed: [u8; SIGNATURE_LENGTH] =
             bytes.try_into().map_err(|_| signature::Error::new())?;
@@ -205,15 +221,15 @@ impl Signature for ZeroSignature {
     }
 }
 
-impl Display for ZeroSignature {
+impl Display for UnsecureSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
-impl Authenticator for ZeroSignature {
-    type PubKey = ZeroPublicKey;
-    type PrivKey = ZeroPrivateKey;
+impl Authenticator for UnsecureSignature {
+    type PubKey = UnsecurePublicKey;
+    type PrivKey = UnsecurePrivateKey;
     const LENGTH: usize = 0;
 }
 
@@ -221,23 +237,23 @@ impl Authenticator for ZeroSignature {
 /// Implement SigningKey
 ///
 
-impl AsRef<[u8]> for ZeroPrivateKey {
+impl AsRef<[u8]> for UnsecurePrivateKey {
     fn as_ref(&self) -> &[u8] {
         &self.0
     }
 }
 
-impl ToFromBytes for ZeroPrivateKey {
+impl ToFromBytes for UnsecurePrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let bytes: [u8; PRIVATE_KEY_LENGTH] = bytes
             .try_into()
             .map_err(|_| FastCryptoError::InputLengthWrong(PRIVATE_KEY_LENGTH))?;
-        Ok(ZeroPrivateKey(bytes))
+        Ok(UnsecurePrivateKey(bytes))
     }
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for ZeroPrivateKey {
+impl Serialize for UnsecurePrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -247,7 +263,7 @@ impl Serialize for ZeroPrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for ZeroPrivateKey {
+impl<'de> Deserialize<'de> for UnsecurePrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -258,31 +274,24 @@ impl<'de> Deserialize<'de> for ZeroPrivateKey {
     }
 }
 
-impl SigningKey for ZeroPrivateKey {
-    type PubKey = ZeroPublicKey;
-    type Sig = ZeroSignature;
+impl SigningKey for UnsecurePrivateKey {
+    type PubKey = UnsecurePublicKey;
+    type Sig = UnsecureSignature;
     const LENGTH: usize = PRIVATE_KEY_LENGTH;
-}
-
-// Valid signatures begin with a zero byte and have size SIGNATURE_LENGTH. By default we just create a signature with all zeros.
-impl Signer<ZeroSignature> for ZeroPrivateKey {
-    fn try_sign(&self, _msg: &[u8]) -> Result<ZeroSignature, signature::Error> {
-        Ok(ZeroSignature([0; SIGNATURE_LENGTH]))
-    }
 }
 
 ///
 /// Implement KeyPair
 ///
 
-impl From<ZeroPrivateKey> for ZeroKeyPair {
-    fn from(secret: ZeroPrivateKey) -> Self {
-        let pk: ZeroPublicKey = (&secret).into();
-        ZeroKeyPair { name: pk, secret }
+impl From<UnsecurePrivateKey> for UnsecureKeyPair {
+    fn from(secret: UnsecurePrivateKey) -> Self {
+        let pk: UnsecurePublicKey = (&secret).into();
+        UnsecureKeyPair { name: pk, secret }
     }
 }
 
-impl EncodeDecodeBase64 for ZeroKeyPair {
+impl EncodeDecodeBase64 for UnsecureKeyPair {
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
         keypair_decode_base64(value)
     }
@@ -295,16 +304,16 @@ impl EncodeDecodeBase64 for ZeroKeyPair {
     }
 }
 
-impl KeyPair for ZeroKeyPair {
-    type PubKey = ZeroPublicKey;
-    type PrivKey = ZeroPrivateKey;
-    type Sig = ZeroSignature;
+impl KeyPair for UnsecureKeyPair {
+    type PubKey = UnsecurePublicKey;
+    type PrivKey = UnsecurePrivateKey;
+    type Sig = UnsecureSignature;
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
-        ZeroKeyPair {
-            name: ZeroPublicKey(self.name.0),
-            secret: ZeroPrivateKey(self.secret.0),
+        UnsecureKeyPair {
+            name: UnsecurePublicKey(self.name.0),
+            secret: UnsecurePrivateKey(self.secret.0),
         }
     }
 
@@ -318,18 +327,23 @@ impl KeyPair for ZeroKeyPair {
 
     fn generate<R: rand::CryptoRng + rand::RngCore>(_rng: &mut R) -> Self {
         let sk_bytes: [u8; PUBLIC_KEY_LENGTH] = rand::thread_rng().gen();
-        let sk = ZeroPrivateKey(sk_bytes);
+        let sk = UnsecurePrivateKey(sk_bytes);
         sk.into()
     }
 }
 
-impl Signer<ZeroSignature> for ZeroKeyPair {
-    fn try_sign(&self, _msg: &[u8]) -> Result<ZeroSignature, signature::Error> {
-        Ok(ZeroSignature([0; SIGNATURE_LENGTH]))
+impl Signer<UnsecureSignature> for UnsecureKeyPair {
+    fn try_sign(&self, msg: &[u8]) -> Result<UnsecureSignature, signature::Error> {
+        // A signature for msg is equal to H(pk || msg)
+        let mut hash = XXH128Unsecure::default();
+        hash.update(self.name.as_bytes());
+        hash.update(msg);
+        let digest = hash.finalize();
+        Ok(UnsecureSignature::from(digest))
     }
 }
 
-impl FromStr for ZeroKeyPair {
+impl FromStr for UnsecureKeyPair {
     type Err = FastCryptoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -343,13 +357,13 @@ impl FromStr for ZeroKeyPair {
 ///
 
 // Don't try to use this externally
-impl AsRef<[u8]> for ZeroAggregateSignature {
+impl AsRef<[u8]> for UnsecureAggregateSignature {
     fn as_ref(&self) -> &[u8] {
         &[]
     }
 }
 
-impl Display for ZeroAggregateSignature {
+impl Display for UnsecureAggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
@@ -357,14 +371,14 @@ impl Display for ZeroAggregateSignature {
 
 // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
 
-impl AggregateAuthenticator for ZeroAggregateSignature {
-    type PrivKey = ZeroPrivateKey;
-    type PubKey = ZeroPublicKey;
-    type Sig = ZeroSignature;
+impl AggregateAuthenticator for UnsecureAggregateSignature {
+    type PrivKey = UnsecurePrivateKey;
+    type PubKey = UnsecurePublicKey;
+    type Sig = UnsecureSignature;
 
     /// Parse a key from its byte representation
     fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
-        Ok(ZeroAggregateSignature(signatures))
+        Ok(UnsecureAggregateSignature(signatures))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
@@ -418,16 +432,16 @@ impl AggregateAuthenticator for ZeroAggregateSignature {
 /// Implement VerifyingKeyBytes
 ///
 
-impl TryFrom<ZeroPublicKeyBytes> for ZeroPublicKey {
+impl TryFrom<UnsecurePublicKeyBytes> for UnsecurePublicKey {
     type Error = FastCryptoError;
 
-    fn try_from(bytes: ZeroPublicKeyBytes) -> Result<ZeroPublicKey, Self::Error> {
-        ZeroPublicKey::from_bytes(bytes.as_ref())
+    fn try_from(bytes: UnsecurePublicKeyBytes) -> Result<UnsecurePublicKey, Self::Error> {
+        UnsecurePublicKey::from_bytes(bytes.as_ref())
     }
 }
 
-impl From<&ZeroPublicKey> for ZeroPublicKeyBytes {
-    fn from(pk: &ZeroPublicKey) -> ZeroPublicKeyBytes {
-        ZeroPublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
+impl From<&UnsecurePublicKey> for UnsecurePublicKeyBytes {
+    fn from(pk: &UnsecurePublicKey) -> UnsecurePublicKeyBytes {
+        UnsecurePublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
