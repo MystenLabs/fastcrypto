@@ -5,4 +5,5 @@
 /// cryptographic signature scheme.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
+pub mod hash;
 pub mod signature;

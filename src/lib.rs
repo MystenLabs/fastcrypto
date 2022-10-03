@@ -51,6 +51,10 @@ pub mod hash_tests;
 #[path = "unsecure/tests/unsecure_signature_tests.rs"]
 pub mod unsecure_schemes_tests;
 
+#[cfg(all(test, feature = "unsecure_schemes"))]
+#[path = "unsecure/tests/hash_tests.rs"]
+pub mod unsecure_hash_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -74,7 +78,11 @@ pub mod serde_helpers;
 /// away.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
+<<<<<<< HEAD
 #[cfg(feature = "unsecure_schemes")]
+=======
+#[cfg(all(feature = "unsecure_schemes", debug_assertions))]
+>>>>>>> unsecurehash
 pub mod unsecure;
 
 ////////////////////////////////////////////////////////////////
