@@ -9,11 +9,11 @@ mod ed25519_benches {
     use super::*;
     use criterion::*;
     use fastcrypto::{
-        bls12381::{BLS12381KeyPair, BLS12381Signature},
+        bls12381::{BLS12381AggregateSignature, BLS12381KeyPair, BLS12381Signature},
         ed25519::*,
         hash::Blake2b,
         secp256k1::{Secp256k1KeyPair, Secp256k1Signature},
-        traits::{KeyPair, VerifyingKey},
+        traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
         Verifier,
     };
     use generic_array::typenum::U32;
@@ -88,6 +88,17 @@ mod ed25519_benches {
                 .iter()
                 .map(|key| key.public().clone())
                 .collect();
+
+            let aggregate_signature =
+                BLS12381AggregateSignature::aggregate(blst_signatures.clone()).unwrap();
+
+            c.bench_with_input(
+                BenchmarkId::new("BLS12381 aggregate verification", *size),
+                &(msg.clone(), blst_public_keys.clone(), aggregate_signature),
+                |b, i| {
+                    b.iter(|| i.2.verify(&i.1, &i.0[..]));
+                },
+            );
 
             c.bench_with_input(
                 BenchmarkId::new("Ed25519 batch verification", *size),
