@@ -47,6 +47,10 @@ pub mod aes_tests;
 #[path = "tests/hash_tests.rs"]
 pub mod hash_tests;
 
+#[cfg(all(test, feature = "unsecure_schemes"))]
+#[path = "unsecure/tests/hash_tests.rs"]
+pub mod unsecure_hash_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -63,6 +67,15 @@ pub mod error;
 pub mod private_seed;
 pub mod pubkey_bytes;
 pub mod serde_helpers;
+
+/// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
+/// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
+/// providing a theoretical maximal throughput that a system could achieve if the cost of crypto is optimized
+/// away.
+///
+/// Warning: All schemes in this file are completely unsafe to use in production.
+#[cfg(feature = "unsecure_schemes")]
+pub mod unsecure;
 
 ////////////////////////////////////////////////////////////////
 // Generic Keypair
