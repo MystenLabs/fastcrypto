@@ -89,7 +89,7 @@ mod ed25519_benches {
                 .map(|key| key.public().clone())
                 .collect();
             let blst_aggregate_signature =
-                BLS12381AggregateSignature::aggregate(blst_signatures.clone()).unwrap();
+                BLS12381AggregateSignature::aggregate(&blst_signatures).unwrap();
 
             c.bench_with_input(
                 BenchmarkId::new("Ed25519 batch verification", *size),

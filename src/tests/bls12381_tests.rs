@@ -164,7 +164,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
             (kp.public().clone(), sig)
         })
         .unzip();
-    let aggregated_signature1 = BLS12381AggregateSignature::aggregate(signatures1).unwrap();
+    let aggregated_signature1 = BLS12381AggregateSignature::aggregate(&signatures1).unwrap();
 
     // Make signatures.
     let message2: &[u8] = b"Hello, worl!";
@@ -178,7 +178,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
         })
         .unzip();
 
-    let aggregated_signature2 = BLS12381AggregateSignature::aggregate(signatures2).unwrap();
+    let aggregated_signature2 = BLS12381AggregateSignature::aggregate(&signatures2).unwrap();
     (
         digest1.to_vec(),
         digest2.to_vec(),
@@ -297,7 +297,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
         })
         .unzip();
 
-    let sig = BLS12381AggregateSignature::aggregate(signatures).unwrap();
+    let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized.as_ref(), sig.as_ref());
@@ -326,13 +326,13 @@ fn test_add_signatures_to_aggregate() {
     let mut sig2 = BLS12381AggregateSignature::default();
 
     let kp = &keys()[0];
-    let sig = BLS12381AggregateSignature::aggregate(vec![kp.sign(message)]).unwrap();
+    let sig = BLS12381AggregateSignature::aggregate(&vec![kp.sign(message)]).unwrap();
     sig2.add_aggregate(sig).unwrap();
 
     assert!(sig2.verify(&pks[0..1], message).is_ok());
 
     let aggregated_signature = BLS12381AggregateSignature::aggregate(
-        keys()
+        &keys()
             .into_iter()
             .take(3)
             .skip(1)

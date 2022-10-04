@@ -509,7 +509,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     type PrivKey = BLS12381PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
+    fn aggregate(signatures: &Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
         blst::AggregateSignature::aggregate(
             &signatures.iter().map(|x| &x.sig).collect::<Vec<_>>()[..],
             true,
