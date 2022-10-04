@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::hash::HashFunction;
-use crate::unsecure::hash::{XXH128Unsecure, XXH3Unsecure, Fast256HashUnsecure};
+use crate::unsecure::hash::{Fast256HashUnsecure, XXH128Unsecure, XXH3Unsecure};
 
 #[test]
 fn test_xxh3() {

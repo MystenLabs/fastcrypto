@@ -57,7 +57,7 @@ impl HashFunction<typenum::U16> for XXH128Unsecure {
     }
 }
 
-/// A fast 256 bit hash function based on xxHash3. The digest consists of two copies of a 
+/// A fast 256 bit hash function based on xxHash3. The digest consists of two copies of a
 /// Xxh128 digest of the data.
 ///
 /// Warning: This is NOT a cryptographic hash function and should NOT be used in production.
