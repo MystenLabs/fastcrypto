@@ -87,8 +87,9 @@ mod ed25519_benches {
             let blst_public_keys: Vec<_> = blst_keypairs
                 .iter()
                 .map(|key| key.public().clone())
-                .collect();            
-            let blst_aggregate_signature = BLS12381AggregateSignature::aggregate(blst_signatures.clone()).unwrap();
+                .collect();
+            let blst_aggregate_signature =
+                BLS12381AggregateSignature::aggregate(blst_signatures.clone()).unwrap();
 
             c.bench_with_input(
                 BenchmarkId::new("Ed25519 batch verification", *size),
@@ -99,14 +100,22 @@ mod ed25519_benches {
             );
             c.bench_with_input(
                 BenchmarkId::new("BLS12381 batch verification", *size),
-                &(msg.clone(), blst_public_keys.clone(), blst_signatures.clone()),
+                &(
+                    msg.clone(),
+                    blst_public_keys.clone(),
+                    blst_signatures.clone(),
+                ),
                 |b, i| {
                     b.iter(|| VerifyingKey::verify_batch_empty_fail(&i.0, &i.1[..], &i.2[..]));
                 },
             );
             c.bench_with_input(
                 BenchmarkId::new("BLS12381 aggregate verification", *size),
-                &(msg.clone(), blst_public_keys.clone(), blst_aggregate_signature),
+                &(
+                    msg.clone(),
+                    blst_public_keys.clone(),
+                    blst_aggregate_signature,
+                ),
                 |b, (msg, pk, sig)| {
                     b.iter(|| sig.verify(&pk, &msg));
                 },
