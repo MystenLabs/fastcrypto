@@ -8,3 +8,10 @@
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
 pub mod hash;
+
+#[cfg(test)]
+#[path = "tests/hash_tests.rs"]
+pub mod unsecure_hash_tests;
+
+#[cfg(all(feature = "secure", feature = "unsecure_schemes"))]
+compile_error!("Unsecure schemes cannot be enabled in when secure feature is enabled.");

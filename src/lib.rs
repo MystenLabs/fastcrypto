@@ -47,10 +47,6 @@ pub mod aes_tests;
 #[path = "tests/hash_tests.rs"]
 pub mod hash_tests;
 
-#[cfg(all(test, feature = "unsecure_schemes"))]
-#[path = "unsecure/tests/hash_tests.rs"]
-pub mod unsecure_hash_tests;
-
 // Signing traits
 pub mod traits;
 // Key scheme implementations

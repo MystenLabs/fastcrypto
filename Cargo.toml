@@ -55,7 +55,8 @@ name = "crypto"
 harness = false
 
 [features]
-default = []
+default = ["secure"]
+secure = []
 copy_key = []
 unsecure_schemes = ["dep:twox-hash"]
 
