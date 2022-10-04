@@ -408,7 +408,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     type PrivKey = Ed25519PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: &Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
+    fn aggregate(signatures: &[Self::Sig]) -> Result<Self, FastCryptoError> {
         Ok(Self(signatures.iter().map(|s| s.sig).collect()))
     }
 

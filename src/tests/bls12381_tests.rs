@@ -326,7 +326,7 @@ fn test_add_signatures_to_aggregate() {
     let mut sig2 = BLS12381AggregateSignature::default();
 
     let kp = &keys()[0];
-    let sig = BLS12381AggregateSignature::aggregate(&vec![kp.sign(message)]).unwrap();
+    let sig = BLS12381AggregateSignature::aggregate(&[kp.sign(message)]).unwrap();
     sig2.add_aggregate(sig).unwrap();
 
     assert!(sig2.verify(&pks[0..1], message).is_ok());
@@ -337,7 +337,7 @@ fn test_add_signatures_to_aggregate() {
             .take(3)
             .skip(1)
             .map(|kp| kp.sign(message))
-            .collect(),
+            .collect::<Vec<BLS12381Signature>>()
     )
     .unwrap();
 
