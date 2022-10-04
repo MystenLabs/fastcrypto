@@ -337,7 +337,7 @@ fn test_add_signatures_to_aggregate() {
             .take(3)
             .skip(1)
             .map(|kp| kp.sign(message))
-            .collect::<Vec<BLS12381Signature>>()
+            .collect::<Vec<BLS12381Signature>>(),
     )
     .unwrap();
 
