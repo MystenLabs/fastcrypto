@@ -112,12 +112,12 @@ mod ed25519_benches {
             c.bench_with_input(
                 BenchmarkId::new("BLS12381 aggregate verification", *size),
                 &(
-                    msg.clone(),
-                    blst_public_keys.clone(),
+                    msg,
+                    blst_public_keys,
                     blst_aggregate_signature,
                 ),
                 |b, (msg, pk, sig)| {
-                    b.iter(|| sig.verify(&pk, &msg));
+                    b.iter(|| sig.verify(pk, msg));
                 },
             );
         }
