@@ -64,6 +64,19 @@ pub mod private_seed;
 pub mod pubkey_bytes;
 pub mod serde_helpers;
 
+/// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
+/// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
+/// providing a theoretical maximal throughput that a system could achieve if the cost of crypto is optimized
+/// away.
+///
+/// Warning: All schemes in this file are completely unsafe to use in production.
+#[cfg(all(
+    feature = "unsecure_schemes",
+    not(feature = "secure"),
+    debug_assertions
+))]
+pub mod unsecure;
+
 ////////////////////////////////////////////////////////////////
 // Generic Keypair
 ////////////////////////////////////////////////////////////////
