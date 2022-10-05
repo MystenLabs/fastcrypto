@@ -2,11 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::hash::HashFunction;
-<<<<<<< HEAD
-use crate::unsecure::hash::{XXH128Unsecure, XXH3Unsecure};
-=======
 use crate::unsecure::hash::{Fast256HashUnsecure, XXH128Unsecure, XXH3Unsecure};
->>>>>>> main
 
 #[test]
 fn test_xxh3() {
@@ -43,8 +39,6 @@ fn test_xxh128() {
     let digest3 = XXH128Unsecure::digest(data1);
     assert_eq!(digest1, digest3);
 }
-<<<<<<< HEAD
-=======
 
 #[test]
 fn test_256bit_hash() {
@@ -63,4 +57,3 @@ fn test_256bit_hash() {
     let digest3 = Fast256HashUnsecure::digest(data1);
     assert_eq!(digest1, digest3);
 }
->>>>>>> main
