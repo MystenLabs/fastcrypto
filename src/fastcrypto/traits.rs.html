@@ -256,6 +256,9 @@
 <span id="256">256</span>
 <span id="257">257</span>
 <span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -266,6 +269,7 @@
 <span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
 <span class="kw">pub use </span>signature::Signer;
 <span class="kw">use </span>std::{
+    borrow::Borrow,
     fmt::{Debug, Display},
     str::FromStr,
 };
@@ -433,7 +437,9 @@
     <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
 
     <span class="doccomment">/// Parse a key from its byte representation
-    </span><span class="kw">fn </span>aggregate(signatures: Vec&lt;<span class="self">Self</span>::Sig&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+    </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
+        signatures: I,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
     <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
     <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
