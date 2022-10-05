@@ -14,8 +14,9 @@ use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
 use signature::{rand_core::OsRng, Signature, Signer, Verifier};
 use std::{
+    borrow::Borrow,
     fmt::{self, Debug, Display},
-    str::FromStr, borrow::Borrow,
+    str::FromStr,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
@@ -408,8 +409,12 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     type PrivKey = Ed25519PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(signatures: I) -> Result<Self, FastCryptoError> {
-        Ok(Self(signatures.into_iter().map(|s| s.borrow().sig).collect()))
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError> {
+        Ok(Self(
+            signatures.into_iter().map(|s| s.borrow().sig).collect(),
+        ))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {

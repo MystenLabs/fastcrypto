@@ -1,9 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use std::{
+    borrow::Borrow,
     fmt::{self, Debug, Display},
     mem::MaybeUninit,
-    str::FromStr, borrow::Borrow,
+    str::FromStr,
 };
 
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
@@ -509,9 +510,14 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     type PrivKey = BLS12381PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(signatures: I) -> Result<Self, FastCryptoError> {
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError> {
         blst::AggregateSignature::aggregate(
-            &signatures.into_iter().map(|x| &x.borrow().sig).collect::<Vec<_>>(),
+            &signatures
+                .into_iter()
+                .map(|x| &x.borrow().sig)
+                .collect::<Vec<_>>(),
             true,
         )
         .map(|sig| BLS12381AggregateSignature {
