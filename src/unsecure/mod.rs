@@ -22,5 +22,5 @@ pub mod signature;
 pub mod unsecure_hash_tests;
 
 #[cfg(test)]
-#[path = "unsecure/tests/unsecure_signature_tests.rs"]
-pub mod unsecure_schemes_tests;
+#[path = "tests/unsecure_signature_tests.rs"]
+pub mod unsecure_signature_tests;
