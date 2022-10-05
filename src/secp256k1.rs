@@ -136,14 +136,7 @@ impl Secp256k1PublicKey {
 impl AsRef<[u8]> for Secp256k1PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                Ok(self
-                    .pubkey
-                    .serialize()
-                    .as_slice()
-                    .try_into()
-                    .expect("wrong length"))
-            })
+            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.serialize()))
             .expect("OnceCell invariant violated")
     }
 }
