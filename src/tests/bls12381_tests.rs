@@ -451,3 +451,29 @@ fn dont_display_secrets() {
         );
     });
 }
+
+#[test]
+fn test_signature_aggregation() {
+    let mut rng = StdRng::from_seed([0; 32]);
+    let msg = b"message";
+
+    // Valid number of signatures
+    for size in [1, 2, 3, 10, 100, 1000, 10000] {
+        let blst_keypairs: Vec<_> = (0..size)
+            .map(|_| BLS12381KeyPair::generate(&mut rng))
+            .collect();
+        let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
+        let _blst_aggregate_signature =
+            assert!(BLS12381AggregateSignature::aggregate(blst_signatures.clone()).is_ok());
+    }
+
+    // Invalid number of signatures
+    for size in [0] {
+        let blst_keypairs: Vec<_> = (0..size)
+            .map(|_| BLS12381KeyPair::generate(&mut rng))
+            .collect();
+        let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
+        let _blst_aggregate_signature =
+            assert!(BLS12381AggregateSignature::aggregate(blst_signatures.clone()).is_err());
+    }
+}
