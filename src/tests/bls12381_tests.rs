@@ -467,11 +467,9 @@ fn test_signature_aggregation() {
     }
 
     // Invalid number of signatures
-    for size in [0] {
-        let blst_keypairs: Vec<_> = (0..size)
-            .map(|_| BLS12381KeyPair::generate(&mut rng))
-            .collect();
-        let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
-        assert!(BLS12381AggregateSignature::aggregate(blst_signatures.clone()).is_err());
-    }
+    let blst_keypairs: Vec<_> = (0..0)
+        .map(|_| BLS12381KeyPair::generate(&mut rng))
+        .collect();
+    let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
+    assert!(BLS12381AggregateSignature::aggregate(blst_signatures).is_err());
 }
