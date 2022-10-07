@@ -1,0 +1,26 @@
+[package]
+name = "fastcrypto-proving"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
+publish = ["crates-io"]
+description = "zk-proof library used at Mysten Labs"
+repository = "https://github.com/MystenLabs/fastcrypto"
+
+[[bench]]
+name = "proving"
+harness = false
+
+[dependencies]
+
+[dev-dependencies]
+ark-bls12-381 = "0.3.0"
+ark-crypto-primitives = "0.3.0"
+ark-ec = "0.3.0"
+ark-ff = "0.3.0"
+ark-groth16 = "0.3.0"
+ark-relations = "0.3.0"
+ark-std = "0.3.0"
+criterion = "0.4.0"
+
