@@ -33,6 +33,7 @@ jobs:
       matrix:
         package:
           - fastcrypto
+          - fastcrypto-derive
     steps:
       - name: Checkout
         uses: actions/checkout@v3
