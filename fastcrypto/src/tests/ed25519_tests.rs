@@ -537,7 +537,7 @@ fn test_sk_zeroization_on_drop() {
         }
 
         let sk_memory: &[u8] =
-            unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+            unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
 
@@ -550,7 +550,7 @@ fn test_sk_zeroization_on_drop() {
 
     // Check that self.bytes is taken by the OnceCell default value.
     let sk_memory: &[u8] =
-        unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+        unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 

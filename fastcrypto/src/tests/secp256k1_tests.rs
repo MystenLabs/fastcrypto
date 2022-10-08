@@ -11,10 +11,12 @@ use crate::{
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 
+use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
 use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
+use wycheproof::TestResult;
 
 pub fn keys() -> Vec<Secp256k1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -260,7 +262,7 @@ fn fail_to_verify_if_upper_s() {
         &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
     )
     .unwrap();
-    let mut sig = rust_secp256k1::ecdsa::Signature::from_compact(&hex::decode("638a54215d80a6713c8d523a6adc4e6e73652d859103a36b700851cb0e61b66b8ebfc1a610c57d732ec6e0a8f06a9a7a28df5051ece514702ff9cdff0b11f454").unwrap()).unwrap();
+    let mut sig = Signature::from_compact(&hex::decode("638a54215d80a6713c8d523a6adc4e6e73652d859103a36b700851cb0e61b66b8ebfc1a610c57d732ec6e0a8f06a9a7a28df5051ece514702ff9cdff0b11f454").unwrap()).unwrap();
 
     // Append 0 to the end of the signature to make it a recoverable signature.
     let mut sig_bytes = [0u8; 65];
@@ -319,7 +321,7 @@ fn test_sk_zeroization_on_drop() {
         bytes_ptr = &sk.as_ref()[0] as *const u8;
 
         let sk_memory: &[u8] =
-            unsafe { ::std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
+            unsafe { std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
         // Assert that this is equal to sk_bytes before deletion
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
@@ -334,12 +336,9 @@ fn test_sk_zeroization_on_drop() {
 
     // Check that self.bytes is zeroized
     let sk_memory: &[u8] =
-        unsafe { ::std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
+        unsafe { std::slice::from_raw_parts(bytes_ptr, constants::SECRET_KEY_SIZE) };
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
-
-use proptest::arbitrary::Arbitrary;
-use wycheproof::TestResult;
 
 proptest::proptest! {
     #[test]
@@ -415,7 +414,7 @@ fn wycheproof_test() {
             let bytes = match Signature::from_der(&test.sig) {
                 Ok(s) => s.serialize_compact(),
                 Err(_) => {
-                    assert_eq!(test.result, wycheproof::TestResult::Invalid);
+                    assert_eq!(test.result, TestResult::Invalid);
                     continue;
                 }
             };

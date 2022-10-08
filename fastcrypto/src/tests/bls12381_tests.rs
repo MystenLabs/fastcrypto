@@ -421,7 +421,7 @@ fn test_sk_zeroization_on_drop() {
         bytes_ptr = &sk.as_ref()[0] as *const u8;
 
         let sk_memory: &[u8] =
-            unsafe { ::std::slice::from_raw_parts(bytes_ptr, BLS12381PrivateKey::LENGTH) };
+            unsafe { std::slice::from_raw_parts(bytes_ptr, BLS12381PrivateKey::LENGTH) };
         // Assert that this is equal to sk_bytes before deletion
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
@@ -435,7 +435,7 @@ fn test_sk_zeroization_on_drop() {
 
     // Check that self.bytes is zeroized
     let sk_memory: &[u8] =
-        unsafe { ::std::slice::from_raw_parts(bytes_ptr, BLS12381PrivateKey::LENGTH) };
+        unsafe { std::slice::from_raw_parts(bytes_ptr, BLS12381PrivateKey::LENGTH) };
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 

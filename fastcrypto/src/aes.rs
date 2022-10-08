@@ -5,7 +5,10 @@ use crate::{
     error::FastCryptoError,
     traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
 };
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
+use aes::cipher::{
+    BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
+    KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
+};
 use aes_gcm::AeadInPlace;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
@@ -105,12 +108,12 @@ impl<KeySize: ArrayLength<u8>, Aes> AesCtr<KeySize, Aes> {
 
 impl<KeySize: ArrayLength<u8>, Aes> Cipher for AesCtr<KeySize, Aes>
 where
-    Aes: aes::cipher::KeySizeUser<KeySize = KeySize>
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser<BlockSize = U16>
-        + aes::cipher::BlockEncrypt
-        + aes::cipher::BlockDecrypt,
+    Aes: KeySizeUser<KeySize = KeySize>
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockEncrypt
+        + BlockDecrypt,
 {
     type IVType = InitializationVector<U16>;
 
@@ -163,12 +166,12 @@ impl<KeySize: ArrayLength<u8>, Aes, Padding> AesCbc<KeySize, Aes, Padding> {
 
 impl<KeySize: ArrayLength<u8>, Aes, Padding> Cipher for AesCbc<KeySize, Aes, Padding>
 where
-    Aes: aes::cipher::KeySizeUser<KeySize = KeySize>
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser<BlockSize = U16>
-        + aes::cipher::BlockEncrypt
-        + aes::cipher::BlockDecrypt,
+    Aes: KeySizeUser<KeySize = KeySize>
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockEncrypt
+        + BlockDecrypt,
     Padding: aes::cipher::block_padding::Padding<U16>,
 {
     type IVType = InitializationVector<U16>;
@@ -223,11 +226,11 @@ impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AesGcm<KeySize, Aes, NonceSize> {
 impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AuthenticatedCipher
     for AesGcm<KeySize, Aes, NonceSize>
 where
-    Aes: aes::cipher::KeySizeUser<KeySize = KeySize>
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser<BlockSize = U16>
-        + aes::cipher::BlockEncrypt,
+    Aes: KeySizeUser<KeySize = KeySize>
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockEncrypt,
     NonceSize: ArrayLength<u8> + Debug,
 {
     type IVType = InitializationVector<NonceSize>;
@@ -269,11 +272,11 @@ where
 
 impl<KeySize: ArrayLength<u8>, Aes, NonceSize> Cipher for AesGcm<KeySize, Aes, NonceSize>
 where
-    Aes: aes::cipher::KeySizeUser<KeySize = KeySize>
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser<BlockSize = U16>
-        + aes::cipher::BlockEncrypt,
+    Aes: KeySizeUser<KeySize = KeySize>
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser<BlockSize = U16>
+        + BlockEncrypt,
     NonceSize: ArrayLength<u8> + Debug,
 {
     type IVType = InitializationVector<NonceSize>;

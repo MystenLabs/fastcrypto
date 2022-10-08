@@ -18,7 +18,7 @@ where
     E: Debug,
     D: Deserializer<'de>,
 {
-    D::Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
+    Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
 
 pub struct BlsSignature;
