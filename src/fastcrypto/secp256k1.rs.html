@@ -473,7 +473,6 @@
 <span id="473">473</span>
 <span id="474">474</span>
 <span id="475">475</span>
-<span id="476">476</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -499,8 +498,7 @@
 };
 <span class="kw">use </span>zeroize::Zeroize;
 
-<span class="kw">pub static </span>SECP256K1: Lazy&lt;rust_secp256k1::Secp256k1&lt;All&gt;&gt; =
-    Lazy::new(rust_secp256k1::Secp256k1::new);
+<span class="kw">pub static </span>SECP256K1: Lazy&lt;Secp256k1&lt;All&gt;&gt; = Lazy::new(rust_secp256k1::Secp256k1::new);
 
 <span class="attribute">#[readonly::make]
 #[derive(Debug, Clone)]
@@ -525,7 +523,7 @@
 <span class="attribute">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1Signature {
-    <span class="kw">pub </span>sig: rust_secp256k1::ecdsa::RecoverableSignature,
+    <span class="kw">pub </span>sig: RecoverableSignature,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; RECOVERABLE_SIGNATURE_SIZE]&gt;,
 }
 
@@ -566,7 +564,7 @@
         <span class="comment">// k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
         </span><span class="attribute">#[cfg(test)]
         </span><span class="kw">let </span>message =
-            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>sha3::digest::Digest&gt;::digest(msg).as_slice())
+            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
                 .unwrap();
 
         <span class="attribute">#[cfg(not(test))]
@@ -734,7 +732,7 @@
         </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
         <span class="kw">let </span>data: Vec&lt;u8&gt; = Vec::deserialize(deserializer)<span class="question-mark">?</span>;
-        &lt;Secp256k1Signature <span class="kw">as </span>signature::Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
+        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
@@ -814,7 +812,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bytes: Vec&lt;u8&gt; = Vec::new();
         bytes.extend_from_slice(<span class="self">self</span>.secret.as_ref());
         bytes.extend_from_slice(<span class="self">self</span>.name.as_ref());
-        base64ct::Base64::encode_string(<span class="kw-2">&amp;</span>bytes[..])
+        Base64::encode_string(<span class="kw-2">&amp;</span>bytes[..])
     }
 
     <span class="kw">fn </span>decode_base64(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, eyre::Report&gt; {
@@ -873,7 +871,7 @@
         <span class="kw">let </span>secp = Secp256k1::signing_only();
         <span class="attribute">#[cfg(test)]
         </span><span class="kw">let </span>message =
-            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>sha3::digest::Digest&gt;::digest(msg).as_slice())
+            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
                 .unwrap();
 
         <span class="attribute">#[cfg(not(test))]
@@ -912,7 +910,7 @@
 <span class="kw">impl </span>Secp256k1Signature {
     <span class="doccomment">/// Recover public key from signature
     </span><span class="kw">pub fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, hashed_msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, FastCryptoError&gt; {
-        <span class="kw">match </span>rust_secp256k1::Message::from_slice(hashed_msg) {
+        <span class="kw">match </span>Message::from_slice(hashed_msg) {
             <span class="prelude-val">Ok</span>(message) =&gt; <span class="kw">match </span><span class="self">self</span>.sig.recover(<span class="kw-2">&amp;</span>message) {
                 <span class="prelude-val">Ok</span>(pubkey) =&gt; Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError),
@@ -951,4 +949,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (0ca356586 2022-10-06)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (8796e7a9c 2022-10-08)" ></div></body></html>

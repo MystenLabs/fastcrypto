@@ -292,6 +292,9 @@
 <span id="292">292</span>
 <span id="293">293</span>
 <span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -299,7 +302,10 @@
     error::FastCryptoError,
     traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
 };
-<span class="kw">use </span>aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyInit, KeyIvInit, StreamCipher};
+<span class="kw">use </span>aes::cipher::{
+    BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
+    KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
+};
 <span class="kw">use </span>aes_gcm::AeadInPlace;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>generic_array::{ArrayLength, GenericArray};
@@ -399,12 +405,12 @@
 
 <span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes&gt; Cipher <span class="kw">for </span>AesCtr&lt;KeySize, Aes&gt;
 <span class="kw">where
-    </span>Aes: aes::cipher::KeySizeUser&lt;KeySize = KeySize&gt;
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser&lt;BlockSize = U16&gt;
-        + aes::cipher::BlockEncrypt
-        + aes::cipher::BlockDecrypt,
+    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser&lt;BlockSize = U16&gt;
+        + BlockEncrypt
+        + BlockDecrypt,
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;U16&gt;;
 
@@ -457,12 +463,12 @@
 
 <span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, Padding&gt; Cipher <span class="kw">for </span>AesCbc&lt;KeySize, Aes, Padding&gt;
 <span class="kw">where
-    </span>Aes: aes::cipher::KeySizeUser&lt;KeySize = KeySize&gt;
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser&lt;BlockSize = U16&gt;
-        + aes::cipher::BlockEncrypt
-        + aes::cipher::BlockDecrypt,
+    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser&lt;BlockSize = U16&gt;
+        + BlockEncrypt
+        + BlockDecrypt,
     Padding: aes::cipher::block_padding::Padding&lt;U16&gt;,
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;U16&gt;;
@@ -517,11 +523,11 @@
 <span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; AuthenticatedCipher
     <span class="kw">for </span>AesGcm&lt;KeySize, Aes, NonceSize&gt;
 <span class="kw">where
-    </span>Aes: aes::cipher::KeySizeUser&lt;KeySize = KeySize&gt;
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser&lt;BlockSize = U16&gt;
-        + aes::cipher::BlockEncrypt,
+    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser&lt;BlockSize = U16&gt;
+        + BlockEncrypt,
     NonceSize: ArrayLength&lt;u8&gt; + Debug,
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;NonceSize&gt;;
@@ -563,11 +569,11 @@
 
 <span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; Cipher <span class="kw">for </span>AesGcm&lt;KeySize, Aes, NonceSize&gt;
 <span class="kw">where
-    </span>Aes: aes::cipher::KeySizeUser&lt;KeySize = KeySize&gt;
-        + aes::cipher::KeyInit
-        + aes::cipher::BlockCipher
-        + aes::cipher::BlockSizeUser&lt;BlockSize = U16&gt;
-        + aes::cipher::BlockEncrypt,
+    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+        + KeyInit
+        + BlockCipher
+        + BlockSizeUser&lt;BlockSize = U16&gt;
+        + BlockEncrypt,
     NonceSize: ArrayLength&lt;u8&gt; + Debug,
 {
     <span class="kw">type </span>IVType = InitializationVector&lt;NonceSize&gt;;
@@ -587,4 +593,4 @@
 <span class="doccomment">/// AES256 in GCM-mode (authenticated) using the given nonce size.
 </span><span class="kw">pub type </span>Aes256Gcm&lt;NonceSize&gt; = AesGcm&lt;U32, aes::Aes256, NonceSize&gt;;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (0ca356586 2022-10-06)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (8796e7a9c 2022-10-08)" ></div></body></html>

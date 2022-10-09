@@ -586,9 +586,6 @@
 <span id="586">586</span>
 <span id="587">587</span>
 <span id="588">588</span>
-<span id="589">589</span>
-<span id="590">590</span>
-<span id="591">591</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
@@ -891,10 +888,7 @@
         <span class="kw">let </span>readable = serializer.is_human_readable();
         <span class="kw">let </span><span class="kw-2">mut </span>state = serializer.serialize_struct(<span class="string">&quot;Ed25519Signature&quot;</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
         <span class="kw">if </span>readable {
-            state.serialize_field(
-                BASE64_FIELD_NAME,
-                <span class="kw-2">&amp;</span>base64ct::Base64::encode_string(<span class="self">self</span>.as_ref()),
-            )<span class="question-mark">?</span>;
+            state.serialize_field(BASE64_FIELD_NAME, <span class="kw-2">&amp;</span>Base64::encode_string(<span class="self">self</span>.as_ref()))<span class="question-mark">?</span>;
         } <span class="kw">else </span>{
             state.serialize_field(RAW_FIELD_NAME, Bytes::new(<span class="self">self</span>.as_ref()))<span class="question-mark">?</span>;
         }
@@ -1081,7 +1075,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>bytes: Vec&lt;u8&gt; = Vec::new();
         bytes.extend_from_slice(<span class="self">self</span>.secret.as_ref());
         bytes.extend_from_slice(<span class="self">self</span>.name.as_ref());
-        base64ct::Base64::encode_string(<span class="kw-2">&amp;</span>bytes[..])
+        Base64::encode_string(<span class="kw-2">&amp;</span>bytes[..])
     }
 
     <span class="kw">fn </span>decode_base64(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, eyre::Report&gt; {
@@ -1181,4 +1175,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (0ca356586 2022-10-06)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (8796e7a9c 2022-10-08)" ></div></body></html>
