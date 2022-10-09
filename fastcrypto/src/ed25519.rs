@@ -300,10 +300,7 @@ impl Serialize for Ed25519Signature {
         let readable = serializer.is_human_readable();
         let mut state = serializer.serialize_struct("Ed25519Signature", 1)?;
         if readable {
-            state.serialize_field(
-                BASE64_FIELD_NAME,
-                &base64ct::Base64::encode_string(self.as_ref()),
-            )?;
+            state.serialize_field(BASE64_FIELD_NAME, &Base64::encode_string(self.as_ref()))?;
         } else {
             state.serialize_field(RAW_FIELD_NAME, Bytes::new(self.as_ref()))?;
         }
@@ -490,7 +487,7 @@ impl EncodeDecodeBase64 for Ed25519KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        base64ct::Base64::encode_string(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {

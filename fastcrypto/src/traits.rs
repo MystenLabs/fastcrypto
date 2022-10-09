@@ -253,7 +253,7 @@ pub trait AuthenticatedCipher {
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
 ///
 pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut bytes = [0u8; LENGTH];
         rng.fill_bytes(&mut bytes);
         Self::from_bytes(&bytes).unwrap()

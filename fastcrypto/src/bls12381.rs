@@ -12,7 +12,7 @@ use base64ct::{Base64, Encoding};
 use blst::min_sig as blst;
 
 use once_cell::sync::OnceCell;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, CryptoRng, RngCore};
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -403,7 +403,7 @@ impl EncodeDecodeBase64 for BLS12381KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        base64ct::Base64::encode_string(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
@@ -432,7 +432,7 @@ impl KeyPair for BLS12381KeyPair {
         }
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
         let privkey = blst::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");

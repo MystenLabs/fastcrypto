@@ -201,7 +201,7 @@ fn test_sk_zeroization_on_drop() {
 
         ptr = std::ptr::addr_of!(sk) as *const u8;
 
-        let sk_memory: &[u8] = unsafe { ::std::slice::from_raw_parts(ptr, 32) };
+        let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(ptr, 32) };
         // Assert that this is equal to sk_bytes before deletion
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
