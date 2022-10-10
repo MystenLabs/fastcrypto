@@ -6,7 +6,7 @@ use crate::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
         BLS12381PublicKeyBytes, BLS12381Signature,
     },
-    hash::{Hashable, Sha256},
+    hash::{HashFunction, Hashable, Sha256},
     hmac::hkdf_generate_from_ikm,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
@@ -102,6 +102,25 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Sign
     (digest.to_vec(), pubkeys, signatures)
 }
 
+fn signature_test_inputs_different_msg(
+) -> (Vec<Vec<u8>>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
+    // Make signatures.
+    let digests: Vec<Vec<u8>> = [b"Hello", b"world", b"!!!!!"]
+        .iter()
+        .map(|msg| hash::Sha256::digest(*msg).to_vec())
+        .collect();
+    let (pubkeys, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .zip(&digests)
+        .map(|(kp, digest)| {
+            let sig = kp.sign(digest.as_ref());
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    (digests, pubkeys, signatures)
+}
 #[test]
 fn verify_valid_batch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
@@ -143,6 +162,13 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
+fn verify_valid_batch_different_msg() {
+    let (msgs, pks, sigs) = signature_test_inputs_different_msg();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(msgs, &pks, &sigs);
+    assert!(res.is_ok(), "{:?}", res);
 }
 
 fn verify_batch_aggregate_signature_inputs() -> (
