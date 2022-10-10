@@ -119,6 +119,33 @@ mod signature_benches {
         }
     }
 
+    fn aggregate_signatures(c: &mut Criterion) {
+        static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
+
+        let mut csprng: ThreadRng = thread_rng();
+
+        for size in BATCH_SIZES.iter() {
+            let blst_keypairs: Vec<_> = (0..*size)
+                .map(|_| BLS12381KeyPair::generate(&mut csprng))
+                .collect();
+
+            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Blake2b<U32>>(
+                b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
+            )
+            .to_vec();
+
+            let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(&msg)).collect();
+
+            c.bench_with_input(
+                BenchmarkId::new("BLS12381 signature aggregation", *size),
+                &(blst_signatures),
+                |b, sig| {
+                    b.iter(|| BLS12381AggregateSignature::aggregate(sig).unwrap());
+                },
+            );
+        }
+    }
+
     fn key_generation(c: &mut Criterion) {
         let mut csprng: ThreadRng = thread_rng();
         let mut csprng2 = csprng.clone();
@@ -143,6 +170,7 @@ mod signature_benches {
            sign,
            verify,
            verification_comparison,
+           aggregate_signatures,
            key_generation
     }
 
