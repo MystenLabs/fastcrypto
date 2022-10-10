@@ -112,19 +112,18 @@ pub trait VerifyingKey:
     }
 
     // Expected to be overridden by implementations
-    fn verify_batch_empty_fail_different_msg<'a, M, I>(msgs: I, pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where
+    fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where
         M: Borrow<[u8]> + 'a,
-        I: IntoIterator<Item=M>,
     {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
         }
-        if pks.len() != sigs.len() {
-            return Err(eyre!("Mismatch between number of signatures and public keys provided"));
+        if pks.len() != sigs.len() || pks.len() != msgs.len() {
+            return Err(eyre!("Mismatch between number of messages, signatures and public keys provided"));
         }
         pks.iter()
             .zip(sigs)
-            .zip(msgs.into_iter())
+            .zip(msgs)
             .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
             .map_err(|_| eyre!("Signature verification failed"))
     }

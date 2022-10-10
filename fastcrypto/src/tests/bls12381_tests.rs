@@ -168,7 +168,7 @@ fn verify_batch_missing_public_keys() {
 #[test]
 fn verify_valid_batch_different_msg() {
     let (msgs, pks, sigs) = signature_test_inputs_different_msg();
-    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(msgs, &pks, &sigs);
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
     assert!(res.is_ok(), "{:?}", res);
 }
 
