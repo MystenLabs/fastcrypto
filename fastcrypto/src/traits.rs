@@ -87,14 +87,14 @@ Serialize
 + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
 + ToFromBytes
 + signature::Verifier<Self::Sig>
-+ for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
++ for <'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
 + Send
 + Sync
 + 'static
 + Clone
 {
-    type PrivKey: SigningKey<PubKey=Self>;
-    type Sig: Authenticator<PubKey=Self>;
+    type PrivKey: SigningKey<PubKey = Self>;
+    type Sig: Authenticator<PubKey = Self>;
     const LENGTH: usize;
 
     // Expected to be overridden by implementations

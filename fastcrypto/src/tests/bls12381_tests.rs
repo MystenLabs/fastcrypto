@@ -121,6 +121,7 @@ fn signature_test_inputs_different_msg(
 
     (digests, pubkeys, signatures)
 }
+
 #[test]
 fn verify_valid_batch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
