@@ -251,6 +251,14 @@ fn verify_valid_batch_different_msg() {
 }
 
 #[test]
+fn verify_invalid_batch_different_msg() {
+    let (msgs, pks, mut sigs) = signature_test_inputs_different_msg();
+    sigs[0] = Secp256k1Signature::default();
+    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
 fn verify_hashed_failed_if_message_unhashed() {
     // Get a keypair.
     let kp = keys().pop().unwrap();

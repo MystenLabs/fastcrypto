@@ -254,6 +254,14 @@ fn verify_valid_batch_different_msg() {
 }
 
 #[test]
+fn verify_invalid_batch_different_msg() {
+    let (msgs, pks, mut sigs) = signature_test_inputs_different_msg();
+    sigs[0] = Ed25519Signature::default();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
 fn verify_valid_aggregate_signaature() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
     let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
