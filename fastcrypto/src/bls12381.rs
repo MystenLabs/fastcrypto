@@ -255,60 +255,6 @@ impl VerifyingKey for BLS12381PublicKey {
             Err(eyre!("Verification failed!"))
         }
     }
-
-    fn verify_batch_empty_fail_different_msg<'a, M>(
-        msgs: &[M],
-        pks: &[Self],
-        sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report>
-    where
-        M: Borrow<[u8]> + 'a,
-    {
-        if sigs.is_empty() {
-            return Err(eyre!(
-                "Critical Error! This behaviour can signal something dangerous, and \
-            that someone may be trying to bypass signature verification through providing empty \
-            batches."
-            ));
-        }
-        if sigs.len() != pks.len() || msgs.len() != pks.len() {
-            return Err(eyre!(
-                "Mismatch between number of messages, signatures and public keys provided"
-            ));
-        }
-        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
-        let mut rng = OsRng;
-
-        for _ in 0..sigs.len() {
-            let mut vals = [0u64; 4];
-            vals[0] = rng.next_u64();
-            while vals[0] == 0 {
-                // Reject zero as it is used for multiplication.
-                vals[0] = rng.next_u64();
-            }
-            let mut rand_i = MaybeUninit::<blst_scalar>::uninit();
-            unsafe {
-                blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
-                rands.push(rand_i.assume_init());
-            }
-        }
-
-        let result = blst::Signature::verify_multiple_aggregate_signatures(
-            &msgs.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
-            DST,
-            &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
-            false,
-            &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
-            true,
-            &rands,
-            64,
-        );
-        if result == BLST_ERROR::BLST_SUCCESS {
-            Ok(())
-        } else {
-            Err(eyre!("Verification failed!"))
-        }
-    }
 }
 
 ///
