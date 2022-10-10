@@ -78,20 +78,20 @@ impl<T: ToFromBytes> EncodeDecodeBase64 for T {
 /// to the ones on its associated types for private and signature material.
 ///
 pub trait VerifyingKey:
-Serialize
-+ DeserializeOwned
-+ std::hash::Hash
-+ Display
-+ Eq  // required to make some cached bytes representations explicit
-+ Ord // required to put keys in BTreeMap
-+ Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
-+ ToFromBytes
-+ signature::Verifier<Self::Sig>
-+ for <'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
-+ Send
-+ Sync
-+ 'static
-+ Clone
+    Serialize
+    + DeserializeOwned
+    + std::hash::Hash
+    + Display
+    + Eq  // required to make some cached bytes representations explicit
+    + Ord // required to put keys in BTreeMap
+    + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+    + ToFromBytes
+    + signature::Verifier<Self::Sig>
+    + for <'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
+    + Send
+    + Sync
+    + 'static
+    + Clone
 {
     type PrivKey: SigningKey<PubKey = Self>;
     type Sig: Authenticator<PubKey = Self>;
