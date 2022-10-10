@@ -172,6 +172,14 @@ fn verify_valid_batch_different_msg() {
     assert!(res.is_ok(), "{:?}", res);
 }
 
+#[test]
+fn verify_invalid_batch_different_msg() {
+    let (msgs, pks, mut sigs) = signature_test_inputs_different_msg();
+    sigs[0] = BLS12381Signature::default();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    assert!(res.is_err(), "{:?}", res);
+}
+
 fn verify_batch_aggregate_signature_inputs() -> (
     Vec<u8>,
     Vec<u8>,
