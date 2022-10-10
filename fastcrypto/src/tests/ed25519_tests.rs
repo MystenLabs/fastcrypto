@@ -8,7 +8,7 @@ use crate::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
         Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
-    hash::{Hashable, Sha256},
+    hash::{HashFunction, Hashable, Sha256},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -183,6 +183,26 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<Ed25519PublicKey>, Vec<Ed25519Signat
     (digest.to_vec(), pubkeys, signatures)
 }
 
+fn signature_test_inputs_different_msg(
+) -> (Vec<Vec<u8>>, Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) {
+    // Make signatures.
+    let digests: Vec<Vec<u8>> = [b"Hello", b"world", b"!!!!!"]
+        .iter()
+        .map(|msg| hash::Sha256::digest(*msg).to_vec())
+        .collect();
+    let (pubkeys, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .zip(&digests)
+        .map(|(kp, digest)| {
+            let sig = kp.sign(digest.as_ref());
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    (digests, pubkeys, signatures)
+}
+
 #[test]
 fn verify_valid_batch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
@@ -224,6 +244,13 @@ fn verify_batch_missing_public_keys() {
         &signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
+fn verify_valid_batch_different_msg() {
+    let (msgs, pks, sigs) = signature_test_inputs_different_msg();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(msgs, &pks, &sigs);
+    assert!(res.is_ok(), "{:?}", res);
 }
 
 #[test]

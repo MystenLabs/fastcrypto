@@ -78,23 +78,23 @@ impl<T: ToFromBytes> EncodeDecodeBase64 for T {
 /// to the ones on its associated types for private and signature material.
 ///
 pub trait VerifyingKey:
-    Serialize
-    + DeserializeOwned
-    + std::hash::Hash
-    + Display
-    + Eq  // required to make some cached bytes representations explicit
-    + Ord // required to put keys in BTreeMap
-    + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
-    + ToFromBytes
-    + signature::Verifier<Self::Sig>
-    + for <'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
-    + Send
-    + Sync
-    + 'static
-    + Clone
+Serialize
++ DeserializeOwned
++ std::hash::Hash
++ Display
++ Eq  // required to make some cached bytes representations explicit
++ Ord // required to put keys in BTreeMap
++ Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
++ ToFromBytes
++ signature::Verifier<Self::Sig>
++ for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
++ Send
++ Sync
++ 'static
++ Clone
 {
-    type PrivKey: SigningKey<PubKey = Self>;
-    type Sig: Authenticator<PubKey = Self>;
+    type PrivKey: SigningKey<PubKey=Self>;
+    type Sig: Authenticator<PubKey=Self>;
     const LENGTH: usize;
 
     // Expected to be overridden by implementations
@@ -108,6 +108,24 @@ pub trait VerifyingKey:
         pks.iter()
             .zip(sigs)
             .try_for_each(|(pk, sig)| pk.verify(msg, sig))
+            .map_err(|_| eyre!("Signature verification failed"))
+    }
+
+    // Expected to be overridden by implementations
+    fn verify_batch_empty_fail_different_msg<'a, M, I>(msgs: I, pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where
+        M: Borrow<[u8]> + 'a,
+        I: IntoIterator<Item=M>,
+    {
+        if sigs.is_empty() {
+            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+        }
+        if pks.len() != sigs.len() {
+            return Err(eyre!("Mismatch between number of signatures and public keys provided"));
+        }
+        pks.iter()
+            .zip(sigs)
+            .zip(msgs.into_iter())
+            .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
             .map_err(|_| eyre!("Signature verification failed"))
     }
 }
