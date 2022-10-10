@@ -229,7 +229,7 @@ fn verify_batch_missing_public_keys() {
 #[test]
 fn verify_valid_aggregate_signaature() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
-    let aggregated_signature = Ed25519AggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
 
     let res = aggregated_signature.verify(&pubkeys[..], &digest);
     assert!(res.is_ok(), "{:?}", res);
@@ -238,7 +238,7 @@ fn verify_valid_aggregate_signaature() {
 #[test]
 fn verify_invalid_aggregate_signature_length_mismatch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
-    let aggregated_signature = Ed25519AggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
 
     let res = aggregated_signature.verify(&pubkeys[..2], &digest);
     assert!(res.is_err(), "{:?}", res);
@@ -247,7 +247,7 @@ fn verify_invalid_aggregate_signature_length_mismatch() {
 #[test]
 fn verify_invalid_aggregate_signature_public_key_switch() {
     let (digest, mut pubkeys, signatures) = signature_test_inputs();
-    let aggregated_signature = Ed25519AggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
 
     pubkeys[0] = keys()[3].public().clone();
 
@@ -274,7 +274,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
             (kp.public().clone(), sig)
         })
         .unzip();
-    let aggregated_signature1 = Ed25519AggregateSignature::aggregate(signatures1).unwrap();
+    let aggregated_signature1 = Ed25519AggregateSignature::aggregate(&signatures1).unwrap();
 
     // Make signatures.
     let message2: &[u8] = b"Hello, worl!";
@@ -288,7 +288,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
         })
         .unzip();
 
-    let aggregated_signature2 = Ed25519AggregateSignature::aggregate(signatures2).unwrap();
+    let aggregated_signature2 = Ed25519AggregateSignature::aggregate(&signatures2).unwrap();
     (
         digest1.to_vec(),
         digest2.to_vec(),
@@ -407,7 +407,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
         })
         .unzip();
 
-    let sig = Ed25519AggregateSignature::aggregate(signatures).unwrap();
+    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized.0, sig.0);
@@ -436,18 +436,18 @@ fn test_add_signatures_to_aggregate() {
     let mut sig2 = Ed25519AggregateSignature::default();
 
     let kp = &keys()[0];
-    let sig = Ed25519AggregateSignature::aggregate(vec![kp.sign(message)]).unwrap();
+    let sig = Ed25519AggregateSignature::aggregate(&[kp.sign(message)]).unwrap();
     sig2.add_aggregate(sig).unwrap();
 
     assert!(sig2.verify(&pks[0..1], message).is_ok());
 
     let aggregated_signature = Ed25519AggregateSignature::aggregate(
-        keys()
+        &keys()
             .into_iter()
             .take(3)
             .skip(1)
             .map(|kp| kp.sign(message))
-            .collect(),
+            .collect::<Vec<Ed25519Signature>>(),
     )
     .unwrap();
 
@@ -537,7 +537,7 @@ fn test_sk_zeroization_on_drop() {
         }
 
         let sk_memory: &[u8] =
-            unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+            unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
 
@@ -550,7 +550,7 @@ fn test_sk_zeroization_on_drop() {
 
     // Check that self.bytes is taken by the OnceCell default value.
     let sk_memory: &[u8] =
-        unsafe { ::std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
+        unsafe { std::slice::from_raw_parts(bytes_ptr, ED25519_PRIVATE_KEY_LENGTH) };
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 

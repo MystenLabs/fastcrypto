@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use std::{
+    borrow::Borrow,
     fmt::{self, Debug, Display},
     mem::MaybeUninit,
     str::FromStr,
@@ -11,7 +12,7 @@ use base64ct::{Base64, Encoding};
 use blst::min_sig as blst;
 
 use once_cell::sync::OnceCell;
-use rand::{rngs::OsRng, RngCore};
+use rand::{rngs::OsRng, CryptoRng, RngCore};
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -402,7 +403,7 @@ impl EncodeDecodeBase64 for BLS12381KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        base64ct::Base64::encode_string(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
@@ -431,7 +432,7 @@ impl KeyPair for BLS12381KeyPair {
         }
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
         let privkey = blst::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");
@@ -509,9 +510,14 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     type PrivKey = BLS12381PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError> {
         blst::AggregateSignature::aggregate(
-            &signatures.iter().map(|x| &x.sig).collect::<Vec<_>>()[..],
+            &signatures
+                .into_iter()
+                .map(|x| &x.borrow().sig)
+                .collect::<Vec<_>>(),
             true,
         )
         .map(|sig| BLS12381AggregateSignature {

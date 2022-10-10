@@ -5,7 +5,7 @@ extern crate criterion;
 extern crate ed25519_consensus;
 extern crate rand;
 
-mod ed25519_benches {
+mod signature_benches {
     use super::*;
     use criterion::*;
     use fastcrypto::{
@@ -89,7 +89,7 @@ mod ed25519_benches {
                 .map(|key| key.public().clone())
                 .collect();
             let blst_aggregate_signature =
-                BLS12381AggregateSignature::aggregate(blst_signatures.clone()).unwrap();
+                BLS12381AggregateSignature::aggregate(&blst_signatures).unwrap();
 
             c.bench_with_input(
                 BenchmarkId::new("Ed25519 batch verification", *size),
@@ -137,7 +137,7 @@ mod ed25519_benches {
     }
 
     criterion_group! {
-        name = ed25519_benches;
+        name = signature_benches;
         config = Criterion::default();
         targets =
            sign,
@@ -155,4 +155,4 @@ mod ed25519_benches {
     }
 }
 
-criterion_main!(ed25519_benches::ed25519_benches,);
+criterion_main!(signature_benches::signature_benches,);

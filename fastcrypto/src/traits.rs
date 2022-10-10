@@ -8,6 +8,7 @@ use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
 pub use signature::Signer;
 use std::{
+    borrow::Borrow,
     fmt::{Debug, Display},
     str::FromStr,
 };
@@ -175,7 +176,9 @@ pub trait AggregateAuthenticator:
     type PrivKey: SigningKey<Sig = Self::Sig>;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError>;
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError>;
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError>;
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError>;
@@ -250,7 +253,7 @@ pub trait AuthenticatedCipher {
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
 ///
 pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut bytes = [0u8; LENGTH];
         rng.fill_bytes(&mut bytes);
         Self::from_bytes(&bytes).unwrap()

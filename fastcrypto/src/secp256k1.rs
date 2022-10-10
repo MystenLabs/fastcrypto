@@ -23,8 +23,7 @@ use std::{
 };
 use zeroize::Zeroize;
 
-pub static SECP256K1: Lazy<rust_secp256k1::Secp256k1<All>> =
-    Lazy::new(rust_secp256k1::Secp256k1::new);
+pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -49,7 +48,7 @@ pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE 
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1Signature {
-    pub sig: rust_secp256k1::ecdsa::RecoverableSignature,
+    pub sig: RecoverableSignature,
     pub bytes: OnceCell<[u8; RECOVERABLE_SIGNATURE_SIZE]>,
 }
 
@@ -90,7 +89,7 @@ impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
         // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
         #[cfg(test)]
         let message =
-            Message::from_slice(<sha3::Keccak256 as sha3::digest::Digest>::digest(msg).as_slice())
+            Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
                 .unwrap();
 
         #[cfg(not(test))]
@@ -136,14 +135,7 @@ impl Secp256k1PublicKey {
 impl AsRef<[u8]> for Secp256k1PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                Ok(self
-                    .pubkey
-                    .serialize()
-                    .as_slice()
-                    .try_into()
-                    .expect("wrong length"))
-            })
+            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.serialize()))
             .expect("OnceCell invariant violated")
     }
 }
@@ -265,7 +257,7 @@ impl<'de> Deserialize<'de> for Secp256k1Signature {
         D: serde::Deserializer<'de>,
     {
         let data: Vec<u8> = Vec::deserialize(deserializer)?;
-        <Secp256k1Signature as signature::Signature>::from_bytes(&data)
+        <Secp256k1Signature as Signature>::from_bytes(&data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
@@ -345,7 +337,7 @@ impl EncodeDecodeBase64 for Secp256k1KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        base64ct::Base64::encode_string(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
@@ -404,7 +396,7 @@ impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
         let secp = Secp256k1::signing_only();
         #[cfg(test)]
         let message =
-            Message::from_slice(<sha3::Keccak256 as sha3::digest::Digest>::digest(msg).as_slice())
+            Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
                 .unwrap();
 
         #[cfg(not(test))]
@@ -443,7 +435,7 @@ impl From<Secp256k1PrivateKey> for Secp256k1KeyPair {
 impl Secp256k1Signature {
     /// Recover public key from signature
     pub fn recover(&self, hashed_msg: &[u8]) -> Result<Secp256k1PublicKey, FastCryptoError> {
-        match rust_secp256k1::Message::from_slice(hashed_msg) {
+        match Message::from_slice(hashed_msg) {
             Ok(message) => match self.sig.recover(&message) {
                 Ok(pubkey) => Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
                 Err(_) => Err(FastCryptoError::GeneralError),

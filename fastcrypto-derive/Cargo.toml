@@ -4,6 +4,7 @@ version = "0.1.2"
 edition = "2021"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
+readme = "../README.md"
 description = "Collection of useful cryptographic macros"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
@@ -13,6 +14,6 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.64", features = ["derive"] }
-proc-macro2 = "1.0.24"
-quote = "1.0.9"
+syn = { version = "1.0.102", features = ["derive"] }
+proc-macro2 = "1.0.46"
+quote = "1.0.21"

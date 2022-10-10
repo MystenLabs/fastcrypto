@@ -14,6 +14,7 @@ use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
 use signature::{rand_core::OsRng, Signature, Signer, Verifier};
 use std::{
+    borrow::Borrow,
     fmt::{self, Debug, Display},
     str::FromStr,
 };
@@ -299,10 +300,7 @@ impl Serialize for Ed25519Signature {
         let readable = serializer.is_human_readable();
         let mut state = serializer.serialize_struct("Ed25519Signature", 1)?;
         if readable {
-            state.serialize_field(
-                BASE64_FIELD_NAME,
-                &base64ct::Base64::encode_string(self.as_ref()),
-            )?;
+            state.serialize_field(BASE64_FIELD_NAME, &Base64::encode_string(self.as_ref()))?;
         } else {
             state.serialize_field(RAW_FIELD_NAME, Bytes::new(self.as_ref()))?;
         }
@@ -408,8 +406,12 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     type PrivKey = Ed25519PrivateKey;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
-        Ok(Self(signatures.iter().map(|s| s.sig).collect()))
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError> {
+        Ok(Self(
+            signatures.into_iter().map(|s| s.borrow().sig).collect(),
+        ))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
@@ -485,7 +487,7 @@ impl EncodeDecodeBase64 for Ed25519KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        base64ct::Base64::encode_string(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
