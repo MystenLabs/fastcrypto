@@ -261,7 +261,7 @@ fn verify_invalid_batch_different_msg() {
 }
 
 #[test]
-fn verify_valid_aggregate_signaature() {
+fn verify_valid_aggregate_signature() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
     let aggregated_signature = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
 
