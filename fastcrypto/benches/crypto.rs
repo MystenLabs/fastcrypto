@@ -11,7 +11,7 @@ mod signature_benches {
     use fastcrypto::{
         bls12381::{BLS12381AggregateSignature, BLS12381KeyPair, BLS12381Signature},
         ed25519::*,
-        hash::{HashFunction, Blake2b256},
+        hash::{Blake2b256, HashFunction},
         secp256k1::{Secp256k1KeyPair, Secp256k1Signature},
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
         Verifier,
