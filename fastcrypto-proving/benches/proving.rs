@@ -23,6 +23,7 @@ struct DummyCircuit<F: PrimeField> {
 }
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
+    // We'll be proving a relationship involving the product c of a & b
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
         let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
@@ -33,6 +34,7 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
             Ok(a * b)
         })?;
 
+        // a, b, c are above, let's define the rest.
         for _ in 0..(self.num_variables - 3) {
             let _ = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
         }
@@ -50,15 +52,15 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
 fn bench_prove<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
     grp: &mut BenchmarkGroup<M>,
 ) {
-    static VARIABLES: [usize; 5] = [16, 32, 64, 128, 256];
+    static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
-    for size in VARIABLES.iter() {
+    for size in CONSTRAINTS.iter() {
         let rng = &mut ark_std::test_rng();
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
-            num_variables: *size,
-            num_constraints: 65536,
+            num_variables: 12,
+            num_constraints: (1 << *size),
         };
 
         let (pk, _) = Groth16::<E>::circuit_specific_setup(c, rng).unwrap();
@@ -76,15 +78,15 @@ fn bench_prove<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
 fn bench_verify<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
     grp: &mut BenchmarkGroup<M>,
 ) {
-    static VARIABLES: [usize; 5] = [16, 32, 64, 128, 256];
+    static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
-    for size in VARIABLES.iter() {
+    for size in CONSTRAINTS.iter() {
         let rng = &mut ark_std::test_rng();
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
-            num_variables: *size,
-            num_constraints: 65536,
+            num_variables: 12,
+            num_constraints: (1 << *size),
         };
 
         let (pk, vk) = Groth16::<E>::circuit_specific_setup(c, rng).unwrap();
