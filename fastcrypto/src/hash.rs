@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::{Base64, Encoding};
-use digest::OutputSizeUser;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -21,10 +20,6 @@ pub type Digest256 = Digest<typenum::U32>;
 
 /// A digest consisting of 128 bits = 16 bytes.
 pub type Digest128 = Digest<typenum::U16>;
-
-impl<DigestLength: ArrayLength<u8> + 'static> OutputSizeUser for Digest<DigestLength> {
-    type OutputSize = DigestLength;
-}
 
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
     /// Copy the digest into a new vector.
@@ -65,7 +60,7 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
     // Output type of this hash function
-    type DigestType: Sized + OutputSizeUser + Eq + Clone + core::hash::Hash;
+    type DigestType: Sized + Eq + Clone + core::hash::Hash;
 
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
@@ -82,7 +77,7 @@ pub trait HashFunction: Default {
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
-    type DigestType: OutputSizeUser + Eq + Clone + core::hash::Hash;
+    type DigestType: Sized + Eq + Clone + core::hash::Hash;
     type Hasher: HashFunction;
 
     fn digest(self) -> Self::DigestType;
@@ -90,10 +85,6 @@ pub trait Hashable {
 
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static>(Variant);
-
-impl<Variant: digest::Digest + 'static> OutputSizeUser for HashFunctionWrapper<Variant> {
-    type OutputSize = Variant::OutputSize;
-}
 
 impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant>
 where
@@ -129,10 +120,6 @@ pub type Blake2b256 = Blake2b<typenum::U32>;
 #[derive(Default)]
 pub struct Blake3 {
     instance: blake3::Hasher,
-}
-
-impl OutputSizeUser for Blake3 {
-    type OutputSize = typenum::U32;
 }
 
 impl HashFunction for Blake3 {
