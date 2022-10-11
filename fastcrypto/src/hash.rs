@@ -13,6 +13,15 @@ pub type DefaultHashFunction = Blake2b<typenum::U32>;
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
 
+/// A digest consisting of 512 bits = 64 bytes.
+pub type Digest512 = Digest<typenum::U64>;
+
+/// A digest consisting of 256 bits = 32 bytes.
+pub type Digest256 = Digest<typenum::U32>;
+
+/// A digest consisting of 128 bits = 16 bytes.
+pub type Digest128 = Digest<typenum::U16>;
+
 impl<DigestLength: ArrayLength<u8> + 'static> OutputSizeUser for Digest<DigestLength> {
     type OutputSize = DigestLength;
 }
@@ -112,6 +121,9 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
 /// BLAKE2
 pub type Blake2b<DigestLength> = HashFunctionWrapper<blake2::Blake2b<DigestLength>>;
+
+/// BLAKE2-256
+pub type Blake2b256 = Blake2b<typenum::U32>;
 
 /// BLAKE3
 #[derive(Default)]
