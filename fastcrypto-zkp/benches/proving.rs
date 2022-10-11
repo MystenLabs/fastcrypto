@@ -3,7 +3,7 @@
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_crypto_primitives::SNARK;
 use ark_ec::PairingEngine;
-use ark_ff::PrimeField;
+use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
 use ark_relations::{
     lc,
@@ -13,6 +13,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
+use std::ops::Mul;
 
 #[derive(Copy, Clone)]
 struct DummyCircuit<F: PrimeField> {
@@ -120,6 +121,44 @@ fn bench_verify<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
     }
 }
 
+fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
+    static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
+
+    for size in CONSTRAINTS.iter() {
+        let rng = &mut ark_std::test_rng();
+        let c = DummyCircuit::<BlsFr> {
+            a: Some(<BlsFr>::rand(rng)),
+            b: Some(<BlsFr>::rand(rng)),
+            num_variables: 12,
+            num_constraints: (1 << *size),
+        };
+
+        let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
+        let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
+        let v = c.a.unwrap().mul(c.b.unwrap());
+
+        grp.bench_with_input(
+            BenchmarkId::new("OUR Groth16 process verifying key", *size),
+            &vk,
+            |b, vk| {
+                b.iter(|| fastcrypto_proving::verifier::process_vk_special(vk));
+            },
+        );
+        let pvk = fastcrypto_proving::verifier::process_vk_special(&vk);
+
+        grp.bench_with_input(
+            BenchmarkId::new("OUR Groth16 verify with processed vk", *size),
+            &(pvk, v),
+            |b, (pvk, v)| {
+                b.iter(|| {
+                    fastcrypto_proving::verifier::verify_with_processed_vk(pvk, &[*v], &proof)
+                        .unwrap()
+                });
+            },
+        );
+    }
+}
+
 fn prove(c: &mut Criterion) {
     let mut group: BenchmarkGroup<_> = c.benchmark_group("Proving");
     // This can take a *while*
@@ -133,9 +172,10 @@ fn prove(c: &mut Criterion) {
 }
 
 fn verify(c: &mut Criterion) {
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("Proving");
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("Verification");
     // Add fields and pairing engines here
     bench_verify::<BlsFr, Bls12_381, _>(&mut group);
+    bench_our_verify(&mut group);
 
     group.finish();
 }
