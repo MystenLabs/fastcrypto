@@ -6,11 +6,11 @@ use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-pub type DefaultHashFunction = Blake2b<typenum::U32>;
-
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
-pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
+pub struct Digest<DigestLength: ArrayLength<u8> + 'static + Copy>(
+    pub GenericArray<u8, DigestLength>,
+);
 
 /// A digest consisting of 512 bits = 64 bytes.
 pub type Digest512 = Digest<typenum::U64>;
@@ -55,6 +55,11 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
+}
+
+impl<DigestLength: ArrayLength<u8> + 'static> Copy for Digest<DigestLength> where
+    DigestLength::ArrayType: Copy
+{
 }
 
 /// Trait implemented by hash functions providing a output of fixed length
