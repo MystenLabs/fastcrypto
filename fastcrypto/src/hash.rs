@@ -69,12 +69,6 @@ pub trait HashFunction<DigestType: Sized>: Default {
         h.update(data);
         h.finalize()
     }
-
-    fn digest_consumer<F: Fn(&mut Self)>(closure: F) -> DigestType {
-        let mut hasher = Self::default();
-        closure(&mut hasher);
-        hasher.finalize()
-    }
 }
 
 /// This trait is implemented by all messages that can be hashed.
