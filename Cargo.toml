@@ -3,6 +3,6 @@ resolver = "2"
 members = [
     "fastcrypto",
     "fastcrypto-derive",
-    "fastcrypto-proving"
+    "fastcrypto-zkp"
 ]
 
