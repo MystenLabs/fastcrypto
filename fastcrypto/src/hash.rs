@@ -11,6 +11,10 @@ use std::fmt;
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
 
+impl<DigestLength: ArrayLength<u8> + 'static> OutputSizeUser for Digest<DigestLength> {
+    type OutputSize = DigestLength;
+}
+
 impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
     /// Copy the digest into a new vector.
     pub fn to_vec(&self) -> Vec<u8> {
@@ -48,29 +52,35 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
 }
 
 /// This trait is implemented by all messages that can be hashed.
-pub trait Hashable<DigestLength: ArrayLength<u8> + 'static> {
-    fn digest<H: HashFunction<DigestLength>>(self) -> Digest<DigestLength>;
-}
-
-impl<DigestLength: ArrayLength<u8> + 'static> Hashable<DigestLength> for &[u8] {
-    /// Hash this data using the given hash function.
-    fn digest<H: HashFunction<DigestLength>>(self) -> Digest<DigestLength> {
-        H::digest(self)
-    }
+pub trait Hashable<DigestType> {
+    fn digest<H: HashFunction<DigestType>>(self) -> DigestType;
 }
 
 /// Trait implemented by hash functions providing a output of fixed length
-pub trait HashFunction<DigestLength: ArrayLength<u8>>: OutputSizeUser + Sized + Default {
+pub trait HashFunction<DigestType: Sized>: Default {
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
 
     /// Retrieve result and consume hash function.
-    fn finalize(self) -> Digest<DigestLength>;
+    fn finalize(self) -> DigestType;
 
-    fn digest(data: &[u8]) -> Digest<DigestLength> {
+    fn digest(data: &[u8]) -> DigestType {
         let mut h = Self::default();
         h.update(data);
         h.finalize()
+    }
+
+    fn digest_consumer<F: Fn(&mut Self)>(closure: F) -> DigestType {
+        let mut hasher = Self::default();
+        closure(&mut hasher);
+        hasher.finalize()
+    }
+}
+
+/// This trait is implemented by all messages that can be hashed.
+impl<DigestLength: ArrayLength<u8>> Hashable<Digest<DigestLength>> for &[u8] {
+    fn digest<H: HashFunction<Digest<DigestLength>>>(self) -> Digest<DigestLength> {
+        H::digest(self)
     }
 }
 
@@ -81,7 +91,7 @@ impl<Variant: digest::Digest + 'static> OutputSizeUser for HashFunctionWrapper<V
     type OutputSize = Variant::OutputSize;
 }
 
-impl<Variant: digest::Digest + 'static + Default> HashFunction<Variant::OutputSize>
+impl<Variant: digest::Digest + 'static + Default> HashFunction<Digest<Variant::OutputSize>>
     for HashFunctionWrapper<Variant>
 {
     fn update(&mut self, data: &[u8]) {
@@ -115,7 +125,7 @@ impl OutputSizeUser for Blake3 {
     type OutputSize = typenum::U32;
 }
 
-impl HashFunction<typenum::U32> for Blake3 {
+impl HashFunction<Digest<typenum::U32>> for Blake3 {
     fn update(&mut self, data: &[u8]) {
         self.instance.update(data);
     }
