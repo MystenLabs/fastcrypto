@@ -11,12 +11,11 @@ mod signature_benches {
     use fastcrypto::{
         bls12381::{BLS12381AggregateSignature, BLS12381KeyPair, BLS12381Signature},
         ed25519::*,
-        hash::Blake2b,
+        hash::{HashFunction, Sha256},
         secp256k1::{Secp256k1KeyPair, Secp256k1Signature},
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
         Verifier,
     };
-    use generic_array::typenum::U32;
     use rand::{prelude::ThreadRng, thread_rng};
     use signature::Signer;
 
@@ -75,7 +74,7 @@ mod signature_benches {
                 .map(|_| BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
-            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Blake2b<U32>>(
+            let msg: Vec<u8> = Sha256::digest(
                 b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
             )
             .to_vec();
@@ -129,7 +128,7 @@ mod signature_benches {
                 .map(|_| BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
-            let msg: Vec<u8> = fastcrypto::hash::Hashable::digest::<Blake2b<U32>>(
+            let msg: Vec<u8> = Sha256::digest(
                 b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa".as_slice(),
             )
             .to_vec();

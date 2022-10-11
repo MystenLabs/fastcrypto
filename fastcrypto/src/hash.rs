@@ -7,6 +7,8 @@ use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+pub type DefaultHashFunction = Blake2b<typenum::U32>;
+
 /// Represents a hash digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static>(pub GenericArray<u8, DigestLength>);
@@ -51,20 +53,18 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
     }
 }
 
-/// This trait is implemented by all messages that can be hashed.
-pub trait Hashable<DigestType> {
-    fn digest<H: HashFunction<DigestType>>(self) -> DigestType;
-}
-
 /// Trait implemented by hash functions providing a output of fixed length
-pub trait HashFunction<DigestType: Sized>: Default {
+pub trait HashFunction: Default {
+    // Output type of this hash function
+    type DigestType: Sized + OutputSizeUser;
+
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
 
     /// Retrieve result and consume hash function.
-    fn finalize(self) -> DigestType;
+    fn finalize(self) -> Self::DigestType;
 
-    fn digest(data: &[u8]) -> DigestType {
+    fn digest(data: &[u8]) -> Self::DigestType {
         let mut h = Self::default();
         h.update(data);
         h.finalize()
@@ -72,10 +72,10 @@ pub trait HashFunction<DigestType: Sized>: Default {
 }
 
 /// This trait is implemented by all messages that can be hashed.
-impl<DigestLength: ArrayLength<u8>> Hashable<Digest<DigestLength>> for &[u8] {
-    fn digest<H: HashFunction<Digest<DigestLength>>>(self) -> Digest<DigestLength> {
-        H::digest(self)
-    }
+pub trait Hashable {
+    type Hasher: HashFunction;
+
+    fn digest(self) -> <<Self as Hashable>::Hasher as HashFunction>::DigestType;
 }
 
 #[derive(Default)]
@@ -85,9 +85,9 @@ impl<Variant: digest::Digest + 'static> OutputSizeUser for HashFunctionWrapper<V
     type OutputSize = Variant::OutputSize;
 }
 
-impl<Variant: digest::Digest + 'static + Default> HashFunction<Digest<Variant::OutputSize>>
-    for HashFunctionWrapper<Variant>
-{
+impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant> {
+    type DigestType = Digest<Variant::OutputSize>;
+
     fn update(&mut self, data: &[u8]) {
         self.0.update(data);
     }
@@ -119,7 +119,9 @@ impl OutputSizeUser for Blake3 {
     type OutputSize = typenum::U32;
 }
 
-impl HashFunction<Digest<typenum::U32>> for Blake3 {
+impl HashFunction for Blake3 {
+    type DigestType = Digest<typenum::U32>;
+
     fn update(&mut self, data: &[u8]) {
         self.instance.update(data);
     }
