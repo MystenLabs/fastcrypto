@@ -7,10 +7,12 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// Represents a hash digest of `DigestLength` bytes.
-#[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
+#[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd, Copy)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static + Copy>(
     pub GenericArray<u8, DigestLength>,
-);
+)
+where
+    DigestLength::ArrayType: Copy;
 
 /// A digest consisting of 512 bits = 64 bytes.
 pub type Digest512 = Digest<typenum::U64>;
@@ -21,7 +23,10 @@ pub type Digest256 = Digest<typenum::U32>;
 /// A digest consisting of 128 bits = 16 bytes.
 pub type Digest128 = Digest<typenum::U16>;
 
-impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
+impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength>
+where
+    DigestLength::ArrayType: Copy,
+{
     /// Copy the digest into a new vector.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -33,13 +38,19 @@ impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength> {
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> fmt::Debug for Digest<DigestLength> {
+impl<DigestLength: ArrayLength<u8> + 'static> fmt::Debug for Digest<DigestLength>
+where
+    DigestLength::ArrayType: Copy,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(&self.0))
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> fmt::Display for Digest<DigestLength> {
+impl<DigestLength: ArrayLength<u8> + 'static> fmt::Display for Digest<DigestLength>
+where
+    DigestLength::ArrayType: Copy,
+{
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
@@ -51,21 +62,19 @@ impl<DigestLength: ArrayLength<u8> + 'static> fmt::Display for Digest<DigestLeng
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLength> {
+impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLength>
+where
+    DigestLength::ArrayType: Copy,
+{
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> Copy for Digest<DigestLength> where
-    DigestLength::ArrayType: Copy
-{
-}
-
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
     // Output type of this hash function
-    type DigestType: Sized + Eq + Clone + core::hash::Hash;
+    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
 
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
@@ -82,7 +91,7 @@ pub trait HashFunction: Default {
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
-    type DigestType: Sized + Eq + Clone + core::hash::Hash;
+    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
     type Hasher: HashFunction;
 
     fn digest(self) -> Self::DigestType;
@@ -94,6 +103,7 @@ pub struct HashFunctionWrapper<Variant: digest::Digest + 'static>(Variant);
 impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant>
 where
     Variant::OutputSize: Eq + core::hash::Hash,
+    <Variant::OutputSize as ArrayLength<u8>>::ArrayType: Copy,
 {
     type DigestType = Digest<Variant::OutputSize>;
 
