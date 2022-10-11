@@ -73,7 +73,7 @@ pub trait HashFunction: Default {
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
-    type DigestType: Sized + OutputSizeUser;
+    type DigestType: OutputSizeUser + Eq + Clone + core::hash::Hash;
     type Hasher: HashFunction;
 
     fn digest(self) -> Self::DigestType;
