@@ -56,7 +56,7 @@ impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLengt
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
     // Output type of this hash function
-    type DigestType: Sized + OutputSizeUser;
+    type DigestType: Sized + OutputSizeUser + Eq + Clone + core::hash::Hash;
 
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
@@ -86,7 +86,10 @@ impl<Variant: digest::Digest + 'static> OutputSizeUser for HashFunctionWrapper<V
     type OutputSize = Variant::OutputSize;
 }
 
-impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant> {
+impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant>
+where
+    Variant::OutputSize: Eq + core::hash::Hash,
+{
     type DigestType = Digest<Variant::OutputSize>;
 
     fn update(&mut self, data: &[u8]) {
