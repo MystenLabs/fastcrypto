@@ -57,13 +57,14 @@ jobs:
             # Unexpected outcome, indicates a bug.
             exit "$EXIT_CODE"
           fi
-      - name: Check semver
-        # Only run the semver script if the version changed, otherwise it errors out
-        if: steps.check.outputs.is_new_version == 'yes'
-        uses: obi1kenobi/cargo-semver-checks-action@v1
-        with:
-          crate-name: ${{ matrix.package }}
-          version-tag-prefix: ${{ matrix.package }}-v
+      # Disabled when API feels more stable 
+      # - name: Check semver
+      #   # Only run the semver script if the version changed, otherwise it errors out
+      #   if: steps.check.outputs.is_new_version == 'yes'
+      #   uses: obi1kenobi/cargo-semver-checks-action@v1
+      #   with:
+      #     crate-name: ${{ matrix.package }}
+      #     version-tag-prefix: ${{ matrix.package }}-v
       - name: Tag the version
         if: steps.check.outputs.is_new_version == 'yes'
         run: |
@@ -77,4 +78,4 @@ jobs:
         run: cargo login ${{ secrets.CARGO_REGISTRY_TOKEN }}
       - name: Publish fastcrypto
         if: steps.check.outputs.is_new_version == 'yes'
-        run: cargo publish --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: cargo publish -p ${{ matrix.package }} --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
