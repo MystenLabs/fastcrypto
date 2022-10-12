@@ -1,1 +1,1 @@
-window.ALL_CRATES = ["fastcrypto","fastcrypto_derive"];
+window.ALL_CRATES = ["fastcrypto","fastcrypto_derive","fastcrypto_proving"];
