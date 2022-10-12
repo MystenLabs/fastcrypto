@@ -132,7 +132,6 @@ impl HashFunction for Blake3 {
     }
 
     fn finalize(self) -> Digest {
-        let hash: [u8; 32] = self.instance.finalize().into();
-        Digest(hash.into())
+        Digest(self.instance.finalize().into())
     }
 }
