@@ -6,13 +6,23 @@ use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-/// Represents a hash digest of `DigestLength` bytes.
+/// A generic trait impl'd by all hashfunction outputs.
+pub trait GenericDigest: Sized + Eq + Clone + core::hash::Hash + Copy {}
+
+/// Represents a concrete digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd, Copy)]
 pub struct Digest<DigestLength: ArrayLength<u8> + 'static + Copy>(
     pub GenericArray<u8, DigestLength>,
 )
 where
     DigestLength::ArrayType: Copy;
+
+impl<DigestLength: ArrayLength<u8> + 'static + Copy + std::hash::Hash + std::cmp::Eq> GenericDigest
+    for Digest<DigestLength>
+where
+    DigestLength::ArrayType: Copy,
+{
+}
 
 /// A digest consisting of 512 bits = 64 bytes.
 pub type Digest512 = Digest<typenum::U64>;
@@ -74,7 +84,7 @@ where
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
     // Output type of this hash function
-    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
+    type DigestType: GenericDigest;
 
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
@@ -92,9 +102,9 @@ pub trait HashFunction: Default {
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
     type Hasher: HashFunction;
-    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
+    //type DigestType: HashFunction::DigestType;
 
-    fn digest(&self) -> Self::DigestType;
+    fn digest(&self) -> <<Self as Hashable>::Hasher as HashFunction>::DigestType;
 }
 
 #[derive(Default)]
