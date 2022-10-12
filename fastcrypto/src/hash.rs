@@ -91,10 +91,10 @@ pub trait HashFunction: Default {
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
-    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
     type Hasher: HashFunction;
+    type DigestType: Sized + Eq + Clone + core::hash::Hash + Copy;
 
-    fn digest(self) -> Self::DigestType;
+    fn digest(&self) -> Self::DigestType;
 }
 
 #[derive(Default)]
