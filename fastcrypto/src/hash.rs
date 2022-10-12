@@ -2,44 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::{Base64, Encoding};
-use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, fmt};
 
-/// A generic trait impl'd by all hashfunction outputs.
-pub trait GenericDigest: Sized + Eq + Clone + core::hash::Hash + Copy {
-    const DIGEST_LEN: usize;
-}
+/// The length of a digest.
+pub const DIGEST_LEN: usize = 32;
 
-/// Represents a concrete digest of `DigestLength` bytes.
+/// Represents a 32 bytes digest.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd, Copy)]
-pub struct Digest<DigestLength: ArrayLength<u8> + 'static + Copy>(
-    pub GenericArray<u8, DigestLength>,
-)
-where
-    DigestLength::ArrayType: Copy;
+pub struct Digest(pub [u8; DIGEST_LEN]);
 
-impl<DigestLength: ArrayLength<u8> + 'static + Copy + std::hash::Hash + std::cmp::Eq> GenericDigest
-    for Digest<DigestLength>
-where
-    DigestLength::ArrayType: Copy,
-{
-    const DIGEST_LEN: usize = DigestLength::USIZE;
-}
+impl Digest {
+    /// Create a new digest containing the given bytes
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Digest(bytes)
+    }
 
-/// A digest consisting of 512 bits = 64 bytes.
-pub type Digest512 = Digest<typenum::U64>;
-
-/// A digest consisting of 256 bits = 32 bytes.
-pub type Digest256 = Digest<typenum::U32>;
-
-/// A digest consisting of 128 bits = 16 bytes.
-pub type Digest128 = Digest<typenum::U16>;
-
-impl<DigestLength: ArrayLength<u8> + 'static> Digest<DigestLength>
-where
-    DigestLength::ArrayType: Copy,
-{
     /// Copy the digest into a new vector.
     pub fn to_vec(&self) -> Vec<u8> {
         self.0.to_vec()
@@ -47,38 +25,27 @@ where
 
     /// The size of this digest in bytes.
     pub fn size(&self) -> usize {
-        DigestLength::USIZE
+        DIGEST_LEN
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> fmt::Debug for Digest<DigestLength>
-where
-    DigestLength::ArrayType: Copy,
-{
+impl fmt::Debug for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(&self.0))
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> fmt::Display for Digest<DigestLength>
-where
-    DigestLength::ArrayType: Copy,
-{
+impl fmt::Display for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(
             f,
             "{}",
-            Base64::encode_string(&self.0)
-                .get(0..DigestLength::USIZE)
-                .unwrap()
+            Base64::encode_string(&self.0).get(0..DIGEST_LEN).unwrap()
         )
     }
 }
 
-impl<DigestLength: ArrayLength<u8> + 'static> AsRef<[u8]> for Digest<DigestLength>
-where
-    DigestLength::ArrayType: Copy,
-{
+impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -86,23 +53,20 @@ where
 
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
-    // Output type of this hash function
-    type DigestType: GenericDigest;
-
     /// Process the given data, and update the internal of the hash function.
     fn update(&mut self, data: &[u8]);
 
     /// Retrieve result and consume hash function.
-    fn finalize(self) -> Self::DigestType;
+    fn finalize(self) -> Digest;
 
-    fn digest(data: &[u8]) -> Self::DigestType {
+    fn digest(data: &[u8]) -> Digest {
         let mut h = Self::default();
         h.update(data);
         h.finalize()
     }
 
     /// Compute a single digest from all slices in the iterator in order.
-    fn digest_iterator<K: Borrow<[u8]>, I: Iterator<Item = K>>(iter: I) -> Self::DigestType {
+    fn digest_iterator<K: Borrow<[u8]>, I: Iterator<Item = K>>(iter: I) -> Digest {
         let mut h = Self::default();
         iter.into_iter().for_each(|chunk| h.update(chunk.borrow()));
         h.finalize()
@@ -112,8 +76,7 @@ pub trait HashFunction: Default {
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
     // Since associated type defaults are still unstable, we cannot define the digesttype from the Hasher or vice versa.
-    type Hasher: HashFunction;
-    type DigestType: GenericDigest;
+    type DigestType: Into<Digest>;
 
     fn digest(&self) -> Self::DigestType;
 }
@@ -121,19 +84,15 @@ pub trait Hashable {
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static>(Variant);
 
-impl<Variant: digest::Digest + 'static + Default> HashFunction for HashFunctionWrapper<Variant>
-where
-    Variant::OutputSize: Eq + core::hash::Hash,
-    <Variant::OutputSize as ArrayLength<u8>>::ArrayType: Copy,
+impl<Variant: digest::Digest<OutputSize = typenum::U32> + 'static + Default> HashFunction
+    for HashFunctionWrapper<Variant>
 {
-    type DigestType = Digest<Variant::OutputSize>;
-
     fn update(&mut self, data: &[u8]) {
         self.0.update(data);
     }
 
-    fn finalize(self) -> Digest<Variant::OutputSize> {
-        Digest(self.0.finalize())
+    fn finalize(self) -> Digest {
+        Digest(self.0.finalize().into())
     }
 }
 
@@ -146,11 +105,8 @@ pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256>;
 /// KECCAK
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256>;
 
-/// BLAKE2
-pub type Blake2b<DigestLength> = HashFunctionWrapper<blake2::Blake2b<DigestLength>>;
-
 /// BLAKE2-256
-pub type Blake2b256 = Blake2b<typenum::U32>;
+pub type Blake2b256 = HashFunctionWrapper<blake2::Blake2b<typenum::U32>>;
 
 /// BLAKE3
 #[derive(Default)]
@@ -159,13 +115,11 @@ pub struct Blake3 {
 }
 
 impl HashFunction for Blake3 {
-    type DigestType = Digest<typenum::U32>;
-
     fn update(&mut self, data: &[u8]) {
         self.instance.update(data);
     }
 
-    fn finalize(self) -> Digest<typenum::U32> {
+    fn finalize(self) -> Digest {
         let hash: [u8; 32] = self.instance.finalize().into();
         Digest(hash.into())
     }

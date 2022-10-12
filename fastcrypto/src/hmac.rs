@@ -95,11 +95,11 @@ const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
-pub fn hmac(key: &HmacKey, message: &[u8]) -> Digest<typenum::U32> {
+pub fn hmac(key: &HmacKey, message: &[u8]) -> Digest {
     let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     let output = hash.finalize();
-    Digest(output.into_bytes())
+    Digest(output.into_bytes().into())
 }
 
 pub fn hkdf(

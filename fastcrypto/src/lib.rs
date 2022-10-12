@@ -17,8 +17,6 @@ use tokio::sync::{
     oneshot,
 };
 
-use typenum::U32;
-
 #[cfg(test)]
 #[path = "tests/pubkey_bytes_tests.rs"]
 pub mod pubkey_bytes_tests;
@@ -96,7 +94,7 @@ where
 /// over the digest (through a one-shot channel).
 #[derive(Clone)]
 pub struct SignatureService<Signature: traits::Authenticator> {
-    channel: Sender<(Digest<U32>, oneshot::Sender<Signature>)>,
+    channel: Sender<(Digest, oneshot::Sender<Signature>)>,
 }
 
 impl<Signature: traits::Authenticator> SignatureService<Signature> {
@@ -104,7 +102,7 @@ impl<Signature: traits::Authenticator> SignatureService<Signature> {
     where
         S: signature::Signer<Signature> + Send + 'static,
     {
-        let (tx, mut rx): (Sender<(Digest<U32>, oneshot::Sender<_>)>, _) = channel(100);
+        let (tx, mut rx): (Sender<(Digest, oneshot::Sender<_>)>, _) = channel(100);
         tokio::spawn(async move {
             while let Some((digest, sender)) = rx.recv().await {
                 let signature = signer.sign(digest.as_ref());
@@ -114,7 +112,7 @@ impl<Signature: traits::Authenticator> SignatureService<Signature> {
         Self { channel: tx }
     }
 
-    pub async fn request_signature(&mut self, digest: Digest<U32>) -> Signature {
+    pub async fn request_signature(&mut self, digest: Digest) -> Signature {
         let (sender, receiver): (oneshot::Sender<_>, oneshot::Receiver<_>) = oneshot::channel();
         if let Err(e) = self.channel.send((digest, sender)).await {
             panic!("Failed to send message Signature Service: {e}");
