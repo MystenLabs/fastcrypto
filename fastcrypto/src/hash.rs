@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use std::{borrow::Borrow, fmt};
 
 /// A generic trait impl'd by all hashfunction outputs.
-pub trait GenericDigest: Sized + Eq + Clone + core::hash::Hash + Copy {}
+pub trait GenericDigest: Sized + Eq + Clone + core::hash::Hash + Copy {
+    const DIGEST_LEN: usize;
+}
 
 /// Represents a concrete digest of `DigestLength` bytes.
 #[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd, Copy)]
@@ -22,6 +24,7 @@ impl<DigestLength: ArrayLength<u8> + 'static + Copy + std::hash::Hash + std::cmp
 where
     DigestLength::ArrayType: Copy,
 {
+    const DIGEST_LEN: usize = DigestLength::USIZE;
 }
 
 /// A digest consisting of 512 bits = 64 bytes.
