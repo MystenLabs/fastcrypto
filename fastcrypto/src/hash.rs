@@ -101,10 +101,11 @@ pub trait HashFunction: Default {
 
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hashable {
+    // Since associated type defaults are still unstable, we cannot define the digesttype from the Hasher or vice versa.
     type Hasher: HashFunction;
-    //type DigestType: HashFunction::DigestType;
+    type DigestType: GenericDigest;
 
-    fn digest(&self) -> <<Self as Hashable>::Hasher as HashFunction>::DigestType;
+    fn digest(&self) -> Self::DigestType;
 }
 
 #[derive(Default)]
