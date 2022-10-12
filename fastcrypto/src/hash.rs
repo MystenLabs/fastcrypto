@@ -4,7 +4,7 @@
 use base64ct::{Base64, Encoding};
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{borrow::Borrow, fmt};
 
 /// A generic trait impl'd by all hashfunction outputs.
 pub trait GenericDigest: Sized + Eq + Clone + core::hash::Hash + Copy {}
@@ -95,6 +95,13 @@ pub trait HashFunction: Default {
     fn digest(data: &[u8]) -> Self::DigestType {
         let mut h = Self::default();
         h.update(data);
+        h.finalize()
+    }
+
+    /// Compute a single digest from all slices in the iterator in order.
+    fn digest_iterator<K: Borrow<[u8]>, I: Iterator<Item = K>>(iter: I) -> Self::DigestType {
+        let mut h = Self::default();
+        iter.into_iter().for_each(|chunk| h.update(chunk.borrow()));
         h.finalize()
     }
 }
