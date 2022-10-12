@@ -14,7 +14,7 @@ pub struct Digest(pub [u8; DIGEST_LEN]);
 
 impl Digest {
     /// Create a new digest containing the given bytes
-    pub fn new(bytes: [u8; 32]) -> Self {
+    pub fn new(bytes: [u8; DIGEST_LEN]) -> Self {
         Digest(bytes)
     }
 
@@ -51,7 +51,7 @@ impl AsRef<[u8]> for Digest {
     }
 }
 
-impl From<Digest> for [u8; 32] {
+impl From<Digest> for [u8; DIGEST_LEN] {
     fn from(digest: Digest) -> Self {
         digest.0
     }
