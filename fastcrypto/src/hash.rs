@@ -3,7 +3,7 @@
 
 use base64ct::{Base64, Encoding};
 use serde::{Deserialize, Serialize};
-use std::{borrow::Borrow, fmt};
+use std::fmt;
 
 /// The length of a digest.
 pub const DIGEST_LEN: usize = 32;
@@ -51,34 +51,46 @@ impl AsRef<[u8]> for Digest {
     }
 }
 
+impl From<Digest> for [u8; 32] {
+    fn from(digest: Digest) -> Self {
+        digest.0
+    }
+}
+
 /// Trait implemented by hash functions providing a output of fixed length
 pub trait HashFunction: Default {
+    /// Create a new hash function of the given type
+    fn new() -> Self {
+        Self::default()
+    }
+
     /// Process the given data, and update the internal of the hash function.
-    fn update(&mut self, data: &[u8]);
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data);
 
     /// Retrieve result and consume hash function.
     fn finalize(self) -> Digest;
 
-    fn digest(data: &[u8]) -> Digest {
+    /// Compute the digest of the given data and consume the hash function.
+    fn digest<Data: AsRef<[u8]>>(data: Data) -> Digest {
         let mut h = Self::default();
         h.update(data);
         h.finalize()
     }
 
-    /// Compute a single digest from all slices in the iterator in order.
-    fn digest_iterator<K: Borrow<[u8]>, I: Iterator<Item = K>>(iter: I) -> Digest {
+    /// Compute a single digest from all slices in the iterator in order and consume the hash function.
+    fn digest_iterator<K: AsRef<[u8]>, I: Iterator<Item = K>>(iter: I) -> Digest {
         let mut h = Self::default();
-        iter.into_iter().for_each(|chunk| h.update(chunk.borrow()));
+        iter.into_iter().for_each(|chunk| h.update(chunk.as_ref()));
         h.finalize()
     }
 }
 
 /// This trait is implemented by all messages that can be hashed.
-pub trait Hashable {
+pub trait Hash {
     // Since associated type defaults are still unstable, we cannot define the digesttype from the Hasher or vice versa.
-    type DigestType: Into<Digest>;
+    type TypedDigest: Into<Digest> + Eq + std::hash::Hash + Copy;
 
-    fn digest(&self) -> Self::DigestType;
+    fn digest(&self) -> Self::TypedDigest;
 }
 
 #[derive(Default)]
@@ -87,7 +99,7 @@ pub struct HashFunctionWrapper<Variant: digest::Digest + 'static>(Variant);
 impl<Variant: digest::Digest<OutputSize = typenum::U32> + 'static + Default> HashFunction
     for HashFunctionWrapper<Variant>
 {
-    fn update(&mut self, data: &[u8]) {
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.0.update(data);
     }
 
@@ -115,8 +127,8 @@ pub struct Blake3 {
 }
 
 impl HashFunction for Blake3 {
-    fn update(&mut self, data: &[u8]) {
-        self.instance.update(data);
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
+        self.instance.update(data.as_ref());
     }
 
     fn finalize(self) -> Digest {
