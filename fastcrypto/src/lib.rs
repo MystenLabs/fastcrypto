@@ -93,16 +93,18 @@ where
 /// This service holds the node's private key. It takes digests as input and returns a signature
 /// over the digest (through a one-shot channel).
 #[derive(Clone)]
-pub struct SignatureService<Signature: traits::Authenticator> {
-    channel: Sender<(Digest, oneshot::Sender<Signature>)>,
+pub struct SignatureService<Signature: traits::Authenticator, const DIGEST_LEN: usize> {
+    channel: Sender<(Digest<DIGEST_LEN>, oneshot::Sender<Signature>)>,
 }
 
-impl<Signature: traits::Authenticator> SignatureService<Signature> {
+impl<Signature: traits::Authenticator, const DIGEST_LEN: usize>
+    SignatureService<Signature, DIGEST_LEN>
+{
     pub fn new<S>(signer: S) -> Self
     where
         S: signature::Signer<Signature> + Send + 'static,
     {
-        let (tx, mut rx): (Sender<(Digest, oneshot::Sender<_>)>, _) = channel(100);
+        let (tx, mut rx): (Sender<(Digest<DIGEST_LEN>, oneshot::Sender<_>)>, _) = channel(100);
         tokio::spawn(async move {
             while let Some((digest, sender)) = rx.recv().await {
                 let signature = signer.sign(digest.as_ref());
@@ -112,7 +114,7 @@ impl<Signature: traits::Authenticator> SignatureService<Signature> {
         Self { channel: tx }
     }
 
-    pub async fn request_signature(&mut self, digest: Digest) -> Signature {
+    pub async fn request_signature(&mut self, digest: Digest<DIGEST_LEN>) -> Signature {
         let (sender, receiver): (oneshot::Sender<_>, oneshot::Receiver<_>) = oneshot::channel();
         if let Err(e) = self.channel.send((digest, sender)).await {
             panic!("Failed to send message Signature Service: {e}");
