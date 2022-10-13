@@ -23,6 +23,8 @@ blst = "0.3.10"
 byte-slice-cast = "1.2.1"
 
 [dev-dependencies]
+ark-bls12-377 = "0.3.0"
+ark-bn254 = "0.3.0"
 ark-crypto-primitives = "0.3.0"
 ark-std = "0.3.0"
 criterion = "0.4.0"

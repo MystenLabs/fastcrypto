@@ -1,6 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
+use ark_bn254::{Bn254, Fr as Bn254Fr};
+
 use ark_crypto_primitives::SNARK;
 use ark_ec::PairingEngine;
 use ark_ff::{PrimeField, UniformRand};
@@ -74,7 +77,7 @@ fn bench_verify<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
         );
 
         grp.bench_with_input(
-            BenchmarkId::new("Groth16 verify", *size),
+            BenchmarkId::new("Groth16 end-to-end verify", *size),
             &(vk, v),
             |b, (vk, v)| {
                 b.iter(|| Groth16::<E>::verify(vk, &[*v], &proof).unwrap());
@@ -100,7 +103,7 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         let v = c.a.unwrap().mul(c.b.unwrap());
 
         grp.bench_with_input(
-            BenchmarkId::new("OUR Groth16 process verifying key", *size),
+            BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
                 b.iter(|| fastcrypto_proving::verifier::process_vk_special(vk));
@@ -109,7 +112,7 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         let pvk = fastcrypto_proving::verifier::process_vk_special(&vk);
 
         grp.bench_with_input(
-            BenchmarkId::new("OUR Groth16 verify with processed vk", *size),
+            BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
                 b.iter(|| {
@@ -122,23 +125,40 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
 }
 
 fn prove(c: &mut Criterion) {
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("Proving");
-    // This can take a *while*
-    group.sampling_mode(SamplingMode::Flat);
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-381 Proving");
+    group.sampling_mode(SamplingMode::Flat); // This can take a *while*
     group.sample_size(10);
+    bench_prove::<BlsFr, Bls12_381, _>(&mut group);
+    group.finish();
 
     // Add fields and pairing engines here
-    bench_prove::<BlsFr, Bls12_381, _>(&mut group);
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BN254 Proving");
+    group.sampling_mode(SamplingMode::Flat); // This can take a *while*
+    group.sample_size(10);
+    bench_prove::<Bn254Fr, Bn254, _>(&mut group);
+    group.finish();
 
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Proving");
+    group.sampling_mode(SamplingMode::Flat); // This can take a *while*
+    group.sample_size(10);
+    bench_prove::<Bls377Fr, Bls12_377, _>(&mut group);
     group.finish();
 }
 
 fn verify(c: &mut Criterion) {
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("Verification");
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-381 Verification");
     // Add fields and pairing engines here
     bench_verify::<BlsFr, Bls12_381, _>(&mut group);
     bench_our_verify(&mut group);
+    group.finish();
 
+    // Add fields and pairing engines here
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BN254 Verification");
+    bench_verify::<Bn254Fr, Bn254, _>(&mut group);
+    group.finish();
+
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Verification");
+    bench_verify::<Bls377Fr, Bls12_377, _>(&mut group);
     group.finish();
 }
 

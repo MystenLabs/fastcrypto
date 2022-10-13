@@ -86,6 +86,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "ark-bn254"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ea691771ebbb28aea556c044e2e5c5227398d840cee0c34d4d20fa8eb2689e8c"
+dependencies = [
+ "ark-ec",
+ "ark-ff",
+ "ark-std",
+]
+
+[[package]]
 name = "ark-crypto-primitives"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -923,7 +934,9 @@ dependencies = [
 name = "fastcrypto-proving"
 version = "0.1.0"
 dependencies = [
+ "ark-bls12-377",
  "ark-bls12-381",
+ "ark-bn254",
  "ark-crypto-primitives",
  "ark-ec",
  "ark-ff",
