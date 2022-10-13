@@ -119,6 +119,8 @@
 <span id="119">119</span>
 <span id="120">120</span>
 <span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
@@ -216,11 +218,13 @@
 <span class="kw">pub type </span>HmacKey = PrivateSeed&lt;HMAC_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 <span class="kw">pub type </span>HkdfIkm = PrivateSeed&lt;HKDF_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 
-<span class="kw">pub fn </span>hmac(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;typenum::U32&gt; {
+<span class="kw">pub fn </span>hmac(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha2::Sha256&gt;::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     <span class="kw">let </span>output = hash.finalize();
-    Digest(output.into_bytes())
+    Digest {
+        digest: output.into_bytes().into(),
+    }
 }
 
 <span class="kw">pub fn </span>hkdf(
@@ -241,4 +245,4 @@
     <span class="prelude-val">Ok</span>(output)
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (db0597f56 2022-10-11)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (c0983a9aa 2022-10-12)" ></div></body></html>

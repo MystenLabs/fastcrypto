@@ -125,112 +125,165 @@
 <span id="125">125</span>
 <span id="126">126</span>
 <span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
-<span class="kw">use </span>digest::OutputSizeUser;
-<span class="kw">use </span>generic_array::{ArrayLength, GenericArray};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>serde_with::serde_as;
 <span class="kw">use </span>std::fmt;
 
-<span class="doccomment">/// Represents a hash digest of `DigestLength` bytes.
-</span><span class="attribute">#[derive(Hash, PartialEq, Eq, Clone, Deserialize, Serialize, Ord, PartialOrd)]
-</span><span class="kw">pub struct </span>Digest&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt;(<span class="kw">pub </span>GenericArray&lt;u8, DigestLength&gt;);
+<span class="doccomment">/// Represents a digest of `DIGEST_LEN`bytes.
+</span><span class="attribute">#[serde_with::serde_as]
+#[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
+</span><span class="kw">pub struct </span>Digest&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
+    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;[_; DIGEST_LEN]&quot;</span>)]
+    </span><span class="kw">pub </span>digest: [u8; DIGEST_LEN],
+}
 
-<span class="kw">impl</span>&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; Digest&lt;DigestLength&gt; {
+<span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; Digest&lt;DIGEST_LEN&gt; {
+    <span class="doccomment">/// Create a new digest containing the given bytes
+    </span><span class="kw">pub fn </span>new(digest: [u8; DIGEST_LEN]) -&gt; <span class="self">Self </span>{
+        Digest { digest }
+    }
+
     <span class="doccomment">/// Copy the digest into a new vector.
     </span><span class="kw">pub fn </span>to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.to_vec()
+        <span class="self">self</span>.digest.to_vec()
     }
 
     <span class="doccomment">/// The size of this digest in bytes.
     </span><span class="kw">pub fn </span>size(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        DigestLength::USIZE
+        DIGEST_LEN
     }
 }
 
-<span class="kw">impl</span>&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; fmt::Debug <span class="kw">for </span>Digest&lt;DigestLength&gt; {
+<span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; fmt::Debug <span class="kw">for </span>Digest&lt;DIGEST_LEN&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>))
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode_string(<span class="kw-2">&amp;</span><span class="self">self</span>.digest))
     }
 }
 
-<span class="kw">impl</span>&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; fmt::Display <span class="kw">for </span>Digest&lt;DigestLength&gt; {
+<span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; fmt::Display <span class="kw">for </span>Digest&lt;DIGEST_LEN&gt; {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(
             f,
             <span class="string">&quot;{}&quot;</span>,
-            Base64::encode_string(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
-                .get(<span class="number">0</span>..DigestLength::USIZE)
+            Base64::encode_string(<span class="kw-2">&amp;</span><span class="self">self</span>.digest)
+                .get(<span class="number">0</span>..DIGEST_LEN)
                 .unwrap()
         )
     }
 }
 
-<span class="kw">impl</span>&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; AsRef&lt;[u8]&gt; <span class="kw">for </span>Digest&lt;DigestLength&gt; {
+<span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; AsRef&lt;[u8]&gt; <span class="kw">for </span>Digest&lt;DIGEST_LEN&gt; {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.<span class="number">0</span>.as_ref()
+        <span class="self">self</span>.digest.as_ref()
     }
 }
 
-<span class="doccomment">/// This trait is implemented by all messages that can be hashed.
-</span><span class="kw">pub trait </span>Hashable&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; {
-    <span class="kw">fn </span>digest&lt;H: HashFunction&lt;DigestLength&gt;&gt;(<span class="self">self</span>) -&gt; Digest&lt;DigestLength&gt;;
-}
-
-<span class="kw">impl</span>&lt;DigestLength: ArrayLength&lt;u8&gt; + <span class="lifetime">&#39;static</span>&gt; Hashable&lt;DigestLength&gt; <span class="kw">for </span><span class="kw-2">&amp;</span>[u8] {
-    <span class="doccomment">/// Hash this data using the given hash function.
-    </span><span class="kw">fn </span>digest&lt;H: HashFunction&lt;DigestLength&gt;&gt;(<span class="self">self</span>) -&gt; Digest&lt;DigestLength&gt; {
-        H::digest(<span class="self">self</span>)
+<span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; From&lt;Digest&lt;DIGEST_LEN&gt;&gt; <span class="kw">for </span>[u8; DIGEST_LEN] {
+    <span class="kw">fn </span>from(digest: Digest&lt;DIGEST_LEN&gt;) -&gt; <span class="self">Self </span>{
+        digest.digest
     }
 }
 
 <span class="doccomment">/// Trait implemented by hash functions providing a output of fixed length
-</span><span class="kw">pub trait </span>HashFunction&lt;DigestLength: ArrayLength&lt;u8&gt;&gt;: OutputSizeUser + Sized + Default {
+</span><span class="kw">pub trait </span>HashFunction&lt;<span class="kw">const </span>DIGEST_LENGTH: usize&gt;: Default {
+    <span class="doccomment">/// The length of this hash functions digests in bytes.
+    </span><span class="kw">const </span>OUTPUT_SIZE: usize = DIGEST_LENGTH;
+
+    <span class="doccomment">/// Create a new hash function of the given type
+    </span><span class="kw">fn </span>new() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::default()
+    }
+
     <span class="doccomment">/// Process the given data, and update the internal of the hash function.
-    </span><span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8]);
+    </span><span class="kw">fn </span>update&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: Data);
 
     <span class="doccomment">/// Retrieve result and consume hash function.
-    </span><span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;DigestLength&gt;;
+    </span><span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;DIGEST_LENGTH&gt;;
 
-    <span class="kw">fn </span>digest(data: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;DigestLength&gt; {
+    <span class="doccomment">/// Compute the digest of the given data and consume the hash function.
+    </span><span class="kw">fn </span>digest&lt;Data: AsRef&lt;[u8]&gt;&gt;(data: Data) -&gt; Digest&lt;DIGEST_LENGTH&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>h = <span class="self">Self</span>::default();
         h.update(data);
         h.finalize()
     }
+
+    <span class="doccomment">/// Compute a single digest from all slices in the iterator in order and consume the hash function.
+    </span><span class="kw">fn </span>digest_iterator&lt;K: AsRef&lt;[u8]&gt;, I: Iterator&lt;Item = K&gt;&gt;(iter: I) -&gt; Digest&lt;DIGEST_LENGTH&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>h = <span class="self">Self</span>::default();
+        iter.into_iter().for_each(|chunk| h.update(chunk.as_ref()));
+        h.finalize()
+    }
 }
 
-<span class="attribute">#[derive(Default)]
-</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>&gt;(Variant);
+<span class="doccomment">/// This trait is implemented by all messages that can be hashed.
+</span><span class="kw">pub trait </span>Hash&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
+    <span class="doccomment">/// The type of the digest when this is hashed.
+    </span><span class="kw">type </span>TypedDigest: Into&lt;Digest&lt;DIGEST_LEN&gt;&gt; + Eq + std::hash::Hash + Copy;
 
-<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>&gt; OutputSizeUser <span class="kw">for </span>HashFunctionWrapper&lt;Variant&gt; {
-    <span class="kw">type </span>OutputSize = Variant::OutputSize;
+    <span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::TypedDigest;
 }
 
-<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default&gt; HashFunction&lt;Variant::OutputSize&gt;
-    <span class="kw">for </span>HashFunctionWrapper&lt;Variant&gt;
+<span class="doccomment">/// This wraps a `digest::Digest` as a `fastcrypto::hash::HashFunction`.
+</span><span class="attribute">#[derive(Default)]
+</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
+
+<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
+    <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
-    <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8]) {
+    <span class="kw">fn </span>update&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: Data) {
         <span class="self">self</span>.<span class="number">0</span>.update(data);
     }
 
-    <span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;Variant::OutputSize&gt; {
-        Digest(<span class="self">self</span>.<span class="number">0</span>.finalize())
+    <span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;DIGEST_LEN&gt; {
+        Digest {
+            digest: <span class="self">self</span>.<span class="number">0</span>.finalize().as_slice().try_into().unwrap(),
+        }
     }
 }
 
 <span class="doccomment">/// SHA-2
-</span><span class="kw">pub type </span>Sha256 = HashFunctionWrapper&lt;sha2::Sha256&gt;;
+</span><span class="kw">pub type </span>Sha256 = HashFunctionWrapper&lt;sha2::Sha256, <span class="number">32</span>&gt;;
 
 <span class="doccomment">/// SHA-3
-</span><span class="kw">pub type </span>Sha3_256 = HashFunctionWrapper&lt;sha3::Sha3_256&gt;;
+</span><span class="kw">pub type </span>Sha3_256 = HashFunctionWrapper&lt;sha3::Sha3_256, <span class="number">32</span>&gt;;
+
+<span class="doccomment">/// SHA-512
+</span><span class="kw">pub type </span>Sha512 = HashFunctionWrapper&lt;sha2::Sha512, <span class="number">64</span>&gt;;
 
 <span class="doccomment">/// KECCAK
-</span><span class="kw">pub type </span>Keccak256 = HashFunctionWrapper&lt;sha3::Keccak256&gt;;
+</span><span class="kw">pub type </span>Keccak256 = HashFunctionWrapper&lt;sha3::Keccak256, <span class="number">32</span>&gt;;
 
-<span class="doccomment">/// BLAKE2
-</span><span class="kw">pub type </span>Blake2b&lt;DigestLength&gt; = HashFunctionWrapper&lt;blake2::Blake2b&lt;DigestLength&gt;&gt;;
+<span class="doccomment">/// BLAKE2-256
+</span><span class="kw">pub type </span>Blake2b256 = HashFunctionWrapper&lt;blake2::Blake2b&lt;typenum::U32&gt;, <span class="number">32</span>&gt;;
 
 <span class="doccomment">/// BLAKE3
 </span><span class="attribute">#[derive(Default)]
@@ -238,19 +291,16 @@
     instance: blake3::Hasher,
 }
 
-<span class="kw">impl </span>OutputSizeUser <span class="kw">for </span>Blake3 {
-    <span class="kw">type </span>OutputSize = typenum::U32;
-}
-
-<span class="kw">impl </span>HashFunction&lt;typenum::U32&gt; <span class="kw">for </span>Blake3 {
-    <span class="kw">fn </span>update(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>[u8]) {
-        <span class="self">self</span>.instance.update(data);
+<span class="kw">impl </span>HashFunction&lt;<span class="number">32</span>&gt; <span class="kw">for </span>Blake3 {
+    <span class="kw">fn </span>update&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: Data) {
+        <span class="self">self</span>.instance.update(data.as_ref());
     }
 
-    <span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;typenum::U32&gt; {
-        <span class="kw">let </span>hash: [u8; <span class="number">32</span>] = <span class="self">self</span>.instance.finalize().into();
-        Digest(hash.into())
+    <span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;<span class="number">32</span>&gt; {
+        Digest {
+            digest: <span class="self">self</span>.instance.finalize().into(),
+        }
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (db0597f56 2022-10-11)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (c0983a9aa 2022-10-12)" ></div></body></html>

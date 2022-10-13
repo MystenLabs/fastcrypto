@@ -143,8 +143,6 @@
     oneshot,
 };
 
-<span class="kw">use </span>typenum::U32;
-
 <span class="attribute">#[cfg(test)]
 #[path = <span class="string">&quot;tests/pubkey_bytes_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>pubkey_bytes_tests;
@@ -221,16 +219,18 @@
 <span class="doccomment">/// This service holds the node&#39;s private key. It takes digests as input and returns a signature
 /// over the digest (through a one-shot channel).
 </span><span class="attribute">#[derive(Clone)]
-</span><span class="kw">pub struct </span>SignatureService&lt;Signature: traits::Authenticator&gt; {
-    channel: Sender&lt;(Digest&lt;U32&gt;, oneshot::Sender&lt;Signature&gt;)&gt;,
+</span><span class="kw">pub struct </span>SignatureService&lt;Signature: traits::Authenticator, <span class="kw">const </span>DIGEST_LEN: usize&gt; {
+    channel: Sender&lt;(Digest&lt;DIGEST_LEN&gt;, oneshot::Sender&lt;Signature&gt;)&gt;,
 }
 
-<span class="kw">impl</span>&lt;Signature: traits::Authenticator&gt; SignatureService&lt;Signature&gt; {
+<span class="kw">impl</span>&lt;Signature: traits::Authenticator, <span class="kw">const </span>DIGEST_LEN: usize&gt;
+    SignatureService&lt;Signature, DIGEST_LEN&gt;
+{
     <span class="kw">pub fn </span>new&lt;S&gt;(signer: S) -&gt; <span class="self">Self
     </span><span class="kw">where
         </span>S: signature::Signer&lt;Signature&gt; + Send + <span class="lifetime">&#39;static</span>,
     {
-        <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx): (Sender&lt;(Digest&lt;U32&gt;, oneshot::Sender&lt;<span class="kw">_</span>&gt;)&gt;, <span class="kw">_</span>) = channel(<span class="number">100</span>);
+        <span class="kw">let </span>(tx, <span class="kw-2">mut </span>rx): (Sender&lt;(Digest&lt;DIGEST_LEN&gt;, oneshot::Sender&lt;<span class="kw">_</span>&gt;)&gt;, <span class="kw">_</span>) = channel(<span class="number">100</span>);
         tokio::spawn(<span class="kw">async move </span>{
             <span class="kw">while let </span><span class="prelude-val">Some</span>((digest, sender)) = rx.recv().<span class="kw">await </span>{
                 <span class="kw">let </span>signature = signer.sign(digest.as_ref());
@@ -240,7 +240,7 @@
         <span class="self">Self </span>{ channel: tx }
     }
 
-    <span class="kw">pub async fn </span>request_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, digest: Digest&lt;U32&gt;) -&gt; Signature {
+    <span class="kw">pub async fn </span>request_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, digest: Digest&lt;DIGEST_LEN&gt;) -&gt; Signature {
         <span class="kw">let </span>(sender, receiver): (oneshot::Sender&lt;<span class="kw">_</span>&gt;, oneshot::Receiver&lt;<span class="kw">_</span>&gt;) = oneshot::channel();
         <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = <span class="self">self</span>.channel.send((digest, sender)).<span class="kw">await </span>{
             <span class="macro">panic!</span>(<span class="string">&quot;Failed to send message Signature Service: {e}&quot;</span>);
@@ -251,4 +251,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (db0597f56 2022-10-11)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (c0983a9aa 2022-10-12)" ></div></body></html>
