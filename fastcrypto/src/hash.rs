@@ -124,6 +124,9 @@ pub type Sha256 = HashFunctionWrapper<sha2::Sha256, 32>;
 /// SHA-3
 pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256, 32>;
 
+/// SHA-512
+pub type Sha512 = HashFunctionWrapper<sha2::Sha512, 64>;
+
 /// KECCAK
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256, 32>;
 

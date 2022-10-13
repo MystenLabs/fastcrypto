@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::hash::{Blake2b256, Blake3, HashFunction, Keccak256, Sha256, Sha3_256};
+use crate::hash::{Blake2b256, Blake3, HashFunction, Keccak256, Sha256, Sha3_256, Sha512};
 
 #[test]
 fn test_sha256() {
@@ -22,6 +22,17 @@ fn test_sha3_256() {
     assert_eq!(
         digest.as_ref(),
         hex::decode("8fa965f6b63464045e1a8a80e3175fec4e5468d2904f6d7338cf83a65528a8f5").unwrap()
+    );
+}
+
+#[test]
+fn test_sha512() {
+    let data =
+        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
+    let digest = Sha512::digest(&data);
+    assert_eq!(
+        digest.as_ref(),
+        hex::decode("cbd83ff929e1b4a72e144b5533e59edba3a90f761e188bd809f994137d67ecd8b87e4c250d461f7f4c64c22f10e9f5c598849f2685f5b828b501e38d2b252d12").unwrap()
     );
 }
 
