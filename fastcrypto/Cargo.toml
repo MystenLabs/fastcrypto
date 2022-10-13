@@ -22,7 +22,7 @@ serde = { version = "1.0.145", features = ["derive"] }
 serde_bytes = "0.11.7"
 serde_with = "2.0.1"
 signature = { version = "1.6.4", features = ["rand-preview"] }
-tokio = { version = "1.21.2", features = ["sync", "rt", "macros"] }
+tokio = { version = "1.21.1", features = ["sync", "rt", "macros"] }
 zeroize = "1.5.7"
 bulletproofs = "4.0.0"
 curve25519-dalek-ng = "4.1.1"

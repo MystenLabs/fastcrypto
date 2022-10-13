@@ -8,7 +8,7 @@ use crate::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
         Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
-    hash::{HashFunction, Hashable, Sha256},
+    hash::{HashFunction, Sha256},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -141,7 +141,7 @@ fn verify_valid_signature() {
 
     // Make signature.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Sha256>();
+    let digest = Sha256::digest(message);
 
     let signature = kp.sign(digest.as_ref());
 
@@ -156,13 +156,13 @@ fn verify_invalid_signature() {
 
     // Make signature.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Sha256>();
+    let digest = Sha256::digest(message);
 
     let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
     let bad_message: &[u8] = b"Bad message!";
-    let digest = bad_message.digest::<Sha256>();
+    let digest = Sha256::digest(bad_message);
 
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
@@ -170,7 +170,7 @@ fn verify_invalid_signature() {
 fn signature_test_inputs() -> (Vec<u8>, Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Sha256>();
+    let digest = Sha256::digest(message);
     let (pubkeys, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
         .into_iter()
         .take(3)
@@ -300,7 +300,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
 ) {
     // Make signatures.
     let message1: &[u8] = b"Hello, world!";
-    let digest1 = message1.digest::<Sha256>();
+    let digest1 = Sha256::digest(message1);
     let (pubkeys1, signatures1): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
         .into_iter()
         .take(3)
@@ -313,7 +313,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
 
     // Make signatures.
     let message2: &[u8] = b"Hello, worl!";
-    let digest2 = message2.digest::<Sha256>();
+    let digest2 = Sha256::digest(message2);
     let (pubkeys2, signatures2): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
         .into_iter()
         .take(2)
@@ -532,8 +532,8 @@ async fn signature_service() {
 
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Sha256>();
-    let signature = service.request_signature(digest.clone()).await;
+    let digest = Sha256::digest(message);
+    let signature = service.request_signature(digest).await;
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
