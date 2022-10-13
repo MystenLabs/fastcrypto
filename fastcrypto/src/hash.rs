@@ -142,8 +142,8 @@ impl HashFunction<32> for Blake3 {
     }
 
     fn finalize(self) -> Digest<32> {
-        return Digest {
+        Digest {
             digest: self.instance.finalize().into(),
-        };
+        }
     }
 }
