@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":[["conversions",""]]};
+window.SIDEBAR_ITEMS = {"mod":[["conversions",""],["dummy_circuit",""],["verifier",""]]};

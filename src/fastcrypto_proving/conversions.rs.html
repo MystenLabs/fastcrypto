@@ -502,16 +502,16 @@
     out
 }
 
-<span class="kw">pub fn </span>blst_fr_to_bls_fr(fe: blst_fr) -&gt; BlsFr {
+<span class="kw">pub fn </span>blst_fr_to_bls_fr(fe: <span class="kw-2">&amp;</span>blst_fr) -&gt; BlsFr {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">4</span>];
-    <span class="kw">unsafe </span>{ blst_uint64_from_fr(out.as_mut_ptr(), <span class="kw-2">&amp;</span>fe) };
+    <span class="kw">unsafe </span>{ blst_uint64_from_fr(out.as_mut_ptr(), fe) };
     <span class="kw">let </span>bytes = out.as_byte_slice();
 
     BlsFr::from_le_bytes_mod_order(bytes)
 }
 
 <span class="comment">// Base Field conversions
-</span><span class="kw">pub fn </span>bls_fq_to_blst_fp(f: Fq) -&gt; blst_fp {
+</span><span class="kw">pub fn </span>bls_fq_to_blst_fp(f: <span class="kw-2">&amp;</span>Fq) -&gt; blst_fp {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
         .expect(<span class="string">&quot;fp size correct&quot;</span>);
@@ -523,15 +523,15 @@
     blst_fp
 }
 
-<span class="kw">pub fn </span>blst_fp_to_bls_fq(f: blst_fp) -&gt; Fq {
+<span class="kw">pub fn </span>blst_fp_to_bls_fq(f: <span class="kw-2">&amp;</span>blst_fp) -&gt; Fq {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">6</span>];
-    <span class="kw">unsafe </span>{ blst_uint64_from_fp(out.as_mut_ptr(), <span class="kw-2">&amp;</span>f) };
+    <span class="kw">unsafe </span>{ blst_uint64_from_fp(out.as_mut_ptr(), f) };
     <span class="kw">let </span>bytes = out.as_byte_slice();
     &lt;Fq <span class="kw">as </span>FromBytes&gt;::read(bytes).unwrap()
 }
 
 <span class="comment">// QFE conversions
-</span><span class="kw">pub fn </span>bls_fq2_to_blst_fp2(f: Fq2) -&gt; blst_fp2 {
+</span><span class="kw">pub fn </span>bls_fq2_to_blst_fp2(f: <span class="kw-2">&amp;</span>Fq2) -&gt; blst_fp2 {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
         .expect(<span class="string">&quot;fp size correct&quot;</span>);
@@ -552,37 +552,37 @@
     }
 }
 
-<span class="kw">pub fn </span>blst_fp2_to_bls_fq2(f: blst_fp2) -&gt; Fq2 {
+<span class="kw">pub fn </span>blst_fp2_to_bls_fq2(f: <span class="kw-2">&amp;</span>blst_fp2) -&gt; Fq2 {
     <span class="kw">let </span>[fp1, fp2] = f.fp;
-    <span class="kw">let </span>bls_fp1 = blst_fp_to_bls_fq(fp1);
-    <span class="kw">let </span>bls_fp2 = blst_fp_to_bls_fq(fp2);
+    <span class="kw">let </span>bls_fp1 = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>fp1);
+    <span class="kw">let </span>bls_fp2 = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>fp2);
     Fq2::new(bls_fp1, bls_fp2)
 }
 
 <span class="comment">// Target Field conversions
-</span><span class="kw">pub fn </span>bls_fq6_to_blst_fp6(f: Fq6) -&gt; blst_fp6 {
-    <span class="kw">let </span>c0 = bls_fq2_to_blst_fp2(f.c0);
-    <span class="kw">let </span>c1 = bls_fq2_to_blst_fp2(f.c1);
-    <span class="kw">let </span>c2 = bls_fq2_to_blst_fp2(f.c2);
+</span><span class="kw">pub fn </span>bls_fq6_to_blst_fp6(f: <span class="kw-2">&amp;</span>Fq6) -&gt; blst_fp6 {
+    <span class="kw">let </span>c0 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c0);
+    <span class="kw">let </span>c1 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c1);
+    <span class="kw">let </span>c2 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c2);
     blst_fp6 { fp2: [c0, c1, c2] }
 }
 
-<span class="kw">pub fn </span>blst_fp6_to_bls_fq6(f: blst_fp6) -&gt; Fq6 {
-    <span class="kw">let </span>c0 = blst_fp2_to_bls_fq2(f.fp2[<span class="number">0</span>]);
-    <span class="kw">let </span>c1 = blst_fp2_to_bls_fq2(f.fp2[<span class="number">1</span>]);
-    <span class="kw">let </span>c2 = blst_fp2_to_bls_fq2(f.fp2[<span class="number">2</span>]);
+<span class="kw">pub fn </span>blst_fp6_to_bls_fq6(f: <span class="kw-2">&amp;</span>blst_fp6) -&gt; Fq6 {
+    <span class="kw">let </span>c0 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">0</span>]);
+    <span class="kw">let </span>c1 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">1</span>]);
+    <span class="kw">let </span>c2 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">2</span>]);
     Fq6::new(c0, c1, c2)
 }
 
-<span class="kw">pub fn </span>bls_fq12_to_blst_fp12(f: Fq12) -&gt; blst_fp12 {
-    <span class="kw">let </span>c0 = bls_fq6_to_blst_fp6(f.c0);
-    <span class="kw">let </span>c1 = bls_fq6_to_blst_fp6(f.c1);
+<span class="kw">pub fn </span>bls_fq12_to_blst_fp12(f: <span class="kw-2">&amp;</span>Fq12) -&gt; blst_fp12 {
+    <span class="kw">let </span>c0 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c0);
+    <span class="kw">let </span>c1 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c1);
     blst_fp12 { fp6: [c0, c1] }
 }
 
-<span class="kw">pub fn </span>blst_fp12_to_bls_fq12(f: blst_fp12) -&gt; Fq12 {
-    <span class="kw">let </span>c0 = blst_fp6_to_bls_fq6(f.fp6[<span class="number">0</span>]);
-    <span class="kw">let </span>c1 = blst_fp6_to_bls_fq6(f.fp6[<span class="number">1</span>]);
+<span class="kw">pub fn </span>blst_fp12_to_bls_fq12(f: <span class="kw-2">&amp;</span>blst_fp12) -&gt; Fq12 {
+    <span class="kw">let </span>c0 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">0</span>]);
+    <span class="kw">let </span>c1 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">1</span>]);
     Fq12::new(c0, c1)
 }
 
@@ -591,8 +591,8 @@
 </span><span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
     <span class="kw">let </span>tmp_p1 = blst_p1_affine {
-        x: bls_fq_to_blst_fp(pt.x),
-        y: bls_fq_to_blst_fp(pt.y),
+        x: bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>pt.x),
+        y: bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>pt.y),
     };
     <span class="comment">// See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved alternatively using
@@ -607,10 +607,10 @@
     g1
 }
 
-<span class="kw">pub fn </span>blst_g1_affine_to_bls_g1_affine(pt: blst_p1_affine) -&gt; BlsG1Affine {
+<span class="kw">pub fn </span>blst_g1_affine_to_bls_g1_affine(pt: <span class="kw-2">&amp;</span>blst_p1_affine) -&gt; BlsG1Affine {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE];
     <span class="kw">unsafe </span>{
-        blst_p1_affine_serialize(out.as_mut_ptr(), <span class="kw-2">&amp;</span>pt);
+        blst_p1_affine_serialize(out.as_mut_ptr(), pt);
     }
     <span class="kw">let </span>infinity = out[<span class="number">0</span>] &amp; (<span class="number">1 </span>&lt;&lt; <span class="number">6</span>) != <span class="number">0</span>;
     BlsG1Affine::new(
@@ -623,8 +623,8 @@
 <span class="kw">pub fn </span>bls_g2_affine_to_blst_g2_affine(pt: <span class="kw-2">&amp;</span>BlsG2Affine) -&gt; blst_p2_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
     <span class="kw">let </span>tmp_p2 = blst_p2_affine {
-        x: bls_fq2_to_blst_fp2(pt.x),
-        y: bls_fq2_to_blst_fp2(pt.y),
+        x: bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>pt.x),
+        y: bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>pt.y),
     };
     <span class="comment">// See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved alternatively using
@@ -639,14 +639,14 @@
     g2
 }
 
-<span class="kw">pub fn </span>blst_g2_affine_to_bls_g2_affine(pt: blst_p2_affine) -&gt; BlsG2Affine {
-    <span class="kw">let </span>ptx = blst_fp2_to_bls_fq2(pt.x);
-    <span class="kw">let </span>pty = blst_fp2_to_bls_fq2(pt.y);
+<span class="kw">pub fn </span>blst_g2_affine_to_bls_g2_affine(pt: <span class="kw-2">&amp;</span>blst_p2_affine) -&gt; BlsG2Affine {
+    <span class="kw">let </span>ptx = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.x);
+    <span class="kw">let </span>pty = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.y);
 
     <span class="comment">// TODO: surely there&#39;s a better way to do this?
     </span><span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE];
     <span class="kw">unsafe </span>{
-        blst_p2_affine_serialize(out.as_mut_ptr(), <span class="kw-2">&amp;</span>pt);
+        blst_p2_affine_serialize(out.as_mut_ptr(), pt);
     }
     <span class="kw">let </span>infinity = out[<span class="number">0</span>] &amp; (<span class="number">1 </span>&lt;&lt; <span class="number">6</span>) != <span class="number">0</span>;
     BlsG2Affine::new(ptx, pty, infinity)
@@ -688,13 +688,13 @@
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fr(b <span class="kw">in </span>arb_bls_fr()) {
             <span class="kw">let </span>blst_variant = bls_fr_to_blst_fr(<span class="kw-2">&amp;</span>b);
-            <span class="kw">let </span>roundtrip = blst_fr_to_bls_fr(blst_variant);
+            <span class="kw">let </span>roundtrip = blst_fr_to_bls_fr(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fr(b <span class="kw">in </span>arb_blst_fr()) {
-            <span class="kw">let </span>bls_variant = blst_fr_to_bls_fr(b);
+            <span class="kw">let </span>bls_variant = blst_fr_to_bls_fr(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fr_to_blst_fr(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
@@ -723,15 +723,15 @@
     <span class="macro">proptest! </span>{
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq(b <span class="kw">in </span>arb_bls_fq()) {
-            <span class="kw">let </span>blst_variant = bls_fq_to_blst_fp(b);
-            <span class="kw">let </span>roundtrip = blst_fp_to_bls_fq(blst_variant);
+            <span class="kw">let </span>blst_variant = bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp(b <span class="kw">in </span>arb_blst_fp()) {
-            <span class="kw">let </span>bls_variant = blst_fp_to_bls_fq(b);
-            <span class="kw">let </span>roundtrip = bls_fq_to_blst_fp(bls_variant);
+            <span class="kw">let </span>bls_variant = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
     }
@@ -748,15 +748,15 @@
     <span class="macro">proptest! </span>{
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq2(b <span class="kw">in </span>arb_bls_fq2()) {
-            <span class="kw">let </span>blst_variant = bls_fq2_to_blst_fp2(b);
-            <span class="kw">let </span>roundtrip = blst_fp2_to_bls_fq2(blst_variant);
+            <span class="kw">let </span>blst_variant = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp2(b <span class="kw">in </span>arb_blst_fp2()) {
-            <span class="kw">let </span>bls_variant = blst_fp2_to_bls_fq2(b);
-            <span class="kw">let </span>roundtrip = bls_fq2_to_blst_fp2(bls_variant);
+            <span class="kw">let </span>bls_variant = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
     }
@@ -777,15 +777,15 @@
     <span class="macro">proptest! </span>{
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq6(b <span class="kw">in </span>arb_bls_fq6()){
-            <span class="kw">let </span>blst_variant = bls_fq6_to_blst_fp6(b);
-            <span class="kw">let </span>roundtrip = blst_fp6_to_bls_fq6(blst_variant);
+            <span class="kw">let </span>blst_variant = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp6(b <span class="kw">in </span>arb_blst_fp6()){
-            <span class="kw">let </span>bls_variant = blst_fp6_to_bls_fq6(b);
-            <span class="kw">let </span>roundtrip = bls_fq6_to_blst_fp6(bls_variant);
+            <span class="kw">let </span>bls_variant = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
     }
@@ -801,15 +801,15 @@
     <span class="macro">proptest! </span>{
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq12(b <span class="kw">in </span>arb_bls_fq12()) {
-            <span class="kw">let </span>blst_variant = bls_fq12_to_blst_fp12(b);
-            <span class="kw">let </span>roundtrip = blst_fp12_to_bls_fq12(blst_variant);
+            <span class="kw">let </span>blst_variant = bls_fq12_to_blst_fp12(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = blst_fp12_to_bls_fq12(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp12(b <span class="kw">in </span>arb_blst_fp12()) {
-            <span class="kw">let </span>bls_variant = blst_fp12_to_bls_fq12(b);
-            <span class="kw">let </span>roundtrip = bls_fq12_to_blst_fp12(bls_variant);
+            <span class="kw">let </span>bls_variant = blst_fp12_to_bls_fq12(<span class="kw-2">&amp;</span>b);
+            <span class="kw">let </span>roundtrip = bls_fq12_to_blst_fp12(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
     }
@@ -855,13 +855,13 @@
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g1_affine(b <span class="kw">in </span>arb_bls_g1_affine()) {
             <span class="kw">let </span>blst_variant = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>b);
-            <span class="kw">let </span>roundtrip = blst_g1_affine_to_bls_g1_affine(blst_variant);
+            <span class="kw">let </span>roundtrip = blst_g1_affine_to_bls_g1_affine(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_g1_affine(b <span class="kw">in </span>arb_blst_g1_affine()) {
-            <span class="kw">let </span>bls_variant = blst_g1_affine_to_bls_g1_affine(b);
+            <span class="kw">let </span>bls_variant = blst_g1_affine_to_bls_g1_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
@@ -907,13 +907,13 @@
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g2_affine(b <span class="kw">in </span>arb_bls_g2_affine()) {
             <span class="kw">let </span>blst_variant = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>b);
-            <span class="kw">let </span>roundtrip = blst_g2_affine_to_bls_g2_affine(blst_variant);
+            <span class="kw">let </span>roundtrip = blst_g2_affine_to_bls_g2_affine(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
         <span class="attribute">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_g2_affine(b <span class="kw">in </span>arb_blst_g2_affine()) {
-            <span class="kw">let </span>bls_variant = blst_g2_affine_to_bls_g2_affine(b);
+            <span class="kw">let </span>bls_variant = blst_g2_affine_to_bls_g2_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
