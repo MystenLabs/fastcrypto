@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError;
+use crate::hash::{Sha3_256, Keccak256};
 use crate::hmac::{hkdf, hmac, HkdfIkm, HmacKey};
 use crate::traits::{FromUniformBytes, ToFromBytes};
 use digest::{
@@ -14,7 +15,6 @@ use digest::{
 };
 use hkdf::hmac::Hmac;
 use rand::{rngs::StdRng, SeedableRng};
-use sha3::{Keccak256, Sha3_256};
 
 fn hkdf_wrapper<H>(salt: Option<&[u8]>) -> Vec<u8>
 where

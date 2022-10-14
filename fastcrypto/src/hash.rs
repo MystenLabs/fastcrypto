@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::{Base64, Encoding};
+use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
@@ -103,6 +104,20 @@ pub trait Hash<const DIGEST_LEN: usize> {
 /// This wraps a `digest::Digest` as a `fastcrypto::hash::HashFunction`.
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
+
+/// This allows us to use the hash functions defined here and use them in place of their
+/// internal functions from the digest crate.
+pub trait ReverseWrapper {
+    type Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser;
+}
+
+impl<
+        Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser,
+        const DIGEST_LEN: usize,
+    > ReverseWrapper for HashFunctionWrapper<Variant, DIGEST_LEN>
+{
+    type Variant = Variant;
+}
 
 impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashFunction<DIGEST_LEN>
     for HashFunctionWrapper<Variant, DIGEST_LEN>

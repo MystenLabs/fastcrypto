@@ -8,7 +8,7 @@ use crate::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
         Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
-    hash::{HashFunction, Sha256},
+    hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -16,7 +16,6 @@ use base64ct::Encoding;
 use ed25519_consensus::VerificationKey;
 use rand::{rngs::StdRng, SeedableRng as _};
 use serde_reflection::{Samples, Tracer, TracerConfig};
-use sha3::Sha3_256;
 use signature::{Signer, Verifier};
 use wycheproof::{eddsa::TestSet, TestResult};
 

@@ -6,7 +6,7 @@ use crate::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
         BLS12381PublicKeyBytes, BLS12381Signature,
     },
-    hash::{HashFunction, Sha256},
+    hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
@@ -14,7 +14,6 @@ use crate::{
 };
 use base64ct::Encoding;
 use rand::{rngs::StdRng, SeedableRng as _};
-use sha3::Sha3_256;
 use signature::{Signer, Verifier};
 
 pub fn keys() -> Vec<BLS12381KeyPair> {
