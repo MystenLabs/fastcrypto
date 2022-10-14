@@ -42,7 +42,7 @@ fn ark_process_vk(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey<Bls12_38
         unsafe { blst_final_exp(&mut out, &tmp) };
         out
     };
-    let alpha_g1_beta_g2 = blst_fp12_to_bls_fq12(blst_alpha_g1_beta_g2);
+    let alpha_g1_beta_g2 = blst_fp12_to_bls_fq12(&blst_alpha_g1_beta_g2);
     PreparedVerifyingKey {
         vk: vk.clone(),
         alpha_g1_beta_g2,
@@ -204,5 +204,5 @@ fn test_multipairing_with_processed_vk() {
     let ark_fe = ark_multipairing_with_prepared_vk(&ark_pvk, &proof, &[v]);
     let blst_fe = multipairing_with_processed_vk(&blst_pvk, &[v], &proof);
 
-    assert_eq!(bls_fq12_to_blst_fp12(ark_fe), blst_fe);
+    assert_eq!(bls_fq12_to_blst_fp12(&ark_fe), blst_fe);
 }

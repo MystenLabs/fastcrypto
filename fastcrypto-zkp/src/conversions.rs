@@ -41,16 +41,16 @@ pub fn bls_fr_to_blst_fr(fe: &BlsFr) -> blst_fr {
     out
 }
 
-pub fn blst_fr_to_bls_fr(fe: blst_fr) -> BlsFr {
+pub fn blst_fr_to_bls_fr(fe: &blst_fr) -> BlsFr {
     let mut out = [0u64; 4];
-    unsafe { blst_uint64_from_fr(out.as_mut_ptr(), &fe) };
+    unsafe { blst_uint64_from_fr(out.as_mut_ptr(), fe) };
     let bytes = out.as_byte_slice();
 
     BlsFr::from_le_bytes_mod_order(bytes)
 }
 
 // Base Field conversions
-pub fn bls_fq_to_blst_fp(f: Fq) -> blst_fp {
+pub fn bls_fq_to_blst_fp(f: &Fq) -> blst_fp {
     let mut fp_bytes_le = [0u8; G1_UNCOMPRESSED_SIZE / 2];
     f.serialize_uncompressed(&mut fp_bytes_le[..])
         .expect("fp size correct");
@@ -62,15 +62,15 @@ pub fn bls_fq_to_blst_fp(f: Fq) -> blst_fp {
     blst_fp
 }
 
-pub fn blst_fp_to_bls_fq(f: blst_fp) -> Fq {
+pub fn blst_fp_to_bls_fq(f: &blst_fp) -> Fq {
     let mut out = [0u64; 6];
-    unsafe { blst_uint64_from_fp(out.as_mut_ptr(), &f) };
+    unsafe { blst_uint64_from_fp(out.as_mut_ptr(), f) };
     let bytes = out.as_byte_slice();
     <Fq as FromBytes>::read(bytes).unwrap()
 }
 
 // QFE conversions
-pub fn bls_fq2_to_blst_fp2(f: Fq2) -> blst_fp2 {
+pub fn bls_fq2_to_blst_fp2(f: &Fq2) -> blst_fp2 {
     let mut fp_bytes_le = [0u8; G2_UNCOMPRESSED_SIZE / 2];
     f.serialize_uncompressed(&mut fp_bytes_le[..])
         .expect("fp size correct");
@@ -91,37 +91,37 @@ pub fn bls_fq2_to_blst_fp2(f: Fq2) -> blst_fp2 {
     }
 }
 
-pub fn blst_fp2_to_bls_fq2(f: blst_fp2) -> Fq2 {
+pub fn blst_fp2_to_bls_fq2(f: &blst_fp2) -> Fq2 {
     let [fp1, fp2] = f.fp;
-    let bls_fp1 = blst_fp_to_bls_fq(fp1);
-    let bls_fp2 = blst_fp_to_bls_fq(fp2);
+    let bls_fp1 = blst_fp_to_bls_fq(&fp1);
+    let bls_fp2 = blst_fp_to_bls_fq(&fp2);
     Fq2::new(bls_fp1, bls_fp2)
 }
 
 // Target Field conversions
-pub fn bls_fq6_to_blst_fp6(f: Fq6) -> blst_fp6 {
-    let c0 = bls_fq2_to_blst_fp2(f.c0);
-    let c1 = bls_fq2_to_blst_fp2(f.c1);
-    let c2 = bls_fq2_to_blst_fp2(f.c2);
+pub fn bls_fq6_to_blst_fp6(f: &Fq6) -> blst_fp6 {
+    let c0 = bls_fq2_to_blst_fp2(&f.c0);
+    let c1 = bls_fq2_to_blst_fp2(&f.c1);
+    let c2 = bls_fq2_to_blst_fp2(&f.c2);
     blst_fp6 { fp2: [c0, c1, c2] }
 }
 
-pub fn blst_fp6_to_bls_fq6(f: blst_fp6) -> Fq6 {
-    let c0 = blst_fp2_to_bls_fq2(f.fp2[0]);
-    let c1 = blst_fp2_to_bls_fq2(f.fp2[1]);
-    let c2 = blst_fp2_to_bls_fq2(f.fp2[2]);
+pub fn blst_fp6_to_bls_fq6(f: &blst_fp6) -> Fq6 {
+    let c0 = blst_fp2_to_bls_fq2(&f.fp2[0]);
+    let c1 = blst_fp2_to_bls_fq2(&f.fp2[1]);
+    let c2 = blst_fp2_to_bls_fq2(&f.fp2[2]);
     Fq6::new(c0, c1, c2)
 }
 
-pub fn bls_fq12_to_blst_fp12(f: Fq12) -> blst_fp12 {
-    let c0 = bls_fq6_to_blst_fp6(f.c0);
-    let c1 = bls_fq6_to_blst_fp6(f.c1);
+pub fn bls_fq12_to_blst_fp12(f: &Fq12) -> blst_fp12 {
+    let c0 = bls_fq6_to_blst_fp6(&f.c0);
+    let c1 = bls_fq6_to_blst_fp6(&f.c1);
     blst_fp12 { fp6: [c0, c1] }
 }
 
-pub fn blst_fp12_to_bls_fq12(f: blst_fp12) -> Fq12 {
-    let c0 = blst_fp6_to_bls_fq6(f.fp6[0]);
-    let c1 = blst_fp6_to_bls_fq6(f.fp6[1]);
+pub fn blst_fp12_to_bls_fq12(f: &blst_fp12) -> Fq12 {
+    let c0 = blst_fp6_to_bls_fq6(&f.fp6[0]);
+    let c1 = blst_fp6_to_bls_fq6(&f.fp6[1]);
     Fq12::new(c0, c1)
 }
 
@@ -130,8 +130,8 @@ pub fn blst_fp12_to_bls_fq12(f: blst_fp12) -> Fq12 {
 pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     debug_assert_eq!(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
     let tmp_p1 = blst_p1_affine {
-        x: bls_fq_to_blst_fp(pt.x),
-        y: bls_fq_to_blst_fp(pt.y),
+        x: bls_fq_to_blst_fp(&pt.x),
+        y: bls_fq_to_blst_fp(&pt.y),
     };
     // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we're in fact applying correct masks that arkworks does not use. This may be solved alternatively using
@@ -146,10 +146,10 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     g1
 }
 
-pub fn blst_g1_affine_to_bls_g1_affine(pt: blst_p1_affine) -> BlsG1Affine {
+pub fn blst_g1_affine_to_bls_g1_affine(pt: &blst_p1_affine) -> BlsG1Affine {
     let mut out = [0u8; G1_UNCOMPRESSED_SIZE];
     unsafe {
-        blst_p1_affine_serialize(out.as_mut_ptr(), &pt);
+        blst_p1_affine_serialize(out.as_mut_ptr(), pt);
     }
     let infinity = out[0] & (1 << 6) != 0;
     BlsG1Affine::new(
@@ -162,8 +162,8 @@ pub fn blst_g1_affine_to_bls_g1_affine(pt: blst_p1_affine) -> BlsG1Affine {
 pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     debug_assert_eq!(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
     let tmp_p2 = blst_p2_affine {
-        x: bls_fq2_to_blst_fp2(pt.x),
-        y: bls_fq2_to_blst_fp2(pt.y),
+        x: bls_fq2_to_blst_fp2(&pt.x),
+        y: bls_fq2_to_blst_fp2(&pt.y),
     };
     // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we're in fact applying correct masks that arkworks does not use. This may be solved alternatively using
@@ -178,14 +178,14 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     g2
 }
 
-pub fn blst_g2_affine_to_bls_g2_affine(pt: blst_p2_affine) -> BlsG2Affine {
-    let ptx = blst_fp2_to_bls_fq2(pt.x);
-    let pty = blst_fp2_to_bls_fq2(pt.y);
+pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
+    let ptx = blst_fp2_to_bls_fq2(&pt.x);
+    let pty = blst_fp2_to_bls_fq2(&pt.y);
 
     // TODO: surely there's a better way to do this?
     let mut out = [0u8; G2_UNCOMPRESSED_SIZE];
     unsafe {
-        blst_p2_affine_serialize(out.as_mut_ptr(), &pt);
+        blst_p2_affine_serialize(out.as_mut_ptr(), pt);
     }
     let infinity = out[0] & (1 << 6) != 0;
     BlsG2Affine::new(ptx, pty, infinity)
@@ -227,13 +227,13 @@ pub(crate) mod tests {
         #[test]
         fn roundtrip_bls_fr(b in arb_bls_fr()) {
             let blst_variant = bls_fr_to_blst_fr(&b);
-            let roundtrip = blst_fr_to_bls_fr(blst_variant);
+            let roundtrip = blst_fr_to_bls_fr(&blst_variant);
             prop_assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_fr(b in arb_blst_fr()) {
-            let bls_variant = blst_fr_to_bls_fr(b);
+            let bls_variant = blst_fr_to_bls_fr(&b);
             let roundtrip = bls_fr_to_blst_fr(&bls_variant);
             prop_assert_eq!(b, roundtrip);
         }
@@ -262,15 +262,15 @@ pub(crate) mod tests {
     proptest! {
         #[test]
         fn roundtrip_bls_fq(b in arb_bls_fq()) {
-            let blst_variant = bls_fq_to_blst_fp(b);
-            let roundtrip = blst_fp_to_bls_fq(blst_variant);
+            let blst_variant = bls_fq_to_blst_fp(&b);
+            let roundtrip = blst_fp_to_bls_fq(&blst_variant);
             prop_assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_fp(b in arb_blst_fp()) {
-            let bls_variant = blst_fp_to_bls_fq(b);
-            let roundtrip = bls_fq_to_blst_fp(bls_variant);
+            let bls_variant = blst_fp_to_bls_fq(&b);
+            let roundtrip = bls_fq_to_blst_fp(&bls_variant);
             prop_assert_eq!(b, roundtrip);
         }
     }
@@ -287,15 +287,15 @@ pub(crate) mod tests {
     proptest! {
         #[test]
         fn roundtrip_bls_fq2(b in arb_bls_fq2()) {
-            let blst_variant = bls_fq2_to_blst_fp2(b);
-            let roundtrip = blst_fp2_to_bls_fq2(blst_variant);
+            let blst_variant = bls_fq2_to_blst_fp2(&b);
+            let roundtrip = blst_fp2_to_bls_fq2(&blst_variant);
             prop_assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_fp2(b in arb_blst_fp2()) {
-            let bls_variant = blst_fp2_to_bls_fq2(b);
-            let roundtrip = bls_fq2_to_blst_fp2(bls_variant);
+            let bls_variant = blst_fp2_to_bls_fq2(&b);
+            let roundtrip = bls_fq2_to_blst_fp2(&bls_variant);
             prop_assert_eq!(b, roundtrip);
         }
     }
@@ -316,15 +316,15 @@ pub(crate) mod tests {
     proptest! {
         #[test]
         fn roundtrip_bls_fq6(b in arb_bls_fq6()){
-            let blst_variant = bls_fq6_to_blst_fp6(b);
-            let roundtrip = blst_fp6_to_bls_fq6(blst_variant);
+            let blst_variant = bls_fq6_to_blst_fp6(&b);
+            let roundtrip = blst_fp6_to_bls_fq6(&blst_variant);
             prop_assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_fp6(b in arb_blst_fp6()){
-            let bls_variant = blst_fp6_to_bls_fq6(b);
-            let roundtrip = bls_fq6_to_blst_fp6(bls_variant);
+            let bls_variant = blst_fp6_to_bls_fq6(&b);
+            let roundtrip = bls_fq6_to_blst_fp6(&bls_variant);
             prop_assert_eq!(b, roundtrip);
         }
     }
@@ -340,15 +340,15 @@ pub(crate) mod tests {
     proptest! {
         #[test]
         fn roundtrip_bls_fq12(b in arb_bls_fq12()) {
-            let blst_variant = bls_fq12_to_blst_fp12(b);
-            let roundtrip = blst_fp12_to_bls_fq12(blst_variant);
+            let blst_variant = bls_fq12_to_blst_fp12(&b);
+            let roundtrip = blst_fp12_to_bls_fq12(&blst_variant);
             prop_assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_fp12(b in arb_blst_fp12()) {
-            let bls_variant = blst_fp12_to_bls_fq12(b);
-            let roundtrip = bls_fq12_to_blst_fp12(bls_variant);
+            let bls_variant = blst_fp12_to_bls_fq12(&b);
+            let roundtrip = bls_fq12_to_blst_fp12(&bls_variant);
             prop_assert_eq!(b, roundtrip);
         }
     }
@@ -394,13 +394,13 @@ pub(crate) mod tests {
         #[test]
         fn roundtrip_bls_g1_affine(b in arb_bls_g1_affine()) {
             let blst_variant = bls_g1_affine_to_blst_g1_affine(&b);
-            let roundtrip = blst_g1_affine_to_bls_g1_affine(blst_variant);
+            let roundtrip = blst_g1_affine_to_bls_g1_affine(&blst_variant);
             assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_g1_affine(b in arb_blst_g1_affine()) {
-            let bls_variant = blst_g1_affine_to_bls_g1_affine(b);
+            let bls_variant = blst_g1_affine_to_bls_g1_affine(&b);
             let roundtrip = bls_g1_affine_to_blst_g1_affine(&bls_variant);
             assert_eq!(b, roundtrip);
         }
@@ -446,13 +446,13 @@ pub(crate) mod tests {
         #[test]
         fn roundtrip_bls_g2_affine(b in arb_bls_g2_affine()) {
             let blst_variant = bls_g2_affine_to_blst_g2_affine(&b);
-            let roundtrip = blst_g2_affine_to_bls_g2_affine(blst_variant);
+            let roundtrip = blst_g2_affine_to_bls_g2_affine(&blst_variant);
             assert_eq!(b, roundtrip);
         }
 
         #[test]
         fn roundtrip_blst_g2_affine(b in arb_blst_g2_affine()) {
-            let bls_variant = blst_g2_affine_to_bls_g2_affine(b);
+            let bls_variant = blst_g2_affine_to_bls_g2_affine(&b);
             let roundtrip = bls_g2_affine_to_blst_g2_affine(&bls_variant);
             assert_eq!(b, roundtrip);
         }
