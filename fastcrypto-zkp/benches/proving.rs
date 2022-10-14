@@ -15,6 +15,9 @@ use criterion::{
 use fastcrypto_proving::dummy_circuit::DummyCircuit;
 use std::ops::Mul;
 
+#[path = "./conversions.rs"]
+mod conversions;
+
 fn bench_prove<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
     grp: &mut BenchmarkGroup<M>,
 ) {
@@ -170,4 +173,4 @@ criterion_group! {
        prove,
 }
 
-criterion_main!(proving_benches,);
+criterion_main!(conversions::conversion_benches, proving_benches,);
