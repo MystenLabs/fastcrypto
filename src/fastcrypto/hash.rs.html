@@ -150,10 +150,26 @@
 <span id="150">150</span>
 <span id="151">151</span>
 <span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
+<span class="kw">use </span>digest::OutputSizeUser;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_with::serde_as;
 <span class="kw">use </span>std::fmt;
@@ -256,6 +272,20 @@
 </span><span class="attribute">#[derive(Default)]
 </span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
 
+<span class="doccomment">/// This allows us to use the hash functions defined here and use them in place of their
+/// internal functions from the digest crate.
+</span><span class="kw">pub trait </span>ReverseWrapper {
+    <span class="kw">type </span>Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ digest::core_api::CoreProxy + OutputSizeUser;
+}
+
+<span class="kw">impl</span>&lt;
+        Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ digest::core_api::CoreProxy + OutputSizeUser,
+        <span class="kw">const </span>DIGEST_LEN: usize,
+    &gt; ReverseWrapper <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
+{
+    <span class="kw">type </span>Variant = Variant;
+}
+
 <span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
     <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
@@ -303,4 +333,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (c0983a9aa 2022-10-12)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (6b3ede3f7 2022-10-13)" ></div></body></html>
