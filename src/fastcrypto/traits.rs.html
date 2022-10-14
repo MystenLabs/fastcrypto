@@ -361,7 +361,7 @@
     <span class="comment">// Expected to be overridden by implementations
     </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
         <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behavious can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
         }
         <span class="kw">if </span>pks.len() != sigs.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of signatures and public keys provided&quot;</span>));

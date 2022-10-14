@@ -242,7 +242,6 @@
 <span id="242">242</span>
 <span id="243">243</span>
 <span id="244">244</span>
-<span id="245">245</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{iter, ops::Neg, ptr};
@@ -445,8 +444,7 @@
         .iter()
         .map(bls_g1_affine_to_blst_g1_affine)
         .collect();
-    <span class="comment">// TODO: find a more direct way to grab this
-    </span><span class="kw">let </span>one = BLST_FR_ONE;
+    <span class="kw">let </span>one = BLST_FR_ONE;
     <span class="kw">let </span>ss: Vec&lt;blst_fr&gt; = iter::once(one)
         .chain(x.iter().map(bls_fr_to_blst_fr))
         .collect();
