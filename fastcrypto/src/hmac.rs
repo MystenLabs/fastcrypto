@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use crate::error::FastCryptoError;
+use crate::hash::ReverseWrapper;
 use crate::{
     traits::{KeyPair, SigningKey, ToFromBytes},
     Digest,
@@ -22,7 +23,7 @@ use hkdf::hmac::{Hmac, Mac};
 ///
 /// Example:
 /// ```rust
-/// use sha3::Sha3_256;
+/// use fastcrypto::hash::Sha3_256;
 /// use fastcrypto::ed25519::Ed25519KeyPair;
 /// use fastcrypto::hmac::hkdf_generate_from_ikm;
 /// # fn main() {
@@ -38,8 +39,8 @@ use hkdf::hmac::{Hmac, Mac};
 /// Note: This HKDF function may not match the native library's deterministic key generation functions.
 /// For example, observe that in the blst library:
 /// ```rust
-/// use sha3::Sha3_256;
 /// use fastcrypto::bls12381::BLS12381KeyPair;
+/// use fastcrypto::hash::Sha3_256;
 /// use fastcrypto::traits::{KeyPair, SigningKey, ToFromBytes};
 /// use fastcrypto::hmac::hkdf_generate_from_ikm;
 ///
@@ -60,21 +61,22 @@ pub fn hkdf_generate_from_ikm<H, K>(
     info: &[u8], // Info (can be empty).
 ) -> Result<K, FastCryptoError>
 where
-    // This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless.
-    H: CoreProxy + OutputSizeUser,
-    H::Core: HashMarker
+    // This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless since the traits exposed (H and K) are both defined in fastcrypto.
+    H: ReverseWrapper,
+    <<H as ReverseWrapper>::Variant as CoreProxy>::Core: HashMarker
         + UpdateCore
         + FixedOutputCore
         + BufferKindUser<BufferKind = Eager>
         + Default
         + Clone,
-    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    <<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize, U256>:
+        NonZero,
     K: KeyPair,
 {
     // When HMAC is applied, salt is padded with zeros if shorter than the H's block size
     // (both for Some(&[]) and None as the value of salt).
-    let hk = hkdf::Hkdf::<H, Hmac<H>>::new(Some(salt), ikm);
+    let hk = hkdf::Hkdf::<H::Variant, Hmac<H::Variant>>::new(Some(salt), ikm);
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
     hk.expand(info, &mut okm)
