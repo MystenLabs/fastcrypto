@@ -58,7 +58,7 @@ fn ark_process_vk(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey<Bls12_38
     }
 }
 
-// This commputes the result of the multi-pairing involved in the Groth16 verification, using arkworks.
+// This computes the result of the multi-pairing involved in the Groth16 verification, using arkworks.
 // See [`test_multipairing_with_processed_vk`]
 pub fn ark_multipairing_with_prepared_vk(
     pvk: &PreparedVerifyingKey<Bls12_381>,

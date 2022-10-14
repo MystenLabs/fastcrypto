@@ -182,7 +182,7 @@ fn wycheproof_test() {
                 (_, _) => panic!(), // Unhandled error
             };
 
-            // Test returns Ok if succesful and Err if it fails
+            // Test returns Ok if successful and Err if it fails
             assert_eq!(result.is_err(), test.result.must_fail());
         }
     }

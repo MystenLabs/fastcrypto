@@ -336,8 +336,8 @@ fn test_hkdf_generate_from_ikm() {
 fn test_public_key_bytes_conversion() {
     let kp = keys().pop().unwrap();
     let pk_bytes: UnsecurePublicKeyBytes = kp.public().into();
-    let rebuilded_pk: UnsecurePublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilded_pk.as_bytes());
+    let rebuilt_pk: UnsecurePublicKey = pk_bytes.try_into().unwrap();
+    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]

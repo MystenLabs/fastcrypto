@@ -68,8 +68,8 @@ fn import_export_public_key() {
 fn test_public_key_bytes_conversion() {
     let kp = keys().pop().unwrap();
     let pk_bytes: Secp256k1PublicKeyBytes = kp.public().into();
-    let rebuilded_pk: Secp256k1PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilded_pk.as_bytes());
+    let rebuilt_pk: Secp256k1PublicKey = pk_bytes.try_into().unwrap();
+    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]
