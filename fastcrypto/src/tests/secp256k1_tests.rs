@@ -10,7 +10,7 @@ use crate::{
     },
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-
+#[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
