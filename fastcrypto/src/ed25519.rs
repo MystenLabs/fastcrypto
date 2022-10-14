@@ -90,7 +90,7 @@ impl VerifyingKey for Ed25519PublicKey {
         sigs: &[Self::Sig],
     ) -> Result<(), eyre::Report> {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behavious can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
         }
         if sigs.len() != pks.len() {
             return Err(eyre!(

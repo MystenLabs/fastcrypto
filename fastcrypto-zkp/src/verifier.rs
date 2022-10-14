@@ -200,7 +200,6 @@ fn multipairing_with_processed_vk(
         .iter()
         .map(bls_g1_affine_to_blst_g1_affine)
         .collect();
-    // TODO: find a more direct way to grab this
     let one = BLST_FR_ONE;
     let ss: Vec<blst_fr> = iter::once(one)
         .chain(x.iter().map(bls_fr_to_blst_fr))
