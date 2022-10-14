@@ -3,7 +3,6 @@
 use std::{iter, ops::Neg, ptr};
 
 use ark_bls12_381::{Bls12_381, Fr as BlsFr, G2Affine};
-use ark_ff::One;
 pub use ark_groth16::{Proof, VerifyingKey};
 use ark_relations::r1cs::SynthesisError;
 
@@ -167,6 +166,16 @@ fn g1_linear_combination(
     }
 }
 
+/// This represents the multiplicative unit scalar, see fr_one_test
+pub(crate) const BLST_FR_ONE: blst_fr = blst_fr {
+    l: [
+        8589934590,
+        6378425256633387010,
+        11064306276430008309,
+        1739710354780652911,
+    ],
+};
+
 /// Returns the result of the multi-pairing involved in the verification equation. This will then be compared to the pre-computed term
 /// pvk.alpha_g1_beta_g2 to check the validity of the proof.
 ///
@@ -192,7 +201,7 @@ fn multipairing_with_processed_vk(
         .map(bls_g1_affine_to_blst_g1_affine)
         .collect();
     // TODO: find a more direct way to grab this
-    let one = bls_fr_to_blst_fr(&BlsFr::one());
+    let one = BLST_FR_ONE;
     let ss: Vec<blst_fr> = iter::once(one)
         .chain(x.iter().map(bls_fr_to_blst_fr))
         .collect();

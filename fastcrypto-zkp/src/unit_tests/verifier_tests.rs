@@ -25,9 +25,16 @@ use crate::{
     dummy_circuit::DummyCircuit,
     verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
-        verify_with_processed_vk, Proof, VerifyingKey,
+        verify_with_processed_vk, Proof, VerifyingKey, BLST_FR_ONE,
     },
 };
+
+#[test]
+fn fr_one_test() {
+    let bls_one = Fr::one();
+    let blst_one = bls_fr_to_blst_fr(&bls_one);
+    assert_eq!(blst_one, BLST_FR_ONE);
+}
 
 // This emulates the process_vk function of the arkworks verifier, but using blst to compute the term
 // alpha_g1_beta_g2. See [`test_prepare_vk`].
@@ -142,8 +149,7 @@ proptest! {
             .iter()
             .map(bls_g1_affine_to_blst_g1_affine)
             .collect();
-        // TODO: find a more direct way to grab this constant
-        let one = bls_fr_to_blst_fr(&Fr::one());
+        let one = BLST_FR_ONE;
         let ss: Vec<blst_fr> = iter::once(one)
             .chain(frs.iter().map(bls_fr_to_blst_fr))
             .collect();
