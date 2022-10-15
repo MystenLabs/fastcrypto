@@ -255,18 +255,24 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let (msgs, pks, sigs) =
-        signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
-    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
     assert!(res.is_ok(), "{:?}", res);
 }
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let (msgs, pks, mut sigs) =
-        signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
-    sigs[0] = Secp256k1Signature::default();
-    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    inputs.signatures[0] = Secp256k1Signature::default();
+    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
     assert!(res.is_err(), "{:?}", res);
 }
 

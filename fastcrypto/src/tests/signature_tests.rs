@@ -14,9 +14,14 @@ pub fn keys<KP: KeyPair>(n: usize) -> Vec<KP> {
     (0..n).map(|_| KeyPair::generate(&mut rng)).collect()
 }
 
+pub struct DifferentMsgsSignatures<KP: KeyPair> {
+    pub digests: Vec<Vec<u8>>,
+    pub pubkeys: Vec<KP::PubKey>,
+    pub signatures: Vec<KP::Sig>,
+}
+
 /// Generate a tuple of vectors containing messages, public keys and the corresponding signatures to be used in tests.
-pub fn signature_test_inputs_different_msg<KP: KeyPair>(
-) -> (Vec<Vec<u8>>, Vec<KP::PubKey>, Vec<KP::Sig>) {
+pub fn signature_test_inputs_different_msg<KP: KeyPair>() -> DifferentMsgsSignatures<KP> {
     // Make signatures.
     let digests: Vec<Vec<u8>> = [b"Hello", b"world", b"!!!!!"]
         .iter()
@@ -31,5 +36,9 @@ pub fn signature_test_inputs_different_msg<KP: KeyPair>(
             (kp.public().clone(), sig)
         })
         .unzip();
-    (digests, pubkeys, signatures)
+    DifferentMsgsSignatures {
+        digests,
+        pubkeys,
+        signatures,
+    }
 }

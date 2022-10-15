@@ -457,18 +457,24 @@ fn test_add_signatures_to_aggregate() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let (msgs, pks, sigs) =
-        signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
-    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    let inputs = signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
     assert!(res.is_ok(), "{:?}", res);
 }
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let (msgs, pks, mut sigs) =
-        signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
-    sigs[0] = Ed25519Signature::default();
-    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    inputs.signatures[0] = Ed25519Signature::default();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
     assert!(res.is_err(), "{:?}", res);
 }
 
