@@ -101,26 +101,6 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Sign
     (digest.to_vec(), pubkeys, signatures)
 }
 
-fn signature_test_inputs_different_msg(
-) -> (Vec<Vec<u8>>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
-    // Make signatures.
-    let digests: Vec<Vec<u8>> = [b"Hello", b"world", b"!!!!!"]
-        .iter()
-        .map(|msg| hash::Sha256::digest(*msg).to_vec())
-        .collect();
-    let (pubkeys, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .zip(&digests)
-        .map(|(kp, digest)| {
-            let sig = kp.sign(digest.as_ref());
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-
-    (digests, pubkeys, signatures)
-}
-
 #[test]
 fn verify_valid_batch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
@@ -166,14 +146,16 @@ fn verify_batch_missing_public_keys() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let (msgs, pks, sigs) = signature_test_inputs_different_msg();
+    let (msgs, pks, sigs) =
+        signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
     let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
     assert!(res.is_ok(), "{:?}", res);
 }
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let (msgs, pks, mut sigs) = signature_test_inputs_different_msg();
+    let (msgs, pks, mut sigs) =
+        signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
     sigs[0] = BLS12381Signature::default();
     let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
     assert!(res.is_err(), "{:?}", res);
