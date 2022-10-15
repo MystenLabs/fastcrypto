@@ -456,6 +456,23 @@ fn test_add_signatures_to_aggregate() {
 }
 
 #[test]
+fn verify_valid_batch_different_msg() {
+    let (msgs, pks, sigs) =
+        signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch_different_msg() {
+    let (msgs, pks, mut sigs) =
+        signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    sigs[0] = Ed25519Signature::default();
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs);
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
 fn test_hkdf_generate_from_ikm() {
     let seed = &[
         0, 0, 1, 1, 2, 2, 4, 4, 8, 2, 0, 9, 3, 2, 4, 1, 1, 1, 2, 0, 1, 1, 3, 4, 1, 2, 9, 8, 7, 6,
