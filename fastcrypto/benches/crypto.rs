@@ -118,6 +118,63 @@ mod signature_benches {
         }
     }
 
+    fn verify_batch_signatures_different_msg<M: measurement::Measurement>(
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
+
+        let mut csprng: ThreadRng = thread_rng();
+
+        for size in BATCH_SIZES.iter() {
+            let ed_keypairs: Vec<_> = (0..*size)
+                .map(|_| Ed25519KeyPair::generate(&mut csprng))
+                .collect();
+            let blst_keypairs: Vec<_> = (0..*size)
+                .map(|_| BLS12381KeyPair::generate(&mut csprng))
+                .collect();
+
+            let msgs: Vec<Vec<u8>> = (0..*size)
+                .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).to_vec())
+                .collect();
+
+            let ed_signatures: Vec<_> = ed_keypairs
+                .iter()
+                .zip(&msgs)
+                .map(|(key, msg)| key.sign(&msg))
+                .collect();
+            let ed_public_keys: Vec<_> =
+                ed_keypairs.iter().map(|key| key.public().clone()).collect();
+            let blst_signatures: Vec<_> = blst_keypairs
+                .iter()
+                .zip(&msgs)
+                .map(|(key, msg)| key.sign(&msg))
+                .collect();
+            let blst_public_keys: Vec<_> = blst_keypairs
+                .iter()
+                .map(|key| key.public().clone())
+                .collect();
+
+            c.bench_with_input(
+                BenchmarkId::new("Ed25519 batch verification different msg", *size),
+                &(&msgs, ed_public_keys, ed_signatures),
+                |b, (msgs, pks, sigs)| {
+                    b.iter(|| {
+                        VerifyingKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs)
+                    });
+                },
+            );
+            c.bench_with_input(
+                BenchmarkId::new("BLS12381 batch verification different msg", *size),
+                &(&msgs, &blst_public_keys, &blst_signatures),
+                |b, (msgs, pks, sigs)| {
+                    b.iter(|| {
+                        VerifyingKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs)
+                    });
+                },
+            );
+        }
+    }
+
     fn aggregate_signatures(c: &mut Criterion) {
         static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
 
@@ -178,6 +235,7 @@ mod signature_benches {
         group.sampling_mode(SamplingMode::Flat);
 
         verify_batch_signatures(&mut group);
+        verify_batch_signatures_different_msg(&mut group);
         group.finish();
     }
 }
