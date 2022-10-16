@@ -124,6 +124,10 @@
 <span id="124">124</span>
 <span id="125">125</span>
 <span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -142,6 +146,10 @@
     mpsc::{channel, Sender},
     oneshot,
 };
+
+<span class="attribute">#[cfg(test)]
+#[path = <span class="string">&quot;tests/signature_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>signature_tests;
 
 <span class="attribute">#[cfg(test)]
 #[path = <span class="string">&quot;tests/pubkey_bytes_tests.rs&quot;</span>]
@@ -251,4 +259,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (6b3ede3f7 2022-10-13)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (b8c35ca26 2022-10-15)" ></div></body></html>

@@ -259,6 +259,21 @@
 <span id="259">259</span>
 <span id="260">260</span>
 <span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -369,6 +384,21 @@
         pks.iter()
             .zip(sigs)
             .try_for_each(|(pk, sig)| pk.verify(msg, sig))
+            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
+    }
+
+    <span class="comment">// Expected to be overridden by implementations
+    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
+        <span class="kw">if </span>sigs.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+        }
+        <span class="kw">if </span>pks.len() != sigs.len() || pks.len() != msgs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of messages, signatures and public keys provided&quot;</span>));
+        }
+        pks.iter()
+            .zip(sigs)
+            .zip(msgs)
+            .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
             .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
     }
 }
@@ -521,4 +551,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (6b3ede3f7 2022-10-13)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (b8c35ca26 2022-10-15)" ></div></body></html>
