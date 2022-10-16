@@ -18,6 +18,10 @@ use tokio::sync::{
 };
 
 #[cfg(test)]
+#[path = "tests/signature_tests.rs"]
+pub mod signature_tests;
+
+#[cfg(test)]
 #[path = "tests/pubkey_bytes_tests.rs"]
 pub mod pubkey_bytes_tests;
 

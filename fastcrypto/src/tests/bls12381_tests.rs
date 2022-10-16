@@ -346,6 +346,29 @@ fn test_add_signatures_to_aggregate() {
 }
 
 #[test]
+fn verify_valid_batch_different_msg() {
+    let inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch_different_msg() {
+    let mut inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
+    inputs.signatures[0] = BLS12381Signature::default();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
 fn test_human_readable_signatures() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";

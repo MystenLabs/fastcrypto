@@ -206,7 +206,19 @@ impl VerifyingKey for BLS12381PublicKey {
         pks: &[Self],
         sigs: &[Self::Sig],
     ) -> Result<(), eyre::Report> {
-        let num_sigs = sigs.len();
+        // TODO: fix this, the identical message opens up a rogue key attack
+        let msgs_refs = (0..sigs.len()).map(|_| msg).collect::<Vec<_>>();
+        Self::verify_batch_empty_fail_different_msg(&msgs_refs, pks, sigs)
+    }
+
+    fn verify_batch_empty_fail_different_msg<'a, M>(
+        msgs: &[M],
+        pks: &[Self],
+        sigs: &[Self::Sig],
+    ) -> Result<(), eyre::Report>
+    where
+        M: Borrow<[u8]> + 'a,
+    {
         if sigs.is_empty() {
             return Err(eyre!(
                 "Critical Error! This behaviour can signal something dangerous, and \
@@ -214,15 +226,15 @@ impl VerifyingKey for BLS12381PublicKey {
             batches."
             ));
         }
-        if sigs.len() != pks.len() {
+        if sigs.len() != pks.len() || msgs.len() != pks.len() {
             return Err(eyre!(
-                "Mismatch between number of signatures and public keys provided"
+                "Mismatch between number of messages, signatures and public keys provided"
             ));
         }
-        let mut rands: Vec<blst_scalar> = Vec::with_capacity(num_sigs);
+        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
         let mut rng = OsRng;
 
-        for _ in 0..num_sigs {
+        for _ in 0..sigs.len() {
             let mut vals = [0u64; 4];
             vals[0] = rng.next_u64();
             while vals[0] == 0 {
@@ -236,15 +248,12 @@ impl VerifyingKey for BLS12381PublicKey {
             }
         }
 
-        // TODO: fix this, the identical message opens up a rogue key attack
-        let msgs_refs = (0..num_sigs).map(|_| msg).collect::<Vec<_>>();
-
         let result = blst::Signature::verify_multiple_aggregate_signatures(
-            &msgs_refs[..],
+            &msgs.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
             DST,
-            &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>()[..],
+            &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
             false,
-            &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>()[..],
+            &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
             true,
             &rands,
             64,
