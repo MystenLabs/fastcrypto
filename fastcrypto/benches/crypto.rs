@@ -140,14 +140,14 @@ mod signature_benches {
             let ed_signatures: Vec<_> = ed_keypairs
                 .iter()
                 .zip(&msgs)
-                .map(|(key, msg)| key.sign(&msg))
+                .map(|(key, msg)| key.sign(msg))
                 .collect();
             let ed_public_keys: Vec<_> =
                 ed_keypairs.iter().map(|key| key.public().clone()).collect();
             let blst_signatures: Vec<_> = blst_keypairs
                 .iter()
                 .zip(&msgs)
-                .map(|(key, msg)| key.sign(&msg))
+                .map(|(key, msg)| key.sign(msg))
                 .collect();
             let blst_public_keys: Vec<_> = blst_keypairs
                 .iter()
@@ -158,18 +158,14 @@ mod signature_benches {
                 BenchmarkId::new("Ed25519 batch verification different msg", *size),
                 &(&msgs, ed_public_keys, ed_signatures),
                 |b, (msgs, pks, sigs)| {
-                    b.iter(|| {
-                        VerifyingKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs)
-                    });
+                    b.iter(|| VerifyingKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs));
                 },
             );
             c.bench_with_input(
                 BenchmarkId::new("BLS12381 batch verification different msg", *size),
                 &(&msgs, &blst_public_keys, &blst_signatures),
                 |b, (msgs, pks, sigs)| {
-                    b.iter(|| {
-                        VerifyingKey::verify_batch_empty_fail_different_msg(&msgs, &pks, &sigs)
-                    });
+                    b.iter(|| VerifyingKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs));
                 },
             );
         }
