@@ -204,6 +204,12 @@ pub trait AggregateAuthenticator:
         message: &[u8],
     ) -> Result<(), FastCryptoError>;
 
+    fn verify_different_msg(
+        &self,
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
+    ) -> Result<(), FastCryptoError> where;
+
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,

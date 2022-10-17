@@ -592,6 +592,27 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 
+    fn verify_different_msg(
+        &self,
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
+    ) -> Result<(), FastCryptoError> {
+        let result = self
+            .sig
+            .ok_or(FastCryptoError::GeneralError)?
+            .aggregate_verify(
+                true,
+                messages,
+                DST,
+                &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
+                true,
+            );
+        if result != BLST_ERROR::BLST_SUCCESS {
+            return Err(FastCryptoError::GeneralError);
+        }
+        Ok(())
+    }
+
     fn batch_verify<'a>(
         signatures: &[&Self],
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,

@@ -346,6 +346,52 @@ fn test_add_signatures_to_aggregate() {
 }
 
 #[test]
+fn test_add_signatures_to_aggregate_different_messages() {
+    let pks: Vec<BLS12381PublicKey> = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| kp.public().clone())
+        .collect();
+    let messages: Vec<&[u8]> = vec![b"hello", b"world", b"!!!!!"];
+
+    // Test 'add signature'
+    let mut sig1 = BLS12381AggregateSignature::default();
+    // Test populated aggregate signature
+    for (i, kp) in keys().into_iter().take(3).enumerate() {
+        let sig = kp.sign(messages[i]);
+        sig1.add_signature(sig).unwrap();
+    }
+
+    assert!(sig1.verify_different_msg(&pks, &messages).is_ok());
+
+    // Test 'add aggregate signature'
+    let mut sig2 = BLS12381AggregateSignature::default();
+
+    let kp = &keys()[0];
+    let sig = BLS12381AggregateSignature::aggregate(&[kp.sign(messages[0])]).unwrap();
+    sig2.add_aggregate(sig).unwrap();
+
+    assert!(sig2
+        .verify_different_msg(&pks[0..1], &messages[0..1])
+        .is_ok());
+
+    let aggregated_signature = BLS12381AggregateSignature::aggregate(
+        &keys()
+            .into_iter()
+            .zip(&messages)
+            .take(3)
+            .skip(1)
+            .map(|(kp, message)| kp.sign(message))
+            .collect::<Vec<BLS12381Signature>>(),
+    )
+    .unwrap();
+
+    sig2.add_aggregate(aggregated_signature).unwrap();
+
+    assert!(sig2.verify_different_msg(&pks, &messages).is_ok());
+}
+
+#[test]
 fn verify_valid_batch_different_msg() {
     let inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
     let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
