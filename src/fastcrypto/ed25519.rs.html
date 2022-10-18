@@ -586,6 +586,26 @@
 <span id="586">586</span>
 <span id="587">587</span>
 <span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>base64ct::{Base64, Encoding};
@@ -1032,6 +1052,26 @@
             .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
     }
 
+    <span class="kw">fn </span>verify_different_msg(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+        <span class="kw">if </span>pks.len() != <span class="self">self</span>.<span class="number">0</span>.len() || messages.len() != <span class="self">self</span>.<span class="number">0</span>.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(<span class="self">self</span>.<span class="number">0</span>.len()));
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>batch = batch::Verifier::new();
+
+        <span class="kw">for </span>(i, (pk, msg)) <span class="kw">in </span>pks.iter().zip(messages).enumerate() {
+            <span class="kw">let </span>vk_bytes = VerificationKeyBytes::try_from(pk.<span class="number">0</span>).unwrap();
+            batch.queue((vk_bytes, <span class="self">self</span>.<span class="number">0</span>[i], msg));
+        }
+
+        batch
+            .verify(OsRng)
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
+    }
+
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
@@ -1175,4 +1215,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (b8b5caee0 2022-10-16)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (06f049a35 2022-10-17)" ></div></body></html>

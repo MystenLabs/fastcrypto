@@ -274,6 +274,12 @@
 <span id="274">274</span>
 <span id="275">275</span>
 <span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -480,6 +486,12 @@
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
+    <span class="kw">fn </span>verify_different_msg(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; <span class="kw">where</span>;
+
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
@@ -551,4 +563,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (b8b5caee0 2022-10-16)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (06f049a35 2022-10-17)" ></div></body></html>

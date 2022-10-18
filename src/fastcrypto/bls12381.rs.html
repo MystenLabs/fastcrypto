@@ -679,6 +679,27 @@
 <span id="679">679</span>
 <span id="680">680</span>
 <span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{
@@ -1273,6 +1294,27 @@
         <span class="prelude-val">Ok</span>(())
     }
 
+    <span class="kw">fn </span>verify_different_msg(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+        <span class="kw">let </span>result = <span class="self">self
+            </span>.sig
+            .ok_or(FastCryptoError::GeneralError)<span class="question-mark">?
+            </span>.aggregate_verify(
+                <span class="bool-val">true</span>,
+                messages,
+                DST,
+                <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
+                <span class="bool-val">true</span>,
+            );
+        <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError);
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         signatures: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
@@ -1361,4 +1403,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (b8b5caee0 2022-10-16)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (06f049a35 2022-10-17)" ></div></body></html>
