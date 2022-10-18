@@ -48,7 +48,7 @@ sha2 = "0.10.6"
 sha3 = "0.10.5"
 thiserror = "1.0.37"
 twox-hash = { version = "1.6.3", optional = true }
-mysten-util-mem = { git = "https://github.com/MystenLabs/mysten-infra/", rev = "e8c5bab05b4bf82b449779aadadd54aa1ee28741", optional = true }
+
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 
 [[bench]]
@@ -59,7 +59,6 @@ harness = false
 default = ["secure"]
 secure = []
 copy_key = []
-malloc = ["dep:mysten-util-mem"]
 unsecure_schemes = ["dep:twox-hash"]
 
 [dev-dependencies]
