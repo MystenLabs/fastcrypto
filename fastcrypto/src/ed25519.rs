@@ -108,6 +108,34 @@ impl VerifyingKey for Ed25519PublicKey {
             .verify(&mut OsRng)
             .map_err(|_| eyre!("Signature verification failed"))
     }
+
+    fn verify_batch_empty_fail_different_msg<'a, M>(
+        msgs: &[M],
+        pks: &[Self],
+        sigs: &[Self::Sig],
+    ) -> Result<(), eyre::Report>
+    where
+        M: Borrow<[u8]> + 'a,
+    {
+        if sigs.is_empty() {
+            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+        }
+        if pks.len() != sigs.len() || pks.len() != msgs.len() {
+            return Err(eyre!(
+                "Mismatch between number of messages, signatures and public keys provided"
+            ));
+        }
+
+        let mut batch = batch::Verifier::new();
+
+        for i in 0..sigs.len() {
+            let vk_bytes = VerificationKeyBytes::try_from(pks[i].as_ref()).unwrap();
+            batch.queue((vk_bytes, sigs[i].sig, msgs[i].borrow()))
+        }
+        batch
+            .verify(&mut OsRng)
+            .map_err(|_| eyre!("Signature verification failed"))
+    }
 }
 
 impl Verifier<Ed25519Signature> for Ed25519PublicKey {
