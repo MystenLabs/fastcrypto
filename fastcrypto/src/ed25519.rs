@@ -444,6 +444,26 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
             .map_err(|_| FastCryptoError::GeneralError)
     }
 
+    fn verify_different_msg(
+        &self,
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
+    ) -> Result<(), FastCryptoError> {
+        if pks.len() != self.0.len() || messages.len() != self.0.len() {
+            return Err(FastCryptoError::InputLengthWrong(self.0.len()));
+        }
+        let mut batch = batch::Verifier::new();
+
+        for (i, (pk, msg)) in pks.iter().zip(messages).enumerate() {
+            let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
+            batch.queue((vk_bytes, self.0[i], msg));
+        }
+
+        batch
+            .verify(OsRng)
+            .map_err(|_| FastCryptoError::GeneralError)
+    }
+
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
