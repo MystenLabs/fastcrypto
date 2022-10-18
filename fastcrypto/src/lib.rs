@@ -49,6 +49,10 @@ pub mod aes_tests;
 #[path = "tests/hash_tests.rs"]
 pub mod hash_tests;
 
+#[cfg(test)]
+#[path = "tests/hmac_tests.rs"]
+pub mod hmac_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
