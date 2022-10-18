@@ -133,8 +133,8 @@ mod signature_benches {
                 .map(|_| BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
-            let msgs: Vec<Vec<u8>> = (0..*size)
-                .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).to_vec())
+            let msgs: Vec<[u8; 32]> = (0..*size)
+                .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest)
                 .collect();
 
             let ed_signatures: Vec<_> = ed_keypairs
@@ -153,6 +153,8 @@ mod signature_benches {
                 .iter()
                 .map(|key| key.public().clone())
                 .collect();
+            let blst_aggregate_signature =
+                BLS12381AggregateSignature::aggregate(&blst_signatures).unwrap();
 
             c.bench_with_input(
                 BenchmarkId::new("Ed25519 batch verification different msg", *size),
@@ -166,6 +168,17 @@ mod signature_benches {
                 &(&msgs, &blst_public_keys, &blst_signatures),
                 |b, (msgs, pks, sigs)| {
                     b.iter(|| VerifyingKey::verify_batch_empty_fail_different_msg(msgs, pks, sigs));
+                },
+            );
+            c.bench_with_input(
+                BenchmarkId::new("BLS12381 aggregate verification different msg", *size),
+                &(
+                    msgs.iter().map(|m| m.as_slice()).collect::<Vec<&[u8]>>(),
+                    blst_public_keys,
+                    blst_aggregate_signature,
+                ),
+                |b, (msgs, pk, sig)| {
+                    b.iter(|| sig.verify_different_msg(pk, msgs));
                 },
             );
         }
