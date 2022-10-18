@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::FastCryptoError;
-use crate::hash::{Sha3_256, Keccak256};
+use crate::hash::{Keccak256, ReverseWrapper, Sha3_256};
 use crate::hmac::{hkdf, hmac, HkdfIkm, HmacKey};
 use crate::traits::{FromUniformBytes, ToFromBytes};
 use digest::{
@@ -11,29 +11,30 @@ use digest::{
     core_api::{BufferKindUser, CoreProxy, FixedOutputCore, UpdateCore},
     crypto_common::BlockSizeUser,
     typenum::{IsLess, Le, NonZero},
-    HashMarker, OutputSizeUser,
+    HashMarker,
 };
 use hkdf::hmac::Hmac;
 use rand::{rngs::StdRng, SeedableRng};
 
 fn hkdf_wrapper<H>(salt: Option<&[u8]>) -> Vec<u8>
 where
-    H: CoreProxy + OutputSizeUser,
-    H::Core: HashMarker
+    H: ReverseWrapper,
+    <<H as ReverseWrapper>::Variant as CoreProxy>::Core: HashMarker
         + UpdateCore
         + FixedOutputCore
         + BufferKindUser<BufferKind = Eager>
         + Default
         + Clone,
-    <H::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-    Le<<H::Core as BlockSizeUser>::BlockSize, U256>: NonZero,
+    <<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize, U256>:
+        NonZero,
 {
     let ikm = &[
         0, 0, 1, 1, 2, 2, 4, 4, 8, 2, 0, 9, 3, 2, 4, 1, 1, 1, 2, 0, 1, 1, 3, 4, 1, 2, 9, 8, 7, 6,
         5, 4,
     ];
 
-    let hk = hkdf::Hkdf::<H, Hmac<H>>::new(salt, ikm);
+    let hk = hkdf::Hkdf::<H::Variant, Hmac<H::Variant>>::new(salt, ikm);
     let mut okm = vec![0u8; 1024];
     hk.expand(&[], &mut okm).unwrap();
     okm
