@@ -128,6 +128,10 @@
 <span id="128">128</span>
 <span id="129">129</span>
 <span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -178,6 +182,10 @@
 <span class="attribute">#[cfg(test)]
 #[path = <span class="string">&quot;tests/hash_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>hash_tests;
+
+<span class="attribute">#[cfg(test)]
+#[path = <span class="string">&quot;tests/hmac_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>hmac_tests;
 
 <span class="comment">// Signing traits
 </span><span class="kw">pub mod </span>traits;
