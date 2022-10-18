@@ -128,6 +128,9 @@
 <span id="128">128</span>
 <span id="129">129</span>
 <span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -208,6 +211,9 @@
     debug_assertions
 ))]
 </span><span class="kw">pub mod </span>unsecure;
+
+<span class="attribute">#[cfg(feature = <span class="string">&quot;malloc&quot;</span>)]
+</span><span class="kw">pub mod </span>mysten_infra_impl;
 
 <span class="comment">////////////////////////////////////////////////////////////////
 // Generic Keypair
