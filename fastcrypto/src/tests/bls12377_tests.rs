@@ -1,5 +1,6 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
 use crate::bls12377::{
     BLS12377AggregateSignature, BLS12377KeyPair, BLS12377PrivateKey, BLS12377PublicKey,
     BLS12377PublicKeyBytes, BLS12377Signature,

@@ -1,4 +1,4 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -32,7 +32,7 @@ use serde_with::{DeserializeAs, SerializeAs};
 use zeroize::Zeroize;
 
 // Arkworks is serde-unfriendly, hence this workaround, see https://github.com/arkworks-rs/algebra/issues/178
-pub struct SerdeAs;
+struct SerdeAs;
 
 impl<T> SerializeAs<T> for SerdeAs
 where
@@ -63,7 +63,7 @@ where
     }
 }
 
-pub struct RngWrapper<'a, R: rand::CryptoRng + rand::RngCore>(pub &'a mut R);
+struct RngWrapper<'a, R: rand::CryptoRng + rand::RngCore>(pub &'a mut R);
 
 impl<R: rand::CryptoRng + rand::RngCore> rand::RngCore for RngWrapper<'_, R> {
     #[inline]
