@@ -544,7 +544,75 @@ fn test_signature_aggregation() {
     assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_err());
 }
 
+// Arbitrary implementations for the proptests
+fn arb_keypair() -> impl Strategy<Value = BLS12381KeyPair> {
+    any::<[u8; 32]>()
+        .prop_map(|seed| {
+            let mut rng = StdRng::from_seed(seed);
+            BLS12381KeyPair::generate(&mut rng)
+        })
+        .no_shrink()
+}
+
+prop_compose! {
+    fn valid_signature(pk: BLS12381PrivateKey)
+                      (msg in any::<[u8; 32]>()) -> ([u8; 32], BLS12381Signature) {
+            (msg, pk.sign(&msg))
+    }
+}
+
+prop_compose! {
+  fn maybe_valid_sig(pk: BLS12381PrivateKey)
+                    (disc in bool::arbitrary(),
+                    (msg, sig) in valid_signature(pk))
+                       -> ([u8; 32], BLS12381Signature) {
+    if disc {
+      (msg, sig)
+    } else {
+      let mut rng = StdRng::from_seed([0; 32]);
+      let mut msg = msg;
+      rng.fill_bytes(&mut msg);
+      (msg, sig)
+    }
+  }
+}
+
+fn arb_sig_triplet() -> impl Strategy<Value = (BLS12381PublicKey, [u8; 32], BLS12381Signature)> {
+    arb_keypair()
+        .prop_flat_map(|kp| {
+            let pk: BLS12381PublicKey = kp.public().clone();
+            (Just(pk), maybe_valid_sig(kp.private()))
+        })
+        .prop_flat_map(|(pk, (msg, sig))| (Just(pk), Just(msg), Just(sig)))
+        .no_shrink()
+}
+
+const BLS_MAX_SIGNATURES: usize = 100;
+
+fn aggregate_treewise(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature {
+    if sigs.len() <= 1 {
+        return sigs
+            .first()
+            .map(|s| {
+                let mut res = BLS12381AggregateSignature::default();
+                res.add_signature(s.clone()).unwrap();
+                res
+            })
+            .unwrap_or_default();
+    } else {
+        let mid = sigs.len() / 2;
+        let (left, right) = sigs.split_at(mid);
+        let left = aggregate_treewise(left);
+        let right = aggregate_treewise(right);
+        let mut res = BLS12381AggregateSignature::default();
+        res.add_aggregate(left).unwrap();
+        res.add_aggregate(right).unwrap();
+        res
+    }
+}
+
 proptest! {
+    // Tests that serde does not panic
     #[test]
     fn test_basic_deser_publickey(bits in collection::vec(any::<u8>(), BLS_PUBLIC_KEY_LENGTH..=BLS_PUBLIC_KEY_LENGTH)) {
         let _ = BLS12381PublicKey::from_bytes(&bits);
@@ -559,6 +627,50 @@ proptest! {
     fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_SIGNATURE_LENGTH..=BLS_SIGNATURE_LENGTH)) {
         let _ = <BLS12381Signature as Signature>::from_bytes(&bits);
         let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
+    }
+
+    // Tests that signature verif does not panic
+    #[test]
+    fn test_basic_verify_signature(
+        (pk, msg, sig) in arb_sig_triplet()
+    ) {
+        let _ = pk.verify(&msg, &sig);
+    }
+
+
+    // Test compatibility between aggregate and iterated verification
+    #[test]
+    fn test_aggregate_verify_distinct_messages(
+        triplets in collection::vec(arb_sig_triplet(), 1..=BLS_MAX_SIGNATURES)
+    ){
+        let mut aggr = BLS12381AggregateSignature::default();
+        let (pks_n_msgs, sigs): (Vec<_>, Vec<_>) = triplets.into_iter().map(|(pk, msg, sig)| ((pk, msg), sig)).unzip();
+        for sig in sigs.clone() {
+            aggr.add_signature(sig).unwrap();
+        }
+        let (pks, msgs): (Vec<_>, Vec<_>) = pks_n_msgs.into_iter().unzip();
+
+        let res_aggregated = aggr.verify_different_msg(&pks, &msgs.iter().map(|m| m.as_ref()).collect::<Vec<_>>());
+        let iterated_bits = sigs.iter().zip(pks.iter().zip(msgs.iter())).map(|(sig, (pk, msg))| pk.verify(msg, sig)).collect::<Vec<_>>();
+        let res_iterated = iterated_bits.iter().all(|b| b.is_ok());
+
+
+        assert_eq!(res_aggregated.is_ok(), res_iterated, "Aggregated: {:?}, iterated: {:?}", res_aggregated, iterated_bits);
+    }
+
+    #[test]
+    fn test_aggregate_verify_distinct_messages_treewise(
+        triplets in collection::vec(arb_sig_triplet(), 1..=BLS_MAX_SIGNATURES)
+    ){
+        let (pks_n_msgs, sigs): (Vec<_>, Vec<_>) = triplets.into_iter().map(|(pk, msg, sig)| ((pk, msg), sig)).unzip();
+        let aggr = aggregate_treewise(&sigs);
+        let (pks, msgs): (Vec<_>, Vec<_>) = pks_n_msgs.into_iter().unzip();
+
+        let res_aggregated = aggr.verify_different_msg(&pks, &msgs.iter().map(|m| m.as_ref()).collect::<Vec<_>>());
+        let iterated_bits = sigs.iter().zip(pks.iter().zip(msgs.iter())).map(|(sig, (pk, msg))| pk.verify(msg, sig)).collect::<Vec<_>>();
+        let res_iterated = iterated_bits.iter().all(|b| b.is_ok());
+
+        assert_eq!(res_aggregated.is_ok(), res_iterated, "Aggregated: {:?}, iterated: {:?}", res_aggregated, iterated_bits);
     }
 
 }
