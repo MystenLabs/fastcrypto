@@ -4,7 +4,8 @@ use super::*;
 use crate::{
     bls12381::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381PublicKeyBytes, BLS12381Signature,
+        BLS12381PublicKeyBytes, BLS12381Signature, BLS_PRIVATE_KEY_LENGTH, BLS_PUBLIC_KEY_LENGTH,
+        BLS_SIGNATURE_LENGTH,
     },
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
@@ -13,8 +14,9 @@ use crate::{
     },
 };
 use base64ct::Encoding;
+use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::{Signer, Verifier};
+use signature::{Signature, Signer, Verifier};
 
 pub fn keys() -> Vec<BLS12381KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -540,4 +542,23 @@ fn test_signature_aggregation() {
         .collect();
     let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
     assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_err());
+}
+
+proptest! {
+    #[test]
+    fn test_basic_deser_publickey(bits in collection::vec(any::<u8>(), BLS_PUBLIC_KEY_LENGTH..=BLS_PUBLIC_KEY_LENGTH)) {
+        let _ = BLS12381PublicKey::from_bytes(&bits);
+    }
+
+    #[test]
+    fn test_basic_deser_privatekey(bits in collection::vec(any::<u8>(), BLS_PRIVATE_KEY_LENGTH..=BLS_PRIVATE_KEY_LENGTH)) {
+        let _ = BLS12381PrivateKey::from_bytes(&bits);
+    }
+
+    #[test]
+    fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_SIGNATURE_LENGTH..=BLS_SIGNATURE_LENGTH)) {
+        let _ = <BLS12381Signature as Signature>::from_bytes(&bits);
+        let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
+    }
+
 }
