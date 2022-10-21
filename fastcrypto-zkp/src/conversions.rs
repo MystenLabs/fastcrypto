@@ -365,7 +365,7 @@ pub(crate) mod tests {
     use super::*;
     use ark_bls12_381::{FqParameters, Fr as BlsFr};
     use ark_ec::{AffineCurve, ProjectiveCurve};
-    use ark_ff::Field;
+    use ark_ff::{Field, One, Zero};
     use blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
         blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
@@ -532,12 +532,21 @@ pub(crate) mod tests {
 
     // Affine point roundtrips
 
+    fn bls_g1_affine_infinity() -> BlsG1Affine {
+        BlsG1Affine::new(Fq::zero(), Fq::one(), true)
+    }
+
     pub(crate) fn arb_bls_g1_affine() -> impl Strategy<Value = BlsG1Affine> {
         // slow, but good enough for tests
-        arb_bls_fr().prop_map(|s| {
-            BlsG1Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
+        (arb_bls_fr(), any::<f32>()).prop_map(|(s, maybe_infinity)| {
+            if maybe_infinity < 0.1 {
+                // 10% chance of being the point at infinity
+                bls_g1_affine_infinity()
+            } else {
+                BlsG1Affine::prime_subgroup_generator()
+                    .mul(s.into_repr())
+                    .into_affine()
+            }
         })
     }
 
@@ -605,12 +614,20 @@ pub(crate) mod tests {
         }
     }
 
+    fn bls_g2_affine_infinity() -> BlsG2Affine {
+        BlsG2Affine::new(Fq2::zero(), Fq2::one(), true)
+    }
+
     fn arb_bls_g2_affine() -> impl Strategy<Value = BlsG2Affine> {
         // slow, but good enough for tests
-        arb_bls_fr().prop_map(|s| {
-            BlsG2Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
+        (arb_bls_fr(), any::<f32>()).prop_map(|(s, maybe_infinity)| {
+            if maybe_infinity < 0.1 {
+                bls_g2_affine_infinity()
+            } else {
+                BlsG2Affine::prime_subgroup_generator()
+                    .mul(s.into_repr())
+                    .into_affine()
+            }
         })
     }
 
