@@ -472,7 +472,7 @@
     <span class="kw">type </span>PubKey: VerifyingKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
     <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
 
-    <span class="doccomment">/// Parse a key from its byte representation
+    <span class="doccomment">/// Combine signatures into a single aggregated signature.
     </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
@@ -490,7 +490,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; <span class="kw">where</span>;
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
