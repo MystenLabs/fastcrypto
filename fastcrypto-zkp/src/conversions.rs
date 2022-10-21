@@ -489,11 +489,15 @@ pub(crate) mod tests {
 
     // QFE roundtrips
     fn arb_bls_fq2() -> impl Strategy<Value = Fq2> {
-        (arb_bls_fq(), arb_bls_fq()).prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+        (arb_bls_fq(), arb_bls_fq())
+            .prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+            .no_shrink()
     }
 
     fn arb_blst_fp2() -> impl Strategy<Value = blst_fp2> {
-        (arb_blst_fp(), arb_blst_fp()).prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+        (arb_blst_fp(), arb_blst_fp())
+            .prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+            .no_shrink()
     }
 
     proptest! {
@@ -517,12 +521,15 @@ pub(crate) mod tests {
     fn arb_bls_fq6() -> impl Strategy<Value = Fq6> {
         (arb_bls_fq2(), arb_bls_fq2(), arb_bls_fq2())
             .prop_map(|(f_c0, f_c1, f_c2)| Fq6::new(f_c0, f_c1, f_c2))
+            .no_shrink()
     }
 
     fn arb_blst_fp6() -> impl Strategy<Value = blst_fp6> {
-        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2()).prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
-            fp2: [f_c0, f_c1, f_c2],
-        })
+        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2())
+            .prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
+                fp2: [f_c0, f_c1, f_c2],
+            })
+            .no_shrink()
     }
 
     proptest! {
@@ -542,11 +549,15 @@ pub(crate) mod tests {
     }
 
     fn arb_bls_fq12() -> impl Strategy<Value = Fq12> {
-        (arb_bls_fq6(), arb_bls_fq6()).prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+        (arb_bls_fq6(), arb_bls_fq6())
+            .prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+            .no_shrink()
     }
 
     fn arb_blst_fp12() -> impl Strategy<Value = blst_fp12> {
-        (arb_blst_fp6(), arb_blst_fp6()).prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+        (arb_blst_fp6(), arb_blst_fp6())
+            .prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+            .no_shrink()
     }
 
     proptest! {
