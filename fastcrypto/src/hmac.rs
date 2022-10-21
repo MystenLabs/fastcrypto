@@ -89,7 +89,7 @@ where
 }
 
 ////////////////////////////////////////////////////////////////////////
-/// HMAC-SHA256 based functions
+/// HMAC-SHA3-256 based functions
 
 const HMAC_KEY_RECOMMENDED_LENGTH: usize = 32;
 const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
@@ -97,8 +97,8 @@ const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
-pub fn hmac(key: &HmacKey, message: &[u8]) -> Digest<32> {
-    let mut hash = Hmac::<sha2::Sha256>::new_from_slice(key.as_bytes()).unwrap();
+pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
+    let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     let output = hash.finalize();
     Digest {
@@ -106,18 +106,18 @@ pub fn hmac(key: &HmacKey, message: &[u8]) -> Digest<32> {
     }
 }
 
-pub fn hkdf(
+pub fn hkdf_sha3_256(
     ikm: &HkdfIkm,
     salt: &[u8],
     info: &[u8],
     output_length: usize,
 ) -> Result<Vec<u8>, FastCryptoError> {
-    if output_length > sha2::Sha256::output_size() * 255 {
+    if output_length > sha3::Sha3_256::output_size() * 255 {
         return Err(FastCryptoError::InputTooLong(
-            sha2::Sha256::output_size() * 255,
+            sha3::Sha3_256::output_size() * 255,
         ));
     }
-    let hk = hkdf::Hkdf::<sha2::Sha256, Hmac<sha2::Sha256>>::new(Some(salt), ikm.as_bytes());
+    let hk = hkdf::Hkdf::<sha3::Sha3_256, Hmac<sha3::Sha3_256>>::new(Some(salt), ikm.as_bytes());
     let mut output: Vec<u8> = vec![0; output_length];
     hk.expand(info, output.as_mut_slice())
         .map_err(|_| FastCryptoError::GeneralError)?;
