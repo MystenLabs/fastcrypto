@@ -662,7 +662,7 @@ impl AggregateAuthenticator for BLS12377AggregateSignature {
         }
 
         // TODO: The ark-bls12-377 create doesn't have a good function to verify aggregate signatures over different messages,
-        // but it it eventually does expose such a function, we should use that instead of the implementation below.
+        // but if it eventually does expose such a function, we should use that instead of the implementation below.
         let mut pairs: Vec<_> = pks
             .iter()
             .zip(messages)
