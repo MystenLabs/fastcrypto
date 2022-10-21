@@ -85,10 +85,11 @@ pub fn ark_multipairing_with_prepared_vk(
 const LEN: usize = 10;
 
 proptest! {
-    // This technical test is necessary because blst does not expose
-    // the miller_loop_n operation, and forces us to abuse the signature-oriented pairing engine
+    // This technical test is necessary because blst does not expose a generic multi-miller
+    // loop  operation, and forces us to abuse the signature-oriented pairing engine
     // that it does expose. Here we show the use of the pairing engine is equivalent to iterated
     // use of one-off pairings.
+    // see https://github.com/supranational/blst/issues/136
     #[test]
     fn test_blst_miller_loops(
         a_s in collection::vec(arb_blst_g1_affine().prop_filter("values must be non-infinity", |v| unsafe{!blst_p1_affine_is_inf(v)}), LEN..=LEN),
