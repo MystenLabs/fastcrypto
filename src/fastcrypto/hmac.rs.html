@@ -214,7 +214,7 @@
 }
 
 <span class="comment">////////////////////////////////////////////////////////////////////////
-</span><span class="doccomment">/// HMAC-SHA256 based functions
+</span><span class="doccomment">/// HMAC-SHA3-256 based functions
 
 </span><span class="kw">const </span>HMAC_KEY_RECOMMENDED_LENGTH: usize = <span class="number">32</span>;
 <span class="kw">const </span>HKDF_KEY_RECOMMENDED_LENGTH: usize = <span class="number">32</span>;
@@ -222,8 +222,8 @@
 <span class="kw">pub type </span>HmacKey = PrivateSeed&lt;HMAC_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 <span class="kw">pub type </span>HkdfIkm = PrivateSeed&lt;HKDF_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 
-<span class="kw">pub fn </span>hmac(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha2::Sha256&gt;::new_from_slice(key.as_bytes()).unwrap();
+<span class="kw">pub fn </span>hmac_sha3_256(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha3::Sha3_256&gt;::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     <span class="kw">let </span>output = hash.finalize();
     Digest {
@@ -231,18 +231,18 @@
     }
 }
 
-<span class="kw">pub fn </span>hkdf(
+<span class="kw">pub fn </span>hkdf_sha3_256(
     ikm: <span class="kw-2">&amp;</span>HkdfIkm,
     salt: <span class="kw-2">&amp;</span>[u8],
     info: <span class="kw-2">&amp;</span>[u8],
     output_length: usize,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
-    <span class="kw">if </span>output_length &gt; sha2::Sha256::output_size() * <span class="number">255 </span>{
+    <span class="kw">if </span>output_length &gt; sha3::Sha3_256::output_size() * <span class="number">255 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputTooLong(
-            sha2::Sha256::output_size() * <span class="number">255</span>,
+            sha3::Sha3_256::output_size() * <span class="number">255</span>,
         ));
     }
-    <span class="kw">let </span>hk = hkdf::Hkdf::&lt;sha2::Sha256, Hmac&lt;sha2::Sha256&gt;&gt;::new(<span class="prelude-val">Some</span>(salt), ikm.as_bytes());
+    <span class="kw">let </span>hk = hkdf::Hkdf::&lt;sha3::Sha3_256, Hmac&lt;sha3::Sha3_256&gt;&gt;::new(<span class="prelude-val">Some</span>(salt), ikm.as_bytes());
     <span class="kw">let </span><span class="kw-2">mut </span>output: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; output_length];
     hk.expand(info, output.as_mut_slice())
         .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)<span class="question-mark">?</span>;
