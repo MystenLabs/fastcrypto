@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{Fp384, FromBytes, PrimeField};
+use ark_ff::{BigInteger384, Fp384, FromBytes, PrimeField};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
@@ -16,7 +16,9 @@ use blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 
 const SCALAR_SIZE: usize = 32;
 const G1_UNCOMPRESSED_SIZE: usize = 96;
+const G1_COMPRESSED_SIZE: usize = 48;
 const G2_UNCOMPRESSED_SIZE: usize = 192;
+const G2_COMPRESSED_SIZE: usize = 96;
 
 #[inline]
 fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
@@ -135,7 +137,8 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     };
     // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we're in fact applying correct masks that arkworks does not use. This may be solved alternatively using
-    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks
+    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks. Note:
+    // this is an uncompressed serialization - deserialization.
     let mut tmp2 = [0u8; 96];
     unsafe {
         blst_p1_affine_serialize(tmp2.as_mut_ptr(), &tmp_p1);
@@ -167,7 +170,8 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     };
     // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
     // we're in fact applying correct masks that arkworks does not use. This may be solved alternatively using
-    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks
+    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks. Note:
+    // this is an uncompressed serialization - deserialization.
     let mut tmp2 = [0u8; G2_UNCOMPRESSED_SIZE];
     unsafe {
         blst_p2_affine_serialize(tmp2.as_mut_ptr(), &tmp_p2);
@@ -191,6 +195,171 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
     BlsG2Affine::new(ptx, pty, infinity)
 }
 
+/////////////////////////////////////////////////////////////
+// Zcash point encodings to Arkworks points and back       //
+/////////////////////////////////////////////////////////////
+
+// The standard for serialization of compressed G1, G2 points of BLS12-381
+// is not followed by Arkworks 0.3.0. This is a translation layer to allow
+// us to use (and receive) the standard serialization format.
+// See section 5.4.9.2 of https://zips.z.cash/protocol/protocol.pdf
+// and https://datatracker.ietf.org/doc/draft-irtf-cfrg-bls-signature/ Appendix A
+// for its choice as a standard.
+
+// A note on BLST: blst uses zcash point encoding formats across the board.
+
+fn bls_fq_to_zcash_bytes(field: &Fq) -> [u8; G1_COMPRESSED_SIZE] {
+    let mut result = [0u8; G1_COMPRESSED_SIZE];
+
+    let rep = field.into_repr();
+
+    result[0..8].copy_from_slice(&rep.0[5].to_be_bytes());
+    result[8..16].copy_from_slice(&rep.0[4].to_be_bytes());
+    result[16..24].copy_from_slice(&rep.0[3].to_be_bytes());
+    result[24..32].copy_from_slice(&rep.0[2].to_be_bytes());
+    result[32..40].copy_from_slice(&rep.0[1].to_be_bytes());
+    result[40..48].copy_from_slice(&rep.0[0].to_be_bytes());
+
+    result
+}
+
+fn bls_fq_from_zcash_bytes(bytes: &[u8; G1_COMPRESSED_SIZE]) -> Option<Fq> {
+    let mut tmp = BigInteger384::default();
+
+    tmp.0[5] = u64::from_be_bytes(bytes[0..8].try_into().unwrap());
+    tmp.0[4] = u64::from_be_bytes(bytes[8..16].try_into().unwrap());
+    tmp.0[3] = u64::from_be_bytes(bytes[16..24].try_into().unwrap());
+    tmp.0[2] = u64::from_be_bytes(bytes[24..32].try_into().unwrap());
+    tmp.0[1] = u64::from_be_bytes(bytes[32..40].try_into().unwrap());
+    tmp.0[0] = u64::from_be_bytes(bytes[40..48].try_into().unwrap());
+
+    Fq::from_repr(tmp)
+}
+
+struct EncodingFlags {
+    is_compressed: bool,
+    is_infinity: bool,
+    is_lexicographically_largest: bool,
+}
+
+impl From<&[u8]> for EncodingFlags {
+    fn from(bytes: &[u8]) -> Self {
+        Self {
+            is_compressed: ((bytes[0] >> 7) & 1) == 1,
+            is_infinity: (bytes[0] >> 6) & 1 == 1,
+            is_lexicographically_largest: (bytes[0] >> 5) & 1 == 1,
+        }
+    }
+}
+
+impl EncodingFlags {
+    fn encode_flags(&self, bytes: &mut [u8]) {
+        if self.is_compressed {
+            bytes[0] |= 1 << 7;
+        }
+
+        if self.is_infinity {
+            bytes[0] |= 1 << 6;
+        }
+
+        if self.is_compressed && !self.is_infinity && self.is_lexicographically_largest {
+            bytes[0] |= 1 << 5;
+        }
+    }
+}
+
+/// This deserializes an Arkworks G1Affine point from a Zcash point encoding.
+pub fn bls_g1_affine_from_zcash_bytes(bytes: &[u8; G1_COMPRESSED_SIZE]) -> Option<BlsG1Affine> {
+    // Obtain the three flags from the start of the byte sequence
+    let flags = EncodingFlags::from(&bytes[..]);
+
+    if !flags.is_compressed {
+        return None; // We only support compressed points
+    }
+
+    if flags.is_infinity {
+        return Some(BlsG1Affine::default());
+    }
+    // Attempt to obtain the x-coordinate
+    let x = {
+        let mut tmp = [0; G1_COMPRESSED_SIZE];
+        tmp.copy_from_slice(&bytes[0..48]);
+
+        // Mask away the flag bits
+        tmp[0] &= 0b0001_1111;
+
+        bls_fq_from_zcash_bytes(&tmp)?
+    };
+
+    BlsG1Affine::get_point_from_x(x, flags.is_lexicographically_largest)
+}
+
+/// This serializes an Arkworks G1Affine point into a Zcash point encoding.
+pub fn bls_g1_affine_to_zcash_bytes(p: &BlsG1Affine) -> [u8; G1_COMPRESSED_SIZE] {
+    let mut result = bls_fq_to_zcash_bytes(&p.x);
+    let encoding = EncodingFlags {
+        is_compressed: true,
+        is_infinity: p.infinity,
+        is_lexicographically_largest: p.y > -p.y,
+    };
+    encoding.encode_flags(&mut result[..]);
+    result
+}
+
+/// This deserializes an Arkworks G2Affine point from a Zcash point encoding.
+pub fn bls_g2_affine_from_zcash_bytes(bytes: &[u8; G2_COMPRESSED_SIZE]) -> Option<BlsG2Affine> {
+    // Obtain the three flags from the start of the byte sequence
+    let flags = EncodingFlags::from(&bytes[..]);
+
+    if !flags.is_compressed {
+        return None; // We only support compressed points
+    }
+
+    if flags.is_infinity {
+        return Some(BlsG2Affine::default());
+    }
+
+    // Attempt to obtain the x-coordinate
+    let xc1 = {
+        let mut tmp = [0; G1_COMPRESSED_SIZE];
+        tmp.copy_from_slice(&bytes[0..48]);
+
+        // Mask away the flag bits
+        tmp[0] &= 0b0001_1111;
+
+        bls_fq_from_zcash_bytes(&tmp)?
+    };
+    let xc0 = {
+        let mut tmp = [0; G1_COMPRESSED_SIZE];
+        tmp.copy_from_slice(&bytes[48..96]);
+
+        bls_fq_from_zcash_bytes(&tmp)?
+    };
+
+    let x = Fq2::new(xc0, xc1);
+
+    BlsG2Affine::get_point_from_x(x, flags.is_lexicographically_largest)
+}
+
+/// This serializes an Arkworks G2Affine point into a Zcash point encoding.
+pub fn bls_g2_affine_to_zcash_bytes(p: &BlsG2Affine) -> [u8; G2_COMPRESSED_SIZE] {
+    let mut bytes = [0u8; G2_COMPRESSED_SIZE];
+
+    let c1_bytes = bls_fq_to_zcash_bytes(&p.x.c1);
+    let c0_bytes = bls_fq_to_zcash_bytes(&p.x.c0);
+    bytes[0..48].copy_from_slice(&c1_bytes[..]);
+    bytes[48..96].copy_from_slice(&c0_bytes[..]);
+
+    let encoding = EncodingFlags {
+        is_compressed: true,
+        is_infinity: p.infinity,
+        is_lexicographically_largest: p.y > -p.y,
+    };
+
+    encoding.encode_flags(&mut bytes[..]);
+    bytes
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -199,7 +368,8 @@ pub(crate) mod tests {
     use ark_ff::Field;
     use blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
-        blst_p1, blst_p1_to_affine, blst_p2, blst_p2_to_affine,
+        blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
+        blst_p2_affine_compress, blst_p2_to_affine, blst_p2_uncompress,
     };
     use proptest::{collection, prelude::*};
 
@@ -272,6 +442,13 @@ pub(crate) mod tests {
             let bls_variant = blst_fp_to_bls_fq(&b);
             let roundtrip = bls_fq_to_blst_fp(&bls_variant);
             prop_assert_eq!(b, roundtrip);
+        }
+
+        #[test]
+        fn roundtrip_bls_fq_to_zcash_bytes(b in arb_bls_fq()) {
+            let zcash_bytes = bls_fq_to_zcash_bytes(&b);
+            let roundtrip = bls_fq_from_zcash_bytes(&zcash_bytes);
+            prop_assert_eq!(Some(b), roundtrip);
         }
     }
 
@@ -405,6 +582,27 @@ pub(crate) mod tests {
             assert_eq!(b, roundtrip);
         }
 
+        #[test]
+        fn roundtrip_bls_g1_affine_zcash(b in arb_bls_g1_affine()) {
+            let zcash_bytes = bls_g1_affine_to_zcash_bytes(&b);
+            let roundtrip = bls_g1_affine_from_zcash_bytes(&zcash_bytes).unwrap();
+            assert_eq!(b, roundtrip);
+        }
+
+        #[test]
+        fn compatibility_bls_blst_g1_affine_serde(b in arb_bls_g1_affine(), bt in arb_blst_g1_affine()) {
+            let zcash_bytes = bls_g1_affine_to_zcash_bytes(&b);
+            // blst accepts & expects zcash encodings
+            let mut g1 = blst_p1_affine::default();
+            assert!(unsafe { blst_p1_uncompress(&mut g1, zcash_bytes.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
+
+            // blst produces zcash encodings
+            let mut tmp2 = [0u8; 48];
+            unsafe {
+                blst_p1_affine_compress(tmp2.as_mut_ptr(), &bt);
+            };
+            assert!(bls_g1_affine_from_zcash_bytes(&tmp2).is_some());
+        }
     }
 
     fn arb_bls_g2_affine() -> impl Strategy<Value = BlsG2Affine> {
@@ -457,5 +655,26 @@ pub(crate) mod tests {
             assert_eq!(b, roundtrip);
         }
 
+        #[test]
+        fn roundtrip_bls_g2_affine_zcash(b in arb_bls_g2_affine()) {
+            let zcash_bytes = bls_g2_affine_to_zcash_bytes(&b);
+            let roundtrip = bls_g2_affine_from_zcash_bytes(&zcash_bytes).unwrap();
+            assert_eq!(b, roundtrip);
+        }
+
+        #[test]
+        fn compatibility_bls_blst_g2_affine_serde(b in arb_bls_g2_affine(), bt in arb_blst_g2_affine()) {
+            let zcash_bytes = bls_g2_affine_to_zcash_bytes(&b);
+            let mut g2 = blst_p2_affine::default();
+            // blst accepts & expects zcash encodings
+            assert!(unsafe { blst_p2_uncompress(&mut g2, zcash_bytes.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
+
+            // blst produces zcash encodings
+            let mut tmp2 = [0u8; 96];
+            unsafe {
+                blst_p2_affine_compress(tmp2.as_mut_ptr(), &bt);
+            };
+            assert!(bls_g2_affine_from_zcash_bytes(&tmp2).is_some());
+        }
     }
 }
