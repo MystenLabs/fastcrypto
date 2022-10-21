@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_mul, blst_fr, blst_miller_loop, blst_p1, blst_p1_affine,
-    blst_p1_to_affine, Pairing,
+    blst_p1_affine_is_inf, blst_p1_to_affine, blst_p2_affine_is_inf, Pairing,
 };
 use proptest::{collection, prelude::*};
 use std::{
@@ -91,9 +91,8 @@ proptest! {
     // use of one-off pairings.
     #[test]
     fn test_blst_miller_loops(
-        a_s in collection::vec(arb_blst_g1_affine(), LEN..=LEN),
-        b_s in collection::vec(arb_blst_g2_affine(), LEN..=LEN)
-
+        a_s in collection::vec(arb_blst_g1_affine().prop_filter("values must be non-infinity", |v| unsafe{!blst_p1_affine_is_inf(v)}), LEN..=LEN),
+        b_s in collection::vec(arb_blst_g2_affine().prop_filter("values must be non-infinity", |v| unsafe{!blst_p2_affine_is_inf(v)}), LEN..=LEN)
     ) {
         let pairing_engine_result = {
             let dst = [0u8; 3];

@@ -155,7 +155,6 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     }
 
     let mut g1 = blst_p1_affine::default();
-
     assert!(unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
     g1
 }
@@ -588,29 +587,45 @@ pub(crate) mod tests {
         })
     }
 
+    fn blst_g1_affine_infinity() -> blst_p1_affine {
+        let mut res = [0u8; G1_UNCOMPRESSED_SIZE];
+        res[0] = 0x40;
+        let mut g1_infinity = blst_p1_affine::default();
+        assert!(
+            unsafe { blst_p1_deserialize(&mut g1_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g1_infinity
+    }
+
     pub(crate) fn arb_blst_g1_affine() -> impl Strategy<Value = blst_p1_affine> {
-        collection::vec(any::<u8>(), 32..=32).prop_map(|msg| {
-            // we actually hash to a G1Projective, then convert to affine
-            let mut out = blst_p1::default();
-            const DST: [u8; 16] = [0; 16];
-            const AUG: [u8; 16] = [0; 16];
+        (collection::vec(any::<u8>(), 32..=32), any::<f32>()).prop_map(|(msg, maybe_infinity)| {
+            if maybe_infinity < 0.1 {
+                // 10% chance of being the point at infinity
+                blst_g1_affine_infinity()
+            } else {
+                // we actually hash to a G1Projective, then convert to affine
+                let mut out = blst_p1::default();
+                const DST: [u8; 16] = [0; 16];
+                const AUG: [u8; 16] = [0; 16];
 
-            unsafe {
-                blst_encode_to_g1(
-                    &mut out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
-                )
-            };
+                unsafe {
+                    blst_encode_to_g1(
+                        &mut out,
+                        msg.as_ptr(),
+                        msg.len(),
+                        DST.as_ptr(),
+                        DST.len(),
+                        AUG.as_ptr(),
+                        AUG.len(),
+                    )
+                };
 
-            let mut res = blst_p1_affine::default();
+                let mut res = blst_p1_affine::default();
 
-            unsafe { blst_p1_to_affine(&mut res, &out) };
-            res
+                unsafe { blst_p1_to_affine(&mut res, &out) };
+                res
+            }
         })
     }
 
@@ -671,29 +686,45 @@ pub(crate) mod tests {
         })
     }
 
+    fn blst_g2_affine_infinity() -> blst_p2_affine {
+        let mut res = [0u8; G2_UNCOMPRESSED_SIZE];
+        res[0] = 0x40;
+        let mut g2_infinity = blst_p2_affine::default();
+        assert!(
+            unsafe { blst_p2_deserialize(&mut g2_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g2_infinity
+    }
+
     pub(crate) fn arb_blst_g2_affine() -> impl Strategy<Value = blst_p2_affine> {
-        collection::vec(any::<u8>(), 32..=32).prop_map(|msg| {
-            // we actually hash to a G2Projective, then convert to affine
-            let mut out = blst_p2::default();
-            const DST: [u8; 16] = [0; 16];
-            const AUG: [u8; 16] = [0; 16];
+        (collection::vec(any::<u8>(), 32..=32), any::<f32>()).prop_map(|(msg, maybe_infinity)| {
+            if maybe_infinity < 0.1 {
+                // 10% chance of being the point at infinity
+                blst_g2_affine_infinity()
+            } else {
+                // we actually hash to a G2Projective, then convert to affine
+                let mut out = blst_p2::default();
+                const DST: [u8; 16] = [0; 16];
+                const AUG: [u8; 16] = [0; 16];
 
-            unsafe {
-                blst_encode_to_g2(
-                    &mut out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
-                )
-            };
+                unsafe {
+                    blst_encode_to_g2(
+                        &mut out,
+                        msg.as_ptr(),
+                        msg.len(),
+                        DST.as_ptr(),
+                        DST.len(),
+                        AUG.as_ptr(),
+                        AUG.len(),
+                    )
+                };
 
-            let mut res = blst_p2_affine::default();
+                let mut res = blst_p2_affine::default();
 
-            unsafe { blst_p2_to_affine(&mut res, &out) };
-            res
+                unsafe { blst_p2_to_affine(&mut res, &out) };
+                res
+            }
         })
     }
 
