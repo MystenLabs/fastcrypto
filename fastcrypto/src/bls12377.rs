@@ -4,6 +4,7 @@
 use std::{
     borrow::Borrow,
     fmt::{self, Display},
+    ops::Neg,
     str::FromStr,
 };
 
@@ -13,14 +14,14 @@ use crate::{
     traits::{AggregateAuthenticator, EncodeDecodeBase64, ToFromBytes},
 };
 use ::ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_bls12_377::{Fr, G1Affine, G1Projective, G2Affine, G2Projective};
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_bls12_377::{Bls12_377, Fq12, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
 use ark_ff::{
     bytes::{FromBytes, ToBytes},
-    Zero,
+    One, Zero,
 };
 use base64ct::{Base64, Encoding};
-use celo_bls::{hash_to_curve::try_and_increment, PublicKey};
+use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PublicKey};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -651,10 +652,42 @@ impl AggregateAuthenticator for BLS12377AggregateSignature {
 
     fn verify_different_msg(
         &self,
-        _pks: &[<Self::Sig as Authenticator>::PubKey],
-        _messages: &[&[u8]],
-    ) -> Result<(), crate::error::FastCryptoError> where {
-        todo!()
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
+    ) -> Result<(), crate::error::FastCryptoError> {
+        if pks.len() != messages.len() {
+            return Err(crate::error::FastCryptoError::InputLengthWrong(
+                messages.len(),
+            ));
+        }
+
+        // TODO: The ark-bls12-377 create doesn't have a good function to verify aggregate signatures over different messages,
+        // but if it eventually does expose such a function, we should use that instead of the implementation below.
+        let mut pairs: Vec<_> = pks
+            .iter()
+            .zip(messages)
+            .map(|(pk, m)| {
+                (
+                    try_and_increment::COMPOSITE_HASH_TO_G1
+                        .hash(celo_bls::SIG_DOMAIN, m, &[])
+                        .unwrap()
+                        .into_affine()
+                        .into(),
+                    pk.pubkey.as_ref().into_affine().into(),
+                )
+            })
+            .collect();
+        pairs.push((
+            G1Projective::into_affine(self.sig.as_ref().unwrap().as_ref()).into(),
+            G2Affine::prime_subgroup_generator().neg().into(),
+        ));
+        let pairing = Bls12_377::product_of_pairings(&pairs);
+
+        if Fq12::is_one(&pairing) {
+            Ok(())
+        } else {
+            Err(crate::error::FastCryptoError::GeneralError)
+        }
     }
 }
 
