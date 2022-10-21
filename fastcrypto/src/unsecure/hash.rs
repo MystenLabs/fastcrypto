@@ -4,7 +4,6 @@
 use std::hash::Hasher;
 
 use digest::OutputSizeUser;
-use generic_array::GenericArray;
 use twox_hash::xxh3::HasherExt;
 
 use crate::hash::{Digest, HashFunction};
@@ -22,14 +21,16 @@ impl OutputSizeUser for XXH3Unsecure {
     type OutputSize = typenum::U8;
 }
 
-impl HashFunction<typenum::U8> for XXH3Unsecure {
-    fn update(&mut self, data: &[u8]) {
-        self.instance.write(data);
+impl HashFunction<8> for XXH3Unsecure {
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
+        self.instance.write(data.as_ref());
     }
 
-    fn finalize(self) -> Digest<typenum::U8> {
+    fn finalize(self) -> Digest<8> {
         let hash: [u8; 8] = self.instance.finish().to_le_bytes();
-        Digest(hash.into())
+        Digest {
+            digest: hash.into(),
+        }
     }
 }
 
@@ -46,14 +47,16 @@ impl OutputSizeUser for XXH128Unsecure {
     type OutputSize = typenum::U16;
 }
 
-impl HashFunction<typenum::U16> for XXH128Unsecure {
-    fn update(&mut self, data: &[u8]) {
-        self.instance.write(data);
+impl HashFunction<16> for XXH128Unsecure {
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
+        self.instance.write(data.as_ref());
     }
 
-    fn finalize(self) -> Digest<typenum::U16> {
+    fn finalize(self) -> Digest<16> {
         let hash: [u8; 16] = self.instance.finish_ext().to_be_bytes();
-        Digest(hash.into())
+        Digest {
+            digest: hash.into(),
+        }
     }
 }
 
@@ -71,17 +74,17 @@ impl OutputSizeUser for Fast256HashUnsecure {
     type OutputSize = typenum::U32;
 }
 
-impl HashFunction<typenum::U32> for Fast256HashUnsecure {
-    fn update(&mut self, data: &[u8]) {
-        self.instance.write(data);
+impl HashFunction<32> for Fast256HashUnsecure {
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
+        self.instance.write(data.as_ref());
     }
 
-    fn finalize(self) -> Digest<typenum::U32> {
+    fn finalize(self) -> Digest<32> {
         // Create a 32 byte digest consisting of two copies of a Xxh128 digest.
         let short_digest: [u8; 16] = self.instance.finish_ext().to_be_bytes();
-        let mut digest = GenericArray::<u8, typenum::U32>::default();
+        let mut digest = [0; 32];
         digest[..16].copy_from_slice(&short_digest);
         digest[16..32].copy_from_slice(&short_digest);
-        Digest(digest)
+        Digest { digest: digest }
     }
 }

@@ -9,7 +9,6 @@ use crate::{
 };
 use base64ct::{Base64, Encoding};
 use eyre::eyre;
-use generic_array::ArrayLength;
 use rand::Rng;
 use serde::{
     de::{self},
@@ -17,6 +16,7 @@ use serde::{
 };
 use serde_with::serde_as;
 use std::{
+    borrow::Borrow,
     fmt::{self, Display},
     str::FromStr,
 };
@@ -58,8 +58,8 @@ pub struct UnsecureKeyPair {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct UnsecureSignature(pub [u8; SIGNATURE_LENGTH]);
 
-impl<DigestLength: ArrayLength<u8>> From<Digest<DigestLength>> for UnsecureSignature {
-    fn from(digest: Digest<DigestLength>) -> Self {
+impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
+    fn from(digest: Digest<DIGEST_LEN>) -> Self {
         UnsecureSignature(digest.to_vec().try_into().unwrap())
     }
 }
@@ -377,8 +377,12 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
     type Sig = UnsecureSignature;
 
     /// Parse a key from its byte representation
-    fn aggregate(signatures: Vec<Self::Sig>) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature(signatures))
+    fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
+        signatures: I,
+    ) -> Result<Self, FastCryptoError> {
+        Ok(UnsecureAggregateSignature(
+            signatures.into_iter().map(|s| s.borrow().clone()).collect(),
+        ))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
@@ -425,6 +429,14 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
             }
         }
         Ok(())
+    }
+
+    fn verify_different_msg(
+        &self,
+        _pks: &[<Self::Sig as Authenticator>::PubKey],
+        _messages: &[&[u8]],
+    ) -> Result<(), FastCryptoError> where {
+        todo!()
     }
 }
 
