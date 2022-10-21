@@ -2,20 +2,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
 use crate::{
-    hash::{Blake2b, Hashable},
+    hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
     unsecure::signature::{
         UnsecureAggregateSignature, UnsecureKeyPair, UnsecurePrivateKey, UnsecurePublicKey,
         UnsecurePublicKeyBytes, UnsecureSignature,
     },
+    SignatureService,
 };
 
+use ::signature::{Signer, Verifier};
 use rand::{rngs::StdRng, SeedableRng as _};
-use sha3::Sha3_256;
-use signature::{Signer, Verifier};
 
 pub fn keys() -> Vec<UnsecureKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -85,12 +84,12 @@ fn verify_valid_signature() {
 
     // Make signature.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
 
-    let signature = kp.sign(&digest.0);
+    let signature = kp.sign(&digest.digest);
 
     // Verify the signature.
-    assert!(kp.public().verify(&digest.0, &signature).is_ok());
+    assert!(kp.public().verify(&digest.digest, &signature).is_ok());
 }
 
 #[test]
@@ -100,14 +99,14 @@ fn verify_invalid_signature() {
 
     // Make signature.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
-    let mut signature = kp.sign(&digest.0);
+    let digest = Blake2b256::digest(message);
+    let mut signature = kp.sign(&digest.digest);
 
     // Modify the signature
     signature.0[3] += 1;
 
     // Verification should fail.
-    assert!(kp.public().verify(&digest.0, &signature).is_err());
+    assert!(kp.public().verify(&digest.digest, &signature).is_err());
 }
 
 #[test]
@@ -135,18 +134,18 @@ fn different_messages_give_different_signatures() {
 fn verify_valid_batch() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
     let (pubkeys, signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(&digest.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
 
     // Verify the batch.
-    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
+    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.digest, &pubkeys, &signatures);
     assert!(res.is_ok(), "{:?}", res);
 }
 
@@ -154,12 +153,12 @@ fn verify_valid_batch() {
 fn verify_invalid_batch() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
     let (pubkeys, mut signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(&digest.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -168,7 +167,7 @@ fn verify_invalid_batch() {
     signatures[1].0[0] += 1;
 
     // Verify the batch.
-    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.0, &pubkeys, &signatures);
+    let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.digest, &pubkeys, &signatures);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -176,20 +175,20 @@ fn verify_invalid_batch() {
 fn verify_valid_aggregate_signature() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
     let (pubkeys, signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(&digest.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
 
-    let aggregated_signature = UnsecureAggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(&signatures).unwrap();
 
     // // Verify the batch.
-    let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
+    let res = aggregated_signature.verify(&pubkeys[..], &digest.digest);
     assert!(res.is_ok(), "{:?}", res);
 }
 
@@ -197,12 +196,12 @@ fn verify_valid_aggregate_signature() {
 fn verify_invalid_aggregate_signature() {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
     let (pubkeys, mut signatures): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest.0);
+            let sig = kp.sign(&digest.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -210,10 +209,10 @@ fn verify_invalid_aggregate_signature() {
     // Modify one of the signatures
     signatures[1].0[0] += 1;
 
-    let aggregated_signature = UnsecureAggregateSignature::aggregate(signatures).unwrap();
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(&signatures).unwrap();
 
     // // Verify the batch.
-    let res = aggregated_signature.verify(&pubkeys[..], &digest.0);
+    let res = aggregated_signature.verify(&pubkeys[..], &digest.digest);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -221,35 +220,35 @@ fn verify_invalid_aggregate_signature() {
 fn verify_batch_aggregate_signature() {
     // Make signatures.
     let message1: &[u8] = b"Hello, world!";
-    let digest1 = message1.digest::<Blake2b<U32>>();
+    let digest1 = Blake2b256::digest(message1);
     let (pubkeys1, signatures1): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(&digest1.0);
+            let sig = kp.sign(&digest1.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
-    let aggregated_signature1 = UnsecureAggregateSignature::aggregate(signatures1).unwrap();
+    let aggregated_signature1 = UnsecureAggregateSignature::aggregate(&signatures1).unwrap();
 
     // Make signatures.
     let message2: &[u8] = b"Hello, world!";
-    let digest2 = message2.digest::<Blake2b<U32>>();
+    let digest2 = Blake2b256::digest(message2);
     let (pubkeys2, signatures2): (Vec<UnsecurePublicKey>, Vec<UnsecureSignature>) = keys()
         .into_iter()
         .take(2)
         .map(|kp| {
-            let sig = kp.sign(&digest2.0);
+            let sig = kp.sign(&digest2.digest);
             (kp.public().clone(), sig)
         })
         .unzip();
 
-    let aggregated_signature2 = UnsecureAggregateSignature::aggregate(signatures2).unwrap();
+    let aggregated_signature2 = UnsecureAggregateSignature::aggregate(&signatures2).unwrap();
 
     assert!(UnsecureAggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1[..].iter(), pubkeys2[..].iter()],
-        &[&digest1.0[..], &digest2.0[..]]
+        &[&digest1.digest[..], &digest2.digest[..]]
     )
     .is_ok());
 }
@@ -272,7 +271,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
         })
         .unzip();
 
-    let sig = UnsecureAggregateSignature::aggregate(signatures).unwrap();
+    let sig = UnsecureAggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let _deserialized: UnsecureAggregateSignature = bincode::deserialize(&serialized).unwrap();
 }
@@ -301,17 +300,18 @@ fn test_add_signatures_to_aggregate() {
     let mut sig2 = UnsecureAggregateSignature::default();
 
     let kp = &kps[0];
-    let sig = UnsecureAggregateSignature::aggregate(vec![kp.sign(message)]).unwrap();
+    let sig = UnsecureAggregateSignature::aggregate(&vec![kp.sign(message)]).unwrap();
     sig2.add_aggregate(sig).unwrap();
 
     assert!(sig2.verify(&pks[0..1], message).is_ok());
 
+    //let signatures: Vec<UnsecureSignature> = ;
     let aggregated_signature = UnsecureAggregateSignature::aggregate(
-        kps.into_iter()
+        &kps.into_iter()
             .take(3)
             .skip(1)
             .map(|kp| kp.sign(message))
-            .collect(),
+            .collect::<Vec<UnsecureSignature>>(),
     )
     .unwrap();
 
@@ -321,14 +321,58 @@ fn test_add_signatures_to_aggregate() {
 }
 
 #[test]
+fn test_add_signatures_to_aggregate_different_messages() {
+    let kps = keys();
+    let pks: Vec<UnsecurePublicKey> = kps.iter().take(3).map(|kp| kp.public().clone()).collect();
+    let messages: Vec<&[u8]> = vec![b"hello", b"world", b"!!!!!"];
+
+    // Test 'add signature'
+    let mut sig1 = UnsecureAggregateSignature::default();
+    // Test populated aggregate signature
+    for (i, kp) in kps.iter().take(3).enumerate() {
+        let sig = kp.sign(messages[i]);
+        sig1.add_signature(sig).unwrap();
+    }
+
+    assert!(sig1.verify_different_msg(&pks, &messages).is_ok());
+
+    // Test 'add aggregate signature'
+    let mut sig2 = UnsecureAggregateSignature::default();
+
+    let kp = &kps[0];
+    let sig = UnsecureAggregateSignature::aggregate(&[kp.sign(messages[0])]).unwrap();
+    sig2.add_aggregate(sig).unwrap();
+
+    assert!(sig2
+        .verify_different_msg(&pks[0..1], &messages[0..1])
+        .is_ok());
+
+    let aggregated_signature = UnsecureAggregateSignature::aggregate(
+        &kps.iter()
+            .zip(&messages)
+            .take(3)
+            .skip(1)
+            .map(|(kp, message)| kp.sign(message))
+            .collect::<Vec<UnsecureSignature>>(),
+    )
+    .unwrap();
+
+    sig2.add_aggregate(aggregated_signature).unwrap();
+
+    assert!(sig2.verify_different_msg(&pks, &messages).is_ok());
+}
+
+#[test]
 fn test_hkdf_generate_from_ikm() {
     let seed = &[
         0, 0, 1, 1, 2, 2, 4, 4, 8, 2, 0, 9, 3, 2, 4, 1, 1, 1, 2, 0, 1, 1, 3, 4, 1, 2, 9, 8, 7, 6,
         5, 4,
     ];
     let salt = &[3, 2, 1];
-    let kp = hkdf_generate_from_ikm::<Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
-    let kp2 = hkdf_generate_from_ikm::<Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
+    let kp =
+        hkdf_generate_from_ikm::<crate::hash::Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
+    let kp2 =
+        hkdf_generate_from_ikm::<crate::hash::Sha3_256, UnsecureKeyPair>(seed, salt, &[]).unwrap();
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
 }
 
@@ -361,9 +405,9 @@ async fn signature_service() {
 
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
-    let digest = message.digest::<Blake2b<U32>>();
+    let digest = Blake2b256::digest(message);
     let signature = service.request_signature(digest.clone()).await;
 
     // Verify the signature we received.
-    assert!(pk.verify(digest.0.as_slice(), &signature).is_ok());
+    assert!(pk.verify(digest.digest.as_slice(), &signature).is_ok());
 }
