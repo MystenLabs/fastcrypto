@@ -190,7 +190,7 @@ pub trait AggregateAuthenticator:
     type PubKey: VerifyingKey<Sig = Self::Sig>;
     type PrivKey: SigningKey<Sig = Self::Sig>;
 
-    /// Parse a key from its byte representation
+    /// Combine signatures into a single aggregated signature.
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError>;
@@ -208,7 +208,7 @@ pub trait AggregateAuthenticator:
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
-    ) -> Result<(), FastCryptoError> where;
+    ) -> Result<(), FastCryptoError>;
 
     fn batch_verify<'a>(
         sigs: &[&Self],
