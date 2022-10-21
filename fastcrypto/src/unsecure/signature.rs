@@ -433,10 +433,19 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
 
     fn verify_different_msg(
         &self,
-        _pks: &[<Self::Sig as Authenticator>::PubKey],
-        _messages: &[&[u8]],
+        pks: &[<Self::Sig as Authenticator>::PubKey],
+        messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> where {
-        todo!()
+        if pks
+            .iter()
+            .zip(self.0.iter())
+            .zip(messages)
+            .map(|((pk, sig), msg)| pk.verify(msg, sig))
+            .all(|v| v.is_ok())
+        {
+            return Ok(());
+        }
+        Err(FastCryptoError::GeneralError)
     }
 }
 
