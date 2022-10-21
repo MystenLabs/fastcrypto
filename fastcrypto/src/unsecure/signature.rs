@@ -376,7 +376,7 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
     type PubKey = UnsecurePublicKey;
     type Sig = UnsecureSignature;
 
-    /// Parse a key from its byte representation
+    /// Combine signatures into a single aggregated signature.
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
