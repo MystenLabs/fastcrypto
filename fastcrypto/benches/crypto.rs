@@ -54,14 +54,14 @@ mod signature_benches {
         verify_single::<Secp256k1KeyPair>("Sepc256k1", c);
     }
 
+    struct TestDataBatchedVerification<KP: KeyPair> {
+        msg: Vec<u8>,
+        public_keys: Vec<<KP as KeyPair>::PubKey>,
+        signatures: Vec<<KP as KeyPair>::Sig>,
+    }
+
     /// Generate keys and signatures for the same message and a given signature scheme.
-    fn generate_test_data<KP: KeyPair>(
-        size: usize,
-    ) -> (
-        Vec<u8>,
-        Vec<<KP as KeyPair>::PubKey>,
-        Vec<<KP as KeyPair>::Sig>,
-    ) {
+    fn generate_test_data<KP: KeyPair>(size: usize) -> TestDataBatchedVerification<KP> {
         let msg: Vec<u8> = Blake2b256::digest(b"Hello, world!".as_slice()).to_vec();
 
         let mut csprng: ThreadRng = thread_rng();
@@ -69,7 +69,11 @@ mod signature_benches {
         let signatures: Vec<_> = keypairs.iter().map(|key| key.sign(&msg)).collect();
         let public_keys: Vec<_> = keypairs.iter().map(|key| key.public().clone()).collect();
 
-        (msg, public_keys, signatures)
+        TestDataBatchedVerification {
+            msg,
+            public_keys,
+            signatures,
+        }
     }
 
     fn verify_batch_signatures_single<KP: KeyPair, M: measurement::Measurement>(
@@ -77,12 +81,16 @@ mod signature_benches {
         size: usize,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let (msg, public_keys, signatures) = generate_test_data::<KP>(size);
+        let test_data = generate_test_data::<KP>(size);
         c.bench_with_input(
             BenchmarkId::new(name.to_string() + " batched verification", size),
-            &(&msg, &public_keys, &signatures),
+            &(
+                &test_data.msg,
+                &test_data.public_keys,
+                &test_data.signatures,
+            ),
             |b, (m, pks, sigs)| {
-                b.iter(|| VerifyingKey::verify_batch_empty_fail(&m, &pks, &sigs));
+                b.iter(|| VerifyingKey::verify_batch_empty_fail(m, pks, sigs));
             },
         );
     }
@@ -96,27 +104,29 @@ mod signature_benches {
         size: usize,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let (msg, public_keys, signatures) = generate_test_data::<KP>(size);
+        let test_data = generate_test_data::<KP>(size);
 
-        let aggregate_signature = A::aggregate(&signatures).unwrap();
+        let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
 
         c.bench_with_input(
             BenchmarkId::new(name.to_string() + " aggregate verification", size),
-            &(&msg, &public_keys, &aggregate_signature),
+            &(&test_data.msg, &test_data.public_keys, &aggregate_signature),
             |b, (msg, pks, sig)| {
                 b.iter(|| sig.verify(pks, msg));
             },
         );
     }
 
+    struct TestDataBatchedVerificationDifferentMsgs<KP: KeyPair> {
+        msgs: Vec<[u8; 32]>,
+        public_keys: Vec<<KP as KeyPair>::PubKey>,
+        signatures: Vec<<KP as KeyPair>::Sig>,
+    }
+
     /// Generate messages, keys and signatures (same number of each) for a given signature scheme.
     fn generate_test_data_different_msg<KP: KeyPair>(
         size: usize,
-    ) -> (
-        Vec<[u8; 32]>,
-        Vec<<KP as KeyPair>::PubKey>,
-        Vec<<KP as KeyPair>::Sig>,
-    ) {
+    ) -> TestDataBatchedVerificationDifferentMsgs<KP> {
         let msgs: Vec<[u8; 32]> = (0..size)
             .map(|i| fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest)
             .collect();
@@ -130,7 +140,11 @@ mod signature_benches {
             .collect();
         let public_keys: Vec<_> = keypairs.iter().map(|key| key.public().clone()).collect();
 
-        (msgs, public_keys, signatures)
+        TestDataBatchedVerificationDifferentMsgs {
+            msgs,
+            public_keys,
+            signatures,
+        }
     }
 
     fn verify_batch_signatures_different_msg_single<KP: KeyPair, M: measurement::Measurement>(
@@ -138,15 +152,19 @@ mod signature_benches {
         size: usize,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let (msgs, public_keys, signatures) = generate_test_data_different_msg::<KP>(size);
+        let test_data = generate_test_data_different_msg::<KP>(size);
         c.bench_with_input(
             BenchmarkId::new(
                 name.to_string() + " batched verification with different messages",
                 size,
             ),
-            &(&msgs, &public_keys, &signatures),
+            &(
+                &test_data.msgs,
+                &test_data.public_keys,
+                &test_data.signatures,
+            ),
             |b, (m, pks, sigs)| {
-                b.iter(|| VerifyingKey::verify_batch_empty_fail_different_msg(&m, &pks, &sigs));
+                b.iter(|| VerifyingKey::verify_batch_empty_fail_different_msg(m, pks, sigs));
             },
         );
     }
@@ -160,16 +178,20 @@ mod signature_benches {
         size: usize,
         c: &mut BenchmarkGroup<M>,
     ) {
-        let (msgs, public_keys, signatures) = generate_test_data_different_msg::<KP>(size);
-        let aggregate_signature = A::aggregate(&signatures).unwrap();
+        let test_data = generate_test_data_different_msg::<KP>(size);
+        let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
         c.bench_with_input(
             BenchmarkId::new(
                 name.to_string() + " aggregate verification with different messages",
                 size,
             ),
             &(
-                msgs.iter().map(|m| m.as_slice()).collect::<Vec<&[u8]>>(),
-                public_keys,
+                test_data
+                    .msgs
+                    .iter()
+                    .map(|m| m.as_slice())
+                    .collect::<Vec<&[u8]>>(),
+                test_data.public_keys,
                 aggregate_signature,
             ),
             |b, (msgs, pk, sig)| {
