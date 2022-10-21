@@ -24,7 +24,7 @@ mod signature_benches {
         let msg: &[u8] = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
-        c.bench_function(&(name.to_string() + " signature verification"), move |b| {
+        c.bench_function(&(name.to_string() + " signing"), move |b| {
             b.iter(|| keypair.sign(msg))
         });
     }
