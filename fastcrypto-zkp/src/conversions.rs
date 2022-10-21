@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger384, Fp384, FromBytes, PrimeField};
+use ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
@@ -143,6 +143,17 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     unsafe {
         blst_p1_affine_serialize(tmp2.as_mut_ptr(), &tmp_p1);
     };
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if pt.infinity {
+        tmp2[0] = 0x40; // set the infinity bit
+        tmp2[48..].copy_from_slice(&[0u8; 48]); // zeroize the rest of the point
+    }
+
     let mut g1 = blst_p1_affine::default();
 
     assert!(unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
@@ -154,12 +165,24 @@ pub fn blst_g1_affine_to_bls_g1_affine(pt: &blst_p1_affine) -> BlsG1Affine {
     unsafe {
         blst_p1_affine_serialize(out.as_mut_ptr(), pt);
     }
-    let infinity = out[0] & (1 << 6) != 0;
-    BlsG1Affine::new(
-        Fp384::from_be_bytes_mod_order(&out[..48]),
-        Fp384::from_be_bytes_mod_order(&out[48..]),
-        infinity,
-    )
+    let infinity = out[0] == 0x40;
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    let y = if infinity {
+        Fq::one()
+    } else {
+        Fp384::from_be_bytes_mod_order(&out[48..])
+    };
+    let x = {
+        // Mask away the flag bits (which Arkworks doesn't use)
+        out[0] &= 0b0001_1111;
+        Fp384::from_be_bytes_mod_order(&out[..48])
+    };
+    BlsG1Affine::new(x, y, infinity)
 }
 
 pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
@@ -176,6 +199,16 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     unsafe {
         blst_p2_affine_serialize(tmp2.as_mut_ptr(), &tmp_p2);
     };
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if pt.infinity {
+        tmp2[0] = 0x40; // set the infinity bit
+        tmp2[96..].copy_from_slice(&[0u8; 96]); // zeroize the rest of the point
+    }
 
     let mut g2 = blst_p2_affine::default();
     assert!(unsafe { blst_p2_deserialize(&mut g2, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
@@ -186,13 +219,16 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
     let ptx = blst_fp2_to_bls_fq2(&pt.x);
     let pty = blst_fp2_to_bls_fq2(&pt.y);
 
-    // TODO: surely there's a better way to do this?
-    let mut out = [0u8; G2_UNCOMPRESSED_SIZE];
-    unsafe {
-        blst_p2_affine_serialize(out.as_mut_ptr(), pt);
-    }
-    let infinity = out[0] & (1 << 6) != 0;
-    BlsG2Affine::new(ptx, pty, infinity)
+    let infinity = ptx == Fq2::zero();
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    let y = if infinity { Fq2::one() } else { pty };
+
+    BlsG2Affine::new(ptx, y, infinity)
 }
 
 /////////////////////////////////////////////////////////////
@@ -533,7 +569,9 @@ pub(crate) mod tests {
     // Affine point roundtrips
 
     fn bls_g1_affine_infinity() -> BlsG1Affine {
-        BlsG1Affine::new(Fq::zero(), Fq::one(), true)
+        let res = BlsG1Affine::zero();
+        debug_assert_eq!(res, BlsG1Affine::new(Fq::zero(), Fq::one(), true));
+        res
     }
 
     pub(crate) fn arb_bls_g1_affine() -> impl Strategy<Value = BlsG1Affine> {
@@ -615,7 +653,9 @@ pub(crate) mod tests {
     }
 
     fn bls_g2_affine_infinity() -> BlsG2Affine {
-        BlsG2Affine::new(Fq2::zero(), Fq2::one(), true)
+        let res = BlsG2Affine::zero();
+        debug_assert_eq!(res, BlsG2Affine::new(Fq2::zero(), Fq2::one(), true));
+        res
     }
 
     fn arb_bls_g2_affine() -> impl Strategy<Value = BlsG2Affine> {
