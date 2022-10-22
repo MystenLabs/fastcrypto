@@ -609,9 +609,8 @@ impl AggregateAuthenticator for BLS12377AggregateSignature {
         apk.verify(
             message,
             &[],
-            &self
-                .sig
-                .clone()
+            self.sig
+                .as_ref()
                 .ok_or(crate::error::FastCryptoError::GeneralError)?,
             &*try_and_increment::COMPOSITE_HASH_TO_G1,
         )
