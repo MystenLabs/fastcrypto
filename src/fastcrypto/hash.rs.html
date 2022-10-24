@@ -263,7 +263,7 @@
 <span class="doccomment">/// This trait is implemented by all messages that can be hashed.
 </span><span class="kw">pub trait </span>Hash&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
     <span class="doccomment">/// The type of the digest when this is hashed.
-    </span><span class="kw">type </span>TypedDigest: Into&lt;Digest&lt;DIGEST_LEN&gt;&gt; + Eq + std::hash::Hash + Copy;
+    </span><span class="kw">type </span>TypedDigest: Into&lt;Digest&lt;DIGEST_LEN&gt;&gt; + Eq + std::hash::Hash + Copy + fmt::Debug;
 
     <span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::TypedDigest;
 }
@@ -333,4 +333,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (5c8bff74b 2022-10-21)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.66.0-nightly (7fcf850d7 2022-10-23)" ></div></body></html>
