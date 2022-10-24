@@ -241,12 +241,11 @@
 <span id="241">241</span>
 <span id="242">242</span>
 <span id="243">243</span>
-<span id="244">244</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{iter, ops::Neg, ptr};
 
-<span class="kw">use </span>ark_bls12_381::{Bls12_381, Fr <span class="kw">as </span>BlsFr, G2Affine};
+<span class="kw">use </span>ark_bls12_381::{Bls12_381, Fr <span class="kw">as </span>BlsFr, G1Affine, G2Affine};
 <span class="kw">pub use </span>ark_groth16::{Proof, VerifyingKey};
 <span class="kw">use </span>ark_relations::r1cs::SynthesisError;
 
@@ -268,10 +267,11 @@
 /// This is roughly homologous to [`ark_groth16::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don&#39;t store a &quot;prepared&quot; version of the gamma_g2_neg_pc,
 /// delta_g2_neg_pc fields, because we can&#39;t use them with blst&#39;s pairing engine.
-</span><span class="attribute">#[derive(Clone, Debug, PartialEq)]
-</span><span class="kw">pub struct </span>SpecialPreparedVerifyingKey {
-    <span class="doccomment">/// The unprepared verification key.
-    </span><span class="kw">pub </span>vk: VerifyingKey&lt;Bls12_381&gt;,
+</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>PreparedVerifyingKey {
+    <span class="doccomment">/// The element vk.gamma_abc_g1,
+    /// aka the `[gamma^{-1} * (beta * a_i + alpha * b_i + c_i) * G]`, where i spans the public inputs
+    </span><span class="kw">pub </span>vk_gamma_abc_g1: Vec&lt;G1Affine&gt;,
     <span class="doccomment">/// The element `e(alpha * G, beta * H)` in `E::GT`.
     </span><span class="kw">pub </span>alpha_g1_beta_g2: blst_fp12,
     <span class="doccomment">/// The element `- gamma * H` in `E::G2`, for use in pairings.
@@ -283,8 +283,7 @@
 <span class="doccomment">/// Takes an input Verifier key `vk` and returns a `SpecialPreparedVerifyingKey`. This is roughly homologous to
 /// [`ark_groth16::PreparedVerifyingKey::process_vk`].
 ///
-/// TODO: we are storing a superfluous copy of the vk, we could do with just vk.gamma_abc_g1.
-</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey&lt;Bls12_381&gt;) -&gt; SpecialPreparedVerifyingKey {
+</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey&lt;Bls12_381&gt;) -&gt; PreparedVerifyingKey {
     <span class="kw">let </span>g1_alpha = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>vk.alpha_g1);
     <span class="kw">let </span>g2_beta = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>vk.beta_g2);
     <span class="kw">let </span>blst_alpha_g1_beta_g2 = {
@@ -295,8 +294,8 @@
         <span class="kw">unsafe </span>{ blst_final_exp(<span class="kw-2">&amp;mut </span>out, <span class="kw-2">&amp;</span>tmp) };
         out
     };
-    SpecialPreparedVerifyingKey {
-        vk: vk.clone(),
+    PreparedVerifyingKey {
+        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
         alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
         gamma_g2_neg_pc: vk.gamma_g2.neg(),
         delta_g2_neg_pc: vk.delta_g2.neg(),
@@ -433,14 +432,13 @@
 /// Eventually, we will compare this value to  e(g * alpha, h * beta)
 ///
 </span><span class="kw">fn </span>multipairing_with_processed_vk(
-    pvk: <span class="kw-2">&amp;</span>SpecialPreparedVerifyingKey,
+    pvk: <span class="kw-2">&amp;</span>PreparedVerifyingKey,
     x: <span class="kw-2">&amp;</span>[BlsFr],
     proof: <span class="kw-2">&amp;</span>Proof&lt;Bls12_381&gt;,
 ) -&gt; blst_fp12 {
     <span class="comment">// Linear combination: note that the arkworks interface assumes the 1st scalar is an implicit 1
     </span><span class="kw">let </span>pts: Vec&lt;blst_p1_affine&gt; = pvk
-        .vk
-        .gamma_abc_g1
+        .vk_gamma_abc_g1
         .iter()
         .map(bls_g1_affine_to_blst_g1_affine)
         .collect();
@@ -474,12 +472,12 @@
 /// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
 /// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 </span><span class="kw">pub fn </span>verify_with_processed_vk(
-    pvk: <span class="kw-2">&amp;</span>SpecialPreparedVerifyingKey,
+    pvk: <span class="kw-2">&amp;</span>PreparedVerifyingKey,
     x: <span class="kw-2">&amp;</span>[BlsFr],
     proof: <span class="kw-2">&amp;</span>Proof&lt;Bls12_381&gt;,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
     <span class="comment">// Note the &quot;+1&quot; : this API implies the first scalar coefficient is 1 and not sent
-    </span><span class="kw">if </span>(x.len() + <span class="number">1</span>) != pvk.vk.gamma_abc_g1.len() {
+    </span><span class="kw">if </span>(x.len() + <span class="number">1</span>) != pvk.vk_gamma_abc_g1.len() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::MalformedVerifyingKey);
     }
 
