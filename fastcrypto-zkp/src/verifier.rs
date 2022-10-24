@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{iter, ops::Neg, ptr};
 
-use ark_bls12_381::{Bls12_381, Fr as BlsFr, G2Affine};
+use ark_bls12_381::{Bls12_381, Fr as BlsFr, G1Affine, G2Affine};
 pub use ark_groth16::{Proof, VerifyingKey};
 use ark_relations::r1cs::SynthesisError;
 
@@ -24,10 +24,11 @@ mod verifier_tests;
 /// This is roughly homologous to [`ark_groth16::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don't store a "prepared" version of the gamma_g2_neg_pc,
 /// delta_g2_neg_pc fields, because we can't use them with blst's pairing engine.
-#[derive(Clone, Debug, PartialEq)]
-pub struct SpecialPreparedVerifyingKey {
-    /// The unprepared verification key.
-    pub vk: VerifyingKey<Bls12_381>,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreparedVerifyingKey {
+    /// The element vk.gamma_abc_g1,
+    /// aka the `[gamma^{-1} * (beta * a_i + alpha * b_i + c_i) * G]`, where i spans the public inputs
+    pub vk_gamma_abc_g1: Vec<G1Affine>,
     /// The element `e(alpha * G, beta * H)` in `E::GT`.
     pub alpha_g1_beta_g2: blst_fp12,
     /// The element `- gamma * H` in `E::G2`, for use in pairings.
@@ -39,8 +40,7 @@ pub struct SpecialPreparedVerifyingKey {
 /// Takes an input Verifier key `vk` and returns a `SpecialPreparedVerifyingKey`. This is roughly homologous to
 /// [`ark_groth16::PreparedVerifyingKey::process_vk`].
 ///
-/// TODO: we are storing a superfluous copy of the vk, we could do with just vk.gamma_abc_g1.
-pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> SpecialPreparedVerifyingKey {
+pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey {
     let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.alpha_g1);
     let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.beta_g2);
     let blst_alpha_g1_beta_g2 = {
@@ -51,8 +51,8 @@ pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> SpecialPreparedVerify
         unsafe { blst_final_exp(&mut out, &tmp) };
         out
     };
-    SpecialPreparedVerifyingKey {
-        vk: vk.clone(),
+    PreparedVerifyingKey {
+        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
         alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
         gamma_g2_neg_pc: vk.gamma_g2.neg(),
         delta_g2_neg_pc: vk.delta_g2.neg(),
@@ -189,14 +189,13 @@ pub(crate) const BLST_FR_ONE: blst_fr = blst_fr {
 /// Eventually, we will compare this value to  e(g * alpha, h * beta)
 ///
 fn multipairing_with_processed_vk(
-    pvk: &SpecialPreparedVerifyingKey,
+    pvk: &PreparedVerifyingKey,
     x: &[BlsFr],
     proof: &Proof<Bls12_381>,
 ) -> blst_fp12 {
     // Linear combination: note that the arkworks interface assumes the 1st scalar is an implicit 1
     let pts: Vec<blst_p1_affine> = pvk
-        .vk
-        .gamma_abc_g1
+        .vk_gamma_abc_g1
         .iter()
         .map(bls_g1_affine_to_blst_g1_affine)
         .collect();
@@ -230,12 +229,12 @@ fn multipairing_with_processed_vk(
 /// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
 /// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 pub fn verify_with_processed_vk(
-    pvk: &SpecialPreparedVerifyingKey,
+    pvk: &PreparedVerifyingKey,
     x: &[BlsFr],
     proof: &Proof<Bls12_381>,
 ) -> Result<bool, SynthesisError> {
     // Note the "+1" : this API implies the first scalar coefficient is 1 and not sent
-    if (x.len() + 1) != pvk.vk.gamma_abc_g1.len() {
+    if (x.len() + 1) != pvk.vk_gamma_abc_g1.len() {
         return Err(SynthesisError::MalformedVerifyingKey);
     }
 
