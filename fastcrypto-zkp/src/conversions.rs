@@ -585,17 +585,19 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn arb_bls_g1_affine() -> impl Strategy<Value = BlsG1Affine> {
-        // slow, but good enough for tests
-        (arb_bls_fr(), any::<f32>()).prop_map(|(s, maybe_infinity)| {
-            if maybe_infinity < 0.1 {
-                // 10% chance of being the point at infinity
-                bls_g1_affine_infinity()
-            } else {
-                BlsG1Affine::prime_subgroup_generator()
-                    .mul(s.into_repr())
-                    .into_affine()
-            }
-        })
+        prop_oneof![
+            // 1% chance of being the point at infinity
+            1 =>
+            Just(bls_g1_affine_infinity()),
+            99 =>  // slow, but good enough for tests
+            (arb_bls_fr()).prop_map(|s| {
+
+                    BlsG1Affine::prime_subgroup_generator()
+                        .mul(s.into_repr())
+                        .into_affine()
+
+            })
+        ]
     }
 
     fn blst_g1_affine_infinity() -> blst_p1_affine {
@@ -610,34 +612,36 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn arb_blst_g1_affine() -> impl Strategy<Value = blst_p1_affine> {
-        (collection::vec(any::<u8>(), 32..=32), any::<f32>()).prop_map(|(msg, maybe_infinity)| {
-            if maybe_infinity < 0.1 {
-                // 10% chance of being the point at infinity
-                blst_g1_affine_infinity()
-            } else {
-                // we actually hash to a G1Projective, then convert to affine
-                let mut out = blst_p1::default();
-                const DST: [u8; 16] = [0; 16];
-                const AUG: [u8; 16] = [0; 16];
+        prop_oneof![
+                // 1% chance of being the point at infinity
+                1 => Just(blst_g1_affine_infinity()),
+                99 =>
+                (collection::vec(any::<u8>(), 32..=32)).prop_map(|msg| {
 
-                unsafe {
-                    blst_encode_to_g1(
-                        &mut out,
-                        msg.as_ptr(),
-                        msg.len(),
-                        DST.as_ptr(),
-                        DST.len(),
-                        AUG.as_ptr(),
-                        AUG.len(),
-                    )
-                };
+                        // we actually hash to a G1Projective, then convert to affine
+                        let mut out = blst_p1::default();
+                        const DST: [u8; 16] = [0; 16];
+                        const AUG: [u8; 16] = [0; 16];
 
-                let mut res = blst_p1_affine::default();
+                        unsafe {
+                            blst_encode_to_g1(
+                                &mut out,
+                                msg.as_ptr(),
+                                msg.len(),
+                                DST.as_ptr(),
+                                DST.len(),
+                                AUG.as_ptr(),
+                                AUG.len(),
+                            )
+                        };
 
-                unsafe { blst_p1_to_affine(&mut res, &out) };
-                res
-            }
-        })
+                        let mut res = blst_p1_affine::default();
+
+                        unsafe { blst_p1_to_affine(&mut res, &out) };
+                        res
+                    }
+                )
+        ]
     }
 
     proptest! {
@@ -709,11 +713,10 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn arb_blst_g2_affine() -> impl Strategy<Value = blst_p2_affine> {
-        (collection::vec(any::<u8>(), 32..=32), any::<f32>()).prop_map(|(msg, maybe_infinity)| {
-            if maybe_infinity < 0.1 {
-                // 10% chance of being the point at infinity
-                blst_g2_affine_infinity()
-            } else {
+        prop_oneof![
+            1 =>// 1% chance of being the point at infinity
+                Just(blst_g2_affine_infinity()),
+            99 => (collection::vec(any::<u8>(), 32..=32)).prop_map(|msg| {
                 // we actually hash to a G2Projective, then convert to affine
                 let mut out = blst_p2::default();
                 const DST: [u8; 16] = [0; 16];
@@ -735,8 +738,8 @@ pub(crate) mod tests {
 
                 unsafe { blst_p2_to_affine(&mut res, &out) };
                 res
-            }
-        })
+            })
+        ]
     }
 
     proptest! {
