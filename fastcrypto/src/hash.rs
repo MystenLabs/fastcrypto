@@ -96,7 +96,7 @@ pub trait HashFunction<const DIGEST_LENGTH: usize>: Default {
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hash<const DIGEST_LEN: usize> {
     /// The type of the digest when this is hashed.
-    type TypedDigest: Into<Digest<DIGEST_LEN>> + Eq + std::hash::Hash + Copy;
+    type TypedDigest: Into<Digest<DIGEST_LEN>> + Eq + std::hash::Hash + Copy + fmt::Debug;
 
     fn digest(&self) -> Self::TypedDigest;
 }
