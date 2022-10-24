@@ -7,11 +7,17 @@ use ark_relations::{
     r1cs::{ConstraintSynthesizer, ConstraintSystemRef, SynthesisError},
 };
 
-#[derive(Copy, Clone)]
+/// A dummy circuit that checks an addition constraint between some of its inputs
+/// as well as a parametrized number of dummy constraints.
+#[derive(Debug, Copy, Clone)]
 pub struct DummyCircuit<F: PrimeField> {
+    /// the first input to the circuit
     pub a: Option<F>,
+    /// the second input to the circuit
     pub b: Option<F>,
+    /// The number of variables to the circuit
     pub num_variables: usize,
+    /// the number of constraints to the circuit
     pub num_constraints: usize,
 }
 

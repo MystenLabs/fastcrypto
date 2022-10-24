@@ -31,6 +31,7 @@ fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
 }
 
 // Scalar Field conversions
+/// Convert an Arkworks BLS12-381 scalar field element to a blst scalar field element
 pub fn bls_fr_to_blst_fr(fe: &BlsFr) -> blst_fr {
     debug_assert_eq!(fe.serialized_size(), SCALAR_SIZE);
     let mut bytes = [0u8; SCALAR_SIZE];
@@ -43,6 +44,7 @@ pub fn bls_fr_to_blst_fr(fe: &BlsFr) -> blst_fr {
     out
 }
 
+/// Convert a blst scalar field element to an Arkworks BLS12-381 scalar field element
 pub fn blst_fr_to_bls_fr(fe: &blst_fr) -> BlsFr {
     let mut out = [0u64; 4];
     unsafe { blst_uint64_from_fr(out.as_mut_ptr(), fe) };
@@ -52,6 +54,7 @@ pub fn blst_fr_to_bls_fr(fe: &blst_fr) -> BlsFr {
 }
 
 // Base Field conversions
+/// Convert an Arkworks BLS12-381 base field element to a blst base field element
 pub fn bls_fq_to_blst_fp(f: &Fq) -> blst_fp {
     let mut fp_bytes_le = [0u8; G1_UNCOMPRESSED_SIZE / 2];
     f.serialize_uncompressed(&mut fp_bytes_le[..])
@@ -64,6 +67,7 @@ pub fn bls_fq_to_blst_fp(f: &Fq) -> blst_fp {
     blst_fp
 }
 
+/// Convert a blst base field element to an Arkworks BLS12-381 base field element
 pub fn blst_fp_to_bls_fq(f: &blst_fp) -> Fq {
     let mut out = [0u64; 6];
     unsafe { blst_uint64_from_fp(out.as_mut_ptr(), f) };
@@ -72,6 +76,7 @@ pub fn blst_fp_to_bls_fq(f: &blst_fp) -> Fq {
 }
 
 // QFE conversions
+/// Convert an Arkworks BLS12-381 quadratic extension field element to a blst quadratic extension field element
 pub fn bls_fq2_to_blst_fp2(f: &Fq2) -> blst_fp2 {
     let mut fp_bytes_le = [0u8; G2_UNCOMPRESSED_SIZE / 2];
     f.serialize_uncompressed(&mut fp_bytes_le[..])
@@ -93,6 +98,7 @@ pub fn bls_fq2_to_blst_fp2(f: &Fq2) -> blst_fp2 {
     }
 }
 
+/// Convert a blst quadratic extension field element to an Arkworks BLS12-381 quadratic extension field element
 pub fn blst_fp2_to_bls_fq2(f: &blst_fp2) -> Fq2 {
     let [fp1, fp2] = f.fp;
     let bls_fp1 = blst_fp_to_bls_fq(&fp1);
@@ -101,6 +107,8 @@ pub fn blst_fp2_to_bls_fq2(f: &blst_fp2) -> Fq2 {
 }
 
 // Target Field conversions
+
+/// Convert an Arkworks BLS12-381 degree-6 extension field element to a blst degree-6 extension field element
 pub fn bls_fq6_to_blst_fp6(f: &Fq6) -> blst_fp6 {
     let c0 = bls_fq2_to_blst_fp2(&f.c0);
     let c1 = bls_fq2_to_blst_fp2(&f.c1);
@@ -108,6 +116,7 @@ pub fn bls_fq6_to_blst_fp6(f: &Fq6) -> blst_fp6 {
     blst_fp6 { fp2: [c0, c1, c2] }
 }
 
+/// Convert a blst degree-6 extension field element to an Arkworks BLS12-381 degree-6 extension field element
 pub fn blst_fp6_to_bls_fq6(f: &blst_fp6) -> Fq6 {
     let c0 = blst_fp2_to_bls_fq2(&f.fp2[0]);
     let c1 = blst_fp2_to_bls_fq2(&f.fp2[1]);
@@ -115,12 +124,14 @@ pub fn blst_fp6_to_bls_fq6(f: &blst_fp6) -> Fq6 {
     Fq6::new(c0, c1, c2)
 }
 
+/// Convert an Arkworks BLS12-381 target field element to a blst target field element
 pub fn bls_fq12_to_blst_fp12(f: &Fq12) -> blst_fp12 {
     let c0 = bls_fq6_to_blst_fp6(&f.c0);
     let c1 = bls_fq6_to_blst_fp6(&f.c1);
     blst_fp12 { fp6: [c0, c1] }
 }
 
+/// Convert a blst target field element to an Arkworks BLS12-381 target field element
 pub fn blst_fp12_to_bls_fq12(f: &blst_fp12) -> Fq12 {
     let c0 = blst_fp6_to_bls_fq6(&f.fp6[0]);
     let c1 = blst_fp6_to_bls_fq6(&f.fp6[1]);
@@ -142,6 +153,7 @@ fn bls_g1_affine_infinity() -> BlsG1Affine {
     BlsG1Affine::new(Fq::zero(), Fq::one(), true)
 }
 
+/// Convert an Arkworks BLS12-381 affine G1 point to a blst affine G1 point
 pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     debug_assert_eq!(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
     // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
@@ -171,6 +183,7 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     g1
 }
 
+/// Convert a blst affine G1 point to an Arkworks BLS12-381 affine G1 point
 pub fn blst_g1_affine_to_bls_g1_affine(pt: &blst_p1_affine) -> BlsG1Affine {
     let mut out = [0u8; G1_UNCOMPRESSED_SIZE];
     unsafe {
@@ -206,6 +219,7 @@ fn bls_g2_affine_infinity() -> BlsG2Affine {
     BlsG2Affine::new(Fq2::zero(), Fq2::one(), true)
 }
 
+/// Convert an Arkworks BLS12-381 affine G2 point to a blst affine G2 point
 pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     debug_assert_eq!(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
     // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
@@ -235,6 +249,7 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     g2
 }
 
+/// Convert a blst affine G2 point to an Arkworks BLS12-381 affine G2 point
 pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
     let ptx = blst_fp2_to_bls_fq2(&pt.x);
     let pty = blst_fp2_to_bls_fq2(&pt.y);
