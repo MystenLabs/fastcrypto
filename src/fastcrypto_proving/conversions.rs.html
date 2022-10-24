@@ -803,6 +803,21 @@
 <span id="803">803</span>
 <span id="804">804</span>
 <span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
@@ -836,6 +851,7 @@
 }
 
 <span class="comment">// Scalar Field conversions
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 scalar field element to a blst scalar field element
 </span><span class="kw">pub fn </span>bls_fr_to_blst_fr(fe: <span class="kw-2">&amp;</span>BlsFr) -&gt; blst_fr {
     <span class="macro">debug_assert_eq!</span>(fe.serialized_size(), SCALAR_SIZE);
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; SCALAR_SIZE];
@@ -848,7 +864,8 @@
     out
 }
 
-<span class="kw">pub fn </span>blst_fr_to_bls_fr(fe: <span class="kw-2">&amp;</span>blst_fr) -&gt; BlsFr {
+<span class="doccomment">/// Convert a blst scalar field element to an Arkworks BLS12-381 scalar field element
+</span><span class="kw">pub fn </span>blst_fr_to_bls_fr(fe: <span class="kw-2">&amp;</span>blst_fr) -&gt; BlsFr {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">4</span>];
     <span class="kw">unsafe </span>{ blst_uint64_from_fr(out.as_mut_ptr(), fe) };
     <span class="kw">let </span>bytes = out.as_byte_slice();
@@ -857,6 +874,7 @@
 }
 
 <span class="comment">// Base Field conversions
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 base field element to a blst base field element
 </span><span class="kw">pub fn </span>bls_fq_to_blst_fp(f: <span class="kw-2">&amp;</span>Fq) -&gt; blst_fp {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
@@ -869,7 +887,8 @@
     blst_fp
 }
 
-<span class="kw">pub fn </span>blst_fp_to_bls_fq(f: <span class="kw-2">&amp;</span>blst_fp) -&gt; Fq {
+<span class="doccomment">/// Convert a blst base field element to an Arkworks BLS12-381 base field element
+</span><span class="kw">pub fn </span>blst_fp_to_bls_fq(f: <span class="kw-2">&amp;</span>blst_fp) -&gt; Fq {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">6</span>];
     <span class="kw">unsafe </span>{ blst_uint64_from_fp(out.as_mut_ptr(), f) };
     <span class="kw">let </span>bytes = out.as_byte_slice();
@@ -877,6 +896,7 @@
 }
 
 <span class="comment">// QFE conversions
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 quadratic extension field element to a blst quadratic extension field element
 </span><span class="kw">pub fn </span>bls_fq2_to_blst_fp2(f: <span class="kw-2">&amp;</span>Fq2) -&gt; blst_fp2 {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
@@ -898,7 +918,8 @@
     }
 }
 
-<span class="kw">pub fn </span>blst_fp2_to_bls_fq2(f: <span class="kw-2">&amp;</span>blst_fp2) -&gt; Fq2 {
+<span class="doccomment">/// Convert a blst quadratic extension field element to an Arkworks BLS12-381 quadratic extension field element
+</span><span class="kw">pub fn </span>blst_fp2_to_bls_fq2(f: <span class="kw-2">&amp;</span>blst_fp2) -&gt; Fq2 {
     <span class="kw">let </span>[fp1, fp2] = f.fp;
     <span class="kw">let </span>bls_fp1 = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>fp1);
     <span class="kw">let </span>bls_fp2 = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>fp2);
@@ -906,6 +927,8 @@
 }
 
 <span class="comment">// Target Field conversions
+
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 degree-6 extension field element to a blst degree-6 extension field element
 </span><span class="kw">pub fn </span>bls_fq6_to_blst_fp6(f: <span class="kw-2">&amp;</span>Fq6) -&gt; blst_fp6 {
     <span class="kw">let </span>c0 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c0);
     <span class="kw">let </span>c1 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c1);
@@ -913,20 +936,23 @@
     blst_fp6 { fp2: [c0, c1, c2] }
 }
 
-<span class="kw">pub fn </span>blst_fp6_to_bls_fq6(f: <span class="kw-2">&amp;</span>blst_fp6) -&gt; Fq6 {
+<span class="doccomment">/// Convert a blst degree-6 extension field element to an Arkworks BLS12-381 degree-6 extension field element
+</span><span class="kw">pub fn </span>blst_fp6_to_bls_fq6(f: <span class="kw-2">&amp;</span>blst_fp6) -&gt; Fq6 {
     <span class="kw">let </span>c0 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">0</span>]);
     <span class="kw">let </span>c1 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">1</span>]);
     <span class="kw">let </span>c2 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">2</span>]);
     Fq6::new(c0, c1, c2)
 }
 
-<span class="kw">pub fn </span>bls_fq12_to_blst_fp12(f: <span class="kw-2">&amp;</span>Fq12) -&gt; blst_fp12 {
+<span class="doccomment">/// Convert an Arkworks BLS12-381 target field element to a blst target field element
+</span><span class="kw">pub fn </span>bls_fq12_to_blst_fp12(f: <span class="kw-2">&amp;</span>Fq12) -&gt; blst_fp12 {
     <span class="kw">let </span>c0 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c0);
     <span class="kw">let </span>c1 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c1);
     blst_fp12 { fp6: [c0, c1] }
 }
 
-<span class="kw">pub fn </span>blst_fp12_to_bls_fq12(f: <span class="kw-2">&amp;</span>blst_fp12) -&gt; Fq12 {
+<span class="doccomment">/// Convert a blst target field element to an Arkworks BLS12-381 target field element
+</span><span class="kw">pub fn </span>blst_fp12_to_bls_fq12(f: <span class="kw-2">&amp;</span>blst_fp12) -&gt; Fq12 {
     <span class="kw">let </span>c0 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">0</span>]);
     <span class="kw">let </span>c1 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">1</span>]);
     Fq12::new(c0, c1)
@@ -947,7 +973,8 @@
     BlsG1Affine::new(Fq::zero(), Fq::one(), <span class="bool-val">true</span>)
 }
 
-<span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
+<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G1 point to a blst affine G1 point
+</span><span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
     <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
     // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
@@ -976,7 +1003,8 @@
     g1
 }
 
-<span class="kw">pub fn </span>blst_g1_affine_to_bls_g1_affine(pt: <span class="kw-2">&amp;</span>blst_p1_affine) -&gt; BlsG1Affine {
+<span class="doccomment">/// Convert a blst affine G1 point to an Arkworks BLS12-381 affine G1 point
+</span><span class="kw">pub fn </span>blst_g1_affine_to_bls_g1_affine(pt: <span class="kw-2">&amp;</span>blst_p1_affine) -&gt; BlsG1Affine {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE];
     <span class="kw">unsafe </span>{
         blst_p1_affine_serialize(out.as_mut_ptr(), pt);
@@ -1011,7 +1039,8 @@
     BlsG2Affine::new(Fq2::zero(), Fq2::one(), <span class="bool-val">true</span>)
 }
 
-<span class="kw">pub fn </span>bls_g2_affine_to_blst_g2_affine(pt: <span class="kw-2">&amp;</span>BlsG2Affine) -&gt; blst_p2_affine {
+<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G2 point to a blst affine G2 point
+</span><span class="kw">pub fn </span>bls_g2_affine_to_blst_g2_affine(pt: <span class="kw-2">&amp;</span>BlsG2Affine) -&gt; blst_p2_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
     <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
     // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
@@ -1040,7 +1069,8 @@
     g2
 }
 
-<span class="kw">pub fn </span>blst_g2_affine_to_bls_g2_affine(pt: <span class="kw-2">&amp;</span>blst_p2_affine) -&gt; BlsG2Affine {
+<span class="doccomment">/// Convert a blst affine G2 point to an Arkworks BLS12-381 affine G2 point
+</span><span class="kw">pub fn </span>blst_g2_affine_to_bls_g2_affine(pt: <span class="kw-2">&amp;</span>blst_p2_affine) -&gt; BlsG2Affine {
     <span class="kw">let </span>ptx = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.x);
     <span class="kw">let </span>pty = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.y);
 
