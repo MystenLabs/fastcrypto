@@ -54,7 +54,7 @@ pub fn blst_fr_to_bls_fr(fe: &blst_fr) -> BlsFr {
 }
 
 // Base Field conversions
-/// Convert an Arkworks BLS12-381 base field element to a blst base field element
+/// Convert an Arkworks BLS12-381 prime field element to a blst prime field element
 pub fn bls_fq_to_blst_fp(f: &Fq) -> blst_fp {
     let mut fp_bytes_le = [0u8; G1_UNCOMPRESSED_SIZE / 2];
     f.serialize_uncompressed(&mut fp_bytes_le[..])
@@ -67,7 +67,7 @@ pub fn bls_fq_to_blst_fp(f: &Fq) -> blst_fp {
     blst_fp
 }
 
-/// Convert a blst base field element to an Arkworks BLS12-381 base field element
+/// Convert a blst prime field element to an Arkworks BLS12-381 prime field element
 pub fn blst_fp_to_bls_fq(f: &blst_fp) -> Fq {
     let mut out = [0u64; 6];
     unsafe { blst_uint64_from_fp(out.as_mut_ptr(), f) };
@@ -140,7 +140,6 @@ pub fn blst_fp12_to_bls_fq12(f: &blst_fp12) -> Fq12 {
 
 /// Affine point translations: those mostly allow us to receive the
 /// proof points, provided in affine form.
-///
 
 fn blst_g1_affine_infinity() -> blst_p1_affine {
     blst_p1_affine {
