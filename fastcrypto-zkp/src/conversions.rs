@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger384, Fp384, FromBytes, PrimeField};
+use ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
@@ -129,8 +129,30 @@ pub fn blst_fp12_to_bls_fq12(f: &blst_fp12) -> Fq12 {
 
 /// Affine point translations: those mostly allow us to receive the
 /// proof points, provided in affine form.
+///
+
+fn blst_g1_affine_infinity() -> blst_p1_affine {
+    blst_p1_affine {
+        x: blst_fp::default(),
+        y: blst_fp::default(),
+    }
+}
+
+fn bls_g1_affine_infinity() -> BlsG1Affine {
+    BlsG1Affine::new(Fq::zero(), Fq::one(), true)
+}
+
 pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     debug_assert_eq!(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if pt.infinity {
+        return blst_g1_affine_infinity();
+    }
     let tmp_p1 = blst_p1_affine {
         x: bls_fq_to_blst_fp(&pt.x),
         y: bls_fq_to_blst_fp(&pt.y),
@@ -143,8 +165,8 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     unsafe {
         blst_p1_affine_serialize(tmp2.as_mut_ptr(), &tmp_p1);
     };
-    let mut g1 = blst_p1_affine::default();
 
+    let mut g1 = blst_p1_affine::default();
     assert!(unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
     g1
 }
@@ -154,16 +176,47 @@ pub fn blst_g1_affine_to_bls_g1_affine(pt: &blst_p1_affine) -> BlsG1Affine {
     unsafe {
         blst_p1_affine_serialize(out.as_mut_ptr(), pt);
     }
-    let infinity = out[0] & (1 << 6) != 0;
-    BlsG1Affine::new(
-        Fp384::from_be_bytes_mod_order(&out[..48]),
-        Fp384::from_be_bytes_mod_order(&out[48..]),
-        infinity,
-    )
+    let infinity = out[0] == 0x40;
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if infinity {
+        return bls_g1_affine_infinity();
+    }
+    let y = Fp384::from_be_bytes_mod_order(&out[48..]);
+    let x = {
+        // Mask away the flag bits (which Arkworks doesn't use)
+        out[0] &= 0b0001_1111;
+        Fp384::from_be_bytes_mod_order(&out[..48])
+    };
+    BlsG1Affine::new(x, y, infinity)
+}
+
+fn blst_g2_affine_infinity() -> blst_p2_affine {
+    blst_p2_affine {
+        x: blst_fp2::default(),
+        y: blst_fp2::default(),
+    }
+}
+
+fn bls_g2_affine_infinity() -> BlsG2Affine {
+    BlsG2Affine::new(Fq2::zero(), Fq2::one(), true)
 }
 
 pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     debug_assert_eq!(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if pt.infinity {
+        return blst_g2_affine_infinity();
+    }
     let tmp_p2 = blst_p2_affine {
         x: bls_fq2_to_blst_fp2(&pt.x),
         y: bls_fq2_to_blst_fp2(&pt.y),
@@ -186,13 +239,18 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
     let ptx = blst_fp2_to_bls_fq2(&pt.x);
     let pty = blst_fp2_to_bls_fq2(&pt.y);
 
-    // TODO: surely there's a better way to do this?
-    let mut out = [0u8; G2_UNCOMPRESSED_SIZE];
-    unsafe {
-        blst_p2_affine_serialize(out.as_mut_ptr(), pt);
+    let infinity = ptx == Fq2::zero();
+    // BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    if infinity {
+        bls_g2_affine_infinity()
+    } else {
+        BlsG2Affine::new(ptx, pty, infinity)
     }
-    let infinity = out[0] & (1 << 6) != 0;
-    BlsG2Affine::new(ptx, pty, infinity)
 }
 
 /////////////////////////////////////////////////////////////
@@ -365,7 +423,7 @@ pub(crate) mod tests {
     use super::*;
     use ark_bls12_381::{FqParameters, Fr as BlsFr};
     use ark_ec::{AffineCurve, ProjectiveCurve};
-    use ark_ff::Field;
+    use ark_ff::{Field, One, Zero};
     use blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
         blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
@@ -454,11 +512,15 @@ pub(crate) mod tests {
 
     // QFE roundtrips
     fn arb_bls_fq2() -> impl Strategy<Value = Fq2> {
-        (arb_bls_fq(), arb_bls_fq()).prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+        (arb_bls_fq(), arb_bls_fq())
+            .prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+            .no_shrink()
     }
 
     fn arb_blst_fp2() -> impl Strategy<Value = blst_fp2> {
-        (arb_blst_fp(), arb_blst_fp()).prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+        (arb_blst_fp(), arb_blst_fp())
+            .prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+            .no_shrink()
     }
 
     proptest! {
@@ -482,12 +544,15 @@ pub(crate) mod tests {
     fn arb_bls_fq6() -> impl Strategy<Value = Fq6> {
         (arb_bls_fq2(), arb_bls_fq2(), arb_bls_fq2())
             .prop_map(|(f_c0, f_c1, f_c2)| Fq6::new(f_c0, f_c1, f_c2))
+            .no_shrink()
     }
 
     fn arb_blst_fp6() -> impl Strategy<Value = blst_fp6> {
-        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2()).prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
-            fp2: [f_c0, f_c1, f_c2],
-        })
+        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2())
+            .prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
+                fp2: [f_c0, f_c1, f_c2],
+            })
+            .no_shrink()
     }
 
     proptest! {
@@ -507,11 +572,15 @@ pub(crate) mod tests {
     }
 
     fn arb_bls_fq12() -> impl Strategy<Value = Fq12> {
-        (arb_bls_fq6(), arb_bls_fq6()).prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+        (arb_bls_fq6(), arb_bls_fq6())
+            .prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+            .no_shrink()
     }
 
     fn arb_blst_fp12() -> impl Strategy<Value = blst_fp12> {
-        (arb_blst_fp6(), arb_blst_fp6()).prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+        (arb_blst_fp6(), arb_blst_fp6())
+            .prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+            .no_shrink()
     }
 
     proptest! {
@@ -532,39 +601,70 @@ pub(crate) mod tests {
 
     // Affine point roundtrips
 
+    fn bls_g1_affine_infinity() -> BlsG1Affine {
+        let res = BlsG1Affine::zero();
+        debug_assert_eq!(res, BlsG1Affine::new(Fq::zero(), Fq::one(), true));
+        res
+    }
+
     pub(crate) fn arb_bls_g1_affine() -> impl Strategy<Value = BlsG1Affine> {
-        // slow, but good enough for tests
-        arb_bls_fr().prop_map(|s| {
-            BlsG1Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
-        })
+        prop_oneof![
+            // 1% chance of being the point at infinity
+            1 =>
+            Just(bls_g1_affine_infinity()),
+            99 =>  // slow, but good enough for tests
+            (arb_bls_fr()).prop_map(|s| {
+
+                    BlsG1Affine::prime_subgroup_generator()
+                        .mul(s.into_repr())
+                        .into_affine()
+
+            })
+        ]
+    }
+
+    fn blst_g1_affine_infinity() -> blst_p1_affine {
+        let mut res = [0u8; G1_UNCOMPRESSED_SIZE];
+        res[0] = 0x40;
+        let mut g1_infinity = blst_p1_affine::default();
+        assert!(
+            unsafe { blst_p1_deserialize(&mut g1_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g1_infinity
     }
 
     pub(crate) fn arb_blst_g1_affine() -> impl Strategy<Value = blst_p1_affine> {
-        collection::vec(any::<u8>(), 32..=32).prop_map(|msg| {
-            // we actually hash to a G1Projective, then convert to affine
-            let mut out = blst_p1::default();
-            const DST: [u8; 16] = [0; 16];
-            const AUG: [u8; 16] = [0; 16];
+        prop_oneof![
+                // 1% chance of being the point at infinity
+                1 => Just(blst_g1_affine_infinity()),
+                99 =>
+                (collection::vec(any::<u8>(), 32..=32)).prop_map(|msg| {
 
-            unsafe {
-                blst_encode_to_g1(
-                    &mut out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
+                        // we actually hash to a G1Projective, then convert to affine
+                        let mut out = blst_p1::default();
+                        const DST: [u8; 16] = [0; 16];
+                        const AUG: [u8; 16] = [0; 16];
+
+                        unsafe {
+                            blst_encode_to_g1(
+                                &mut out,
+                                msg.as_ptr(),
+                                msg.len(),
+                                DST.as_ptr(),
+                                DST.len(),
+                                AUG.as_ptr(),
+                                AUG.len(),
+                            )
+                        };
+
+                        let mut res = blst_p1_affine::default();
+
+                        unsafe { blst_p1_to_affine(&mut res, &out) };
+                        res
+                    }
                 )
-            };
-
-            let mut res = blst_p1_affine::default();
-
-            unsafe { blst_p1_to_affine(&mut res, &out) };
-            res
-        })
+        ]
     }
 
     proptest! {
@@ -605,39 +705,64 @@ pub(crate) mod tests {
         }
     }
 
+    fn bls_g2_affine_infinity() -> BlsG2Affine {
+        let res = BlsG2Affine::zero();
+        debug_assert_eq!(res, BlsG2Affine::new(Fq2::zero(), Fq2::one(), true));
+        res
+    }
+
     fn arb_bls_g2_affine() -> impl Strategy<Value = BlsG2Affine> {
         // slow, but good enough for tests
-        arb_bls_fr().prop_map(|s| {
-            BlsG2Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
+        (arb_bls_fr(), any::<f32>()).prop_map(|(s, maybe_infinity)| {
+            if maybe_infinity < 0.1 {
+                bls_g2_affine_infinity()
+            } else {
+                BlsG2Affine::prime_subgroup_generator()
+                    .mul(s.into_repr())
+                    .into_affine()
+            }
         })
     }
 
+    fn blst_g2_affine_infinity() -> blst_p2_affine {
+        let mut res = [0u8; G2_UNCOMPRESSED_SIZE];
+        res[0] = 0x40;
+        let mut g2_infinity = blst_p2_affine::default();
+        assert!(
+            unsafe { blst_p2_deserialize(&mut g2_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g2_infinity
+    }
+
     pub(crate) fn arb_blst_g2_affine() -> impl Strategy<Value = blst_p2_affine> {
-        collection::vec(any::<u8>(), 32..=32).prop_map(|msg| {
-            // we actually hash to a G2Projective, then convert to affine
-            let mut out = blst_p2::default();
-            const DST: [u8; 16] = [0; 16];
-            const AUG: [u8; 16] = [0; 16];
+        prop_oneof![
+            1 =>// 1% chance of being the point at infinity
+                Just(blst_g2_affine_infinity()),
+            99 => (collection::vec(any::<u8>(), 32..=32)).prop_map(|msg| {
+                // we actually hash to a G2Projective, then convert to affine
+                let mut out = blst_p2::default();
+                const DST: [u8; 16] = [0; 16];
+                const AUG: [u8; 16] = [0; 16];
 
-            unsafe {
-                blst_encode_to_g2(
-                    &mut out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
-                )
-            };
+                unsafe {
+                    blst_encode_to_g2(
+                        &mut out,
+                        msg.as_ptr(),
+                        msg.len(),
+                        DST.as_ptr(),
+                        DST.len(),
+                        AUG.as_ptr(),
+                        AUG.len(),
+                    )
+                };
 
-            let mut res = blst_p2_affine::default();
+                let mut res = blst_p2_affine::default();
 
-            unsafe { blst_p2_to_affine(&mut res, &out) };
-            res
-        })
+                unsafe { blst_p2_to_affine(&mut res, &out) };
+                res
+            })
+        ]
     }
 
     proptest! {
