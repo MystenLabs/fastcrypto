@@ -678,9 +678,134 @@
 <span id="678">678</span>
 <span id="679">679</span>
 <span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-</span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, PrimeField};
+</span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
 <span class="kw">use </span>ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 <span class="kw">use </span>blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 <span class="kw">use </span>blst::{blst_fp2, blst_p1_deserialize};
@@ -809,8 +934,30 @@
 
 <span class="doccomment">/// Affine point translations: those mostly allow us to receive the
 /// proof points, provided in affine form.
-</span><span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
+///
+
+</span><span class="kw">fn </span>blst_g1_affine_infinity() -&gt; blst_p1_affine {
+    blst_p1_affine {
+        x: blst_fp::default(),
+        y: blst_fp::default(),
+    }
+}
+
+<span class="kw">fn </span>bls_g1_affine_infinity() -&gt; BlsG1Affine {
+    BlsG1Affine::new(Fq::zero(), Fq::one(), <span class="bool-val">true</span>)
+}
+
+<span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
+    <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    </span><span class="kw">if </span>pt.infinity {
+        <span class="kw">return </span>blst_g1_affine_infinity();
+    }
     <span class="kw">let </span>tmp_p1 = blst_p1_affine {
         x: bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>pt.x),
         y: bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>pt.y),
@@ -823,8 +970,8 @@
     <span class="kw">unsafe </span>{
         blst_p1_affine_serialize(tmp2.as_mut_ptr(), <span class="kw-2">&amp;</span>tmp_p1);
     };
-    <span class="kw">let </span><span class="kw-2">mut </span>g1 = blst_p1_affine::default();
 
+    <span class="kw">let </span><span class="kw-2">mut </span>g1 = blst_p1_affine::default();
     <span class="macro">assert!</span>(<span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
     g1
 }
@@ -834,16 +981,47 @@
     <span class="kw">unsafe </span>{
         blst_p1_affine_serialize(out.as_mut_ptr(), pt);
     }
-    <span class="kw">let </span>infinity = out[<span class="number">0</span>] &amp; (<span class="number">1 </span>&lt;&lt; <span class="number">6</span>) != <span class="number">0</span>;
-    BlsG1Affine::new(
-        Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[..<span class="number">48</span>]),
-        Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[<span class="number">48</span>..]),
-        infinity,
-    )
+    <span class="kw">let </span>infinity = out[<span class="number">0</span>] == <span class="number">0x40</span>;
+    <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e1.c#L153-L162
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq::zero(), y = Fq::one()
+    // BLST: x = y = Fq::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    </span><span class="kw">if </span>infinity {
+        <span class="kw">return </span>bls_g1_affine_infinity();
+    }
+    <span class="kw">let </span>y = Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[<span class="number">48</span>..]);
+    <span class="kw">let </span>x = {
+        <span class="comment">// Mask away the flag bits (which Arkworks doesn&#39;t use)
+        </span>out[<span class="number">0</span>] &amp;= <span class="number">0b0001_1111</span>;
+        Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[..<span class="number">48</span>])
+    };
+    BlsG1Affine::new(x, y, infinity)
+}
+
+<span class="kw">fn </span>blst_g2_affine_infinity() -&gt; blst_p2_affine {
+    blst_p2_affine {
+        x: blst_fp2::default(),
+        y: blst_fp2::default(),
+    }
+}
+
+<span class="kw">fn </span>bls_g2_affine_infinity() -&gt; BlsG2Affine {
+    BlsG2Affine::new(Fq2::zero(), Fq2::one(), <span class="bool-val">true</span>)
 }
 
 <span class="kw">pub fn </span>bls_g2_affine_to_blst_g2_affine(pt: <span class="kw-2">&amp;</span>BlsG2Affine) -&gt; blst_p2_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
+    <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    </span><span class="kw">if </span>pt.infinity {
+        <span class="kw">return </span>blst_g2_affine_infinity();
+    }
     <span class="kw">let </span>tmp_p2 = blst_p2_affine {
         x: bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>pt.x),
         y: bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>pt.y),
@@ -866,13 +1044,18 @@
     <span class="kw">let </span>ptx = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.x);
     <span class="kw">let </span>pty = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.y);
 
-    <span class="comment">// TODO: surely there&#39;s a better way to do this?
-    </span><span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE];
-    <span class="kw">unsafe </span>{
-        blst_p2_affine_serialize(out.as_mut_ptr(), pt);
+    <span class="kw">let </span>infinity = ptx == Fq2::zero();
+    <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
+    // https://github.com/supranational/blst/blob/6382d67c72119d563975892ed49ba32e92d3d0da/src/e2.c#L194-L203
+    // the infinity bit notwithstanding,
+    // Arkworks: x = Fq2::zero(), y = Fq2::one()
+    // BLST: x = y = Fq2::zero()
+    // BLST follows the standard here (see https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-pairing-friendly-curves-10#appendix-C)
+    </span><span class="kw">if </span>infinity {
+        bls_g2_affine_infinity()
+    } <span class="kw">else </span>{
+        BlsG2Affine::new(ptx, pty, infinity)
     }
-    <span class="kw">let </span>infinity = out[<span class="number">0</span>] &amp; (<span class="number">1 </span>&lt;&lt; <span class="number">6</span>) != <span class="number">0</span>;
-    BlsG2Affine::new(ptx, pty, infinity)
 }
 
 <span class="comment">/////////////////////////////////////////////////////////////
@@ -1045,7 +1228,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>ark_bls12_381::{FqParameters, Fr <span class="kw">as </span>BlsFr};
     <span class="kw">use </span>ark_ec::{AffineCurve, ProjectiveCurve};
-    <span class="kw">use </span>ark_ff::Field;
+    <span class="kw">use </span>ark_ff::{Field, One, Zero};
     <span class="kw">use </span>blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
         blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
@@ -1134,11 +1317,15 @@
 
     <span class="comment">// QFE roundtrips
     </span><span class="kw">fn </span>arb_bls_fq2() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fq2&gt; {
-        (arb_bls_fq(), arb_bls_fq()).prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+        (arb_bls_fq(), arb_bls_fq())
+            .prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
+            .no_shrink()
     }
 
     <span class="kw">fn </span>arb_blst_fp2() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_fp2&gt; {
-        (arb_blst_fp(), arb_blst_fp()).prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+        (arb_blst_fp(), arb_blst_fp())
+            .prop_map(|(fp1, fp2)| blst_fp2 { fp: [fp1, fp2] })
+            .no_shrink()
     }
 
     <span class="macro">proptest! </span>{
@@ -1162,12 +1349,15 @@
     </span><span class="kw">fn </span>arb_bls_fq6() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fq6&gt; {
         (arb_bls_fq2(), arb_bls_fq2(), arb_bls_fq2())
             .prop_map(|(f_c0, f_c1, f_c2)| Fq6::new(f_c0, f_c1, f_c2))
+            .no_shrink()
     }
 
     <span class="kw">fn </span>arb_blst_fp6() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_fp6&gt; {
-        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2()).prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
-            fp2: [f_c0, f_c1, f_c2],
-        })
+        (arb_blst_fp2(), arb_blst_fp2(), arb_blst_fp2())
+            .prop_map(|(f_c0, f_c1, f_c2)| blst_fp6 {
+                fp2: [f_c0, f_c1, f_c2],
+            })
+            .no_shrink()
     }
 
     <span class="macro">proptest! </span>{
@@ -1187,11 +1377,15 @@
     }
 
     <span class="kw">fn </span>arb_bls_fq12() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fq12&gt; {
-        (arb_bls_fq6(), arb_bls_fq6()).prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+        (arb_bls_fq6(), arb_bls_fq6())
+            .prop_map(|(f_c0, f_c1)| Fq12::new(f_c0, f_c1))
+            .no_shrink()
     }
 
     <span class="kw">fn </span>arb_blst_fp12() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_fp12&gt; {
-        (arb_blst_fp6(), arb_blst_fp6()).prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+        (arb_blst_fp6(), arb_blst_fp6())
+            .prop_map(|(f_c0, f_c1)| blst_fp12 { fp6: [f_c0, f_c1] })
+            .no_shrink()
     }
 
     <span class="macro">proptest! </span>{
@@ -1212,39 +1406,70 @@
 
     <span class="comment">// Affine point roundtrips
 
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_bls_g1_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsG1Affine&gt; {
-        <span class="comment">// slow, but good enough for tests
-        </span>arb_bls_fr().prop_map(|s| {
-            BlsG1Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
-        })
+    </span><span class="kw">fn </span>bls_g1_affine_infinity() -&gt; BlsG1Affine {
+        <span class="kw">let </span>res = BlsG1Affine::zero();
+        <span class="macro">debug_assert_eq!</span>(res, BlsG1Affine::new(Fq::zero(), Fq::one(), <span class="bool-val">true</span>));
+        res
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_bls_g1_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsG1Affine&gt; {
+        <span class="macro">prop_oneof!</span>[
+            <span class="comment">// 1% chance of being the point at infinity
+            </span><span class="number">1 </span>=&gt;
+            Just(bls_g1_affine_infinity()),
+            <span class="number">99 </span>=&gt;  <span class="comment">// slow, but good enough for tests
+            </span>(arb_bls_fr()).prop_map(|s| {
+
+                    BlsG1Affine::prime_subgroup_generator()
+                        .mul(s.into_repr())
+                        .into_affine()
+
+            })
+        ]
+    }
+
+    <span class="kw">fn </span>blst_g1_affine_infinity() -&gt; blst_p1_affine {
+        <span class="kw">let </span><span class="kw-2">mut </span>res = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE];
+        res[<span class="number">0</span>] = <span class="number">0x40</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>g1_infinity = blst_p1_affine::default();
+        <span class="macro">assert!</span>(
+            <span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g1_infinity
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_blst_g1_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_p1_affine&gt; {
-        collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>).prop_map(|msg| {
-            <span class="comment">// we actually hash to a G1Projective, then convert to affine
-            </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p1::default();
-            <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
-            <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
+        <span class="macro">prop_oneof!</span>[
+                <span class="comment">// 1% chance of being the point at infinity
+                </span><span class="number">1 </span>=&gt; Just(blst_g1_affine_infinity()),
+                <span class="number">99 </span>=&gt;
+                (collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>)).prop_map(|msg| {
 
-            <span class="kw">unsafe </span>{
-                blst_encode_to_g1(
-                    <span class="kw-2">&amp;mut </span>out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
+                        <span class="comment">// we actually hash to a G1Projective, then convert to affine
+                        </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p1::default();
+                        <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
+                        <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
+
+                        <span class="kw">unsafe </span>{
+                            blst_encode_to_g1(
+                                <span class="kw-2">&amp;mut </span>out,
+                                msg.as_ptr(),
+                                msg.len(),
+                                DST.as_ptr(),
+                                DST.len(),
+                                AUG.as_ptr(),
+                                AUG.len(),
+                            )
+                        };
+
+                        <span class="kw">let </span><span class="kw-2">mut </span>res = blst_p1_affine::default();
+
+                        <span class="kw">unsafe </span>{ blst_p1_to_affine(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>out) };
+                        res
+                    }
                 )
-            };
-
-            <span class="kw">let </span><span class="kw-2">mut </span>res = blst_p1_affine::default();
-
-            <span class="kw">unsafe </span>{ blst_p1_to_affine(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>out) };
-            res
-        })
+        ]
     }
 
     <span class="macro">proptest! </span>{
@@ -1285,39 +1510,64 @@
         }
     }
 
+    <span class="kw">fn </span>bls_g2_affine_infinity() -&gt; BlsG2Affine {
+        <span class="kw">let </span>res = BlsG2Affine::zero();
+        <span class="macro">debug_assert_eq!</span>(res, BlsG2Affine::new(Fq2::zero(), Fq2::one(), <span class="bool-val">true</span>));
+        res
+    }
+
     <span class="kw">fn </span>arb_bls_g2_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsG2Affine&gt; {
         <span class="comment">// slow, but good enough for tests
-        </span>arb_bls_fr().prop_map(|s| {
-            BlsG2Affine::prime_subgroup_generator()
-                .mul(s.into_repr())
-                .into_affine()
+        </span>(arb_bls_fr(), any::&lt;f32&gt;()).prop_map(|(s, maybe_infinity)| {
+            <span class="kw">if </span>maybe_infinity &lt; <span class="number">0.1 </span>{
+                bls_g2_affine_infinity()
+            } <span class="kw">else </span>{
+                BlsG2Affine::prime_subgroup_generator()
+                    .mul(s.into_repr())
+                    .into_affine()
+            }
         })
     }
 
+    <span class="kw">fn </span>blst_g2_affine_infinity() -&gt; blst_p2_affine {
+        <span class="kw">let </span><span class="kw-2">mut </span>res = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE];
+        res[<span class="number">0</span>] = <span class="number">0x40</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>g2_infinity = blst_p2_affine::default();
+        <span class="macro">assert!</span>(
+            <span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2_infinity, res.as_ptr()) }
+                == BLST_ERROR::BLST_SUCCESS
+        );
+        g2_infinity
+    }
+
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_blst_g2_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_p2_affine&gt; {
-        collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>).prop_map(|msg| {
-            <span class="comment">// we actually hash to a G2Projective, then convert to affine
-            </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p2::default();
-            <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
-            <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
+        <span class="macro">prop_oneof!</span>[
+            <span class="number">1 </span>=&gt;<span class="comment">// 1% chance of being the point at infinity
+                </span>Just(blst_g2_affine_infinity()),
+            <span class="number">99 </span>=&gt; (collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>)).prop_map(|msg| {
+                <span class="comment">// we actually hash to a G2Projective, then convert to affine
+                </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p2::default();
+                <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
+                <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
 
-            <span class="kw">unsafe </span>{
-                blst_encode_to_g2(
-                    <span class="kw-2">&amp;mut </span>out,
-                    msg.as_ptr(),
-                    msg.len(),
-                    DST.as_ptr(),
-                    DST.len(),
-                    AUG.as_ptr(),
-                    AUG.len(),
-                )
-            };
+                <span class="kw">unsafe </span>{
+                    blst_encode_to_g2(
+                        <span class="kw-2">&amp;mut </span>out,
+                        msg.as_ptr(),
+                        msg.len(),
+                        DST.as_ptr(),
+                        DST.len(),
+                        AUG.as_ptr(),
+                        AUG.len(),
+                    )
+                };
 
-            <span class="kw">let </span><span class="kw-2">mut </span>res = blst_p2_affine::default();
+                <span class="kw">let </span><span class="kw-2">mut </span>res = blst_p2_affine::default();
 
-            <span class="kw">unsafe </span>{ blst_p2_to_affine(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>out) };
-            res
-        })
+                <span class="kw">unsafe </span>{ blst_p2_to_affine(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>out) };
+                res
+            })
+        ]
     }
 
     <span class="macro">proptest! </span>{
