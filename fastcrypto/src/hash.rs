@@ -1,11 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use base64ct::{Base64, Encoding};
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
+
+use crate::encoding::{Base64, Encoding};
 
 /// Represents a digest of `DIGEST_LEN`bytes.
 #[serde_with::serde_as]
@@ -34,7 +35,7 @@ impl<const DIGEST_LEN: usize> Digest<DIGEST_LEN> {
 
 impl<const DIGEST_LEN: usize> fmt::Debug for Digest<DIGEST_LEN> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(&self.digest))
+        write!(f, "{}", Base64::encode(&self.digest))
     }
 }
 
@@ -43,9 +44,7 @@ impl<const DIGEST_LEN: usize> fmt::Display for Digest<DIGEST_LEN> {
         write!(
             f,
             "{}",
-            Base64::encode_string(&self.digest)
-                .get(0..DIGEST_LEN)
-                .unwrap()
+            Base64::encode(&self.digest).get(0..DIGEST_LEN).unwrap()
         )
     }
 }

@@ -7,8 +7,8 @@ use std::{
     str::FromStr,
 };
 
+use crate::encoding::Encoding;
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
-use base64ct::{Base64, Encoding};
 use blst::min_sig as blst;
 
 use once_cell::sync::OnceCell;
@@ -18,6 +18,7 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
+    encoding::Base64,
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, BlsSignature},
@@ -139,13 +140,13 @@ impl Ord for BLS12381PublicKey {
 
 impl Display for BLS12381PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
 impl Debug for BLS12381PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -324,7 +325,7 @@ impl Default for BLS12381Signature {
 
 impl Display for BLS12381Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -412,7 +413,7 @@ impl EncodeDecodeBase64 for BLS12381KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode_string(&bytes[..])
+        Base64::encode(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
@@ -499,7 +500,7 @@ impl AsRef<[u8]> for BLS12381AggregateSignature {
 
 impl Display for BLS12381AggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 

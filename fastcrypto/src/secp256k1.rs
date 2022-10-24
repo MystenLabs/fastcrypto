@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
+    encoding::{Base64, Encoding},
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
-use base64ct::{Base64, Encoding};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
@@ -160,7 +160,7 @@ impl Default for Secp256k1PublicKey {
 
 impl Display for Secp256k1PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -314,7 +314,7 @@ impl Eq for Secp256k1Signature {}
 
 impl Display for Secp256k1Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -337,7 +337,7 @@ impl EncodeDecodeBase64 for Secp256k1KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode_string(&bytes[..])
+        Base64::encode(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {

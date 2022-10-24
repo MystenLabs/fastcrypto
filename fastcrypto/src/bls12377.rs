@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::{
+    encoding::{Base64, Encoding},
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, ToFromBytes},
@@ -20,7 +21,6 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     One, Zero,
 };
-use base64ct::{Base64, Encoding};
 use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PublicKey};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
@@ -193,7 +193,7 @@ impl AsRef<[u8]> for BLS12377Signature {
 
 impl Display for BLS12377Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -283,7 +283,7 @@ impl ToFromBytes for BLS12377PublicKey {
 
 impl Display for BLS12377PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -445,7 +445,7 @@ impl EncodeDecodeBase64 for BLS12377KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode_string(&bytes[..])
+        Base64::encode(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
@@ -538,7 +538,7 @@ impl AsRef<[u8]> for BLS12377AggregateSignature {
 
 impl Display for BLS12377AggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 

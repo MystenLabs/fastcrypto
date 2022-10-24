@@ -51,6 +51,7 @@ sha2 = "0.10.6"
 sha3 = "0.10.6"
 thiserror = "1.0.37"
 twox-hash = { version = "1.6.3", optional = true }
+schemars ="0.8.10"
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 

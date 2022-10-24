@@ -7,7 +7,6 @@ use crate::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
 };
-use base64ct::{Base64, Encoding};
 use eyre::eyre;
 use rand::Rng;
 use serde::{
@@ -114,7 +113,7 @@ impl Ord for UnsecurePublicKey {
 
 impl Display for UnsecurePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -223,7 +222,7 @@ impl Signature for UnsecureSignature {
 
 impl Display for UnsecureSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -300,7 +299,7 @@ impl EncodeDecodeBase64 for UnsecureKeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode_string(&bytes[..])
+        Base64::encode(&bytes[..])
     }
 }
 
@@ -365,7 +364,7 @@ impl AsRef<[u8]> for UnsecureAggregateSignature {
 
 impl Display for UnsecureAggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 

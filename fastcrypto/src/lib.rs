@@ -70,6 +70,7 @@ pub mod hmac;
 pub mod secp256k1;
 
 // Other tooling
+pub mod encoding;
 pub mod error;
 pub mod private_seed;
 pub mod pubkey_bytes;

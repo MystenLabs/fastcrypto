@@ -1,19 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
+use crate::encoding::Encoding;
 use crate::{
     bls12381::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
         BLS12381PublicKeyBytes, BLS12381Signature, BLS_PRIVATE_KEY_LENGTH, BLS_PUBLIC_KEY_LENGTH,
         BLS_SIGNATURE_LENGTH,
     },
+    encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
-use base64ct::Encoding;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 use signature::{Signature, Signer, Verifier};
@@ -426,7 +427,7 @@ fn test_human_readable_signatures() {
     assert_eq!(
         format!(
             "{{\"sig\":\"{}\"}}",
-            base64ct::Base64::encode_string(&signature.sig.to_bytes())
+            Base64::encode(&signature.sig.to_bytes())
         ),
         serialized
     );
