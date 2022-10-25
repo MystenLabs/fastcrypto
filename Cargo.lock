@@ -1011,6 +1011,7 @@ dependencies = [
  "ed25519-consensus",
  "eyre",
  "fastcrypto-derive",
+ "faster-hex",
  "generic-array",
  "hex",
  "hex-literal",
@@ -1022,6 +1023,7 @@ dependencies = [
  "proptest-derive",
  "rand 0.8.5",
  "readonly",
+ "rustc-hex",
  "secp256k1",
  "serde",
  "serde-reflection",
@@ -1067,6 +1069,12 @@ dependencies = [
  "criterion",
  "proptest",
 ]
+
+[[package]]
+name = "faster-hex"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51e2ce894d53b295cf97b05685aa077950ff3e8541af83217fc720a6437169f8"
 
 [[package]]
 name = "fastrand"
@@ -1779,6 +1787,12 @@ dependencies = [
  "hmac",
  "zeroize",
 ]
+
+[[package]]
+name = "rustc-hex"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e75f6a532d0fd9f7f13144f392b6ad56a32696bfcd9c78f797f16bbb6f072d6"
 
 [[package]]
 name = "rustc_version"
