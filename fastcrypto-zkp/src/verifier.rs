@@ -37,8 +37,8 @@ pub struct PreparedVerifyingKey {
     pub delta_g2_neg_pc: G2Affine,
 }
 
-/// Takes an input Verifier key `vk` and returns a `SpecialPreparedVerifyingKey`. This is roughly homologous to
-/// [`ark_groth16::PreparedVerifyingKey::process_vk`].
+/// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
+/// [`ark_groth16::PreparedVerifyingKey::process_vk`], but uses a blst representation of the elements.
 ///
 pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey {
     let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.alpha_g1);
@@ -67,7 +67,7 @@ const G1_IDENTITY: blst_p1 = blst_p1 {
 };
 
 /// Returns the log base 2 of b in O(lg(N)) time.
-pub fn log_2_byte(b: u8) -> usize {
+fn log_2_byte(b: u8) -> usize {
     let mut r = if b > 0xF { 1 } else { 0 } << 2;
     let mut b = b >> r;
     let shift = if b > 0x3 { 1 } else { 0 } << 1;
@@ -226,8 +226,9 @@ fn multipairing_with_processed_vk(
 
 /// Returns the validity of the Groth16 proof passed as argument. The format of the inputs is assumed to be in arkworks format.
 /// See [`multipairing_with_processed_vk`] for the actual pairing computation details.
-/// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
-/// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
+///
+// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
+// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],

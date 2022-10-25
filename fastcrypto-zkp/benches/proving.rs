@@ -12,7 +12,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
-use fastcrypto_proving::dummy_circuit::DummyCircuit;
+use fastcrypto_zkp::dummy_circuit::DummyCircuit;
 use std::ops::Mul;
 
 #[path = "./conversions.rs"]
@@ -109,18 +109,17 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
-                b.iter(|| fastcrypto_proving::verifier::process_vk_special(vk));
+                b.iter(|| fastcrypto_zkp::verifier::process_vk_special(vk));
             },
         );
-        let pvk = fastcrypto_proving::verifier::process_vk_special(&vk);
+        let pvk = fastcrypto_zkp::verifier::process_vk_special(&vk);
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
                 b.iter(|| {
-                    fastcrypto_proving::verifier::verify_with_processed_vk(pvk, &[*v], &proof)
-                        .unwrap()
+                    fastcrypto_zkp::verifier::verify_with_processed_vk(pvk, &[*v], &proof).unwrap()
                 });
             },
         );
