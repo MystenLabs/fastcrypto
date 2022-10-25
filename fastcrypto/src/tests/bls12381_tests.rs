@@ -14,7 +14,6 @@ use crate::{
     },
 };
 use base64ct::Encoding;
-use curve25519_dalek_ng::digest::Digest;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 use signature::{Signature, Signer, Verifier};
