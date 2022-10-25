@@ -292,6 +292,15 @@ mod signature_benches {
         });
     }
 
+    fn verification_comparison(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("verification_comparison");
+        group.sampling_mode(SamplingMode::Flat);
+
+        verify_batch_signatures(&mut group);
+        verify_batch_signatures_different_msg(&mut group);
+        group.finish();
+    }
+
     criterion_group! {
         name = signature_benches;
         config = Criterion::default();
@@ -300,16 +309,7 @@ mod signature_benches {
            verify,
            verification_comparison,
            aggregate_signatures,
-           key_generation
-    }
-
-    fn verification_comparison(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("verification_comparison");
-        group.sampling_mode(SamplingMode::Flat);
-
-        verify_batch_signatures(&mut group);
-        verify_batch_signatures_different_msg(&mut group);
-        group.finish();
+           key_generation,
     }
 }
 
