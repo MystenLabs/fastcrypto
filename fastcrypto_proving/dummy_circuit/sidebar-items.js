@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["DummyCircuit","A dummy circuit that checks an addition constraint between some of its inputs as well as a parametrized number of dummy constraints."]]};

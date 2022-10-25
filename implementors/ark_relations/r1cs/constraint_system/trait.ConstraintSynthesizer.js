@@ -1,3 +1,0 @@
-(function() {var implementors = {
-"fastcrypto_proving":[["impl&lt;F:&nbsp;PrimeField&gt; ConstraintSynthesizer&lt;F&gt; for <a class=\"struct\" href=\"fastcrypto_proving/dummy_circuit/struct.DummyCircuit.html\" title=\"struct fastcrypto_proving::dummy_circuit::DummyCircuit\">DummyCircuit</a>&lt;F&gt;"]]
-};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()

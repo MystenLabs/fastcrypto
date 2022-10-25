@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"mod":[["conversions","Conversions between arkworks <-> blst"],["dummy_circuit","dummy circuit used for tests and benchmarks"],["verifier","Groth16 SNARK verifier"]]};
