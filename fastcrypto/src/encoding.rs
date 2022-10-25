@@ -57,6 +57,10 @@ impl Base64 {
 pub struct Hex(String);
 
 impl Hex {
+    #[cfg(test)]
+    pub fn from_string(s: &str) -> Self {
+        Hex(s.to_string())
+    }
     pub fn to_vec(&self) -> Result<Vec<u8>, eyre::Report> {
         Self::decode(&self.0)
     }
