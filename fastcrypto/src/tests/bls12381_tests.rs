@@ -84,9 +84,9 @@ fn verify_valid_signature_in_g2() {
 
     // Sanity tests.
     let invalid_key = &key[1..];
-    assert!(bls12_381_pk_in_g1_verify(&msg, &invalid_key, &sig).is_err());
+    assert!(bls12_381_pk_in_g1_verify(&msg, invalid_key, &sig).is_err());
     let invalid_sig = &sig[1..];
-    assert!(bls12_381_pk_in_g1_verify(&msg, &key, &invalid_sig).is_err());
+    assert!(bls12_381_pk_in_g1_verify(&msg, &key, invalid_sig).is_err());
     let invalid_sig = hex::decode("8beefcd39ba294b2d347b2b247c62ff2452c4835b4e66eb65c58dc005329a33c1d0d399bb54fa190e2e95845c92c6795048016c1e19680b5f705a828ba4f18d48f8948e02a653d1e6db6d47590e218c23d85378d7bd30588536173a3a847f476").unwrap();
     assert!(bls12_381_pk_in_g1_verify(&msg, &key, &invalid_sig) == Ok(false));
 }
