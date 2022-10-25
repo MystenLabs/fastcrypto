@@ -6,6 +6,10 @@
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
 
+<p align="center">
+  <img width="250" src="images/fastcrypto_logo.svg">
+</p>
+
 `fastcrypto` is a common cryptography library used in software at Mysten Labs. It is published as an independent crate to encourage reusability across different applications and domains. It is a wrapper library around several carefully selected crates with the following considerations: 
 
 - Security: Whether the libraries are vulnerable to known attack vectors or possible misuses. 
