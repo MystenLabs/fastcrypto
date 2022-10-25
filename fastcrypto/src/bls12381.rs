@@ -9,7 +9,8 @@ use std::{
 
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
 use base64ct::{Base64, Encoding};
-use blst::min_sig as blst;
+use blst::min_pk as blst_min_pk;
+use blst::min_sig as blst_min_sig;
 
 use once_cell::sync::OnceCell;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
@@ -48,7 +49,7 @@ pub const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 #[readonly::make]
 #[derive(Default, Clone)]
 pub struct BLS12381PublicKey {
-    pub pubkey: blst::PublicKey,
+    pub pubkey: blst_min_sig::PublicKey,
     pub bytes: OnceCell<[u8; BLS_PUBLIC_KEY_LENGTH]>,
 }
 
@@ -57,7 +58,7 @@ pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381Pu
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay, Default)]
 pub struct BLS12381PrivateKey {
-    pub privkey: blst::SecretKey,
+    pub privkey: blst_min_sig::SecretKey,
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
 }
 
@@ -74,7 +75,7 @@ pub struct BLS12381KeyPair {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BLS12381Signature {
     #[serde_as(as = "BlsSignature")]
-    pub sig: blst::Signature,
+    pub sig: blst_min_sig::Signature,
     #[serde(skip)]
     pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
 }
@@ -84,7 +85,7 @@ pub struct BLS12381Signature {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BLS12381AggregateSignature {
     #[serde_as(as = "Option<BlsSignature>")]
-    pub sig: Option<blst::Signature>,
+    pub sig: Option<blst_min_sig::Signature>,
     #[serde(skip)]
     pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
 }
@@ -103,8 +104,8 @@ impl AsRef<[u8]> for BLS12381PublicKey {
 
 impl ToFromBytes for BLS12381PublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let pubkey =
-            blst::PublicKey::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        let pubkey = blst_min_sig::PublicKey::from_bytes(bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -248,7 +249,7 @@ impl VerifyingKey for BLS12381PublicKey {
             }
         }
 
-        let result = blst::Signature::verify_multiple_aggregate_signatures(
+        let result = blst_min_sig::Signature::verify_multiple_aggregate_signatures(
             &msgs.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
             DST,
             &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
@@ -294,7 +295,8 @@ impl Eq for BLS12381Signature {}
 
 impl Signature for BLS12381Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let sig = blst::Signature::from_bytes(bytes).map_err(|_e| signature::Error::new())?;
+        let sig =
+            blst_min_sig::Signature::from_bytes(bytes).map_err(|_e| signature::Error::new())?;
         Ok(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -311,7 +313,7 @@ impl Default for BLS12381Signature {
             0xa6, 0x3c, 0x48, 0x99,
         ];
 
-        let sk = blst::SecretKey::key_gen(&ikm, &[]).unwrap();
+        let sk = blst_min_sig::SecretKey::key_gen(&ikm, &[]).unwrap();
 
         let msg = b"hello foo";
         let sig = sk.sign(msg, DST, &[]);
@@ -348,8 +350,8 @@ impl AsRef<[u8]> for BLS12381PrivateKey {
 
 impl ToFromBytes for BLS12381PrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let privkey =
-            blst::SecretKey::from_bytes(bytes).map_err(|_e| FastCryptoError::InvalidInput)?;
+        let privkey = blst_min_sig::SecretKey::from_bytes(bytes)
+            .map_err(|_e| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PrivateKey {
             privkey,
             bytes: OnceCell::new(),
@@ -444,7 +446,8 @@ impl KeyPair for BLS12381KeyPair {
     fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
-        let privkey = blst::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");
+        let privkey =
+            blst_min_sig::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");
         let pubkey = privkey.sk_to_pk();
         BLS12381KeyPair {
             name: BLS12381PublicKey {
@@ -461,7 +464,7 @@ impl KeyPair for BLS12381KeyPair {
 
 impl Signer<BLS12381Signature> for BLS12381KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
-        let blst_priv: &blst::SecretKey = &self.secret.privkey;
+        let blst_priv: &blst_min_sig::SecretKey = &self.secret.privkey;
         let sig = blst_priv.sign(msg, DST, &[]);
 
         Ok(BLS12381Signature {
@@ -522,7 +525,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        blst::AggregateSignature::aggregate(
+        blst_min_sig::AggregateSignature::aggregate(
             &signatures
                 .into_iter()
                 .map(|x| &x.borrow().sig)
@@ -539,7 +542,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         match self.sig {
             Some(ref mut sig) => {
-                let mut aggr_sig = blst::AggregateSignature::from_signature(sig);
+                let mut aggr_sig = blst_min_sig::AggregateSignature::from_signature(sig);
                 aggr_sig
                     .add_signature(&signature.sig, true)
                     .map_err(|_| FastCryptoError::GeneralError)?;
@@ -557,7 +560,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         match self.sig {
             Some(ref mut sig) => match signature.sig {
                 Some(to_add) => {
-                    let result = blst::AggregateSignature::aggregate(&[sig, &to_add], true)
+                    let result = blst_min_sig::AggregateSignature::aggregate(&[sig, &to_add], true)
                         .map_err(|_| FastCryptoError::GeneralError)?
                         .to_signature();
                     self.sig = Some(result);
@@ -693,10 +696,24 @@ impl Drop for BLS12381KeyPair {
 
 impl ToFromBytes for BLS12381AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        let sig = blst_min_sig::Signature::from_bytes(bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
             sig: Some(sig),
             bytes: OnceCell::new(),
         })
     }
+}
+
+// Low level BLS verification for when the public key is in G_1.
+pub fn bls12_381_pk_in_g1_verify(
+    msg: &[u8],
+    pk: &[u8],
+    sig: &[u8],
+) -> Result<bool, FastCryptoError> {
+    const G2_DST: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
+    let sig = blst_min_pk::Signature::from_bytes(sig).map_err(|_| FastCryptoError::InvalidInput)?;
+    let pk = blst_min_pk::PublicKey::from_bytes(pk).map_err(|_| FastCryptoError::InvalidInput)?;
+    let err = sig.verify(true, msg, G2_DST, &[], &pk, true);
+    Ok(err == BLST_ERROR::BLST_SUCCESS)
 }
