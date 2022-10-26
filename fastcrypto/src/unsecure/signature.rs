@@ -27,15 +27,15 @@ use crate::traits::{
     VerifyingKey,
 };
 
-use super::hash::XXH128Unsecure;
+use super::hash::Fast256HashUnsecure;
 
 ///
 /// Define Structs
 ///
 
-const PRIVATE_KEY_LENGTH: usize = 16;
-const PUBLIC_KEY_LENGTH: usize = 16;
-const SIGNATURE_LENGTH: usize = 16;
+const PRIVATE_KEY_LENGTH: usize = 32;
+const PUBLIC_KEY_LENGTH: usize = 32;
+const SIGNATURE_LENGTH: usize = 32;
 
 #[readonly::make]
 #[derive(Default, Debug, Clone)]
@@ -63,9 +63,23 @@ impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
     }
 }
 
+impl From<&[u8]> for UnsecureSignature {
+    fn from(digest: &[u8]) -> Self {
+        UnsecureSignature(digest.try_into().unwrap())
+    }
+}
+
 #[serde_as]
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct UnsecureAggregateSignature(pub Vec<UnsecureSignature>);
+pub struct UnsecureAggregateSignature(pub [u8; SIGNATURE_LENGTH]);
+
+/// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
+fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
+    let mut hash = Fast256HashUnsecure::default();
+    hash.update(pk);
+    hash.update(msg);
+    UnsecureSignature::from(hash.finalize())
+}
 
 ///
 /// Implement SigningKey
@@ -141,13 +155,8 @@ impl<'de> Deserialize<'de> for UnsecurePublicKey {
 
 impl Verifier<UnsecureSignature> for UnsecurePublicKey {
     fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
-        // A signature for msg is equal to H(pk || msg)
-        let mut hash = XXH128Unsecure::default();
-        hash.update(self.as_bytes());
-        hash.update(msg);
-        let digest = hash.finalize();
-
-        if ToFromBytes::as_bytes(signature) == digest.as_ref() {
+        let digest = sign(self.0, msg);
+        if ToFromBytes::as_bytes(signature) == digest.0 {
             return Ok(());
         }
         Err(signature::Error::new())
@@ -251,7 +260,6 @@ impl ToFromBytes for UnsecurePrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for UnsecurePrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -261,7 +269,6 @@ impl Serialize for UnsecurePrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl<'de> Deserialize<'de> for UnsecurePrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -334,11 +341,7 @@ impl KeyPair for UnsecureKeyPair {
 impl Signer<UnsecureSignature> for UnsecureKeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<UnsecureSignature, signature::Error> {
         // A signature for msg is equal to H(pk || msg)
-        let mut hash = XXH128Unsecure::default();
-        hash.update(self.name.as_bytes());
-        hash.update(msg);
-        let digest = hash.finalize();
-        Ok(UnsecureSignature::from(digest))
+        Ok(sign(self.name.0, msg))
     }
 }
 
@@ -352,13 +355,12 @@ impl FromStr for UnsecureKeyPair {
 }
 
 ///
-/// Implement AggregateAuthenticator
+/// Implement AggregateAuthenticator. Aggregate signatures are implemented as xor's of the individual signatures.
 ///
 
-// Don't try to use this externally
 impl AsRef<[u8]> for UnsecureAggregateSignature {
     fn as_ref(&self) -> &[u8] {
-        &[]
+        &self.0
     }
 }
 
@@ -368,7 +370,16 @@ impl Display for UnsecureAggregateSignature {
     }
 }
 
-// see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+impl ToFromBytes for UnsecureAggregateSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ok(UnsecureAggregateSignature(bytes.try_into().unwrap()))
+    }
+}
+
+fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
+    let v: Vec<u8> = x.iter().zip(y.iter()).map(|(xi, yi)| xi ^ yi).collect();
+    v.try_into().unwrap()
+}
 
 impl AggregateAuthenticator for UnsecureAggregateSignature {
     type PrivKey = UnsecurePrivateKey;
@@ -380,17 +391,21 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
         Ok(UnsecureAggregateSignature(
-            signatures.into_iter().map(|s| s.borrow().clone()).collect(),
+            signatures
+                .into_iter()
+                .map(|s| s.borrow().0)
+                .reduce(xor)
+                .unwrap(),
         ))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        self.0.push(signature);
+        self.0 = xor(self.0, signature.0);
         Ok(())
     }
 
     fn add_aggregate(&mut self, signatures: Self) -> Result<(), FastCryptoError> {
-        self.0.extend(signatures.0);
+        self.0 = xor(self.0, signatures.0);
         Ok(())
     }
 
@@ -399,12 +414,9 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         msg: &[u8],
     ) -> Result<(), FastCryptoError> {
-        if pks
-            .iter()
-            .zip(self.0.iter())
-            .map(|(pk, sig)| pk.verify(msg, sig))
-            .all(|v| v.is_ok())
-        {
+        let actual = pks.iter().map(|pk| sign(pk.0, msg).0).reduce(xor).unwrap();
+
+        if actual == self.0 {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)
@@ -420,11 +432,15 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         }
         let mut pks_iter = pks.into_iter();
 
-        for (msg, sig) in messages.iter().zip(sigs.iter().map(|sig| &sig.0)) {
-            for (j, key) in pks_iter.next().unwrap().enumerate() {
-                if key.verify(msg, &sig[j]).is_err() {
-                    return Err(FastCryptoError::GeneralError);
-                }
+        for (msg, sig) in messages.iter().zip(sigs.iter()) {
+            let public_keys: Vec<UnsecurePublicKey> = pks_iter
+                .next()
+                .unwrap()
+                .map(|pk| UnsecurePublicKey(pk.0))
+                .collect();
+
+            if sig.verify(&public_keys, msg).is_err() {
+                return Err(FastCryptoError::GeneralError);
             }
         }
         Ok(())
@@ -435,13 +451,14 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> where {
-        if pks
+        let actual = pks
             .iter()
-            .zip(self.0.iter())
-            .zip(messages)
-            .map(|((pk, sig), msg)| pk.verify(msg, sig))
-            .all(|v| v.is_ok())
-        {
+            .zip(messages.iter())
+            .map(|(pk, m)| sign(pk.0, m).0)
+            .reduce(xor)
+            .unwrap();
+
+        if actual == self.0 {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)
