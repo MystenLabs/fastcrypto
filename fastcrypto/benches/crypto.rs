@@ -10,7 +10,7 @@ mod signature_benches {
     use criterion::*;
     use fastcrypto::{
         bls12377::{BLS12377AggregateSignature, BLS12377KeyPair},
-        bls12381::{BLS12381AggregateSignature, BLS12381KeyPair},
+        bls12381::{BLS12381MinSigAggregateSignature, BLS12381KeyPair},
         ed25519::*,
         hash::{Blake2b256, HashFunction},
         secp256k1::Secp256k1KeyPair,
@@ -209,7 +209,7 @@ mod signature_benches {
             verify_aggregate_signatures_single::<BLS12377KeyPair, BLS12377AggregateSignature, _>(
                 "BLS12377", *size, c,
             );
-            verify_aggregate_signatures_single::<BLS12381KeyPair, BLS12381AggregateSignature, _>(
+            verify_aggregate_signatures_single::<BLS12381KeyPair, BLS12381MinSigAggregateSignature, _>(
                 "BLS12381", *size, c,
             );
         }
@@ -239,7 +239,7 @@ mod signature_benches {
             );
             verify_aggregate_signatures_different_msg_single::<
                 BLS12381KeyPair,
-                BLS12381AggregateSignature,
+                BLS12381MinSigAggregateSignature,
                 _,
             >("BLS12381", *size, c);
         }
@@ -266,7 +266,7 @@ mod signature_benches {
                 BenchmarkId::new("BLS12381 signature aggregation", *size),
                 &(blst_signatures),
                 |b, sig| {
-                    b.iter(|| BLS12381AggregateSignature::aggregate(sig).unwrap());
+                    b.iter(|| BLS12381MinSigAggregateSignature::aggregate(sig).unwrap());
                 },
             );
         }
