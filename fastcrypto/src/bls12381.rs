@@ -17,10 +17,8 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
-    encoding::Base64,
-    error::FastCryptoError,
-    pubkey_bytes::PublicKeyBytes,
-    serde_helpers::{keypair_decode_base64},
+    encoding::Base64, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
+    serde_helpers::keypair_decode_base64,
 };
 use eyre::eyre;
 use serde::{
@@ -712,16 +710,16 @@ pub const BLS_G2_LENGTH: usize = 96;
 
 pub mod min_sig {
     use super::*;
-    use blst::min_sig as blst;
     use crate::serde_helpers::min_sig::BlsSignature;
+    use blst::min_sig as blst;
     pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
 }
 
 pub mod min_pk {
     use super::*;
-    use blst::min_pk as blst;
     use crate::serde_helpers::min_pk::BlsSignature;
+    use blst::min_pk as blst;
     pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }
