@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
-use blst::min_sig as blst;
 use serde::{
     de::{Deserializer, Error},
     ser::Serializer,
@@ -21,6 +20,8 @@ where
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
 
+macro_rules! define_bls_signature {
+()=> {
 pub struct BlsSignature;
 
 impl SerializeAs<blst::Signature> for BlsSignature {
@@ -51,6 +52,21 @@ impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
         blst::Signature::deserialize(&bytes).map_err(to_custom_error::<'de, D, _>)
     }
 }
+}
+}
+
+pub mod min_sig {
+    use super::*;
+    use blst::min_sig as blst;
+    define_bls_signature!();
+}
+
+pub mod min_pk {
+    use super::*;
+    use blst::min_pk as blst;
+    define_bls_signature!();
+}
+
 
 pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> Result<T, eyre::Report> {
     let bytes =

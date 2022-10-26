@@ -3,11 +3,12 @@
 use super::*;
 use crate::encoding::Encoding;
 use crate::{
-    bls12381::{
+    bls12381::min_sig::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381PublicKeyBytes, BLS12381Signature, BLS_PRIVATE_KEY_LENGTH, BLS_PUBLIC_KEY_LENGTH,
-        BLS_SIGNATURE_LENGTH,
+        BLS12381PublicKeyBytes, BLS12381Signature,
     },
+    bls12381::{BLS_PRIVATE_KEY_LENGTH,BLS_G2_LENGTH,
+    BLS_G1_LENGTH},
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
@@ -615,7 +616,7 @@ fn aggregate_treewise(sigs: &[BLS12381Signature]) -> BLS12381AggregateSignature 
 proptest! {
     // Tests that serde does not panic
     #[test]
-    fn test_basic_deser_publickey(bits in collection::vec(any::<u8>(), BLS_PUBLIC_KEY_LENGTH..=BLS_PUBLIC_KEY_LENGTH)) {
+    fn test_basic_deser_publickey(bits in collection::vec(any::<u8>(), BLS_G2_LENGTH..=BLS_G2_LENGTH)) {
         let _ = BLS12381PublicKey::from_bytes(&bits);
     }
 
@@ -625,7 +626,7 @@ proptest! {
     }
 
     #[test]
-    fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_SIGNATURE_LENGTH..=BLS_SIGNATURE_LENGTH)) {
+    fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_G1_LENGTH..=BLS_G1_LENGTH)) {
         let _ = <BLS12381Signature as Signature>::from_bytes(&bits);
         let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
     }

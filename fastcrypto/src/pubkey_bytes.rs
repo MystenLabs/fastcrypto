@@ -88,7 +88,7 @@ impl<T: VerifyingKey, const N: usize> Copy for PublicKeyBytes<T, N> {}
 // TODO: replace this clunky sealed marker trait once feature(associated_const_equality) stabilizes
 mod sealed {
     use crate::{
-        bls12381::BLS12381PublicKeyBytes, ed25519::Ed25519PublicKeyBytes,
+        bls12381::min_sig::BLS12381PublicKeyBytes, ed25519::Ed25519PublicKeyBytes,
         secp256k1::Secp256k1PublicKeyBytes,
     };
 
