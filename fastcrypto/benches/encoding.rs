@@ -44,8 +44,8 @@ mod encoding_benches {
         },
     ];
 
-    // TODO: atm we compare against hex and base64 encoding crates only, please add bech32, base58
-    //  and base58check.
+    // TODO: please add bech32 and base58check.
+    // Hex encoding bench.
     fn hex_encoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
@@ -88,8 +88,8 @@ mod encoding_benches {
         }
     }
 
-    // TODO: atm we compare against hex and base64 decoding crates only, please add bech32, base58
-    //  and base58check.
+    // TODO: please add bech32 and base58check.
+    // Hex decoding bench.
     fn hex_decoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
@@ -152,6 +152,7 @@ mod encoding_benches {
         }
     }
 
+    // Base64 encoding bench.
     fn base64_encoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
@@ -186,6 +187,7 @@ mod encoding_benches {
         }
     }
 
+    // Base64 decoding bench.
     fn base64_decoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
@@ -223,6 +225,7 @@ mod encoding_benches {
         }
     }
 
+    // Base58 encoding bench.
     fn base58_encoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(&("bs58_encode_".to_owned() + test_message.name), move |b| {
@@ -256,6 +259,7 @@ mod encoding_benches {
         }
     }
 
+    // Base58 decoding bench.
     fn base58_decoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(&("bs58_decode_".to_owned() + test_message.name), move |b| {
