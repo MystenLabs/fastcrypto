@@ -7,12 +7,14 @@ use crate::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
 };
+use base64ct::{Base64, Encoding};
 use eyre::eyre;
 use rand::Rng;
 use serde::{
     de::{self},
     Deserialize, Serialize,
 };
+use serde_big_array::BigArray;
 use serde_with::serde_as;
 use std::{
     borrow::Borrow,
@@ -33,13 +35,16 @@ use super::hash::Fast256HashUnsecure;
 /// Define Structs
 ///
 
+// Set to same sizes as BLS
 const PRIVATE_KEY_LENGTH: usize = 32;
-const PUBLIC_KEY_LENGTH: usize = 32;
-const SIGNATURE_LENGTH: usize = 32;
+const PUBLIC_KEY_LENGTH: usize = 96;
+const SIGNATURE_LENGTH: usize = 48;
+
+type DefaultHashFunction = Fast256HashUnsecure;
 
 #[readonly::make]
-#[derive(Default, Debug, Clone)]
-pub struct UnsecurePublicKey(pub [u8; SIGNATURE_LENGTH]);
+#[derive(Debug, Clone)]
+pub struct UnsecurePublicKey(pub [u8; PUBLIC_KEY_LENGTH]);
 
 pub type UnsecurePublicKeyBytes = PublicKeyBytes<UnsecurePublicKey, { PUBLIC_KEY_LENGTH }>;
 
@@ -54,8 +59,8 @@ pub struct UnsecureKeyPair {
     secret: UnsecurePrivateKey,
 }
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct UnsecureSignature(pub [u8; SIGNATURE_LENGTH]);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsecureSignature(#[serde(with = "BigArray")] pub [u8; SIGNATURE_LENGTH]);
 
 impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
     fn from(digest: Digest<DIGEST_LEN>) -> Self {
@@ -70,20 +75,31 @@ impl From<&[u8]> for UnsecureSignature {
 }
 
 #[serde_as]
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct UnsecureAggregateSignature(pub [u8; SIGNATURE_LENGTH]);
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnsecureAggregateSignature(#[serde(with = "BigArray")] pub [u8; SIGNATURE_LENGTH]);
 
 /// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
 fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
-    let mut hash = Fast256HashUnsecure::default();
+    let copies = (SIGNATURE_LENGTH - 1) / DefaultHashFunction::OUTPUT_SIZE + 1;
+    let mut hash = DefaultHashFunction::default();
     hash.update(pk);
     hash.update(msg);
-    UnsecureSignature::from(hash.finalize())
+    let digest = hash.finalize();
+
+    // Duplicate the output of the hash function as many times as needed and then truncate to the desired signature size
+    let combined: Vec<u8> = vec![digest.digest; copies].concat();
+    UnsecureSignature::from(&combined[0..SIGNATURE_LENGTH])
 }
 
 ///
 /// Implement SigningKey
 ///
+
+impl Default for UnsecurePublicKey {
+    fn default() -> Self {
+        Self([0; PUBLIC_KEY_LENGTH])
+    }
+}
 
 impl AsRef<[u8]> for UnsecurePublicKey {
     fn as_ref(&self) -> &[u8] {
@@ -127,7 +143,7 @@ impl Ord for UnsecurePublicKey {
 
 impl Display for UnsecurePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
+        write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
@@ -201,6 +217,12 @@ impl VerifyingKey for UnsecurePublicKey {
 /// Implement Authenticator
 ///
 
+impl Default for UnsecureSignature {
+    fn default() -> Self {
+        Self([0; SIGNATURE_LENGTH])
+    }
+}
+
 impl AsRef<[u8]> for UnsecureSignature {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -231,7 +253,7 @@ impl Signature for UnsecureSignature {
 
 impl Display for UnsecureSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
+        write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
@@ -292,8 +314,16 @@ impl SigningKey for UnsecurePrivateKey {
 
 impl From<UnsecurePrivateKey> for UnsecureKeyPair {
     fn from(secret: UnsecurePrivateKey) -> Self {
-        let pk: UnsecurePublicKey = (&secret).into();
-        UnsecureKeyPair { name: pk, secret }
+        let mut pk_bytes = [0; PUBLIC_KEY_LENGTH];
+        if PRIVATE_KEY_LENGTH >= PUBLIC_KEY_LENGTH {
+            pk_bytes.copy_from_slice(&secret.0[0..PUBLIC_KEY_LENGTH]);
+        } else {
+            pk_bytes[0..PRIVATE_KEY_LENGTH].copy_from_slice(&secret.0);
+        }
+        UnsecureKeyPair {
+            name: UnsecurePublicKey(pk_bytes),
+            secret,
+        }
     }
 }
 
@@ -306,7 +336,7 @@ impl EncodeDecodeBase64 for UnsecureKeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode(&bytes[..])
+        Base64::encode_string(&bytes[..])
     }
 }
 
@@ -332,7 +362,7 @@ impl KeyPair for UnsecureKeyPair {
     }
 
     fn generate<R: rand::CryptoRng + rand::RngCore>(_rng: &mut R) -> Self {
-        let sk_bytes: [u8; PUBLIC_KEY_LENGTH] = rand::thread_rng().gen();
+        let sk_bytes: [u8; PRIVATE_KEY_LENGTH] = rand::thread_rng().gen();
         let sk = UnsecurePrivateKey(sk_bytes);
         sk.into()
     }
@@ -366,7 +396,7 @@ impl AsRef<[u8]> for UnsecureAggregateSignature {
 
 impl Display for UnsecureAggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
+        write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
@@ -379,6 +409,12 @@ impl ToFromBytes for UnsecureAggregateSignature {
 fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
     let v: Vec<u8> = x.iter().zip(y.iter()).map(|(xi, yi)| xi ^ yi).collect();
     v.try_into().unwrap()
+}
+
+impl Default for UnsecureAggregateSignature {
+    fn default() -> Self {
+        Self([0; SIGNATURE_LENGTH])
+    }
 }
 
 impl AggregateAuthenticator for UnsecureAggregateSignature {
