@@ -5,6 +5,7 @@ extern crate criterion;
 
 mod encoding_benches {
     use super::*;
+    use base64ct::{Base64 as b64ct, Encoding};
     use criterion::*;
     use faster_hex::{
         hex_decode, hex_decode_fallback, hex_decode_unchecked, hex_encode_fallback, hex_string,
@@ -26,6 +27,10 @@ mod encoding_benches {
             value: &[0u8; 32],
         },
         TestMessage {
+            name: "MSG_64B_ZERO",
+            value: &[0u8; 64],
+        },
+        TestMessage {
             name: "MSG_20B_RANDOM",
             value: b"this is a random msg",
         },
@@ -33,11 +38,15 @@ mod encoding_benches {
             name: "MSG_32B_RANDOM",
             value: b"this is a random msg: (32B long)",
         },
+        TestMessage {
+            name: "MSG_64B_RANDOM",
+            value: b"this is a random msg: (64B long)this is a random msg: (64B long)",
+        },
     ];
 
-    // TODO: atm we compare against hex encoding crates only, please add base64, bech32, base58 and
-    //  base58check.
-    fn encode(c: &mut Criterion) {
+    // TODO: please add bech32 and base58check.
+    // Hex encoding bench.
+    fn hex_encoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
                 &("rustc_hex_encode_".to_owned() + test_message.name),
@@ -79,9 +88,9 @@ mod encoding_benches {
         }
     }
 
-    // TODO: atm we compare against hex decoding crates only, please add base64, bech32, base58 and
-    //  base58check.
-    fn decode(c: &mut Criterion) {
+    // TODO: please add bech32 and base58check.
+    // Hex decoding bench.
+    fn hex_decoding(c: &mut Criterion) {
         for test_message in TEST_MESSAGES {
             c.bench_function(
                 &("rustc_hex_decode_".to_owned() + test_message.name),
@@ -143,12 +152,160 @@ mod encoding_benches {
         }
     }
 
+    // Base64 encoding bench.
+    fn base64_encoding(c: &mut Criterion) {
+        for test_message in TEST_MESSAGES {
+            c.bench_function(
+                &("base64_encode_".to_owned() + test_message.name),
+                move |b| {
+                    b.iter(|| {
+                        let ret = base64::encode(test_message.value);
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("base64ct_encode_".to_owned() + test_message.name),
+                move |b| {
+                    b.iter(|| {
+                        let ret = b64ct::encode_string(test_message.value);
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("radix64_encode_".to_owned() + test_message.name),
+                move |b| {
+                    b.iter(|| {
+                        let ret = radix64::STD.encode(test_message.value);
+                        black_box(ret);
+                    })
+                },
+            );
+        }
+    }
+
+    // Base64 decoding bench.
+    fn base64_decoding(c: &mut Criterion) {
+        for test_message in TEST_MESSAGES {
+            c.bench_function(
+                &("base64_decode_".to_owned() + test_message.name),
+                move |b| {
+                    let base64_string: String = base64::encode(test_message.value);
+                    b.iter(|| {
+                        let ret = base64::decode(&base64_string).unwrap();
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("base64ct_decode_".to_owned() + test_message.name),
+                move |b| {
+                    let base64_string: String = b64ct::encode_string(test_message.value);
+                    b.iter(|| {
+                        let ret = b64ct::decode_vec(&base64_string).unwrap();
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("radix64_decode_".to_owned() + test_message.name),
+                move |b| {
+                    let base64_string: String = radix64::STD.encode(test_message.value);
+                    b.iter(|| {
+                        let ret = radix64::STD.decode(&base64_string).unwrap();
+                        black_box(ret);
+                    })
+                },
+            );
+        }
+    }
+
+    // Base58 encoding bench.
+    fn base58_encoding(c: &mut Criterion) {
+        for test_message in TEST_MESSAGES {
+            c.bench_function(&("bs58_encode_".to_owned() + test_message.name), move |b| {
+                b.iter(|| {
+                    let ret = bs58::encode(test_message.value).into_string();
+                    black_box(ret);
+                })
+            });
+
+            c.bench_function(
+                &("base58_encode_".to_owned() + test_message.name),
+                move |b| {
+                    use base58::ToBase58;
+                    b.iter(|| {
+                        let ret = test_message.value.to_base58();
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("rust_base58_encode_".to_owned() + test_message.name),
+                move |b| {
+                    use rust_base58::ToBase58;
+                    b.iter(|| {
+                        let ret = test_message.value.to_base58();
+                        black_box(ret);
+                    })
+                },
+            );
+        }
+    }
+
+    // Base58 decoding bench.
+    fn base58_decoding(c: &mut Criterion) {
+        for test_message in TEST_MESSAGES {
+            c.bench_function(&("bs58_decode_".to_owned() + test_message.name), move |b| {
+                let base58_string: String = bs58::encode(test_message.value).into_string();
+                b.iter(|| {
+                    let ret = bs58::decode(&base58_string).into_vec().unwrap();
+                    black_box(ret);
+                })
+            });
+
+            c.bench_function(
+                &("base58_decode_".to_owned() + test_message.name),
+                move |b| {
+                    use base58::{FromBase58, ToBase58};
+                    let base58_string: String = test_message.value.to_base58();
+                    b.iter(|| {
+                        let ret = base58_string.from_base58().unwrap();
+                        black_box(ret);
+                    })
+                },
+            );
+
+            c.bench_function(
+                &("rust_base58_decode_".to_owned() + test_message.name),
+                move |b| {
+                    use rust_base58::{FromBase58, ToBase58};
+                    let base58_string: String = test_message.value.to_base58();
+                    b.iter(|| {
+                        let ret = base58_string.from_base58().unwrap();
+                        black_box(ret);
+                    })
+                },
+            );
+        }
+    }
+
     criterion_group! {
         name = encoding_benches;
         config = Criterion::default();
         targets =
-            encode,
-            decode,
+            hex_encoding,
+            hex_decoding,
+            base64_encoding,
+            base64_decoding,
+            base58_encoding,
+            base58_decoding,
     }
 }
 
