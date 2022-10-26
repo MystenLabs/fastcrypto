@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use base64ct::{Base64, Encoding};
+use crate::encoding::Encoding;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -21,6 +21,7 @@ use std::{
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::{
+    encoding::Base64,
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
@@ -169,13 +170,13 @@ impl Default for Ed25519PublicKey {
 
 impl Display for Ed25519PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.0.as_bytes()))
+        write!(f, "{}", Base64::encode(self.0.as_bytes()))
     }
 }
 
 impl Debug for Ed25519PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -300,7 +301,7 @@ impl AsRef<[u8]> for Ed25519Signature {
 
 impl Display for Ed25519Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode_string(self.as_ref()))
+        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
@@ -328,7 +329,7 @@ impl Serialize for Ed25519Signature {
         let readable = serializer.is_human_readable();
         let mut state = serializer.serialize_struct("Ed25519Signature", 1)?;
         if readable {
-            state.serialize_field(BASE64_FIELD_NAME, &Base64::encode_string(self.as_ref()))?;
+            state.serialize_field(BASE64_FIELD_NAME, &Base64::encode(self.as_ref()))?;
         } else {
             state.serialize_field(RAW_FIELD_NAME, Bytes::new(self.as_ref()))?;
         }
@@ -422,7 +423,7 @@ impl Display for Ed25519AggregateSignature {
             "{:?}",
             self.0
                 .iter()
-                .map(|x| Base64::encode_string(&x.to_bytes()))
+                .map(|x| Base64::encode(&x.to_bytes()))
                 .collect::<Vec<_>>()
         )
     }
@@ -535,7 +536,7 @@ impl EncodeDecodeBase64 for Ed25519KeyPair {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
         bytes.extend_from_slice(self.name.as_ref());
-        Base64::encode_string(&bytes[..])
+        Base64::encode(&bytes[..])
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {

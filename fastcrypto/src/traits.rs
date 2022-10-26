@@ -1,7 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use base64ct::Encoding;
 use eyre::eyre;
 
 use rand::{CryptoRng, RngCore};
@@ -13,7 +12,10 @@ use std::{
     str::FromStr,
 };
 
-use crate::error::FastCryptoError;
+use crate::{
+    encoding::{Base64, Encoding},
+    error::FastCryptoError,
+};
 
 /// Trait impl'd by concrete types that represent digital cryptographic material
 /// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
@@ -63,11 +65,11 @@ pub trait EncodeDecodeBase64: Sized {
 // The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot
 impl<T: ToFromBytes> EncodeDecodeBase64 for T {
     fn encode_base64(&self) -> String {
-        base64ct::Base64::encode_string(self.as_bytes())
+        Base64::encode(self.as_bytes())
     }
 
     fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        let bytes = base64ct::Base64::decode_vec(value).map_err(|e| eyre!("{}", e.to_string()))?;
+        let bytes = Base64::decode(value)?;
         <T as ToFromBytes>::from_bytes(&bytes).map_err(|e| e.into())
     }
 }

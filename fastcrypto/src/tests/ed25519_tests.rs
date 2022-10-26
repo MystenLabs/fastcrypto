@@ -3,16 +3,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::encoding::Encoding;
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
         Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
+    encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-use base64ct::Encoding;
 use ed25519_consensus::VerificationKey;
 use rand::{rngs::StdRng, SeedableRng as _};
 use serde_reflection::{Samples, Tracer, TracerConfig};
@@ -97,7 +98,7 @@ fn test_serde_signatures_human_readable() {
     assert_eq!(
         format!(
             r#"{{"base64":"{}"}}"#,
-            base64ct::Base64::encode_string(&signature.sig.to_bytes())
+            Base64::encode(&signature.sig.to_bytes())
         ),
         serialized
     );
