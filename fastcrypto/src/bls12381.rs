@@ -50,7 +50,7 @@ pub const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 #[derive(Default, Clone)]
 pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
-    pub bytes: OnceCell<[u8; BLS_PUBLIC_KEY_LENGTH]>,
+    pub bytes: OnceCell<Vec<u8>>,
 }
 
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
@@ -59,7 +59,7 @@ pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381Pu
 #[derive(SilentDebug, SilentDisplay, Default)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
-    pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
+    pub bytes: OnceCell<Vec<u8>>,
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
@@ -77,7 +77,7 @@ pub struct BLS12381Signature {
     #[serde_as(as = "BlsSignature")]
     pub sig: blst::Signature,
     #[serde(skip)]
-    pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
+    pub bytes: OnceCell<Vec<u8>>,
 }
 
 #[readonly::make]
@@ -87,7 +87,7 @@ pub struct BLS12381AggregateSignature {
     #[serde_as(as = "Option<BlsSignature>")]
     pub sig: Option<blst::Signature>,
     #[serde(skip)]
-    pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
+    pub bytes: OnceCell<Vec<u8>>,
 }
 
 ///
@@ -97,7 +97,7 @@ pub struct BLS12381AggregateSignature {
 impl AsRef<[u8]> for BLS12381PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.to_bytes()))
+            .get_or_try_init::<_, eyre::Report>(|| Ok(Vec::from(self.pubkey.to_bytes())))
             .expect("OnceCell invariant violated")
     }
 }
@@ -274,7 +274,7 @@ impl VerifyingKey for BLS12381PublicKey {
 impl AsRef<[u8]> for BLS12381Signature {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
+            .get_or_try_init::<_, eyre::Report>(|| Ok(Vec::from(self.sig.to_bytes())))
             .expect("OnceCell invariant violated")
     }
 }
@@ -342,7 +342,7 @@ impl Authenticator for BLS12381Signature {
 impl AsRef<[u8]> for BLS12381PrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.privkey.to_bytes()))
+            .get_or_try_init::<_, eyre::Report>(|| Ok(Vec::from(self.privkey.to_bytes())))
             .expect("OnceCell invariant violated")
     }
 }
@@ -491,7 +491,7 @@ impl AsRef<[u8]> for BLS12381AggregateSignature {
         match self.sig {
             Some(sig) => self
                 .bytes
-                .get_or_try_init::<_, eyre::Report>(|| Ok(sig.to_bytes()))
+                .get_or_try_init::<_, eyre::Report>(|| Ok(Vec::from(sig.to_bytes())))
                 .expect("OnceCell invariant violated"),
             None => &[],
         }
