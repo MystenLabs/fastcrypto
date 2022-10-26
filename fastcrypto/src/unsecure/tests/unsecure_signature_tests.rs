@@ -34,7 +34,7 @@ fn serialize_deserialize() {
 
     let private_key = kpref.private();
     let bytes = bincode::serialize(&private_key).unwrap();
-    let privkey = bincode::deserialize::<UnsecurePublicKey>(&bytes).unwrap();
+    let privkey = bincode::deserialize::<UnsecurePrivateKey>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 }
