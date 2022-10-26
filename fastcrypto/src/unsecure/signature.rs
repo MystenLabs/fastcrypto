@@ -282,7 +282,6 @@ impl ToFromBytes for UnsecurePrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for UnsecurePrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -292,7 +291,6 @@ impl Serialize for UnsecurePrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl<'de> Deserialize<'de> for UnsecurePrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
