@@ -68,6 +68,7 @@ default = ["secure"]
 secure = []
 copy_key = []
 unsecure_schemes = ["dep:twox-hash"]
+no-threads-blst = ["blst/no-threads"]
 
 [dev-dependencies]
 bincode = "1.3.3"
