@@ -8,7 +8,7 @@ use blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
 use blst::{blst_p2_affine, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
 use byte_slice_cast::AsByteSlice;
 
-use ark_bls12_381::{Fq, Fq2, Fr as BlsFr};
+pub use ark_bls12_381::{Fq, Fq2, Fr as BlsFr};
 use ark_bls12_381::{Fq12, G2Affine as BlsG2Affine};
 use ark_bls12_381::{Fq6, G1Affine as BlsG1Affine};
 
