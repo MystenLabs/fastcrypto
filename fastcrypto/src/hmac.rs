@@ -39,7 +39,7 @@ use hkdf::hmac::{Hmac, Mac};
 /// Note: This HKDF function may not match the native library's deterministic key generation functions.
 /// For example, observe that in the blst library:
 /// ```rust
-/// use fastcrypto::bls12381::BLS12381KeyPair;
+/// use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
 /// use fastcrypto::hash::Sha3_256;
 /// use fastcrypto::traits::{KeyPair, SigningKey, ToFromBytes};
 /// use fastcrypto::hmac::hkdf_generate_from_ikm;
