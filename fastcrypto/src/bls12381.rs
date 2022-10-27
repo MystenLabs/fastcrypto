@@ -42,7 +42,7 @@ use crate::traits::{
 // Below we define BLS related objects for each of the modes, seperated using modules min_sig and
 // min_pk.
 
-macro_rules! define_bls12381{
+macro_rules! define_bls12381 {
 (
     $pk_length:expr,
     $sig_length:expr,
@@ -709,8 +709,7 @@ impl ToFromBytes for BLS12381AggregateSignature {
     }
 }
 
-}
-}
+}} // macro_rules! define_bls12381
 
 pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;
 pub const BLS_G1_LENGTH: usize = 48;

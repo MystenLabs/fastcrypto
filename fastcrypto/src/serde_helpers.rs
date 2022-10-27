@@ -54,7 +54,7 @@ macro_rules! define_bls_signature {
             }
         }
     };
-}
+} // macro_rules! define_bls_signature
 
 pub mod min_sig {
     use super::*;
