@@ -34,6 +34,14 @@ use crate::traits::{
     VerifyingKey,
 };
 
+// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
+// and of the second using 96 bytes. BLS supports two modes:
+// - Minimal-signature-size (or min-sig) - signatures are in G1 and public keys are in G2.
+// - Minimal-pubkey-size (or min-pk) - signature are in G2 and public keys are in G1.
+//
+// Below we define BLS related objects for each of the modes, seperated using modules min_sig and
+// min_pk.
+
 macro_rules! define_bls12381{
 (
     $pk_length:expr,

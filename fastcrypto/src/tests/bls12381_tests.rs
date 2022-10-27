@@ -3,10 +3,6 @@
 use super::*;
 use crate::encoding::Encoding;
 use crate::{
-    bls12381::min_sig::{
-        BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381PublicKeyBytes, BLS12381Signature,
-    },
     bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
@@ -19,6 +15,9 @@ use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 use signature::{Signature, Signer, Verifier};
 
+
+// We use the following macro in order to run all tests for both min_sig and min_pk.
+macro_rules! define_tests { () => {
 pub fn keys() -> Vec<BLS12381KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
     (0..4)
@@ -674,4 +673,23 @@ proptest! {
         assert_eq!(res_aggregated.is_ok(), res_iterated, "Aggregated: {:?}, iterated: {:?}", res_aggregated, iterated_bits);
     }
 
+}
+}} // macro_rules! define_tests
+
+pub mod min_sig {
+    use super::*;
+    use crate::bls12381::min_sig::{
+            BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
+            BLS12381PublicKeyBytes, BLS12381Signature,
+        };
+    define_tests!();
+}
+
+pub mod min_pk {
+    use super::*;
+    use crate::bls12381::min_pk::{
+        BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
+        BLS12381PublicKeyBytes, BLS12381Signature,
+    };
+    define_tests!();
 }
