@@ -282,6 +282,14 @@
 <span id="282">282</span>
 <span id="283">283</span>
 <span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -373,17 +381,21 @@
     </span>+ Default <span class="comment">// see [#34](https://github.com/MystenLabs/narwhal/issues/34)
     </span>+ ToFromBytes
     + signature::Verifier&lt;<span class="self">Self</span>::Sig&gt;
-    + <span class="kw">for </span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey
+    + <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey
     </span>+ Send
     + Sync
     + <span class="lifetime">&#39;static
     </span>+ Clone
 {
-    <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey = <span class="self">Self</span>&gt;;
-    <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>&gt;;
+    <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey=<span class="self">Self</span>&gt;;
+    <span class="kw">type </span>Sig: Authenticator&lt;PubKey=<span class="self">Self</span>&gt;;
     <span class="kw">const </span>LENGTH: usize;
 
     <span class="comment">// Expected to be overridden by implementations
+    </span><span class="doccomment">/// Batch verification over the same message. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
     </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
@@ -398,6 +410,10 @@
     }
 
     <span class="comment">// Expected to be overridden by implementations
+    </span><span class="doccomment">/// Batch verification over different messages. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
     </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
