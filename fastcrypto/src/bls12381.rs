@@ -9,7 +9,6 @@ use std::{
 
 use crate::encoding::Encoding;
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
-use blst::min_sig as blst;
 
 use once_cell::sync::OnceCell;
 use rand::{rngs::OsRng, CryptoRng, RngCore};
@@ -18,10 +17,8 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
-    encoding::Base64,
-    error::FastCryptoError,
-    pubkey_bytes::PublicKeyBytes,
-    serde_helpers::{keypair_decode_base64, BlsSignature},
+    encoding::Base64, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
+    serde_helpers::keypair_decode_base64,
 };
 use eyre::eyre;
 use serde::{
@@ -37,10 +34,20 @@ use crate::traits::{
     VerifyingKey,
 };
 
-pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;
-pub const BLS_PUBLIC_KEY_LENGTH: usize = 96;
-pub const BLS_SIGNATURE_LENGTH: usize = 48;
-pub const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
+// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
+// and of the second using 96 bytes. BLS supports two modes:
+// - Minimal-signature-size (or min-sig) - signatures are in G1 and public keys are in G2.
+// - Minimal-pubkey-size (or min-pk) - signature are in G2 and public keys are in G1.
+//
+// Below we define BLS related objects for each of the modes, seperated using modules min_sig and
+// min_pk.
+
+macro_rules! define_bls12381 {
+(
+    $pk_length:expr,
+    $sig_length:expr,
+    $dst_string:expr
+) => {
 
 ///
 /// Define Structs
@@ -50,7 +57,7 @@ pub const DST: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
 #[derive(Default, Clone)]
 pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
-    pub bytes: OnceCell<[u8; BLS_PUBLIC_KEY_LENGTH]>,
+    pub bytes: OnceCell<[u8; $pk_length]>,
 }
 
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
@@ -77,7 +84,7 @@ pub struct BLS12381Signature {
     #[serde_as(as = "BlsSignature")]
     pub sig: blst::Signature,
     #[serde(skip)]
-    pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
+    pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
 #[readonly::make]
@@ -87,7 +94,7 @@ pub struct BLS12381AggregateSignature {
     #[serde_as(as = "Option<BlsSignature>")]
     pub sig: Option<blst::Signature>,
     #[serde(skip)]
-    pub bytes: OnceCell<[u8; BLS_SIGNATURE_LENGTH]>,
+    pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
 ///
@@ -176,7 +183,7 @@ impl Verifier<BLS12381Signature> for BLS12381PublicKey {
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
         let err = signature
             .sig
-            .verify(true, msg, DST, &[], &self.pubkey, true);
+            .verify(true, msg, $dst_string, &[], &self.pubkey, true);
         if err == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
@@ -200,7 +207,7 @@ impl VerifyingKey for BLS12381PublicKey {
     type PrivKey = BLS12381PrivateKey;
     type Sig = BLS12381Signature;
 
-    const LENGTH: usize = BLS_PUBLIC_KEY_LENGTH;
+    const LENGTH: usize = $pk_length;
 
     fn verify_batch_empty_fail(
         msg: &[u8],
@@ -266,7 +273,7 @@ impl VerifyingKey for BLS12381PublicKey {
 
         let result = blst::Signature::verify_multiple_aggregate_signatures(
             &msgs.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
-            DST,
+            $dst_string,
             &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
             false,
             &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
@@ -330,7 +337,7 @@ impl Default for BLS12381Signature {
         let sk = blst::SecretKey::key_gen(&ikm, &[]).unwrap();
 
         let msg = b"hello foo";
-        let sig = sk.sign(msg, DST, &[]);
+        let sig = sk.sign(msg, $dst_string, &[]);
         BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -347,7 +354,7 @@ impl Display for BLS12381Signature {
 impl Authenticator for BLS12381Signature {
     type PubKey = BLS12381PublicKey;
     type PrivKey = BLS12381PrivateKey;
-    const LENGTH: usize = BLS_SIGNATURE_LENGTH;
+    const LENGTH: usize = $sig_length;
 }
 
 ///
@@ -403,7 +410,7 @@ impl SigningKey for BLS12381PrivateKey {
 
 impl Signer<BLS12381Signature> for BLS12381PrivateKey {
     fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
-        let sig = self.privkey.sign(msg, DST, &[]);
+        let sig = self.privkey.sign(msg, $dst_string, &[]);
 
         Ok(BLS12381Signature {
             sig,
@@ -478,7 +485,7 @@ impl KeyPair for BLS12381KeyPair {
 impl Signer<BLS12381Signature> for BLS12381KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
         let blst_priv: &blst::SecretKey = &self.secret.privkey;
-        let sig = blst_priv.sign(msg, DST, &[]);
+        let sig = blst_priv.sign(msg, $dst_string, &[]);
 
         Ok(BLS12381Signature {
             sig,
@@ -599,7 +606,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             .fast_aggregate_verify(
                 true,
                 message,
-                DST,
+                $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
             );
         if result != BLST_ERROR::BLST_SUCCESS {
@@ -619,7 +626,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             .aggregate_verify(
                 true,
                 messages,
-                DST,
+                $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
                 true,
             );
@@ -645,7 +652,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                 .fast_aggregate_verify(
                     true,
                     messages[i],
-                    DST,
+                    $dst_string,
                     &pk_iter
                         .next()
                         .unwrap()
@@ -715,4 +722,26 @@ impl ToFromBytes for BLS12381AggregateSignature {
             bytes: OnceCell::new(),
         })
     }
+}
+
+}} // macro_rules! define_bls12381
+
+pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;
+pub const BLS_G1_LENGTH: usize = 48;
+pub const BLS_G2_LENGTH: usize = 96;
+
+pub mod min_sig {
+    use super::*;
+    use crate::serde_helpers::min_sig::BlsSignature;
+    use blst::min_sig as blst;
+    pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
+    define_bls12381!(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
+}
+
+pub mod min_pk {
+    use super::*;
+    use crate::serde_helpers::min_pk::BlsSignature;
+    use blst::min_pk as blst;
+    pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
+    define_bls12381!(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }

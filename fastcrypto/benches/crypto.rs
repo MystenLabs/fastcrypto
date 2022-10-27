@@ -10,7 +10,7 @@ mod signature_benches {
     use criterion::*;
     use fastcrypto::{
         bls12377::{BLS12377AggregateSignature, BLS12377KeyPair},
-        bls12381::{BLS12381AggregateSignature, BLS12381KeyPair},
+        bls12381,
         ed25519::*,
         hash::{Blake2b256, HashFunction},
         secp256k1::Secp256k1KeyPair,
@@ -31,7 +31,8 @@ mod signature_benches {
 
     fn sign(c: &mut Criterion) {
         sign_single::<Ed25519KeyPair>("Ed25519", c);
-        sign_single::<BLS12381KeyPair>("BLS12381", c);
+        sign_single::<bls12381::min_sig::BLS12381KeyPair>("BLS12381MinSig", c);
+        sign_single::<bls12381::min_pk::BLS12381KeyPair>("BLS12381MinPk", c);
         sign_single::<BLS12377KeyPair>("BLS12377", c);
         sign_single::<Secp256k1KeyPair>("Sepc256k1", c);
     }
@@ -49,7 +50,8 @@ mod signature_benches {
 
     fn verify(c: &mut Criterion) {
         verify_single::<Ed25519KeyPair>("Ed25519", c);
-        verify_single::<BLS12381KeyPair>("BLS12381", c);
+        verify_single::<bls12381::min_sig::BLS12381KeyPair>("BLS12381MinSig", c);
+        verify_single::<bls12381::min_pk::BLS12381KeyPair>("BLS12381MinPk", c);
         verify_single::<BLS12377KeyPair>("BLS12377", c);
         verify_single::<Secp256k1KeyPair>("Sepc256k1", c);
     }
@@ -205,13 +207,29 @@ mod signature_benches {
         for size in BATCH_SIZES.iter() {
             verify_batch_signatures_single::<Ed25519KeyPair, _>("Ed25519", *size, c);
             verify_batch_signatures_single::<BLS12377KeyPair, _>("BLS12377", *size, c);
-            verify_batch_signatures_single::<BLS12381KeyPair, _>("BLS12381", *size, c);
+            verify_batch_signatures_single::<bls12381::min_sig::BLS12381KeyPair, _>(
+                "BLS12381MinSig",
+                *size,
+                c,
+            );
+            verify_batch_signatures_single::<bls12381::min_pk::BLS12381KeyPair, _>(
+                "BLS12381MinPk",
+                *size,
+                c,
+            );
             verify_aggregate_signatures_single::<BLS12377KeyPair, BLS12377AggregateSignature, _>(
                 "BLS12377", *size, c,
             );
-            verify_aggregate_signatures_single::<BLS12381KeyPair, BLS12381AggregateSignature, _>(
-                "BLS12381", *size, c,
-            );
+            verify_aggregate_signatures_single::<
+                bls12381::min_sig::BLS12381KeyPair,
+                bls12381::min_sig::BLS12381AggregateSignature,
+                _,
+            >("BLS12381MinSig", *size, c);
+            verify_aggregate_signatures_single::<
+                bls12381::min_pk::BLS12381KeyPair,
+                bls12381::min_pk::BLS12381AggregateSignature,
+                _,
+            >("BLS12381MinPk", *size, c);
         }
     }
 
@@ -234,14 +252,26 @@ mod signature_benches {
                 BLS12377AggregateSignature,
                 _,
             >("BLS12377", *size, c);
-            verify_batch_signatures_different_msg_single::<BLS12381KeyPair, _>(
-                "BLS12381", *size, c,
+            verify_batch_signatures_different_msg_single::<bls12381::min_sig::BLS12381KeyPair, _>(
+                "BLS12381MinSig",
+                *size,
+                c,
+            );
+            verify_batch_signatures_different_msg_single::<bls12381::min_pk::BLS12381KeyPair, _>(
+                "BLS12381MinPk",
+                *size,
+                c,
             );
             verify_aggregate_signatures_different_msg_single::<
-                BLS12381KeyPair,
-                BLS12381AggregateSignature,
+                bls12381::min_sig::BLS12381KeyPair,
+                bls12381::min_sig::BLS12381AggregateSignature,
                 _,
-            >("BLS12381", *size, c);
+            >("BLS12381MinSig", *size, c);
+            verify_aggregate_signatures_different_msg_single::<
+                bls12381::min_pk::BLS12381KeyPair,
+                bls12381::min_pk::BLS12381AggregateSignature,
+                _,
+            >("BLS12381MinPk", *size, c);
         }
     }
 
@@ -251,8 +281,11 @@ mod signature_benches {
         let mut csprng: ThreadRng = thread_rng();
 
         for size in BATCH_SIZES.iter() {
-            let blst_keypairs: Vec<_> = (0..*size)
-                .map(|_| BLS12381KeyPair::generate(&mut csprng))
+            let blst_min_sig_keypairs: Vec<_> = (0..*size)
+                .map(|_| bls12381::min_sig::BLS12381KeyPair::generate(&mut csprng))
+                .collect();
+            let blst_min_pk_keypairs: Vec<_> = (0..*size)
+                .map(|_| bls12381::min_pk::BLS12381KeyPair::generate(&mut csprng))
                 .collect();
 
             let msg: Vec<u8> = Blake2b256::digest(
@@ -260,13 +293,31 @@ mod signature_benches {
             )
             .to_vec();
 
-            let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(&msg)).collect();
+            let blst_min_sig_signatures: Vec<_> = blst_min_sig_keypairs
+                .iter()
+                .map(|key| key.sign(&msg))
+                .collect();
+            let blst_min_pk_signatures: Vec<_> = blst_min_pk_keypairs
+                .iter()
+                .map(|key| key.sign(&msg))
+                .collect();
 
             c.bench_with_input(
-                BenchmarkId::new("BLS12381 signature aggregation", *size),
-                &(blst_signatures),
+                BenchmarkId::new("BLS12381MinSig signature aggregation", *size),
+                &(blst_min_sig_signatures),
                 |b, sig| {
-                    b.iter(|| BLS12381AggregateSignature::aggregate(sig).unwrap());
+                    b.iter(|| {
+                        bls12381::min_sig::BLS12381AggregateSignature::aggregate(sig).unwrap()
+                    });
+                },
+            );
+            c.bench_with_input(
+                BenchmarkId::new("BLS12381MinPk signature aggregation", *size),
+                &(blst_min_pk_signatures),
+                |b, sig| {
+                    b.iter(|| {
+                        bls12381::min_pk::BLS12381AggregateSignature::aggregate(sig).unwrap()
+                    });
                 },
             );
         }
@@ -277,18 +328,22 @@ mod signature_benches {
         let mut csprng2 = csprng.clone();
         let mut csprng3 = csprng.clone();
         let mut csprng4 = csprng.clone();
+        let mut csprng5 = csprng.clone();
 
         c.bench_function("Ed25519 keypair generation", move |b| {
             b.iter(|| Ed25519KeyPair::generate(&mut csprng))
         });
-        c.bench_function("BLS12381 keypair generation", move |b| {
-            b.iter(|| BLS12381KeyPair::generate(&mut csprng2))
+        c.bench_function("BLS12381MinSig keypair generation", move |b| {
+            b.iter(|| bls12381::min_sig::BLS12381KeyPair::generate(&mut csprng2))
+        });
+        c.bench_function("BLS12381MinPk keypair generation", move |b| {
+            b.iter(|| bls12381::min_pk::BLS12381KeyPair::generate(&mut csprng3))
         });
         c.bench_function("BLS12377 keypair generation", move |b| {
-            b.iter(|| BLS12377KeyPair::generate(&mut csprng3))
+            b.iter(|| BLS12377KeyPair::generate(&mut csprng4))
         });
         c.bench_function("Secp256k1 keypair generation", move |b| {
-            b.iter(|| Secp256k1KeyPair::generate(&mut csprng4))
+            b.iter(|| Secp256k1KeyPair::generate(&mut csprng5))
         });
     }
 

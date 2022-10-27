@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
-use blst::min_sig as blst;
 use serde::{
     de::{Deserializer, Error},
     ser::Serializer,
@@ -21,35 +20,52 @@ where
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
 
-pub struct BlsSignature;
+macro_rules! define_bls_signature {
+    () => {
+        pub struct BlsSignature;
 
-impl SerializeAs<blst::Signature> for BlsSignature {
-    fn serialize_as<S>(source: &blst::Signature, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        if serializer.is_human_readable() {
-            base64ct::Base64::encode_string(source.to_bytes().as_ref()).serialize(serializer)
-        } else {
-            // Serialise to Bytes
-            Bytes::serialize_as(&source.serialize(), serializer)
+        impl SerializeAs<blst::Signature> for BlsSignature {
+            fn serialize_as<S>(source: &blst::Signature, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                if serializer.is_human_readable() {
+                    base64ct::Base64::encode_string(source.to_bytes().as_ref())
+                        .serialize(serializer)
+                } else {
+                    // Serialise to Bytes
+                    Bytes::serialize_as(&source.serialize(), serializer)
+                }
+            }
         }
-    }
+
+        impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
+            fn deserialize_as<D>(deserializer: D) -> Result<blst::Signature, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let bytes = if deserializer.is_human_readable() {
+                    let s = String::deserialize(deserializer)?;
+                    base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
+                } else {
+                    Bytes::deserialize_as(deserializer)?
+                };
+                blst::Signature::deserialize(&bytes).map_err(to_custom_error::<'de, D, _>)
+            }
+        }
+    };
+} // macro_rules! define_bls_signature
+
+pub mod min_sig {
+    use super::*;
+    use blst::min_sig as blst;
+    define_bls_signature!();
 }
 
-impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
-    fn deserialize_as<D>(deserializer: D) -> Result<blst::Signature, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let bytes = if deserializer.is_human_readable() {
-            let s = String::deserialize(deserializer)?;
-            base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
-        } else {
-            Bytes::deserialize_as(deserializer)?
-        };
-        blst::Signature::deserialize(&bytes).map_err(to_custom_error::<'de, D, _>)
-    }
+pub mod min_pk {
+    use super::*;
+    use blst::min_pk as blst;
+    define_bls_signature!();
 }
 
 pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> Result<T, eyre::Report> {
