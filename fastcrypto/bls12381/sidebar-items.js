@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":[["BLS_PRIVATE_KEY_LENGTH",""],["BLS_PUBLIC_KEY_LENGTH",""],["BLS_SIGNATURE_LENGTH",""],["DST",""]],"struct":[["BLS12381AggregateSignature",""],["BLS12381KeyPair",""],["BLS12381PrivateKey",""],["BLS12381PublicKey","Define Structs"],["BLS12381Signature",""]],"type":[["BLS12381PublicKeyBytes",""]]};
+window.SIDEBAR_ITEMS = {"constant":[["BLS_G1_LENGTH",""],["BLS_G2_LENGTH",""],["BLS_PRIVATE_KEY_LENGTH",""]],"mod":[["min_pk",""],["min_sig",""]]};

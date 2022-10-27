@@ -15,7 +15,7 @@ Despite the unsightly generics (which aim to ensure this works for a wide range 
 <p>Note: This HKDF function may not match the native library’s deterministic key generation functions.
 For example, observe that in the blst library:</p>
 
-<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>fastcrypto::bls12381::BLS12381KeyPair;
+<div class="example-wrap"><pre class="rust rust-example-rendered"><code><span class="kw">use </span>fastcrypto::bls12381::min_sig::BLS12381KeyPair;
 <span class="kw">use </span>fastcrypto::hash::Sha3_256;
 <span class="kw">use </span>fastcrypto::traits::{KeyPair, SigningKey, ToFromBytes};
 <span class="kw">use </span>fastcrypto::hmac::hkdf_generate_from_ikm;

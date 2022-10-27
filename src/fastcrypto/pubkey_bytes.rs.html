@@ -95,8 +95,6 @@
 <span id="95">95</span>
 <span id="96">96</span>
 <span id="97">97</span>
-<span id="98">98</span>
-<span id="99">99</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -186,14 +184,12 @@
 <span class="comment">// This guarantees the security of the constructor of a `PublicKeyBytes` instance
 // TODO: replace this clunky sealed marker trait once feature(associated_const_equality) stabilizes
 </span><span class="kw">mod </span>sealed {
-    <span class="kw">use crate</span>::{
-        bls12381::BLS12381PublicKeyBytes, ed25519::Ed25519PublicKeyBytes,
-        secp256k1::Secp256k1PublicKeyBytes,
-    };
+    <span class="kw">use crate</span>::{bls12381, ed25519::Ed25519PublicKeyBytes, secp256k1::Secp256k1PublicKeyBytes};
 
     <span class="kw">pub trait </span>SealedPublicKeyLength {}
     <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>Ed25519PublicKeyBytes {}
-    <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>BLS12381PublicKeyBytes {}
+    <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>bls12381::min_sig::BLS12381PublicKeyBytes {}
+    <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>bls12381::min_pk::BLS12381PublicKeyBytes {}
     <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>Secp256k1PublicKeyBytes {}
 }
 </code></pre></div>
