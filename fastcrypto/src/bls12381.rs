@@ -207,9 +207,23 @@ impl VerifyingKey for BLS12381PublicKey {
         pks: &[Self],
         sigs: &[Self::Sig],
     ) -> Result<(), eyre::Report> {
-        // TODO: fix this, the identical message opens up a rogue key attack
-        let msgs_refs = (0..sigs.len()).map(|_| msg).collect::<Vec<_>>();
-        Self::verify_batch_empty_fail_different_msg(&msgs_refs, pks, sigs)
+        if sigs.is_empty() {
+            return Err(eyre!(
+                "Critical Error! This behaviour can signal something dangerous, and \
+            that someone may be trying to bypass signature verification through providing empty \
+            batches."
+            ));
+        }
+        if sigs.len() != pks.len() {
+            return Err(eyre!(
+                "Mismatch between number of signatures and public keys provided"
+            ));
+        }
+        let aggregated_sig = BLS12381AggregateSignature::aggregate(sigs)
+            .map_err(|_| eyre!("Signature aggregation before verifying failed!"))?;
+        aggregated_sig
+            .verify(pks, msg)
+            .map_err(|_| eyre!("Batch verification failed!"))
     }
 
     fn verify_batch_empty_fail_different_msg<'a, M>(
@@ -237,6 +251,7 @@ impl VerifyingKey for BLS12381PublicKey {
 
         for _ in 0..sigs.len() {
             let mut vals = [0u64; 4];
+            // TODO we should set at least 128 random bits, not just 64.
             vals[0] = rng.next_u64();
             while vals[0] == 0 {
                 // Reject zero as it is used for multiplication.
@@ -262,7 +277,7 @@ impl VerifyingKey for BLS12381PublicKey {
         if result == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
-            Err(eyre!("Verification failed!"))
+            Err(eyre!("Batch verification failed!"))
         }
     }
 }

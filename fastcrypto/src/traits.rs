@@ -89,17 +89,21 @@ pub trait VerifyingKey:
     + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
     + ToFromBytes
     + signature::Verifier<Self::Sig>
-    + for <'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
+    + for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
     + Send
     + Sync
     + 'static
     + Clone
 {
-    type PrivKey: SigningKey<PubKey = Self>;
-    type Sig: Authenticator<PubKey = Self>;
+    type PrivKey: SigningKey<PubKey=Self>;
+    type Sig: Authenticator<PubKey=Self>;
     const LENGTH: usize;
 
     // Expected to be overridden by implementations
+    /// Batch verification over the same message. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
     fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
@@ -114,6 +118,10 @@ pub trait VerifyingKey:
     }
 
     // Expected to be overridden by implementations
+    /// Batch verification over different messages. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
     fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where M: Borrow<[u8]> + 'a {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
