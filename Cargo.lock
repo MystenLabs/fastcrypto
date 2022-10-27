@@ -457,7 +457,7 @@ dependencies = [
 [[package]]
 name = "bls-crypto"
 version = "0.2.0"
-source = "git+https://github.com/huitseeker/celo-bls-snark-rs?branch=updates-2#9f5a0e6f1a9c6afaa93e8112562e46e92b84a92e"
+source = "git+https://github.com/huitseeker/celo-bls-snark-rs?branch=updates-2-with-parallelism-toggle#78f379fe4b16348999a81f57c231102b0913224e"
 dependencies = [
  "ark-bls12-377",
  "ark-crypto-primitives",
