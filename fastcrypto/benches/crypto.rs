@@ -18,7 +18,7 @@ mod signature_benches {
         Verifier,
     };
     use rand::{prelude::ThreadRng, thread_rng};
-    use signature::{Signer};
+    use signature::Signer;
 
     fn sign_single<KP: KeyPair>(name: &str, c: &mut Criterion) {
         let msg: &[u8] = b"";
