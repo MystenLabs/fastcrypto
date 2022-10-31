@@ -11,7 +11,6 @@ use crate::encoding::Encoding;
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
 
 use once_cell::sync::OnceCell;
-use rand::{rngs::OsRng, RngCore};
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -254,21 +253,9 @@ impl VerifyingKey for BLS12381PublicKey {
             ));
         }
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
-        let mut rng = OsRng;
 
         for _ in 0..sigs.len() {
-            let mut vals = [0u64; 4];
-            // TODO we should set at least 128 random bits, not just 64.
-            vals[0] = rng.next_u64();
-            while vals[0] == 0 {
-                // Reject zero as it is used for multiplication.
-                vals[0] = rng.next_u64();
-            }
-            let mut rand_i = MaybeUninit::<blst_scalar>::uninit();
-            unsafe {
-                blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
-                rands.push(rand_i.assume_init());
-            }
+            rands.push(get_128bit_scalar(&mut rand::thread_rng()));
         }
 
         let result = blst::Signature::verify_multiple_aggregate_signatures(
@@ -286,6 +273,24 @@ impl VerifyingKey for BLS12381PublicKey {
         } else {
             Err(eyre!("Batch verification failed!"))
         }
+    }
+}
+
+fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
+    let mut vals = [0u64; 4];
+    loop {
+        vals[0] = rng.next_u64();
+        vals[1] = rng.next_u64();
+
+        // Reject zero as it is used for multiplication.
+        if vals[0] | vals[1] != 0 {
+            break;
+        }
+    }
+    let mut rand_i = MaybeUninit::<blst_scalar>::uninit();
+    unsafe {
+        blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
+        return rand_i.assume_init();
     }
 }
 
