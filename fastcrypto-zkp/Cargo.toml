@@ -20,7 +20,7 @@ ark-groth16 = "0.3.0"
 ark-relations = "0.3.0"
 ark-serialize = "0.3.0"
 blst = "0.3.10"
-byte-slice-cast = "1.2.1"
+byte-slice-cast = "1.2.2"
 
 [dev-dependencies]
 ark-bls12-377 = "0.3.0"
