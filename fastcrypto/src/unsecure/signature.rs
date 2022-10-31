@@ -361,7 +361,7 @@ impl KeyPair for UnsecureKeyPair {
         self.secret
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(_rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(_rng: &mut R) -> Self {
         let sk_bytes: [u8; PRIVATE_KEY_LENGTH] = rand::thread_rng().gen();
         let sk = UnsecurePrivateKey(sk_bytes);
         sk.into()

@@ -3,7 +3,9 @@
 
 use crate::{
     error::FastCryptoError,
-    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
+    traits::{
+        AllowedRng, AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes,
+    },
 };
 use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
@@ -54,7 +56,7 @@ impl<N> Generate for GenericByteArray<N>
 where
     N: ArrayLength<u8> + Debug,
 {
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> AesKey<N> {
+    fn generate<R: AllowedRng>(rng: &mut R) -> AesKey<N> {
         let mut bytes = GenericArray::<u8, N>::default();
         rng.fill_bytes(&mut bytes);
         GenericByteArray { bytes }

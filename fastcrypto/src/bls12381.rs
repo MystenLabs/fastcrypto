@@ -11,7 +11,7 @@ use crate::encoding::Encoding;
 use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
 
 use once_cell::sync::OnceCell;
-use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand::{rngs::OsRng, RngCore};
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -30,8 +30,8 @@ use serde_with::serde_as;
 use signature::{Signature, Signer, Verifier};
 
 use crate::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
-    VerifyingKey,
+    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+    ToFromBytes, VerifyingKey,
 };
 
 // BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
@@ -464,7 +464,7 @@ impl KeyPair for BLS12381KeyPair {
         }
     }
 
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
         let privkey = blst::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");

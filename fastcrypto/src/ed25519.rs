@@ -26,7 +26,7 @@ use crate::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
     traits::{
-        AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
     },
 };
@@ -565,7 +565,7 @@ impl KeyPair for Ed25519KeyPair {
         }
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let kp = ed25519_consensus::SigningKey::new(rng);
         Ed25519KeyPair {
             name: Ed25519PublicKey(kp.verification_key()),

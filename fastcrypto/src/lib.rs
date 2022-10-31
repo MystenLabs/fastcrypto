@@ -9,7 +9,7 @@
 )]
 
 use hash::Digest;
-use rand::{rngs::OsRng, CryptoRng, RngCore};
+use rand::{thread_rng, RngCore};
 
 pub use signature::{Signature as _, Verifier};
 use tokio::sync::{
@@ -98,12 +98,12 @@ pub mod unsecure;
 ////////////////////////////////////////////////////////////////
 
 pub fn generate_production_keypair<K: traits::KeyPair>() -> K {
-    generate_keypair::<K, _>(&mut OsRng)
+    generate_keypair::<K, _>(&mut thread_rng())
 }
 
 pub fn generate_keypair<K: traits::KeyPair, R>(csprng: &mut R) -> K
 where
-    R: CryptoRng + RngCore,
+    R: traits::AllowedRng,
 {
     K::generate(csprng)
 }

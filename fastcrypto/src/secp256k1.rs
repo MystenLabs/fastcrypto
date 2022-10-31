@@ -6,7 +6,10 @@ use crate::{
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
-    traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
+    traits::{
+        AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
+        VerifyingKey,
+    },
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
@@ -366,7 +369,7 @@ impl KeyPair for Secp256k1KeyPair {
         }
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let (privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
         Secp256k1KeyPair {
