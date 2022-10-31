@@ -164,6 +164,20 @@
 <span id="164">164</span>
 <span id="165">165</span>
 <span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -295,6 +309,20 @@
         Digest {
             digest: <span class="self">self</span>.<span class="number">0</span>.finalize().as_slice().try_into().unwrap(),
         }
+    }
+}
+
+<span class="comment">// Impl std::io::Write for HashFunctionWrapper. Needed for compatability in Sui.
+</span><span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; std::io::Write
+    <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
+{
+    <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buf: <span class="kw-2">&amp;</span>[u8]) -&gt; std::io::Result&lt;usize&gt; {
+        <span class="self">self</span>.update(buf);
+        <span class="prelude-val">Ok</span>(buf.len())
+    }
+
+    <span class="kw">fn </span>flush(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; std::io::Result&lt;()&gt; {
+        <span class="prelude-val">Ok</span>(())
     }
 }
 
