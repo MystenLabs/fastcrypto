@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use eyre::eyre;
 
+use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
 pub use signature::Signer;
@@ -284,9 +285,20 @@ pub trait AuthenticatedCipher {
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
 ///
 pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut bytes = [0u8; LENGTH];
         rng.fill_bytes(&mut bytes);
         Self::from_bytes(&bytes).unwrap()
     }
 }
+
+// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
+// others).
+pub trait AllowedRng: CryptoRng + RngCore {}
+
+// StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
+// It should be seeded with OsRng (e.g., StdRng::from_rng(OsRng)).
+// TODO: Deprecate StdRng (expect for tests) and use thread_rng() everywhere.
+impl AllowedRng for StdRng {}
+// thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
+impl AllowedRng for ThreadRng {}
