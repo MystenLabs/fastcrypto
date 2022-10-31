@@ -254,8 +254,9 @@ impl VerifyingKey for BLS12381PublicKey {
         }
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
 
+        let mut rng = rand::thread_rng();
         for _ in 0..sigs.len() {
-            rands.push(get_128bit_scalar(&mut rand::thread_rng()));
+            rands.push(get_128bit_scalar(&mut rng));
         }
 
         let result = blst::Signature::verify_multiple_aggregate_signatures(
