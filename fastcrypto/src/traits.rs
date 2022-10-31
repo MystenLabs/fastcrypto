@@ -185,7 +185,7 @@ pub trait KeyPair:
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self;
 
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
 /// Trait impl'd by aggregated signatures in asymmetric cryptography.
@@ -231,7 +231,7 @@ pub trait AggregateAuthenticator:
 /// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
 ///
 pub trait Generate {
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self;
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
 /// Trait impl'd by encryption keys in symmetric cryptography

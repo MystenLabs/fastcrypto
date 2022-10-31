@@ -12,7 +12,7 @@ use crate::{
     encoding::{Base64, Encoding},
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
-    traits::{AggregateAuthenticator, EncodeDecodeBase64, ToFromBytes},
+    traits::{AggregateAuthenticator, AllowedRng, EncodeDecodeBase64, ToFromBytes},
 };
 use ::ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_bls12_377::{Bls12_377, Fq12, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
@@ -64,9 +64,9 @@ where
     }
 }
 
-struct RngWrapper<'a, R: rand::CryptoRng + rand::RngCore>(pub &'a mut R);
+struct RngWrapper<'a, R: AllowedRng>(pub &'a mut R);
 
-impl<R: rand::CryptoRng + rand::RngCore> rand::RngCore for RngWrapper<'_, R> {
+impl<R: AllowedRng> rand::RngCore for RngWrapper<'_, R> {
     #[inline]
     fn next_u32(&mut self) -> u32 {
         self.0.next_u32()
@@ -474,7 +474,7 @@ impl KeyPair for BLS12377KeyPair {
         }
     }
 
-    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let celo_privkey = celo_bls::PrivateKey::generate(&mut RngWrapper(rng));
         let celo_pubkey = PublicKey::from(&celo_privkey);
         BLS12377KeyPair {
