@@ -473,6 +473,9 @@
 <span id="473">473</span>
 <span id="474">474</span>
 <span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -481,7 +484,10 @@
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
-    traits::{Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey},
+    traits::{
+        AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
+        VerifyingKey,
+    },
 };
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::{Lazy, OnceCell};
@@ -841,7 +847,7 @@
         }
     }
 
-    <span class="kw">fn </span>generate&lt;R: rand::CryptoRng + rand::RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>(privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
         Secp256k1KeyPair {

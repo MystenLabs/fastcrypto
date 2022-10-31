@@ -295,12 +295,16 @@
 <span id="295">295</span>
 <span id="296">296</span>
 <span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use crate</span>::{
     error::FastCryptoError,
-    traits::{AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes},
+    traits::{
+        AllowedRng, AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes,
+    },
 };
 <span class="kw">use </span>aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
@@ -351,7 +355,7 @@
 <span class="kw">where
     </span>N: ArrayLength&lt;u8&gt; + Debug,
 {
-    <span class="kw">fn </span>generate&lt;R: rand::CryptoRng + rand::RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; AesKey&lt;N&gt; {
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; AesKey&lt;N&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>bytes = GenericArray::&lt;u8, N&gt;::default();
         rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
         GenericByteArray { bytes }

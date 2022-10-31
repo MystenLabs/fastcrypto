@@ -758,7 +758,7 @@
 <span class="kw">use </span>::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>rand::{rngs::OsRng, CryptoRng, RngCore};
+<span class="kw">use </span>rand::{rngs::OsRng, RngCore};
 <span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -777,8 +777,8 @@
 <span class="kw">use </span>signature::{Signature, Signer, Verifier};
 
 <span class="kw">use </span><span class="kw">crate</span>::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
-    VerifyingKey,
+    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+    ToFromBytes, VerifyingKey,
 };
 
 <span class="comment">// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
@@ -1211,7 +1211,7 @@
         }
     }
 
-    <span class="kw">fn </span>generate&lt;R: CryptoRng + RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>ikm = [<span class="number">0u8</span>; <span class="number">32</span>];
         rng.fill_bytes(<span class="kw-2">&amp;mut </span>ikm);
         <span class="kw">let </span>privkey = blst::SecretKey::key_gen(<span class="kw-2">&amp;</span>ikm, <span class="kw-2">&amp;</span>[]).expect(<span class="string">&quot;ikm length should be higher&quot;</span>);

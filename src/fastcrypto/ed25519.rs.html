@@ -663,7 +663,7 @@
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature <span class="kw">as </span>Ed25519Sig},
     traits::{
-        AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
     },
 };
@@ -1202,7 +1202,7 @@
         }
     }
 
-    <span class="kw">fn </span>generate&lt;R: rand::CryptoRng + rand::RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>kp = ed25519_consensus::SigningKey::new(rng);
         Ed25519KeyPair {
             name: Ed25519PublicKey(kp.verification_key()),

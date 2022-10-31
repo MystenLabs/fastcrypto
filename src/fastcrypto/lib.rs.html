@@ -153,7 +153,7 @@
 )]
 
 </span><span class="kw">use </span>hash::Digest;
-<span class="kw">use </span>rand::{rngs::OsRng, CryptoRng, RngCore};
+<span class="kw">use </span>rand::thread_rng;
 
 <span class="kw">pub use </span>signature::{Signature <span class="kw">as _</span>, Verifier};
 <span class="kw">use </span>tokio::sync::{
@@ -242,12 +242,12 @@
 ////////////////////////////////////////////////////////////////
 
 </span><span class="kw">pub fn </span>generate_production_keypair&lt;K: traits::KeyPair&gt;() -&gt; K {
-    generate_keypair::&lt;K, <span class="kw">_</span>&gt;(<span class="kw-2">&amp;mut </span>OsRng)
+    generate_keypair::&lt;K, <span class="kw">_</span>&gt;(<span class="kw-2">&amp;mut </span>thread_rng())
 }
 
 <span class="kw">pub fn </span>generate_keypair&lt;K: traits::KeyPair, R&gt;(csprng: <span class="kw-2">&amp;mut </span>R) -&gt; K
 <span class="kw">where
-    </span>R: CryptoRng + RngCore,
+    </span>R: traits::AllowedRng,
 {
     K::generate(csprng)
 }

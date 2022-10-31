@@ -750,7 +750,7 @@
     encoding::{Base64, Encoding},
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
-    traits::{AggregateAuthenticator, EncodeDecodeBase64, ToFromBytes},
+    traits::{AggregateAuthenticator, AllowedRng, EncodeDecodeBase64, ToFromBytes},
 };
 <span class="kw">use </span>::ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 <span class="kw">use </span>ark_bls12_377::{Bls12_377, Fq12, Fr, G1Affine, G1Projective, G2Affine, G2Projective};
@@ -802,9 +802,9 @@
     }
 }
 
-<span class="kw">struct </span>RngWrapper&lt;<span class="lifetime">&#39;a</span>, R: rand::CryptoRng + rand::RngCore&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>R);
+<span class="kw">struct </span>RngWrapper&lt;<span class="lifetime">&#39;a</span>, R: AllowedRng&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>R);
 
-<span class="kw">impl</span>&lt;R: rand::CryptoRng + rand::RngCore&gt; rand::RngCore <span class="kw">for </span>RngWrapper&lt;<span class="lifetime">&#39;_</span>, R&gt; {
+<span class="kw">impl</span>&lt;R: AllowedRng&gt; rand::RngCore <span class="kw">for </span>RngWrapper&lt;<span class="lifetime">&#39;_</span>, R&gt; {
     <span class="attribute">#[inline]
     </span><span class="kw">fn </span>next_u32(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.<span class="number">0</span>.next_u32()
@@ -1212,7 +1212,7 @@
         }
     }
 
-    <span class="kw">fn </span>generate&lt;R: rand::CryptoRng + rand::RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>celo_privkey = celo_bls::PrivateKey::generate(<span class="kw-2">&amp;mut </span>RngWrapper(rng));
         <span class="kw">let </span>celo_pubkey = PublicKey::from(<span class="kw-2">&amp;</span>celo_privkey);
         BLS12377KeyPair {

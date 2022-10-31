@@ -489,7 +489,7 @@
     <span class="attribute">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>;
 
-    <span class="kw">fn </span>generate&lt;R: CryptoRng + RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by aggregated signatures in asymmetric cryptography.
@@ -535,7 +535,7 @@
 <span class="doccomment">/// Trait impl&#39;d by cryptographic material that can be generated randomly such as keys and nonces.
 ///
 </span><span class="kw">pub trait </span>Generate {
-    <span class="kw">fn </span>generate&lt;R: CryptoRng + RngCore&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by encryption keys in symmetric cryptography
