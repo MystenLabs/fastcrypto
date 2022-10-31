@@ -720,5 +720,3 @@ pub mod min_pk {
         // assert!(bls12_381_pk_in_g1_verify(&msg, &key, &invalid_sig) == Ok(false));
     }
 }
-
-
