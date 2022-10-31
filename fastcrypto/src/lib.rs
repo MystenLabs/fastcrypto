@@ -9,7 +9,7 @@
 )]
 
 use hash::Digest;
-use rand::{thread_rng, RngCore};
+use rand::thread_rng;
 
 pub use signature::{Signature as _, Verifier};
 use tokio::sync::{
