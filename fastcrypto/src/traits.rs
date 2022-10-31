@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use eyre::eyre;
 
+use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
 pub use signature::Signer;
@@ -11,7 +12,6 @@ use std::{
     fmt::{Debug, Display},
     str::FromStr,
 };
-use rand::rngs::{StdRng, ThreadRng};
 
 use crate::{
     encoding::{Base64, Encoding},
@@ -299,4 +299,3 @@ pub trait AllowedRng: CryptoRng + RngCore {}
 // TODO: Deprecate StdRng (expect for tests) and use thread_rng() everywhere.
 impl AllowedRng for StdRng {}
 impl AllowedRng for ThreadRng {}
-
