@@ -691,4 +691,34 @@ pub mod min_pk {
         BLS12381PublicKeyBytes, BLS12381Signature,
     };
     define_tests!();
+
+    #[test]
+    fn test_verify_drand_signature() {
+        // Regression test of an actual response from Drand.
+        let round: u64 = 2373935;
+        let key = hex::decode("868f005eb8e6e4ca0a47c8a77ceaa5309a47978a7c71bc5cce96366b5d7a569937c529eeda66c7293784a9402801af31").unwrap();
+        let sig = hex::decode("a2cd8577944b84484ef557a7f92f0d5092779497cc470b1b97680b8f7c807d97250d310b801c7c2185c7c8a21032d45403b97530ca87bd8f05d0cf4ffceb4bcb9bf7184fb604967db7e9e6ea555bc51b25a9e41fbd51181f712aa73aaec749fe").unwrap();
+        let prev_sig = hex::decode("a96aace596906562dc525dba4dff734642d71b334d51324f9c9bcb5a3d6caf14b05cde91d6507bf4615cb4285e5b4efd1358ebc46b80b51e338f9dc46cca17cf2e046765ba857c04101a560887fa81aef101a5bb3b2350884558bd3adc72be37").unwrap();
+        let mut sha = Sha256::new();
+        sha.update(prev_sig);
+        sha.update(round.to_be_bytes());
+        let msg = sha.finalize().digest;
+
+        // let message: &[u8] = b"Hello, world!";
+        // let digest = Sha256::digest(message);
+        let key = BLS12381PublicKey::from_bytes(&key).unwrap();
+        let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&sig).unwrap();
+        assert!(key.verify(&msg, &sig).is_ok());
+        // assert!(bls12_381_pk_in_g1_verify(&msg, &key, &sig) == Ok(true));
+
+        // Sanity tests.
+        // let invalid_key = &key[1..];
+        // assert!(bls12_381_pk_in_g1_verify(&msg, invalid_key, &sig).is_err());
+        // let invalid_sig = &sig[1..];
+        // assert!(bls12_381_pk_in_g1_verify(&msg, &key, invalid_sig).is_err());
+        // let invalid_sig = hex::decode("8beefcd39ba294b2d347b2b247c62ff2452c4835b4e66eb65c58dc005329a33c1d0d399bb54fa190e2e95845c92c6795048016c1e19680b5f705a828ba4f18d48f8948e02a653d1e6db6d47590e218c23d85378d7bd30588536173a3a847f476").unwrap();
+        // assert!(bls12_381_pk_in_g1_verify(&msg, &key, &invalid_sig) == Ok(false));
+    }
 }
+
+
