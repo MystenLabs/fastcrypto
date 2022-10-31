@@ -292,10 +292,13 @@ pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
     }
 }
 
-// Whitelist of the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
+// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
 // others).
 pub trait AllowedRng: CryptoRng + RngCore {}
-// The next two use ChaCha12 (see https://github.com/rust-random/rand/issues/932).
+
+// StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
+// It should be seeded with OsRng (e.g., StdRng::from_rng(OsRng)).
 // TODO: Deprecate StdRng (expect for tests) and use thread_rng() everywhere.
 impl AllowedRng for StdRng {}
+// thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
 impl AllowedRng for ThreadRng {}
