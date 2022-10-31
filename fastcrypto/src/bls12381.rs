@@ -254,8 +254,11 @@ impl VerifyingKey for BLS12381PublicKey {
         }
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
 
+        // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
+        rands.push(get_one());
+
         let mut rng = rand::thread_rng();
-        for _ in 0..sigs.len() {
+        for _ in 1..sigs.len() {
             rands.push(get_128bit_scalar(&mut rng));
         }
 
@@ -293,6 +296,16 @@ fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
         blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
         return rand_i.assume_init();
     }
+}
+
+fn get_one() -> blst_scalar {
+    let mut one = blst_scalar::default();
+    let mut vals = [0u64; 4];
+    vals[0] = 1;
+    unsafe {
+        blst_scalar_from_uint64(&mut one, vals.as_ptr());
+    }
+    one
 }
 
 ///
