@@ -132,6 +132,20 @@ impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashF
     }
 }
 
+// Impl std::io::Write for HashFunctionWrapper. Needed for compatability in Sui.
+impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> std::io::Write
+    for HashFunctionWrapper<Variant, DIGEST_LEN>
+{
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.update(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// SHA-2
 pub type Sha256 = HashFunctionWrapper<sha2::Sha256, 32>;
 
