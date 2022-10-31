@@ -745,6 +745,12 @@
 <span id="745">745</span>
 <span id="746">746</span>
 <span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{
@@ -758,7 +764,6 @@
 <span class="kw">use </span>::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>rand::{rngs::OsRng, RngCore};
 <span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -1001,21 +1006,10 @@
             </span>));
         }
         <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(sigs.len());
-        <span class="kw">let </span><span class="kw-2">mut </span>rng = OsRng;
 
+        <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
         <span class="kw">for _ in </span><span class="number">0</span>..sigs.len() {
-            <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
-            <span class="comment">// TODO we should set at least 128 random bits, not just 64.
-            </span>vals[<span class="number">0</span>] = rng.next_u64();
-            <span class="kw">while </span>vals[<span class="number">0</span>] == <span class="number">0 </span>{
-                <span class="comment">// Reject zero as it is used for multiplication.
-                </span>vals[<span class="number">0</span>] = rng.next_u64();
-            }
-            <span class="kw">let </span><span class="kw-2">mut </span>rand_i = MaybeUninit::&lt;blst_scalar&gt;::uninit();
-            <span class="kw">unsafe </span>{
-                blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
-                rands.push(rand_i.assume_init());
-            }
+            rands.push(get_128bit_scalar(<span class="kw-2">&amp;mut </span>rng));
         }
 
         <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
@@ -1026,13 +1020,31 @@
             <span class="kw-2">&amp;</span>sigs.iter().map(|sig| <span class="kw-2">&amp;</span>sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>rands,
-            <span class="number">64</span>,
+            <span class="number">128</span>,
         );
         <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
             <span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Batch verification failed!&quot;</span>))
         }
+    }
+}
+
+<span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+    <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
+    <span class="kw">loop </span>{
+        vals[<span class="number">0</span>] = rng.next_u64();
+        vals[<span class="number">1</span>] = rng.next_u64();
+
+        <span class="comment">// Reject zero as it is used for multiplication.
+        </span><span class="kw">if </span>vals[<span class="number">0</span>] | vals[<span class="number">1</span>] != <span class="number">0 </span>{
+            <span class="kw">break</span>;
+        }
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>rand_i = MaybeUninit::&lt;blst_scalar&gt;::uninit();
+    <span class="kw">unsafe </span>{
+        blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
+        <span class="kw">return </span>rand_i.assume_init();
     }
 }
 
