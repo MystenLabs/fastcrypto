@@ -254,8 +254,14 @@ impl VerifyingKey for BLS12381PublicKey {
         }
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
 
+        let mut one = blst_scalar::default();
+        unsafe {
+            blst_scalar_from_uint64(&mut one, 1 as *const u64);
+        }
+        rands.push(one);
+
         let mut rng = rand::thread_rng();
-        for _ in 0..sigs.len() {
+        for _ in 1..sigs.len() {
             rands.push(get_128bit_scalar(&mut rng));
         }
 
@@ -267,7 +273,7 @@ impl VerifyingKey for BLS12381PublicKey {
             &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
             true,
             &rands,
-            64,
+            128,
         );
         if result == BLST_ERROR::BLST_SUCCESS {
             Ok(())
