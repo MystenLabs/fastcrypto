@@ -11,6 +11,7 @@ use std::{
     fmt::{Debug, Display},
     str::FromStr,
 };
+use rand::rngs::{StdRng, ThreadRng};
 
 use crate::{
     encoding::{Base64, Encoding},
@@ -284,9 +285,18 @@ pub trait AuthenticatedCipher {
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
 ///
 pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
-    fn generate<R: CryptoRng + RngCore>(rng: &mut R) -> Self {
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut bytes = [0u8; LENGTH];
         rng.fill_bytes(&mut bytes);
         Self::from_bytes(&bytes).unwrap()
     }
 }
+
+// Whitelist of the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
+// others).
+pub trait AllowedRng: CryptoRng + RngCore {}
+// The next two use ChaCha12 (see https://github.com/rust-random/rand/issues/932).
+// TODO: Deprecate StdRng (expect for tests) and use thread_rng() everywhere.
+impl AllowedRng for StdRng {}
+impl AllowedRng for ThreadRng {}
+
