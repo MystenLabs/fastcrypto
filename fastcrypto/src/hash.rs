@@ -23,7 +23,7 @@ use std::fmt;
 
 use crate::encoding::{Base64, Encoding};
 
-/// Represents a digest of `DIGEST_LEN`bytes.
+/// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_with::serde_as]
 #[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 pub struct Digest<const DIGEST_LEN: usize> {
