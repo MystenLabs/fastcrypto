@@ -119,8 +119,7 @@ pub trait Hash<const DIGEST_LEN: usize> {
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
 
-/// This trait allows fastcrypto to use the [HashFunctionWrapper]s and use as generic arguments where a
-/// [digest::Digest] is expected.
+/// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 pub trait ReverseWrapper {
     type Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser;
 }
