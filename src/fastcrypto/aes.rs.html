@@ -297,8 +297,41 @@
 <span id="297">297</span>
 <span id="298">298</span>
 <span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! This module contains implementations of various AES modes.
+//!
+//! # Example
+//! ```
+//! # use fastcrypto::aes::*;
+//! # use crate::fastcrypto::traits::{Cipher, Generate};
+//! use rand::thread_rng;
+//! let plaintext = b&quot;Hello, world!&quot;;
+//! let key = AesKey::generate(&amp;mut thread_rng());
+//! let iv = InitializationVector::generate(&amp;mut thread_rng());
+//! let cipher = Aes256Ctr::new(key);
+//! let ciphertext = cipher.encrypt(&amp;iv, plaintext).unwrap();
+//! let decrypted = cipher.decrypt(&amp;iv, &amp;ciphertext).unwrap();
+//! assert_eq!(decrypted, plaintext);
+//! ```
 
 </span><span class="kw">use crate</span>::{
     error::FastCryptoError,
@@ -508,7 +541,8 @@
 <span class="doccomment">/// AES256 in CBC-mode using ANSI X9.23 padding.
 </span><span class="kw">pub type </span>Aes256CbcAnsiX923 = AesCbc&lt;U32, aes::Aes256, aes::cipher::block_padding::AnsiX923&gt;;
 
-<span class="kw">pub struct </span>AesGcm&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; {
+<span class="doccomment">/// AES in GCM mode (authenticated).
+</span><span class="kw">pub struct </span>AesGcm&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; {
     key: AesKey&lt;KeySize&gt;,
     algorithm: PhantomData&lt;Aes&gt;,
     nonce_size: PhantomData&lt;NonceSize&gt;,
