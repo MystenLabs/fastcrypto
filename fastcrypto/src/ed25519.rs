@@ -1,5 +1,34 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+//! This module contains an implementation of the [Ed25519](https://en.wikipedia.org/wiki/EdDSA#Ed25519) signature scheme.
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::ed25519::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = Ed25519KeyPair::generate(&mut thread_rng());
+//! let message: &[u8] = b"Hello, world!";
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &signature).is_ok());
+//! ```
+//!
+//! Multiple signatures over the same message may be aggregated:
+//! ```rust
+//! # use fastcrypto::ed25519::*;
+//! # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let message: &[u8] = b"Hello, world!";
+//! let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+//! let signature1 = kp1.sign(message);
+//! let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+//! let signature2 = kp2.sign(message);
+//! let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+//! let public_keys = &[kp1.public().clone(), kp2.public().clone()];
+//! assert!(aggregated_signature.verify(public_keys, message).is_ok());
+//! ```
+
 use crate::encoding::Encoding;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
@@ -31,26 +60,31 @@ use crate::{
     },
 };
 
+/// The length of a private key in bytes.
 pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
+
+/// The length of a public key in bytes.
 pub const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
+
+/// The lenght of a signature in bytes.
 pub const ED25519_SIGNATURE_LENGTH: usize = 64;
 
 const BASE64_FIELD_NAME: &str = "base64";
 const RAW_FIELD_NAME: &str = "raw";
 
-///
-/// Define Structs
-///
-
+/// Ed25519 public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
+/// Binary representation of an instance of [Ed25519PublicKey].
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
+/// Ed25519 private key.
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
+/// Ed25519 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct Ed25519KeyPair {
@@ -58,6 +92,7 @@ pub struct Ed25519KeyPair {
     secret: Ed25519PrivateKey,
 }
 
+/// Ed25519 signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ed25519Signature {
     pub sig: ed25519_consensus::Signature,
@@ -65,11 +100,13 @@ pub struct Ed25519Signature {
     pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
 }
 
+/// Aggregation of multiple Ed25519 signatures.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Ed25519AggregateSignature(
     #[serde_as(as = "Vec<Ed25519Sig>")] pub Vec<ed25519_consensus::Signature>,
 );
+
 ///
 /// Implement VerifyingKey
 ///
