@@ -302,6 +302,101 @@
 <span id="302">302</span>
 <span id="303">303</span>
 <span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -409,6 +504,20 @@
     /// assuming rogue key checks have already been performed.
     /// TODO: take as input a flag to denote if rogue key protection already took place.
     ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &amp;public_keys, &amp;signatures).is_ok());
+    /// ``` 
     </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
@@ -427,6 +536,22 @@
     /// assuming rogue key checks have already been performed.
     /// TODO: take as input a flag to denote if rogue key protection already took place.
     ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&amp;messages, &amp;public_keys, &amp;signatures).is_ok());
+    /// ``` 
     </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
@@ -513,19 +638,84 @@
     <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
     <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
-    <span class="kw">fn </span>verify(
+    <span class="doccomment">/// Verify this aggregate signature assuming that all signatures are over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    ///
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1, &amp;signature2)).unwrap();
+    /// let public_keys = &amp;[kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify(public_keys, message).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>verify(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
-    <span class="kw">fn </span>verify_different_msg(
+    <span class="doccomment">/// Verify this aggregate signature where the signatures are over different messages.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    ///
+    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1, &amp;signature2)).unwrap();
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify_different_msg(&amp;public_keys, &amp;messages).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>verify_different_msg(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 
-    <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
+    <span class="doccomment">/// Verify a batch of aggregate signatures, each consisting of a number of signatures over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1)).unwrap();
+    ///
+    /// let message2: &amp;[u8] = b&quot;1234&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let aggregated_signature2 = Ed25519AggregateSignature::aggregate(vec!(&amp;signature2)).unwrap();
+    ///
+    /// let aggregated_signatures = [&amp;aggregated_signature1, &amp;aggregated_signature2];
+    /// let messages = [message1, message2];
+    /// let pks1 = [kp1.public().clone()];
+    /// let pks2 = [kp2.public().clone()];
+    /// let public_keys = vec!(pks1.iter(), pks2.iter());
+    /// assert!(Ed25519AggregateSignature::batch_verify(&amp;aggregated_signatures, public_keys, &amp;messages).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
         pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
