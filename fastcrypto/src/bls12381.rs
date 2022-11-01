@@ -8,7 +8,7 @@ use std::{
 };
 
 use crate::encoding::Encoding;
-use ::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
+use ::blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 
 use once_cell::sync::OnceCell;
 use zeroize::Zeroize;
@@ -300,10 +300,10 @@ fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
 
 fn get_one() -> blst_scalar {
     let mut one = blst_scalar::default();
-    let mut vals = [0u64; 4];
+    let mut vals = [0u8; 32];
     vals[0] = 1;
     unsafe {
-        blst_scalar_from_uint64(&mut one, vals.as_ptr());
+        blst_scalar_from_le_bytes(&mut one, vals.as_ptr(), 32);
     }
     one
 }
