@@ -173,7 +173,7 @@ pub type Sha512 = HashFunctionWrapper<sha2::Sha512, 64>;
 /// The [KECCAK](https://en.wikipedia.org/wiki/SHA-3) hash function with 256 bit digests.
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256, 32>;
 
-/// The [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) hash function with 256 bit digests..
+/// The [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) hash function with 256 bit digests.
 pub type Blake2b256 = HashFunctionWrapper<blake2::Blake2b<typenum::U32>, 32>;
 
 /// The [BLAKE3](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE3) hash function with 256 bit digests.
