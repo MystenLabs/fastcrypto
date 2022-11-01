@@ -1,6 +1,22 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains implementations of various AES modes.
+//!
+//! # Example
+//! ```
+//! # use fastcrypto::aes::*;
+//! # use crate::fastcrypto::traits::{Cipher, Generate};
+//! use rand::thread_rng;
+//! let plaintext = b"Hello, world!";
+//! let key = AesKey::generate(&mut thread_rng());
+//! let iv = InitializationVector::generate(&mut thread_rng());
+//! let cipher = Aes256Ctr::new(key);
+//! let ciphertext = cipher.encrypt(&iv, plaintext).unwrap();
+//! let decrypted = cipher.decrypt(&iv, &ciphertext).unwrap();
+//! assert_eq!(decrypted, plaintext);
+//! ```
+
 use crate::{
     error::FastCryptoError,
     traits::{
@@ -209,6 +225,7 @@ pub type Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding
 /// AES256 in CBC-mode using ANSI X9.23 padding.
 pub type Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
+/// AES in GCM mode (authenticated).
 pub struct AesGcm<KeySize: ArrayLength<u8>, Aes, NonceSize> {
     key: AesKey<KeySize>,
     algorithm: PhantomData<Aes>,
