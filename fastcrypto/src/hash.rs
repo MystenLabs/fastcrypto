@@ -1,6 +1,21 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains a selection of cryptographic hash functions implementing a common [HashFunction] trait.
+//!
+//! # Example
+//! ```
+//! # use fastcrypto::hash::*;
+//! let digest1 = Sha256::digest(b"Hello, world!");
+//!
+//! let mut hash_function = Sha256::default();
+//! hash_function.update(b"Hello, ");
+//! hash_function.update(b"world!");
+//! let digest2 = hash_function.finalize();
+//!
+//! assert_eq!(digest1, digest2);
+//! ```
+
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -8,7 +23,7 @@ use std::fmt;
 
 use crate::encoding::{Base64, Encoding};
 
-/// Represents a digest of `DIGEST_LEN`bytes.
+/// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_with::serde_as]
 #[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 pub struct Digest<const DIGEST_LEN: usize> {
@@ -100,12 +115,11 @@ pub trait Hash<const DIGEST_LEN: usize> {
     fn digest(&self) -> Self::TypedDigest;
 }
 
-/// This wraps a `digest::Digest` as a `fastcrypto::hash::HashFunction`.
+/// This wraps a [digest::Digest] as a [HashFunction].
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
 
-/// This allows us to use the hash functions defined here and use them in place of their
-/// internal functions from the digest crate.
+/// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 pub trait ReverseWrapper {
     type Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser;
 }
@@ -146,22 +160,22 @@ impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> std::
     }
 }
 
-/// SHA-2
+/// The [SHA-2](https://en.wikipedia.org/wiki/SHA-2) hash function with 256 bit digests.
 pub type Sha256 = HashFunctionWrapper<sha2::Sha256, 32>;
 
-/// SHA-3
+/// The [SHA-3](https://en.wikipedia.org/wiki/SHA-3) hash function with 256 bit digests.
 pub type Sha3_256 = HashFunctionWrapper<sha3::Sha3_256, 32>;
 
-/// SHA-512
+/// The [SHA-512](https://en.wikipedia.org/wiki/SHA-2) hash function with 512 bit digests.
 pub type Sha512 = HashFunctionWrapper<sha2::Sha512, 64>;
 
-/// KECCAK
+/// The [KECCAK](https://keccak.team/files/Keccak-reference-3.0.pdf) hash function with 256 bit digests.
 pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256, 32>;
 
-/// BLAKE2-256
+/// The [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) hash function with 256 bit digests.
 pub type Blake2b256 = HashFunctionWrapper<blake2::Blake2b<typenum::U32>, 32>;
 
-/// BLAKE3
+/// The [BLAKE3](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE3) hash function with 256 bit digests.
 #[derive(Default)]
 pub struct Blake3 {
     instance: blake3::Hasher,
