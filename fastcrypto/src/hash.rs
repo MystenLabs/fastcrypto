@@ -8,7 +8,7 @@
 //! # use fastcrypto::hash::*;
 //! let digest1 = Sha256::digest(b"Hello, world!");
 //!
-//! let hash_function = Sha256::default();
+//! let mut hash_function = Sha256::default();
 //! hash_function.update(b"Hello, ");
 //! hash_function.update(b"world!");
 //! let digest2 = hash_function.finalize();
