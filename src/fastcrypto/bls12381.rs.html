@@ -751,6 +751,19 @@
 <span id="751">751</span>
 <span id="752">752</span>
 <span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{
@@ -761,7 +774,7 @@
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::encoding::Encoding;
-<span class="kw">use </span>::blst::{blst_scalar, blst_scalar_from_uint64, BLST_ERROR};
+<span class="kw">use </span>::blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>zeroize::Zeroize;
@@ -1007,8 +1020,11 @@
         }
         <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(sigs.len());
 
+        <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
+        </span>rands.push(get_one());
+
         <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-        <span class="kw">for _ in </span><span class="number">0</span>..sigs.len() {
+        <span class="kw">for _ in </span><span class="number">1</span>..sigs.len() {
             rands.push(get_128bit_scalar(<span class="kw-2">&amp;mut </span>rng));
         }
 
@@ -1046,6 +1062,16 @@
         blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
         <span class="kw">return </span>rand_i.assume_init();
     }
+}
+
+<span class="kw">fn </span>get_one() -&gt; blst_scalar {
+    <span class="kw">let </span><span class="kw-2">mut </span>one = blst_scalar::default();
+    <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u8</span>; <span class="number">32</span>];
+    vals[<span class="number">0</span>] = <span class="number">1</span>;
+    <span class="kw">unsafe </span>{
+        blst_scalar_from_le_bytes(<span class="kw-2">&amp;mut </span>one, vals.as_ptr(), <span class="number">32</span>);
+    }
+    one
 }
 
 <span class="doccomment">///
@@ -1505,4 +1531,4 @@
     <span class="macro">define_bls12381!</span>(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (77e57db38 2022-10-30)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
