@@ -13,7 +13,7 @@
 //! hash_function.update(b"world!");
 //! let digest2 = hash_function.finalize();
 //!
-//! assert!(digest1, digest2);
+//! assert_eq!(digest1, digest2);
 //! ```
 
 use digest::OutputSizeUser;
