@@ -13,21 +13,6 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
-//!
-//! Multiple signatures over the same message may be aggregated:
-//! ```rust
-//! # use fastcrypto::ed25519::*;
-//! # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
-//! use rand::thread_rng;
-//! let message: &[u8] = b"Hello, world!";
-//! let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
-//! let signature1 = kp1.sign(message);
-//! let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
-//! let signature2 = kp2.sign(message);
-//! let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
-//! let public_keys = &[kp1.public().clone(), kp2.public().clone()];
-//! assert!(aggregated_signature.verify(public_keys, message).is_ok());
-//! ```
 
 use crate::encoding::Encoding;
 use ed25519_consensus::{batch, VerificationKeyBytes};
