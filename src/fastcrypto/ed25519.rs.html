@@ -635,8 +635,44 @@
 <span id="635">635</span>
 <span id="636">636</span>
 <span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! This module contains an implementation of the [Ed25519](https://en.wikipedia.org/wiki/EdDSA#Ed25519) signature scheme.
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::ed25519::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = Ed25519KeyPair::generate(&amp;mut thread_rng());
+//! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &amp;signature).is_ok());
+//! ```
+
 </span><span class="kw">use </span><span class="kw">crate</span>::encoding::Encoding;
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
 <span class="kw">use </span>eyre::eyre;
@@ -668,26 +704,31 @@
     },
 };
 
-<span class="kw">pub const </span>ED25519_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>ED25519_PUBLIC_KEY_LENGTH: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>ED25519_SIGNATURE_LENGTH: usize = <span class="number">64</span>;
+<span class="doccomment">/// The length of a private key in bytes.
+</span><span class="kw">pub const </span>ED25519_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// The length of a public key in bytes.
+</span><span class="kw">pub const </span>ED25519_PUBLIC_KEY_LENGTH: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// The lenght of a signature in bytes.
+</span><span class="kw">pub const </span>ED25519_SIGNATURE_LENGTH: usize = <span class="number">64</span>;
 
 <span class="kw">const </span>BASE64_FIELD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;base64&quot;</span>;
 <span class="kw">const </span>RAW_FIELD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;raw&quot;</span>;
 
-<span class="doccomment">///
-/// Define Structs
-///
-
+<span class="doccomment">/// Ed25519 public key.
 </span><span class="attribute">#[derive(Clone, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Ed25519PublicKey(<span class="kw">pub </span>ed25519_consensus::VerificationKey);
 
-<span class="kw">pub type </span>Ed25519PublicKeyBytes = PublicKeyBytes&lt;Ed25519PublicKey, { Ed25519PublicKey::LENGTH }&gt;;
+<span class="doccomment">/// Binary representation of an instance of [Ed25519PublicKey].
+</span><span class="kw">pub type </span>Ed25519PublicKeyBytes = PublicKeyBytes&lt;Ed25519PublicKey, { Ed25519PublicKey::LENGTH }&gt;;
 
-<span class="attribute">#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
+<span class="doccomment">/// Ed25519 private key.
+</span><span class="attribute">#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 </span><span class="kw">pub struct </span>Ed25519PrivateKey(<span class="kw">pub </span>ed25519_consensus::SigningKey);
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
+</span><span class="doccomment">/// Ed25519 public/private keypair.
 </span><span class="attribute">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deser under a != type
 </span><span class="kw">pub struct </span>Ed25519KeyPair {
@@ -695,18 +736,21 @@
     secret: Ed25519PrivateKey,
 }
 
-<span class="attribute">#[derive(Debug, Clone, PartialEq, Eq)]
+<span class="doccomment">/// Ed25519 signature.
+</span><span class="attribute">#[derive(Debug, Clone, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Ed25519Signature {
     <span class="kw">pub </span>sig: ed25519_consensus::Signature,
     <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; ED25519_SIGNATURE_LENGTH]&gt;,
 }
 
-<span class="attribute">#[serde_as]
+<span class="doccomment">/// Aggregation of multiple Ed25519 signatures.
+</span><span class="attribute">#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 </span><span class="kw">pub struct </span>Ed25519AggregateSignature(
     <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;Ed25519Sig&gt;&quot;</span>)] </span><span class="kw">pub </span>Vec&lt;ed25519_consensus::Signature&gt;,
 );
+
 <span class="doccomment">///
 /// Implement VerifyingKey
 ///
