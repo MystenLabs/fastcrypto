@@ -105,6 +105,20 @@ pub trait VerifyingKey:
     /// assuming rogue key checks have already been performed.
     /// TODO: take as input a flag to denote if rogue key protection already took place.
     ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message: &[u8] = b"Hello, world!";
+    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &public_keys, &signatures).is_ok());
+    /// ``` 
     fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
@@ -123,6 +137,22 @@ pub trait VerifyingKey:
     /// assuming rogue key checks have already been performed.
     /// TODO: take as input a flag to denote if rogue key protection already took place.
     ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message1: &[u8] = b"Hello, world!";
+    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let message2: &[u8] = b"Hello, world!!!";
+    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&messages, &public_keys, &signatures).is_ok());
+    /// ``` 
     fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where M: Borrow<[u8]> + 'a {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
@@ -209,18 +239,83 @@ pub trait AggregateAuthenticator:
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError>;
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError>;
 
+    /// Verify this aggregate signature assuming that all signatures are over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message: &[u8] = b"Hello, world!";
+    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    ///
+    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let public_keys = &[kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify(public_keys, message).is_ok());
+    /// ```
     fn verify(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError>;
 
+    /// Verify this aggregate signature where the signatures are over different messages.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &[u8] = b"Hello, world!";
+    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    ///
+    /// let message2: &[u8] = b"Hello, world!!!";
+    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify_different_msg(&public_keys, &messages).is_ok());
+    /// ```
     fn verify_different_msg(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError>;
 
+    /// Verify a batch of aggregate signatures, each consisting of a number of signatures over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &[u8] = b"Hello, world!";
+    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&signature1)).unwrap();
+    ///
+    /// let message2: &[u8] = b"1234";
+    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let aggregated_signature2 = Ed25519AggregateSignature::aggregate(vec!(&signature2)).unwrap();
+    ///
+    /// let aggregated_signatures = [&aggregated_signature1, &aggregated_signature2];
+    /// let messages = [message1, message2];
+    /// let pks1 = [kp1.public().clone()];
+    /// let pks2 = [kp2.public().clone()];
+    /// let public_keys = vec!(pks1.iter(), pks2.iter());
+    /// assert!(Ed25519AggregateSignature::batch_verify(&aggregated_signatures, public_keys, &messages).is_ok());
+    /// ```
     fn batch_verify<'a>(
         sigs: &[&Self],
         pks: Vec<impl ExactSizeIterator<Item = &'a Self::PubKey>>,
