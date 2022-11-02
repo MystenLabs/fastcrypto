@@ -26,32 +26,48 @@
 <span id="26">26</span>
 <span id="27">27</span>
 <span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+</span><span class="doccomment">//! Collection of errors to be used in fastcrypto.
+//!
+//! A function should validate its arguments and return an indicative errors where needed.
+//! However, once the function is executing the cryptographic protocol/algorithm (directly/
+//! indirectly) then it should not return explicit errors as it might leak private information.
+//! In those cases the function should return the opaque, general error [FastCryptoError::GeneralError].
+//! When in doubt, prefer [FastCryptoError::GeneralError].
+
 </span><span class="kw">use </span>thiserror::Error;
 
-<span class="comment">// A function should validate its arguments and return an indicative errors where needed.
-// However, once the function is executing the cryptographic protocol/algorithm (directly/
-// indirectly) then it should not return explicit errors as it might leak private information.
-// In those cases the function should return the opaque, general error FastCryptoError::GeneralError.
-// When in doubt, prefer FastCryptoError::GeneralError.
-
+<span class="doccomment">/// Collection of errors to be used in fastcrypto.
 </span><span class="attr">#[derive(Error, Debug, PartialEq, Eq)]
 </span><span class="kw">pub enum </span>FastCryptoError {
-    <span class="attr">#[error(<span class="string">&quot;Invalid value was given to the function&quot;</span>)]
+    <span class="doccomment">/// Invalid value was given to the function
+    </span><span class="attr">#[error(<span class="string">&quot;Invalid value was given to the function&quot;</span>)]
     </span>InvalidInput,
 
-    <span class="attr">#[error(<span class="string">&quot;Expected input of length at least {0}&quot;</span>)]
+    <span class="doccomment">/// Input is to short.
+    </span><span class="attr">#[error(<span class="string">&quot;Expected input of length at least {0}&quot;</span>)]
     </span>InputTooShort(usize),
 
-    <span class="attr">#[error(<span class="string">&quot;Expected input of length at most {0}&quot;</span>)]
+    <span class="doccomment">/// Input is to long.
+    </span><span class="attr">#[error(<span class="string">&quot;Expected input of length at most {0}&quot;</span>)]
     </span>InputTooLong(usize),
 
-    <span class="attr">#[error(<span class="string">&quot;Expected input of length exactly {0}&quot;</span>)]
+    <span class="doccomment">/// Input length is wrong.
+    </span><span class="attr">#[error(<span class="string">&quot;Expected input of length exactly {0}&quot;</span>)]
     </span>InputLengthWrong(usize),
 
-    <span class="attr">#[error(<span class="string">&quot;General cryptographic error&quot;</span>)]
+    <span class="doccomment">/// General opaque cryptographic error.
+    </span><span class="attr">#[error(<span class="string">&quot;General cryptographic error&quot;</span>)]
     </span>GeneralError,
 }
 </code></pre></div>
