@@ -1,5 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+//! Implementations of [HMAC](https://en.wikipedia.org/wiki/HMAC) and [HKDF](https://en.wikipedia.org/wiki/HKDF).
+
 use crate::error::FastCryptoError;
 use crate::hash::ReverseWrapper;
 use crate::{
