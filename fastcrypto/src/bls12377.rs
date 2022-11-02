@@ -1,6 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains an implementation of the [BLS signature scheme over the BLS 12-377 curve](https://en.wikipedia.org/wiki/BLS_digital_signature).
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::bls12377::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = BLS12377KeyPair::generate(&mut thread_rng());
+//! let message: &[u8] = b"Hello, world!";
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &signature).is_ok());
+//! ```
+
 use std::{
     borrow::Borrow,
     fmt::{self, Display},
@@ -101,22 +114,30 @@ impl<R: AllowedRng> rand::RngCore for RngWrapper<'_, R> {
     }
 }
 
+/// Length of a private key in bytes.
 pub const CELO_BLS_PRIVATE_KEY_LENGTH: usize = 32;
+
+/// Length of a public key in bytes.
 pub const CELO_BLS_PUBLIC_KEY_LENGTH: usize = 96;
+
+/// Length of a signature in bytes.
 pub const CELO_BLS_SIGNATURE_LENGTH: usize = 48;
 
 ///
 /// Define Structs
 ///
 
+/// BLS 12-377 public key.
 #[derive(Debug, Clone)]
 pub struct BLS12377PublicKey {
     pub pubkey: PublicKey,
     pub bytes: OnceCell<[u8; CELO_BLS_PUBLIC_KEY_LENGTH]>,
 }
 
+/// Binary representation of an instance of an [BLS12377PublicKey].
 pub type BLS12377PublicKeyBytes = PublicKeyBytes<BLS12377PublicKey, { BLS12377PublicKey::LENGTH }>;
 
+/// BLS 12-377 private key.
 #[readonly::make]
 #[derive(Debug)]
 pub struct BLS12377PrivateKey {
@@ -125,6 +146,7 @@ pub struct BLS12377PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
+/// BLS 12-377 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct BLS12377KeyPair {
@@ -132,6 +154,7 @@ pub struct BLS12377KeyPair {
     secret: BLS12377PrivateKey,
 }
 
+/// BLS 12-377 signature.
 #[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -143,6 +166,7 @@ pub struct BLS12377Signature {
     pub bytes: OnceCell<[u8; CELO_BLS_SIGNATURE_LENGTH]>,
 }
 
+/// Aggregation of multiple BLS 12-377 signatures.
 #[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
