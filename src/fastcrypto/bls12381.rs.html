@@ -764,8 +764,51 @@
 <span id="764">764</span>
 <span id="765">765</span>
 <span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! This module contains an implementation of the [BLS signature scheme over the BLS 12-381 curve](https://en.wikipedia.org/wiki/BLS_digital_signature).
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::bls12381::min_sig::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = BLS12381KeyPair::generate(&amp;mut thread_rng());
+//! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &amp;signature).is_ok());
+//! ```
+
 </span><span class="kw">use </span>std::{
     borrow::Borrow,
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -818,6 +861,7 @@
 /// Define Structs
 ///
 
+/// BLS 12-381 public key.
 </span><span class="attr">#[readonly::make]
 #[derive(Default, Clone)]
 </span><span class="kw">pub struct </span>BLS12381PublicKey {
@@ -825,9 +869,11 @@
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$pk_length</span>]&gt;,
 }
 
-<span class="kw">pub type </span>BLS12381PublicKeyBytes = PublicKeyBytes&lt;BLS12381PublicKey, { BLS12381PublicKey::LENGTH }&gt;;
+<span class="doccomment">/// Binary representation of a [BLS12381PublicKey].
+</span><span class="kw">pub type </span>BLS12381PublicKeyBytes = PublicKeyBytes&lt;BLS12381PublicKey, { BLS12381PublicKey::LENGTH }&gt;;
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// BLS 12-381 private key.
+</span><span class="attr">#[readonly::make]
 #[derive(SilentDebug, SilentDisplay, Default)]
 </span><span class="kw">pub struct </span>BLS12381PrivateKey {
     <span class="kw">pub </span>privkey: blst::SecretKey,
@@ -835,6 +881,7 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks.
+</span><span class="doccomment">/// BLS 12-381 public/private keypair.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deserialize under a != type.
 </span><span class="kw">pub struct </span>BLS12381KeyPair {
@@ -842,7 +889,8 @@
     secret: BLS12381PrivateKey,
 }
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// BLS 12-381 signature.
+</span><span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12381Signature {
@@ -852,7 +900,8 @@
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// Aggregation of multiple BLS 12-381 signatures.
+</span><span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12381AggregateSignature {
@@ -1511,23 +1560,32 @@
 
 }} <span class="comment">// macro_rules! define_bls12381
 
+</span><span class="doccomment">/// The length of a private key in bytes.
 </span><span class="kw">pub const </span>BLS_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>BLS_G1_LENGTH: usize = <span class="number">48</span>;
-<span class="kw">pub const </span>BLS_G2_LENGTH: usize = <span class="number">96</span>;
 
-<span class="kw">pub mod </span>min_sig {
+<span class="doccomment">/// The length of public keys when using the [min_pk] module and the length of signatures when using the [min_sig] module.
+</span><span class="kw">pub const </span>BLS_G1_LENGTH: usize = <span class="number">48</span>;
+
+<span class="doccomment">/// The length of public keys when using the [min_sig] module and the length of signatures when using the [min_pk] module.
+</span><span class="kw">pub const </span>BLS_G2_LENGTH: usize = <span class="number">96</span>;
+
+<span class="doccomment">/// Module minimizing the size of signatures. See also [min_pk].
+</span><span class="kw">pub mod </span>min_sig {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::min_sig::BlsSignature;
     <span class="kw">use </span>blst::min_sig <span class="kw">as </span>blst;
-    <span class="kw">pub const </span>DST_G1: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
+    <span class="doccomment">/// Hash-to-curve domain seperation tag.
+    </span><span class="kw">pub const </span>DST_G1: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
     <span class="macro">define_bls12381!</span>(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
 }
 
-<span class="kw">pub mod </span>min_pk {
+<span class="doccomment">/// Module minimizing the size of public keys. See also [min_sig].
+</span><span class="kw">pub mod </span>min_pk {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::min_pk::BlsSignature;
     <span class="kw">use </span>blst::min_pk <span class="kw">as </span>blst;
-    <span class="kw">pub const </span>DST_G2: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
+    <span class="doccomment">/// Hash-to-curve domain seperation tag.
+    </span><span class="kw">pub const </span>DST_G2: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
     <span class="macro">define_bls12381!</span>(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }
 </code></pre></div>

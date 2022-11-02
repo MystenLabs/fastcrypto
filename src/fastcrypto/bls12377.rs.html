@@ -736,8 +736,45 @@
 <span id="736">736</span>
 <span id="737">737</span>
 <span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! This module contains an implementation of the [BLS signature scheme over the BLS 12-377 curve](https://en.wikipedia.org/wiki/BLS_digital_signature).
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::bls12377::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = BLS12377KeyPair::generate(&amp;mut thread_rng());
+//! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &amp;signature).is_ok());
+//! ```
 
 </span><span class="kw">use </span>std::{
     borrow::Borrow,
@@ -839,23 +876,31 @@
     }
 }
 
-<span class="kw">pub const </span>CELO_BLS_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>CELO_BLS_PUBLIC_KEY_LENGTH: usize = <span class="number">96</span>;
-<span class="kw">pub const </span>CELO_BLS_SIGNATURE_LENGTH: usize = <span class="number">48</span>;
+<span class="doccomment">/// Length of a private key in bytes.
+</span><span class="kw">pub const </span>CELO_BLS_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// Length of a public key in bytes.
+</span><span class="kw">pub const </span>CELO_BLS_PUBLIC_KEY_LENGTH: usize = <span class="number">96</span>;
+
+<span class="doccomment">/// Length of a signature in bytes.
+</span><span class="kw">pub const </span>CELO_BLS_SIGNATURE_LENGTH: usize = <span class="number">48</span>;
 
 <span class="doccomment">///
 /// Define Structs
 ///
 
+/// BLS 12-377 public key.
 </span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>BLS12377PublicKey {
     <span class="kw">pub </span>pubkey: PublicKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; CELO_BLS_PUBLIC_KEY_LENGTH]&gt;,
 }
 
-<span class="kw">pub type </span>BLS12377PublicKeyBytes = PublicKeyBytes&lt;BLS12377PublicKey, { BLS12377PublicKey::LENGTH }&gt;;
+<span class="doccomment">/// Binary representation of an instance of an [BLS12377PublicKey].
+</span><span class="kw">pub type </span>BLS12377PublicKeyBytes = PublicKeyBytes&lt;BLS12377PublicKey, { BLS12377PublicKey::LENGTH }&gt;;
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// BLS 12-377 private key.
+</span><span class="attr">#[readonly::make]
 #[derive(Debug)]
 </span><span class="kw">pub struct </span>BLS12377PrivateKey {
     <span class="kw">pub </span>privkey: celo_bls::PrivateKey,
@@ -863,6 +908,7 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
+</span><span class="doccomment">/// BLS 12-377 public/private keypair.
 </span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deser under a != type
 </span><span class="kw">pub struct </span>BLS12377KeyPair {
@@ -870,7 +916,8 @@
     secret: BLS12377PrivateKey,
 }
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// BLS 12-377 signature.
+</span><span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12377Signature {
@@ -881,7 +928,8 @@
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; CELO_BLS_SIGNATURE_LENGTH]&gt;,
 }
 
-<span class="attr">#[readonly::make]
+<span class="doccomment">/// Aggregation of multiple BLS 12-377 signatures.
+</span><span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12377AggregateSignature {
