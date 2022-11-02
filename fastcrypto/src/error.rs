@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Collection of errors to be used in fastcrypto.
-//! 
+//!
 //! A function should validate its arguments and return an indicative errors where needed.
 //! However, once the function is executing the cryptographic protocol/algorithm (directly/
 //! indirectly) then it should not return explicit errors as it might leak private information.
