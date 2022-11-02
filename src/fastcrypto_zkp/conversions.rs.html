@@ -839,7 +839,7 @@
 <span class="kw">const </span>G2_UNCOMPRESSED_SIZE: usize = <span class="number">192</span>;
 <span class="kw">const </span>G2_COMPRESSED_SIZE: usize = <span class="number">96</span>;
 
-<span class="attribute">#[inline]
+<span class="attr">#[inline]
 </span><span class="kw">fn </span>u64s_from_bytes(bytes: <span class="kw-2">&amp;</span>[u8; <span class="number">32</span>]) -&gt; [u64; <span class="number">4</span>] {
     [
         u64::from_le_bytes(bytes[<span class="number">0</span>..<span class="number">8</span>].try_into().unwrap()),
@@ -1251,7 +1251,7 @@
     bytes
 }
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span>ark_bls12_381::{FqParameters, Fr <span class="kw">as </span>BlsFr};
@@ -1285,14 +1285,14 @@
     </span>}
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fr(b <span class="kw">in </span>arb_bls_fr()) {
             <span class="kw">let </span>blst_variant = bls_fr_to_blst_fr(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_fr_to_bls_fr(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fr(b <span class="kw">in </span>arb_blst_fr()) {
             <span class="kw">let </span>bls_variant = blst_fr_to_bls_fr(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fr_to_blst_fr(<span class="kw-2">&amp;</span>bls_variant);
@@ -1321,21 +1321,21 @@
     </span>}
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq(b <span class="kw">in </span>arb_bls_fq()) {
             <span class="kw">let </span>blst_variant = bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp(b <span class="kw">in </span>arb_blst_fp()) {
             <span class="kw">let </span>bls_variant = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq_to_zcash_bytes(b <span class="kw">in </span>arb_bls_fq()) {
             <span class="kw">let </span>zcash_bytes = bls_fq_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fq_from_zcash_bytes(<span class="kw-2">&amp;</span>zcash_bytes);
@@ -1357,14 +1357,14 @@
     }
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq2(b <span class="kw">in </span>arb_bls_fq2()) {
             <span class="kw">let </span>blst_variant = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp2(b <span class="kw">in </span>arb_blst_fp2()) {
             <span class="kw">let </span>bls_variant = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>bls_variant);
@@ -1389,14 +1389,14 @@
     }
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq6(b <span class="kw">in </span>arb_bls_fq6()){
             <span class="kw">let </span>blst_variant = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp6(b <span class="kw">in </span>arb_blst_fp6()){
             <span class="kw">let </span>bls_variant = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>bls_variant);
@@ -1417,14 +1417,14 @@
     }
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_fq12(b <span class="kw">in </span>arb_bls_fq12()) {
             <span class="kw">let </span>blst_variant = bls_fq12_to_blst_fp12(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_fp12_to_bls_fq12(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">prop_assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_fp12(b <span class="kw">in </span>arb_blst_fp12()) {
             <span class="kw">let </span>bls_variant = blst_fp12_to_bls_fq12(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_fq12_to_blst_fp12(<span class="kw-2">&amp;</span>bls_variant);
@@ -1501,28 +1501,28 @@
     }
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g1_affine(b <span class="kw">in </span>arb_bls_g1_affine()) {
             <span class="kw">let </span>blst_variant = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_g1_affine_to_bls_g1_affine(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_g1_affine(b <span class="kw">in </span>arb_blst_g1_affine()) {
             <span class="kw">let </span>bls_variant = blst_g1_affine_to_bls_g1_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g1_affine_zcash(b <span class="kw">in </span>arb_bls_g1_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g1_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g1_affine_from_zcash_bytes(<span class="kw-2">&amp;</span>zcash_bytes).unwrap();
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>compatibility_bls_blst_g1_affine_serde(b <span class="kw">in </span>arb_bls_g1_affine(), bt <span class="kw">in </span>arb_blst_g1_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g1_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="comment">// blst accepts &amp; expects zcash encodings
@@ -1599,28 +1599,28 @@
     }
 
     <span class="macro">proptest! </span>{
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g2_affine(b <span class="kw">in </span>arb_bls_g2_affine()) {
             <span class="kw">let </span>blst_variant = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = blst_g2_affine_to_bls_g2_affine(<span class="kw-2">&amp;</span>blst_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_blst_g2_affine(b <span class="kw">in </span>arb_blst_g2_affine()) {
             <span class="kw">let </span>bls_variant = blst_g2_affine_to_bls_g2_affine(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>bls_variant);
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>roundtrip_bls_g2_affine_zcash(b <span class="kw">in </span>arb_bls_g2_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g2_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span>roundtrip = bls_g2_affine_from_zcash_bytes(<span class="kw-2">&amp;</span>zcash_bytes).unwrap();
             <span class="macro">assert_eq!</span>(b, roundtrip);
         }
 
-        <span class="attribute">#[test]
+        <span class="attr">#[test]
         </span><span class="kw">fn </span>compatibility_bls_blst_g2_affine_serde(b <span class="kw">in </span>arb_bls_g2_affine(), bt <span class="kw">in </span>arb_blst_g2_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g2_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span><span class="kw-2">mut </span>g2 = blst_p2_affine::default();
@@ -1637,4 +1637,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_zkp" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_zkp" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

@@ -145,7 +145,7 @@
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-</span><span class="attribute">#![warn(
+</span><span class="attr">#![warn(
     future_incompatible,
     nonstandard_style,
     rust_2018_idioms,
@@ -161,47 +161,47 @@
     oneshot,
 };
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/signature_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>signature_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/pubkey_bytes_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>pubkey_bytes_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/ed25519_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>ed25519_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/secp256k1_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>secp256k1_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/bls12377_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>bls12377_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/bls12381_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>bls12381_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/bulletproofs_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>bulletproofs_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/aes_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>aes_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/hash_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>hash_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/hmac_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>hmac_tests;
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/encoding_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>encoding_tests;
 
@@ -230,7 +230,7 @@
 /// away.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
-</span><span class="attribute">#[cfg(all(
+</span><span class="attr">#[cfg(all(
     feature = <span class="string">&quot;unsecure_schemes&quot;</span>,
     not(feature = <span class="string">&quot;secure&quot;</span>),
     debug_assertions
@@ -254,7 +254,7 @@
 
 <span class="doccomment">/// This service holds the node&#39;s private key. It takes digests as input and returns a signature
 /// over the digest (through a one-shot channel).
-</span><span class="attribute">#[derive(Clone)]
+</span><span class="attr">#[derive(Clone)]
 </span><span class="kw">pub struct </span>SignatureService&lt;Signature: traits::Authenticator, <span class="kw">const </span>DIGEST_LEN: usize&gt; {
     channel: Sender&lt;(Digest&lt;DIGEST_LEN&gt;, oneshot::Sender&lt;Signature&gt;)&gt;,
 }
@@ -287,4 +287,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

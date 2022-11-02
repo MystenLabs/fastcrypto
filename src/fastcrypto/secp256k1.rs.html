@@ -506,7 +506,7 @@
 
 <span class="kw">pub static </span>SECP256K1: Lazy&lt;Secp256k1&lt;All&gt;&gt; = Lazy::new(rust_secp256k1::Secp256k1::new);
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1PublicKey {
     <span class="kw">pub </span>pubkey: PublicKey,
@@ -516,7 +516,7 @@
 <span class="kw">pub type </span>Secp256k1PublicKeyBytes =
     PublicKeyBytes&lt;Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }&gt;;
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
 </span><span class="kw">pub struct </span>Secp256k1PrivateKey {
     <span class="kw">pub </span>privkey: SecretKey,
@@ -526,7 +526,7 @@
 <span class="comment">// Compact signature followed by one extra byte for recover id, used to recover public key from signature.
 </span><span class="kw">pub const </span>RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + <span class="number">1</span>;
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1Signature {
     <span class="kw">pub </span>sig: RecoverableSignature,
@@ -568,12 +568,12 @@
 <span class="kw">impl </span>Verifier&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1PublicKey {
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256k1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
         <span class="comment">// k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
-        </span><span class="attribute">#[cfg(test)]
+        </span><span class="attr">#[cfg(test)]
         </span><span class="kw">let </span>message =
             Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
                 .unwrap();
 
-        <span class="attribute">#[cfg(not(test))]
+        <span class="attr">#[cfg(not(test))]
         </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;rust_secp256k1::hashes::sha256::Hash&gt;(msg);
 
         <span class="comment">// If pubkey recovered from signature matches original pubkey, verifies signature.
@@ -603,7 +603,7 @@
     }
 
     <span class="doccomment">/// util function to parse wycheproof test key from DER format.
-    </span><span class="attribute">#[cfg(test)]
+    </span><span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>from_uncompressed(uncompressed: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>pubkey = PublicKey::from_slice(uncompressed).unwrap();
         <span class="self">Self </span>{
@@ -806,7 +806,7 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="attribute">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deser under a != type
 </span><span class="kw">pub struct </span>Secp256k1KeyPair {
     <span class="kw">pub </span>name: Secp256k1PublicKey,
@@ -839,7 +839,7 @@
         Secp256k1PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
     }
 
-    <span class="attribute">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         Secp256k1KeyPair {
             name: <span class="self">self</span>.name.clone(),
@@ -875,12 +875,12 @@
 <span class="kw">impl </span>Signer&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1KeyPair {
     <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1Signature, signature::Error&gt; {
         <span class="kw">let </span>secp = Secp256k1::signing_only();
-        <span class="attribute">#[cfg(test)]
+        <span class="attr">#[cfg(test)]
         </span><span class="kw">let </span>message =
             Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
                 .unwrap();
 
-        <span class="attribute">#[cfg(not(test))]
+        <span class="attr">#[cfg(not(test))]
         </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;rust_secp256k1::hashes::sha256::Hash&gt;(msg);
 
         <span class="comment">// Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
@@ -955,4 +955,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

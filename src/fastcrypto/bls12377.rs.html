@@ -805,32 +805,32 @@
 <span class="kw">struct </span>RngWrapper&lt;<span class="lifetime">&#39;a</span>, R: AllowedRng&gt;(<span class="kw">pub </span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>R);
 
 <span class="kw">impl</span>&lt;R: AllowedRng&gt; rand::RngCore <span class="kw">for </span>RngWrapper&lt;<span class="lifetime">&#39;_</span>, R&gt; {
-    <span class="attribute">#[inline]
+    <span class="attr">#[inline]
     </span><span class="kw">fn </span>next_u32(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.<span class="number">0</span>.next_u32()
     }
 
-    <span class="attribute">#[inline]
+    <span class="attr">#[inline]
     </span><span class="kw">fn </span>next_u64(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; u64 {
         <span class="self">self</span>.<span class="number">0</span>.next_u64()
     }
 
-    <span class="attribute">#[inline]
+    <span class="attr">#[inline]
     </span><span class="kw">fn </span>fill_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dest: <span class="kw-2">&amp;mut </span>[u8]) {
         <span class="self">self</span>.<span class="number">0</span>.fill_bytes(dest)
     }
 
     <span class="comment">// The feature disjunction is because celo&#39;s bls-crypto fails to activate ark-std/std
-    </span><span class="attribute">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
+    </span><span class="attr">#[cfg(feature = <span class="string">&quot;std&quot;</span>)]
     #[inline]
     </span><span class="kw">fn </span>try_fill_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dest: <span class="kw-2">&amp;mut </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), ark_std::rand::Error&gt; {
-        <span class="attribute">#[cfg(feature = <span class="string">&quot;celo&quot;</span>)]
+        <span class="attr">#[cfg(feature = <span class="string">&quot;celo&quot;</span>)]
         </span><span class="self">self</span>.<span class="number">0
             </span>.try_fill_bytes(dest)
             .map_err(|e| ark_std::rand::Error::new(e.take_inner()))
     }
 
-    <span class="attribute">#[cfg(not(feature = <span class="string">&quot;std&quot;</span>))]
+    <span class="attr">#[cfg(not(feature = <span class="string">&quot;std&quot;</span>))]
     #[inline]
     </span><span class="kw">fn </span>try_fill_bytes(<span class="kw-2">&amp;mut </span><span class="self">self</span>, dest: <span class="kw-2">&amp;mut </span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;(), rand::Error&gt; {
         <span class="self">self</span>.<span class="number">0
@@ -847,7 +847,7 @@
 /// Define Structs
 ///
 
-</span><span class="attribute">#[derive(Debug, Clone)]
+</span><span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>BLS12377PublicKey {
     <span class="kw">pub </span>pubkey: PublicKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; CELO_BLS_PUBLIC_KEY_LENGTH]&gt;,
@@ -855,7 +855,7 @@
 
 <span class="kw">pub type </span>BLS12377PublicKeyBytes = PublicKeyBytes&lt;BLS12377PublicKey, { BLS12377PublicKey::LENGTH }&gt;;
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[derive(Debug)]
 </span><span class="kw">pub struct </span>BLS12377PrivateKey {
     <span class="kw">pub </span>privkey: celo_bls::PrivateKey,
@@ -863,31 +863,31 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="attribute">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deser under a != type
 </span><span class="kw">pub struct </span>BLS12377KeyPair {
     name: BLS12377PublicKey,
     secret: BLS12377PrivateKey,
 }
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12377Signature {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;SerdeAs&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;SerdeAs&quot;</span>)]
     </span><span class="kw">pub </span>sig: celo_bls::Signature,
-    <span class="attribute">#[serde(skip)]
+    <span class="attr">#[serde(skip)]
     #[serde(default = <span class="string">&quot;OnceCell::new&quot;</span>)]
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; CELO_BLS_SIGNATURE_LENGTH]&gt;,
 }
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12377AggregateSignature {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;SerdeAs&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;SerdeAs&quot;</span>)]
     </span><span class="kw">pub </span>sig: <span class="prelude-ty">Option</span>&lt;celo_bls::Signature&gt;,
-    <span class="attribute">#[serde(skip)]
+    <span class="attr">#[serde(skip)]
     #[serde(default = <span class="string">&quot;OnceCell::new&quot;</span>)]
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; CELO_BLS_SIGNATURE_LENGTH]&gt;,
 }
@@ -1204,7 +1204,7 @@
         BLS12377PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
     }
 
-    <span class="attribute">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         BLS12377KeyPair {
             name: <span class="self">self</span>.name.clone(),
@@ -1475,4 +1475,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

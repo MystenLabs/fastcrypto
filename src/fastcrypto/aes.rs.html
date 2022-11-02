@@ -353,7 +353,7 @@
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
 <span class="doccomment">/// Struct wrapping an instance of a `generic_array::GenericArray&lt;u8, N&gt;`.
-</span><span class="attribute">#[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay)]
+</span><span class="attr">#[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay)]
 #[serde(bound = <span class="string">&quot;N: ArrayLength&lt;u8&gt;&quot;</span>)]
 </span><span class="kw">pub struct </span>GenericByteArray&lt;N: ArrayLength&lt;u8&gt;&gt; {
     <span class="comment">// We use GenericArrays because they are used by the underlying crates.
@@ -631,4 +631,4 @@
 <span class="doccomment">/// AES256 in GCM-mode (authenticated) using the given nonce size.
 </span><span class="kw">pub type </span>Aes256Gcm&lt;NonceSize&gt; = AesGcm&lt;U32, aes::Aes256, NonceSize&gt;;
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

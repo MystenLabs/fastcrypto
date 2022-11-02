@@ -218,10 +218,10 @@
 <span class="kw">use </span><span class="kw">crate</span>::encoding::{Base64, Encoding};
 
 <span class="doccomment">/// Represents a digest of `DIGEST_LEN` bytes.
-</span><span class="attribute">#[serde_with::serde_as]
+</span><span class="attr">#[serde_with::serde_as]
 #[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 </span><span class="kw">pub struct </span>Digest&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;[_; DIGEST_LEN]&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;[_; DIGEST_LEN]&quot;</span>)]
     </span><span class="kw">pub </span>digest: [u8; DIGEST_LEN],
 }
 
@@ -310,7 +310,7 @@
 }
 
 <span class="doccomment">/// This wraps a [digest::Digest] as a [HashFunction].
-</span><span class="attribute">#[derive(Default)]
+</span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
 
 <span class="doccomment">/// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
@@ -370,7 +370,7 @@
 </span><span class="kw">pub type </span>Blake2b256 = HashFunctionWrapper&lt;blake2::Blake2b&lt;typenum::U32&gt;, <span class="number">32</span>&gt;;
 
 <span class="doccomment">/// The [BLAKE3](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE3) hash function with 256 bit digests.
-</span><span class="attribute">#[derive(Default)]
+</span><span class="attr">#[derive(Default)]
 </span><span class="kw">pub struct </span>Blake3 {
     instance: blake3::Hasher,
 }
@@ -387,4 +387,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

@@ -232,8 +232,38 @@
 <span id="232">232</span>
 <span id="233">233</span>
 <span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! Implementation of Pedersen Commitments and [Bulletproofs](https://crypto.stanford.edu/bulletproofs/), which are short non-interactive zero-knowledge proofs that require no trusted setup.
+//!
+//! # Example
+//! ```rust
+//! # use fastcrypto::bulletproofs::*;
+//! use rand::{thread_rng, RngCore};
+//! let value = 300;
+//! let upper_bound = 16;
+//! let mut blinding = [0u8; 32];
+//! thread_rng().fill_bytes(&amp;mut blinding);
+//! let (commitment, range_proof) =
+//!    BulletproofsRangeProof::prove_bit_length(value, blinding, upper_bound, b&quot;MY_DOMAIN&quot;).unwrap();
+//! assert!(range_proof.verify_bit_length(&amp;commitment, upper_bound, b&quot;MY_DOMAIN&quot;).is_ok());
+//! ```
 </span><span class="kw">use </span>std::ops;
 
 <span class="kw">use </span>bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
@@ -253,7 +283,7 @@
 
 </span><span class="kw">const </span>PEDERSEN_COMMITMENT_LENGTH: usize = <span class="number">32</span>;
 
-<span class="attribute">#[derive(Debug, Clone)]
+<span class="attr">#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>PedersenCommitment {
     point: RistrettoPoint,
     bytes: OnceCell&lt;[u8; PEDERSEN_COMMITMENT_LENGTH]&gt;,
@@ -368,7 +398,7 @@
 /// Bulletproof Range Proofs
 ///
 
-</span><span class="attribute">#[derive(Debug)]
+</span><span class="attr">#[derive(Debug)]
 </span><span class="kw">pub struct </span>BulletproofsRangeProof {
     proof: RangeProof,
     bytes: OnceCell&lt;Vec&lt;u8&gt;&gt;,
@@ -467,4 +497,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

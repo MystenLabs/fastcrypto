@@ -260,7 +260,7 @@
     bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine, bls_g2_affine_to_blst_g2_affine,
 };
 
-<span class="attribute">#[cfg(test)]
+<span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;unit_tests/verifier_tests.rs&quot;</span>]
 </span><span class="kw">mod </span>verifier_tests;
 
@@ -268,7 +268,7 @@
 /// This is roughly homologous to [`ark_groth16::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don&#39;t store a &quot;prepared&quot; version of the gamma_g2_neg_pc,
 /// delta_g2_neg_pc fields, because we can&#39;t use them with blst&#39;s pairing engine.
-</span><span class="attribute">#[derive(Clone, Debug, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>PreparedVerifyingKey {
     <span class="doccomment">/// The element vk.gamma_abc_g1,
     /// aka the `[gamma^{-1} * (beta * a_i + alpha * b_i + c_i) * G]`, where i spans the public inputs
@@ -487,4 +487,4 @@
     <span class="prelude-val">Ok</span>(res == pvk.alpha_g1_beta_g2)
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_zkp" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_zkp" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

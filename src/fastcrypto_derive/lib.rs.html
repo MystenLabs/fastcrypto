@@ -47,7 +47,7 @@
 <span class="comment">// Imported from diem-crypto-derive@0.0.3
 // https://github.com/diem/diem/blob/release-1.4.3/crypto/crypto-derive/src/lib.rs#L113
 
-</span><span class="attribute">#[proc_macro_derive(SilentDisplay)]
+</span><span class="attr">#[proc_macro_derive(SilentDisplay)]
 </span><span class="kw">pub fn </span>silent_display(source: TokenStream) -&gt; TokenStream {
     <span class="kw">let </span>ast: DeriveInput = syn::parse(source).expect(<span class="string">&quot;Incorrect macro input&quot;</span>);
     <span class="kw">let </span>name = <span class="kw-2">&amp;</span>ast.ident;
@@ -63,7 +63,7 @@
     gen.into()
 }
 
-<span class="attribute">#[proc_macro_derive(SilentDebug)]
+<span class="attr">#[proc_macro_derive(SilentDebug)]
 </span><span class="kw">pub fn </span>silent_debug(source: TokenStream) -&gt; TokenStream {
     <span class="kw">let </span>ast: DeriveInput = syn::parse(source).expect(<span class="string">&quot;Incorrect macro input&quot;</span>);
     <span class="kw">let </span>name = <span class="kw-2">&amp;</span>ast.ident;
@@ -79,4 +79,4 @@
     gen.into()
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto_derive" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

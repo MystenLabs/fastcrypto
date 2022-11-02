@@ -108,10 +108,10 @@
 <span class="kw">use </span>std::{fmt::Display, marker::PhantomData, str::FromStr};
 
 <span class="doccomment">/// A generic construction representing bytes who claim to be the instance of a public key.
-</span><span class="attribute">#[serde_as]
+</span><span class="attr">#[serde_as]
 #[derive(Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>PublicKeyBytes&lt;T, <span class="kw">const </span>N: usize&gt; {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Bytes&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Bytes&quot;</span>)]
     </span>bytes: [u8; N],
     phantom: PhantomData&lt;T&gt;,
 }
@@ -193,4 +193,4 @@
     <span class="kw">impl </span>SealedPublicKeyLength <span class="kw">for </span>Secp256k1PublicKeyBytes {}
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

@@ -818,7 +818,7 @@
 /// Define Structs
 ///
 
-</span><span class="attribute">#[readonly::make]
+</span><span class="attr">#[readonly::make]
 #[derive(Default, Clone)]
 </span><span class="kw">pub struct </span>BLS12381PublicKey {
     <span class="kw">pub </span>pubkey: blst::PublicKey,
@@ -827,7 +827,7 @@
 
 <span class="kw">pub type </span>BLS12381PublicKeyBytes = PublicKeyBytes&lt;BLS12381PublicKey, { BLS12381PublicKey::LENGTH }&gt;;
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[derive(SilentDebug, SilentDisplay, Default)]
 </span><span class="kw">pub struct </span>BLS12381PrivateKey {
     <span class="kw">pub </span>privkey: blst::SecretKey,
@@ -835,30 +835,30 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks.
-</span><span class="attribute">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = <span class="string">&quot;type&quot;</span>)] </span><span class="comment">// necessary so as not to deserialize under a != type.
 </span><span class="kw">pub struct </span>BLS12381KeyPair {
     name: BLS12381PublicKey,
     secret: BLS12381PrivateKey,
 }
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12381Signature {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;BlsSignature&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;BlsSignature&quot;</span>)]
     </span><span class="kw">pub </span>sig: blst::Signature,
-    <span class="attribute">#[serde(skip)]
+    <span class="attr">#[serde(skip)]
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
 
-<span class="attribute">#[readonly::make]
+<span class="attr">#[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>BLS12381AggregateSignature {
-    <span class="attribute">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Option&lt;BlsSignature&gt;&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Option&lt;BlsSignature&gt;&quot;</span>)]
     </span><span class="kw">pub </span>sig: <span class="prelude-ty">Option</span>&lt;blst::Signature&gt;,
-    <span class="attribute">#[serde(skip)]
+    <span class="attr">#[serde(skip)]
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
 
@@ -1241,7 +1241,7 @@
         BLS12381PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
     }
 
-    <span class="attribute">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         BLS12381KeyPair {
             name: <span class="self">self</span>.name.clone(),
@@ -1531,4 +1531,4 @@
     <span class="macro">define_bls12381!</span>(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>

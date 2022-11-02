@@ -156,7 +156,7 @@
 <span class="kw">use </span>serde_with::{DeserializeAs, SerializeAs};
 <span class="kw">use </span>std::fmt::Debug;
 
-<span class="attribute">#[inline]
+<span class="attr">#[inline]
 </span><span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">&#39;de</span>, D, E&gt;(e: E) -&gt; D::Error
 <span class="kw">where
     </span>E: Debug,
@@ -170,7 +170,7 @@
     <span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String;
 }
 
-<span class="attribute">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
+<span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
 #[serde(try_from = <span class="string">&quot;String&quot;</span>)]
 </span><span class="kw">pub struct </span>Base64(String);
 
@@ -197,11 +197,11 @@
     }
 }
 
-<span class="attribute">#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone)]
+<span class="attr">#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone)]
 </span><span class="kw">pub struct </span>Hex(String);
 
 <span class="kw">impl </span>Hex {
-    <span class="attribute">#[cfg(test)]
+    <span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>from_string(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
         Hex(s.to_string())
     }
@@ -287,4 +287,4 @@
     T::try_from(<span class="kw-2">&amp;</span>value[..]).map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;byte deserialization failed&quot;</span>))
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (95a3a7277 2022-10-31)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (11ebe6512 2022-11-01)" ></div></body></html>
