@@ -1,5 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+//! Implementation of Pedersen Commitments and [Bulletproofs](https://crypto.stanford.edu/bulletproofs/), which are short non-interactive zero-knowledge proofs that require no trusted setup.
+//!
+//! # Example
+//! ```rust
+//! # use fastcrypto::bulletproofs::*;
+//! use rand::{thread_rng, RngCore};
+//! let value = 300;
+//! let upper_bound = 16;
+//! let mut blinding = [0u8; 32];
+//! thread_rng().fill_bytes(&mut blinding);
+//! let (commitment, range_proof) =
+//!    BulletproofsRangeProof::prove_bit_length(value, blinding, upper_bound, b"MY_DOMAIN").unwrap();
+//! assert!(range_proof.verify_bit_length(&commitment, upper_bound, b"MY_DOMAIN").is_ok());
+//! ```
 use std::ops;
 
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
