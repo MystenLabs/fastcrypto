@@ -1,5 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+//! This module contains an implementation of the [BLS signature scheme over the BLS 12-381 curve](https://en.wikipedia.org/wiki/BLS_digital_signature).
+//!
+//! Messages can be signed and the signature can be verified again:
+//! ```rust
+//! # use fastcrypto::bls12381::min_sig::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = BLS12381KeyPair::generate(&mut thread_rng());
+//! let message: &[u8] = b"Hello, world!";
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &signature).is_ok());
+//! ```
+
 use std::{
     borrow::Borrow,
     fmt::{self, Debug, Display},
@@ -52,6 +66,7 @@ macro_rules! define_bls12381 {
 /// Define Structs
 ///
 
+/// BLS 12-381 public key.
 #[readonly::make]
 #[derive(Default, Clone)]
 pub struct BLS12381PublicKey {
@@ -59,8 +74,10 @@ pub struct BLS12381PublicKey {
     pub bytes: OnceCell<[u8; $pk_length]>,
 }
 
+/// Binary representation of a [BLS12381PublicKey].
 pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
+/// BLS 12-381 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay, Default)]
 pub struct BLS12381PrivateKey {
@@ -69,6 +86,7 @@ pub struct BLS12381PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
+/// BLS 12-381 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deserialize under a != type.
 pub struct BLS12381KeyPair {
@@ -76,6 +94,7 @@ pub struct BLS12381KeyPair {
     secret: BLS12381PrivateKey,
 }
 
+/// BLS 12-381 signature.
 #[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -86,6 +105,7 @@ pub struct BLS12381Signature {
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
+/// Aggregation of multiple BLS 12-381 signatures.
 #[readonly::make]
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -745,22 +765,31 @@ impl ToFromBytes for BLS12381AggregateSignature {
 
 }} // macro_rules! define_bls12381
 
+/// The length of a private key in bytes.
 pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;
+
+/// The length of public keys when using the [min_pk] module and the length of signatures when using the [min_sig] module.
 pub const BLS_G1_LENGTH: usize = 48;
+
+/// The length of public keys when using the [min_sig] module and the length of signatures when using the [min_pk] module.
 pub const BLS_G2_LENGTH: usize = 96;
 
+/// Module minimizing the size of signatures. See also [min_pk].
 pub mod min_sig {
     use super::*;
     use crate::serde_helpers::min_sig::BlsSignature;
     use blst::min_sig as blst;
+    /// Hash-to-curve domain seperation tag.
     pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
 }
 
+/// Module minimizing the size of public keys. See also [min_sig].
 pub mod min_pk {
     use super::*;
     use crate::serde_helpers::min_pk::BlsSignature;
     use blst::min_pk as blst;
+    /// Hash-to-curve domain seperation tag.
     pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 }
