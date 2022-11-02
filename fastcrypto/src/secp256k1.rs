@@ -1,6 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the [secp256k1 curve](http://www.secg.org/sec2-v2.pdf).
+//!
+//! Messages can be signed and the signature can be verified again:
+//! # Example
+//! ```rust
+//! # use fastcrypto::secp256k1::*;
+//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! use rand::thread_rng;
+//! let kp = Secp256k1KeyPair::generate(&mut thread_rng());
+//! let message: &[u8] = b"Hello, world!";
+//! let signature = kp.sign(message);
+//! assert!(kp.public().verify(message, &signature).is_ok());
+//! ```
+
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -28,6 +42,7 @@ use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
+/// Secp256k1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1PublicKey {
@@ -35,9 +50,11 @@ pub struct Secp256k1PublicKey {
     pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
 }
 
+/// Binary representation of an instance of [Secp256k1PublicKey].
 pub type Secp256k1PublicKeyBytes =
     PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
+/// Secp256k1 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256k1PrivateKey {
@@ -45,9 +62,10 @@ pub struct Secp256k1PrivateKey {
     pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,
 }
 
-// Compact signature followed by one extra byte for recover id, used to recover public key from signature.
+/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
 pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
 
+/// Secp256k1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1Signature {
@@ -328,6 +346,7 @@ impl Default for Secp256k1Signature {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
+/// Secp256k1 public/private key pair.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct Secp256k1KeyPair {
