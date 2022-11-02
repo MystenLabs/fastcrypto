@@ -123,8 +123,18 @@
 <span id="123">123</span>
 <span id="124">124</span>
 <span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">//! Implementations of [HMAC](https://www.rfc-editor.org/rfc/rfc2104) and [HKDF](https://tools.ietf.org/html/rfc5869).
+
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
 <span class="kw">use </span><span class="kw">crate</span>::hash::ReverseWrapper;
 <span class="kw">use crate</span>::{
@@ -219,10 +229,13 @@
 </span><span class="kw">const </span>HMAC_KEY_RECOMMENDED_LENGTH: usize = <span class="number">32</span>;
 <span class="kw">const </span>HKDF_KEY_RECOMMENDED_LENGTH: usize = <span class="number">32</span>;
 
-<span class="kw">pub type </span>HmacKey = PrivateSeed&lt;HMAC_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
-<span class="kw">pub type </span>HkdfIkm = PrivateSeed&lt;HKDF_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
+<span class="doccomment">/// Type for key in [hmac_sha3_256].
+</span><span class="kw">pub type </span>HmacKey = PrivateSeed&lt;HMAC_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
+<span class="doccomment">/// Type for input keying material in [hkdf_sha3_256].
+</span><span class="kw">pub type </span>HkdfIkm = PrivateSeed&lt;HKDF_KEY_RECOMMENDED_LENGTH, <span class="bool-val">false</span>&gt;;
 
-<span class="kw">pub fn </span>hmac_sha3_256(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
+<span class="doccomment">/// [Keyed-Hash Message Authentication Code](https://www.rfc-editor.org/rfc/rfc2104) (HMAC) using SHA3-256.
+</span><span class="kw">pub fn </span>hmac_sha3_256(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha3::Sha3_256&gt;::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
     <span class="kw">let </span>output = hash.finalize();
@@ -231,7 +244,8 @@
     }
 }
 
-<span class="kw">pub fn </span>hkdf_sha3_256(
+<span class="doccomment">/// [HMAC-based Extract-and-Expand Key Derivation Function](https://tools.ietf.org/html/rfc5869) (HKDF) using SHA3-256.
+</span><span class="kw">pub fn </span>hkdf_sha3_256(
     ikm: <span class="kw-2">&amp;</span>HkdfIkm,
     salt: <span class="kw-2">&amp;</span>[u8],
     info: <span class="kw-2">&amp;</span>[u8],
