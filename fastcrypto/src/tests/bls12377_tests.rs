@@ -433,25 +433,20 @@ fn test_sk_zeroization_on_drop() {
         bytes_ptr = &sk.as_ref()[0] as *const u8;
 
         // Assert the exact location in SecretKey is stored as private key bytes.
-        unsafe {
-            let bytes: Vec<u8> = (0..CELO_BLS_PRIVATE_KEY_LENGTH)
-                .map(|i| *ptr.add(i + 41))
-                .collect();
-            assert_eq!(bytes, sk_bytes);
-        }
+        let privkey_bytes =
+            unsafe { std::slice::from_raw_parts(ptr.add(41), CELO_BLS_PRIVATE_KEY_LENGTH) };
+        assert_eq!(privkey_bytes, &sk_bytes[..]);
+
+        // Assert that this is equal to sk_bytes before deletion.
         let sk_memory: &[u8] =
             unsafe { std::slice::from_raw_parts(bytes_ptr, CELO_BLS_PRIVATE_KEY_LENGTH) };
-        // Assert that this is equal to sk_bytes before deletion.
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
 
     // Assert the exact position in SecretKey is no longer private key bytes.
-    unsafe {
-        let bytes: Vec<u8> = (0..CELO_BLS_PRIVATE_KEY_LENGTH)
-            .map(|i| *ptr.add(i + 41))
-            .collect();
-        assert_ne!(bytes, sk_bytes);
-    }
+    let privkey_bytes =
+        unsafe { std::slice::from_raw_parts(ptr.add(41), CELO_BLS_PRIVATE_KEY_LENGTH) };
+    assert_ne!(privkey_bytes, &sk_bytes[..]);
 
     // Check that self.bytes is reset to OnceCell default.
     let sk_memory: &[u8] =
