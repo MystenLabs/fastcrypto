@@ -94,9 +94,12 @@ where
 const HMAC_KEY_RECOMMENDED_LENGTH: usize = 32;
 const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 
+/// Type for key in [hmac_sha3_256].
 pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
+/// Type for input keying material in [hkdf_sha3_256].
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
+/// [Keyed-Hash Message Authentication Code](https://en.wikipedia.org/wiki/HMAC) (HMAC) using SHA3-256.
 pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
     let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
@@ -106,6 +109,7 @@ pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
     }
 }
 
+/// [HMAC-based Extract-and-Expand Key Derivation Function](https://tools.ietf.org/html/rfc5869) (HKDF) using SHA3-256.
 pub fn hkdf_sha3_256(
     ikm: &HkdfIkm,
     salt: &[u8],
