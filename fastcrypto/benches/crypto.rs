@@ -20,40 +20,46 @@ mod signature_benches {
     use rand::{prelude::ThreadRng, thread_rng};
     use signature::Signer;
 
-    fn sign_single<KP: KeyPair>(name: &str, c: &mut Criterion) {
+    fn sign_single<KP: KeyPair, M: measurement::Measurement>(
+        name: &str,
+        c: &mut BenchmarkGroup<M>,
+    ) {
         let msg: &[u8] = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
-        c.bench_function(&(name.to_string() + " signing"), move |b| {
-            b.iter(|| keypair.sign(msg))
-        });
+        c.bench_function(&(name.to_string()), move |b| b.iter(|| keypair.sign(msg)));
     }
 
     fn sign(c: &mut Criterion) {
-        sign_single::<Ed25519KeyPair>("Ed25519", c);
-        sign_single::<bls12381::min_sig::BLS12381KeyPair>("BLS12381MinSig", c);
-        sign_single::<bls12381::min_pk::BLS12381KeyPair>("BLS12381MinPk", c);
-        sign_single::<BLS12377KeyPair>("BLS12377", c);
-        sign_single::<Secp256k1KeyPair>("Sepc256k1", c);
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Sign");
+        sign_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
+        sign_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
+        sign_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
+        sign_single::<BLS12377KeyPair, _>("BLS12377", &mut group);
+        sign_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
     }
 
-    fn verify_single<KP: KeyPair>(name: &str, c: &mut Criterion) {
+    fn verify_single<KP: KeyPair, M: measurement::Measurement>(
+        name: &str,
+        c: &mut BenchmarkGroup<M>,
+    ) {
         let msg = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
         let public_key = keypair.public();
         let signature = keypair.sign(msg);
-        c.bench_function(&(name.to_string() + " signature verification"), move |b| {
+        c.bench_function(&(name.to_string()), move |b| {
             b.iter(|| public_key.verify(msg, &signature))
         });
     }
 
     fn verify(c: &mut Criterion) {
-        verify_single::<Ed25519KeyPair>("Ed25519", c);
-        verify_single::<bls12381::min_sig::BLS12381KeyPair>("BLS12381MinSig", c);
-        verify_single::<bls12381::min_pk::BLS12381KeyPair>("BLS12381MinPk", c);
-        verify_single::<BLS12377KeyPair>("BLS12377", c);
-        verify_single::<Secp256k1KeyPair>("Sepc256k1", c);
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify");
+        verify_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
+        verify_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
+        verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
+        verify_single::<BLS12377KeyPair, _>("BLS12377", &mut group);
+        verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
     }
 
     struct TestDataBatchedVerification<KP: KeyPair> {
@@ -85,7 +91,7 @@ mod signature_benches {
     ) {
         let test_data = generate_test_data::<KP>(size);
         c.bench_with_input(
-            BenchmarkId::new(name.to_string() + " batched verification", size),
+            BenchmarkId::new(name.to_string(), size),
             &(
                 &test_data.msg,
                 &test_data.public_keys,
@@ -111,7 +117,7 @@ mod signature_benches {
         let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
 
         c.bench_with_input(
-            BenchmarkId::new(name.to_string() + " aggregate verification", size),
+            BenchmarkId::new(name.to_string(), size),
             &(&test_data.msg, &test_data.public_keys, &aggregate_signature),
             |b, (msg, pks, sig)| {
                 b.iter(|| sig.verify(pks, msg));
@@ -156,10 +162,7 @@ mod signature_benches {
     ) {
         let test_data = generate_test_data_different_msg::<KP>(size);
         c.bench_with_input(
-            BenchmarkId::new(
-                name.to_string() + " batched verification with different messages",
-                size,
-            ),
+            BenchmarkId::new(name.to_string(), size),
             &(
                 &test_data.msgs,
                 &test_data.public_keys,
@@ -183,10 +186,7 @@ mod signature_benches {
         let test_data = generate_test_data_different_msg::<KP>(size);
         let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
         c.bench_with_input(
-            BenchmarkId::new(
-                name.to_string() + " aggregate verification with different messages",
-                size,
-            ),
+            BenchmarkId::new(name.to_string(), size),
             &(
                 test_data
                     .msgs
@@ -202,81 +202,98 @@ mod signature_benches {
         );
     }
 
-    fn verify_batch_signatures<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
-        static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
+    /// Benchmark batch verification of multiple signatures over the same message.
+    fn verify_batch_signatures(c: &mut Criterion) {
+        static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify batch");
         for size in BATCH_SIZES.iter() {
-            verify_batch_signatures_single::<Ed25519KeyPair, _>("Ed25519", *size, c);
-            verify_batch_signatures_single::<BLS12377KeyPair, _>("BLS12377", *size, c);
-            verify_batch_signatures_single::<bls12381::min_sig::BLS12381KeyPair, _>(
-                "BLS12381MinSig",
+            verify_batch_signatures_single::<Ed25519KeyPair, _>("Ed25519_batch", *size, &mut group);
+            verify_batch_signatures_single::<BLS12377KeyPair, _>(
+                "BLS12377_batch",
                 *size,
-                c,
+                &mut group,
+            );
+            verify_batch_signatures_single::<bls12381::min_sig::BLS12381KeyPair, _>(
+                "BLS12381MinSig_batched",
+                *size,
+                &mut group,
             );
             verify_batch_signatures_single::<bls12381::min_pk::BLS12381KeyPair, _>(
-                "BLS12381MinPk",
+                "BLS12381MinPk_batched",
                 *size,
-                c,
+                &mut group,
             );
             verify_aggregate_signatures_single::<BLS12377KeyPair, BLS12377AggregateSignature, _>(
-                "BLS12377", *size, c,
+                "BLS12377_aggregated",
+                *size,
+                &mut group,
             );
             verify_aggregate_signatures_single::<
                 bls12381::min_sig::BLS12381KeyPair,
                 bls12381::min_sig::BLS12381AggregateSignature,
                 _,
-            >("BLS12381MinSig", *size, c);
+            >("BLS12381MinSig_aggregated", *size, &mut group);
             verify_aggregate_signatures_single::<
                 bls12381::min_pk::BLS12381KeyPair,
                 bls12381::min_pk::BLS12381AggregateSignature,
                 _,
-            >("BLS12381MinPk", *size, c);
+            >("BLS12381MinPk_aggregated", *size, &mut group);
         }
     }
 
-    fn verify_batch_signatures_different_msg<M: measurement::Measurement>(
-        c: &mut BenchmarkGroup<M>,
-    ) {
-        static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
+    /// Benchmark batch verification of multiple signatures over different messages.
+    fn verify_batch_signatures_different_msg(c: &mut Criterion) {
+        static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
+
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify batch different messages");
+
         for size in BATCH_SIZES.iter() {
-            verify_batch_signatures_different_msg_single::<Ed25519KeyPair, _>("Ed25519", *size, c);
+            verify_batch_signatures_different_msg_single::<Ed25519KeyPair, _>(
+                "Ed25519_batch",
+                *size,
+                &mut group,
+            );
             verify_aggregate_signatures_different_msg_single::<
                 Ed25519KeyPair,
                 Ed25519AggregateSignature,
                 _,
-            >("Ed25519", *size, c);
+            >("Ed25519_aggregate", *size, &mut group);
             verify_batch_signatures_different_msg_single::<BLS12377KeyPair, _>(
-                "BLS12377", *size, c,
+                "BLS12377_batch",
+                *size,
+                &mut group,
             );
             verify_aggregate_signatures_different_msg_single::<
                 BLS12377KeyPair,
                 BLS12377AggregateSignature,
                 _,
-            >("BLS12377", *size, c);
+            >("BLS12377_aggregate", *size, &mut group);
             verify_batch_signatures_different_msg_single::<bls12381::min_sig::BLS12381KeyPair, _>(
-                "BLS12381MinSig",
+                "BLS12381MinSig_batch",
                 *size,
-                c,
+                &mut group,
             );
             verify_batch_signatures_different_msg_single::<bls12381::min_pk::BLS12381KeyPair, _>(
-                "BLS12381MinPk",
+                "BLS12381MinPk_batch",
                 *size,
-                c,
+                &mut group,
             );
             verify_aggregate_signatures_different_msg_single::<
                 bls12381::min_sig::BLS12381KeyPair,
                 bls12381::min_sig::BLS12381AggregateSignature,
                 _,
-            >("BLS12381MinSig", *size, c);
+            >("BLS12381MinSig_aggregate", *size, &mut group);
             verify_aggregate_signatures_different_msg_single::<
                 bls12381::min_pk::BLS12381KeyPair,
                 bls12381::min_pk::BLS12381AggregateSignature,
                 _,
-            >("BLS12381MinPk", *size, c);
+            >("BLS12381MinPk_aggregate", *size, &mut group);
         }
     }
 
     fn aggregate_signatures(c: &mut Criterion) {
-        static BATCH_SIZES: [usize; 10] = [16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192];
+        static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Aggregate signatures");
 
         let mut csprng: ThreadRng = thread_rng();
 
@@ -302,8 +319,8 @@ mod signature_benches {
                 .map(|key| key.sign(&msg))
                 .collect();
 
-            c.bench_with_input(
-                BenchmarkId::new("BLS12381MinSig signature aggregation", *size),
+            group.bench_with_input(
+                BenchmarkId::new("BLS12381MinSig", *size),
                 &(blst_min_sig_signatures),
                 |b, sig| {
                     b.iter(|| {
@@ -311,8 +328,8 @@ mod signature_benches {
                     });
                 },
             );
-            c.bench_with_input(
-                BenchmarkId::new("BLS12381MinPk signature aggregation", *size),
+            group.bench_with_input(
+                BenchmarkId::new("BLS12381MinPk", *size),
                 &(blst_min_pk_signatures),
                 |b, sig| {
                     b.iter(|| {
@@ -330,30 +347,23 @@ mod signature_benches {
         let mut csprng4 = csprng.clone();
         let mut csprng5 = csprng.clone();
 
-        c.bench_function("Ed25519 keypair generation", move |b| {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Key generation");
+
+        group.bench_function("Ed25519", move |b| {
             b.iter(|| Ed25519KeyPair::generate(&mut csprng))
         });
-        c.bench_function("BLS12381MinSig keypair generation", move |b| {
+        group.bench_function("BLS12381MinSig", move |b| {
             b.iter(|| bls12381::min_sig::BLS12381KeyPair::generate(&mut csprng2))
         });
-        c.bench_function("BLS12381MinPk keypair generation", move |b| {
+        group.bench_function("BLS12381MinPk", move |b| {
             b.iter(|| bls12381::min_pk::BLS12381KeyPair::generate(&mut csprng3))
         });
-        c.bench_function("BLS12377 keypair generation", move |b| {
+        group.bench_function("BLS12377", move |b| {
             b.iter(|| BLS12377KeyPair::generate(&mut csprng4))
         });
-        c.bench_function("Secp256k1 keypair generation", move |b| {
+        group.bench_function("Secp256k1", move |b| {
             b.iter(|| Secp256k1KeyPair::generate(&mut csprng5))
         });
-    }
-
-    fn verification_comparison(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("verification_comparison");
-        group.sampling_mode(SamplingMode::Flat);
-
-        verify_batch_signatures(&mut group);
-        verify_batch_signatures_different_msg(&mut group);
-        group.finish();
     }
 
     criterion_group! {
@@ -362,7 +372,8 @@ mod signature_benches {
         targets =
            sign,
            verify,
-           verification_comparison,
+           verify_batch_signatures,
+           verify_batch_signatures_different_msg,
            aggregate_signatures,
            key_generation,
     }
