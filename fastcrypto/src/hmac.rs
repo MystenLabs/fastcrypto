@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementations of [HMAC](https://en.wikipedia.org/wiki/HMAC) and [HKDF](https://en.wikipedia.org/wiki/HKDF).
+//! Implementations of [HMAC](https://www.rfc-editor.org/rfc/rfc2104) and [HKDF](https://tools.ietf.org/html/rfc5869).
 
 use crate::error::FastCryptoError;
 use crate::hash::ReverseWrapper;
@@ -102,7 +102,7 @@ pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
 /// Type for input keying material in [hkdf_sha3_256].
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
-/// [Keyed-Hash Message Authentication Code](https://en.wikipedia.org/wiki/HMAC) (HMAC) using SHA3-256.
+/// [Keyed-Hash Message Authentication Code](https://www.rfc-editor.org/rfc/rfc2104) (HMAC) using SHA3-256.
 pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
     let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(key.as_bytes()).unwrap();
     hash.update(message);
