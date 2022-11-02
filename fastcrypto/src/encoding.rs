@@ -30,7 +30,7 @@ where
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
 
-/// All encodings implements this trait.
+/// Trait representing a general binary-to-string encoding.
 pub trait Encoding {
     /// Decode this encoding into bytes.
     fn decode(s: &str) -> Result<Vec<u8>>;
