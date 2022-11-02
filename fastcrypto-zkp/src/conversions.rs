@@ -2,15 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 use ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
-use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
+pub use blst::blst_fp12;
+use blst::{blst_fp, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
 use blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
 use blst::{blst_p2_affine, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
 use byte_slice_cast::AsByteSlice;
 
 pub use ark_bls12_381::{Fq, Fq2, Fr as BlsFr};
-use ark_bls12_381::{Fq12, G2Affine as BlsG2Affine};
-use ark_bls12_381::{Fq6, G1Affine as BlsG1Affine};
+pub use ark_bls12_381::{Fq12, G2Affine as BlsG2Affine};
+pub use ark_bls12_381::{Fq6, G1Affine as BlsG1Affine};
 
 use blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 
