@@ -394,7 +394,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::default();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.0, sig.0);
+    assert_eq!(deserialized.sig, sig.sig);
 
     let message = b"hello, narwhal";
     // Test populated aggregate signature
@@ -410,7 +410,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.0, sig.0);
+    assert_eq!(deserialized.sig, sig.sig);
 }
 
 #[test]

@@ -1,20 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
-//! This module contains an implementation of the [Ed25519](https://en.wikipedia.org/wiki/EdDSA#Ed25519) signature scheme.
-//!
-//! Messages can be signed and the signature can be verified again:
-//! ```rust
-//! # use fastcrypto::ed25519::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
-//! use rand::thread_rng;
-//! let kp = Ed25519KeyPair::generate(&mut thread_rng());
-//! let message: &[u8] = b"Hello, world!";
-//! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &signature).is_ok());
-//! ```
-
-use crate::encoding::Encoding;
+use crate::{encoding::Encoding, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -40,36 +26,31 @@ use crate::{
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
     traits::{
-        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+        AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
     },
 };
 
-/// The length of a private key in bytes.
 pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
-
-/// The length of a public key in bytes.
 pub const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
-
-/// The lenght of a signature in bytes.
 pub const ED25519_SIGNATURE_LENGTH: usize = 64;
 
 const BASE64_FIELD_NAME: &str = "base64";
 const RAW_FIELD_NAME: &str = "raw";
 
-/// Ed25519 public key.
+///
+/// Define Structs
+///
+
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
-/// Binary representation of an instance of [Ed25519PublicKey].
 pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
-/// Ed25519 private key.
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-/// Ed25519 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct Ed25519KeyPair {
@@ -77,21 +58,21 @@ pub struct Ed25519KeyPair {
     secret: Ed25519PrivateKey,
 }
 
-/// Ed25519 signature.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Ed25519Signature {
     pub sig: ed25519_consensus::Signature,
-    // Helps implementing AsRef<[u8]>.
     pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
 }
 
-/// Aggregation of multiple Ed25519 signatures.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-pub struct Ed25519AggregateSignature(
-    #[serde_as(as = "Vec<Ed25519Sig>")] pub Vec<ed25519_consensus::Signature>,
-);
-
+pub struct Ed25519AggregateSignature {
+    #[serde_as(as = "Vec<Ed25519Sig>")]
+    pub sig: Vec<ed25519_consensus::Signature>,
+    // Helps implementing AsRef<[u8]>.
+    #[serde(skip)]
+    pub bytes: OnceCell<Vec<u8>>,
+}
 ///
 /// Implement VerifyingKey
 ///
@@ -443,11 +424,41 @@ impl Display for Ed25519AggregateSignature {
         write!(
             f,
             "{:?}",
-            self.0
+            self.sig
                 .iter()
                 .map(|x| Base64::encode(&x.to_bytes()))
                 .collect::<Vec<_>>()
         )
+    }
+}
+
+impl AsRef<[u8]> for Ed25519AggregateSignature {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes
+            .get_or_try_init::<_, eyre::Report>(|| {
+                Ok(self
+                    .sig
+                    .iter()
+                    .map(|s| s.to_bytes())
+                    .collect::<Vec<[u8; ED25519_SIGNATURE_LENGTH]>>()
+                    .concat())
+            })
+            .expect("OnceCell invariant violated")
+    }
+}
+
+impl ToFromBytes for Ed25519AggregateSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let sigs = bytes
+            .chunks_exact(ED25519_SIGNATURE_LENGTH)
+            .into_iter()
+            .map(|chunk| <Ed25519Signature as traits::ToFromBytes>::from_bytes(chunk).unwrap())
+            .map(|s| s.sig)
+            .collect();
+        Ok(Ed25519AggregateSignature {
+            sig: sigs,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
@@ -460,18 +471,19 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        Ok(Self(
-            signatures.into_iter().map(|s| s.borrow().sig).collect(),
-        ))
+        Ok(Self {
+            sig: signatures.into_iter().map(|s| s.borrow().sig).collect(),
+            bytes: OnceCell::new(),
+        })
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        self.0.push(signature.sig);
+        self.sig.push(signature.sig);
         Ok(())
     }
 
     fn add_aggregate(&mut self, mut signature: Self) -> Result<(), FastCryptoError> {
-        self.0.append(&mut signature.0);
+        self.sig.append(&mut signature.sig);
         Ok(())
     }
 
@@ -480,14 +492,14 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        if pks.len() != self.0.len() {
-            return Err(FastCryptoError::InputLengthWrong(self.0.len()));
+        if pks.len() != self.sig.len() {
+            return Err(FastCryptoError::InputLengthWrong(self.sig.len()));
         }
         let mut batch = batch::Verifier::new();
 
         for (i, pk) in pks.iter().enumerate() {
             let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
-            batch.queue((vk_bytes, self.0[i], message));
+            batch.queue((vk_bytes, self.sig[i], message));
         }
 
         batch
@@ -500,14 +512,14 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        if pks.len() != self.0.len() || messages.len() != self.0.len() {
-            return Err(FastCryptoError::InputLengthWrong(self.0.len()));
+        if pks.len() != self.sig.len() || messages.len() != self.sig.len() {
+            return Err(FastCryptoError::InputLengthWrong(self.sig.len()));
         }
         let mut batch = batch::Verifier::new();
 
         for (i, (pk, msg)) in pks.iter().zip(messages).enumerate() {
             let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
-            batch.queue((vk_bytes, self.0[i], msg));
+            batch.queue((vk_bytes, self.sig[i], msg));
         }
 
         batch
@@ -528,10 +540,10 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         let mut pk_iter = pks.into_iter();
         for i in 0..sigs.len() {
             let pk_list = &pk_iter.next().unwrap().map(|x| &x.0).collect::<Vec<_>>()[..];
-            if pk_list.len() != sigs[i].0.len() {
+            if pk_list.len() != sigs[i].sig.len() {
                 return Err(FastCryptoError::InvalidInput);
             }
-            for (&pk, sig) in pk_list.iter().zip(&sigs[i].0) {
+            for (&pk, sig) in pk_list.iter().zip(&sigs[i].sig) {
                 let vk_bytes = VerificationKeyBytes::from(*pk);
                 batch.queue((vk_bytes, *sig, messages[i]));
             }
@@ -587,7 +599,7 @@ impl KeyPair for Ed25519KeyPair {
         }
     }
 
-    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
+    fn generate<R: rand::CryptoRng + rand::RngCore>(rng: &mut R) -> Self {
         let kp = ed25519_consensus::SigningKey::new(rng);
         Ed25519KeyPair {
             name: Ed25519PublicKey(kp.verification_key()),
