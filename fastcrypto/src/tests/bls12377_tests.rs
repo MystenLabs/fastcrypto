@@ -442,9 +442,9 @@ fn test_sk_zeroization_on_drop() {
                 assert_eq!(*ptr.add(i + 41), byte);
             }
         }
-        // Assert that this is equal to sk_bytes before deletion.
         let sk_memory: &[u8] =
             unsafe { std::slice::from_raw_parts(bytes_ptr, CELO_BLS_PRIVATE_KEY_LENGTH) };
+        // Assert that this is equal to sk_bytes before deletion.
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
 
