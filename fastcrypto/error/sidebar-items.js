@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":[["FastCryptoError","Collection of errors to be used in fastcrypto."]]};

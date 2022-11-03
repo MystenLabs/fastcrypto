@@ -1,0 +1,91 @@
+<svg width="960" height="540" viewBox="0 0 960 540" xmlns="http://www.w3.org/2000/svg">
+<text x="480" y="5" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="16.129032258064516" opacity="1" fill="#000000">
+Verify batch/BLS12381MinSig_aggregated: Comparison
+</text>
+<text x="26" y="263" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000" transform="rotate(270, 26, 263)">
+Average time (µs)
+</text>
+<text x="510" y="514" dy="-0.5ex" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+Input
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="85,52 85,473 "/>
+<text x="76" y="449" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+935.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,449 85,449 "/>
+<text x="76" y="411" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+940.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,411 85,411 "/>
+<text x="76" y="373" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+945.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,373 85,373 "/>
+<text x="76" y="335" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+950.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,335 85,335 "/>
+<text x="76" y="297" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+955.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,297 85,297 "/>
+<text x="76" y="259" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+960.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,259 85,259 "/>
+<text x="76" y="221" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+965.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,221 85,221 "/>
+<text x="76" y="183" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+970.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,183 85,183 "/>
+<text x="76" y="145" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+975.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,145 85,145 "/>
+<text x="76" y="107" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+980.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,107 85,107 "/>
+<text x="76" y="69" dy="0.5ex" text-anchor="end" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+985.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="80,69 85,69 "/>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="86,474 933,474 "/>
+<text x="170" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+10.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="170,474 170,479 "/>
+<text x="311" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+20.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="311,474 311,479 "/>
+<text x="453" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+30.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="453,474 453,479 "/>
+<text x="594" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+40.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="594,474 594,479 "/>
+<text x="735" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+50.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="735,474 735,479 "/>
+<text x="876" y="484" dy="0.76em" text-anchor="middle" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+60.0
+</text>
+<polyline fill="none" opacity="1" stroke="#000000" stroke-width="1" points="876,474 876,479 "/>
+<circle cx="86" cy="418" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="142" cy="438" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="255" cy="473" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="481" cy="345" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="933" cy="52" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#082222" stroke-width="1" points="86,418 142,438 255,473 481,345 933,52 "/>
+<text x="131" y="67" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
+BLS12381MinSig_aggregated
+</text>
+<rect x="101" y="67" width="20" height="10" opacity="1" fill="#082222" stroke="none"/>
+</svg>
