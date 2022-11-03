@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["PrivateSeed","Private key/seed of any/fixed size."]]};

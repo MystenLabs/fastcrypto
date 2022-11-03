@@ -1,0 +1,800 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/traits.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>traits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../normalize.css"><link rel="stylesheet" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../ayu.css" disabled><link rel="stylesheet" href="../../dark.css" disabled><link rel="stylesheet" href="../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../storage.js"></script><script defer src="../../source-script.js"></script><script defer src="../../source-files.js"></script><script defer src="../../main.js"></script><noscript><link rel="stylesheet" href="../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../rust-logo.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../wheel.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+</pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+</span><span class="kw">use </span>eyre::eyre;
+
+<span class="kw">use </span>rand::rngs::{StdRng, ThreadRng};
+<span class="kw">use </span>rand::{CryptoRng, RngCore};
+<span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
+<span class="kw">pub use </span>signature::Signer;
+<span class="kw">use </span>std::{
+    borrow::Borrow,
+    fmt::{Debug, Display},
+    str::FromStr,
+};
+
+<span class="kw">use crate</span>::{
+    encoding::{Base64, Encoding},
+    error::FastCryptoError,
+};
+
+<span class="doccomment">/// Trait impl&#39;d by concrete types that represent digital cryptographic material
+/// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
+///
+/// Key types *must* (as mandated by the `AsRef&lt;[u8]&gt;` bound) be a thin
+/// wrapper around the &quot;bag-of-bytes&quot; serialized form of a key which can
+/// be directly parsed from or written to the &quot;wire&quot;.
+///
+/// The [`ToFromBytes`] trait aims to provide similar simplicity by minimizing
+/// the number of steps involved to obtain a serializable key and
+/// ideally ensuring there is one signature type for any given signature system
+/// shared by all &quot;provider&quot; crates.
+///
+/// For signature systems which require a more advanced internal representation
+/// (e.g. involving decoded scalars or decompressed elliptic curve points) it&#39;s
+/// recommended that &quot;provider&quot; libraries maintain their own internal signature
+/// type and use `From` bounds to provide automatic conversions.
+///
+</span><span class="comment">// This is essentially a copy of signature::Signature:
+// - we can&#39;t implement signature::Signature on Pubkeys / PrivKeys w/o violating the orphan rule,
+// - and we need a trait to base the definition of EncodeDecodeBase64 as an extension trait on.
+</span><span class="kw">pub trait </span>ToFromBytes: AsRef&lt;[u8]&gt; + Debug + Sized {
+    <span class="doccomment">/// Parse a key from its byte representation
+    </span><span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+
+    <span class="doccomment">/// Borrow a byte slice representing the serialized form of this key
+    </span><span class="kw">fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.as_ref()
+    }
+}
+
+<span class="kw">impl</span>&lt;T: signature::Signature&gt; ToFromBytes <span class="kw">for </span>T {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        &lt;<span class="self">Self </span><span class="kw">as </span>signature::Signature&gt;::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError)
+    }
+}
+
+<span class="doccomment">/// Cryptographic material with an immediate conversion to/from Base64 strings.
+///
+/// This is an [extension trait](https://rust-lang.github.io/rfcs/0445-extension-trait-conventions.html) of `ToFromBytes` above.
+///
+</span><span class="kw">pub trait </span>EncodeDecodeBase64: Sized {
+    <span class="kw">fn </span>encode_base64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String;
+    <span class="kw">fn </span>decode_base64(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, eyre::Report&gt;;
+}
+
+<span class="comment">// The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot
+</span><span class="kw">impl</span>&lt;T: ToFromBytes&gt; EncodeDecodeBase64 <span class="kw">for </span>T {
+    <span class="kw">fn </span>encode_base64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+        Base64::encode(<span class="self">self</span>.as_bytes())
+    }
+
+    <span class="kw">fn </span>decode_base64(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, eyre::Report&gt; {
+        <span class="kw">let </span>bytes = Base64::decode(value)<span class="question-mark">?</span>;
+        &lt;T <span class="kw">as </span>ToFromBytes&gt;::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(|e| e.into())
+    }
+}
+
+<span class="doccomment">/// Trait impl&#39;d by public keys in asymmetric cryptography.
+///
+/// The trait bounds are implemented so as to be symmetric and equivalent
+/// to the ones on its associated types for private and signature material.
+///
+</span><span class="kw">pub trait </span>VerifyingKey:
+    Serialize
+    + DeserializeOwned
+    + std::hash::Hash
+    + Display
+    + Eq  <span class="comment">// required to make some cached bytes representations explicit
+    </span>+ Ord <span class="comment">// required to put keys in BTreeMap
+    </span>+ Default <span class="comment">// see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+    </span>+ ToFromBytes
+    + signature::Verifier&lt;<span class="self">Self</span>::Sig&gt;
+    + <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey
+    </span>+ Send
+    + Sync
+    + <span class="lifetime">&#39;static
+    </span>+ Clone
+{
+    <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey=<span class="self">Self</span>&gt;;
+    <span class="kw">type </span>Sig: Authenticator&lt;PubKey=<span class="self">Self</span>&gt;;
+    <span class="kw">const </span>LENGTH: usize;
+
+    <span class="comment">// Expected to be overridden by implementations
+    </span><span class="doccomment">/// Batch verification over the same message. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &amp;public_keys, &amp;signatures).is_ok());
+    /// ``` 
+    </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
+        <span class="kw">if </span>sigs.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+        }
+        <span class="kw">if </span>pks.len() != sigs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of signatures and public keys provided&quot;</span>));
+        }
+        pks.iter()
+            .zip(sigs)
+            .try_for_each(|(pk, sig)| pk.verify(msg, sig))
+            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
+    }
+
+    <span class="comment">// Expected to be overridden by implementations
+    </span><span class="doccomment">/// Batch verification over different messages. Implementations of this method can be fast,
+    /// assuming rogue key checks have already been performed.
+    /// TODO: take as input a flag to denote if rogue key protection already took place.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// let signatures = [signature1.clone(), signature2.clone()];
+    /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&amp;messages, &amp;public_keys, &amp;signatures).is_ok());
+    /// ``` 
+    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
+        <span class="kw">if </span>sigs.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+        }
+        <span class="kw">if </span>pks.len() != sigs.len() || pks.len() != msgs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of messages, signatures and public keys provided&quot;</span>));
+        }
+        pks.iter()
+            .zip(sigs)
+            .zip(msgs)
+            .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
+            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
+    }
+}
+
+<span class="doccomment">/// Trait impl&#39;d by private (secret) keys in asymmetric cryptography.
+///
+/// The trait bounds are implemented so as to be symmetric and equivalent
+/// to the ones on its associated types for public key and signature material.
+///
+</span><span class="kw">pub trait </span>SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">&#39;static </span>{
+    <span class="kw">type </span>PubKey: VerifyingKey&lt;PrivKey = <span class="self">Self</span>&gt;;
+    <span class="kw">type </span>Sig: Authenticator&lt;PrivKey = <span class="self">Self</span>&gt;;
+    <span class="kw">const </span>LENGTH: usize;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by signatures in asymmetric cryptography.
+///
+/// The trait bounds are implemented so as to be symmetric and equivalent
+/// to the ones on its associated types for private key and public key material.
+///
+</span><span class="kw">pub trait </span>Authenticator:
+    signature::Signature
+    + Display
+    + Default
+    + Serialize
+    + DeserializeOwned
+    + Send
+    + Sync
+    + <span class="lifetime">&#39;static
+    </span>+ Clone
+{
+    <span class="kw">type </span>PubKey: VerifyingKey&lt;Sig = <span class="self">Self</span>&gt;;
+    <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>&gt;;
+    <span class="kw">const </span>LENGTH: usize;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by a public / private key pair in asymmetric cryptography.
+///
+</span><span class="kw">pub trait </span>KeyPair:
+    Sized + From&lt;<span class="self">Self</span>::PrivKey&gt; + Signer&lt;<span class="self">Self</span>::Sig&gt; + EncodeDecodeBase64 + FromStr
+{
+    <span class="kw">type </span>PubKey: VerifyingKey&lt;PrivKey = <span class="self">Self</span>::PrivKey, Sig = <span class="self">Self</span>::Sig&gt;;
+    <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey = <span class="self">Self</span>::PubKey, Sig = <span class="self">Self</span>::Sig&gt;;
+    <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>::PubKey, PrivKey = <span class="self">Self</span>::PrivKey&gt;;
+
+    <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey;
+    <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey;
+
+    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>;
+
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by aggregated signatures in asymmetric cryptography.
+///
+/// The trait bounds are implemented to allow the aggregation of multiple signatures,
+/// and to verify it against multiple, unaggregated public keys. For signature schemes
+/// where aggregation is not possible, a trivial implementation is provided.
+///
+</span><span class="kw">pub trait </span>AggregateAuthenticator:
+    Display + Default + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">&#39;static </span>+ Clone
+{
+    <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>::PubKey&gt;;
+    <span class="kw">type </span>PubKey: VerifyingKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
+    <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
+
+    <span class="doccomment">/// Combine signatures into a single aggregated signature.
+    </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
+        signatures: I,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+
+    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+
+    <span class="doccomment">/// Verify this aggregate signature assuming that all signatures are over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message);
+    ///
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1, &amp;signature2)).unwrap();
+    /// let public_keys = &amp;[kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify(public_keys, message).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>verify(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+        message: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+
+    <span class="doccomment">/// Verify this aggregate signature where the signatures are over different messages.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    ///
+    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    ///
+    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1, &amp;signature2)).unwrap();
+    /// let messages = [message1, message2];
+    /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
+    /// assert!(aggregated_signature.verify_different_msg(&amp;public_keys, &amp;messages).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>verify_different_msg(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+
+    <span class="doccomment">/// Verify a batch of aggregate signatures, each consisting of a number of signatures over the same message.
+    ///
+    /// # Example
+    /// ```rust
+    /// use fastcrypto::ed25519::*;
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// use rand::thread_rng;
+    ///
+    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature1 = kp1.sign(message1);
+    /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1)).unwrap();
+    ///
+    /// let message2: &amp;[u8] = b&quot;1234&quot;;
+    /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
+    /// let signature2 = kp2.sign(message2);
+    /// let aggregated_signature2 = Ed25519AggregateSignature::aggregate(vec!(&amp;signature2)).unwrap();
+    ///
+    /// let aggregated_signatures = [&amp;aggregated_signature1, &amp;aggregated_signature2];
+    /// let messages = [message1, message2];
+    /// let pks1 = [kp1.public().clone()];
+    /// let pks2 = [kp2.public().clone()];
+    /// let public_keys = vec!(pks1.iter(), pks2.iter());
+    /// assert!(Ed25519AggregateSignature::batch_verify(&amp;aggregated_signatures, public_keys, &amp;messages).is_ok());
+    /// ```
+    </span><span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
+        sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
+        pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
+        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by cryptographic material that can be generated randomly such as keys and nonces.
+///
+</span><span class="kw">pub trait </span>Generate {
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by encryption keys in symmetric cryptography
+///
+</span><span class="kw">pub trait </span>EncryptionKey:
+    ToFromBytes + <span class="lifetime">&#39;static </span>+ Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+<span class="doccomment">/// Trait impl&#39;d by nonces and IV&#39;s used in symmetric cryptography
+///
+</span><span class="kw">pub trait </span>Nonce:
+    ToFromBytes + <span class="lifetime">&#39;static </span>+ Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+<span class="doccomment">/// Trait impl&#39;d by symmetric ciphers.
+///
+</span><span class="kw">pub trait </span>Cipher {
+    <span class="kw">type </span>IVType: Nonce;
+
+    <span class="doccomment">/// Encrypt `plaintext` and write result to `buffer` using the given IV
+    </span><span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
+
+    <span class="doccomment">/// Decrypt `ciphertext` and write result to `buffer` using the given IV
+    </span><span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by symmetric ciphers for authenticated encryption.
+///
+</span><span class="kw">pub trait </span>AuthenticatedCipher {
+    <span class="kw">type </span>IVType: Nonce;
+
+    <span class="doccomment">/// Encrypt `plaintext` and write result to `buffer` using the given IV and authentication data
+    </span><span class="kw">fn </span>encrypt_authenticated(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
+        aad: <span class="kw-2">&amp;</span>[u8],
+        plaintext: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
+
+    <span class="doccomment">/// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
+    </span><span class="kw">fn </span>decrypt_authenticated(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
+        aad: <span class="kw-2">&amp;</span>[u8],
+        ciphertext: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
+}
+
+<span class="doccomment">/// Trait impl&#39;d by a keys/secret seeds for generating a secure instance.
+///
+</span><span class="kw">pub trait </span>FromUniformBytes&lt;<span class="kw">const </span>LENGTH: usize&gt;: ToFromBytes {
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; LENGTH];
+        rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
+        <span class="self">Self</span>::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap()
+    }
+}
+
+<span class="comment">// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
+// others).
+</span><span class="kw">pub trait </span>AllowedRng: CryptoRng + RngCore {}
+
+<span class="comment">// StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
+// It should be seeded with OsRng (e.g., StdRng::from_rng(OsRng)).
+// TODO: Deprecate StdRng (expect for tests) and use thread_rng() everywhere.
+</span><span class="kw">impl </span>AllowedRng <span class="kw">for </span>StdRng {}
+<span class="comment">// thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
+</span><span class="kw">impl </span>AllowedRng <span class="kw">for </span>ThreadRng {}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (edf018221 2022-11-02)" ></div></body></html>

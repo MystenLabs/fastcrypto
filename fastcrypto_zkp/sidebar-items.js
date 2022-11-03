@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["conversions","Conversions between arkworks <-> blst"],["verifier","Groth16 SNARK verifier"]]};
