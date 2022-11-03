@@ -90,7 +90,7 @@ pub struct Ed25519Signature {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Ed25519AggregateSignature {
     #[serde_as(as = "Vec<Ed25519Sig>")]
-    pub sig: Vec<ed25519_consensus::Signature>,
+    pub sigs: Vec<ed25519_consensus::Signature>,
     // Helps implementing AsRef<[u8]>.
     #[serde(skip)]
     pub bytes: OnceCell<Vec<u8>>,
@@ -446,7 +446,7 @@ impl Display for Ed25519AggregateSignature {
         write!(
             f,
             "{:?}",
-            self.sig
+            self.sigs
                 .iter()
                 .map(|x| Base64::encode(&x.to_bytes()))
                 .collect::<Vec<_>>()
@@ -459,7 +459,7 @@ impl AsRef<[u8]> for Ed25519AggregateSignature {
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| {
                 Ok(self
-                    .sig
+                    .sigs
                     .iter()
                     .map(|s| s.to_bytes())
                     .collect::<Vec<[u8; ED25519_SIGNATURE_LENGTH]>>()
@@ -478,7 +478,7 @@ impl ToFromBytes for Ed25519AggregateSignature {
             .map(|s| s.sig)
             .collect();
         Ok(Ed25519AggregateSignature {
-            sig: sigs,
+            sigs,
             bytes: OnceCell::new(),
         })
     }
@@ -494,18 +494,18 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
         Ok(Self {
-            sig: signatures.into_iter().map(|s| s.borrow().sig).collect(),
+            sigs: signatures.into_iter().map(|s| s.borrow().sig).collect(),
             bytes: OnceCell::new(),
         })
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        self.sig.push(signature.sig);
+        self.sigs.push(signature.sig);
         Ok(())
     }
 
     fn add_aggregate(&mut self, mut signature: Self) -> Result<(), FastCryptoError> {
-        self.sig.append(&mut signature.sig);
+        self.sigs.append(&mut signature.sigs);
         Ok(())
     }
 
@@ -514,14 +514,14 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        if pks.len() != self.sig.len() {
-            return Err(FastCryptoError::InputLengthWrong(self.sig.len()));
+        if pks.len() != self.sigs.len() {
+            return Err(FastCryptoError::InputLengthWrong(self.sigs.len()));
         }
         let mut batch = batch::Verifier::new();
 
         for (i, pk) in pks.iter().enumerate() {
             let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
-            batch.queue((vk_bytes, self.sig[i], message));
+            batch.queue((vk_bytes, self.sigs[i], message));
         }
 
         batch
@@ -534,14 +534,14 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        if pks.len() != self.sig.len() || messages.len() != self.sig.len() {
-            return Err(FastCryptoError::InputLengthWrong(self.sig.len()));
+        if pks.len() != self.sigs.len() || messages.len() != self.sigs.len() {
+            return Err(FastCryptoError::InputLengthWrong(self.sigs.len()));
         }
         let mut batch = batch::Verifier::new();
 
         for (i, (pk, msg)) in pks.iter().zip(messages).enumerate() {
             let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
-            batch.queue((vk_bytes, self.sig[i], msg));
+            batch.queue((vk_bytes, self.sigs[i], msg));
         }
 
         batch
@@ -562,10 +562,10 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         let mut pk_iter = pks.into_iter();
         for i in 0..sigs.len() {
             let pk_list = &pk_iter.next().unwrap().map(|x| &x.0).collect::<Vec<_>>()[..];
-            if pk_list.len() != sigs[i].sig.len() {
+            if pk_list.len() != sigs[i].sigs.len() {
                 return Err(FastCryptoError::InvalidInput);
             }
-            for (&pk, sig) in pk_list.iter().zip(&sigs[i].sig) {
+            for (&pk, sig) in pk_list.iter().zip(&sigs[i].sigs) {
                 let vk_bytes = VerificationKeyBytes::from(*pk);
                 batch.queue((vk_bytes, *sig, messages[i]));
             }

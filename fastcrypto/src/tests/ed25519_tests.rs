@@ -410,7 +410,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.sig, sig.sig);
+    assert_eq!(deserialized.sigs, sig.sigs);
 }
 
 #[test]
