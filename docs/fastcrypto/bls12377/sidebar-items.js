@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["CELO_BLS_PRIVATE_KEY_LENGTH",""],["CELO_BLS_PUBLIC_KEY_LENGTH",""],["CELO_BLS_SIGNATURE_LENGTH",""]],"struct":[["BLS12377AggregateSignature",""],["BLS12377KeyPair",""],["BLS12377PrivateKey",""],["BLS12377PublicKey","Define Structs"],["BLS12377Signature",""]],"type":[["BLS12377PublicKeyBytes",""]]};

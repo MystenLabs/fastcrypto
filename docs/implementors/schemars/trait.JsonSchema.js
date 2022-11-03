@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"fastcrypto":[["impl JsonSchema for <a class=\"struct\" href=\"fastcrypto/encoding/struct.Base64.html\" title=\"struct fastcrypto::encoding::Base64\">Base64</a>"],["impl JsonSchema for <a class=\"struct\" href=\"fastcrypto/encoding/struct.Hex.html\" title=\"struct fastcrypto::encoding::Hex\">Hex</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
