@@ -209,12 +209,15 @@ pub trait KeyPair:
     type PrivKey: SigningKey<PubKey = Self::PubKey, Sig = Self::Sig>;
     type Sig: Authenticator<PubKey = Self::PubKey, PrivKey = Self::PrivKey>;
 
+    /// Get the public key.
     fn public(&'_ self) -> &'_ Self::PubKey;
+    /// Get the private key.
     fn private(self) -> Self::PrivKey;
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self;
 
+    /// Generate a new keypair using the given RNG.
     fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
@@ -326,6 +329,7 @@ pub trait AggregateAuthenticator:
 /// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
 ///
 pub trait Generate {
+    /// Generate a new random instance using the given RNG.
     fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
@@ -389,6 +393,7 @@ pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
 
 // Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
 // others).
+/// Trait impl'd by RNG's accepted by fastcrypto.
 pub trait AllowedRng: CryptoRng + RngCore {}
 
 // StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
