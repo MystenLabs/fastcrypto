@@ -14,7 +14,7 @@ jobs:
       - name: Install criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks
-        run: cargo criterion sign/ --message-format=json > ${{ github.sha }}.json
+        run: cargo criterion Verify/ --message-format=json > ${{ github.sha }}.json
       - name: Deploy latest benchmark report
         uses: peaceiris/actions-gh-pages@v3
         with:
