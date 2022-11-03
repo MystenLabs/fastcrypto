@@ -16,7 +16,7 @@ jobs:
         with:
           ref: gh-pages
           path: gh-pages
-      - run: cp -r gh-pages/benchmarks/criterion; mkdir -p target; target
+      - run: mkdir -p target; cp -r gh-pages/benchmarks/criterion target
       - name: Install criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks
