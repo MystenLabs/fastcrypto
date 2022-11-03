@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":[["DST_G1",""]],"struct":[["BLS12381AggregateSignature",""],["BLS12381KeyPair",""],["BLS12381PrivateKey",""],["BLS12381PublicKey","Define Structs"],["BLS12381Signature",""]],"type":[["BLS12381PublicKeyBytes",""]]};

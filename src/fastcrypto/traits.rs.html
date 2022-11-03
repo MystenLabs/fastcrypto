@@ -397,6 +397,11 @@
 <span id="397">397</span>
 <span id="398">398</span>
 <span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -608,13 +613,16 @@
     <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey = <span class="self">Self</span>::PubKey, Sig = <span class="self">Self</span>::Sig&gt;;
     <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>::PubKey, PrivKey = <span class="self">Self</span>::PrivKey&gt;;
 
-    <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey;
-    <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey;
+    <span class="doccomment">/// Get the public key.
+    </span><span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey;
+    <span class="doccomment">/// Get the private key.
+    </span><span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey;
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>;
 
-    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+    <span class="doccomment">/// Generate a new keypair using the given RNG.
+    </span><span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by aggregated signatures in asymmetric cryptography.
@@ -725,7 +733,8 @@
 <span class="doccomment">/// Trait impl&#39;d by cryptographic material that can be generated randomly such as keys and nonces.
 ///
 </span><span class="kw">pub trait </span>Generate {
-    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
+    <span class="doccomment">/// Generate a new random instance using the given RNG.
+    </span><span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by encryption keys in symmetric cryptography
@@ -788,6 +797,7 @@
 
 <span class="comment">// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
 // others).
+</span><span class="doccomment">/// Trait impl&#39;d by RNG&#39;s accepted by fastcrypto.
 </span><span class="kw">pub trait </span>AllowedRng: CryptoRng + RngCore {}
 
 <span class="comment">// StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).
