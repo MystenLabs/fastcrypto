@@ -433,10 +433,15 @@ fn test_sk_zeroization_on_drop() {
         bytes_ptr = &sk.as_ref()[0] as *const u8;
 
         // Assert the exact location in SecretKey is stored as private key bytes.
-        let privkey_bytes =
-            unsafe { std::slice::from_raw_parts(ptr.add(41), CELO_BLS_PRIVATE_KEY_LENGTH) };
-        assert_eq!(privkey_bytes, &sk_bytes[..]);
-
+        unsafe {
+            for (i, &byte) in sk_bytes
+                .iter()
+                .enumerate()
+                .take(CELO_BLS_PRIVATE_KEY_LENGTH)
+            {
+                assert_eq!(*ptr.add(i + 41), byte);
+            }
+        }
         // Assert that this is equal to sk_bytes before deletion.
         let sk_memory: &[u8] =
             unsafe { std::slice::from_raw_parts(bytes_ptr, CELO_BLS_PRIVATE_KEY_LENGTH) };
