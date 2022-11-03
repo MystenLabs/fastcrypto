@@ -11,10 +11,10 @@ jobs:
     runs-on: ubuntu-ghcloud
     steps:
       - uses: actions/checkout@v2
+      - name: Get old benchmarks
+        run: git checkout gh-pages -- benchmarks/criterion; mkdir -p target; cp -r benchmarks/criterion target
       - name: Install criterion
         run: cargo install cargo-criterion
-      - name: Get old benchmarks
-        run: git checkout origin/gh-pages -- benchmarks/criterion; mkdir -p target; cp -r benchmarks/criterion target
       - name: Run benchmarks
         run: cargo criterion Verify/ --message-format=json > ${{ github.sha }}.json
       - name: Deploy latest benchmark report
