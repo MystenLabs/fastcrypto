@@ -13,6 +13,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install criterion
         run: cargo install cargo-criterion
+      - name: Get old benchmarks
+        run: git checkout origin/gh-pages -- benchmarks/criterion; mkdir -p target; cp -r benchmarks/criterion target
       - name: Run benchmarks
         run: cargo criterion Verify/ --message-format=json > ${{ github.sha }}.json
       - name: Deploy latest benchmark report
