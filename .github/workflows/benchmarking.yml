@@ -4,7 +4,7 @@ on:
   release:
     types: [published]
 
- jobs:
+jobs:
    benchmark:
      name: Continuous benchmarking
      runs-on: ubuntu-ghcloud
