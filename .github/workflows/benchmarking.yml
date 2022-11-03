@@ -15,7 +15,7 @@ jobs:
         run: |
           git config user.name github-actions
           git config user.email github-actions@github.com
-          git checkout gh-pages -- benchmarks/criterion; mkdir -p target; cp -r benchmarks/criterion target
+          git checkout origin/gh-pages -- benchmarks/criterion; mkdir -p target; cp -r benchmarks/criterion target
       - name: Install criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks
