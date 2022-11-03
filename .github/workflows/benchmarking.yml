@@ -1,6 +1,9 @@
 name: Benchmarking
 on:
-  workflow_dispatch:    
+  workflow_dispatch:
+  push:
+    branches:
+      - benchmarks
 
 jobs:
   benchmark:
