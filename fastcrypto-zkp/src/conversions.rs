@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
+pub use ark_ff::PrimeField;
+use ark_ff::{BigInteger384, Fp384, FromBytes, One, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 pub use blst::blst_fp12;
 use blst::{blst_fp, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
