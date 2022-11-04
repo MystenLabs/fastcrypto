@@ -657,6 +657,40 @@
 <span id="657">657</span>
 <span id="658">658</span>
 <span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -673,7 +707,7 @@
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
 
-</span><span class="kw">use </span><span class="kw">crate</span>::encoding::Encoding;
+</span><span class="kw">use crate</span>::{encoding::Encoding, traits};
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
 <span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -747,10 +781,13 @@
 <span class="doccomment">/// Aggregation of multiple Ed25519 signatures.
 </span><span class="attr">#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
-</span><span class="kw">pub struct </span>Ed25519AggregateSignature(
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;Ed25519Sig&gt;&quot;</span>)] </span><span class="kw">pub </span>Vec&lt;ed25519_consensus::Signature&gt;,
-);
-
+</span><span class="kw">pub struct </span>Ed25519AggregateSignature {
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;Ed25519Sig&gt;&quot;</span>)]
+    </span><span class="kw">pub </span>sigs: Vec&lt;ed25519_consensus::Signature&gt;,
+    <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
+    </span><span class="attr">#[serde(skip)]
+    </span><span class="kw">pub </span>bytes: OnceCell&lt;Vec&lt;u8&gt;&gt;,
+}
 <span class="doccomment">///
 /// Implement VerifyingKey
 ///
@@ -1102,11 +1139,41 @@
         <span class="macro">write!</span>(
             f,
             <span class="string">&quot;{:?}&quot;</span>,
-            <span class="self">self</span>.<span class="number">0
-                </span>.iter()
+            <span class="self">self</span>.sigs
+                .iter()
                 .map(|x| Base64::encode(<span class="kw-2">&amp;</span>x.to_bytes()))
                 .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
         )
+    }
+}
+
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519AggregateSignature {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.bytes
+            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| {
+                <span class="prelude-val">Ok</span>(<span class="self">self
+                    </span>.sigs
+                    .iter()
+                    .map(|s| s.to_bytes())
+                    .collect::&lt;Vec&lt;[u8; ED25519_SIGNATURE_LENGTH]&gt;&gt;()
+                    .concat())
+            })
+            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
+    }
+}
+
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519AggregateSignature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>sigs = bytes
+            .chunks_exact(ED25519_SIGNATURE_LENGTH)
+            .into_iter()
+            .map(|chunk| &lt;Ed25519Signature <span class="kw">as </span>traits::ToFromBytes&gt;::from_bytes(chunk).unwrap())
+            .map(|s| s.sig)
+            .collect();
+        <span class="prelude-val">Ok</span>(Ed25519AggregateSignature {
+            sigs,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
@@ -1119,18 +1186,19 @@
     </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(
-            signatures.into_iter().map(|s| s.borrow().sig).collect(),
-        ))
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
+            sigs: signatures.into_iter().map(|s| s.borrow().sig).collect(),
+            bytes: OnceCell::new(),
+        })
     }
 
     <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.push(signature.sig);
+        <span class="self">self</span>.sigs.push(signature.sig);
         <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, <span class="kw-2">mut </span>signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.append(<span class="kw-2">&amp;mut </span>signature.<span class="number">0</span>);
+        <span class="self">self</span>.sigs.append(<span class="kw-2">&amp;mut </span>signature.sigs);
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1139,14 +1207,14 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">if </span>pks.len() != <span class="self">self</span>.<span class="number">0</span>.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(<span class="self">self</span>.<span class="number">0</span>.len()));
+        <span class="kw">if </span>pks.len() != <span class="self">self</span>.sigs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(<span class="self">self</span>.sigs.len()));
         }
         <span class="kw">let </span><span class="kw-2">mut </span>batch = batch::Verifier::new();
 
         <span class="kw">for </span>(i, pk) <span class="kw">in </span>pks.iter().enumerate() {
             <span class="kw">let </span>vk_bytes = VerificationKeyBytes::try_from(pk.<span class="number">0</span>).unwrap();
-            batch.queue((vk_bytes, <span class="self">self</span>.<span class="number">0</span>[i], message));
+            batch.queue((vk_bytes, <span class="self">self</span>.sigs[i], message));
         }
 
         batch
@@ -1159,14 +1227,14 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">if </span>pks.len() != <span class="self">self</span>.<span class="number">0</span>.len() || messages.len() != <span class="self">self</span>.<span class="number">0</span>.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(<span class="self">self</span>.<span class="number">0</span>.len()));
+        <span class="kw">if </span>pks.len() != <span class="self">self</span>.sigs.len() || messages.len() != <span class="self">self</span>.sigs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(<span class="self">self</span>.sigs.len()));
         }
         <span class="kw">let </span><span class="kw-2">mut </span>batch = batch::Verifier::new();
 
         <span class="kw">for </span>(i, (pk, msg)) <span class="kw">in </span>pks.iter().zip(messages).enumerate() {
             <span class="kw">let </span>vk_bytes = VerificationKeyBytes::try_from(pk.<span class="number">0</span>).unwrap();
-            batch.queue((vk_bytes, <span class="self">self</span>.<span class="number">0</span>[i], msg));
+            batch.queue((vk_bytes, <span class="self">self</span>.sigs[i], msg));
         }
 
         batch
@@ -1187,10 +1255,10 @@
         <span class="kw">let </span><span class="kw-2">mut </span>pk_iter = pks.into_iter();
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..sigs.len() {
             <span class="kw">let </span>pk_list = <span class="kw-2">&amp;</span>pk_iter.next().unwrap().map(|x| <span class="kw-2">&amp;</span>x.<span class="number">0</span>).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..];
-            <span class="kw">if </span>pk_list.len() != sigs[i].<span class="number">0</span>.len() {
+            <span class="kw">if </span>pk_list.len() != sigs[i].sigs.len() {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
-            <span class="kw">for </span>(<span class="kw-2">&amp;</span>pk, sig) <span class="kw">in </span>pk_list.iter().zip(<span class="kw-2">&amp;</span>sigs[i].<span class="number">0</span>) {
+            <span class="kw">for </span>(<span class="kw-2">&amp;</span>pk, sig) <span class="kw">in </span>pk_list.iter().zip(<span class="kw-2">&amp;</span>sigs[i].sigs) {
                 <span class="kw">let </span>vk_bytes = VerificationKeyBytes::from(<span class="kw-2">*</span>pk);
                 batch.queue((vk_bytes, <span class="kw-2">*</span>sig, messages[i]));
             }
@@ -1317,4 +1385,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (edf018221 2022-11-02)" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-current-crate="fastcrypto" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (215e3cd21 2022-11-03)" ></div></body></html>
