@@ -817,19 +817,21 @@
 <span id="817">817</span>
 <span id="818">818</span>
 <span id="819">819</span>
+<span id="820">820</span>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
 <span class="kw">use </span>ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
-<span class="kw">use </span>blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
+<span class="kw">pub use </span>blst::blst_fp12;
+<span class="kw">use </span>blst::{blst_fp, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 <span class="kw">use </span>blst::{blst_fp2, blst_p1_deserialize};
 <span class="kw">use </span>blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
 <span class="kw">use </span>blst::{blst_p2_affine, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
 <span class="kw">use </span>byte_slice_cast::AsByteSlice;
 
 <span class="kw">pub use </span>ark_bls12_381::{Fq, Fq2, Fr <span class="kw">as </span>BlsFr};
-<span class="kw">use </span>ark_bls12_381::{Fq12, G2Affine <span class="kw">as </span>BlsG2Affine};
-<span class="kw">use </span>ark_bls12_381::{Fq6, G1Affine <span class="kw">as </span>BlsG1Affine};
+<span class="kw">pub use </span>ark_bls12_381::{Fq12, G2Affine <span class="kw">as </span>BlsG2Affine};
+<span class="kw">pub use </span>ark_bls12_381::{Fq6, G1Affine <span class="kw">as </span>BlsG1Affine};
 
 <span class="kw">use </span>blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 
