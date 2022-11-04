@@ -47,8 +47,9 @@ mod encoding_benches {
     // TODO: please add bech32 and base58check.
     // Hex encoding bench.
     fn hex_encoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Hex encoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(
+            group.bench_function(
                 &("rustc_hex_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -58,14 +59,14 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(&("hex_encode_".to_owned() + test_message.name), move |b| {
+            group.bench_function(&("hex_encode_".to_owned() + test_message.name), move |b| {
                 b.iter(|| {
                     let ret = hex::encode(test_message.value);
                     black_box(ret);
                 })
             });
 
-            c.bench_function(
+            group.bench_function(
                 &("faster_hex_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -75,7 +76,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("faster_hex_encode_fallback_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -91,8 +92,9 @@ mod encoding_benches {
     // TODO: please add bech32 and base58check.
     // Hex decoding bench.
     fn hex_decoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Hex decoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(
+            group.bench_function(
                 &("rustc_hex_decode_".to_owned() + test_message.name),
                 move |b| {
                     let hex: String = test_message.value.to_hex();
@@ -103,7 +105,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(&("hex_decode_".to_owned() + test_message.name), move |b| {
+            group.bench_function(&("hex_decode_".to_owned() + test_message.name), move |b| {
                 let hex: String = test_message.value.to_hex();
                 b.iter(|| {
                     let ret: Vec<u8> = hex::decode(&hex).unwrap();
@@ -111,7 +113,7 @@ mod encoding_benches {
                 })
             });
 
-            c.bench_function(
+            group.bench_function(
                 &("faster_hex_decode_".to_owned() + test_message.name),
                 move |b| {
                     let hex: String = test_message.value.to_hex();
@@ -124,7 +126,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("faster_hex_decode_unchecked_".to_owned() + test_message.name),
                 move |b| {
                     let hex: String = test_message.value.to_hex();
@@ -137,7 +139,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("faster_hex_decode_fallback_".to_owned() + test_message.name),
                 move |b| {
                     let hex: String = test_message.value.to_hex();
@@ -154,8 +156,9 @@ mod encoding_benches {
 
     // Base64 encoding bench.
     fn base64_encoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Base64 encoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(
+            group.bench_function(
                 &("base64_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -165,7 +168,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("base64ct_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -175,7 +178,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("radix64_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
@@ -189,8 +192,9 @@ mod encoding_benches {
 
     // Base64 decoding bench.
     fn base64_decoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Base64 encoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(
+            group.bench_function(
                 &("base64_decode_".to_owned() + test_message.name),
                 move |b| {
                     let base64_string: String = base64::encode(test_message.value);
@@ -201,7 +205,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("base64ct_decode_".to_owned() + test_message.name),
                 move |b| {
                     let base64_string: String = b64ct::encode_string(test_message.value);
@@ -212,7 +216,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("radix64_decode_".to_owned() + test_message.name),
                 move |b| {
                     let base64_string: String = radix64::STD.encode(test_message.value);
@@ -227,15 +231,16 @@ mod encoding_benches {
 
     // Base58 encoding bench.
     fn base58_encoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Base58 encoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(&("bs58_encode_".to_owned() + test_message.name), move |b| {
+            group.bench_function(&("bs58_encode_".to_owned() + test_message.name), move |b| {
                 b.iter(|| {
                     let ret = bs58::encode(test_message.value).into_string();
                     black_box(ret);
                 })
             });
 
-            c.bench_function(
+            group.bench_function(
                 &("base58_encode_".to_owned() + test_message.name),
                 move |b| {
                     use base58::ToBase58;
@@ -246,7 +251,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("rust_base58_encode_".to_owned() + test_message.name),
                 move |b| {
                     use rust_base58::ToBase58;
@@ -261,8 +266,9 @@ mod encoding_benches {
 
     // Base58 decoding bench.
     fn base58_decoding(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Base58 decoding");
         for test_message in TEST_MESSAGES {
-            c.bench_function(&("bs58_decode_".to_owned() + test_message.name), move |b| {
+            group.bench_function(&("bs58_decode_".to_owned() + test_message.name), move |b| {
                 let base58_string: String = bs58::encode(test_message.value).into_string();
                 b.iter(|| {
                     let ret = bs58::decode(&base58_string).into_vec().unwrap();
@@ -270,7 +276,7 @@ mod encoding_benches {
                 })
             });
 
-            c.bench_function(
+            group.bench_function(
                 &("base58_decode_".to_owned() + test_message.name),
                 move |b| {
                     use base58::{FromBase58, ToBase58};
@@ -282,7 +288,7 @@ mod encoding_benches {
                 },
             );
 
-            c.bench_function(
+            group.bench_function(
                 &("rust_base58_decode_".to_owned() + test_message.name),
                 move |b| {
                     use rust_base58::{FromBase58, ToBase58};
