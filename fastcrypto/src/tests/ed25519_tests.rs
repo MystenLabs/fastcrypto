@@ -587,7 +587,7 @@ async fn signature_service() {
     let pk = kp.public().clone();
 
     // Spawn the signature service.
-    let mut service = SignatureService::new(kp);
+    let service = SignatureService::new(kp);
 
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";

@@ -132,7 +132,7 @@ impl<Signature: traits::Authenticator, const DIGEST_LEN: usize>
         Self { channel: tx }
     }
 
-    pub async fn request_signature(&mut self, digest: Digest<DIGEST_LEN>) -> Signature {
+    pub async fn request_signature(&self, digest: Digest<DIGEST_LEN>) -> Signature {
         let (sender, receiver): (oneshot::Sender<_>, oneshot::Receiver<_>) = oneshot::channel();
         if let Err(e) = self.channel.send((digest, sender)).await {
             panic!("Failed to send message Signature Service: {e}");
