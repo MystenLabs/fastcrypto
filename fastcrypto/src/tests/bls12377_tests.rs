@@ -449,15 +449,9 @@ fn test_sk_zeroization_on_drop() {
     }
 
     // Assert the exact position in SecretKey is no longer private key bytes.
-    unsafe {
-        for (i, &byte) in sk_bytes
-            .iter()
-            .enumerate()
-            .take(CELO_BLS_PRIVATE_KEY_LENGTH)
-        {
-            assert_ne!(*ptr.add(i + 41), byte);
-        }
-    }
+    let privkey_bytes =
+        unsafe { std::slice::from_raw_parts(ptr.add(41), CELO_BLS_PRIVATE_KEY_LENGTH) };
+    assert_ne!(privkey_bytes, &sk_bytes[..]);
 
     // Check that self.bytes is reset to OnceCell default.
     let sk_memory: &[u8] =
