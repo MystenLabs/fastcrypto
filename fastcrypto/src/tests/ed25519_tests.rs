@@ -394,7 +394,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::default();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.0, sig.0);
+    assert_eq!(deserialized.as_ref(), sig.as_ref());
 
     let message = b"hello, narwhal";
     // Test populated aggregate signature
@@ -410,7 +410,32 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.0, sig.0);
+    assert_eq!(deserialized.sigs, sig.sigs);
+}
+
+#[test]
+fn test_to_from_bytes_aggregate_signatures() {
+    // Test empty aggregate signature
+    let sig = Ed25519AggregateSignature::default();
+    let serialized = sig.as_bytes();
+    let deserialized = Ed25519AggregateSignature::from_bytes(serialized).unwrap();
+    assert_eq!(deserialized.as_ref(), sig.as_ref());
+
+    let message = b"hello, narwhal";
+    // Test populated aggregate signature
+    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    let serialized = sig.as_bytes();
+    let deserialized = Ed25519AggregateSignature::from_bytes(serialized).unwrap();
+    assert_eq!(deserialized.as_ref(), sig.as_ref());
 }
 
 #[test]
