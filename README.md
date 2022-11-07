@@ -57,6 +57,8 @@ One can compare all currently implemented schemes for *sign, verify, verify_batc
 ```
 $ cargo bench
 ```
+A [report](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) of the benchmarks are generater for each release, allowing easy comparison of the performance of the different cryptographic primitives available in fastcrypto. Below is a plot for benchmarks of batched signature verification where all signatures are on the same message:
+![Batched signature verification with all signatures on same message.](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/Verify%20batch/lines.svg)
 
 ## License
 
