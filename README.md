@@ -58,7 +58,7 @@ One can compare all currently implemented schemes for *sign, verify, verify_batc
 ```
 $ cargo bench
 ```
-A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) are generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in fastcrypto. As an example, we get these timings for signing messages and verifying the signature for the different schemes in fastcrypto as of revision [dbf2ea4](https://github.com/MystenLabs/fastcrypto/commit/dbf2ea4db0312270b3f4f7fc669047a9db1994b8):
+A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in fastcrypto. As an example, we get these timings for signing messages and verifying the signature for the different schemes in fastcrypto as of revision [dbf2ea4](https://github.com/MystenLabs/fastcrypto/commit/dbf2ea4db0312270b3f4f7fc669047a9db1994b8):
 
 | Scheme           | Sign       | Verify     |
 | ---------------- | ---------- | ---------- |
