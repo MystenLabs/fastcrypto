@@ -46,12 +46,13 @@ This crate contains:
     - Bulletproofs Range Proof: Function to prove that a committed value is an unsigned integer that is within the range [0, 2^bits). Function to verify that the commitment is a Pedersen commitment of some value with an unsigned bit length, a value is an integer within the range [0, 2^bits)
 
 - A asynchronous signature service is provided for testing and benchmarking.
-## Tests and Benchmarks
+## Tests
 There exist tests for all the three schemes, which can be run by:  
 ```
 $ cargo test
 ```
 
+## Benchmarks
 One can compare all currently implemented schemes for *sign, verify, verify_batch* and 
 *key-generation* by running:
 ```
