@@ -15,6 +15,7 @@ use digest::{
 };
 use hkdf::hmac::Hmac;
 use rand::{rngs::StdRng, SeedableRng};
+use wycheproof::TestResult;
 
 fn hkdf_wrapper<H>(salt: Option<&[u8]>) -> Vec<u8>
 where
@@ -246,4 +247,18 @@ fn test_sanity_seed_generation() {
     let hkdf_key = HkdfIkm::generate(&mut rng);
     assert_eq!(hmac_key.as_ref().len(), 32);
     assert_eq!(hkdf_key.as_ref().len(), 32);
+}
+
+#[test]
+fn hmac_wycheproof_test() {
+    let test_set = wycheproof::mac::TestSet::load(wycheproof::mac::TestName::HmacSha3_256).unwrap();
+    for test_group in test_set.test_groups {
+        for test in test_group.tests {
+            let d = hmac_sha3_256(&HmacKey::from_bytes(&test.key).unwrap(), &test.msg);
+            assert_eq!(
+                d.to_vec()[0..test_group.tag_size / 8] == test.tag,
+                test.result == TestResult::Valid
+            );
+        }
+    }
 }
