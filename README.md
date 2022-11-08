@@ -46,17 +46,30 @@ This crate contains:
     - Bulletproofs Range Proof: Function to prove that a committed value is an unsigned integer that is within the range [0, 2^bits). Function to verify that the commitment is a Pedersen commitment of some value with an unsigned bit length, a value is an integer within the range [0, 2^bits)
 
 - A asynchronous signature service is provided for testing and benchmarking.
-## Tests and Benchmarks
+## Tests
 There exist tests for all the three schemes, which can be run by:  
 ```
 $ cargo test
 ```
 
+## Benchmarks
 One can compare all currently implemented schemes for *sign, verify, verify_batch* and 
 *key-generation* by running:
 ```
 $ cargo bench
 ```
+A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in fastcrypto. As an example, we get these timings for signing messages and verifying the signature for the different schemes in fastcrypto as of revision [dbf2ea4](https://github.com/MystenLabs/fastcrypto/commit/dbf2ea4db0312270b3f4f7fc669047a9db1994b8):
+
+| Scheme           | Sign       | Verify     |
+| ---------------- | ---------- | ---------- |
+| Ed25519          | 20.556 μs  | 57.110 μs  |
+| BLS12377         | 581.66 μs  |  2525.4 μs |
+| BLS12381 min_sig | 167.69 μs  |  1013.6 μs |
+| BLS12381 min_pk  | 410.96 μs  |  1143.3 μs |
+| Secp256k1        | 102.06 μs  |  47.641 μs |
+
+Below is a plot from the report, showing benchmarks for batched signature verification where all signatures are on the same message:
+![Batched signature verification with all signatures on same message.](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/Verify%20batch/lines.svg)
 
 ## License
 
