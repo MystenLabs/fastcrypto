@@ -15,3 +15,6 @@ pub mod dummy_circuit;
 
 /// Groth16 SNARK verifier
 pub mod verifier;
+
+/// API that takes in serialized inputs
+pub mod api;

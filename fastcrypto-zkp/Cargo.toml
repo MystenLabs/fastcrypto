@@ -21,6 +21,8 @@ ark-relations = "0.3.0"
 ark-serialize = "0.3.0"
 blst = "0.3.10"
 byte-slice-cast = "1.2.2"
+untrusted = "0.9.0"
+fastcrypto = { path = "../fastcrypto" }
 
 [dev-dependencies]
 ark-bls12-377 = "0.3.0"

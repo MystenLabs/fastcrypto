@@ -2,18 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 use std::{iter, ops::Neg, ptr};
 
-use ark_bls12_381::{Bls12_381, Fr as BlsFr, G1Affine, G2Affine};
-pub use ark_groth16::{Proof, VerifyingKey};
+use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
+use ark_groth16::{Proof, VerifyingKey};
 use ark_relations::r1cs::SynthesisError;
 
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
     blst_final_exp, blst_fp, blst_fp12, blst_fr, blst_miller_loop, blst_p1, blst_p1_add_or_double,
     blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p1s_mult_pippenger,
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
+use fastcrypto::error::FastCryptoError;
+use untrusted::Input;
 
 use crate::conversions::{
-    bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine, bls_g2_affine_to_blst_g2_affine,
+    bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
+    bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
 
 #[cfg(test)]
@@ -35,6 +39,74 @@ pub struct PreparedVerifyingKey {
     pub gamma_g2_neg_pc: G2Affine,
     /// The element `- delta * H` in `E::G2`, for use in pairings.
     pub delta_g2_neg_pc: G2Affine,
+}
+
+impl PreparedVerifyingKey {
+    /// Deserialize the prepared verifying key from its vectors form.
+    pub fn deserialize(bytes: Vec<Vec<u8>>) -> Result<Self, fastcrypto::error::FastCryptoError> {
+        if bytes.len() != 4 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
+        for g1_bytes in bytes[0].chunks(G1_COMPRESSED_SIZE) {
+            let g1_reader = Input::from(g1_bytes);
+            let g1 = G1Affine::deserialize(g1_reader.as_slice_less_safe())
+                .map_err(|_| FastCryptoError::InvalidInput)?;
+            vk_gamma_abc_g1.push(g1);
+        }
+        let alpha_reader = Input::from(&bytes[1]);
+        let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
+            &Fq12::deserialize(alpha_reader.as_slice_less_safe())
+                .map_err(|_| FastCryptoError::InvalidInput)?,
+        );
+
+        let g2_reader = Input::from(&bytes[2]);
+        let gamma_g2_neg_pc = G2Affine::deserialize(g2_reader.as_slice_less_safe())
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        let g2_reader_2 = Input::from(&bytes[3]);
+        let delta_g2_neg_pc = G2Affine::deserialize(g2_reader_2.as_slice_less_safe())
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        Ok(PreparedVerifyingKey {
+            vk_gamma_abc_g1,
+            alpha_g1_beta_g2,
+            gamma_g2_neg_pc,
+            delta_g2_neg_pc,
+        })
+    }
+
+    /// Serialize the prepared verifying key to its vectors form.
+    pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
+        let mut res = Vec::new();
+        let mut vk_gamma = Vec::new();
+        for g1 in &self.vk_gamma_abc_g1 {
+            let mut g1_bytes = Vec::new();
+            g1.serialize(&mut g1_bytes)
+                .map_err(|_| FastCryptoError::InvalidInput)?;
+            vk_gamma.append(&mut g1_bytes);
+        }
+        res.push(vk_gamma);
+        let mut fq12 = Vec::new();
+        blst_fp12_to_bls_fq12(&self.alpha_g1_beta_g2)
+            .serialize(&mut fq12)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(fq12);
+
+        let mut gamma_bytes = Vec::new();
+        self.gamma_g2_neg_pc
+            .serialize(&mut gamma_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(gamma_bytes);
+
+        let mut delta_bytes = Vec::new();
+        self.delta_g2_neg_pc
+            .serialize(&mut delta_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(delta_bytes);
+        Ok(res)
+    }
 }
 
 /// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
@@ -184,7 +256,7 @@ pub(crate) const BLST_FR_ONE: blst_fr = blst_fr {
 /// where f is the linear combination of the a_i points in the verifying key with the input scalars
 ///
 /// Due to the pre-processing of e(g * alpha, h * beta), and using the pairing inverse, we instead compute:
-/// e)A, B) + e(g * f, h * - gamma) + e(C, h * - delta).
+/// e(A, B) + e(g * f, h * - gamma) + e(C, h * - delta).
 ///
 /// Eventually, we will compare this value to  e(g * alpha, h * beta)
 ///
