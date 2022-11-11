@@ -252,7 +252,7 @@ pub trait Accumulatable {
 
 impl Accumulatable for [u8] {
     fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
-        consumer(&self);
+        consumer(self);
     }
 }
 
