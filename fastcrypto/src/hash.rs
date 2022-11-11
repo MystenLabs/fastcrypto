@@ -195,7 +195,7 @@ impl HashFunction<32> for Blake3 {
     }
 }
 
-/// The Accumulator is a homomorphic multiset hash function, which hashes arbitrary multisets 
+/// The Accumulator is a homomorphic multiset hash function, which hashes arbitrary multisets
 /// of objects such that the hash of the union of two collections is easy to compute from the
 /// hashes of the two collections.
 ///
