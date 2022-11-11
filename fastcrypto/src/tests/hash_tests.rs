@@ -1,7 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::hash::{Blake2b256, Blake3, HashFunction, Keccak256, Sha256, Sha3_256, Sha512};
+use crate::hash::{
+    Accumulator, Blake2b256, Blake3, HashFunction, Keccak256, Sha256, Sha3_256, Sha512,
+};
 
 #[test]
 fn test_sha256() {
@@ -67,4 +69,31 @@ fn test_blake3() {
         digest.as_ref(),
         hex::decode("1b6d57a5017077b00cc9ce0641fb8ddcc136fbdb83325b31597fbe9441d9b269").unwrap()
     );
+}
+
+#[test]
+fn test_accumulator() {
+    let mut accumulator = Accumulator::default();
+
+    // Two different multisets should give different hashes
+    accumulator.insert(b"Hello");
+    let check1 = accumulator.clone();
+    accumulator.insert(b"World");
+    assert_ne!(check1, accumulator);
+
+    // Hashing the same elements should give the same hash
+    let mut accumulator2 = Accumulator::default();
+    accumulator2.insert_all([b"Hello", b"World"]);
+    assert_eq!(accumulator, accumulator2);
+
+    // The order doesn't matter
+    let mut accumulator3 = Accumulator::default();
+    accumulator3.insert_all([b"World", b"Hello"]);
+    assert_eq!(accumulator, accumulator3);
+
+    // The union of two accumulators should be equal to if all elements were inserted into a single accumulator
+    let mut accumulator3 = Accumulator::default();
+    accumulator3.insert(b"World");
+    accumulator3.union(check1);
+    assert_eq!(accumulator, accumulator3);
 }

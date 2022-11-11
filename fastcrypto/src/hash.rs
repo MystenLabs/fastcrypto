@@ -16,6 +16,8 @@
 //! assert_eq!(digest1, digest2);
 //! ```
 
+use core::fmt::Debug;
+use curve25519_dalek_ng::ristretto::RistrettoPoint;
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -190,5 +192,78 @@ impl HashFunction<32> for Blake3 {
         Digest {
             digest: self.instance.finalize().into(),
         }
+    }
+}
+
+/// The Accumulator is a homomorphic multiset hash function, which hashes arbitrary multisets 
+/// of objects such that the hash of the union of two collections is easy to compute from the
+/// hashes of the two collections.
+///
+/// Concretely, each element is mapped to a point on an elliptic curve on which the DL problem
+/// is hard. The accumulator is the sum of all points.
+///
+/// See for more information about the construction and its security: https://arxiv.org/abs/1601.06502.
+#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Accumulator {
+    accumulator: RistrettoPoint,
+}
+
+impl Accumulator {
+    /// Insert an item into this accumulator.
+    pub fn insert<I>(&mut self, item: &I)
+    where
+        I: Accumulatable,
+    {
+        let mut hash_function = Sha512::default();
+        item.as_bytes(|data: &[u8]| hash_function.update(data));
+        let hash = hash_function.finalize().digest;
+        let point: RistrettoPoint = RistrettoPoint::from_uniform_bytes(&hash);
+        self.accumulator += point;
+    }
+
+    /// Insert multiple items into this accumulator.
+    pub fn insert_all<'a, I, It>(&'a mut self, items: It)
+    where
+        I: 'a + Accumulatable,
+        It: 'a + IntoIterator<Item = &'a I>,
+    {
+        for i in items {
+            self.insert(i);
+        }
+    }
+
+    /// Add all the elements of another accumulator into this accumulator.
+    pub fn union(&mut self, other: Accumulator) {
+        self.accumulator += other.accumulator;
+    }
+}
+
+impl Debug for Accumulator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Accumulator").finish()
+    }
+}
+
+/// Impl'd by items that can be inserted in the [Accumulator].
+pub trait Accumulatable {
+    /// Gives a unique binary representation of this accumulateble object to the given consumer.
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F);
+}
+
+impl Accumulatable for [u8] {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(&self);
+    }
+}
+
+impl<const N: usize> Accumulatable for [u8; N] {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(self.as_slice());
+    }
+}
+
+impl Accumulatable for Vec<u8> {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(self.as_slice())
     }
 }
