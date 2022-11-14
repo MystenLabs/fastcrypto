@@ -249,7 +249,7 @@
     }
     <span class="doccomment">/// Encodes bytes as a hex string.
     </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="self">Self</span>::encode(bytes))
+        <span class="self">Self</span>(encode_with_format(bytes))
     }
 }
 
@@ -313,7 +313,7 @@
     <span class="kw">where
         </span>S: Serializer,
     {
-        <span class="self">Self</span>::encode(value).serialize(serializer)
+        encode_with_format(value).serialize(serializer)
     }
 }
 
