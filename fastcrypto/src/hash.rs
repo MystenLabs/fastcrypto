@@ -207,17 +207,17 @@ impl HashFunction<32> for Blake3 {
 ///
 /// # Example
 /// ```
-/// use fastcrypto::hash::{Accumulator, MultisetHash};
+/// use fastcrypto::hash::{EllipticCurveMultisetHash, MultisetHash};
 ///
-/// let mut accumulator1 = Accumulator::default();
-/// accumulator1.insert(b"Hello");
-/// accumulator1.insert(b"World");
+/// let mut hash1 = EllipticCurveMultisetHash::default();
+/// hash1.insert(b"Hello");
+/// hash1.insert(b"World");
 ///
-/// let mut accumulator2 = Accumulator::default();
-/// accumulator2.insert(b"World");
-/// accumulator2.insert(b"Hello");
+/// let mut hash2 = EllipticCurveMultisetHash::default();
+/// hash2.insert(b"World");
+/// hash2.insert(b"Hello");
 ///
-/// assert_eq!(accumulator1, accumulator2);
+/// assert_eq!(hash1, hash2);
 /// ```
 pub trait MultisetHash<I>: Eq {
     /// Insert an item into this hash function.
@@ -233,26 +233,26 @@ pub trait MultisetHash<I>: Eq {
     fn union(&mut self, other: &Self);
 }
 
-/// The Accumulator is a homomorphic multiset hash function. Concretely, each element is mapped
-/// to a point on an elliptic curve on which the DL problem is hard, and the accumulator is the
-/// sum of all points.
+/// `EllipticCurveMultisetHash` is a homomorphic multiset hash function. Concretely, each element is mapped
+/// to a point on an elliptic curve on which the DL problem is hard (the Ristretto group in Curve25519),
+/// and the hash is the sum of all such points.
 ///
-/// See for more information about the construction and its security: https://arxiv.org/abs/1601.06502.
+/// For more information about the construction of ECMH and its security, see https://arxiv.org/abs/1601.06502.
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct Accumulator<I: Accumulatable> {
+pub struct EllipticCurveMultisetHash<I: MultisetItem> {
     accumulator: RistrettoPoint,
     item_type: PhantomData<I>,
 }
 
-impl<I: Accumulatable> PartialEq for Accumulator<I> {
+impl<I: MultisetItem> PartialEq for EllipticCurveMultisetHash<I> {
     fn eq(&self, other: &Self) -> bool {
         self.accumulator == other.accumulator
     }
 }
 
-impl<I: Accumulatable> Eq for Accumulator<I> {}
+impl<I: MultisetItem> Eq for EllipticCurveMultisetHash<I> {}
 
-impl<I: Accumulatable> MultisetHash<I> for Accumulator<I> {
+impl<I: MultisetItem> MultisetHash<I> for EllipticCurveMultisetHash<I> {
     fn insert(&mut self, item: &I) {
         let mut hash_function = Sha512::default();
         item.as_bytes(|data: &[u8]| hash_function.update(data));
@@ -271,36 +271,37 @@ impl<I: Accumulatable> MultisetHash<I> for Accumulator<I> {
         }
     }
 
-    fn union(&mut self, other: &Accumulator<I>) {
+    fn union(&mut self, other: &EllipticCurveMultisetHash<I>) {
         self.accumulator += other.accumulator;
     }
 }
 
-impl<I: Accumulatable> Debug for Accumulator<I> {
+impl<I: MultisetItem> Debug for EllipticCurveMultisetHash<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Accumulator").finish()
     }
 }
 
-/// Impl'd by items that can be inserted in the [Accumulator].
-pub trait Accumulatable {
+/// Impl'd by items that can be be represented uniquely in binary form. This form is used when an item is
+/// inserted into a multiset mash function.
+pub trait MultisetItem {
     /// Gives a unique binary representation of this accumulateble object to the given consumer.
     fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F);
 }
 
-impl Accumulatable for [u8] {
+impl MultisetItem for [u8] {
     fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
         consumer(self);
     }
 }
 
-impl<const N: usize> Accumulatable for [u8; N] {
+impl<const N: usize> MultisetItem for [u8; N] {
     fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
         consumer(self.as_slice());
     }
 }
 
-impl Accumulatable for Vec<u8> {
+impl MultisetItem for Vec<u8> {
     fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
         consumer(self.as_slice())
     }

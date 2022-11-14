@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::hash::{
-    Accumulator, Blake2b256, Blake3, HashFunction, Keccak256, MultisetHash, Sha256, Sha3_256,
-    Sha512,
+    Blake2b256, Blake3, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,
+    Sha3_256, Sha512,
 };
 
 #[test]
@@ -74,7 +74,7 @@ fn test_blake3() {
 
 #[test]
 fn test_accumulator() {
-    let mut accumulator = Accumulator::default();
+    let mut accumulator = EllipticCurveMultisetHash::default();
 
     // Two different multisets should give different hashes
     accumulator.insert(b"Hello");
@@ -83,17 +83,17 @@ fn test_accumulator() {
     assert_ne!(check1, accumulator);
 
     // Hashing the same elements should give the same hash
-    let mut accumulator2 = Accumulator::default();
+    let mut accumulator2 = EllipticCurveMultisetHash::default();
     accumulator2.insert_all([b"Hello", b"World"]);
     assert_eq!(accumulator, accumulator2);
 
     // The order doesn't matter
-    let mut accumulator3 = Accumulator::default();
+    let mut accumulator3 = EllipticCurveMultisetHash::default();
     accumulator3.insert_all([b"World", b"Hello"]);
     assert_eq!(accumulator, accumulator3);
 
     // The union of two accumulators should be equal to if all elements were inserted into a single accumulator
-    let mut accumulator3 = Accumulator::default();
+    let mut accumulator3 = EllipticCurveMultisetHash::default();
     accumulator3.insert(b"World");
     accumulator3.union(&check1);
     assert_eq!(accumulator, accumulator3);
