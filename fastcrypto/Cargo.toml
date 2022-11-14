@@ -42,7 +42,7 @@ ark-ec = { version = "0.3.0", features = ["std"] }
 ark-ff = { version = "0.3.0", features = ["std", "asm"] }
 ark-serialize = { version = "0.3.0", features = ["std"] }
 ark-std = { version = "0.3.0", features = ["std"] }
-blake2 = "0.10.4"
+blake2 = "0.10.5"
 blake3 = "1.3.1"
 blst = "0.3.10"
 digest = "0.10.5"
