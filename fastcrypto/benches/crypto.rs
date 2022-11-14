@@ -368,7 +368,7 @@ mod signature_benches {
 
     criterion_group! {
         name = signature_benches;
-        config = Criterion::default();
+        config = Criterion::default().sample_size(20);
         targets =
            sign,
            verify,
