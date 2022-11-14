@@ -18,7 +18,10 @@
 use std::ops;
 
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
-use curve25519_dalek_ng::ristretto::{CompressedRistretto, RistrettoPoint};
+use curve25519_dalek_ng::{
+    ristretto::{CompressedRistretto, RistrettoPoint},
+    scalar::Scalar,
+};
 use merlin::Transcript;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -46,8 +49,8 @@ impl PedersenCommitment {
         blinding_factor: [u8; PEDERSEN_COMMITMENT_LENGTH],
     ) -> Self {
         let generators = PedersenGens::default();
-        let value = curve25519_dalek_ng::scalar::Scalar::from_bits(value);
-        let blinding = curve25519_dalek_ng::scalar::Scalar::from_bits(blinding_factor);
+        let value = Scalar::from_bits(value);
+        let blinding = Scalar::from_bits(blinding_factor);
         let point = generators.commit(value, blinding);
 
         PedersenCommitment {
@@ -172,7 +175,7 @@ impl BulletproofsRangeProof {
         let pc_gens = PedersenGens::default();
         let bp_gens = BulletproofGens::new(bits, 1);
         let mut prover_transcript = Transcript::new(domain);
-        let blinding = curve25519_dalek_ng::scalar::Scalar::from_bits(blinding);
+        let blinding = Scalar::from_bits(blinding);
 
         let (proof, commitment) = RangeProof::prove_single(
             &bp_gens,
@@ -242,25 +245,5 @@ impl ToFromBytes for BulletproofsRangeProof {
             proof,
             bytes: OnceCell::new(),
         })
-    }
-}
-
-/// This represents an integer modulo the order of the base point on curve25519.
-pub struct Scalar(curve25519_dalek_ng::scalar::Scalar);
-
-impl Scalar {
-    /// Attempt to create a new scalar from a canonical byte representation.
-    pub fn from_canonical_bytes(bytes: [u8; 32]) -> Option<Scalar> {
-        curve25519_dalek_ng::scalar::Scalar::from_canonical_bytes(bytes).map(Scalar)
-    }
-
-    /// Create a scalar from the given `u64`.
-    pub fn from(value: u64) -> Scalar {
-        Scalar(curve25519_dalek_ng::scalar::Scalar::from(value))
-    }
-
-    /// Give a binary reprentation of this scalar.
-    pub fn as_bytes(&self) -> &[u8; 32] {
-        self.0.as_bytes()
     }
 }
