@@ -199,10 +199,11 @@ impl HashFunction<32> for Blake3 {
 /// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
 ///
 /// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
-/// result. The hash of two multisets can be compared by using the Eq trait iml'd for the given hash function,
+/// result. The hash of two multisets can be compared by using the Eq trait impl'd for the given hash function,
 /// and the hash function should be collision resistant.
 ///
-/// See https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12 for a discussion of this type of hash
+/// See ["Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking" by D. Clarke
+/// et al.](https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12) for a discussion of this type of hash
 /// functions.
 ///
 /// # Example
@@ -233,11 +234,12 @@ pub trait MultisetHash<I>: Eq {
     fn union(&mut self, other: &Self);
 }
 
-/// `EllipticCurveMultisetHash` is a homomorphic multiset hash function. Concretely, each element is mapped
+/// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
 /// to a point on an elliptic curve on which the DL problem is hard (the Ristretto group in Curve25519),
 /// and the hash is the sum of all such points.
 ///
-/// For more information about the construction of ECMH and its security, see https://arxiv.org/abs/1601.06502.
+/// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
+/// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveMultisetHash<I: MultisetItem> {
     accumulator: RistrettoPoint,
