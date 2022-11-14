@@ -16,10 +16,12 @@
 //! assert_eq!(digest1, digest2);
 //! ```
 
+use core::fmt::Debug;
+use curve25519_dalek_ng::ristretto::RistrettoPoint;
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::fmt;
+use std::{fmt, marker::PhantomData};
 
 use crate::encoding::{Base64, Encoding};
 
@@ -190,5 +192,119 @@ impl HashFunction<32> for Blake3 {
         Digest {
             digest: self.instance.finalize().into(),
         }
+    }
+}
+
+/// A Multiset Hash is a homomorphic hash function, which hashes arbitrary multisets of objects such
+/// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
+///
+/// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
+/// result. The hash of two multisets can be compared by using the Eq trait impl'd for the given hash function,
+/// and the hash function should be collision resistant.
+///
+/// See ["Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking" by D. Clarke
+/// et al.](https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12) for a discussion of this type of hash
+/// functions.
+///
+/// # Example
+/// ```
+/// use fastcrypto::hash::{EllipticCurveMultisetHash, MultisetHash};
+///
+/// let mut hash1 = EllipticCurveMultisetHash::default();
+/// hash1.insert(b"Hello");
+/// hash1.insert(b"World");
+///
+/// let mut hash2 = EllipticCurveMultisetHash::default();
+/// hash2.insert(b"World");
+/// hash2.insert(b"Hello");
+///
+/// assert_eq!(hash1, hash2);
+/// ```
+pub trait MultisetHash<I>: Eq {
+    /// Insert an item into this hash function.
+    fn insert(&mut self, item: &I);
+
+    /// Insert multiple items into this hash function.
+    fn insert_all<'a, It>(&'a mut self, items: It)
+    where
+        It: 'a + IntoIterator<Item = &'a I>,
+        I: 'a;
+
+    /// Add all the elements of another hash function into this hash function.
+    fn union(&mut self, other: &Self);
+}
+
+/// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
+/// to a point on an elliptic curve on which the DL problem is hard (the Ristretto group in Curve25519),
+/// and the hash is the sum of all such points.
+///
+/// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
+/// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct EllipticCurveMultisetHash<I: MultisetItem> {
+    accumulator: RistrettoPoint,
+    item_type: PhantomData<I>,
+}
+
+impl<I: MultisetItem> PartialEq for EllipticCurveMultisetHash<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.accumulator == other.accumulator
+    }
+}
+
+impl<I: MultisetItem> Eq for EllipticCurveMultisetHash<I> {}
+
+impl<I: MultisetItem> MultisetHash<I> for EllipticCurveMultisetHash<I> {
+    fn insert(&mut self, item: &I) {
+        let mut hash_function = Sha512::default();
+        item.as_bytes(|data: &[u8]| hash_function.update(data));
+        let hash = hash_function.finalize().digest;
+        let point: RistrettoPoint = RistrettoPoint::from_uniform_bytes(&hash);
+        self.accumulator += point;
+    }
+
+    fn insert_all<'a, It>(&'a mut self, items: It)
+    where
+        It: 'a + IntoIterator<Item = &'a I>,
+        I: 'a,
+    {
+        for i in items {
+            self.insert(i);
+        }
+    }
+
+    fn union(&mut self, other: &EllipticCurveMultisetHash<I>) {
+        self.accumulator += other.accumulator;
+    }
+}
+
+impl<I: MultisetItem> Debug for EllipticCurveMultisetHash<I> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Accumulator").finish()
+    }
+}
+
+/// Impl'd by items that can be be represented uniquely in binary form. This form is used when an item is
+/// inserted into a multiset mash function.
+pub trait MultisetItem {
+    /// Gives a unique binary representation of this accumulateble object to the given consumer.
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F);
+}
+
+impl MultisetItem for [u8] {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(self);
+    }
+}
+
+impl<const N: usize> MultisetItem for [u8; N] {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(self.as_slice());
+    }
+}
+
+impl MultisetItem for Vec<u8> {
+    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
+        consumer(self.as_slice())
     }
 }
