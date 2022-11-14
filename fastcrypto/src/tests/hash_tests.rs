@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::hash::{
-    Accumulator, Blake2b256, Blake3, HashFunction, Keccak256, Sha256, Sha3_256, Sha512,
+    Accumulator, Blake2b256, Blake3, HashFunction, Keccak256, MultisetHash, Sha256, Sha3_256,
+    Sha512,
 };
 
 #[test]
@@ -94,6 +95,6 @@ fn test_accumulator() {
     // The union of two accumulators should be equal to if all elements were inserted into a single accumulator
     let mut accumulator3 = Accumulator::default();
     accumulator3.insert(b"World");
-    accumulator3.union(check1);
+    accumulator3.union(&check1);
     assert_eq!(accumulator, accumulator3);
 }

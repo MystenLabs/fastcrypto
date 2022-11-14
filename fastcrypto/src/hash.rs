@@ -21,7 +21,7 @@ use curve25519_dalek_ng::ristretto::RistrettoPoint;
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::fmt;
+use std::{fmt, marker::PhantomData};
 
 use crate::encoding::{Base64, Encoding};
 
@@ -195,25 +195,65 @@ impl HashFunction<32> for Blake3 {
     }
 }
 
-/// The Accumulator is a homomorphic multiset hash function, which hashes arbitrary multisets
-/// of objects such that the hash of the union of two collections is easy to compute from the
-/// hashes of the two collections.
+/// A Multiset Hash is a homomorphic hash function, which hashes arbitrary multisets of objects such
+/// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
 ///
-/// Concretely, each element is mapped to a point on an elliptic curve on which the DL problem
-/// is hard. The accumulator is the sum of all points.
+/// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
+/// result. The hash of two multisets can be compared by using the Eq trait iml'd for the given hash function,
+/// and the hash function should be collision resistant.
 ///
-/// See for more information about the construction and its security: https://arxiv.org/abs/1601.06502.
-#[derive(Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Accumulator {
-    accumulator: RistrettoPoint,
+/// See https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12 for a discussion of this type of hash
+/// functions.
+///
+/// # Example
+/// ```
+/// use fastcrypto::hash::{Accumulator, MultisetHash};
+///
+/// let mut accumulator1 = Accumulator::default();
+/// accumulator1.insert(b"Hello");
+/// accumulator1.insert(b"World");
+///
+/// let mut accumulator2 = Accumulator::default();
+/// accumulator2.insert(b"World");
+/// accumulator2.insert(b"Hello");
+///
+/// assert_eq!(accumulator1, accumulator2);
+/// ```
+pub trait MultisetHash<I>: Eq {
+    /// Insert an item into this hash function.
+    fn insert(&mut self, item: &I);
+
+    /// Insert multiple items into this hash function.
+    fn insert_all<'a, It>(&'a mut self, items: It)
+    where
+        It: 'a + IntoIterator<Item = &'a I>,
+        I: 'a;
+
+    /// Add all the elements of another hash function into this hash function.
+    fn union(&mut self, other: &Self);
 }
 
-impl Accumulator {
-    /// Insert an item into this accumulator.
-    pub fn insert<I>(&mut self, item: &I)
-    where
-        I: Accumulatable,
-    {
+/// The Accumulator is a homomorphic multiset hash function. Concretely, each element is mapped
+/// to a point on an elliptic curve on which the DL problem is hard, and the accumulator is the
+/// sum of all points.
+///
+/// See for more information about the construction and its security: https://arxiv.org/abs/1601.06502.
+#[derive(Default, Clone, Serialize, Deserialize)]
+pub struct Accumulator<I: Accumulatable> {
+    accumulator: RistrettoPoint,
+    item_type: PhantomData<I>,
+}
+
+impl<I: Accumulatable> PartialEq for Accumulator<I> {
+    fn eq(&self, other: &Self) -> bool {
+        self.accumulator == other.accumulator
+    }
+}
+
+impl<I: Accumulatable> Eq for Accumulator<I> {}
+
+impl<I: Accumulatable> MultisetHash<I> for Accumulator<I> {
+    fn insert(&mut self, item: &I) {
         let mut hash_function = Sha512::default();
         item.as_bytes(|data: &[u8]| hash_function.update(data));
         let hash = hash_function.finalize().digest;
@@ -221,24 +261,22 @@ impl Accumulator {
         self.accumulator += point;
     }
 
-    /// Insert multiple items into this accumulator.
-    pub fn insert_all<'a, I, It>(&'a mut self, items: It)
+    fn insert_all<'a, It>(&'a mut self, items: It)
     where
-        I: 'a + Accumulatable,
         It: 'a + IntoIterator<Item = &'a I>,
+        I: 'a,
     {
         for i in items {
             self.insert(i);
         }
     }
 
-    /// Add all the elements of another accumulator into this accumulator.
-    pub fn union(&mut self, other: Accumulator) {
+    fn union(&mut self, other: &Accumulator<I>) {
         self.accumulator += other.accumulator;
     }
 }
 
-impl Debug for Accumulator {
+impl<I: Accumulatable> Debug for Accumulator<I> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Accumulator").finish()
     }
