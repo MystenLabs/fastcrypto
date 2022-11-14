@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::encoding::{Base64, Encoding, Hex};
+use crate::encoding::{encode_with_format, Base64, Encoding, Hex};
 use proptest::{arbitrary::Arbitrary, prop_assert_eq};
 #[test]
 fn test_hex_roundtrip() {
@@ -15,6 +15,12 @@ fn test_hex_roundtrip() {
 fn test_hex_decode_err() {
     assert!(Hex::from_string("A").to_vec().is_err());
     assert!(Hex::from_string("8").to_vec().is_err());
+}
+
+#[test]
+fn test_hex_encode_format() {
+    assert_eq!(encode_with_format(&[1]), "0x01");
+    assert_eq!(encode_with_format(Hex::decode("0x01").unwrap()), "0x01");
 }
 
 #[test]
