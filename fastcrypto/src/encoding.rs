@@ -6,7 +6,8 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::encoding::*;
-//! assert_eq!(Hex::encode("Hello world!"), "0x48656c6c6f20776f726c6421");
+//! assert_eq!(Hex::encode("Hello world!"), "48656c6c6f20776f726c6421");
+//! assert_eq!(encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
 //! assert_eq!(Base64::encode("Hello world!"), "SGVsbG8gd29ybGQh");
 //! ```
 
@@ -93,7 +94,7 @@ impl Encoding for Hex {
     }
 
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
-        format!("0x{}", encode_bytes_hex(&data))
+        hex::encode(data.as_ref())
     }
 }
 
@@ -151,9 +152,9 @@ where
     }
 }
 
-/// Encodes bytes as a hex string using lower case characters.
-pub fn encode_bytes_hex<B: AsRef<[u8]>>(bytes: B) -> String {
-    hex::encode(bytes.as_ref())
+/// Encodes bytes as a 0x prefixed hex string using lower case characters.
+pub fn encode_with_format<B: AsRef<[u8]>>(bytes: B) -> String {
+    format!("0x{}", hex::encode(bytes.as_ref()))
 }
 
 /// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
