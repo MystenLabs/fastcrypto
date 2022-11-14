@@ -162,6 +162,7 @@
 <a href="#162" id="162">162</a>
 <a href="#163" id="163">163</a>
 <a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -170,7 +171,8 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::encoding::*;
-//! assert_eq!(Hex::encode(&quot;Hello world!&quot;), &quot;0x48656c6c6f20776f726c6421&quot;);
+//! assert_eq!(Hex::encode(&quot;Hello world!&quot;), &quot;48656c6c6f20776f726c6421&quot;);
+//! assert_eq!(encode_with_format(&quot;Hello world!&quot;), &quot;0x48656c6c6f20776f726c6421&quot;);
 //! assert_eq!(Base64::encode(&quot;Hello world!&quot;), &quot;SGVsbG8gd29ybGQh&quot;);
 //! ```
 
@@ -257,7 +259,7 @@
     }
 
     <span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String {
-        <span class="macro">format!</span>(<span class="string">&quot;0x{}&quot;</span>, encode_bytes_hex(<span class="kw-2">&amp;</span>data))
+        hex::encode(data.as_ref())
     }
 }
 
@@ -315,9 +317,9 @@
     }
 }
 
-<span class="doccomment">/// Encodes bytes as a hex string using lower case characters.
-</span><span class="kw">pub fn </span>encode_bytes_hex&lt;B: AsRef&lt;[u8]&gt;&gt;(bytes: B) -&gt; String {
-    hex::encode(bytes.as_ref())
+<span class="doccomment">/// Encodes bytes as a 0x prefixed hex string using lower case characters.
+</span><span class="kw">pub fn </span>encode_with_format&lt;B: AsRef&lt;[u8]&gt;&gt;(bytes: B) -&gt; String {
+    <span class="macro">format!</span>(<span class="string">&quot;0x{}&quot;</span>, hex::encode(bytes.as_ref()))
 }
 
 <span class="doccomment">/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
