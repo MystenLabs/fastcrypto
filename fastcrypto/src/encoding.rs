@@ -84,7 +84,7 @@ impl Hex {
     }
     /// Encodes bytes as a hex string.
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(Self::encode(bytes))
+        Self(encode_with_format(bytes))
     }
 }
 
@@ -148,7 +148,7 @@ where
     where
         S: Serializer,
     {
-        Self::encode(value).serialize(serializer)
+        encode_with_format(value).serialize(serializer)
     }
 }
 

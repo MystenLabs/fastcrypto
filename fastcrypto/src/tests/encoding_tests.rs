@@ -24,6 +24,20 @@ fn test_hex_encode_format() {
 }
 
 #[test]
+fn test_serde() {
+    let bytes = &[1];
+    let encoded = Hex::from_bytes(bytes);
+
+    let encoded_str = serde_json::to_string(&encoded).unwrap();
+    let decoded: Hex = serde_json::from_str(&encoded_str).unwrap();
+    assert_eq!("\"0x01\"", encoded_str);
+    assert_eq!(
+        decoded.to_vec().as_ref().unwrap(),
+        encoded.to_vec().as_ref().unwrap()
+    );
+}
+
+#[test]
 fn test_rfc4648_base64() {
     // Test vectors from https://www.rfc-editor.org/rfc/rfc4648
     assert_eq!(Base64::encode(""), "");
