@@ -34,3 +34,4 @@ jobs:
            github_token: ${{ secrets.GITHUB_TOKEN }}
            publish_dir: history/
            destination_dir: benchmarks/history
+           keep_files: true
