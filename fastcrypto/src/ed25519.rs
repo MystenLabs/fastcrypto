@@ -131,7 +131,7 @@ impl VerifyingKey for Ed25519PublicKey {
             batch.queue((vk_bytes, sigs[i].sig, msg))
         }
         batch
-            .verify(&mut OsRng)
+            .verify(OsRng)
             .map_err(|_| eyre!("Signature verification failed"))
     }
 
@@ -159,7 +159,7 @@ impl VerifyingKey for Ed25519PublicKey {
             batch.queue((vk_bytes, sigs[i].sig, msgs[i].borrow()))
         }
         batch
-            .verify(&mut OsRng)
+            .verify(OsRng)
             .map_err(|_| eyre!("Signature verification failed"))
     }
 }
@@ -448,7 +448,7 @@ impl Display for Ed25519AggregateSignature {
             "{:?}",
             self.sigs
                 .iter()
-                .map(|x| Base64::encode(&x.to_bytes()))
+                .map(|x| Base64::encode(x.to_bytes()))
                 .collect::<Vec<_>>()
         )
     }

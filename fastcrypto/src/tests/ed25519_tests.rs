@@ -98,7 +98,7 @@ fn test_serde_signatures_human_readable() {
     assert_eq!(
         format!(
             r#"{{"base64":"{}"}}"#,
-            Base64::encode(&signature.sig.to_bytes())
+            Base64::encode(signature.sig.to_bytes())
         ),
         serialized
     );

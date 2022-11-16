@@ -19,7 +19,7 @@ fn test_hex_decode_err() {
 
 #[test]
 fn test_hex_encode_format() {
-    assert_eq!(encode_with_format(&[1]), "0x01");
+    assert_eq!(encode_with_format([1]), "0x01");
     assert_eq!(encode_with_format(Hex::decode("0x01").unwrap()), "0x01");
 }
 
