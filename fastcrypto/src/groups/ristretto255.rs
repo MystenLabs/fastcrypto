@@ -8,7 +8,6 @@ use curve25519_dalek_ng;
 use curve25519_dalek_ng::traits::Identity;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
-use std::ops::{Add, Mul, Neg, Sub};
 
 use crate::{
     error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,

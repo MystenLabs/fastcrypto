@@ -15,11 +15,11 @@ fn test_arithmetic() {
     )
     .unwrap();
 
-    // Multiplying the base point by five gives the expected result
+    // Test that multiplying the base point by five gives the expected result
     let p = RistrettoScalar::from(5) * Ristretto255::base_point();
     assert_eq!(five_bp, p);
 
-    // Adding the base point with it self five times gives the expected result
+    // Test that adding the base point with it self five times gives the same result
     let q = Ristretto255::base_point()
         + Ristretto255::base_point()
         + Ristretto255::base_point()
@@ -28,10 +28,7 @@ fn test_arithmetic() {
     assert_eq!(five_bp, q);
 
     // Adding the identity element does not change anything
-    assert_eq!(
-        Ristretto255::base_point() + Ristretto255::identity(),
-        Ristretto255::base_point()
-    );
+    assert_eq!(&q + Ristretto255::identity(), q);
 }
 
 #[test]

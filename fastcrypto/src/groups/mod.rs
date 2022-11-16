@@ -4,78 +4,17 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-//
-// Macros for operator overloading.
-//
-macro_rules! impl_binary_op {
-    ($lhs:ident, $rhs:ident, $out:ident, $op:ident, $op_method:ident, $group:ident) => {
-        impl $op<$rhs> for $lhs {
-            type Output = $out;
-
-            #[inline]
-            fn $op_method(self, other: $rhs) -> Self::Output {
-                $group::$op_method(&self, &other)
-            }
-        }
-
-        impl<'a> $op<$rhs> for &'a $lhs {
-            type Output = $out;
-
-            #[inline]
-            fn $op_method(self, other: $rhs) -> Self::Output {
-                $group::$op_method(self, &other)
-            }
-        }
-
-        impl<'a> $op<&'a $rhs> for $lhs {
-            type Output = $out;
-
-            #[inline]
-            fn $op_method(self, other: &'a $rhs) -> Self::Output {
-                $group::$op_method(&self, other)
-            }
-        }
-
-        impl<'a, 'b> $op<&'a $rhs> for &'b $lhs {
-            type Output = $out;
-
-            #[inline]
-            fn $op_method(self, other: &'a $rhs) -> Self::Output {
-                $group::$op_method(self, other)
-            }
-        }
-    };
-}
-
-macro_rules! impl_unary_op {
-    ($t:ident, $op:ident, $op_method:ident, $group:ident) => {
-        impl $op for $t {
-            type Output = $t;
-
-            #[inline]
-            fn $op_method(self) -> $t {
-                $group::$op_method(&self)
-            }
-        }
-
-        impl<'a> $op for &'a $t {
-            type Output = $t;
-
-            #[inline]
-            fn $op_method(self) -> $t {
-                $group::$op_method(self)
-            }
-        }
-    };
-}
-
 /// Impl operator overload for the elements of a given group.
+/// * `scalar` -  Type of scalars. Should be equal to group::Scalar.
+/// * `op` - Operation to overload (e.g. Neg)
+/// * `op_method` - Name of method (e.g. neg)
 macro_rules! impl_group {
-    ($scalar:ident, $element:ident, $group:ident) => {
-        impl_binary_op!($element, $element, $element, Add, add, $group);
-        impl_binary_op!($element, $element, $element, Sub, sub, $group);
-        impl_binary_op!($scalar, $element, $element, Mul, mul, $group);
-        impl_unary_op!($element, Neg, neg, $group);
+    ($scalar:ident, $element:ty, $group:ident) => {
+        use std::ops;
+        impl_op_ex!(+ |a: &$element, b: &$element| -> $element { $group::add(a, b) });
+        impl_op_ex!(- |a: &$element, b: &$element| -> $element { $group::sub(a, b) });
+        impl_op_ex!(* |a: &$scalar, b: &$element| -> $element { $group::mul(a, b) });
+        impl_op_ex!(- |a: &$element| -> $element { $group::neg(a) });
     };
 }
 
