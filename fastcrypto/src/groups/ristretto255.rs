@@ -25,6 +25,11 @@ impl Ristretto255 {
             bytes: OnceCell::new(),
         }
     }
+
+    /// The order of the base point.
+    pub fn base_point_order() -> RistrettoScalar {
+        RistrettoScalar(curve25519_dalek_ng::constants::BASEPOINT_ORDER)
+    }
 }
 
 impl AdditiveGroup for Ristretto255 {
@@ -60,7 +65,7 @@ impl AdditiveGroup for Ristretto255 {
     }
 }
 
-/// Represents a scalar modulo the order of the ristretto group which is 2^{252} + 27742317777372353535851937790883648493.
+/// Represents a scalar.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RistrettoScalar(curve25519_dalek_ng::scalar::Scalar);
 
