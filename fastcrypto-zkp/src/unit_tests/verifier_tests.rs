@@ -205,7 +205,14 @@ fn test_verify_with_processed_vk() {
         Proof::<Bls12_381>::deserialize(proof_reader.as_slice_less_safe()).unwrap();
 
     // Roundtrip serde of the prepared verifying key.
-    let serialized_pvk = CustomPVK::deserialize(blst_pvk.as_serialized().unwrap()).unwrap();
+    let serialized = blst_pvk.as_serialized().unwrap();
+    let serialized_pvk = CustomPVK::deserialize(
+        &serialized[0],
+        &serialized[1],
+        &serialized[2],
+        &serialized[3],
+    )
+    .unwrap();
 
     assert!(verify_with_processed_vk(
         &serialized_pvk,

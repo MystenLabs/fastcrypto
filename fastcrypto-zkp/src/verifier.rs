@@ -42,30 +42,31 @@ pub struct PreparedVerifyingKey {
 }
 
 impl PreparedVerifyingKey {
-    /// Deserialize the prepared verifying key from its vectors form.
-    pub fn deserialize(bytes: Vec<Vec<u8>>) -> Result<Self, fastcrypto::error::FastCryptoError> {
-        if bytes.len() != 4 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
+    /// Deserialize the prepared verifying key from the serialized fields of vk_gamma_abc_g1, alpha_g1_beta_g2, gamma_g2_neg_pc, delta_g2_neg_pc
+    pub fn deserialize(
+        vk_gamma_abc_g1_bytes: &[u8],
+        alpha_g1_beta_g2_bytes: &[u8],
+        gamma_g2_neg_pc_bytes: &[u8],
+        delta_g2_neg_pc_bytes: &[u8],
+    ) -> Result<Self, fastcrypto::error::FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
-        for g1_bytes in bytes[0].chunks(G1_COMPRESSED_SIZE) {
+        for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
             let g1_reader = Input::from(g1_bytes);
             let g1 = G1Affine::deserialize(g1_reader.as_slice_less_safe())
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
-        let alpha_reader = Input::from(&bytes[1]);
+        let alpha_reader = Input::from(alpha_g1_beta_g2_bytes);
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
             &Fq12::deserialize(alpha_reader.as_slice_less_safe())
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
 
-        let g2_reader = Input::from(&bytes[2]);
+        let g2_reader = Input::from(gamma_g2_neg_pc_bytes);
         let gamma_g2_neg_pc = G2Affine::deserialize(g2_reader.as_slice_less_safe())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let g2_reader_2 = Input::from(&bytes[3]);
+        let g2_reader_2 = Input::from(delta_g2_neg_pc_bytes);
         let delta_g2_neg_pc = G2Affine::deserialize(g2_reader_2.as_slice_less_safe())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 

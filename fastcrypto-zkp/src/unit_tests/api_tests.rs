@@ -6,12 +6,10 @@ use crate::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 fn test_verify_groth16_in_bytes_api() {
     // Success case.
     assert!(verify_groth16_in_bytes(
-        vec![
-            VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-            ALPHA_G1_BETA_G2_BYTES.to_vec(),
-            GAMMA_G2_NEG_PC_BYTES.to_vec(),
-            DELTA_G2_NEG_PC.to_vec()
-        ],
+        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
+        ALPHA_G1_BETA_G2_BYTES.to_vec(),
+        GAMMA_G2_NEG_PC_BYTES.to_vec(),
+        DELTA_G2_NEG_PC.to_vec(),
         PROOF_INPUTS_BYTES.to_vec(),
         PROOF_POINTS_BYTES.to_vec()
     )
@@ -21,12 +19,10 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_bytes = VK_GAMMA_ABC_G1_VECTOR.to_vec();
     modified_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        vec![
-            modified_bytes,
-            ALPHA_G1_BETA_G2_BYTES.to_vec(),
-            GAMMA_G2_NEG_PC_BYTES.to_vec(),
-            DELTA_G2_NEG_PC.to_vec()
-        ],
+        modified_bytes,
+        ALPHA_G1_BETA_G2_BYTES.to_vec(),
+        GAMMA_G2_NEG_PC_BYTES.to_vec(),
+        DELTA_G2_NEG_PC.to_vec(),
         PROOF_INPUTS_BYTES.to_vec(),
         PROOF_POINTS_BYTES.to_vec()
     )
@@ -36,12 +32,10 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_points_bytes = PROOF_INPUTS_BYTES.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        vec![
-            VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-            ALPHA_G1_BETA_G2_BYTES.to_vec(),
-            GAMMA_G2_NEG_PC_BYTES.to_vec(),
-            DELTA_G2_NEG_PC.to_vec()
-        ],
+        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
+        ALPHA_G1_BETA_G2_BYTES.to_vec(),
+        GAMMA_G2_NEG_PC_BYTES.to_vec(),
+        DELTA_G2_NEG_PC.to_vec(),
         modified_proof_points_bytes,
         PROOF_POINTS_BYTES.to_vec()
     )
@@ -51,12 +45,10 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_points_bytes = PROOF_POINTS_BYTES.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        vec![
-            VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-            ALPHA_G1_BETA_G2_BYTES.to_vec(),
-            GAMMA_G2_NEG_PC_BYTES.to_vec(),
-            DELTA_G2_NEG_PC.to_vec()
-        ],
+        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
+        ALPHA_G1_BETA_G2_BYTES.to_vec(),
+        GAMMA_G2_NEG_PC_BYTES.to_vec(),
+        DELTA_G2_NEG_PC.to_vec(),
         PROOF_INPUTS_BYTES.to_vec(),
         modified_proof_points_bytes
     )
