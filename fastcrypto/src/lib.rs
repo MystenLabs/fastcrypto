@@ -72,9 +72,9 @@ pub mod aes;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
+pub mod groups;
 pub mod hash;
 pub mod hmac;
-pub mod ristretto255;
 pub mod secp256k1;
 
 // Other tooling

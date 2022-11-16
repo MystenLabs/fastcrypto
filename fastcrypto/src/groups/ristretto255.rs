@@ -2,19 +2,67 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Implementations of the [ristretto255 group](https://ristretto.group/) which is a group of
-//! prime order 2^{252} + 27742317777372353535851937790883648493.
-
-use std::ops;
+//! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::traits::Identity;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
+use std::ops::{Add, Mul, Neg, Sub};
 
-use crate::hash::HashFunction;
-use crate::{error::FastCryptoError, traits::ToFromBytes};
+use crate::{
+    error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,
+};
+
+/// Implementation of the [ristretto255 group](https://ristretto.group/) which is a group of
+/// prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
+pub struct Ristretto255 {}
+
+impl Ristretto255 {
+    /// Returns the base point of the Ristretto group.
+    pub fn base_point() -> RistrettoPoint {
+        RistrettoPoint {
+            point: curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+impl AdditiveGroup for Ristretto255 {
+    type Element = RistrettoPoint;
+    type Scalar = RistrettoScalar;
+
+    fn identity() -> RistrettoPoint {
+        RistrettoPoint {
+            point: curve25519_dalek_ng::ristretto::RistrettoPoint::identity(),
+            bytes: OnceCell::new(),
+        }
+    }
+
+    fn add(a: &RistrettoPoint, b: &RistrettoPoint) -> RistrettoPoint {
+        RistrettoPoint {
+            point: a.point + b.point,
+            bytes: OnceCell::new(),
+        }
+    }
+
+    fn neg(a: &RistrettoPoint) -> RistrettoPoint {
+        RistrettoPoint {
+            point: -a.point,
+            bytes: OnceCell::new(),
+        }
+    }
+
+    fn mul(scalar: &RistrettoScalar, element: &RistrettoPoint) -> RistrettoPoint {
+        RistrettoPoint {
+            point: scalar.0 * element.point,
+            bytes: OnceCell::new(),
+        }
+    }
+}
 
 /// Represents a scalar modulo the order of the ristretto group which is 2^{252} + 27742317777372353535851937790883648493.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RistrettoScalar(curve25519_dalek_ng::scalar::Scalar);
 
 impl RistrettoScalar {
@@ -23,14 +71,15 @@ impl RistrettoScalar {
         curve25519_dalek_ng::scalar::Scalar::from_canonical_bytes(bytes).map(RistrettoScalar)
     }
 
-    /// Create a scalar from the given `u64`.
-    pub fn from(value: u64) -> RistrettoScalar {
-        RistrettoScalar(curve25519_dalek_ng::scalar::Scalar::from(value))
-    }
-
     /// Create a scalar from the low 255 bits of the given 256-bit integer.
     pub fn from_bits(value: [u8; 32]) -> RistrettoScalar {
         RistrettoScalar(curve25519_dalek_ng::scalar::Scalar::from_bits(value))
+    }
+}
+
+impl From<u64> for RistrettoScalar {
+    fn from(value: u64) -> RistrettoScalar {
+        RistrettoScalar(curve25519_dalek_ng::scalar::Scalar::from(value))
     }
 }
 
@@ -42,8 +91,9 @@ pub struct RistrettoPoint {
 }
 
 impl RistrettoPoint {
-    /// Construct a RistrettoPoint from the given data. If the input bytes are uniformly distributed,
-    /// the resulting point will be uniformly distributed over the Ristretto group.
+    /// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
+    /// If the input bytes are uniformly distributed, the resulting point will be uniformly
+    /// distributed over the Ristretto group.
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint {
             point: curve25519_dalek_ng::ristretto::RistrettoPoint::from_uniform_bytes(bytes),
@@ -51,42 +101,9 @@ impl RistrettoPoint {
         }
     }
 
-    /// Construct a RistrettoPoint from some bytes using a hash function.
-    pub fn hash_from_bytes<H: HashFunction<64>>(bytes: &[u8]) -> Self {
+    /// Construct a RistrettoPoint from the given data using a given hash function.
+    pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
         Self::from_uniform_bytes(&H::digest(bytes).digest)
-    }
-}
-
-impl ops::Add for RistrettoPoint {
-    type Output = RistrettoPoint;
-
-    fn add(self, rhs: RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint {
-            point: self.point + rhs.point,
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-impl ops::Sub for RistrettoPoint {
-    type Output = RistrettoPoint;
-
-    fn sub(self, rhs: RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint {
-            point: self.point - rhs.point,
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-impl ops::Mul<RistrettoPoint> for RistrettoScalar {
-    type Output = RistrettoPoint;
-
-    fn mul(self, rhs: RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint {
-            point: self.0 * rhs.point,
-            bytes: OnceCell::new(),
-        }
     }
 }
 
@@ -151,18 +168,4 @@ impl Ord for RistrettoPoint {
     }
 }
 
-/// Returns the base point of the Ristretto group.
-pub fn base_point() -> RistrettoPoint {
-    RistrettoPoint {
-        point: curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT,
-        bytes: OnceCell::new(),
-    }
-}
-
-/// Returns the identity element of the Ristretto group.
-pub fn identity() -> RistrettoPoint {
-    RistrettoPoint {
-        point: curve25519_dalek_ng::ristretto::RistrettoPoint::identity(),
-        bytes: OnceCell::new(),
-    }
-}
+impl_group!(RistrettoScalar, RistrettoPoint, Ristretto255);
