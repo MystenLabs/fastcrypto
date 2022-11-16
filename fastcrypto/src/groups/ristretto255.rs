@@ -67,8 +67,11 @@ pub struct RistrettoScalar(curve25519_dalek_ng::scalar::Scalar);
 
 impl RistrettoScalar {
     /// Attempt to create a new scalar from the given bytes in canonical representation.
-    pub fn from_canonical_bytes(bytes: [u8; 32]) -> Option<RistrettoScalar> {
-        curve25519_dalek_ng::scalar::Scalar::from_canonical_bytes(bytes).map(RistrettoScalar)
+    pub fn from_canonical_bytes(bytes: [u8; 32]) -> Result<RistrettoScalar, FastCryptoError> {
+        curve25519_dalek_ng::scalar::Scalar::from_canonical_bytes(bytes)
+            .map_or(Err(FastCryptoError::InvalidInput), |r| {
+                Ok(RistrettoScalar(r))
+            })
     }
 
     /// Create a scalar from the low 255 bits of the given 256-bit integer.
