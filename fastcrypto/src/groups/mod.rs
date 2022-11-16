@@ -95,17 +95,17 @@ pub trait AdditiveGroup {
         element == &Self::identity()
     }
 
-    /// Add two elements of this group.
+    /// Return the sum of two elements.
     fn add(a: &Self::Element, b: &Self::Element) -> Self::Element;
 
     /// Return the additive inverse of an element.
     fn neg(a: &Self::Element) -> Self::Element;
 
-    /// Subtract two elements in this group.
+    /// Return the difference of two elements.
     fn sub(a: &Self::Element, b: &Self::Element) -> Self::Element {
         Self::add(a, &Self::neg(b))
     }
 
-    /// Scalar multiplication of a group element with the given scalar.
+    /// Return the result of a scalar multiplication of a group element with the given scalar.
     fn mul(scalar: &Self::Scalar, element: &Self::Element) -> Self::Element;
 }
