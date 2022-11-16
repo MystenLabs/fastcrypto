@@ -6,8 +6,8 @@ use serde::Serialize;
 
 /// Impl operator overload for the elements of a given group.
 /// * `scalar` -  Type of scalars. Should be equal to group::Scalar.
-/// * `op` - Operation to overload (e.g. Neg)
-/// * `op_method` - Name of method (e.g. neg)
+/// * `element` - Type of elements. Should be equal to group::Element.
+/// * `group` - Type of group.
 macro_rules! impl_group {
     ($scalar:ident, $element:ident, $group:ident) => {
         use std::ops;
