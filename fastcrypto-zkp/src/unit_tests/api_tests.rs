@@ -6,12 +6,12 @@ use crate::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 fn test_verify_groth16_in_bytes_api() {
     // Success case.
     assert!(verify_groth16_in_bytes(
-        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-        ALPHA_G1_BETA_G2_BYTES.to_vec(),
-        GAMMA_G2_NEG_PC_BYTES.to_vec(),
-        DELTA_G2_NEG_PC.to_vec(),
-        PROOF_INPUTS_BYTES.to_vec(),
-        PROOF_POINTS_BYTES.to_vec()
+        &VK_GAMMA_ABC_G1_VECTOR,
+        &ALPHA_G1_BETA_G2_BYTES,
+        &GAMMA_G2_NEG_PC_BYTES,
+        &DELTA_G2_NEG_PC,
+        &PROOF_INPUTS_BYTES,
+        &PROOF_POINTS_BYTES
     )
     .is_ok());
 
@@ -19,12 +19,12 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_bytes = VK_GAMMA_ABC_G1_VECTOR.to_vec();
     modified_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        modified_bytes,
-        ALPHA_G1_BETA_G2_BYTES.to_vec(),
-        GAMMA_G2_NEG_PC_BYTES.to_vec(),
-        DELTA_G2_NEG_PC.to_vec(),
-        PROOF_INPUTS_BYTES.to_vec(),
-        PROOF_POINTS_BYTES.to_vec()
+        &modified_bytes,
+        &ALPHA_G1_BETA_G2_BYTES,
+        &GAMMA_G2_NEG_PC_BYTES,
+        &DELTA_G2_NEG_PC,
+        &PROOF_INPUTS_BYTES,
+        &PROOF_POINTS_BYTES
     )
     .is_err());
 
@@ -32,12 +32,12 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_points_bytes = PROOF_INPUTS_BYTES.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-        ALPHA_G1_BETA_G2_BYTES.to_vec(),
-        GAMMA_G2_NEG_PC_BYTES.to_vec(),
-        DELTA_G2_NEG_PC.to_vec(),
-        modified_proof_points_bytes,
-        PROOF_POINTS_BYTES.to_vec()
+        &VK_GAMMA_ABC_G1_VECTOR,
+        &ALPHA_G1_BETA_G2_BYTES,
+        &GAMMA_G2_NEG_PC_BYTES,
+        &DELTA_G2_NEG_PC,
+        &modified_proof_points_bytes,
+        &PROOF_POINTS_BYTES
     )
     .is_err());
 
@@ -45,12 +45,12 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_points_bytes = PROOF_POINTS_BYTES.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        VK_GAMMA_ABC_G1_VECTOR.to_vec(),
-        ALPHA_G1_BETA_G2_BYTES.to_vec(),
-        GAMMA_G2_NEG_PC_BYTES.to_vec(),
-        DELTA_G2_NEG_PC.to_vec(),
-        PROOF_INPUTS_BYTES.to_vec(),
-        modified_proof_points_bytes
+        &VK_GAMMA_ABC_G1_VECTOR,
+        &ALPHA_G1_BETA_G2_BYTES,
+        &GAMMA_G2_NEG_PC_BYTES,
+        &DELTA_G2_NEG_PC,
+        &PROOF_INPUTS_BYTES,
+        &modified_proof_points_bytes
     )
     .is_err());
 }
@@ -58,12 +58,12 @@ fn test_verify_groth16_in_bytes_api() {
 #[test]
 fn test_prepare_pvk_bytes() {
     // Success case.
-    assert!(prepare_pvk_bytes(VK_BYTES.to_vec()).is_ok());
+    assert!(prepare_pvk_bytes(&VK_BYTES).is_ok());
 
     // Length of verifying key is incorrect.
     let mut modified_bytes = VK_BYTES.to_vec();
     modified_bytes.pop();
-    assert!(prepare_pvk_bytes(modified_bytes).is_err());
+    assert!(prepare_pvk_bytes(&modified_bytes).is_err());
 }
 
 /// A serialized Arkwork verifying key.
