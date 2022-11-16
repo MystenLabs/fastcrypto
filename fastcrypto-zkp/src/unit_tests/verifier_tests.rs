@@ -1,5 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
+use ark_bls12_381::{Bls12_381, Fq12, Fr};
+use ark_crypto_primitives::SNARK;
+use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
+use ark_ff::{One, PrimeField, UniformRand};
+use ark_groth16::{Groth16, PreparedVerifyingKey};
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_mul, blst_fr, blst_miller_loop, blst_p1, blst_p1_affine,
     blst_p1_affine_is_inf, blst_p1_to_affine, blst_p2_affine_is_inf, Pairing,
@@ -9,12 +16,7 @@ use std::{
     iter,
     ops::{AddAssign, Mul, Neg},
 };
-
-use ark_bls12_381::{Bls12_381, Fq12, Fr};
-use ark_crypto_primitives::SNARK;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, UniformRand};
-use ark_groth16::{Groth16, PreparedVerifyingKey};
+use untrusted::Input;
 
 use crate::{
     conversions::{
@@ -185,8 +187,39 @@ fn test_verify_with_processed_vk() {
     let v = c.a.unwrap().mul(c.b.unwrap());
 
     let blst_pvk = process_vk_special(&vk);
-
     assert!(verify_with_processed_vk(&blst_pvk, &[v], &proof).unwrap());
+
+    // Roundtrip serde of the proof public input bytes.
+    let mut public_inputs_bytes = Vec::new();
+    v.serialize(&mut public_inputs_bytes).unwrap();
+
+    let inputs_reader = Input::from(&public_inputs_bytes);
+    let deserialized_public_inputs =
+        BlsFr::deserialize(inputs_reader.as_slice_less_safe()).unwrap();
+
+    // Roundtrip serde of the proof points bytes.
+    let mut proof_points_bytes = Vec::new();
+    proof.serialize(&mut proof_points_bytes).unwrap();
+    let proof_reader = Input::from(&proof_points_bytes);
+    let deserialized_proof_points =
+        Proof::<Bls12_381>::deserialize(proof_reader.as_slice_less_safe()).unwrap();
+
+    // Roundtrip serde of the prepared verifying key.
+    let serialized = blst_pvk.as_serialized().unwrap();
+    let serialized_pvk = CustomPVK::deserialize(
+        &serialized[0],
+        &serialized[1],
+        &serialized[2],
+        &serialized[3],
+    )
+    .unwrap();
+
+    assert!(verify_with_processed_vk(
+        &serialized_pvk,
+        &[deserialized_public_inputs],
+        &deserialized_proof_points
+    )
+    .unwrap());
 }
 
 #[test]
