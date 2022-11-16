@@ -8,6 +8,7 @@ use serde::Serialize;
 /// * `scalar` -  Type of scalars. Should be equal to group::Scalar.
 /// * `element` - Type of elements. Should be equal to group::Element.
 /// * `group` - Type of group.
+#[macro_export]
 macro_rules! impl_group {
     ($scalar:ident, $element:ident, $group:ident) => {
         use std::ops;
