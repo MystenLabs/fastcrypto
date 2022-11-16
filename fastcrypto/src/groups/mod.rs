@@ -4,7 +4,8 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-/// Impl operator overload for the elements of a given group.
+/// Impl operator overload for the elements of a given group for all combinations of owned and borrowed
+/// values.
 /// * `scalar` -  Type of scalars. Should be equal to group::Scalar.
 /// * `element` - Type of elements. Should be equal to group::Element.
 /// * `group` - Type of group.
