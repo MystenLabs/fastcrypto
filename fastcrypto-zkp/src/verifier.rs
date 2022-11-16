@@ -68,9 +68,9 @@ const G1_IDENTITY: blst_p1 = blst_p1 {
 
 /// Returns the log base 2 of b in O(lg(N)) time.
 fn log_2_byte(b: u8) -> usize {
-    let mut r = if b > 0xF { 1 } else { 0 } << 2;
+    let mut r = u8::from(b > 0xF) << 2;
     let mut b = b >> r;
-    let shift = if b > 0x3 { 1 } else { 0 } << 1;
+    let shift = u8::from(b > 0x3) << 1;
     b >>= shift + 1;
     r |= shift | b;
     r.into()
@@ -138,7 +138,7 @@ fn g1_linear_combination(
     } else {
         let mut scratch: Vec<u8>;
         unsafe {
-            scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len) as usize];
+            scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len)];
         }
 
         let mut scalars = vec![blst_scalar::default(); len];

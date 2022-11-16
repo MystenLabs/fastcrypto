@@ -52,7 +52,7 @@ impl<const DIGEST_LEN: usize> Digest<DIGEST_LEN> {
 
 impl<const DIGEST_LEN: usize> fmt::Debug for Digest<DIGEST_LEN> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(&self.digest))
+        write!(f, "{}", Base64::encode(self.digest))
     }
 }
 
@@ -61,7 +61,7 @@ impl<const DIGEST_LEN: usize> fmt::Display for Digest<DIGEST_LEN> {
         write!(
             f,
             "{}",
-            Base64::encode(&self.digest).get(0..DIGEST_LEN).unwrap()
+            Base64::encode(self.digest).get(0..DIGEST_LEN).unwrap()
         )
     }
 }

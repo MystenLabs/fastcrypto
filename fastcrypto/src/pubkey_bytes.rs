@@ -30,7 +30,7 @@ where
 
 impl<T, const N: usize> Display for PublicKeyBytes<T, N> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::result::Result<(), std::fmt::Error> {
-        let s = hex::encode(&self.bytes);
+        let s = hex::encode(self.bytes);
         write!(f, "k#{}", s)?;
         Ok(())
     }
