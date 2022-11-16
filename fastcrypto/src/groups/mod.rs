@@ -9,7 +9,7 @@ use serde::Serialize;
 /// * `op` - Operation to overload (e.g. Neg)
 /// * `op_method` - Name of method (e.g. neg)
 macro_rules! impl_group {
-    ($scalar:ident, $element:ty, $group:ident) => {
+    ($scalar:ident, $element:ident, $group:ident) => {
         use std::ops;
         impl_op_ex!(+ |a: &$element, b: &$element| -> $element { $group::add(a, b) });
         impl_op_ex!(- |a: &$element, b: &$element| -> $element { $group::sub(a, b) });
