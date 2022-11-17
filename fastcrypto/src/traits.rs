@@ -212,7 +212,7 @@ pub trait KeyPair:
     /// Get the public key.
     fn public(&'_ self) -> &'_ Self::PubKey;
     /// Get the private key.
-    fn private(self) -> Self::PrivKey;
+    fn private(&self) -> Self::PrivKey;
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self;

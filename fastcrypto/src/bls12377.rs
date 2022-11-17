@@ -34,7 +34,7 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     One, Zero,
 };
-use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PublicKey};
+use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PrivateKey, PublicKey};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -150,8 +150,8 @@ pub struct BLS12377PrivateKey {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct BLS12377KeyPair {
-    name: BLS12377PublicKey,
-    secret: BLS12377PrivateKey,
+    pub name: BLS12377PublicKey,
+    pub secret: BLS12377PrivateKey,
 }
 
 /// BLS 12-377 signature.
@@ -386,6 +386,15 @@ impl VerifyingKey for BLS12377PublicKey {
 /// Implement SigningKey
 ///
 
+impl From<PrivateKey> for BLS12377PrivateKey {
+    fn from(sk: PrivateKey) -> Self {
+        BLS12377PrivateKey {
+            privkey: sk,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 impl AsRef<[u8]> for BLS12377PrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
@@ -486,7 +495,7 @@ impl KeyPair for BLS12377KeyPair {
         &self.name
     }
 
-    fn private(self) -> Self::PrivKey {
+    fn private(&self) -> Self::PrivKey {
         BLS12377PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 

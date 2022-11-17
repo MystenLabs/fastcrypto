@@ -609,7 +609,7 @@ impl KeyPair for Ed25519KeyPair {
         &self.name
     }
 
-    fn private(self) -> Self::PrivKey {
+    fn private(&self) -> Self::PrivKey {
         Ed25519PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 

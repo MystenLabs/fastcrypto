@@ -72,6 +72,7 @@ pub mod ed25519;
 pub mod hash;
 pub mod hmac;
 pub mod secp256k1;
+pub mod mskr;
 
 // Other tooling
 pub mod encoding;

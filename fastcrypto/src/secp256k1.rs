@@ -376,7 +376,7 @@ impl KeyPair for Secp256k1KeyPair {
         &self.name
     }
 
-    fn private(self) -> Self::PrivKey {
+    fn private(&self) -> Self::PrivKey {
         Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
