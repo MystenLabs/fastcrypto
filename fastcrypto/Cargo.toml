@@ -71,6 +71,7 @@ copy_key = []
 unsecure_schemes = ["dep:twox-hash", "dep:serde-big-array"]
 no-threads-blst = ["blst/no-threads"]
 threads-bls_12_377 = ["celo-bls/parallel", "ark-ec/parallel", "ark-ff/parallel", "ark-std/parallel"]
+experimental = []
 
 [dev-dependencies]
 bincode = "1.3.3"

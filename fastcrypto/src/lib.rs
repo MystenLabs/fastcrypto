@@ -61,6 +61,11 @@ pub mod hmac_tests;
 #[path = "tests/encoding_tests.rs"]
 pub mod encoding_tests;
 
+#[cfg(feature = "experimental")]
+#[cfg(test)]
+#[path = "tests/mskr_tests.rs"]
+pub mod mskr_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -71,6 +76,7 @@ pub mod bulletproofs;
 pub mod ed25519;
 pub mod hash;
 pub mod hmac;
+#[cfg(feature = "experimental")]
 pub mod mskr;
 pub mod secp256k1;
 

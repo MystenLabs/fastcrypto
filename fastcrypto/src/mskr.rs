@@ -1,20 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bls12377::{
-    BLS12377AggregateSignature, BLS12377KeyPair, BLS12377PrivateKey, BLS12377PublicKey,
-    BLS12377Signature, CELO_BLS_PUBLIC_KEY_LENGTH,
-};
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
-use crate::traits::{AggregateAuthenticator, KeyPair, ToFromBytes};
+use std::ops::Mul;
+
 use ark_bls12_377::{Fr, G1Projective, G2Projective};
 use ark_ec::group::Group;
 use celo_bls::{PrivateKey, PublicKey};
 use once_cell::sync::OnceCell;
-use rand::thread_rng;
-use signature::{Signer, Verifier};
-use std::ops::Mul;
+
+use crate::bls12377::{
+    BLS12377KeyPair, BLS12377PrivateKey, BLS12377PublicKey, BLS12377Signature,
+    CELO_BLS_PUBLIC_KEY_LENGTH,
+};
+use crate::hash::HashFunction;
+use crate::hash::Sha256;
+use crate::traits::ToFromBytes;
 
 /// Trait impl'd by keys and signatures for signature schemes supporting the MSKR (Multi-Signature with Key Randomization) scheme.
 pub trait Randomize<PubKey> {
@@ -51,7 +51,7 @@ fn randomization_scalar<
     let mut seed: Vec<u8> = Vec::with_capacity(PUBLIC_KEY_LENGTH * (pks.len() + 1));
     seed.extend_from_slice(pk.as_bytes());
     for pki in pks {
-        seed.extend_from_slice(&pki.as_bytes());
+        seed.extend_from_slice(pki.as_bytes());
     }
     H::hash_to_scalar(seed.as_slice())
 }
@@ -113,79 +113,4 @@ impl Randomize<BLS12377PublicKey> for BLS12377Signature {
         let q = pt.mul(&r);
         BLS12377Signature::from(celo_bls::Signature::from(q))
     }
-}
-
-#[test]
-fn verify_randomized_signature() {
-    let kp = BLS12377KeyPair::generate(&mut thread_rng());
-
-    let pks = (0..4)
-        .map(|_| {
-            let kp = BLS12377KeyPair::generate(&mut thread_rng());
-            kp.public().clone()
-        })
-        .collect::<Vec<_>>();
-
-    let msg = b"Hello world";
-
-    let randomized_kp = kp.randomize(kp.public(), &pks);
-    let sig = kp.sign(msg);
-
-    assert!(randomized_kp.public().verify(msg, &sig).is_err());
-    assert!(randomized_kp
-        .public()
-        .verify(msg, &sig.randomize(kp.public(), &pks))
-        .is_ok());
-
-    let randomized_sig = randomized_kp.sign(msg);
-    assert!(randomized_kp.public().verify(msg, &randomized_sig).is_ok());
-}
-
-#[test]
-fn verify_aggregate_all() {
-    let kps = (0..4)
-        .map(|_| BLS12377KeyPair::generate(&mut thread_rng()))
-        .collect::<Vec<_>>();
-
-    let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
-
-    let msg: &[u8] = b"Hello, world!";
-    let sigs = kps
-        .iter()
-        .map(|kp| kp.randomize(kp.public(), &pks).sign(msg))
-        .collect::<Vec<_>>();
-
-    let randomized_pks = pks
-        .iter()
-        .map(|pk| pk.randomize(&pk, &pks))
-        .collect::<Vec<_>>();
-
-    let aggregate_sig = BLS12377AggregateSignature::aggregate(&sigs).unwrap();
-
-    assert!(aggregate_sig.verify(&randomized_pks, msg).is_ok())
-}
-
-#[test]
-fn verify_aggregate_subset() {
-    let kps = (0..4)
-        .map(|_| BLS12377KeyPair::generate(&mut thread_rng()))
-        .collect::<Vec<_>>();
-
-    let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
-
-    let msg: &[u8] = b"Hello, world!";
-    let sigs = kps
-        .iter()
-        .skip(1)
-        .map(|kp| kp.randomize(kp.public(), &pks).sign(msg))
-        .collect::<Vec<_>>();
-
-    let randomized_pks = pks
-        .iter()
-        .skip(1)
-        .map(|pk| pk.randomize(&pk, &pks))
-        .collect::<Vec<_>>();
-    let aggregate_sig = BLS12377AggregateSignature::aggregate(&sigs).unwrap();
-
-    assert!(aggregate_sig.verify(&randomized_pks, msg).is_ok())
 }
