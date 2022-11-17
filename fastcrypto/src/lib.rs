@@ -18,7 +18,7 @@ use tokio::sync::{
 };
 
 #[macro_use]
-extern crate impl_ops;
+extern crate auto_ops;
 
 #[cfg(test)]
 #[path = "tests/signature_tests.rs"]

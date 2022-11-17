@@ -48,6 +48,7 @@ twox-hash = { version = "1.6.3", optional = true }
 schemars ="0.8.10"
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
+auto_ops = "0.3.0"
 
 [[bench]]
 name = "crypto"

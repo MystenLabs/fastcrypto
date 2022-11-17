@@ -12,7 +12,6 @@ use serde::Serialize;
 #[macro_export]
 macro_rules! impl_group {
     ($scalar:ident, $element:ident, $group:ident) => {
-        use std::ops;
         impl_op_ex!(+ |a: &$element, b: &$element| -> $element { $group::add(a, b) });
         impl_op_ex!(- |a: &$element, b: &$element| -> $element { $group::sub(a, b) });
         impl_op_ex!(* |a: &$scalar, b: &$element| -> $element { $group::mul(a, b) });
