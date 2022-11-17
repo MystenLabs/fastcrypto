@@ -34,7 +34,7 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     One, Zero,
 };
-use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PrivateKey, PublicKey};
+use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PrivateKey, PublicKey, Signature};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -233,6 +233,15 @@ impl Authenticator for BLS12377Signature {
     type PubKey = BLS12377PublicKey;
     type PrivKey = BLS12377PrivateKey;
     const LENGTH: usize = CELO_BLS_SIGNATURE_LENGTH;
+}
+
+impl From<celo_bls::Signature> for BLS12377Signature {
+    fn from(sig: Signature) -> Self {
+        BLS12377Signature {
+            sig,
+            bytes: OnceCell::new(),
+        }
+    }
 }
 
 ///
