@@ -1064,6 +1064,46 @@ dependencies = [
 [[package]]
 name = "fastcrypto"
 version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64612a260945ed18c20528abd087e6d2f3ca7036b615640f13e2a02cde24e890"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "base64ct",
+ "blake2 0.10.5",
+ "blake3",
+ "blst",
+ "bulletproofs",
+ "cbc",
+ "ctr",
+ "curve25519-dalek-ng",
+ "digest 0.10.5",
+ "ed25519-consensus",
+ "eyre",
+ "fastcrypto-derive 0.1.2 (registry+https://github.com/rust-lang/crates.io-index)",
+ "generic-array",
+ "hex",
+ "hkdf",
+ "merlin",
+ "once_cell",
+ "rand 0.8.5",
+ "readonly",
+ "secp256k1",
+ "serde",
+ "serde_bytes",
+ "serde_with",
+ "sha2 0.10.6",
+ "sha3 0.10.6",
+ "signature",
+ "thiserror",
+ "tokio",
+ "typenum",
+ "zeroize",
+]
+
+[[package]]
+name = "fastcrypto"
+version = "0.1.4"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1089,7 +1129,7 @@ dependencies = [
  "digest 0.10.5",
  "ed25519-consensus",
  "eyre",
- "fastcrypto-derive",
+ "fastcrypto-derive 0.1.2",
  "faster-hex",
  "generic-array",
  "hex",
@@ -1134,6 +1174,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-derive"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c03a787de27aced05a5fdd0708d8c64c4ddc7ddddc1bb0321cf6173d993770d4"
+dependencies = [
+ "proc-macro2 1.0.47",
+ "quote 1.0.21",
+ "syn 1.0.103",
+]
+
+[[package]]
 name = "fastcrypto-zkp"
 version = "0.1.0"
 dependencies = [
@@ -1150,7 +1201,7 @@ dependencies = [
  "blst",
  "byte-slice-cast",
  "criterion",
- "fastcrypto",
+ "fastcrypto 0.1.3",
  "proptest",
  "untrusted",
 ]
