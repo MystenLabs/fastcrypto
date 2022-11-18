@@ -794,6 +794,7 @@ pub mod mskr {
     use crate::traits::ToFromBytes;
     use ark_bls12_377::{Fr, G1Projective, G2Projective};
     use ark_ec::group::Group;
+    use ark_ff::BigInteger256;
     use celo_bls::{PrivateKey, PublicKey};
     use once_cell::sync::OnceCell;
     use std::ops::Mul;
@@ -803,8 +804,14 @@ pub mod mskr {
     impl HashToScalar<Fr> for BLS12377Hash {
         fn hash_to_scalar(bytes: &[u8]) -> Fr {
             let digest = Sha256::digest(bytes);
-            let b: [u8; 16] = digest.digest[0..16].try_into().unwrap();
-            Fr::from(i128::from_be_bytes(b))
+            let mut last_word: [u8; 8] = digest.digest[24..32].try_into().unwrap();
+            last_word[7] = 0; // Scalars in Fr are at most 253 bits
+            Fr::from(BigInteger256::new([
+                u64::from_le_bytes(digest.digest[0..8].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[8..16].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[16..24].try_into().unwrap()),
+                u64::from_le_bytes(last_word),
+            ]))
         }
     }
 
