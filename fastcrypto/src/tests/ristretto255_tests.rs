@@ -68,9 +68,9 @@ fn test_vectors() {
         "e0c418f7c8d9c4cdd7395b93ea124f3ad99021bb681dfc3302a9d99a2e53e64e",
     ];
 
-    for i in 0..VEC_MULGEN.len() {
+    for (i, item) in VEC_MULGEN.iter().enumerate() {
         let actual = RistrettoScalar::from(i as u64) * Ristretto255::base_point();
-        let expected = RistrettoPoint::from_bytes(&hex::decode(VEC_MULGEN[i]).unwrap()).unwrap();
+        let expected = RistrettoPoint::from_bytes(&hex::decode(item).unwrap()).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -111,8 +111,8 @@ fn test_vectors() {
         "ecffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7f",
     ];
 
-    for i in 0..VEC_INVALID.len() {
-        assert!(RistrettoPoint::from_bytes(&hex::decode(VEC_INVALID[i]).unwrap()).is_err());
+    for item in VEC_INVALID.iter() {
+        assert!(RistrettoPoint::from_bytes(&hex::decode(item).unwrap()).is_err());
     }
 
     const VEC_MAP: [(&str, &str); 11] = [
@@ -140,11 +140,10 @@ fn test_vectors() {
             "304282791023b73128d277bdcb5c7746ef2eac08dde9f2983379cb8e5ef0517f")
         ];
 
-    for i in 0..VEC_MAP.len() {
-        let actual = RistrettoPoint::from_uniform_bytes(
-            &hex::decode(VEC_MAP[i].0).unwrap().try_into().unwrap(),
-        );
-        let expected = hex::decode(VEC_MAP[i].1).unwrap();
+    for (i, o) in VEC_MAP.iter() {
+        let actual =
+            RistrettoPoint::from_uniform_bytes(&hex::decode(i).unwrap().try_into().unwrap());
+        let expected = hex::decode(o).unwrap();
         assert_eq!(expected, actual.as_bytes());
     }
 }
