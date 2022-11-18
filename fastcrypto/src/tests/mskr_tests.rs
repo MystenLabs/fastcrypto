@@ -6,14 +6,15 @@ use crate::traits::mskr::Randomize;
 use crate::traits::{AggregateAuthenticator, KeyPair};
 use rand::thread_rng;
 use signature::{Signer, Verifier};
+use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381PublicKey};
 
 #[test]
 fn verify_randomized_signature() {
-    let kp = BLS12377KeyPair::generate(&mut thread_rng());
+    let kp = BLS12381KeyPair::generate(&mut thread_rng());
 
     let pks = (0..4)
         .map(|_| {
-            let kp = BLS12377KeyPair::generate(&mut thread_rng());
+            let kp = BLS12381KeyPair::generate(&mut thread_rng());
             kp.public().clone()
         })
         .collect::<Vec<_>>();
@@ -23,14 +24,17 @@ fn verify_randomized_signature() {
     let randomized_kp = kp.randomize(kp.public(), &pks);
     let sig = kp.sign(msg);
 
+    assert!(kp.public().verify(msg, &sig).is_ok());
+
     assert!(randomized_kp.public().verify(msg, &sig).is_err());
+
+    let randomized_sig = randomized_kp.sign(msg);
+    assert!(randomized_kp.public().verify(msg, &randomized_sig).is_ok());
+
     assert!(randomized_kp
         .public()
         .verify(msg, &sig.randomize(kp.public(), &pks))
         .is_ok());
-
-    let randomized_sig = randomized_kp.sign(msg);
-    assert!(randomized_kp.public().verify(msg, &randomized_sig).is_ok());
 }
 
 #[test]
