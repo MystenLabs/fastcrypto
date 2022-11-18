@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12377::{BLS12377AggregateSignature, BLS12377KeyPair};
-use crate::mskr::Randomize;
+use crate::traits::mskr::Randomize;
 use crate::traits::{AggregateAuthenticator, KeyPair};
 use rand::thread_rng;
 use signature::{Signer, Verifier};

@@ -212,7 +212,7 @@ pub trait KeyPair:
     /// Get the public key.
     fn public(&'_ self) -> &'_ Self::PubKey;
     /// Get the private key.
-    fn private(&self) -> Self::PrivKey;
+    fn private(self) -> Self::PrivKey;
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self;
@@ -402,3 +402,15 @@ pub trait AllowedRng: CryptoRng + RngCore {}
 impl AllowedRng for StdRng {}
 // thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
 impl AllowedRng for ThreadRng {}
+
+#[cfg(feature = "experimental")]
+pub mod mskr {
+    /// Trait impl'd by keys and signatures for signature schemes supporting the MSKR (Multi-Signature with Key Randomization) scheme.
+    pub trait Randomize<PubKey> {
+        fn randomize(&self, pk: &PubKey, pks: &[PubKey]) -> Self;
+    }
+
+    pub trait HashToScalar<Scalar> {
+        fn hash_to_scalar(bytes: &[u8]) -> Scalar;
+    }
+}

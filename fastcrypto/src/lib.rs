@@ -76,8 +76,6 @@ pub mod bulletproofs;
 pub mod ed25519;
 pub mod hash;
 pub mod hmac;
-#[cfg(feature = "experimental")]
-pub mod mskr;
 pub mod secp256k1;
 
 // Other tooling

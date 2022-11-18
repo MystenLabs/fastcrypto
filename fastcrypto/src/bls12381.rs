@@ -491,7 +491,7 @@ impl KeyPair for BLS12381KeyPair {
         &self.name
     }
 
-    fn private(&self) -> Self::PrivKey {
+    fn private(self) -> Self::PrivKey {
         BLS12381PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
