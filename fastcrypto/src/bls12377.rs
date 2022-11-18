@@ -772,7 +772,7 @@ pub mod mskr {
     };
     use crate::hash::HashFunction;
     use crate::hash::Sha256;
-    use crate::traits::mskr::{HashToScalar, randomization_scalar, Randomize};
+    use crate::traits::mskr::{randomization_scalar, HashToScalar, Randomize};
     use ark_bls12_377::{Fr, G1Projective, G2Projective};
     use ark_ec::group::Group;
     use ark_ff::BigInteger256;
