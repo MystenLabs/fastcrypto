@@ -150,8 +150,8 @@ pub struct BLS12377PrivateKey {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct BLS12377KeyPair {
-    pub name: BLS12377PublicKey,
-    pub secret: BLS12377PrivateKey,
+    name: BLS12377PublicKey,
+    secret: BLS12377PrivateKey,
 }
 
 /// BLS 12-377 signature.
