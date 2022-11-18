@@ -415,8 +415,10 @@ pub mod mskr {
         const PUBLIC_KEY_LENGTH: usize,
     >: Sized
     {
+        /// Randomize this with the given scalar.
         fn randomize_internal(&self, r: &Scalar) -> Self;
 
+        /// Randomize this deterministically based on the given public keys.
         fn randomize(&self, pk: &PubKey, pks: &[PubKey]) -> Self {
             self.randomize_internal(
                 &randomization_scalar::<PubKey, Scalar, H, PUBLIC_KEY_LENGTH>(pk, pks),
