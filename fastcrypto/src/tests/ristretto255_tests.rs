@@ -5,9 +5,7 @@ use crate::groups::{
     ristretto255::{Ristretto255, RistrettoPoint, RistrettoScalar},
     AdditiveGroup,
 };
-use crate::hash::Sha512;
 use crate::traits::ToFromBytes;
-use bincode::Options;
 
 #[test]
 fn test_arithmetic() {
