@@ -408,8 +408,20 @@ pub mod mskr {
     use crate::traits::ToFromBytes;
 
     /// Trait impl'd by keys and signatures for signature schemes supporting the MSKR (Multi-Signature with Key Randomization) scheme.
-    pub trait Randomize<PubKey> {
-        fn randomize(&self, pk: &PubKey, pks: &[PubKey]) -> Self;
+    pub trait Randomize<
+        PubKey: ToFromBytes,
+        Scalar,
+        H: HashToScalar<Scalar>,
+        const PUBLIC_KEY_LENGTH: usize,
+    >: Sized
+    {
+        fn randomize_internal(&self, r: &Scalar) -> Self;
+
+        fn randomize(&self, pk: &PubKey, pks: &[PubKey]) -> Self {
+            self.randomize_internal(
+                &randomization_scalar::<PubKey, Scalar, H, PUBLIC_KEY_LENGTH>(pk, pks),
+            )
+        }
     }
 
     pub trait HashToScalar<Scalar> {

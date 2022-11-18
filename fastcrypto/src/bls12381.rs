@@ -811,10 +811,10 @@ pub mod min_pk {
             BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
         };
         use crate::hash::{HashFunction, Sha256};
-        use crate::traits::mskr::{randomization_scalar, HashToScalar, Randomize};
+        use crate::traits::mskr::{HashToScalar, Randomize};
         use crate::traits::VerifyingKey;
 
-        struct BLS12381Hash {}
+        pub struct BLS12381Hash {}
 
         impl HashToScalar<blst_fr> for BLS12381Hash {
             fn hash_to_scalar(bytes: &[u8]) -> blst_fr {
@@ -829,15 +829,10 @@ pub mod min_pk {
             }
         }
 
-        impl Randomize<BLS12381PublicKey> for BLS12381PublicKey {
-            fn randomize(&self, pk: &BLS12381PublicKey, pks: &[BLS12381PublicKey]) -> Self {
-                let r = randomization_scalar::<
-                    BLS12381PublicKey,
-                    blst_fr,
-                    BLS12381Hash,
-                    { BLS12381PublicKey::LENGTH },
-                >(pk, pks);
-
+        impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LENGTH }>
+            for BLS12381PublicKey
+        {
+            fn randomize_internal(&self, r: &blst_fr) -> Self {
                 // It's not possible to extract the underlying point from a pk directly, so we serialize
                 // it and deserialize it as a point.
                 let pubkey_bytes = &self.pubkey.serialize();
@@ -854,7 +849,7 @@ pub mod min_pk {
 
                     // Randomization factor as scalar
                     let mut scalar = blst_scalar::default();
-                    blst_scalar_from_fr(&mut scalar, &r);
+                    blst_scalar_from_fr(&mut scalar, r);
 
                     // Randomized public key as point
                     let mut randomized_pt = blst_p1::default();
@@ -870,15 +865,10 @@ pub mod min_pk {
             }
         }
 
-        impl Randomize<BLS12381PublicKey> for BLS12381Signature {
-            fn randomize(&self, pk: &BLS12381PublicKey, pks: &[BLS12381PublicKey]) -> Self {
-                let r = randomization_scalar::<
-                    BLS12381PublicKey,
-                    blst_fr,
-                    BLS12381Hash,
-                    { BLS12381PublicKey::LENGTH },
-                >(pk, pks);
-
+        impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LENGTH }>
+            for BLS12381Signature
+        {
+            fn randomize_internal(&self, r: &blst_fr) -> Self {
                 // It's not possible to extract the underlying point from a pk directly, so we serialize
                 // it and deserialize it as a point.
                 let pubkey_bytes = &self.sig.serialize();
@@ -895,7 +885,7 @@ pub mod min_pk {
 
                     // Randomization factor as scalar
                     let mut scalar = blst_scalar::default();
-                    blst_scalar_from_fr(&mut scalar, &r);
+                    blst_scalar_from_fr(&mut scalar, r);
 
                     // Randomized signature as point
                     let mut randomized_pt = blst_p2::default();
@@ -912,15 +902,10 @@ pub mod min_pk {
             }
         }
 
-        impl Randomize<BLS12381PublicKey> for BLS12381PrivateKey {
-            fn randomize(&self, pk: &BLS12381PublicKey, pks: &[BLS12381PublicKey]) -> Self {
-                let r = randomization_scalar::<
-                    BLS12381PublicKey,
-                    blst_fr,
-                    BLS12381Hash,
-                    { BLS12381PublicKey::LENGTH },
-                >(pk, pks);
-
+        impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LENGTH }>
+            for BLS12381PrivateKey
+        {
+            fn randomize_internal(&self, r: &blst_fr) -> Self {
                 let privkey_bytes = self.privkey.to_bytes();
                 let mut randomized_bytes: [u8; 32] = [0; 32];
 
@@ -935,7 +920,7 @@ pub mod min_pk {
 
                     // Randomize field element
                     let mut randomized_as_field_element = blst_fr::default();
-                    blst_fr_mul(&mut randomized_as_field_element, &as_field_element, &r);
+                    blst_fr_mul(&mut randomized_as_field_element, &as_field_element, r);
 
                     // Convert to scalar
                     let mut randomized = blst_scalar::default();
@@ -951,18 +936,13 @@ pub mod min_pk {
                 }
             }
         }
-
-        impl Randomize<BLS12381PublicKey> for BLS12381KeyPair {
-            /// Randomize a key pair using the input list of public keys.
-            fn randomize(
-                &self,
-                pk: &BLS12381PublicKey,
-                pks: &[BLS12381PublicKey],
-            ) -> BLS12381KeyPair {
-                //TODO: Scalar computed twice
+        impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LENGTH }>
+            for BLS12381KeyPair
+        {
+            fn randomize_internal(&self, r: &blst_fr) -> Self {
                 BLS12381KeyPair {
-                    secret: self.secret.randomize(pk, pks),
-                    name: self.name.randomize(pk, pks),
+                    secret: self.secret.randomize_internal(r),
+                    name: self.name.randomize_internal(r),
                 }
             }
         }
