@@ -34,7 +34,7 @@ use ark_ff::{
     bytes::{FromBytes, ToBytes},
     One, Zero,
 };
-use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PrivateKey, PublicKey, Signature};
+use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PublicKey};
 use eyre::eyre;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -235,15 +235,6 @@ impl Authenticator for BLS12377Signature {
     const LENGTH: usize = CELO_BLS_SIGNATURE_LENGTH;
 }
 
-impl From<celo_bls::Signature> for BLS12377Signature {
-    fn from(sig: Signature) -> Self {
-        BLS12377Signature {
-            sig,
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 ///
 /// Implement VerifyingKey
 ///
@@ -394,15 +385,6 @@ impl VerifyingKey for BLS12377PublicKey {
 ///
 /// Implement SigningKey
 ///
-
-impl From<PrivateKey> for BLS12377PrivateKey {
-    fn from(sk: PrivateKey) -> Self {
-        BLS12377PrivateKey {
-            privkey: sk,
-            bytes: OnceCell::new(),
-        }
-    }
-}
 
 impl AsRef<[u8]> for BLS12377PrivateKey {
     fn as_ref(&self) -> &[u8] {
@@ -790,8 +772,7 @@ pub mod mskr {
     };
     use crate::hash::HashFunction;
     use crate::hash::Sha256;
-    use crate::traits::mskr::{HashToScalar, Randomize};
-    use crate::traits::ToFromBytes;
+    use crate::traits::mskr::{HashToScalar, randomization_scalar, Randomize};
     use ark_bls12_377::{Fr, G1Projective, G2Projective};
     use ark_ec::group::Group;
     use ark_ff::BigInteger256;
@@ -813,23 +794,6 @@ pub mod mskr {
                 u64::from_le_bytes(last_word),
             ]))
         }
-    }
-
-    fn randomization_scalar<
-        PubKey: ToFromBytes,
-        Scalar,
-        H: HashToScalar<Scalar>,
-        const PUBLIC_KEY_LENGTH: usize,
-    >(
-        pk: &PubKey,
-        pks: &[PubKey],
-    ) -> Scalar {
-        let mut seed: Vec<u8> = Vec::with_capacity(PUBLIC_KEY_LENGTH * (pks.len() + 1));
-        seed.extend_from_slice(pk.as_bytes());
-        for pki in pks {
-            seed.extend_from_slice(pki.as_bytes());
-        }
-        H::hash_to_scalar(seed.as_slice())
     }
 
     impl Randomize<BLS12377PublicKey> for BLS12377PublicKey {
@@ -869,7 +833,10 @@ pub mod mskr {
                 CELO_BLS_PUBLIC_KEY_LENGTH,
             >(pk, pks);
             let sk = self.privkey.as_ref().mul(r);
-            BLS12377PrivateKey::from(PrivateKey::from(sk))
+            BLS12377PrivateKey {
+                privkey: PrivateKey::from(sk),
+                bytes: OnceCell::new(),
+            }
         }
     }
 
@@ -899,7 +866,10 @@ pub mod mskr {
                 CELO_BLS_PUBLIC_KEY_LENGTH,
             >(pk, pks);
             let q = pt.mul(&r);
-            BLS12377Signature::from(celo_bls::Signature::from(q))
+            BLS12377Signature {
+                sig: celo_bls::Signature::from(q),
+                bytes: OnceCell::new(),
+            }
         }
     }
 }
