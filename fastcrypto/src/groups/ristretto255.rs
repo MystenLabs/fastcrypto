@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementations of the [ristretto255 group](https://ristretto.group/) which is a group of
+//! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use curve25519_dalek_ng;
@@ -13,7 +13,7 @@ use crate::{
     error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,
 };
 
-/// Implementation of the [ristretto255 group](https://ristretto.group/) which is a group of
+/// Implementation of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 /// prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 pub struct Ristretto255 {}
 
