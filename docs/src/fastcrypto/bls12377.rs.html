@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12377.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bls12377.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ea97c800646ec4c5.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-1469fca9efc07bcb.css"><link rel="stylesheet" disabled href="../../static.files/dark-e9b7e5d8ba0dc980.css"><link rel="stylesheet" disabled href="../../static.files/ayu-0c1cf144240c9f40.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-2da75ee0e1909b3a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12377.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bls12377.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-1d6438e53893d4f5.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-b8db113b98e15459.css"><link rel="stylesheet" disabled href="../../static.files/dark-4b64df8497ac42b0.css"><link rel="stylesheet" disabled href="../../static.files/ayu-4939169e939b96f8.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-8f89a77f33748381.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -760,6 +760,95 @@
 <a href="#760" id="760">760</a>
 <a href="#761" id="761">761</a>
 <a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
+<a href="#808" id="808">808</a>
+<a href="#809" id="809">809</a>
+<a href="#810" id="810">810</a>
+<a href="#811" id="811">811</a>
+<a href="#812" id="812">812</a>
+<a href="#813" id="813">813</a>
+<a href="#814" id="814">814</a>
+<a href="#815" id="815">815</a>
+<a href="#816" id="816">816</a>
+<a href="#817" id="817">817</a>
+<a href="#818" id="818">818</a>
+<a href="#819" id="819">819</a>
+<a href="#820" id="820">820</a>
+<a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
+<a href="#833" id="833">833</a>
+<a href="#834" id="834">834</a>
+<a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
+<a href="#843" id="843">843</a>
+<a href="#844" id="844">844</a>
+<a href="#845" id="845">845</a>
+<a href="#846" id="846">846</a>
+<a href="#847" id="847">847</a>
+<a href="#848" id="848">848</a>
+<a href="#849" id="849">849</a>
+<a href="#850" id="850">850</a>
+<a href="#851" id="851">851</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -1522,5 +1611,94 @@
         <span class="self">self</span>.zeroize();
     }
 }
+
+<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
+</span><span class="kw">pub mod </span>mskr {
+    <span class="comment">//
+    // Implement MSKR for BLS12377
+    //
+    </span><span class="kw">use </span><span class="kw">crate</span>::bls12377::{
+        BLS12377KeyPair, BLS12377PrivateKey, BLS12377PublicKey, BLS12377Signature,
+        CELO_BLS_PUBLIC_KEY_LENGTH,
+    };
+    <span class="kw">use </span><span class="kw">crate</span>::hash::HashFunction;
+    <span class="kw">use </span><span class="kw">crate</span>::hash::Sha256;
+    <span class="kw">use </span><span class="kw">crate</span>::traits::mskr::{HashToScalar, Randomize};
+    <span class="kw">use </span>ark_bls12_377::{Fr, G1Projective, G2Projective};
+    <span class="kw">use </span>ark_ec::group::Group;
+    <span class="kw">use </span>ark_ff::BigInteger256;
+    <span class="kw">use </span>celo_bls::{PrivateKey, PublicKey};
+    <span class="kw">use </span>once_cell::sync::OnceCell;
+    <span class="kw">use </span>std::ops::Mul;
+
+    <span class="kw">pub struct </span>BLS12377Hash {}
+
+    <span class="kw">impl </span>HashToScalar&lt;Fr&gt; <span class="kw">for </span>BLS12377Hash {
+        <span class="kw">fn </span>hash_to_scalar(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; Fr {
+            <span class="kw">let </span>digest = Sha256::digest(bytes);
+            <span class="kw">let </span><span class="kw-2">mut </span>last_word: [u8; <span class="number">8</span>] = digest.digest[<span class="number">24</span>..<span class="number">32</span>].try_into().unwrap();
+            last_word[<span class="number">7</span>] = <span class="number">0</span>; <span class="comment">// Scalars in Fr are at most 253 bits
+            </span>Fr::from(BigInteger256::new([
+                u64::from_le_bytes(digest.digest[<span class="number">0</span>..<span class="number">8</span>].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[<span class="number">8</span>..<span class="number">16</span>].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[<span class="number">16</span>..<span class="number">24</span>].try_into().unwrap()),
+                u64::from_le_bytes(last_word),
+            ]))
+        }
+    }
+
+    <span class="kw">impl </span>Randomize&lt;BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH&gt;
+        <span class="kw">for </span>BLS12377PublicKey
+    {
+        <span class="doccomment">/// Randomize the public key using the input list of public keys.
+        </span><span class="kw">fn </span>randomize_internal(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Fr) -&gt; BLS12377PublicKey {
+            <span class="kw">let </span>pt: <span class="kw-2">&amp;</span>G2Projective = <span class="self">self</span>.pubkey.as_ref();
+            <span class="kw">let </span>q = pt.mul(r);
+            BLS12377PublicKey {
+                pubkey: PublicKey::from(q),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+
+    <span class="kw">impl </span>Randomize&lt;BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH&gt;
+        <span class="kw">for </span>BLS12377PrivateKey
+    {
+        <span class="doccomment">/// Randomize the secret key using the input list of public keys.
+        </span><span class="kw">fn </span>randomize_internal(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Fr) -&gt; BLS12377PrivateKey {
+            <span class="kw">let </span>sk = <span class="self">self</span>.privkey.as_ref().mul(r);
+            BLS12377PrivateKey {
+                privkey: PrivateKey::from(sk),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+
+    <span class="kw">impl </span>Randomize&lt;BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH&gt;
+        <span class="kw">for </span>BLS12377KeyPair
+    {
+        <span class="doccomment">/// Randomize a key pair using the input list of public keys.
+        </span><span class="kw">fn </span>randomize_internal(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Fr) -&gt; BLS12377KeyPair {
+            BLS12377KeyPair {
+                secret: <span class="self">self</span>.secret.randomize_internal(r),
+                name: <span class="self">self</span>.name.randomize_internal(r),
+            }
+        }
+    }
+
+    <span class="kw">impl </span>Randomize&lt;BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH&gt;
+        <span class="kw">for </span>BLS12377Signature
+    {
+        <span class="doccomment">/// Randomize a signature using the input list of public keys.
+        </span><span class="kw">fn </span>randomize_internal(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Fr) -&gt; BLS12377Signature {
+            <span class="kw">let </span>pt: <span class="kw-2">&amp;</span>G1Projective = <span class="self">self</span>.sig.as_ref();
+            <span class="kw">let </span>q = pt.mul(r);
+            BLS12377Signature {
+                sig: celo_bls::Signature::from(q),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (e9493d63c 2022-11-16)" data-search-js="search-df80cc3cb87b6482.js" data-settings-js="settings-7873449fa8c00e11.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (c5d82ed7a 2022-11-19)" data-search-js="search-df80cc3cb87b6482.js" data-settings-js="settings-7e1cf5cc683233f7.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
