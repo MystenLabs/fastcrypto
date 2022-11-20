@@ -760,3 +760,92 @@ impl Drop for BLS12377KeyPair {
         self.zeroize();
     }
 }
+
+#[cfg(feature = "experimental")]
+pub mod mskr {
+    //
+    // Implement MSKR for BLS12377
+    //
+    use crate::bls12377::{
+        BLS12377KeyPair, BLS12377PrivateKey, BLS12377PublicKey, BLS12377Signature,
+        CELO_BLS_PUBLIC_KEY_LENGTH,
+    };
+    use crate::hash::HashFunction;
+    use crate::hash::Sha256;
+    use crate::traits::mskr::{HashToScalar, Randomize};
+    use ark_bls12_377::{Fr, G1Projective, G2Projective};
+    use ark_ec::group::Group;
+    use ark_ff::BigInteger256;
+    use celo_bls::{PrivateKey, PublicKey};
+    use once_cell::sync::OnceCell;
+    use std::ops::Mul;
+
+    pub struct BLS12377Hash {}
+
+    impl HashToScalar<Fr> for BLS12377Hash {
+        fn hash_to_scalar(bytes: &[u8]) -> Fr {
+            let digest = Sha256::digest(bytes);
+            let mut last_word: [u8; 8] = digest.digest[24..32].try_into().unwrap();
+            last_word[7] = 0; // Scalars in Fr are at most 253 bits
+            Fr::from(BigInteger256::new([
+                u64::from_le_bytes(digest.digest[0..8].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[8..16].try_into().unwrap()),
+                u64::from_le_bytes(digest.digest[16..24].try_into().unwrap()),
+                u64::from_le_bytes(last_word),
+            ]))
+        }
+    }
+
+    impl Randomize<BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH>
+        for BLS12377PublicKey
+    {
+        /// Randomize the public key using the input list of public keys.
+        fn randomize_internal(&self, r: &Fr) -> BLS12377PublicKey {
+            let pt: &G2Projective = self.pubkey.as_ref();
+            let q = pt.mul(r);
+            BLS12377PublicKey {
+                pubkey: PublicKey::from(q),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+
+    impl Randomize<BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH>
+        for BLS12377PrivateKey
+    {
+        /// Randomize the secret key using the input list of public keys.
+        fn randomize_internal(&self, r: &Fr) -> BLS12377PrivateKey {
+            let sk = self.privkey.as_ref().mul(r);
+            BLS12377PrivateKey {
+                privkey: PrivateKey::from(sk),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+
+    impl Randomize<BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH>
+        for BLS12377KeyPair
+    {
+        /// Randomize a key pair using the input list of public keys.
+        fn randomize_internal(&self, r: &Fr) -> BLS12377KeyPair {
+            BLS12377KeyPair {
+                secret: self.secret.randomize_internal(r),
+                name: self.name.randomize_internal(r),
+            }
+        }
+    }
+
+    impl Randomize<BLS12377PublicKey, Fr, BLS12377Hash, CELO_BLS_PUBLIC_KEY_LENGTH>
+        for BLS12377Signature
+    {
+        /// Randomize a signature using the input list of public keys.
+        fn randomize_internal(&self, r: &Fr) -> BLS12377Signature {
+            let pt: &G1Projective = self.sig.as_ref();
+            let q = pt.mul(r);
+            BLS12377Signature {
+                sig: celo_bls::Signature::from(q),
+                bytes: OnceCell::new(),
+            }
+        }
+    }
+}
