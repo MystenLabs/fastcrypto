@@ -9,6 +9,7 @@
 //! assert_eq!(Hex::encode("Hello world!"), "48656c6c6f20776f726c6421");
 //! assert_eq!(encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
 //! assert_eq!(Base64::encode("Hello world!"), "SGVsbG8gd29ybGQh");
+//! assert_eq!(Base58::encode("Hello world!"), "2NEpo7TZRhna7vSvL");
 //! ```
 
 use base64ct::Encoding as _;
@@ -162,4 +163,49 @@ pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> Result<T> {
     let s = s.strip_prefix("0x").unwrap_or(s);
     let value = hex::decode(s)?;
     T::try_from(&value[..]).map_err(|_| eyre!("byte deserialization failed"))
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
+#[serde(try_from = "String")]
+pub struct Base58(String);
+
+impl TryFrom<String> for Base58 {
+    type Error = eyre::Report;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        // Make sure the value is valid base58 string.
+        bs58::decode(&value).into_vec()?;
+        Ok(Self(value))
+    }
+}
+
+impl Encoding for Base58 {
+    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
+        bs58::decode(s).into_vec().map_err(|e| eyre::eyre!(e))
+    }
+
+    fn encode<T: AsRef<[u8]>>(data: T) -> String {
+        bs58::encode(data).into_string()
+    }
+}
+
+impl<'de> DeserializeAs<'de, Vec<u8>> for Base58 {
+    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
+    }
+}
+
+impl<T> SerializeAs<T> for Base58
+where
+    T: AsRef<[u8]>,
+{
+    fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Self::encode(value).serialize(serializer)
+    }
 }

@@ -12,6 +12,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 [dependencies]
 ark-bls12-377 = { version = "0.3.0", features = ["std"] }
 base64ct = { version = "1.5.3", features = ["alloc"] }
+bs58 = "0.4.0"
 ed25519-consensus = { version = "2.0.1", features = ["serde"] }
 eyre = "0.6.8"
 hex = "0.4.3"
@@ -87,6 +88,5 @@ faster-hex = "0.6.1"
 rustc-hex = "2.1.0"
 base64 = "0.13.1"
 radix64 = "0.6.2"
-bs58 = "0.4.0"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
