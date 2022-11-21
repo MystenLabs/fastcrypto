@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use p256::ecdsa::Signature;
-#[cfg(feature = "copy_key")]
+//#[cfg(feature = "copy_key")]
 //use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
