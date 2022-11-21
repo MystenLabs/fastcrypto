@@ -442,19 +442,12 @@ impl Secp256r1Signature {
 
 impl zeroize::Zeroize for Secp256r1PrivateKey {
     fn zeroize(&mut self) {
-        // TODO: Zeroize privkey
-        //self.privkey = ExternalSecretKey::new();
         self.bytes.take().zeroize();
+        // SigningKey from the p256 crate implements zeroize on drop, so we do not need to zeroize it here.
     }
 }
 
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
-
-impl Drop for Secp256r1PrivateKey {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
 
 impl zeroize::Zeroize for Secp256r1KeyPair {
     fn zeroize(&mut self) {
