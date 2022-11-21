@@ -76,29 +76,24 @@ fn test_public_key_bytes_conversion() {
     assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
-// #[test]
-// fn test_public_key_recovery() {
-//     let kp = keys().pop().unwrap();
-//     let message: &[u8] = b"Hello, world!";
-//     let signature: Secp256r1Signature = kp.sign(message);
-//     let recovered_key = signature
-//         .recover(Keccak256::digest(message).as_ref())
-//         .unwrap();
-//     assert_eq!(*kp.public(), recovered_key);
-// }
+#[test]
+fn test_public_key_recovery() {
+    let kp = keys().pop().unwrap();
+    let message: &[u8] = b"Hello, world!";
+    let signature: Secp256r1Signature = kp.sign(message);
+    let recovered_key = signature.recover(message).unwrap();
+    assert!(*kp.public() == recovered_key.0 || *kp.public() == recovered_key.1);
+}
 //
 // #[test]
 // fn test_public_key_recovery_error() {
 //     // incorrect length
 //     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
 //
-//     // invalid recovery id at index 65
-//     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
-//
-//     let signature = <Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
+//     let signature = <Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 64]).unwrap();
 //     let message: &[u8] = b"Hello, world!";
 //     assert!(signature
-//         .recover(Keccak256::digest(message).as_ref())
+//         .recover(message)
 //         .is_err());
 //
 //     let kp = keys().pop().unwrap();

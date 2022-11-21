@@ -33,8 +33,16 @@ use p256::ecdsa::SigningKey as ExternalSecretKey;
 use p256::ecdsa::VerifyingKey as ExternalPublicKey;
 use p256::elliptic_curve::group::GroupEncoding;
 
+use crate::hash::HashFunction;
+use crate::hash::Sha256;
+use generic_array::GenericArray;
+use p256::elliptic_curve::ops::{LinearCombination, Reduce};
+use p256::elliptic_curve::subtle::Choice;
+use p256::elliptic_curve::DecompressPoint;
+use p256::{AffinePoint, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
+use std::ops::Neg;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -106,7 +114,13 @@ impl VerifyingKey for Secp256r1PublicKey {
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
-        // TODO: Is there a way to recover the public key and verify that it's the one provided?
+        // TODO: Until we have a recovery id, we recover both candidates for public keys
+        let (pk1, pk2) = signature.recover(msg).unwrap();
+
+        if self.as_ref() != pk1.as_ref() && self.as_ref() != pk2.as_ref() {
+            return Err(signature::Error::new());
+        }
+
         self.pubkey
             .verify(msg, &signature.sig)
             .map_err(|_| signature::Error::new())
@@ -398,18 +412,55 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    // /// Recover public key from signature
-    // pub fn recover(&self, hashed_msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-    //
-    //
-    //     match Message::from_slice(hashed_msg) {
-    //         Ok(message) => match self.sig.recover(&message) {
-    //             Ok(pubkey) => Secp256r1PublicKey::from_bytes(pubkey.serialize().as_slice()),
-    //             Err(_) => Err(FastCryptoError::GeneralError),
-    //         },
-    //         Err(_) => Err(FastCryptoError::InvalidInput),
-    //     }
-    // }
+    /// Recover public key from signature
+    pub fn recover(
+        &self,
+        msg: &[u8],
+    ) -> Result<(Secp256r1PublicKey, Secp256r1PublicKey), FastCryptoError> {
+        let r = self.sig.r();
+        let s = self.sig.s();
+        let z = <Scalar as Reduce<U256>>::from_be_bytes_reduced(GenericArray::from(
+            Sha256::digest(msg).digest,
+        ));
+        let pt = AffinePoint::decompress(&r.to_bytes(), Choice::from(0));
+
+        if pt.is_none().into() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let pt = ProjectivePoint::from(pt.unwrap());
+        let r_inv = r.invert().unwrap();
+        let u1 = -r_inv * z;
+        let u2 = r_inv * *s;
+
+        let pk1 = Secp256r1PublicKey {
+            pubkey: ExternalPublicKey::from_affine(
+                ProjectivePoint::lincomb(&ProjectivePoint::GENERATOR, &u1, &pt, &u2).to_affine(),
+            )
+            .unwrap(),
+            bytes: OnceCell::new(),
+        };
+        let pk2 = Secp256r1PublicKey {
+            pubkey: ExternalPublicKey::from_affine(
+                ProjectivePoint::lincomb(&ProjectivePoint::GENERATOR, &u1, &pt.neg(), &u2)
+                    .to_affine(),
+            )
+            .unwrap(),
+            bytes: OnceCell::new(),
+        };
+
+        Ok((pk1, pk2))
+    }
+
+    pub fn is_pk(&self, pk: &Secp256r1PublicKey, msg: &[u8]) -> bool {
+        let pks = match self.recover(msg) {
+            Ok(p) => p,
+            Err(_) => {
+                return false;
+            }
+        };
+        return pk.as_ref() == pks.0.as_ref() || pk.as_ref() == pks.1.as_ref();
+    }
 }
 
 impl zeroize::Zeroize for Secp256r1PrivateKey {
