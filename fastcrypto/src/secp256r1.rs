@@ -447,6 +447,12 @@ impl zeroize::Zeroize for Secp256r1PrivateKey {
     }
 }
 
+impl Drop for Secp256r1PrivateKey {
+    fn drop(&mut self) {
+        self.bytes.take().zeroize();
+    }
+}
+
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 impl zeroize::Zeroize for Secp256r1KeyPair {
