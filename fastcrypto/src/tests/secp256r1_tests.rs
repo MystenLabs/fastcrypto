@@ -334,7 +334,6 @@ fn test_sk_zeroization_on_drop() {
 
     // Check that self.bytes is zeroized
     let sk_memory: &[u8] = unsafe { std::slice::from_raw_parts(bytes_ptr, SECRET_KEY_SIZE) };
-    // TODO: Bytes not zeroized
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 

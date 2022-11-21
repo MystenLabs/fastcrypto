@@ -41,8 +41,6 @@ use std::{
 };
 use zeroize::Zeroize;
 
-//pub static SECP256R1: Lazy<Secp256r1<All>> = Lazy::new(rust_Secp256r1::Secp256r1::new);
-
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
 pub const SIGNATURE_SIZE: usize = 64;
@@ -52,7 +50,7 @@ pub const SIGNATURE_SIZE: usize = 64;
 #[derive(Debug, Clone)]
 pub struct Secp256r1PublicKey {
     pub pubkey: ExternalPublicKey,
-    pub bytes: OnceCell<[u8; PUBLIC_KEY_SIZE]>, // TODO: Get public key size in crate
+    pub bytes: OnceCell<[u8; PUBLIC_KEY_SIZE]>,
 }
 
 /// Binary representation of an instance of [Secp256r1PublicKey].
@@ -115,33 +113,7 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     }
 }
 
-impl Secp256r1PublicKey {
-    // pub fn verify_hashed(
-    //     &self,
-    //     hashed_msg: &[u8],
-    //     signature: &Secp256r1Signature,
-    // ) -> Result<(), signature::Error> {
-    //     match Message::from_slice(hased_msg) {
-    //         Ok(message) => match signature.sig.recover(&message) {
-    //             Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => {
-    //                 Ok(())
-    //             }
-    //             _ => Err(signature::Error::new()),
-    //         },
-    //         _ => Err(signature::Error::new()),
-    //     }
-    // }
-
-    // /// util function to parse wycheproof test key from DER format.
-    // #[cfg(test)]
-    // pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
-    //     let pubkey = PublicKey::from_bytes(uncompressed).unwrap();
-    //     Self {
-    //         pubkey,
-    //         bytes: OnceCell::new(),
-    //     }
-    // }
-}
+impl Secp256r1PublicKey {}
 
 impl AsRef<[u8]> for Secp256r1PublicKey {
     fn as_ref(&self) -> &[u8] {
