@@ -1002,6 +1002,7 @@ dependencies = [
  "k256",
  "merlin",
  "once_cell",
+ "p256",
  "proptest",
  "radix64",
  "rand",
@@ -1470,6 +1471,17 @@ name = "os_str_bytes"
 version = "6.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5bf27447411e9ee3ff51186bf7a08e16c341efdde93f4d823e8844429bed7e"
+
+[[package]]
+name = "p256"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51f44edd08f51e2ade572f141051021c5af22677e42b7dd28a88155151c33594"
+dependencies = [
+ "ecdsa",
+ "elliptic-curve",
+ "sha2 0.10.6",
+]
 
 [[package]]
 name = "paste"

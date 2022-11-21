@@ -76,6 +76,7 @@ pub mod groups;
 pub mod hash;
 pub mod hmac;
 pub mod secp256k1;
+pub mod secp256r1;
 
 // Other tooling
 pub mod encoding;
