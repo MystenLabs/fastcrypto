@@ -1,22 +1,29 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
+use std::iter::Once;
+
+use once_cell::sync::OnceCell;
+use p256::ecdsa::Signature;
+#[cfg(feature = "copy_key")]
+use proptest::arbitrary::Arbitrary;
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use serde::Deserialize;
+use signature::{Signer, Verifier};
+use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
+use wycheproof::TestResult;
+
 use crate::{
-    hash::{HashFunction, Keccak256, Sha256},
+    hash::{HashFunction, Sha256},
     secp256r1::{
         Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1PublicKeyBytes,
         Secp256r1Signature,
     },
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-#[cfg(feature = "copy_key")]
-use proptest::arbitrary::Arbitrary;
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use signature::{Signer, Verifier};
-use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
-use wycheproof::TestResult;
+
+use super::*;
 
 pub fn keys() -> Vec<Secp256r1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -429,42 +436,33 @@ proptest::proptest! {
     }
 }
 
-// #[test]
-// fn wycheproof_test() {
-//     let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
-//     for test_group in test_set.test_groups {
-//         let pk = Secp256r1PublicKey::from_uncompressed(&test_group.key.key);
-//         for test in test_group.tests {
-//             let bytes = match Signature::from_der(&test.sig) {
-//                 Ok(s) => s.serialize_compact(),
-//                 Err(_) => {
-//                     assert_eq!(test.result, TestResult::Invalid);
-//                     continue;
-//                 }
-//             };
-//
-//             // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
-//             let mut n_bytes = [0u8; 65];
-//             n_bytes[..64].copy_from_slice(&bytes[..]);
-//             let mut res = TestResult::Invalid;
-//
-//             for i in 0..4 {
-//                 n_bytes[64] = i;
-//                 let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
-//                 if pk
-//                     .verify_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
-//                     .is_ok()
-//                 {
-//                     res = TestResult::Valid;
-//                     break;
-//                 } else {
-//                     continue;
-//                 }
-//             }
-//             assert_eq!(map_result(test.result), res);
-//         }
-//     }
-// }
+#[test]
+fn wycheproof_test() {
+    let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
+        for test in test_group.tests {
+            let signature = match &Signature::from_der(&test.sig) {
+                Ok(s) => <Secp256r1Signature as ToFromBytes>::from_bytes(
+                    signature::Signature::as_bytes(s),
+                )
+                .unwrap(),
+                Err(_) => {
+                    assert_eq!(map_result(test.result), TestResult::Invalid);
+                    continue;
+                }
+            };
+
+            let mut res = TestResult::Invalid;
+
+            if pk.verify(test.msg.as_slice(), &signature).is_ok() {
+                res = TestResult::Valid;
+            }
+
+            assert_eq!(map_result(test.result), res);
+        }
+    }
+}
 
 fn map_result(t: TestResult) -> TestResult {
     match t {

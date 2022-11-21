@@ -111,10 +111,8 @@ impl VerifyingKey for Secp256r1PublicKey {
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
         // TODO: Is there a way to recover the public key and verify that it's the one provided?
-        // TODO: Should we hash the message here or leave that to the user? In secp256k1 we hash.
-        let message = Sha256::digest(msg);
         self.pubkey
-            .verify(message.digest.as_ref(), &signature.sig)
+            .verify(msg, &signature.sig)
             .map_err(|_| signature::Error::new())
     }
 }
@@ -401,9 +399,8 @@ impl FromStr for Secp256r1KeyPair {
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
-        let message = Sha256::digest(msg);
         Ok(Secp256r1Signature {
-            sig: self.secret.privkey.sign(message.digest.as_ref()),
+            sig: self.secret.privkey.sign(msg),
             bytes: OnceCell::new(),
         })
     }
