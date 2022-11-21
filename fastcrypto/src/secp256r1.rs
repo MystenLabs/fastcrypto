@@ -44,7 +44,7 @@ use zeroize::Zeroize;
 
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
-pub const SIGNATURE_SIZE: usize = 65;
+pub const SIGNATURE_SIZE: usize = 64;
 
 /// Secp256r1 public key.
 #[readonly::make]
@@ -65,15 +65,12 @@ pub struct Secp256r1PrivateKey {
     pub bytes: OnceCell<[u8; PRIVATE_KEY_SIZE]>,
 }
 
-/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
-pub const RECOVERABLE_SIGNATURE_SIZE: usize = SIGNATURE_SIZE + 1;
-
 /// Secp256r1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
-    pub bytes: OnceCell<[u8; RECOVERABLE_SIGNATURE_SIZE]>,
+    pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -123,7 +120,7 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
 impl Secp256r1PublicKey {
     // pub fn verify_hashed(
     //     &self,
-    //     hased_msg: &[u8],
+    //     hashed_msg: &[u8],
     //     signature: &Secp256r1Signature,
     // ) -> Result<(), signature::Error> {
     //     match Message::from_slice(hased_msg) {
@@ -137,15 +134,15 @@ impl Secp256r1PublicKey {
     //     }
     // }
 
-    /// util function to parse wycheproof test key from DER format.
-    #[cfg(test)]
-    pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
-        let pubkey = PublicKey::from_slice(uncompressed).unwrap();
-        Self {
-            pubkey,
-            bytes: OnceCell::new(),
-        }
-    }
+    // /// util function to parse wycheproof test key from DER format.
+    // #[cfg(test)]
+    // pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
+    //     let pubkey = PublicKey::from_bytes(uncompressed).unwrap();
+    //     Self {
+    //         pubkey,
+    //         bytes: OnceCell::new(),
+    //     }
+    // }
 }
 
 impl AsRef<[u8]> for Secp256r1PublicKey {
@@ -293,13 +290,14 @@ impl Signature for Secp256r1Signature {
 impl Authenticator for Secp256r1Signature {
     type PubKey = Secp256r1PublicKey;
     type PrivKey = Secp256r1PrivateKey;
-    const LENGTH: usize = RECOVERABLE_SIGNATURE_SIZE;
+    const LENGTH: usize = SIGNATURE_SIZE;
 }
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
+        let bytes = self.sig.as_ref();
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.as_ref().try_into().unwrap()))
+            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes.try_into().unwrap()))
             .expect("OnceCell invariant violated")
     }
 }
@@ -326,7 +324,7 @@ impl Display for Secp256r1Signature {
 
 impl Default for Secp256r1Signature {
     fn default() -> Self {
-        <Secp256r1Signature as Signature>::from_bytes(&[1u8; RECOVERABLE_SIGNATURE_SIZE]).unwrap()
+        <Secp256r1Signature as Signature>::from_bytes(&[1u8; 64]).unwrap()
     }
 }
 
