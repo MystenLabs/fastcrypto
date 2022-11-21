@@ -115,7 +115,9 @@ impl VerifyingKey for Secp256r1PublicKey {
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
         // TODO: Until we have a recovery id, we recover both candidates for public keys
-        let (pk1, pk2) = signature.recover(msg).unwrap();
+        let (pk1, pk2) = signature
+            .recover(msg)
+            .map_err(|_| signature::Error::new())?;
 
         if self.as_ref() != pk1.as_ref() && self.as_ref() != pk2.as_ref() {
             return Err(signature::Error::new());
