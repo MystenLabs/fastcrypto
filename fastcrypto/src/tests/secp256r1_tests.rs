@@ -1,15 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::iter::Once;
-
-use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature;
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use serde::Deserialize;
+
 use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;

@@ -16,8 +16,6 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -29,12 +27,12 @@ use crate::{
     },
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature as ExternalSignature;
 use p256::ecdsa::SigningKey as ExternalSecretKey;
 use p256::ecdsa::VerifyingKey as ExternalPublicKey;
 use p256::elliptic_curve::group::GroupEncoding;
-use p256::{AffinePoint, PublicKey};
+
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
 use std::{
