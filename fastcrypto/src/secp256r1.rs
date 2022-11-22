@@ -413,18 +413,26 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Recover public key(s) from signature. Between 0 and 4 potential public keys,
+    /// Recover public key(s) from signature. Either 2 or 4 potential public keys,
     /// which could be the corresponding public key for the signature are returned.
     /// This is based on section 4.1.6 in https://www.secg.org/sec1-v2.pdf.
+    ///
+    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Vec<Secp256r1PublicKey>, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
         let r_plus_n = U256::from(r.as_ref()).wrapping_add(&NistP256::ORDER);
 
         // Find points with r or r+n as x-coordinate.
-        let pts = vec![
+        let mut pts = vec![
             AffinePoint::decompact(&r.to_bytes()),
             AffinePoint::decompact(&r_plus_n.to_be_byte_array()),
         ];
+
+        // Only keep valid points and return err if there a no such points
+        pts.retain(|pt| pt.is_some().into());
+        if pts.is_empty() {
+            return Err(FastCryptoError::GeneralError);
+        }
 
         // Hash of the message.
         let e = <Scalar as Reduce<U256>>::from_be_bytes_reduced(GenericArray::from(
@@ -436,10 +444,6 @@ impl Secp256r1Signature {
         let g_term = ProjectivePoint::GENERATOR * -r_inv * e;
         let mut candidates: Vec<Secp256r1PublicKey> = Vec::new();
         for affine_pt in pts {
-            if affine_pt.is_none().into() {
-                continue;
-            }
-
             let r_term = ProjectivePoint::from(affine_pt.unwrap()) * r_inv * *s;
             candidates.push(Secp256r1PublicKey {
                 pubkey: ExternalPublicKey::from_affine((g_term + r_term).to_affine()).unwrap(),
