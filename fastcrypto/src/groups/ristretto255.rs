@@ -5,6 +5,10 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use curve25519_dalek_ng;
+use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
+use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
+use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
+use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
@@ -21,14 +25,14 @@ impl Ristretto255 {
     /// Returns the base point of the Ristretto group.
     pub fn base_point() -> RistrettoPoint {
         RistrettoPoint {
-            point: curve25519_dalek_ng::constants::RISTRETTO_BASEPOINT_POINT,
+            point: RISTRETTO_BASEPOINT_POINT,
             bytes: OnceCell::new(),
         }
     }
 
     /// The order of the base point.
     pub fn base_point_order() -> RistrettoScalar {
-        RistrettoScalar(curve25519_dalek_ng::constants::BASEPOINT_ORDER)
+        RistrettoScalar(BASEPOINT_ORDER)
     }
 }
 
@@ -38,7 +42,7 @@ impl AdditiveGroup for Ristretto255 {
 
     fn identity() -> RistrettoPoint {
         RistrettoPoint {
-            point: curve25519_dalek_ng::ristretto::RistrettoPoint::identity(),
+            point: ExternalRistrettoPoint::identity(),
             bytes: OnceCell::new(),
         }
     }
@@ -67,12 +71,12 @@ impl AdditiveGroup for Ristretto255 {
 
 /// Represents a scalar.
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct RistrettoScalar(curve25519_dalek_ng::scalar::Scalar);
+pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
     /// Attempt to create a new scalar from the given bytes in canonical representation.
     pub fn from_canonical_bytes(bytes: [u8; 32]) -> Result<RistrettoScalar, FastCryptoError> {
-        curve25519_dalek_ng::scalar::Scalar::from_canonical_bytes(bytes)
+        ExternalRistrettoScalar::from_canonical_bytes(bytes)
             .map_or(Err(FastCryptoError::InvalidInput), |r| {
                 Ok(RistrettoScalar(r))
             })
@@ -80,20 +84,20 @@ impl RistrettoScalar {
 
     /// Create a scalar from the low 255 bits of the given 256-bit integer.
     pub fn from_bits(value: [u8; 32]) -> RistrettoScalar {
-        RistrettoScalar(curve25519_dalek_ng::scalar::Scalar::from_bits(value))
+        RistrettoScalar(ExternalRistrettoScalar::from_bits(value))
     }
 }
 
 impl From<u64> for RistrettoScalar {
     fn from(value: u64) -> RistrettoScalar {
-        RistrettoScalar(curve25519_dalek_ng::scalar::Scalar::from(value))
+        RistrettoScalar(ExternalRistrettoScalar::from(value))
     }
 }
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Debug)]
 pub struct RistrettoPoint {
-    point: curve25519_dalek_ng::ristretto::RistrettoPoint,
+    point: ExternalRistrettoPoint,
     bytes: OnceCell<[u8; 32]>,
 }
 
@@ -103,7 +107,7 @@ impl RistrettoPoint {
     /// distributed over the Ristretto group.
     pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
         RistrettoPoint {
-            point: curve25519_dalek_ng::ristretto::RistrettoPoint::from_uniform_bytes(bytes),
+            point: ExternalRistrettoPoint::from_uniform_bytes(bytes),
             bytes: OnceCell::new(),
         }
     }
@@ -125,7 +129,7 @@ impl ToFromBytes for RistrettoPoint {
         if bytes.len() != 32 {
             return Err(FastCryptoError::InputLengthWrong(32));
         }
-        let point = curve25519_dalek_ng::ristretto::CompressedRistretto::from_slice(bytes);
+        let point = ExternalCompressedRistrettoPoint::from_slice(bytes);
         let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
 
         Ok(RistrettoPoint {
