@@ -81,8 +81,8 @@ fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
     let signature: Secp256r1Signature = kp.sign(message);
-    let recovered_key = signature.recover(message).unwrap();
-    assert!(*kp.public() == recovered_key.0 || *kp.public() == recovered_key.1);
+    let recovered_keys = signature.recover(message).unwrap();
+    assert!(recovered_keys.contains(kp.public()));
 }
 //
 // #[test]
@@ -420,7 +420,7 @@ fn wycheproof_test() {
                 res = TestResult::Valid;
             }
 
-            assert_eq!(map_result(test.result), res);
+            assert_eq!(map_result(test.result), res, "{}", test.comment);
         }
     }
 }
