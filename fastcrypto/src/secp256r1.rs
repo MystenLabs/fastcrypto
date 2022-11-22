@@ -419,6 +419,9 @@ impl Secp256r1Signature {
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Vec<Secp256r1PublicKey>, FastCryptoError> {
+        // This implementation is based on recover_verifying_key_from_digest_bytes in the p256 crate,
+        // but also handles the case the the x-coordinate is larger than the group order.
+
         let (r, s) = self.sig.split_scalars();
         let r_plus_n = U256::from(r.as_ref()).wrapping_add(&NistP256::ORDER);
 
