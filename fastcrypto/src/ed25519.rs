@@ -16,7 +16,6 @@
 
 use crate::{encoding::Encoding, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
-use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use serde::{
@@ -114,14 +113,12 @@ impl VerifyingKey for Ed25519PublicKey {
         msg: &[u8],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report> {
+    ) -> Result<(), FastCryptoError> {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(FastCryptoError::InvalidInput);
         }
         if sigs.len() != pks.len() {
-            return Err(eyre!(
-                "Mismatch between number of signatures and public keys provided"
-            ));
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let mut batch = batch::Verifier::new();
@@ -132,24 +129,22 @@ impl VerifyingKey for Ed25519PublicKey {
         }
         batch
             .verify(OsRng)
-            .map_err(|_| eyre!("Signature verification failed"))
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 
     fn verify_batch_empty_fail_different_msg<'a, M>(
         msgs: &[M],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report>
+    ) -> Result<(), FastCryptoError>
     where
         M: Borrow<[u8]> + 'a,
     {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(FastCryptoError::InvalidInput);
         }
         if pks.len() != sigs.len() || pks.len() != msgs.len() {
-            return Err(eyre!(
-                "Mismatch between number of messages, signatures and public keys provided"
-            ));
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let mut batch = batch::Verifier::new();
@@ -160,7 +155,7 @@ impl VerifyingKey for Ed25519PublicKey {
         }
         batch
             .verify(OsRng)
-            .map_err(|_| eyre!("Signature verification failed"))
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 }
 

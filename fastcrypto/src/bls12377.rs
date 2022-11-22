@@ -35,12 +35,12 @@ use ark_ff::{
     One, Zero,
 };
 use celo_bls::{hash_to_curve::try_and_increment, HashToCurve, PublicKey};
-use eyre::eyre;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
 use serde_with::serde_as;
 use signature::{Signer, Verifier};
 
+use crate::error::FastCryptoError;
 use crate::traits::{Authenticator, KeyPair, SigningKey, VerifyingKey};
 use serde_with::{DeserializeAs, SerializeAs};
 use zeroize::Zeroize;
@@ -362,14 +362,12 @@ impl VerifyingKey for BLS12377PublicKey {
         msg: &[u8],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report> {
+    ) -> Result<(), FastCryptoError> {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behavious can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(FastCryptoError::InvalidInput);
         }
         if sigs.len() != pks.len() {
-            return Err(eyre!(
-                "Mismatch between number of signatures and public keys provided"
-            ));
+            return Err(FastCryptoError::InvalidInput);
         }
         let mut batch = celo_bls::bls::Batch::new(msg, &[]);
         pks.iter()
@@ -378,7 +376,7 @@ impl VerifyingKey for BLS12377PublicKey {
         let hash_to_g1 = &*try_and_increment::COMPOSITE_HASH_TO_G1;
         batch
             .verify(hash_to_g1)
-            .map_err(|_| eyre!("Signature verification failed"))
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 }
 

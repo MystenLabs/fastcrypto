@@ -1,7 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use eyre::eyre;
 
 use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
@@ -119,17 +118,17 @@ pub trait VerifyingKey:
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &public_keys, &signatures).is_ok());
     /// ``` 
-    fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> {
+    fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), FastCryptoError> {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(FastCryptoError::InvalidInput);
         }
         if pks.len() != sigs.len() {
-            return Err(eyre!("Mismatch between number of signatures and public keys provided"));
+            return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
             .zip(sigs)
             .try_for_each(|(pk, sig)| pk.verify(msg, sig))
-            .map_err(|_| eyre!("Signature verification failed"))
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 
     // Expected to be overridden by implementations
@@ -153,18 +152,18 @@ pub trait VerifyingKey:
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&messages, &public_keys, &signatures).is_ok());
     /// ``` 
-    fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where M: Borrow<[u8]> + 'a {
+    fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), FastCryptoError> where M: Borrow<[u8]> + 'a {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            return Err(FastCryptoError::InvalidInput);
         }
         if pks.len() != sigs.len() || pks.len() != msgs.len() {
-            return Err(eyre!("Mismatch between number of messages, signatures and public keys provided"));
+            return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
             .zip(sigs)
             .zip(msgs)
             .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
-            .map_err(|_| eyre!("Signature verification failed"))
+            .map_err(|_| FastCryptoError::GeneralError)
     }
 }
 
