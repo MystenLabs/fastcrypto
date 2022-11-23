@@ -37,7 +37,6 @@ use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
-use p256::elliptic_curve::group::prime::PrimeCurveAffine;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::{Curve, DecompactPoint};
 use p256::{AffinePoint, NistP256, ProjectivePoint, Scalar, U256};
@@ -144,7 +143,11 @@ impl ToFromBytes for Secp256r1PublicKey {
         match ExternalPublicKey::try_from(bytes) {
             Ok(pubkey) => Ok(Secp256r1PublicKey {
                 pubkey,
-                bytes: OnceCell::new(),
+                // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
+                bytes: match <[u8; PUBLIC_KEY_SIZE]>::try_from(bytes) {
+                    Ok(result) => OnceCell::with_value(result),
+                    Err(_) => OnceCell::new(),
+                },
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
@@ -208,7 +211,7 @@ impl ToFromBytes for Secp256r1PrivateKey {
         match ExternalSecretKey::try_from(bytes) {
             Ok(privkey) => Ok(Secp256r1PrivateKey {
                 privkey,
-                bytes: OnceCell::new(),
+                bytes: OnceCell::with_value(<[u8; 32]>::try_from(bytes).unwrap()),
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
@@ -270,7 +273,11 @@ impl Signature for Secp256r1Signature {
         match <ExternalSignature as Signature>::from_bytes(bytes) {
             Ok(sig) => Ok(Secp256r1Signature {
                 sig,
-                bytes: OnceCell::new(),
+                // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
+                bytes: match <[u8; SIGNATURE_SIZE]>::try_from(bytes) {
+                    Ok(result) => OnceCell::with_value(result),
+                    Err(_) => OnceCell::new(),
+                },
             }),
             Err(_) => Err(signature::Error::new()),
         }
