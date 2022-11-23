@@ -991,6 +991,7 @@ dependencies = [
  "curve25519-dalek-ng",
  "derive_more",
  "digest 0.10.5",
+ "ecdsa",
  "ed25519-consensus",
  "eyre",
  "fastcrypto-derive",

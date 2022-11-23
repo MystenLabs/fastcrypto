@@ -35,10 +35,11 @@ use p256::elliptic_curve::group::GroupEncoding;
 
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
+use ecdsa::hazmat::SignPrimitive;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::{Curve, DecompactPoint, Field};
+use p256::elliptic_curve::{Curve, DecompactPoint};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
@@ -401,8 +402,14 @@ impl FromStr for Secp256r1KeyPair {
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
+        let digest = Sha256::digest(msg);
+        let sig = self
+            .secret
+            .privkey
+            .as_nonzero_scalar()
+            .try_sign_prehashed_rfc6979::<sha2::Sha256>(FieldBytes::from(digest.digest), &[])?;
         Ok(Secp256r1Signature {
-            sig: self.secret.privkey.sign(msg),
+            sig: sig.0,
             bytes: OnceCell::new(),
         })
     }

@@ -37,6 +37,7 @@ typenum = "1.15.0"
 auto_ops = "0.3.0"
 derive_more = "0.99.16"
 p256 = { version = "0.11.1", features = ["ecdsa"] }
+ecdsa = "0.14.8"
 blake2 = "0.10.5"
 blake3 = "1.3.3"
 blst = "0.3.10"

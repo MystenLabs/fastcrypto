@@ -1,9 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature;
-use p256::{AffinePoint, Scalar};
+use p256::AffinePoint;
 //#[cfg(feature = "copy_key")]
 //use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
