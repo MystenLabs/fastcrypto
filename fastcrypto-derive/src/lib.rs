@@ -46,3 +46,17 @@ pub fn silent_debug(source: TokenStream) -> TokenStream {
     };
     gen.into()
 }
+
+/// Overload group operations for a struct implementing [AdditiveGroupElement].
+#[proc_macro_derive(GroupOps)]
+pub fn group_ops(source: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
+    let name = &ast.ident;
+    let gen = quote! {
+        impl_op_ex!(+ |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::add(a, b) });
+        impl_op_ex!(- |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::sub(a, b) });
+        impl_op_ex!(* |a: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(a, b) });
+        impl_op_ex!(- |a: &#name| -> #name { <#name as AdditiveGroupElement>::Group::neg(a) });
+    };
+    gen.into()
+}

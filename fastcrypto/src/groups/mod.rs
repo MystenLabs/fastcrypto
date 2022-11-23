@@ -4,30 +4,15 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-/// Impl operator overload for the elements of a given group for all combinations of owned and borrowed
-/// values.
-/// * `scalar` -  Type of scalars. Should be equal to group::Scalar.
-/// * `element` - Type of elements. Should be equal to group::Element.
-/// * `group` - Type of group.
-#[macro_export]
-macro_rules! impl_group {
-    ($scalar:ident, $element:ident, $group:ident) => {
-        impl_op_ex!(+ |a: &$element, b: &$element| -> $element { $group::add(a, b) });
-        impl_op_ex!(- |a: &$element, b: &$element| -> $element { $group::sub(a, b) });
-        impl_op_ex!(* |a: &$scalar, b: &$element| -> $element { $group::mul(a, b) });
-        impl_op_ex!(- |a: &$element| -> $element { $group::neg(a) });
-    };
-}
-
 pub mod ristretto255;
+
+pub trait AdditiveGroupElement: PartialEq + Eq + Serialize + DeserializeOwned {
+    type Group: AdditiveGroup<Element = Self>;
+}
 
 /// Trait impl'd by additive groups.
 pub trait AdditiveGroup {
-    /// Type representing elements of this group.
-    type Element: PartialEq + Eq + Serialize + DeserializeOwned;
-
-    /// Type representing scalars for this group, e.g. integers modulo the group order.
-    /// These are used for scalar multiplication of [Self::Element]s.
+    type Element: AdditiveGroupElement<Group = Self>;
     type Scalar: From<u64> + Eq + PartialEq + Serialize + DeserializeOwned;
 
     /// Return an instance of the identity element in this group.

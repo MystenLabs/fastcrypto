@@ -10,9 +10,11 @@ use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRis
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
+use fastcrypto_derive::GroupOps;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
 
+use crate::groups::AdditiveGroupElement;
 use crate::{
     error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,
 };
@@ -95,7 +97,7 @@ impl From<u64> for RistrettoScalar {
 }
 
 /// Represents a point in the Ristretto group for Curve25519.
-#[derive(Debug)]
+#[derive(Debug, GroupOps)]
 pub struct RistrettoPoint {
     point: ExternalRistrettoPoint,
     bytes: OnceCell<[u8; 32]>,
@@ -179,4 +181,6 @@ impl Ord for RistrettoPoint {
     }
 }
 
-impl_group!(RistrettoScalar, RistrettoPoint, Ristretto255);
+impl AdditiveGroupElement for RistrettoPoint {
+    type Group = Ristretto255;
+}
