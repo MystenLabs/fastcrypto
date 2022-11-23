@@ -37,6 +37,7 @@ use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
+use p256::elliptic_curve::group::prime::PrimeCurveAffine;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::{Curve, DecompactPoint};
 use p256::{AffinePoint, NistP256, ProjectivePoint, Scalar, U256};
@@ -152,7 +153,11 @@ impl ToFromBytes for Secp256r1PublicKey {
 
 impl Default for Secp256r1PublicKey {
     fn default() -> Self {
-        Secp256r1PublicKey::from_bytes(&[0u8; PUBLIC_KEY_SIZE]).unwrap()
+        // Default public key is just the generator for the group
+        Secp256r1PublicKey {
+            pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
+            bytes: OnceCell::new(),
+        }
     }
 }
 

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use p256::ecdsa::Signature;
+use p256::AffinePoint;
 //#[cfg(feature = "copy_key")]
 //use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
@@ -296,6 +297,12 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+}
+
+#[test]
+fn test_default_values() {
+    let pt = Secp256r1PublicKey::default();
+    assert_eq!(pt.pubkey.as_affine(), &AffinePoint::GENERATOR);
 }
 
 #[test]
