@@ -1,8 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature;
-use p256::AffinePoint;
+use p256::{AffinePoint, Scalar};
 //#[cfg(feature = "copy_key")]
 //use proptest::arbitrary::Arbitrary;
 use rand::{rngs::StdRng, SeedableRng as _};
@@ -12,6 +13,7 @@ use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use crate::secp256r1::SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{
@@ -85,22 +87,19 @@ fn test_public_key_recovery() {
     let recovered_keys = signature.recover(message).unwrap();
     assert!(recovered_keys.contains(kp.public()));
 }
-//
-// #[test]
-// fn test_public_key_recovery_error() {
-//     // incorrect length
-//     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
-//
-//     let signature = <Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 64]).unwrap();
-//     let message: &[u8] = b"Hello, world!";
-//     assert!(signature
-//         .recover(message)
-//         .is_err());
-//
-//     let kp = keys().pop().unwrap();
-//     let signature_2: Secp256r1Signature = kp.sign(message);
-//     assert!(signature_2.recover(message).is_err());
-// }
+
+#[test]
+fn test_public_key_recovery_error() {
+    // incorrect length
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
+
+    // TODO: Uncomment when recovery byte is added
+    // invalid recovery id at index 65
+    // assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
+
+    // Invalid signature: Zeros in signatures are not allowed
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err());
+}
 
 #[test]
 fn import_export_secret_key() {

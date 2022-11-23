@@ -38,8 +38,8 @@ use crate::hash::Sha256;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::{Curve, DecompactPoint};
-use p256::{AffinePoint, NistP256, ProjectivePoint, Scalar, U256};
+use p256::elliptic_curve::{Curve, DecompactPoint, Field};
+use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
 use std::{
@@ -321,7 +321,12 @@ impl Display for Secp256r1Signature {
 
 impl Default for Secp256r1Signature {
     fn default() -> Self {
-        <Secp256r1Signature as Signature>::from_bytes(&[1u8; 64]).unwrap()
+        // Return the signature (1,1)
+        Secp256r1Signature {
+            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
+                .unwrap(),
+            bytes: OnceCell::new(),
+        }
     }
 }
 
