@@ -66,6 +66,8 @@ pub mod encoding_tests;
 #[path = "tests/mskr_tests.rs"]
 pub mod mskr_tests;
 
+pub mod groups;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
