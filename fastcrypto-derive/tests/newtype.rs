@@ -1,10 +1,24 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use core::ops::{Add, AddAssign, Neg, Sub, SubAssign};
-use fastcrypto_derive::{AddAssignSelfRef, AddSelfRef, NegSelf, SubAssignSelfRef, SubSelfRef};
+use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use fastcrypto_derive::{
+    AddAssignSelfRef, AddSelfRef, MulAssignSelfRef, MulSelfRef, NegSelf, SubAssignSelfRef,
+    SubSelfRef,
+};
 
-#[derive(AddSelfRef, AddAssignSelfRef, SubSelfRef, SubAssignSelfRef, NegSelf)]
+#[derive(
+    AddSelfRef,
+    AddAssignSelfRef,
+    SubSelfRef,
+    SubAssignSelfRef,
+    NegSelf,
+    MulSelfRef,
+    MulAssignSelfRef,
+)]
+#[ScalarType = "Bar"]
 struct Foo(i64);
+
+struct Bar(i64);
 
 #[test]
 fn test_add_self_ref() {
@@ -55,4 +69,26 @@ fn test_neg_self() {
     let foo1 = Foo(3);
 
     assert_eq!((foo1.neg()).0, -3);
+}
+
+#[test]
+fn test_mul_self_ref() {
+    let foo1 = Foo(1);
+    let foo2 = Bar(2);
+    let foo3 = Foo(3);
+
+    assert_eq!(foo1.mul(&foo2).0, 2);
+    assert_eq!(foo3.mul(foo2).0, 6);
+}
+
+#[test]
+fn test_mul_assign_self_ref() {
+    let mut foo1 = Foo(3);
+    let foo2 = Bar(2);
+    let mut foo3 = Foo(5);
+
+    foo1.mul_assign(&foo2);
+    assert_eq!(foo1.0, 6);
+    foo3.mul_assign(foo2);
+    assert_eq!(foo3.0, 10);
 }

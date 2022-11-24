@@ -197,3 +197,105 @@ pub fn derive_neg_self_newtype(input: TokenStream) -> TokenStream {
     )
     .into()
 }
+
+fn get_type_from_attrs(attrs: &[syn::Attribute], attr_name: &str) -> syn::Result<syn::LitStr> {
+    attrs
+        .iter()
+        .find(|attr| attr.path.is_ident(attr_name))
+        .map_or_else(
+            || {
+                Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!("Could not find attribute {}", attr_name),
+                ))
+            },
+            |attr| match attr.parse_meta()? {
+                syn::Meta::NameValue(meta) => {
+                    if let syn::Lit::Str(lit) = &meta.lit {
+                        Ok(lit.clone())
+                    } else {
+                        Err(syn::Error::new_spanned(
+                            meta,
+                            &format!("Could not parse {} attribute", attr_name)[..],
+                        ))
+                    }
+                }
+                bad => Err(syn::Error::new_spanned(
+                    bad,
+                    &format!("Could not parse {} attribute", attr_name)[..],
+                )),
+            },
+        )
+}
+
+/// Mul<&Foo>, Mul<Foo> for a NewType which inner type has a Mul<&Bar> for Self
+/// where Foo is also a NewType and Bar is the inner type of Foo
+#[proc_macro_derive(MulSelfRef, attributes(ScalarType))]
+pub fn derive_mul_self_ref_newtype(input: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(input as DeriveInput);
+    let name = &item.ident;
+
+    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+
+    let scalar_type = get_type_from_attrs(&item.attrs, "ScalarType").unwrap();
+    let param: syn::Type = scalar_type.parse().unwrap();
+
+    quote!(
+        #[automatically_derived]
+        impl #impl_generics ::core::ops::Mul<& #param> for #name #ty_generics #where_clause
+        {
+            type Output = Self;
+
+            #[inline]
+            fn mul(self, other: & #param) -> Self::Output {
+                Self(self.0 * &other.0)
+            }
+        }
+
+        #[automatically_derived]
+        impl <#impl_generics> ::core::ops::Mul<#param> for #name #ty_generics #where_clause
+        {
+            type Output = Self;
+
+            #[inline]
+            fn mul(self, other: #param) -> Self::Output {
+                Self(self.0 * &other.0)
+            }
+        }
+    )
+    .into()
+}
+
+/// MulAssign<&Foo>, MulAssign<Foo> for a NewType which inner type has a MulAssign<&Bar> for Self
+/// where Foo is also a NewType and Bar is the inner type of Foo
+#[proc_macro_derive(MulAssignSelfRef, attributes(ScalarType))]
+pub fn derive_mul_assign_self_ref_newtype(input: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(input as DeriveInput);
+    let name = &item.ident;
+
+    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+
+    let scalar_type = get_type_from_attrs(&item.attrs, "ScalarType").unwrap();
+    let param: syn::Type = scalar_type.parse().unwrap();
+
+    quote!(
+        #[automatically_derived]
+        impl #impl_generics ::core::ops::MulAssign<& #param> for #name #ty_generics #where_clause
+        {
+            #[inline]
+            fn mul_assign(&mut self, other: & #param) {
+                self.0 *= &other.0
+            }
+        }
+
+        #[automatically_derived]
+        impl #impl_generics ::core::ops::MulAssign<#param> for #name #ty_generics #where_clause
+        {
+            #[inline]
+            fn mul_assign(&mut self, other: #param) {
+                self.0 *= &other.0
+            }
+        }
+    )
+    .into()
+}
