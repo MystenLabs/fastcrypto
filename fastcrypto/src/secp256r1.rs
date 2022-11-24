@@ -51,6 +51,8 @@ use std::{
     str::FromStr,
 };
 use zeroize::Zeroize;
+use p256::elliptic_curve::IsHigh;
+use p256::elliptic_curve::sec1::ToEncodedPoint;
 
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
@@ -81,7 +83,7 @@ pub struct Secp256r1PrivateKey {
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
     pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
-    pub recoveryId: u8,
+    pub recovery_id: u8,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -283,7 +285,7 @@ impl Signature for Secp256r1Signature {
                     Ok(result) => OnceCell::with_value(result),
                     Err(_) => OnceCell::new(),
                 },
-                recoveryId: 0u8,
+                recovery_id: 0u8,
             }),
             Err(_) => Err(signature::Error::new()),
         }
@@ -332,7 +334,7 @@ impl Default for Secp256r1Signature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
             bytes: OnceCell::new(),
-            recoveryId: 0u8,
+            recovery_id: 0u8,
         }
     }
 }
@@ -440,11 +442,20 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
             return Err(signature::Error::new());
         }
 
-        let sig = ExternalSignature::from_scalars(r, s)?;
+        let mut sig = ExternalSignature::from_scalars(r, s)?;
+
+        // Note: We have added the normalization and computation of recovery id
+        sig = sig.normalize_s().unwrap_or(sig);
+
+        // The least significant byte is the last in SEC.1 encoding (see section 2.3.7 in https://www.secg.org/sec1-v2.pdf)
+        let y_odd = big_r.to_encoded_point(false).y().unwrap()[31] & 1 == 1;
+        let x_high = x.is_high().into();
+        let v = RecoveryId::new(y_odd, x_high);
+
         Ok(Secp256r1Signature {
             sig,
             bytes: OnceCell::new(),
-            recoveryId: 0u8,
+            recovery_id: v.to_byte(),
         })
     }
 }
