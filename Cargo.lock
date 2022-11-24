@@ -1008,6 +1008,7 @@ dependencies = [
  "radix64",
  "rand",
  "readonly",
+ "rfc6979",
  "rust-base58",
  "rustc-hex",
  "schemars",

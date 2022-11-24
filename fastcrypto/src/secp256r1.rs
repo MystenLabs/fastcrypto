@@ -35,14 +35,16 @@ use p256::elliptic_curve::group::GroupEncoding;
 
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
-use ecdsa::hazmat::SignPrimitive;
+use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
+use ecdsa::elliptic_curve::ScalarCore;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::{Curve, DecompactPoint};
+use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompactPoint, Field};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
+use std::borrow::Borrow;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -402,14 +404,41 @@ impl FromStr for Secp256r1KeyPair {
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
-        let digest = Sha256::digest(msg);
-        let sig = self
-            .secret
-            .privkey
-            .as_nonzero_scalar()
-            .try_sign_prehashed_rfc6979::<sha2::Sha256>(FieldBytes::from(digest.digest), &[])?;
+        // Code copied from hazmat.rs in the ecdsa crate version 0.14.8 (rev = 1ecc6299db9ec823)
+
+        let z = FieldBytes::from(Sha256::digest(msg).digest);
+        let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
+        let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
+        let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
+
+        if k.borrow().is_zero().into() {
+            return Err(signature::Error::new());
+        }
+
+        let z = Scalar::from_be_bytes_reduced(z);
+
+        // Compute scalar inversion of 𝑘
+        let k_inv = Option::<Scalar>::from(k.invert()).ok_or_else(signature::Error::new)?;
+
+        // Compute 𝑹 = 𝑘×𝑮
+        let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
+
+        // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
+        // integer, then reduce it into an element of the scalar field
+        let r = Scalar::from_be_bytes_reduced(big_r.x());
+
+        let x = Scalar::from_be_bytes_reduced(x.to_be_byte_array());
+
+        // Compute 𝒔 as a signature over 𝒓 and 𝒛.
+        let s = k_inv * (z + (r * x));
+
+        if s.is_zero().into() {
+            return Err(signature::Error::new());
+        }
+
+        let sig = ExternalSignature::from_scalars(r, s)?;
         Ok(Secp256r1Signature {
-            sig: sig.0,
+            sig,
             bytes: OnceCell::new(),
         })
     }
