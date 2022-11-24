@@ -3,7 +3,7 @@
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use fastcrypto_derive::{
     AddAssignSelfRef, AddSelfRef, MulAssignSelfRef, MulSelfRef, NegSelf, SubAssignSelfRef,
-    SubSelfRef,
+    SubSelfRef, SumSelfRef,
 };
 
 #[derive(
@@ -14,6 +14,7 @@ use fastcrypto_derive::{
     NegSelf,
     MulSelfRef,
     MulAssignSelfRef,
+    SumSelfRef,
 )]
 #[ScalarType = "Bar"]
 struct Foo(i64);
@@ -91,4 +92,13 @@ fn test_mul_assign_self_ref() {
     assert_eq!(foo1.0, 6);
     foo3.mul_assign(foo2);
     assert_eq!(foo3.0, 10);
+}
+
+#[test]
+fn test_sum_self_ref() {
+    let foo1 = Foo(1);
+    let foo2 = Foo(2);
+    let foo3 = Foo(3);
+
+    assert_eq!(vec![foo1, foo2, foo3].iter().sum::<Foo>().0, 6);
 }

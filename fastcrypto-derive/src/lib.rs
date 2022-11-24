@@ -9,7 +9,7 @@
 
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, DeriveInput};
+use syn::{parse_macro_input, parse_quote, DeriveInput};
 
 /// Derive the `SilentDisplay` trait, which is an implementation of `Display` that does not print the contents of the struct.
 /// This is useful for structs that contain sensitive data, such as private keys.
@@ -294,6 +294,41 @@ pub fn derive_mul_assign_self_ref_newtype(input: TokenStream) -> TokenStream {
             #[inline]
             fn mul_assign(&mut self, other: #param) {
                 self.0 *= &other.0
+            }
+        }
+    )
+    .into()
+}
+
+/// Sum<&Self>, Sum<Self> for a NewType which inner type has a Sum<&Self> for Self
+#[proc_macro_derive(SumSelfRef)]
+pub fn derive_sum_self_ref_newtype(input: TokenStream) -> TokenStream {
+    let item = parse_macro_input!(input as DeriveInput);
+    let name = &item.ident;
+
+    // We'll need an additional parameter for Sum<&'a Self>
+    let mut generics = item.generics.clone();
+    generics.params.push(parse_quote!('_a));
+    let (ref_impl_generics, _, _) = generics.split_for_impl();
+
+    let (impl_generics, ty_generics, where_clause) = item.generics.split_for_impl();
+
+    quote!(
+        #[automatically_derived]
+        impl #ref_impl_generics ::std::iter::Sum<&'_a Self> for #name #ty_generics #where_clause
+        {
+            #[inline]
+            fn sum<I>(iter: I) -> Self where  I: Iterator<Item = &'_a Self> {
+                Self(iter.map(|x| x.0).sum())
+            }
+        }
+
+        #[automatically_derived]
+        impl #impl_generics ::std::iter::Sum<Self> for #name #ty_generics #where_clause
+        {
+            #[inline]
+            fn sum<I>(iter: I) -> Self where  I: Iterator<Item = Self> {
+                Self(iter.map(|x| x.0).sum())
             }
         }
     )
