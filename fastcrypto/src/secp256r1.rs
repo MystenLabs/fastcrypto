@@ -37,6 +37,7 @@ use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
 use ecdsa::elliptic_curve::ScalarCore;
+use ecdsa::RecoveryId;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
@@ -80,6 +81,7 @@ pub struct Secp256r1PrivateKey {
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
     pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
+    pub recoveryId: u8,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -281,6 +283,7 @@ impl Signature for Secp256r1Signature {
                     Ok(result) => OnceCell::with_value(result),
                     Err(_) => OnceCell::new(),
                 },
+                recoveryId: 0u8,
             }),
             Err(_) => Err(signature::Error::new()),
         }
@@ -329,6 +332,7 @@ impl Default for Secp256r1Signature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
             bytes: OnceCell::new(),
+            recoveryId: 0u8,
         }
     }
 }
@@ -440,6 +444,7 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
         Ok(Secp256r1Signature {
             sig,
             bytes: OnceCell::new(),
+            recoveryId: 0u8,
         })
     }
 }
