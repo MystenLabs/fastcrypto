@@ -54,9 +54,14 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
     let name = &ast.ident;
     let gen = quote! {
         impl_op_ex!(+ |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::add(a, b) });
+        impl_op_ex!(+= |a: &mut #name, b: &#name| { *a = <#name as AdditiveGroupElement>::Group::add(a, b) });
+        impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = <#name as AdditiveGroupElement>::Group::sub(a, b) });
+        impl_op_ex!(*= |a: &mut #name, b: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar| { *a = <#name as AdditiveGroupElement>::Group::mul(b, a) });
         impl_op_ex!(- |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::sub(a, b) });
-        impl_op_ex!(* |a: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(a, b) });
+        impl_op_ex_commutative!(* |a: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(a, b) });
         impl_op_ex!(- |a: &#name| -> #name { <#name as AdditiveGroupElement>::Group::neg(a) });
+        impl_op_ex_commutative!(* |a: u64, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(&<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar::from(a), b) });
+        impl_op_ex!(*= |a: &mut #name, b: u64| { *a = <#name as AdditiveGroupElement>::Group::mul(&<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar::from(b), a) });
     };
     gen.into()
 }

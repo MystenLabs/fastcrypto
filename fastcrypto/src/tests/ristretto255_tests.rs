@@ -15,20 +15,33 @@ fn test_arithmetic() {
     )
     .unwrap();
 
-    // Test that multiplying the base point by five gives the expected result
-    let p = RistrettoScalar::from(5) * Ristretto255::base_point();
-    assert_eq!(five_bp, p);
+    // Test that different ways of computing [5]G gives the expected result
+    let p1 = 5 * Ristretto255::base_point();
+    assert_eq!(five_bp, p1);
 
-    // Test that adding the base point with it self five times gives the same result
-    let q = Ristretto255::base_point()
+    let p2 = Ristretto255::base_point() * 5;
+    assert_eq!(five_bp, p2);
+
+    let p3 = RistrettoScalar::from(5) * Ristretto255::base_point();
+    assert_eq!(five_bp, p3);
+
+    let p4 = Ristretto255::base_point() * RistrettoScalar::from(5);
+    assert_eq!(five_bp, p4);
+
+    let p5 = Ristretto255::base_point()
         + Ristretto255::base_point()
         + Ristretto255::base_point()
         + Ristretto255::base_point()
         + Ristretto255::base_point();
-    assert_eq!(five_bp, q);
+    assert_eq!(five_bp, p5);
 
-    // Adding the identity element does not change anything
-    assert_eq!(&q + Ristretto255::identity(), q);
+    let mut p6 = Ristretto255::identity();
+    p6 += p5;
+    assert_eq!(five_bp, p6);
+
+    let mut p7 = Ristretto255::base_point();
+    p7 *= 5;
+    assert_eq!(five_bp, p7);
 
     // Test the order of the base point
     assert_ne!(Ristretto255::identity(), Ristretto255::base_point());
