@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"derive":[["SilentDebug",""],["SilentDisplay",""]]};
+window.SIDEBAR_ITEMS = {"derive":[["SilentDebug","Derive the `SilentDebug` trait, which is an implementation of `Debug` that does not print the contents of the struct. This is useful for structs that contain sensitive data, such as private keys."],["SilentDisplay","Derive the `SilentDisplay` trait, which is an implementation of `Display` that does not print the contents of the struct. This is useful for structs that contain sensitive data, such as private keys."]]};
