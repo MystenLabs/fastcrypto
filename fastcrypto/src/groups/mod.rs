@@ -1,19 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-
 pub mod ristretto255;
-
-pub trait AdditiveGroupElement: PartialEq + Eq + Serialize + DeserializeOwned {
-    type Group: AdditiveGroup<Element = Self>;
-}
 
 /// Trait impl'd by additive groups.
 pub trait AdditiveGroup {
-    type Element: AdditiveGroupElement<Group = Self>;
-    type Scalar: From<u64> + Eq + PartialEq + Serialize + DeserializeOwned;
+    type Element: Eq;
+    type Scalar;
 
     /// Return an instance of the identity element in this group.
     fn identity() -> Self::Element;

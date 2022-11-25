@@ -14,7 +14,6 @@ use fastcrypto_derive::GroupOps;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize, Serialize};
 
-use crate::groups::AdditiveGroupElement;
 use crate::{
     error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,
 };
@@ -83,6 +82,8 @@ impl From<u64> for RistrettoScalar {
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Debug, GroupOps)]
+#[GroupType = "Ristretto255"]
+#[ScalarType = "RistrettoScalar"]
 pub struct RistrettoPoint {
     point: ExternalRistrettoPoint,
     bytes: OnceCell<[u8; 32]>,
@@ -165,8 +166,4 @@ impl Ord for RistrettoPoint {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_bytes().cmp(other.as_bytes())
     }
-}
-
-impl AdditiveGroupElement for RistrettoPoint {
-    type Group = Ristretto255;
 }

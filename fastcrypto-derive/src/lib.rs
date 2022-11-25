@@ -47,21 +47,60 @@ pub fn silent_debug(source: TokenStream) -> TokenStream {
     gen.into()
 }
 
+fn get_type_from_attrs(attrs: &[syn::Attribute], attr_name: &str) -> syn::Result<syn::LitStr> {
+    attrs
+        .iter()
+        .find(|attr| attr.path.is_ident(attr_name))
+        .map_or_else(
+            || {
+                Err(syn::Error::new(
+                    proc_macro2::Span::call_site(),
+                    format!("Could not find attribute {}", attr_name),
+                ))
+            },
+            |attr| match attr.parse_meta()? {
+                syn::Meta::NameValue(meta) => {
+                    if let syn::Lit::Str(lit) = &meta.lit {
+                        Ok(lit.clone())
+                    } else {
+                        Err(syn::Error::new_spanned(
+                            meta,
+                            &format!("Could not parse {} attribute", attr_name)[..],
+                        ))
+                    }
+                }
+                bad => Err(syn::Error::new_spanned(
+                    bad,
+                    &format!("Could not parse {} attribute", attr_name)[..],
+                )),
+            },
+        )
+}
+
 /// Overload group operations for a struct implementing [AdditiveGroupElement].
-#[proc_macro_derive(GroupOps)]
+#[proc_macro_derive(GroupOps, attributes(GroupType, ScalarType))]
 pub fn group_ops(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
     let name = &ast.ident;
+
+    // Parse group type
+    let group_type = get_type_from_attrs(&ast.attrs, "GroupType").unwrap();
+    let group: syn::Type = group_type.parse().unwrap();
+
+    // Parse scalar type
+    let scalar_type = get_type_from_attrs(&ast.attrs, "ScalarType").unwrap();
+    let scalar: syn::Type = scalar_type.parse().unwrap();
+
     let gen = quote! {
-        impl_op_ex!(+ |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::add(a, b) });
-        impl_op_ex!(+= |a: &mut #name, b: &#name| { *a = <#name as AdditiveGroupElement>::Group::add(a, b) });
-        impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = <#name as AdditiveGroupElement>::Group::sub(a, b) });
-        impl_op_ex!(*= |a: &mut #name, b: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar| { *a = <#name as AdditiveGroupElement>::Group::mul(b, a) });
-        impl_op_ex!(- |a: &#name, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::sub(a, b) });
-        impl_op_ex_commutative!(* |a: &<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(a, b) });
-        impl_op_ex!(- |a: &#name| -> #name { <#name as AdditiveGroupElement>::Group::neg(a) });
-        impl_op_ex_commutative!(* |a: u64, b: &#name| -> #name { <#name as AdditiveGroupElement>::Group::mul(&<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar::from(a), b) });
-        impl_op_ex!(*= |a: &mut #name, b: u64| { *a = <#name as AdditiveGroupElement>::Group::mul(&<<#name as AdditiveGroupElement>::Group as AdditiveGroup>::Scalar::from(b), a) });
+        impl_op_ex!(+ |a: &#name, b: &#name| -> #name { #group::add(a, b) });
+        impl_op_ex!(+= |a: &mut #name, b: &#name| { *a = #group::add(a, b) });
+        impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = #group::sub(a, b) });
+        impl_op_ex!(*= |a: &mut #name, b: &#scalar| { *a = #group::mul(b, a) });
+        impl_op_ex!(- |a: &#name, b: &#name| -> #name { #group::sub(a, b) });
+        impl_op_ex_commutative!(* |a: &#scalar, b: &#name| -> #name { #group::mul(a, b) });
+        impl_op_ex!(- |a: &#name| -> #name { #group::neg(a) });
+        impl_op_ex_commutative!(* |a: u64, b: &#name| -> #name { #group::mul(&#scalar::from(a), b) });
+        impl_op_ex!(*= |a: &mut #name, b: u64| { *a = #group::mul(&#scalar::from(b), a) });
     };
     gen.into()
 }
