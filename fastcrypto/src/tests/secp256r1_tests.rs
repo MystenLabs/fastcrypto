@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
 use p256::ecdsa::Signature;
+use p256::elliptic_curve::IsHigh;
 use p256::AffinePoint;
 //#[cfg(feature = "copy_key")]
 //use proptest::arbitrary::Arbitrary;
@@ -246,36 +246,32 @@ fn verify_invalid_batch_different_msg() {
     assert!(res.is_err(), "{:?}", res);
 }
 
-// #[test]
-// fn fail_to_verify_if_upper_s() {
-//     // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
-//     let msg =
-//         hex::decode("d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6").unwrap();
-//     let pk = Secp256r1PublicKey::from_bytes(
-//         &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
-//     )
-//     .unwrap();
-//     let mut sig = Signature::from_compact(&hex::decode("638a54215d80a6713c8d523a6adc4e6e73652d859103a36b700851cb0e61b66b8ebfc1a610c57d732ec6e0a8f06a9a7a28df5051ece514702ff9cdff0b11f454").unwrap()).unwrap();
-//
-//     // Append 0 to the end of the signature to make it a recoverable signature.
-//     let mut sig_bytes = [0u8; 65];
-//     sig_bytes[..64].copy_from_slice(&sig.serialize_compact());
-//     sig_bytes[64] = 0;
-//     let rec_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
-//
-//     // Failed to verify with upper S.
-//     assert!(pk.verify(&msg, &rec_sig).is_err());
-//
-//     // Nomralize S to be less than N/2.
-//     sig.normalize_s();
-//     let mut sig_bytes1 = [0u8; 65];
-//     sig_bytes1[..64].copy_from_slice(&sig.serialize_compact());
-//     sig_bytes1[64] = 0;
-//     let normalized_rec_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&sig_bytes1).unwrap();
-//
-//     // Verify with normalized lower S.
-//     assert!(pk.verify_hashed(&msg, &normalized_rec_sig).is_ok());
-// }
+#[test]
+fn fail_to_verify_if_upper_s() {
+    // Make signature.
+    let message: &[u8] = b"Hello, world!";
+    let digest = Sha256::digest(message);
+    let pk = Secp256r1PublicKey::from_bytes(
+        &hex::decode("0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a").unwrap(),
+    )
+    .unwrap();
+    let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
+
+    // Assert that S is in upper half
+    assert_ne!(sig.sig.s().is_high().unwrap_u8(), 0);
+
+    // Failed to verify with upper S.
+    assert!(pk.verify(&digest.digest, &sig).is_err());
+
+    let normalized = sig.sig.normalize_s().unwrap();
+
+    // Normalize S to be less than N/2.
+    let normalized_sig =
+        Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(&normalized)).unwrap();
+
+    // Verify with normalized lower S.
+    assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
+}
 
 #[tokio::test]
 async fn signature_service() {

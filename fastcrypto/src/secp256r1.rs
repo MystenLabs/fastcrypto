@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the
-//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf).
+//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf). The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
 //!
 //! Messages can be signed and the signature can be verified again:
 //! # Example
@@ -415,7 +415,7 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
         // Private key as scalar
         let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
 
-        // Generate k
+        // Generate k deterministically according to RFC6979
         let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
         let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
 
@@ -486,7 +486,7 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Recover public from signature.
+    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
     ///
     /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
     ///
