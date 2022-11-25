@@ -34,10 +34,6 @@ pub mod ed25519_tests;
 pub mod secp256k1_tests;
 
 #[cfg(test)]
-#[path = "tests/bls12377_tests.rs"]
-pub mod bls12377_tests;
-
-#[cfg(test)]
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
 
@@ -70,7 +66,6 @@ pub mod mskr_tests;
 pub mod traits;
 // Key scheme implementations
 pub mod aes;
-pub mod bls12377;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
