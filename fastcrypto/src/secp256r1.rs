@@ -485,8 +485,7 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Recover public key(s) from signature. Either 2 or 4 potential public keys,
-    /// which could be the corresponding public key for the signature are returned.
+    /// Recover public from signature.
     ///
     /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate.
     ///
