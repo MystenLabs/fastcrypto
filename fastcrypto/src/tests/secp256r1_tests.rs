@@ -409,22 +409,31 @@ fn wycheproof_test() {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => <Secp256r1Signature as ToFromBytes>::from_bytes(
-                    signature::Signature::as_bytes(s),
-                )
-                .unwrap(),
+                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(s))
+                    .unwrap(),
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
                 }
             };
 
+            let bytes = signature.as_ref();
+
+            // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
+            let mut n_bytes = [0u8; 65];
+            n_bytes[..64].copy_from_slice(&bytes[..64]);
             let mut res = TestResult::Invalid;
 
-            if pk.verify(test.msg.as_slice(), &signature).is_ok() {
-                res = TestResult::Valid;
+            for i in 0..4 {
+                n_bytes[64] = i;
+                let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                if pk.verify(test.msg.as_slice(), &sig).is_ok() {
+                    res = TestResult::Valid;
+                    break;
+                } else {
+                    continue;
+                }
             }
-
             assert_eq!(map_result(test.result), res, "{}", test.comment);
         }
     }

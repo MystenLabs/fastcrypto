@@ -16,6 +16,8 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
+use crate::hash::HashFunction;
+use crate::hash::Sha256;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -26,19 +28,17 @@ use crate::{
         VerifyingKey,
     },
 };
+use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
+use ecdsa::elliptic_curve::subtle::Choice;
+use ecdsa::elliptic_curve::ScalarCore;
+use ecdsa::RecoveryId;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature as ExternalSignature;
 use p256::ecdsa::SigningKey as ExternalSecretKey;
 use p256::ecdsa::VerifyingKey as ExternalPublicKey;
-use p256::elliptic_curve::group::GroupEncoding;
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
-use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
-use ecdsa::elliptic_curve::subtle::Choice;
-use ecdsa::elliptic_curve::ScalarCore;
-use ecdsa::RecoveryId;
 use p256::elliptic_curve::bigint::ArrayEncoding;
+use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::IsHigh;
@@ -55,7 +55,7 @@ use zeroize::Zeroize;
 
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
-pub const SIGNATURE_SIZE: usize = 64;
+pub const SIGNATURE_SIZE: usize = 64 + 1;
 
 /// Secp256r1 public key.
 #[readonly::make]
@@ -119,7 +119,6 @@ impl VerifyingKey for Secp256r1PublicKey {
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
-
         let pk = signature
             .recover(msg)
             .map_err(|_| signature::Error::new())?;
@@ -274,18 +273,17 @@ impl<'de> Deserialize<'de> for Secp256r1Signature {
 
 impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        match <ExternalSignature as Signature>::from_bytes(bytes) {
-            Ok(sig) => Ok(Secp256r1Signature {
-                sig,
-                // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
-                bytes: match <[u8; SIGNATURE_SIZE]>::try_from(bytes) {
-                    Ok(result) => OnceCell::with_value(result),
-                    Err(_) => OnceCell::new(),
-                },
-                recovery_id: 0u8,
-            }),
-            Err(_) => Err(signature::Error::new()),
+        // TODO: Compatability with signatures without recovery id
+        if bytes.len() != SIGNATURE_SIZE {
+            return Err(signature::Error::new());
         }
+        <ExternalSignature as Signature>::from_bytes(&bytes[..SIGNATURE_SIZE - 1])
+            .map(|sig| Secp256r1Signature {
+                sig,
+                recovery_id: bytes[SIGNATURE_SIZE - 1],
+                bytes: OnceCell::new(),
+            })
+            .map_err(|_| signature::Error::new())
     }
 }
 
@@ -297,9 +295,11 @@ impl Authenticator for Secp256r1Signature {
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
-        let bytes = self.sig.as_ref();
+        let mut bytes = [0u8; SIGNATURE_SIZE];
+        bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.as_ref());
+        bytes[SIGNATURE_SIZE - 1] = self.recovery_id;
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes.try_into().unwrap()))
+            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
             .expect("OnceCell invariant violated")
     }
 }
@@ -446,9 +446,10 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
 
         let sig = ExternalSignature::from_scalars(r, s)?;
 
-        // Note: This line is introduced here because big_r.y is a private field
+        // Note: This line is introduced here because big_r.y is a private field.
         let y: Scalar = Scalar::from_be_bytes_reduced(*big_r.to_encoded_point(false).y().unwrap());
 
+        // Compute recovery id and normalize signature
         let is_r_odd = y.is_odd();
         let is_s_high = sig.s().is_high();
         let is_y_odd = is_r_odd ^ is_s_high;
@@ -487,14 +488,23 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 impl Secp256r1Signature {
     /// Recover public from signature.
     ///
-    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate.
+    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
-
+        let v = RecoveryId::from_byte(self.recovery_id).unwrap();
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
-        let big_r = AffinePoint::decompress(&r.to_bytes(), Choice::from(self.recovery_id & 1));
+
+        // Note: This has been added because it does not seem to be done in k256
+        let r_bytes = match v.is_x_reduced() {
+            true => U256::from(r.as_ref())
+                .wrapping_add(&NistP256::ORDER)
+                .to_be_byte_array(),
+            false => r.to_bytes(),
+        };
+
+        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
 
         if big_r.is_some().into() {
             let big_r = ProjectivePoint::from(big_r.unwrap());
@@ -511,6 +521,18 @@ impl Secp256r1Signature {
         } else {
             Err(FastCryptoError::GeneralError)
         }
+    }
+
+    /// util function to parse wycheproof test key from DER format.
+    #[cfg(test)]
+    pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
+        <ExternalSignature as Signature>::from_bytes(bytes)
+            .map(|sig| Secp256r1Signature {
+                sig,
+                recovery_id: 0u8,
+                bytes: OnceCell::new(),
+            })
+            .map_err(|_| signature::Error::new())
     }
 }
 
