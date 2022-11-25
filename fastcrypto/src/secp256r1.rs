@@ -32,20 +32,17 @@ use p256::ecdsa::Signature as ExternalSignature;
 use p256::ecdsa::SigningKey as ExternalSecretKey;
 use p256::ecdsa::VerifyingKey as ExternalPublicKey;
 use p256::elliptic_curve::group::GroupEncoding;
-
-use crate::error::FastCryptoError::GeneralError;
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::elliptic_curve::ScalarCore;
 use ecdsa::RecoveryId;
-use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::IsHigh;
-use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompactPoint, DecompressPoint, Field};
+use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint, Field};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
@@ -122,7 +119,7 @@ impl VerifyingKey for Secp256r1PublicKey {
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
-        // TODO: Until we have a recovery id, we recover both candidates for public keys
+
         let pk = signature
             .recover(msg)
             .map_err(|_| signature::Error::new())?;
@@ -131,9 +128,7 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
             return Err(signature::Error::new());
         }
 
-        self.pubkey
-            .verify(msg, &signature.sig)
-            .map_err(|_| signature::Error::new())
+        Ok(())
     }
 }
 
@@ -496,18 +491,18 @@ impl Secp256r1Signature {
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        // Code copied from recover_verify_key_from_digest_bytes in the k256 crate
+        // Code copied from recover_verify_key_from_digest_bytes in k256@0.11.6
         let (r, s) = self.sig.split_scalars();
 
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
-        let R = AffinePoint::decompress(&r.to_bytes(), Choice::from(self.recovery_id & 1));
+        let big_r = AffinePoint::decompress(&r.to_bytes(), Choice::from(self.recovery_id & 1));
 
-        if R.is_some().into() {
-            let R = ProjectivePoint::from(R.unwrap());
+        if big_r.is_some().into() {
+            let big_r = ProjectivePoint::from(big_r.unwrap());
             let r_inv = r.invert().unwrap();
             let u1 = -(r_inv * z);
             let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (R * u2)).to_affine();
+            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
 
             Ok(Secp256r1PublicKey {
                 pubkey: ExternalPublicKey::from_affine(pk)
