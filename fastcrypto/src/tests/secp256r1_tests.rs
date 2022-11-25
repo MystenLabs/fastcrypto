@@ -333,6 +333,7 @@ fn test_sk_zeroization_on_drop() {
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 
+// TODO: If we find another crate impl'ing ecdsa secp256r1 with recovery, we could use this test to compare it with our implementation.
 // proptest::proptest! {
 //     #[test]
 //     #[cfg(feature = "copy_key")]
