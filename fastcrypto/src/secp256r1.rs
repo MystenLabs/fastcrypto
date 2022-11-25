@@ -487,11 +487,11 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 impl Secp256r1Signature {
     /// Recover public key(s) from signature. Either 2 or 4 potential public keys,
     /// which could be the corresponding public key for the signature are returned.
-    /// This is based on section 4.1.6 in https://www.secg.org/sec1-v2.pdf.
+    ///
+    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate.
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        // Code copied from recover_verify_key_from_digest_bytes in k256@0.11.6
         let (r, s) = self.sig.split_scalars();
 
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
