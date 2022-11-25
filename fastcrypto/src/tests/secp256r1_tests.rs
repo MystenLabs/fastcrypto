@@ -83,8 +83,8 @@ fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
     let signature: Secp256r1Signature = kp.sign(message);
-    let recovered_keys = signature.recover(message).unwrap();
-    assert!(recovered_keys.contains(kp.public()));
+    let recovered_key = signature.recover(message).unwrap();
+    assert_eq!(recovered_key, *kp.public());
 }
 
 #[test]

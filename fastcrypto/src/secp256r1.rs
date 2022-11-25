@@ -33,15 +33,19 @@ use p256::ecdsa::SigningKey as ExternalSecretKey;
 use p256::ecdsa::VerifyingKey as ExternalPublicKey;
 use p256::elliptic_curve::group::GroupEncoding;
 
+use crate::error::FastCryptoError::GeneralError;
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
+use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::elliptic_curve::ScalarCore;
 use ecdsa::RecoveryId;
 use generic_array::GenericArray;
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompactPoint, Field};
+use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::elliptic_curve::IsHigh;
+use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompactPoint, DecompressPoint, Field};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
@@ -51,8 +55,6 @@ use std::{
     str::FromStr,
 };
 use zeroize::Zeroize;
-use p256::elliptic_curve::IsHigh;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
 
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
@@ -121,11 +123,11 @@ impl VerifyingKey for Secp256r1PublicKey {
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
         // TODO: Until we have a recovery id, we recover both candidates for public keys
-        let pks = signature
+        let pk = signature
             .recover(msg)
             .map_err(|_| signature::Error::new())?;
 
-        if !pks.contains(self) {
+        if pk != *self {
             return Err(signature::Error::new());
         }
 
@@ -410,10 +412,15 @@ impl FromStr for Secp256r1KeyPair {
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
-        // Code copied from hazmat.rs in the ecdsa crate version 0.14.8 (rev = 1ecc6299db9ec823)
+        // Code copied from Sign.rs in k256@0.11.6
 
+        // Hash message
         let z = FieldBytes::from(Sha256::digest(msg).digest);
+
+        // Private key as scalar
         let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
+
+        // Generate k
         let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
         let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
 
@@ -442,20 +449,21 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
             return Err(signature::Error::new());
         }
 
-        let mut sig = ExternalSignature::from_scalars(r, s)?;
+        let sig = ExternalSignature::from_scalars(r, s)?;
 
-        // Note: We have added the normalization and computation of recovery id
-        sig = sig.normalize_s().unwrap_or(sig);
+        // Note: This line is introduced here because big_r.y is a private field
+        let y: Scalar = Scalar::from_be_bytes_reduced(*big_r.to_encoded_point(false).y().unwrap());
 
-        // The least significant byte is the last in SEC.1 encoding (see section 2.3.7 in https://www.secg.org/sec1-v2.pdf)
-        let y_odd = big_r.to_encoded_point(false).y().unwrap()[31] & 1 == 1;
-        let x_high = x.is_high().into();
-        let v = RecoveryId::new(y_odd, x_high);
+        let is_r_odd = y.is_odd();
+        let is_s_high = sig.s().is_high();
+        let is_y_odd = is_r_odd ^ is_s_high;
+        let sig_low = sig.normalize_s().unwrap_or(sig);
+        let recovery_id = RecoveryId::new(is_y_odd.into(), false);
 
         Ok(Secp256r1Signature {
-            sig,
+            sig: sig_low,
             bytes: OnceCell::new(),
-            recovery_id: v.to_byte(),
+            recovery_id: recovery_id.to_byte(),
         })
     }
 }
@@ -487,47 +495,28 @@ impl Secp256r1Signature {
     /// This is based on section 4.1.6 in https://www.secg.org/sec1-v2.pdf.
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Vec<Secp256r1PublicKey>, FastCryptoError> {
-        // This implementation is based on recover_verifying_key_from_digest_bytes in the p256 crate,
-        // but also handles the case the the x-coordinate is larger than the group order.
-
+    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        // Code copied from recover_verify_key_from_digest_bytes in the k256 crate
         let (r, s) = self.sig.split_scalars();
-        let r_plus_n = U256::from(r.as_ref()).wrapping_add(&NistP256::ORDER);
 
-        // Find points with r or r+n as x-coordinate.
-        let mut pts = vec![
-            AffinePoint::decompact(&r.to_bytes()),
-            AffinePoint::decompact(&r_plus_n.to_be_byte_array()),
-        ];
+        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
+        let R = AffinePoint::decompress(&r.to_bytes(), Choice::from(self.recovery_id & 1));
 
-        // Only keep valid points and return err if there a no such points
-        pts.retain(|pt| pt.is_some().into());
-        if pts.is_empty() {
-            return Err(FastCryptoError::GeneralError);
-        }
+        if R.is_some().into() {
+            let R = ProjectivePoint::from(R.unwrap());
+            let r_inv = r.invert().unwrap();
+            let u1 = -(r_inv * z);
+            let u2 = r_inv * *s;
+            let pk = ((ProjectivePoint::GENERATOR * u1) + (R * u2)).to_affine();
 
-        // Hash of the message.
-        let e = <Scalar as Reduce<U256>>::from_be_bytes_reduced(GenericArray::from(
-            Sha256::digest(msg).digest,
-        ));
-
-        // Compute the up to four candidates for public keys
-        let r_inv = r.invert().unwrap();
-        let g_term = ProjectivePoint::GENERATOR * -r_inv * e;
-        let mut candidates: Vec<Secp256r1PublicKey> = Vec::new();
-        for affine_pt in pts {
-            let r_term = ProjectivePoint::from(affine_pt.unwrap()) * r_inv * *s;
-            candidates.push(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine((g_term + r_term).to_affine()).unwrap(),
+            Ok(Secp256r1PublicKey {
+                pubkey: ExternalPublicKey::from_affine(pk)
+                    .map_err(|_| FastCryptoError::GeneralError)?,
                 bytes: OnceCell::new(),
-            });
-            candidates.push(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine((g_term - r_term).to_affine()).unwrap(),
-                bytes: OnceCell::new(),
-            });
+            })
+        } else {
+            Err(FastCryptoError::GeneralError)
         }
-
-        Ok(candidates)
     }
 }
 
