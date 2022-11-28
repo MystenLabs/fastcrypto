@@ -62,6 +62,9 @@ pub mod encoding_tests;
 #[path = "tests/mskr_tests.rs"]
 pub mod mskr_tests;
 
+#[cfg(test)]
+#[path = "tests/ristretto255_tests.rs"]
+pub mod ristretto255_tests;
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -69,6 +72,7 @@ pub mod aes;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
+pub mod groups;
 pub mod hash;
 pub mod hmac;
 pub mod secp256k1;
