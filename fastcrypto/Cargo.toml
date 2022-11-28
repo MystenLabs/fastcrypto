@@ -56,6 +56,7 @@ twox-hash = { version = "1.6.3", optional = true }
 schemars ="0.8.10"
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
+tbls = { git = "https://github.com/benr-ml/celo-threshold-bls-rs", branch = "master", package = "threshold-bls" }
 
 [[bench]]
 name = "crypto"

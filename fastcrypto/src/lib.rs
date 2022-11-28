@@ -74,6 +74,7 @@ pub mod bls12377;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
+pub mod fake_tbls_key_generator;
 pub mod hash;
 pub mod hmac;
 pub mod secp256k1;
