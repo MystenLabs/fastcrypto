@@ -52,8 +52,6 @@ pub fn geneate_full_key_pair(epoch: u64) -> (PrivateBlsKey, PublicBlsKey) {
     (get_private_key(epoch), Point::one())
 }
 
-// TODO: fn id_assigner(c: Committee, n: u32) → (validator name: string, vector<id: u32>)
-
 #[cfg(test)]
 mod tests {
     use super::*;
