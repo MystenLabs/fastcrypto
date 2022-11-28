@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["RistrettoPoint","Represents a point in the Ristretto group for Curve25519."],["RistrettoScalar","Represents a scalar."]]};

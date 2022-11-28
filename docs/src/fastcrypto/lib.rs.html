@@ -142,6 +142,10 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -206,6 +210,9 @@
 #[path = <span class="string">&quot;tests/mskr_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>mskr_tests;
 
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/ristretto255_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>ristretto255_tests;
 <span class="comment">// Signing traits
 </span><span class="kw">pub mod </span>traits;
 <span class="comment">// Key scheme implementations
@@ -213,6 +220,7 @@
 <span class="kw">pub mod </span>bls12381;
 <span class="kw">pub mod </span>bulletproofs;
 <span class="kw">pub mod </span>ed25519;
+<span class="kw">pub mod </span>groups;
 <span class="kw">pub mod </span>hash;
 <span class="kw">pub mod </span>hmac;
 <span class="kw">pub mod </span>secp256k1;
