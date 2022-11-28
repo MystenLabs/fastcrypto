@@ -52,7 +52,7 @@ fn test_serialize_deserialize_element() {
 fn test_compress_decompress() {
     let p = RistrettoPoint::base_point() + RistrettoPoint::base_point();
     let compressed = p.compress();
-    let decompressed: RistrettoPoint = RistrettoPoint::try_from(compressed.as_slice()).unwrap();
+    let decompressed: RistrettoPoint = RistrettoPoint::decompress(&compressed).unwrap();
     assert_eq!(decompressed, p);
 }
 

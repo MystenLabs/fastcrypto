@@ -47,6 +47,11 @@ impl RistrettoPoint {
     pub fn compress(&self) -> [u8; 32] {
         self.0.compress().0
     }
+
+    /// Return this point in compressed form.
+    pub fn decompress(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
+        RistrettoPoint::try_from(bytes.as_slice())
+    }
 }
 
 impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
