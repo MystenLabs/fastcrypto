@@ -15,7 +15,6 @@ use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
-use std::ops::{Add, Mul, Sub};
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -50,7 +49,7 @@ impl RistrettoPoint {
     }
 }
 
-impl Mul<RistrettoScalar> for RistrettoPoint {
+impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
     type Output = RistrettoPoint;
 
     fn mul(self, rhs: RistrettoScalar) -> RistrettoPoint {

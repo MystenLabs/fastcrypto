@@ -59,26 +59,27 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
         // Implement all combinations of borrowed and owned inputs assuming we have implemented the
         // Add, Sub, Neg and Mul<AdditiveGroupElement::Scalar> for the given type.
 
-        auto_ops::impl_op!(+ |a: &#name, b: &#name| -> #name { #name::add(*a, *b) });
-        auto_ops::impl_op!(+ |a: &#name, b: #name| -> #name { #name::add(*a, b) });
-        auto_ops::impl_op!(+ |a: #name, b: &#name| -> #name { #name::add(a, *b) });
+        auto_ops::impl_op!(+ |a: &#name, b: &#name| -> #name { <#name as core::ops::Add>::add(*a, *b) });
+        auto_ops::impl_op!(+ |a: &#name, b: #name| -> #name { <#name as core::ops::Add>::add(*a, b) });
+        auto_ops::impl_op!(+ |a: #name, b: &#name| -> #name { <#name as core::ops::Add>::add(a, *b) });
 
-        auto_ops::impl_op!(- |a: &#name, b: &#name| -> #name { #name::sub(*a, *b) });
-        auto_ops::impl_op!(- |a: &#name, b: #name| -> #name { #name::sub(*a, b) });
-        auto_ops::impl_op!(- |a: #name, b: &#name| -> #name { #name::sub(a, *b) });
+        auto_ops::impl_op!(- |a: &#name, b: &#name| -> #name { <#name as core::ops::Sub>::sub(*a, *b) });
+        auto_ops::impl_op!(- |a: &#name, b: #name| -> #name { <#name as core::ops::Sub>::sub(*a, b) });
+        auto_ops::impl_op!(- |a: #name, b: &#name| -> #name { <#name as core::ops::Sub>::sub(a, *b) });
 
-        auto_ops::impl_op_ex!(+= |a: &mut #name, b: &#name| { *a = #name::add(*a, *b) });
-        auto_ops::impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = #name::sub(*a, *b) });
-        auto_ops::impl_op_ex!(*= |a: &mut #name, b: &<#name as AdditiveGroupElement>::Scalar| { *a = #name::mul(*a, *b) });
+        auto_ops::impl_op_ex!(+= |a: &mut #name, b: &#name| { *a = <#name as core::ops::Add>::add(*a, *b) });
+        auto_ops::impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = <#name as core::ops::Sub>::sub(*a, *b) });
+        auto_ops::impl_op_ex!(*= |a: &mut #name, b: &<#name as AdditiveGroupElement>::Scalar| { *a = <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, *b) });
 
-        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { #name::mul(*b, *a) });
-        auto_ops::impl_op!(* |a: <#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { #name::mul(*b, a) });
-        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: #name| -> #name { #name::mul(b, *a) });
-        auto_ops::impl_op!(* |a: &#name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { #name::mul(*a, *b) });
-        auto_ops::impl_op!(* |a: &#name, b: <#name as AdditiveGroupElement>::Scalar| -> #name { #name::mul(*a, b) });
-        auto_ops::impl_op!(* |a: #name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { #name::mul(a, *b) });
+        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*b, *a) });
+        auto_ops::impl_op!(* |a: <#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*b, a) });
+        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: #name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(b, *a) });
 
-        auto_ops::impl_op!(- |a: &#name| -> #name { #name::neg(*a) });
+        auto_ops::impl_op!(* |a: &#name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, *b) });
+        auto_ops::impl_op!(* |a: &#name, b: <#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, b) });
+        auto_ops::impl_op!(* |a: #name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(a, *b) });
+
+        auto_ops::impl_op!(- |a: &#name| -> #name { <#name as core::ops::Neg>::neg(*a) });
     };
     gen.into()
 }
