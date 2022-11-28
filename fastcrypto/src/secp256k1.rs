@@ -20,6 +20,7 @@ use crate::{
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
+    serialize_deserialize_from_encode_decode_base64,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
         VerifyingKey,
@@ -186,25 +187,7 @@ impl Display for Secp256k1PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256k1PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-impl<'de> Deserialize<'de> for Secp256k1PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(Secp256k1PublicKey);
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
@@ -234,26 +217,7 @@ impl ToFromBytes for Secp256k1PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256k1PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for Secp256k1PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(Secp256k1PrivateKey);
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {

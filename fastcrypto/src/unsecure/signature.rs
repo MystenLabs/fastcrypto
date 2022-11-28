@@ -148,26 +148,7 @@ impl Display for UnsecurePublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for UnsecurePublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for UnsecurePublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(UnsecurePublicKey);
 
 impl Verifier<UnsecureSignature> for UnsecurePublicKey {
     fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
@@ -282,25 +263,7 @@ impl ToFromBytes for UnsecurePrivateKey {
     }
 }
 
-impl Serialize for UnsecurePrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-impl<'de> Deserialize<'de> for UnsecurePrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(UnsecurePrivateKey);
 
 impl SigningKey for UnsecurePrivateKey {
     type PubKey = UnsecurePublicKey;

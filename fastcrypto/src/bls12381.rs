@@ -21,8 +21,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::encoding::Encoding;
-use ::blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
+use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 
 use once_cell::sync::OnceCell;
 use zeroize::Zeroize;
@@ -30,14 +29,11 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
-    encoding::Base64, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
-    serde_helpers::keypair_decode_base64,
+    encoding::Base64, encoding::Encoding, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
+    serde_helpers::keypair_decode_base64, serialize_deserialize_from_encode_decode_base64,
 };
 use eyre::eyre;
-use serde::{
-    de::{self},
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use signature::{Signature, Signer, Verifier};
@@ -177,26 +173,7 @@ impl Debug for BLS12381PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
-impl Serialize for BLS12381PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks.
-impl<'de> Deserialize<'de> for BLS12381PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(BLS12381PublicKey);
 
 impl Verifier<BLS12381Signature> for BLS12381PublicKey {
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
@@ -420,26 +397,7 @@ impl ToFromBytes for BLS12381PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for BLS12381PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for BLS12381PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(BLS12381PrivateKey);
 
 impl SigningKey for BLS12381PrivateKey {
     type PubKey = BLS12381PublicKey;
