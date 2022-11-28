@@ -49,6 +49,14 @@ fn test_serialize_deserialize_element() {
 }
 
 #[test]
+fn test_compress_decompress() {
+    let p = RistrettoPoint::base_point() + RistrettoPoint::base_point();
+    let compressed = p.compress();
+    let decompressed: RistrettoPoint = RistrettoPoint::try_from(compressed.as_slice()).unwrap();
+    assert_eq!(decompressed, p);
+}
+
+#[test]
 fn test_vectors() {
     // Test vectors from draft-irtf-cfrg-ristretto255-decaf448-03
     const VEC_MULGEN: [&str; 16] = [
