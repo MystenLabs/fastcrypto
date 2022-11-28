@@ -4,25 +4,36 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
+use crate::groups::AdditiveGroupElement;
+use crate::{error::FastCryptoError, hash::HashFunction};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
-use fastcrypto_derive::GroupOps;
-use once_cell::sync::OnceCell;
+use derive_more::{Add, From, Neg, Sub};
+use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
+use std::ops::{Add, Mul, Sub};
 
-use crate::{
-    error::FastCryptoError, groups::AdditiveGroup, hash::HashFunction, traits::ToFromBytes,
-};
+/// Represents a point in the Ristretto group for Curve25519.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
+pub struct RistrettoPoint(ExternalRistrettoPoint);
 
-/// Implementation of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
-/// prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
-pub struct Ristretto255 {}
+impl RistrettoPoint {
+    /// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
+    /// If the input bytes are uniformly distributed, the resulting point will be uniformly
+    /// distributed over the Ristretto group.
+    pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
+        RistrettoPoint::from(ExternalRistrettoPoint::from_uniform_bytes(bytes))
+    }
 
-impl Ristretto255 {
+    /// Construct a RistrettoPoint from the given data using a given hash function.
+    pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
+        Self::from_uniform_bytes(&H::digest(bytes).digest)
+    }
+
     /// Returns the base point of the Ristretto group.
     pub fn base_point() -> RistrettoPoint {
         RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
@@ -32,31 +43,62 @@ impl Ristretto255 {
     pub fn base_point_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
     }
+
+    /// Return this point in compressed form.
+    pub fn compress(&self) -> [u8; 32] {
+        self.0.compress().0
+    }
 }
 
-impl AdditiveGroup for Ristretto255 {
-    type Element = RistrettoPoint;
+impl Mul<RistrettoScalar> for RistrettoPoint {
+    type Output = RistrettoPoint;
+
+    fn mul(self, rhs: RistrettoScalar) -> RistrettoPoint {
+        RistrettoPoint::from(self.0 * rhs.0)
+    }
+}
+
+impl AdditiveGroupElement for RistrettoPoint {
     type Scalar = RistrettoScalar;
 
     fn identity() -> RistrettoPoint {
         RistrettoPoint::from(ExternalRistrettoPoint::identity())
     }
+}
 
-    fn add(a: &RistrettoPoint, b: &RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint::from(a.point + b.point)
+impl Serialize for RistrettoPoint {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let bytes = self.0.compress();
+        serializer.serialize_bytes(bytes.as_bytes())
     }
+}
 
-    fn neg(a: &RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint::from(-a.point)
+impl<'de> Deserialize<'de> for RistrettoPoint {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let bytes = Vec::deserialize(deserializer)?;
+        RistrettoPoint::try_from(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
     }
+}
 
-    fn mul(scalar: &RistrettoScalar, element: &RistrettoPoint) -> RistrettoPoint {
-        RistrettoPoint::from(scalar.0 * element.point)
+impl TryFrom<&[u8]> for RistrettoPoint {
+    type Error = FastCryptoError;
+
+    /// Decode a ristretto point in compressed binary form.
+    fn try_from(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let point = ExternalCompressedRistrettoPoint::from_slice(bytes);
+        let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
+        Ok(RistrettoPoint::from(decompressed_point))
     }
 }
 
 /// Represents a scalar.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
@@ -77,93 +119,5 @@ impl RistrettoScalar {
 impl From<u64> for RistrettoScalar {
     fn from(value: u64) -> RistrettoScalar {
         RistrettoScalar(ExternalRistrettoScalar::from(value))
-    }
-}
-
-/// Represents a point in the Ristretto group for Curve25519.
-#[derive(Debug, GroupOps)]
-#[GroupType = "Ristretto255"]
-#[ScalarType = "RistrettoScalar"]
-pub struct RistrettoPoint {
-    point: ExternalRistrettoPoint,
-    bytes: OnceCell<[u8; 32]>,
-}
-
-impl RistrettoPoint {
-    /// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
-    /// If the input bytes are uniformly distributed, the resulting point will be uniformly
-    /// distributed over the Ristretto group.
-    pub fn from_uniform_bytes(bytes: &[u8; 64]) -> Self {
-        RistrettoPoint::from(ExternalRistrettoPoint::from_uniform_bytes(bytes))
-    }
-
-    /// Construct a RistrettoPoint from the given data using a given hash function.
-    pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
-        Self::from_uniform_bytes(&H::digest(bytes).digest)
-    }
-
-    fn from(point: ExternalRistrettoPoint) -> Self {
-        RistrettoPoint {
-            point,
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-impl AsRef<[u8]> for RistrettoPoint {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes.get_or_init(|| self.point.compress().to_bytes())
-    }
-}
-
-impl ToFromBytes for RistrettoPoint {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        if bytes.len() != 32 {
-            return Err(FastCryptoError::InputLengthWrong(32));
-        }
-        let point = ExternalCompressedRistrettoPoint::from_slice(bytes);
-        let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
-
-        Ok(RistrettoPoint::from(decompressed_point))
-    }
-}
-
-impl Serialize for RistrettoPoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let bytes = self.as_ref();
-        serializer.serialize_bytes(bytes)
-    }
-}
-
-impl<'de> Deserialize<'de> for RistrettoPoint {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let bytes = Vec::deserialize(deserializer)?;
-        RistrettoPoint::from_bytes(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
-
-impl PartialEq for RistrettoPoint {
-    fn eq(&self, other: &Self) -> bool {
-        self.point == other.point
-    }
-}
-
-impl Eq for RistrettoPoint {}
-
-impl PartialOrd for RistrettoPoint {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
-    }
-}
-
-impl Ord for RistrettoPoint {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_bytes().cmp(other.as_bytes())
     }
 }

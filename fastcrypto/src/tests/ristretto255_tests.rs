@@ -1,59 +1,48 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{
-    ristretto255::{Ristretto255, RistrettoPoint, RistrettoScalar},
-    AdditiveGroup,
-};
-use crate::traits::ToFromBytes;
+use crate::groups::ristretto255::RistrettoPoint;
+use crate::groups::ristretto255::RistrettoScalar;
+use crate::groups::AdditiveGroupElement;
 
 #[test]
 fn test_arithmetic() {
     // From https://ristretto.group/test_vectors/ristretto255.html
-    let five_bp = RistrettoPoint::from_bytes(
-        &hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e").unwrap(),
+    let five_bp = RistrettoPoint::try_from(
+        hex::decode("e882b131016b52c1d3337080187cf768423efccbb517bb495ab812c4160ff44e")
+            .unwrap()
+            .as_slice(),
     )
     .unwrap();
 
     // Test that different ways of computing [5]G gives the expected result
-    let p1 = 5 * Ristretto255::base_point();
+    let g = RistrettoPoint::base_point();
+
+    let p1 = g * RistrettoScalar::from(5);
     assert_eq!(five_bp, p1);
 
-    let p2 = Ristretto255::base_point() * 5;
+    let p2 = g + g + g + g + g + g - g;
     assert_eq!(five_bp, p2);
 
-    let p3 = RistrettoScalar::from(5) * Ristretto255::base_point();
+    let mut p3 = RistrettoPoint::identity();
+    p3 += p2;
     assert_eq!(five_bp, p3);
 
-    let p4 = Ristretto255::base_point() * RistrettoScalar::from(5);
+    let mut p4 = g;
+    p4 *= RistrettoScalar::from(5);
     assert_eq!(five_bp, p4);
 
-    let p5 = Ristretto255::base_point()
-        + Ristretto255::base_point()
-        + Ristretto255::base_point()
-        + Ristretto255::base_point()
-        + Ristretto255::base_point();
-    assert_eq!(five_bp, p5);
-
-    let mut p6 = Ristretto255::identity();
-    p6 += p5;
-    assert_eq!(five_bp, p6);
-
-    let mut p7 = Ristretto255::base_point();
-    p7 *= 5;
-    assert_eq!(five_bp, p7);
-
     // Test the order of the base point
-    assert_ne!(Ristretto255::identity(), Ristretto255::base_point());
+    assert_ne!(RistrettoPoint::identity(), g);
     assert_eq!(
-        Ristretto255::identity(),
-        Ristretto255::base_point_order() * Ristretto255::base_point()
+        RistrettoPoint::identity(),
+        RistrettoPoint::base_point_order() * &g
     );
 }
 
 #[test]
 fn test_serialize_deserialize_element() {
-    let p = Ristretto255::base_point() + Ristretto255::base_point();
+    let p = RistrettoPoint::base_point() + RistrettoPoint::base_point();
     let serialized = bincode::serialize(&p).unwrap();
     let deserialized: RistrettoPoint = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
@@ -82,8 +71,8 @@ fn test_vectors() {
     ];
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
-        let actual = RistrettoScalar::from(i as u64) * Ristretto255::base_point();
-        let expected = RistrettoPoint::from_bytes(&hex::decode(item).unwrap()).unwrap();
+        let actual = RistrettoScalar::from(i as u64) * &RistrettoPoint::base_point();
+        let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
         assert_eq!(expected, actual);
     }
 
@@ -125,7 +114,7 @@ fn test_vectors() {
     ];
 
     for item in VEC_INVALID.iter() {
-        assert!(RistrettoPoint::from_bytes(&hex::decode(item).unwrap()).is_err());
+        assert!(RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).is_err());
     }
 
     const VEC_MAP: [(&str, &str); 11] = [
@@ -157,6 +146,6 @@ fn test_vectors() {
         let actual =
             RistrettoPoint::from_uniform_bytes(&hex::decode(i).unwrap().try_into().unwrap());
         let expected = hex::decode(o).unwrap();
-        assert_eq!(expected, actual.as_bytes());
+        assert_eq!(expected, actual.compress());
     }
 }

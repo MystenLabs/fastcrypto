@@ -17,9 +17,6 @@ use tokio::sync::{
     oneshot,
 };
 
-#[macro_use]
-extern crate auto_ops;
-
 #[cfg(test)]
 #[path = "tests/signature_tests.rs"]
 pub mod signature_tests;
