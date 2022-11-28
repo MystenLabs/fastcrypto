@@ -14,7 +14,7 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::{encoding::Encoding, traits};
+use crate::{encoding::Encoding, serialize_deserialize_from_encode_decode_base64, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -226,27 +226,7 @@ impl Ord for Ed25519PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Ed25519PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let str = self.encode_base64();
-        serializer.serialize_newtype_struct("Ed25519PublicKey", &str)
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for Ed25519PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(Ed25519PublicKey);
 
 ///
 /// Implement SigningKey
@@ -267,27 +247,7 @@ impl ToFromBytes for Ed25519PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Ed25519PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let str = self.encode_base64();
-        serializer.serialize_newtype_struct("Ed25519PublicKey", &str)
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for Ed25519PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
+serialize_deserialize_from_encode_decode_base64!(Ed25519PrivateKey);
 
 ///
 /// Implement Authenticator
