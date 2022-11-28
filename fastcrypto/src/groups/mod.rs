@@ -6,7 +6,7 @@ use core::ops::{Add, Mul, Neg, Sub};
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive group.
-pub trait AdditiveGroupElement: Eq + Copy + Add + Sub + Neg + Mul<Self::Scalar> + Sized {
+pub trait AdditiveGroupElement: Eq + Add + Sub + Neg + Mul<Self::Scalar> + Sized {
     /// Type of scalars used in the [Self::mul] multiplication method.
     type Scalar: Copy;
 
