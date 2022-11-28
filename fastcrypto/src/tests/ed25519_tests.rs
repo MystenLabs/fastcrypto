@@ -14,6 +14,8 @@ use crate::{
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+use proptest::prelude::*;
+use proptest::strategy::Strategy;
 use rand::{rngs::StdRng, SeedableRng as _};
 use signature::{Signer, Verifier};
 use wycheproof::{eddsa::TestSet, TestResult};
@@ -643,4 +645,25 @@ fn dont_display_secrets() {
         assert_eq!(format!("{}", sk), "<elided secret for Ed25519PrivateKey>");
         assert_eq!(format!("{:?}", sk), "<elided secret for Ed25519PrivateKey>");
     });
+}
+
+// Arbitrary implementations for the proptests
+fn arb_keypair() -> impl Strategy<Value = Ed25519KeyPair> {
+    any::<[u8; 32]>()
+        .prop_map(|seed| {
+            let mut rng = StdRng::from_seed(seed);
+            Ed25519KeyPair::generate(&mut rng)
+        })
+        .no_shrink()
+}
+
+proptest! {
+    #[test]
+    fn test_keypair_roundtrip(
+        kp in arb_keypair(),
+    ){
+        let serialized = bincode::serialize(&kp).unwrap();
+        let deserialized: Ed25519KeyPair = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(kp.public(), deserialized.public());
+    }
 }

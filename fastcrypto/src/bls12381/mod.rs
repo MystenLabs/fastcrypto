@@ -84,7 +84,6 @@ pub struct BLS12381PrivateKey {
 // There is a strong requirement for this specific impl. in Fab benchmarks.
 /// BLS 12-381 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")] // necessary so as not to deserialize under a != type.
 pub struct BLS12381KeyPair {
     name: BLS12381PublicKey,
     secret: BLS12381PrivateKey,

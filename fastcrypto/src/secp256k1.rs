@@ -316,7 +316,6 @@ impl Default for Secp256k1Signature {
 // There is a strong requirement for this specific impl. in Fab benchmarks
 /// Secp256k1 public/private key pair.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct Secp256k1KeyPair {
     pub name: Secp256k1PublicKey,
     pub secret: Secp256k1PrivateKey,
