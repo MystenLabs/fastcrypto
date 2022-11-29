@@ -294,7 +294,7 @@ fn fail_to_verify_if_upper_s() {
     let rec_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
 
     // Failed to verify with upper S.
-    assert!(pk.verify(&msg, &rec_sig).is_err());
+    assert!(pk.verify_hashed(&msg, &rec_sig).is_err());
 
     // Nomralize S to be less than N/2.
     sig.normalize_s();
