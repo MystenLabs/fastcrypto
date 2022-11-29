@@ -734,12 +734,9 @@ pub const BLS_G2_LENGTH: usize = 96;
 
 /// Module minimizing the size of signatures. See also [min_pk].
 pub mod min_sig {
-    use blst::min_sig as blst;
-
-    use crate::serde_helpers::min_sig::BlsSignature;
-
     use super::*;
-
+    use crate::serde_helpers::min_sig::BlsSignature;
+    use blst::min_sig as blst;
     /// Hash-to-curve domain seperation tag.
     pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
@@ -747,12 +744,9 @@ pub mod min_sig {
 
 /// Module minimizing the size of public keys. See also [min_sig].
 pub mod min_pk {
-    use blst::min_pk as blst;
-
-    use crate::serde_helpers::min_pk::BlsSignature;
-
     use super::*;
-
+    use crate::serde_helpers::min_pk::BlsSignature;
+    use blst::min_pk as blst;
     /// Hash-to-curve domain seperation tag.
     pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
@@ -768,7 +762,6 @@ pub mod min_pk {
             blst_scalar_from_fr,
         };
         use once_cell::sync::OnceCell;
-
         //
         // Implement MSKR for BLS12381
         //
