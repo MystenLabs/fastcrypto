@@ -24,7 +24,7 @@ use crate::{
         bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12,
         tests::{arb_bls_fr, arb_bls_g1_affine, arb_blst_g1_affine, arb_blst_g2_affine},
     },
-    dummy_circuit::DummyCircuit,
+    dummy_circuits::DummyCircuit,
     verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
         verify_with_processed_vk, Proof, VerifyingKey, BLST_FR_ONE,
