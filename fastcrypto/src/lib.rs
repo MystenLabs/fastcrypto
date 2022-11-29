@@ -72,6 +72,7 @@ pub mod aes;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
+pub mod fake_tbls_key_generator;
 pub mod groups;
 pub mod fake_tbls_key_generator;
 pub mod hash;
