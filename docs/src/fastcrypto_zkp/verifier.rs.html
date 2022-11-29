@@ -315,6 +315,60 @@
 <a href="#315" id="315">315</a>
 <a href="#316" id="316">316</a>
 <a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{iter, ops::Neg, ptr};
@@ -430,6 +484,26 @@
 <span class="doccomment">/// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
 /// [`ark_groth16::PreparedVerifyingKey::process_vk`], but uses a blst representation of the elements.
 ///
+/// ## Example:
+/// ```
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
+/// use ark_bls12_381::{Bls12_381, Fr};
+/// use ark_ff::One;
+/// use ark_groth16::{
+///     generate_random_parameters
+/// };
+/// use ark_std::rand::thread_rng;
+///
+/// let mut rng = thread_rng();
+/// let params = {
+///     let c = Fibonacci::&lt;Fr&gt;::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
+///     generate_random_parameters::&lt;Bls12_381, _, _&gt;(c, &amp;mut rng).unwrap()
+/// };
+///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&amp;params.vk);
+/// ```
 </span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey&lt;Bls12_381&gt;) -&gt; PreparedVerifyingKey {
     <span class="kw">let </span>g1_alpha = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>vk.alpha_g1);
     <span class="kw">let </span>g2_beta = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>vk.beta_g2);
@@ -617,6 +691,40 @@
 <span class="doccomment">/// Returns the validity of the Groth16 proof passed as argument. The format of the inputs is assumed to be in arkworks format.
 /// See [`multipairing_with_processed_vk`] for the actual pairing computation details.
 ///
+/// ## Example
+/// ```
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
+/// use ark_bls12_381::{Bls12_381, Fr};
+/// use ark_ff::One;
+/// use ark_groth16::{
+///     create_random_proof, generate_random_parameters
+/// };
+/// use ark_std::rand::thread_rng;
+///
+/// let mut rng = thread_rng();
+///
+/// let params = {
+///     let circuit = Fibonacci::&lt;Fr&gt;::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+///     generate_random_parameters::&lt;Bls12_381, _, _&gt;(circuit, &amp;mut rng).unwrap()
+/// };
+///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&amp;params.vk);
+///
+/// let proof = {
+///     let circuit = Fibonacci::&lt;Fr&gt;::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+///     // Create a proof with our parameters, picking a random witness assignment
+///     create_random_proof(circuit, &amp;params, &amp;mut rng).unwrap()
+/// };
+///
+/// // We provide the public inputs which we know are used in our circuits
+/// // this must be the same as the inputs used in the proof right above.
+/// let inputs: Vec&lt;_&gt; = [Fr::one(); 2].to_vec();
+///
+/// // Verify the proof
+/// let r = verify_with_processed_vk(&amp;pvk, &amp;inputs, &amp;proof).unwrap();
+/// ```
 </span><span class="comment">// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
 // for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 </span><span class="kw">pub fn </span>verify_with_processed_vk(
@@ -633,4 +741,4 @@
     <span class="prelude-val">Ok</span>(res == pvk.alpha_g1_beta_g2)
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (1eb62b123 2022-11-27)" data-search-js="search-df80cc3cb87b6482.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (2585bcea0 2022-11-28)" data-search-js="search-df80cc3cb87b6482.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
