@@ -12,7 +12,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
-use fastcrypto_zkp::dummy_circuit::DummyCircuit;
+use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use std::ops::Mul;
 
 #[path = "./conversions.rs"]

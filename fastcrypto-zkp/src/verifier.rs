@@ -113,6 +113,26 @@ impl PreparedVerifyingKey {
 /// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
 /// [`ark_groth16::PreparedVerifyingKey::process_vk`], but uses a blst representation of the elements.
 ///
+/// ## Example:
+/// ```
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
+/// use ark_bls12_381::{Bls12_381, Fr};
+/// use ark_ff::One;
+/// use ark_groth16::{
+///     generate_random_parameters
+/// };
+/// use ark_std::rand::thread_rng;
+///
+/// let mut rng = thread_rng();
+/// let params = {
+///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
+///     generate_random_parameters::<Bls12_381, _, _>(c, &mut rng).unwrap()
+/// };
+///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&params.vk);
+/// ```
 pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey {
     let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.alpha_g1);
     let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.beta_g2);
@@ -300,6 +320,40 @@ fn multipairing_with_processed_vk(
 /// Returns the validity of the Groth16 proof passed as argument. The format of the inputs is assumed to be in arkworks format.
 /// See [`multipairing_with_processed_vk`] for the actual pairing computation details.
 ///
+/// ## Example
+/// ```
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
+/// use ark_bls12_381::{Bls12_381, Fr};
+/// use ark_ff::One;
+/// use ark_groth16::{
+///     create_random_proof, generate_random_parameters
+/// };
+/// use ark_std::rand::thread_rng;
+///
+/// let mut rng = thread_rng();
+///
+/// let params = {
+///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+///     generate_random_parameters::<Bls12_381, _, _>(circuit, &mut rng).unwrap()
+/// };
+///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&params.vk);
+///
+/// let proof = {
+///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+///     // Create a proof with our parameters, picking a random witness assignment
+///     create_random_proof(circuit, &params, &mut rng).unwrap()
+/// };
+///
+/// // We provide the public inputs which we know are used in our circuits
+/// // this must be the same as the inputs used in the proof right above.
+/// let inputs: Vec<_> = [Fr::one(); 2].to_vec();
+///
+/// // Verify the proof
+/// let r = verify_with_processed_vk(&pvk, &inputs, &proof).unwrap();
+/// ```
 // TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
 // for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 pub fn verify_with_processed_vk(

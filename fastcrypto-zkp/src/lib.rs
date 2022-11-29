@@ -10,8 +10,8 @@
 /// Conversions between arkworks <-> blst
 pub mod conversions;
 
-#[doc(hidden)]
-pub mod dummy_circuit;
+/// Simple circuits used in benchmarks and demos
+pub mod dummy_circuits;
 
 /// Groth16 SNARK verifier
 pub mod verifier;
