@@ -27,6 +27,8 @@ use crate::{
     },
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
+use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::AffinePoint;
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
     constants,
@@ -176,7 +178,10 @@ impl ToFromBytes for Secp256k1PublicKey {
 
 impl Default for Secp256k1PublicKey {
     fn default() -> Self {
-        Secp256k1PublicKey::from_bytes(&[0u8; constants::PUBLIC_KEY_SIZE]).unwrap()
+        // Return the generator
+        Secp256k1PublicKey::from_uncompressed(
+            AffinePoint::GENERATOR.to_encoded_point(false).as_bytes(),
+        )
     }
 }
 

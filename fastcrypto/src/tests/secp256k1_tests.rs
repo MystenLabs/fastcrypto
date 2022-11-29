@@ -484,3 +484,9 @@ fn dont_display_secrets() {
         );
     });
 }
+
+#[test]
+fn test_default_values() {
+    let _default_pubkey = Secp256k1PublicKey::default();
+    let _default_signature = Secp256k1Signature::default();
+}
