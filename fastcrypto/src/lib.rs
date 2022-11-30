@@ -73,6 +73,11 @@ pub mod mskr_tests;
 #[cfg(test)]
 #[path = "tests/ristretto255_tests.rs"]
 pub mod ristretto255_tests;
+
+#[cfg(test)]
+#[path = "tests/bls12381_group_tests.rs"]
+pub mod bls12381_group_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
