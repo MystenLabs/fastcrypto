@@ -4,8 +4,9 @@
 use crate::groups::{GroupElement, Scalar};
 use blst::{
     blst_fp, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_uint64, blst_fr_mul, blst_fr_sub,
-    blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult, blst_scalar,
-    blst_scalar_from_fr, BLS12_381_G1,
+    blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult, blst_p2,
+    blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
+    blst_scalar_from_fr, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -13,6 +14,9 @@ use std::ops::{Add, Mul, Neg, Sub};
 
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct G1Element(blst_p1);
+
+#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+pub struct G2Element(blst_p2);
 
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct BLS12381Scalar(blst_fr);
@@ -66,7 +70,7 @@ impl Mul<BLS12381Scalar> for G1Element {
 
         let mut result = blst_p1::default();
         if i == 0 {
-            return G1Element::from(G1_IDENTITY);
+            return G1Element::zero();
         } else if i == 1 && scalar.b[0] == 1 {
             return self;
         } else {
@@ -95,6 +99,89 @@ impl GroupElement for G1Element {
         let mut ret = blst_p1::default();
         unsafe {
             blst_p1_from_affine(&mut ret, &BLS12_381_G1);
+        }
+        Self::from(ret)
+    }
+}
+
+impl Add for G2Element {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut ret = blst_p2::default();
+        unsafe {
+            blst_p2_add_or_double(&mut ret, &self.0, &rhs.0);
+        }
+        Self::from(ret)
+    }
+}
+
+impl Sub for G2Element {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::add(self, Self::neg(rhs))
+    }
+}
+
+impl Neg for G2Element {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        let mut ret = self.0;
+        unsafe {
+            blst_p2_cneg(&mut ret, true);
+        }
+        Self::from(ret)
+    }
+}
+
+impl Mul<BLS12381Scalar> for G2Element {
+    type Output = Self;
+
+    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
+        let mut scalar: blst_scalar = blst_scalar::default();
+        unsafe {
+            blst_scalar_from_fr(&mut scalar, &rhs.0);
+        }
+
+        // Count the number of bytes to be multiplied.
+        let mut i = scalar.b.len();
+        while i != 0 && scalar.b[i - 1] == 0 {
+            i -= 1;
+        }
+
+        let mut result = blst_p2::default();
+        if i == 0 {
+            return G2Element::zero();
+        } else if i == 1 && scalar.b[0] == 1 {
+            return self;
+        } else {
+            // Count the number of bits to be multiplied.
+            unsafe {
+                blst_p2_mult(
+                    &mut result,
+                    &self.0,
+                    &(scalar.b[0]),
+                    8 * i - 7 + log_2_byte(scalar.b[i - 1]),
+                );
+            }
+        }
+        Self::from(result)
+    }
+}
+
+impl GroupElement for G2Element {
+    type ScalarType = BLS12381Scalar;
+
+    fn zero() -> Self {
+        Self::from(blst_p2::default())
+    }
+
+    fn generator() -> Self {
+        let mut ret = blst_p2::default();
+        unsafe {
+            blst_p2_from_affine(&mut ret, &BLS12_381_G2);
         }
         Self::from(ret)
     }
