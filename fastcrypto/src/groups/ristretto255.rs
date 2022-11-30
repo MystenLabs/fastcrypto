@@ -117,7 +117,7 @@ impl RistrettoScalar {
     }
 
     /// The order of the base point.
-    pub fn base_point_order() -> RistrettoScalar {
+    pub fn group_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
     }
 }

@@ -37,10 +37,7 @@ fn test_arithmetic() {
 
     // Test the order of the base point
     assert_ne!(RistrettoPoint::zero(), g);
-    assert_eq!(
-        RistrettoPoint::zero(),
-        g * RistrettoScalar::base_point_order()
-    );
+    assert_eq!(RistrettoPoint::zero(), g * RistrettoScalar::group_order());
 }
 
 #[test]
