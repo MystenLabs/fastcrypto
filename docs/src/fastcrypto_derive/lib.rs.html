@@ -79,10 +79,6 @@
 <a href="#79" id="79">79</a>
 <a href="#80" id="80">80</a>
 <a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="attr">#![warn(missing_docs, unreachable_pub)]
@@ -132,8 +128,8 @@
     gen.into()
 }
 
-<span class="doccomment">/// Extend implementations of Add, Sub, Mul and Neg into implementations of Add, Sub, Neg, AddAssign,
-/// SubAssign and MulAssign for all combinations of borrowed and owner inputs.
+<span class="doccomment">/// Extend implementations of Add, Sub, Mul&lt;GroupElement::ScalarType&gt; and Neg into implementations of
+/// Add, Sub, Neg, AddAssign, SubAssign and MulAssign for all combinations of borrowed and owned inputs.
 </span><span class="attr">#[proc_macro_derive(GroupOpsExtend)]
 </span><span class="kw">pub fn </span>group_ops(source: TokenStream) -&gt; TokenStream {
     <span class="kw">let </span>ast: DeriveInput = syn::parse(source).expect(<span class="string">&quot;Incorrect macro input&quot;</span>);
@@ -142,7 +138,7 @@
     <span class="kw">let </span>gen = <span class="macro">quote! </span>{
 
         <span class="comment">// Implement all combinations of borrowed and owned inputs assuming we have implemented the
-        // Add, Sub, Neg and Mul&lt;AdditiveGroupElement::Scalar&gt; for the given type.
+        // Add, Sub, Neg and Mul&lt;GroupElement::ScalarType&gt; for the given type.
 
         </span><span class="macro">auto_ops::impl_op!</span>(+ |a: <span class="kw-2">&amp;</span>#name, b: <span class="kw-2">&amp;</span>#name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Add&gt;::add(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
         <span class="macro">auto_ops::impl_op!</span>(+ |a: <span class="kw-2">&amp;</span>#name, b: #name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Add&gt;::add(<span class="kw-2">*</span>a, b) });
@@ -154,15 +150,11 @@
 
         <span class="macro">auto_ops::impl_op_ex!</span>(+= |a: <span class="kw-2">&amp;mut </span>#name, b: <span class="kw-2">&amp;</span>#name| { <span class="kw-2">*</span>a = &lt;#name <span class="kw">as </span>core::ops::Add&gt;::add(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
         <span class="macro">auto_ops::impl_op_ex!</span>(-= |a: <span class="kw-2">&amp;mut </span>#name, b: <span class="kw-2">&amp;</span>#name| { <span class="kw-2">*</span>a = &lt;#name <span class="kw">as </span>core::ops::Sub&gt;::sub(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
-        <span class="macro">auto_ops::impl_op_ex!</span>(<span class="kw-2">*</span>= |a: <span class="kw-2">&amp;mut </span>#name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar| { <span class="kw-2">*</span>a = &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
+        <span class="macro">auto_ops::impl_op_ex!</span>(<span class="kw-2">*</span>= |a: <span class="kw-2">&amp;mut </span>#name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType| { <span class="kw-2">*</span>a = &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType&gt;&gt;::mul(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
 
-        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar, b: <span class="kw-2">&amp;</span>#name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(<span class="kw-2">*</span>b, <span class="kw-2">*</span>a) });
-        <span class="macro">auto_ops::impl_op!</span>(* |a: &lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar, b: <span class="kw-2">&amp;</span>#name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(<span class="kw-2">*</span>b, a) });
-        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar, b: #name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(b, <span class="kw-2">*</span>a) });
-
-        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>#name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
-        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>#name, b: &lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(<span class="kw-2">*</span>a, b) });
-        <span class="macro">auto_ops::impl_op!</span>(* |a: #name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>AdditiveGroupElement&gt;::Scalar&gt;&gt;::mul(a, <span class="kw-2">*</span>b) });
+        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>#name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType&gt;&gt;::mul(<span class="kw-2">*</span>a, <span class="kw-2">*</span>b) });
+        <span class="macro">auto_ops::impl_op!</span>(* |a: <span class="kw-2">&amp;</span>#name, b: &lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType&gt;&gt;::mul(<span class="kw-2">*</span>a, b) });
+        <span class="macro">auto_ops::impl_op!</span>(* |a: #name, b: <span class="kw-2">&amp;</span>&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Mul&lt;&lt;#name <span class="kw">as </span>GroupElement&gt;::ScalarType&gt;&gt;::mul(a, <span class="kw-2">*</span>b) });
 
         <span class="macro">auto_ops::impl_op!</span>(- |a: <span class="kw-2">&amp;</span>#name| -&gt; #name { &lt;#name <span class="kw">as </span>core::ops::Neg&gt;::neg(<span class="kw-2">*</span>a) });
     };
