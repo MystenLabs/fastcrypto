@@ -34,11 +34,6 @@ impl RistrettoPoint {
         Self::from_uniform_bytes(&H::digest(bytes).digest)
     }
 
-    /// The order of the base point.
-    pub fn base_point_order() -> RistrettoScalar {
-        RistrettoScalar(BASEPOINT_ORDER)
-    }
-
     /// Return this point in compressed form.
     pub fn compress(&self) -> [u8; 32] {
         self.0.compress().0
@@ -119,6 +114,11 @@ impl RistrettoScalar {
     /// Create a scalar from the low 255 bits of the given 256-bit integer.
     pub fn from_bits(value: [u8; 32]) -> RistrettoScalar {
         RistrettoScalar(ExternalRistrettoScalar::from_bits(value))
+    }
+
+    /// The order of the base point.
+    pub fn base_point_order() -> RistrettoScalar {
+        RistrettoScalar(BASEPOINT_ORDER)
     }
 }
 

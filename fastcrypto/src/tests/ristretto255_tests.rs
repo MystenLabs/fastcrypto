@@ -39,7 +39,7 @@ fn test_arithmetic() {
     assert_ne!(RistrettoPoint::zero(), g);
     assert_eq!(
         RistrettoPoint::zero(),
-        g * RistrettoPoint::base_point_order()
+        g * RistrettoScalar::base_point_order()
     );
 }
 
