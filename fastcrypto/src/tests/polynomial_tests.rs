@@ -70,5 +70,5 @@ fn interpolation_insufficient_shares() {
         .map(|i| poly.eval(i as Idx))
         .collect::<Vec<_>>();
 
-    Poly::<RistrettoScalar>::recover_c0(threshold, shares.clone()).unwrap_err();
+    Poly::<RistrettoScalar>::recover_c0(threshold, shares).unwrap_err();
 }
