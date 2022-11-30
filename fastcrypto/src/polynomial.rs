@@ -78,7 +78,7 @@ impl<C: GroupElement> Poly<C> {
         assert!(i > 0); // Never reveal the secret coefficient directly.
         let xi = C::ScalarType::from(i.into());
         let res = self.0.iter().rev().fold(C::zero(), |mut sum, coeff| {
-            sum = sum * xi + *coeff;
+            sum = sum * xi + coeff;
             sum
         });
 
@@ -145,7 +145,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Checks if a given share is valid.
     pub fn is_valid_share(&self, idx: Idx, share: &C::ScalarType) -> bool {
-        let e = C::generator() * *share;
+        let e = C::generator() * share;
         let pub_eval = self.eval(idx);
         pub_eval.value == e
     }
@@ -175,7 +175,7 @@ impl<C: Scalar> Poly<C> {
             .iter()
             .map(|c| {
                 let mut commitment = P::generator();
-                commitment = commitment * *c;
+                commitment = commitment * c;
                 commitment
             })
             .collect::<Vec<P>>();

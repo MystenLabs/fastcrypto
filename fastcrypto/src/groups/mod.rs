@@ -13,11 +13,14 @@ pub trait GroupElement:
     + Clone
     + Eq
     + Add<Output = Self>
+    + AddAssign
+    + for<'a> Add<&'a Self, Output = Self>
     + Sub<Output = Self>
+    + SubAssign
+    + for<'a> Sub<&'a Self, Output = Self>
     + Neg<Output = Self>
     + Mul<Self::ScalarType, Output = Self>
-    + AddAssign
-    + SubAssign
+    + for<'a> Mul<&'a Self::ScalarType, Output = Self>
     + Sized
 {
     /// Type of scalars used in the [Self::mul] multiplication method.
