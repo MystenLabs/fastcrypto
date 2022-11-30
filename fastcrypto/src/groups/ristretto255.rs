@@ -12,10 +12,10 @@ use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRis
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
-use derive_more::{Add, From, Neg, Sub};
+use derive_more::{Add, From, Neg, Sub, Div};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
-use std::ops::Mul;
+use std::ops::{Add, Div, Mul, Sub};
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -98,7 +98,7 @@ impl TryFrom<&[u8]> for RistrettoPoint {
 
 /// Represents a scalar.
 #[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend,
+    Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend,
 )]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
@@ -133,6 +133,14 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
 
     fn mul(self, rhs: RistrettoScalar) -> RistrettoScalar {
         RistrettoScalar::from(self.0 * rhs.0)
+    }
+}
+
+impl Div<RistrettoScalar> for RistrettoScalar {
+    type Output = RistrettoScalar;
+
+    fn div(self, rhs: RistrettoScalar) -> RistrettoScalar {
+        RistrettoScalar::from(self.0 * rhs.0.invert())
     }
 }
 

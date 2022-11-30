@@ -1,14 +1,23 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use core::ops::{Add, Mul, Neg, Sub};
+use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::ops::{AddAssign, SubAssign};
 
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive cyclic group.
 pub trait GroupElement:
-    Eq + Add + Sub + Neg + AddAssign + SubAssign + Mul<Self::ScalarType> + Sized
+    Copy
+    + Clone
+    + Eq
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Neg<Output = Self>
+    + Mul<Self::ScalarType, Output = Self>
+    + AddAssign
+    + SubAssign
+    + Sized
 {
     /// Type of scalars used in the [Self::mul] multiplication method.
     type ScalarType: Scalar;
@@ -21,4 +30,7 @@ pub trait GroupElement:
 }
 
 /// Trait impl'd by scalars to be used with [AdditiveGroupElement].
-pub trait Scalar: GroupElement<ScalarType = Self> + Copy {}
+pub trait Scalar:
+    GroupElement<ScalarType = Self> + Copy + From<u64> + Div<Self, Output = Self>
+{
+}
