@@ -32,6 +32,9 @@ fn test_arithmetic() {
     p4 *= RistrettoScalar::from(5);
     assert_eq!(five_bp, p4);
 
+    let p5 = g * (RistrettoScalar::from(7) - RistrettoScalar::from(2));
+    assert_eq!(five_bp, p5);
+
     // Test the order of the base point
     assert_ne!(RistrettoPoint::zero(), g);
     assert_eq!(
