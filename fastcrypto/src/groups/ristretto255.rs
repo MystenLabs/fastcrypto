@@ -5,6 +5,7 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::groups::{GroupElement, Scalar};
+use crate::traits::AllowedRng;
 use crate::{error::FastCryptoError, hash::HashFunction};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
@@ -12,11 +13,10 @@ use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRis
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
-use derive_more::{Add, From, Neg, Sub, Div};
+use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Div, Mul};
-use crate::traits::AllowedRng;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -99,7 +99,19 @@ impl TryFrom<&[u8]> for RistrettoPoint {
 
 /// Represents a scalar.
 #[derive(
-    Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend,
+    Clone,
+    Copy,
+    Debug,
+    Serialize,
+    Deserialize,
+    PartialEq,
+    Eq,
+    From,
+    Add,
+    Sub,
+    Neg,
+    Div,
+    GroupOpsExtend,
 )]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
@@ -151,16 +163,13 @@ impl GroupElement for RistrettoScalar {
     fn zero() -> Self {
         RistrettoScalar::from(ExternalRistrettoScalar::zero())
     }
-
     fn generator() -> Self {
         RistrettoScalar::from(ExternalRistrettoScalar::one())
     }
 }
 
 impl Scalar for RistrettoScalar {
-    fn rand
-
-    <R: AllowedRng>(rng: &mut R) -> Self {
+    fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
     }
 }

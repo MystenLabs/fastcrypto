@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::ops::{AddAssign, SubAssign};
-use crate::traits::AllowedRng;
 
 pub mod ristretto255;
 
