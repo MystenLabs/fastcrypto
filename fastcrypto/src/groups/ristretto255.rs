@@ -4,7 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-use crate::groups::{AdditiveGroupElement, ScalarType};
+use crate::groups::{GroupElement, Scalar};
 use crate::{error::FastCryptoError, hash::HashFunction};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
@@ -58,8 +58,8 @@ impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
     }
 }
 
-impl AdditiveGroupElement for RistrettoPoint {
-    type Scalar = RistrettoScalar;
+impl GroupElement for RistrettoPoint {
+    type ScalarType = RistrettoScalar;
 
     fn zero() -> RistrettoPoint {
         RistrettoPoint::from(ExternalRistrettoPoint::identity())
@@ -136,8 +136,8 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
     }
 }
 
-impl AdditiveGroupElement for RistrettoScalar {
-    type Scalar = Self;
+impl GroupElement for RistrettoScalar {
+    type ScalarType = Self;
 
     fn zero() -> Self {
         RistrettoScalar::from(ExternalRistrettoScalar::zero())
@@ -148,4 +148,4 @@ impl AdditiveGroupElement for RistrettoScalar {
     }
 }
 
-impl ScalarType for RistrettoScalar {}
+impl Scalar for RistrettoScalar {}

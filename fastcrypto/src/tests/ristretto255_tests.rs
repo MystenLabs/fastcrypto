@@ -3,7 +3,7 @@
 
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::AdditiveGroupElement;
+use crate::groups::GroupElement;
 
 #[test]
 fn test_arithmetic() {

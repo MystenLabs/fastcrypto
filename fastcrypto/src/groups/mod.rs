@@ -7,11 +7,11 @@ use std::ops::{AddAssign, SubAssign};
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive cyclic group.
-pub trait AdditiveGroupElement:
-    Eq + Add + Sub + Neg + AddAssign + SubAssign + Mul<Self::Scalar> + Sized
+pub trait GroupElement:
+    Eq + Add + Sub + Neg + AddAssign + SubAssign + Mul<Self::ScalarType> + Sized
 {
     /// Type of scalars used in the [Self::mul] multiplication method.
-    type Scalar: ScalarType;
+    type ScalarType: Scalar;
 
     /// Return an instance of the identity element in this group.
     fn zero() -> Self;
@@ -21,4 +21,4 @@ pub trait AdditiveGroupElement:
 }
 
 /// Trait impl'd by scalars to be used with [AdditiveGroupElement].
-pub trait ScalarType: AdditiveGroupElement<Scalar = Self> + Copy {}
+pub trait Scalar: GroupElement<ScalarType = Self> + Copy {}
