@@ -39,7 +39,7 @@ fn test_arithmetic() {
     assert_ne!(RistrettoPoint::zero(), g);
     assert_eq!(
         RistrettoPoint::zero(),
-        &g * RistrettoPoint::base_point_order()
+        g * RistrettoPoint::base_point_order()
     );
 }
 
@@ -82,7 +82,7 @@ fn test_vectors() {
     ];
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
-        let actual = &RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
+        let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
         let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
         assert_eq!(expected, actual);
     }
