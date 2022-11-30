@@ -153,6 +153,8 @@ impl Div<RistrettoScalar> for RistrettoScalar {
     type Output = RistrettoScalar;
 
     fn div(self, rhs: RistrettoScalar) -> RistrettoScalar {
+        // TODO: Is there a better way?
+        assert_ne!(rhs.0, ExternalRistrettoScalar::zero());
         RistrettoScalar::from(self.0 * rhs.0.invert())
     }
 }

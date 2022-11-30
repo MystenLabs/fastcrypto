@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 pub type Idx = u32;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IndexedValue<A> {
     pub index: Idx,
     pub value: A,
@@ -23,7 +23,7 @@ pub type Eval<A> = IndexedValue<A>;
 
 /// A polynomial that is using a scalar for the variable x and a generic
 /// element for the coefficients.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Poly<C>(Vec<C>);
 
 pub type PrivatePoly<C> = Poly<<C as GroupElement>::ScalarType>;
@@ -97,11 +97,11 @@ impl<C: GroupElement> Poly<C> {
         // with the value of the share.
         let mut acc = C::zero();
         for (i, xi) in &xs {
-            let mut yi = xi.clone();
+            let mut yi = *xi;
             let mut num = C::ScalarType::generator();
             let mut den = C::ScalarType::generator();
 
-            for (j, _) in &xs {
+            for j in xs.keys() {
                 if i == j {
                     continue;
                 };
