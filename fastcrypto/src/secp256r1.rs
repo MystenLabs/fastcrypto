@@ -447,7 +447,7 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
         let sig = ExternalSignature::from_scalars(r, s)?;
 
         // Note: This line is introduced here because big_r.y is a private field.
-        let y: Scalar = Scalar::from_be_bytes_reduced(*big_r.to_encoded_point(false).y().unwrap());
+        let y: Scalar = get_y_coordinate(&big_r);
 
         // Compute recovery id and normalize signature
         let is_r_odd = y.is_odd();
@@ -462,6 +462,16 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
             recovery_id: recovery_id.to_byte(),
         })
     }
+}
+
+/// Get the y-coordinate from a given affine point.
+fn get_y_coordinate(point: &AffinePoint) -> Scalar {
+    let encoded_point = point.to_encoded_point(false);
+
+    // The encoded point is in uncompressed form, so we can safely get the y-coordinate here
+    let y = encoded_point.y().unwrap();
+
+    Scalar::from_be_bytes_reduced(*y)
 }
 
 impl TryFrom<Secp256r1PublicKeyBytes> for Secp256r1PublicKey {
