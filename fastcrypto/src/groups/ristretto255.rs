@@ -4,7 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-use crate::groups::AdditiveGroupElement;
+use crate::groups::{AdditiveGroupElement, ScalarType};
 use crate::{error::FastCryptoError, hash::HashFunction};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
@@ -15,6 +15,7 @@ use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
+use std::ops::Mul;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -31,11 +32,6 @@ impl RistrettoPoint {
     /// Construct a RistrettoPoint from the given data using a given hash function.
     pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
         Self::from_uniform_bytes(&H::digest(bytes).digest)
-    }
-
-    /// Returns the base point of the Ristretto group.
-    pub fn base_point() -> RistrettoPoint {
-        RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
     }
 
     /// The order of the base point.
@@ -65,8 +61,12 @@ impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
 impl AdditiveGroupElement for RistrettoPoint {
     type Scalar = RistrettoScalar;
 
-    fn identity() -> RistrettoPoint {
+    fn zero() -> RistrettoPoint {
         RistrettoPoint::from(ExternalRistrettoPoint::identity())
+    }
+
+    fn generator() -> Self {
+        RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
     }
 }
 
@@ -102,7 +102,9 @@ impl TryFrom<&[u8]> for RistrettoPoint {
 }
 
 /// Represents a scalar.
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(
+    Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend,
+)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
@@ -125,3 +127,25 @@ impl From<u64> for RistrettoScalar {
         RistrettoScalar(ExternalRistrettoScalar::from(value))
     }
 }
+
+impl Mul<RistrettoScalar> for RistrettoScalar {
+    type Output = RistrettoScalar;
+
+    fn mul(self, rhs: RistrettoScalar) -> RistrettoScalar {
+        RistrettoScalar::from(self.0 * rhs.0)
+    }
+}
+
+impl AdditiveGroupElement for RistrettoScalar {
+    type Scalar = Self;
+
+    fn zero() -> Self {
+        RistrettoScalar::from(ExternalRistrettoScalar::zero())
+    }
+
+    fn generator() -> Self {
+        RistrettoScalar::from(ExternalRistrettoScalar::one())
+    }
+}
+
+impl ScalarType for RistrettoScalar {}

@@ -71,10 +71,6 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
         auto_ops::impl_op_ex!(-= |a: &mut #name, b: &#name| { *a = <#name as core::ops::Sub>::sub(*a, *b) });
         auto_ops::impl_op_ex!(*= |a: &mut #name, b: &<#name as AdditiveGroupElement>::Scalar| { *a = <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, *b) });
 
-        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*b, *a) });
-        auto_ops::impl_op!(* |a: <#name as AdditiveGroupElement>::Scalar, b: &#name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*b, a) });
-        auto_ops::impl_op!(* |a: &<#name as AdditiveGroupElement>::Scalar, b: #name| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(b, *a) });
-
         auto_ops::impl_op!(* |a: &#name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, *b) });
         auto_ops::impl_op!(* |a: &#name, b: <#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(*a, b) });
         auto_ops::impl_op!(* |a: #name, b: &<#name as AdditiveGroupElement>::Scalar| -> #name { <#name as core::ops::Mul<<#name as AdditiveGroupElement>::Scalar>>::mul(a, *b) });

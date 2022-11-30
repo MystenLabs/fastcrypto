@@ -16,7 +16,7 @@ fn test_arithmetic() {
     .unwrap();
 
     // Test that different ways of computing [5]G gives the expected result
-    let g = RistrettoPoint::base_point();
+    let g = RistrettoPoint::generator();
 
     let p1 = g * RistrettoScalar::from(5);
     assert_eq!(five_bp, p1);
@@ -24,7 +24,7 @@ fn test_arithmetic() {
     let p2 = g + g + g + g + g + g - g;
     assert_eq!(five_bp, p2);
 
-    let mut p3 = RistrettoPoint::identity();
+    let mut p3 = RistrettoPoint::zero();
     p3 += p2;
     assert_eq!(five_bp, p3);
 
@@ -33,16 +33,16 @@ fn test_arithmetic() {
     assert_eq!(five_bp, p4);
 
     // Test the order of the base point
-    assert_ne!(RistrettoPoint::identity(), g);
+    assert_ne!(RistrettoPoint::zero(), g);
     assert_eq!(
-        RistrettoPoint::identity(),
-        RistrettoPoint::base_point_order() * &g
+        RistrettoPoint::zero(),
+        &g * RistrettoPoint::base_point_order()
     );
 }
 
 #[test]
 fn test_serialize_deserialize_element() {
-    let p = RistrettoPoint::base_point() + RistrettoPoint::base_point();
+    let p = RistrettoPoint::generator() + RistrettoPoint::generator();
     let serialized = bincode::serialize(&p).unwrap();
     let deserialized: RistrettoPoint = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
@@ -50,7 +50,7 @@ fn test_serialize_deserialize_element() {
 
 #[test]
 fn test_compress_decompress() {
-    let p = RistrettoPoint::base_point() + RistrettoPoint::base_point();
+    let p = RistrettoPoint::generator() + RistrettoPoint::generator();
     let compressed = p.compress();
     let decompressed: RistrettoPoint = RistrettoPoint::decompress(&compressed).unwrap();
     assert_eq!(decompressed, p);
@@ -79,7 +79,7 @@ fn test_vectors() {
     ];
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
-        let actual = RistrettoScalar::from(i as u64) * &RistrettoPoint::base_point();
+        let actual = &RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
         let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
         assert_eq!(expected, actual);
     }
