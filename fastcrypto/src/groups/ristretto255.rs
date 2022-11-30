@@ -15,7 +15,8 @@ use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, From, Neg, Sub, Div};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Div, Mul};
+use crate::traits::AllowedRng;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -156,4 +157,10 @@ impl GroupElement for RistrettoScalar {
     }
 }
 
-impl Scalar for RistrettoScalar {}
+impl Scalar for RistrettoScalar {
+    fn rand
+
+    <R: AllowedRng>(rng: &mut R) -> Self {
+        RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
+    }
+}

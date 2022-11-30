@@ -3,6 +3,7 @@
 
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::ops::{AddAssign, SubAssign};
+use crate::traits::AllowedRng;
 
 pub mod ristretto255;
 
@@ -33,4 +34,5 @@ pub trait GroupElement:
 pub trait Scalar:
     GroupElement<ScalarType = Self> + Copy + From<u64> + Div<Self, Output = Self>
 {
+    fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
