@@ -503,7 +503,7 @@ impl Secp256r1Signature {
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
-        let v = RecoveryId::from_byte(self.recovery_id).unwrap();
+        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
 
         // Note: This has been added because it does not seem to be done in k256
