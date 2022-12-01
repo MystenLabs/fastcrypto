@@ -1,7 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
-// TODO: add license notice
+//
+// Most of the code below is based on code from https://github.com/celo-org/celo-threshold-bls-rs,
+// modified for our needs.
+//
 
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::*;
