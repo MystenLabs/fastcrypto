@@ -100,7 +100,9 @@ impl<C: GroupElement> Poly<C> {
 
         // Check for duplicates.
         let mut ids_set = HashSet::new();
-        shares.iter().map(|s| &s.index).for_each(|id| { ids_set.insert(id); });
+        shares.iter().map(|s| &s.index).for_each(|id| {
+            ids_set.insert(id);
+        });
         if ids_set.len() != t as usize {
             return Err(FastCryptoError::InvalidInput);
         }
