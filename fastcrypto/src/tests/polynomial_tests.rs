@@ -7,6 +7,7 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::*;
 use crate::polynomial::*;
 use rand::prelude::*;
+use std::num::NonZeroU32;
 
 // TODO: add more tests & proptest tests.
 
@@ -15,11 +16,11 @@ fn eval() {
     let s: usize = 5;
 
     let p = Poly::<RistrettoScalar>::rand(s as u32, &mut thread_rng());
-    let e1 = p.eval(10);
+    let e1 = p.eval(NonZeroU32::new(10).unwrap());
 
     let public_p: Poly<RistrettoPoint> = p.commit();
     assert!(public_p.is_valid_share(e1.index, &e1.value));
-    let e2 = public_p.eval(10);
+    let e2 = public_p.eval(NonZeroU32::new(10).unwrap());
     let e1 = RistrettoPoint::generator() * e1.value;
     assert_eq!(e1, e2.value);
 }
@@ -30,9 +31,9 @@ fn eval_regression() {
     let coeff = vec![one, one, one];
     let p = Poly::<RistrettoScalar>::from(coeff);
     assert_eq!(p.degree(), 2);
-    let s1 = p.eval(10);
-    let s2 = p.eval(20);
-    let s3 = p.eval(33);
+    let s1 = p.eval(NonZeroU32::new(10).unwrap());
+    let s2 = p.eval(NonZeroU32::new(20).unwrap());
+    let s3 = p.eval(NonZeroU32::new(30).unwrap());
     let shares = vec![s1, s2, s3];
     assert_eq!(Poly::<RistrettoScalar>::recover_c0(3, shares).unwrap(), one);
 }
@@ -67,7 +68,7 @@ fn interpolation_insufficient_shares() {
 
     // insufficient shares gathered
     let shares = (1..threshold)
-        .map(|i| poly.eval(i as Idx))
+        .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
         .collect::<Vec<_>>();
 
     Poly::<RistrettoScalar>::recover_c0(threshold, shares).unwrap_err();

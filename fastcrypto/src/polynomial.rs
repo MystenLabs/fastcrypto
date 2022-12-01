@@ -8,14 +8,16 @@ use crate::groups::{GroupElement, Scalar};
 use crate::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 //// Types
 
-pub type Idx = u32;
+/// Indexes of shares (0 is reserved for the secret itself).
+pub type ShareIndex = NonZeroU32;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IndexedValue<A> {
-    pub index: Idx,
+    pub index: ShareIndex,
     pub value: A,
 }
 
@@ -74,9 +76,8 @@ impl<C: GroupElement> Poly<C> {
     // signature from party i is verified).
 
     /// Evaluates the polynomial at the specified value.
-    pub fn eval(&self, i: Idx) -> Eval<C> {
-        assert!(i > 0); // Never reveal the secret coefficient directly.
-        let xi = C::ScalarType::from(i.into());
+    pub fn eval(&self, i: ShareIndex) -> Eval<C> {
+        let xi = C::ScalarType::from(i.get().into());
         let res = self.0.iter().rev().fold(C::zero(), |mut sum, coeff| {
             sum = sum * xi + coeff;
             sum
@@ -105,9 +106,10 @@ impl<C: GroupElement> Poly<C> {
                     continue;
                 };
                 // xj - 0
-                num = num * C::ScalarType::from(*j as u64);
+                num = num * C::ScalarType::from(j.get() as u64);
                 // 1 / (xj - xi)
-                den = den * (C::ScalarType::from(*j as u64) - C::ScalarType::from(*i as u64));
+                den = den
+                    * (C::ScalarType::from(j.get() as u64) - C::ScalarType::from(i.get() as u64));
             }
             // Next line is safe since i != j.
             let inv = C::ScalarType::generator() / den;
@@ -117,7 +119,10 @@ impl<C: GroupElement> Poly<C> {
         Ok(acc)
     }
 
-    fn share_map(t: u32, mut shares: Vec<Eval<C>>) -> Result<BTreeMap<Idx, C>, FastCryptoError> {
+    fn share_map(
+        t: u32,
+        mut shares: Vec<Eval<C>>,
+    ) -> Result<BTreeMap<ShareIndex, C>, FastCryptoError> {
         if shares.len() < t.try_into().unwrap() {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -140,7 +145,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Checks if a given share is valid.
-    pub fn is_valid_share(&self, idx: Idx, share: &C::ScalarType) -> bool {
+    pub fn is_valid_share(&self, idx: ShareIndex, share: &C::ScalarType) -> bool {
         let e = C::generator() * share;
         let pub_eval = self.eval(idx);
         pub_eval.value == e
