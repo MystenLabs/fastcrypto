@@ -3,20 +3,27 @@
 
 use crate::groups::{GroupElement, Scalar};
 use blst::{
-    blst_fp, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_uint64, blst_fr_mul, blst_fr_sub,
+    blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
+    blst_fr_add, blst_fr_cneg, blst_fr_from_uint64, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
     blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult, blst_p2,
     blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
-    blst_scalar_from_fr, BLS12_381_G1, BLS12_381_G2,
+    blst_scalar_from_fr, blst_uint64_from_fr, Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Mul, Neg, Sub};
 
+/// Elements of the group G_1 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct G1Element(blst_p1);
 
+/// Elements of the group G_2 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct G2Element(blst_p2);
+
+/// Elements of the subgroup G_T of F_q^{12} in BLS 12-381. Note that it is written in additive notation here.
+#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+pub struct GTElement(blst_fp12);
 
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct BLS12381Scalar(blst_fr);
@@ -187,6 +194,85 @@ impl GroupElement for G2Element {
     }
 }
 
+impl Add for GTElement {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut ret = blst_fp12::default();
+        unsafe {
+            blst_fp12_mul(&mut ret, &self.0, &rhs.0);
+        }
+        Self::from(ret)
+    }
+}
+
+impl Sub for GTElement {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        Self::add(self, Self::neg(rhs))
+    }
+}
+
+impl Neg for GTElement {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        let mut ret = self.0;
+        unsafe {
+            blst_fp12_inverse(&mut ret, &self.0);
+        }
+        Self::from(ret)
+    }
+}
+
+impl Mul<BLS12381Scalar> for GTElement {
+    type Output = Self;
+
+    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
+        if rhs == BLS12381Scalar::zero() {
+            Self::zero()
+        } else if rhs.0 == BLST_FR_ONE {
+            self
+        } else {
+            let mut y: blst_fp12 = blst_fp12::default();
+            let mut n = rhs.0;
+            let mut x = self.0;
+            unsafe {
+                while n != blst_fr::default() && n != BLST_FR_ONE {
+                    if is_odd(&n) {
+                        blst_fr_sub(&mut n, &n, &BLST_FR_ONE);
+                        y *= x;
+                    }
+                    blst_fp12_sqr(&mut x, &x);
+                    blst_fr_rshift(&mut n, &n, 1);
+                }
+                y *= x;
+                Self::from(y)
+            }
+        }
+    }
+}
+
+impl GroupElement for GTElement {
+    type ScalarType = BLS12381Scalar;
+
+    fn zero() -> Self {
+        unsafe { Self::from(*blst_fp12_one()) }
+    }
+
+    fn generator() -> Self {
+        unsafe {
+            // Compute the generator as e(G1, G2).
+            // TODO: Should be precomputed.
+            let dst = [0u8; 3];
+            let mut pairing_blst = Pairing::new(false, &dst);
+            pairing_blst.raw_aggregate(&BLS12_381_G2, &BLS12_381_G1);
+            Self::from(pairing_blst.as_fp12()) // this implies pairing_blst.commit()
+        }
+    }
+}
+
 impl GroupElement for BLS12381Scalar {
     type ScalarType = Self;
 
@@ -259,7 +345,17 @@ impl From<u64> for BLS12381Scalar {
 
 impl Scalar for BLS12381Scalar {}
 
-/// This represents the multiplicative unit scalar, see fr_one_test
+pub(crate) fn is_odd(value: &blst_fr) -> bool {
+    let odd: bool;
+    unsafe {
+        let mut ret = 0u64;
+        blst_uint64_from_fr(&mut ret, value);
+        odd = ret % 2 == 1;
+    }
+    odd
+}
+
+/// This represents the multiplicative unit scalar
 const BLST_FR_ONE: blst_fr = blst_fr {
     l: [
         8589934590,
