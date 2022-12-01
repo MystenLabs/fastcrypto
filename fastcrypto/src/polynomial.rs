@@ -9,7 +9,7 @@ use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, Scalar};
 use crate::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::HashSet;
 use std::num::NonZeroU32;
 
 //// Types
@@ -94,56 +94,44 @@ impl<C: GroupElement> Poly<C> {
     /// Given at least `t` polynomial evaluations, it will recover the polynomial's
     /// constant term
     pub fn recover_c0(t: u32, shares: Vec<Eval<C>>) -> Result<C, FastCryptoError> {
-        let xs = Self::share_map(t, shares)?;
+        if shares.len() < t.try_into().unwrap() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Check for duplicates.
+        let mut ids_set = HashSet::new();
+        shares.iter().map(|s| &s.index).for_each(|id| { ids_set.insert(id); });
+        if ids_set.len() != t as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // Iterate over all indices and for each multiply the lagrange basis
         // with the value of the share.
         let mut acc = C::zero();
-        for (i, xi) in &xs {
+        for IndexedValue {
+            index: i,
+            value: share_i,
+        } in &shares
+        {
             let mut num = C::ScalarType::generator();
             let mut den = C::ScalarType::generator();
 
-            for j in xs.keys() {
+            for IndexedValue { index: j, value: _ } in &shares {
                 if i == j {
                     continue;
                 };
-                // xj - 0
+                // j - 0
                 num = num * C::ScalarType::from(j.get() as u64);
-                // 1 / (xj - xi)
+                // 1 / (j - i)
                 den = den
                     * (C::ScalarType::from(j.get() as u64) - C::ScalarType::from(i.get() as u64));
             }
             // Next line is safe since i != j.
             let inv = C::ScalarType::generator() / den;
-            acc += *xi * num * inv;
+            acc += *share_i * num * inv;
         }
 
         Ok(acc)
-    }
-
-    fn share_map(
-        t: u32,
-        mut shares: Vec<Eval<C>>,
-    ) -> Result<BTreeMap<ShareIndex, C>, FastCryptoError> {
-        if shares.len() < t.try_into().unwrap() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        // TODO: check that each id appears exactly once.
-
-        // first sort the shares as it can happens recovery happens for
-        // non-correlated shares so the subset chosen becomes important
-        shares.sort_by(|a, b| a.index.cmp(&b.index));
-        // convert the indexes of the shares into scalars
-        let xs =
-            shares
-                .into_iter()
-                .take(t.try_into().unwrap())
-                .fold(BTreeMap::new(), |mut m, sh| {
-                    m.insert(sh.index, sh.value);
-                    m
-                });
-
-        Ok(xs)
     }
 
     /// Checks if a given share is valid.
