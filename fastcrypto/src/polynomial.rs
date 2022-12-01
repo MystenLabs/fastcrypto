@@ -97,7 +97,6 @@ impl<C: GroupElement> Poly<C> {
         // with the value of the share.
         let mut acc = C::zero();
         for (i, xi) in &xs {
-            let mut yi = *xi;
             let mut num = C::ScalarType::generator();
             let mut den = C::ScalarType::generator();
 
@@ -108,14 +107,11 @@ impl<C: GroupElement> Poly<C> {
                 // xj - 0
                 num = num * C::ScalarType::from(*j as u64);
                 // 1 / (xj - xi)
-                let tmp = C::ScalarType::from(*j as u64) - C::ScalarType::from(*i as u64);
-                den = den * tmp;
+                den = den * (C::ScalarType::from(*j as u64) - C::ScalarType::from(*i as u64));
             }
             // Next line is safe since i != j.
             let inv = C::ScalarType::generator() / den;
-            num = num * inv;
-            yi = yi * num;
-            acc += yi;
+            acc += *xi * num * inv;
         }
 
         Ok(acc)
