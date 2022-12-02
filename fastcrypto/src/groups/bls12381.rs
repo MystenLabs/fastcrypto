@@ -1,7 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{GroupElement, Scalar};
+use crate::groups::GroupElement;
+use crate::groups::Scalar as ScalarType;
 use blst::{
     blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
     blst_fr_add, blst_fr_cneg, blst_fr_from_uint64, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
@@ -26,7 +27,7 @@ pub struct G2Element(blst_p2);
 pub struct GTElement(blst_fp12);
 
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
-pub struct BLS12381Scalar(blst_fr);
+pub struct Scalar(blst_fr);
 
 impl Add for G1Element {
     type Output = Self;
@@ -60,25 +61,37 @@ impl Neg for G1Element {
     }
 }
 
-impl Mul<BLS12381Scalar> for G1Element {
+/// The size of this scalar in bytes.
+fn size_in_bytes(scalar: &blst_scalar) -> usize {
+    let mut i = scalar.b.len();
+    while i != 0 && scalar.b[i - 1] == 0 {
+        i -= 1;
+    }
+    i
+}
+
+/// Given a scalar and its size in bytes (computed using [size_in_bytes], this method returns the size
+/// of the scalar in bits.
+fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
+    8 * size_in_bytes - 7 + log_2_byte(scalar.b[size_in_bytes - 1])
+}
+
+impl Mul<Scalar> for G1Element {
     type Output = Self;
 
-    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
+    fn mul(self, rhs: Scalar) -> Self::Output {
         let mut scalar: blst_scalar = blst_scalar::default();
         unsafe {
             blst_scalar_from_fr(&mut scalar, &rhs.0);
         }
 
         // Count the number of bytes to be multiplied.
-        let mut i = scalar.b.len();
-        while i != 0 && scalar.b[i - 1] == 0 {
-            i -= 1;
-        }
+        let bytes = size_in_bytes(&scalar);
 
         let mut result = blst_p1::default();
-        if i == 0 {
+        if bytes == 0 {
             return G1Element::zero();
-        } else if i == 1 && scalar.b[0] == 1 {
+        } else if bytes == 1 && scalar.b[0] == 1 {
             return self;
         } else {
             // Count the number of bits to be multiplied.
@@ -87,7 +100,7 @@ impl Mul<BLS12381Scalar> for G1Element {
                     &mut result,
                     &self.0,
                     &(scalar.b[0]),
-                    8 * i - 7 + log_2_byte(scalar.b[i - 1]),
+                    size_in_bits(&scalar, bytes),
                 );
             }
         }
@@ -96,7 +109,7 @@ impl Mul<BLS12381Scalar> for G1Element {
 }
 
 impl GroupElement for G1Element {
-    type ScalarType = BLS12381Scalar;
+    type ScalarType = Scalar;
 
     fn zero() -> Self {
         Self::from(G1_IDENTITY)
@@ -143,25 +156,22 @@ impl Neg for G2Element {
     }
 }
 
-impl Mul<BLS12381Scalar> for G2Element {
+impl Mul<Scalar> for G2Element {
     type Output = Self;
 
-    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
+    fn mul(self, rhs: Scalar) -> Self::Output {
         let mut scalar: blst_scalar = blst_scalar::default();
         unsafe {
             blst_scalar_from_fr(&mut scalar, &rhs.0);
         }
 
         // Count the number of bytes to be multiplied.
-        let mut i = scalar.b.len();
-        while i != 0 && scalar.b[i - 1] == 0 {
-            i -= 1;
-        }
+        let bytes = size_in_bytes(&scalar);
 
         let mut result = blst_p2::default();
-        if i == 0 {
+        if bytes == 0 {
             return G2Element::zero();
-        } else if i == 1 && scalar.b[0] == 1 {
+        } else if bytes == 1 && scalar.b[0] == 1 {
             return self;
         } else {
             // Count the number of bits to be multiplied.
@@ -170,7 +180,7 @@ impl Mul<BLS12381Scalar> for G2Element {
                     &mut result,
                     &self.0,
                     &(scalar.b[0]),
-                    8 * i - 7 + log_2_byte(scalar.b[i - 1]),
+                    size_in_bits(&scalar, bytes),
                 );
             }
         }
@@ -179,7 +189,7 @@ impl Mul<BLS12381Scalar> for G2Element {
 }
 
 impl GroupElement for G2Element {
-    type ScalarType = BLS12381Scalar;
+    type ScalarType = Scalar;
 
     fn zero() -> Self {
         Self::from(blst_p2::default())
@@ -226,11 +236,11 @@ impl Neg for GTElement {
     }
 }
 
-impl Mul<BLS12381Scalar> for GTElement {
+impl Mul<Scalar> for GTElement {
     type Output = Self;
 
-    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
-        if rhs == BLS12381Scalar::zero() {
+    fn mul(self, rhs: Scalar) -> Self::Output {
+        if rhs == Scalar::zero() {
             Self::zero()
         } else if rhs.0 == BLST_FR_ONE {
             self
@@ -255,7 +265,7 @@ impl Mul<BLS12381Scalar> for GTElement {
 }
 
 impl GroupElement for GTElement {
-    type ScalarType = BLS12381Scalar;
+    type ScalarType = Scalar;
 
     fn zero() -> Self {
         unsafe { Self::from(*blst_fp12_one()) }
@@ -273,7 +283,7 @@ impl GroupElement for GTElement {
     }
 }
 
-impl GroupElement for BLS12381Scalar {
+impl GroupElement for Scalar {
     type ScalarType = Self;
 
     fn zero() -> Self {
@@ -285,8 +295,8 @@ impl GroupElement for BLS12381Scalar {
     }
 }
 
-impl Add for BLS12381Scalar {
-    type Output = BLS12381Scalar;
+impl Add for Scalar {
+    type Output = Scalar;
 
     fn add(self, rhs: Self) -> Self::Output {
         let mut ret = blst_fr::default();
@@ -297,8 +307,8 @@ impl Add for BLS12381Scalar {
     }
 }
 
-impl Sub for BLS12381Scalar {
-    type Output = BLS12381Scalar;
+impl Sub for Scalar {
+    type Output = Scalar;
 
     fn sub(self, rhs: Self) -> Self::Output {
         let mut ret = blst_fr::default();
@@ -309,8 +319,8 @@ impl Sub for BLS12381Scalar {
     }
 }
 
-impl Neg for BLS12381Scalar {
-    type Output = BLS12381Scalar;
+impl Neg for Scalar {
+    type Output = Scalar;
 
     fn neg(self) -> Self::Output {
         let mut ret = blst_fr::default();
@@ -321,10 +331,10 @@ impl Neg for BLS12381Scalar {
     }
 }
 
-impl Mul<BLS12381Scalar> for BLS12381Scalar {
-    type Output = BLS12381Scalar;
+impl Mul<Scalar> for Scalar {
+    type Output = Scalar;
 
-    fn mul(self, rhs: BLS12381Scalar) -> Self::Output {
+    fn mul(self, rhs: Scalar) -> Self::Output {
         let mut ret = blst_fr::default();
         unsafe {
             blst_fr_mul(&mut ret, &self.0, &rhs.0);
@@ -333,7 +343,7 @@ impl Mul<BLS12381Scalar> for BLS12381Scalar {
     }
 }
 
-impl From<u64> for BLS12381Scalar {
+impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         let mut ret = blst_fr::default();
         unsafe {
@@ -343,7 +353,7 @@ impl From<u64> for BLS12381Scalar {
     }
 }
 
-impl Scalar for BLS12381Scalar {}
+impl ScalarType for Scalar {}
 
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
     let odd: bool;
