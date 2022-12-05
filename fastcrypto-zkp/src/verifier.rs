@@ -48,7 +48,7 @@ impl PreparedVerifyingKey {
         alpha_g1_beta_g2_bytes: &[u8],
         gamma_g2_neg_pc_bytes: &[u8],
         delta_g2_neg_pc_bytes: &[u8],
-    ) -> Result<Self, fastcrypto::error::FastCryptoError> {
+    ) -> Result<Self, FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
             let g1_reader = Input::from(g1_bytes);

@@ -504,7 +504,7 @@ impl FromStr for BLS12381KeyPair {
 /// Implement AggregateAuthenticator
 ///
 
-// Don't try to use this externally
+// Don't try to use this externally.
 impl AsRef<[u8]> for BLS12381AggregateSignature {
     fn as_ref(&self) -> &[u8] {
         match self.sig {
@@ -523,7 +523,7 @@ impl Display for BLS12381AggregateSignature {
     }
 }
 
-// see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+// see [#34](https://github.com/MystenLabs/narwhal/issues/34).
 impl Default for BLS12381AggregateSignature {
     fn default() -> Self {
         BLS12381AggregateSignature {
@@ -538,7 +538,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     type PubKey = BLS12381PublicKey;
     type PrivKey = BLS12381PrivateKey;
 
-    /// Parse a key from its byte representation
+    /// Parse a key from its byte representation.
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
@@ -665,7 +665,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 }
 
 ///
-/// Implement VerifyingKeyBytes
+/// Implement VerifyingKeyBytes.
 ///
 
 impl TryFrom<BLS12381PublicKeyBytes> for BLS12381PublicKey {
@@ -721,7 +721,7 @@ impl ToFromBytes for BLS12381AggregateSignature {
     }
 }
 
-}} // macro_rules! define_bls12381
+}} // macro_rules! define_bls12381.
 
 /// The length of a private key in bytes.
 pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;
@@ -737,7 +737,7 @@ pub mod min_sig {
     use super::*;
     use crate::serde_helpers::min_sig::BlsSignature;
     use blst::min_sig as blst;
-    /// Hash-to-curve domain seperation tag.
+    /// Hash-to-curve domain separation tag.
     pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
 }
@@ -747,7 +747,7 @@ pub mod min_pk {
     use super::*;
     use crate::serde_helpers::min_pk::BlsSignature;
     use blst::min_pk as blst;
-    /// Hash-to-curve domain seperation tag.
+    /// Hash-to-curve domain separation tag.
     pub const DST_G2: &[u8] = b"BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_";
     define_bls12381!(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 
@@ -797,23 +797,23 @@ pub mod min_pk {
                 let mut serialized: [u8; 96] = [0; 96];
 
                 unsafe {
-                    // Public key as affine point
+                    // Public key as affine point.
                     let mut pubkey_affine_pt = blst_p1_affine::default();
                     blst_p1_deserialize(&mut pubkey_affine_pt, pubkey_bytes.as_ptr());
 
-                    // Public key as point
+                    // Public key as point.
                     let mut pubkey_pt = blst_p1::default();
                     blst_p1_from_affine(&mut pubkey_pt, &pubkey_affine_pt);
 
-                    // Randomization factor as scalar
+                    // Randomization factor as scalar.
                     let mut scalar = blst_scalar::default();
                     blst_scalar_from_fr(&mut scalar, r);
 
-                    // Randomized public key as point
+                    // Randomized public key as point.
                     let mut randomized_pt = blst_p1::default();
                     blst_p1_mult(&mut randomized_pt, &pubkey_pt, &(scalar.b[0]), 256);
 
-                    // Serialize randomized public key
+                    // Serialize randomized public key.
                     blst_p1_serialize(serialized.as_mut_ptr(), &randomized_pt);
                 }
                 BLS12381PublicKey {
@@ -833,23 +833,23 @@ pub mod min_pk {
                 let mut serialized: [u8; 192] = [0; 192];
 
                 unsafe {
-                    // Signagure as affine point
+                    // Signature as affine point.
                     let mut pubkey_affine_pt = blst_p2_affine::default();
                     blst_p2_deserialize(&mut pubkey_affine_pt, pubkey_bytes.as_ptr());
 
-                    // Signature as point
+                    // Signature as point.
                     let mut pubkey_pt = blst_p2::default();
                     blst_p2_from_affine(&mut pubkey_pt, &pubkey_affine_pt);
 
-                    // Randomization factor as scalar
+                    // Randomization factor as scalar.
                     let mut scalar = blst_scalar::default();
                     blst_scalar_from_fr(&mut scalar, r);
 
-                    // Randomized signature as point
+                    // Randomized signature as point.
                     let mut randomized_pt = blst_p2::default();
                     blst_p2_mult(&mut randomized_pt, &pubkey_pt, &(scalar.b[0]), 256);
 
-                    // Serialize randomized signature
+                    // Serialize randomized signature.
                     blst_p2_serialize(serialized.as_mut_ptr(), &randomized_pt);
                 }
 
@@ -868,23 +868,23 @@ pub mod min_pk {
                 let mut randomized_bytes: [u8; 32] = [0; 32];
 
                 unsafe {
-                    // Parse private key as scalar
+                    // Parse private key as scalar.
                     let mut as_scalar = blst_scalar::default();
                     blst_scalar_from_bendian(&mut as_scalar, privkey_bytes.as_ptr());
 
-                    // Convert scalar to field element
+                    // Convert scalar to field element.
                     let mut as_field_element = blst_fr::default();
                     blst_fr_from_scalar(&mut as_field_element, &as_scalar);
 
-                    // Randomize field element
+                    // Randomize field element.
                     let mut randomized_as_field_element = blst_fr::default();
                     blst_fr_mul(&mut randomized_as_field_element, &as_field_element, r);
 
-                    // Convert to scalar
+                    // Convert to scalar.
                     let mut randomized = blst_scalar::default();
                     blst_scalar_from_fr(&mut randomized, &randomized_as_field_element);
 
-                    // Serialize scalar
+                    // Serialize scalar.
                     blst_bendian_from_scalar(randomized_bytes.as_mut_ptr(), &randomized);
                 }
 

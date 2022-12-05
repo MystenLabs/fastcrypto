@@ -26,7 +26,7 @@ pub struct DummyCircuit<F: PrimeField> {
 }
 
 impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
-    // We'll be proving a relationship involving the product c of a & b
+    // We'll be proving a relationship involving the product c of a & b.
     fn generate_constraints(self, cs: ConstraintSystemRef<F>) -> Result<(), SynthesisError> {
         let a = cs.new_witness_variable(|| self.a.ok_or(SynthesisError::AssignmentMissing))?;
         let b = cs.new_witness_variable(|| self.b.ok_or(SynthesisError::AssignmentMissing))?;
@@ -53,7 +53,7 @@ impl<F: PrimeField> ConstraintSynthesizer<F> for DummyCircuit<F> {
 }
 
 /// A circuit that checks a parametrized number of R1CS constraints that verify the computation of the Fibonacci sequence.
-/// It generates constraints in layers, numbered from 1 to num_constraints, sepcifying the computation of the Fibonacci sequence.
+/// It generates constraints in layers, numbered from 1 to num_constraints, specifying the computation of the Fibonacci sequence.
 /// On each layer, it does:
 ///
 /// 1. Add two new public inputs a = initial_a and b = initial_b at the first layer, or retrieve them from the previous layer if the layer if larger.
