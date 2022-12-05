@@ -26,7 +26,7 @@ use std::{fmt, marker::PhantomData};
 use crate::encoding::{Base64, Encoding};
 
 /// Represents a digest of `DIGEST_LEN` bytes.
-#[serde_with::serde_as]
+#[serde_as]
 #[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 pub struct Digest<const DIGEST_LEN: usize> {
     #[serde_as(as = "[_; DIGEST_LEN]")]

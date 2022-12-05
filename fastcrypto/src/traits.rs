@@ -63,7 +63,7 @@ pub trait EncodeDecodeBase64: Sized {
     fn decode_base64(value: &str) -> Result<Self, eyre::Report>;
 }
 
-// The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot
+// The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot.
 impl<T: ToFromBytes> EncodeDecodeBase64 for T {
     fn encode_base64(&self) -> String {
         Base64::encode(self.as_bytes())
@@ -106,12 +106,12 @@ pub trait VerifyingKey:
     + DeserializeOwned
     + std::hash::Hash
     + Display
-    + Eq  // required to make some cached bytes representations explicit
-    + Ord // required to put keys in BTreeMap
-    + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+    + Eq  // required to make some cached bytes representations explicit.
+    + Ord // required to put keys in BTreeMap.
+    + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34).
     + ToFromBytes
     + signature::Verifier<Self::Sig>
-    + for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey
+    + for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey.
     + Send
     + Sync
     + 'static
