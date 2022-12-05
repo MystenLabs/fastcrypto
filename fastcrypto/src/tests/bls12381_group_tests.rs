@@ -11,7 +11,7 @@ fn test_g1_arithmetic() {
 
     let p1 = g * Scalar::from(5);
 
-    let p2 = g + g + g + g + g + g - g;
+    let p2 = g + g + g + g + g;
     assert_eq!(p1, p2);
 
     let mut p3 = G1Element::zero();

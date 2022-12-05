@@ -94,7 +94,6 @@ impl Mul<Scalar> for G1Element {
         } else if bytes == 1 && scalar.b[0] == 1 {
             return self;
         } else {
-            // Count the number of bits to be multiplied.
             unsafe {
                 blst_p1_mult(
                     &mut result,
@@ -174,7 +173,6 @@ impl Mul<Scalar> for G2Element {
         } else if bytes == 1 && scalar.b[0] == 1 {
             return self;
         } else {
-            // Count the number of bits to be multiplied.
             unsafe {
                 blst_p2_mult(
                     &mut result,
@@ -248,7 +246,10 @@ impl Mul<Scalar> for GTElement {
             let mut y: blst_fp12 = blst_fp12::default();
             let mut n = rhs.0;
             let mut x = self.0;
+
+            // Compute n * x using repeated doubling (~ additive version of exponentiation by repeated squaring)
             unsafe {
+                // Keep going while n > 1
                 while n != blst_fr::default() && n != BLST_FR_ONE {
                     if is_odd(&n) {
                         blst_fr_sub(&mut n, &n, &BLST_FR_ONE);
@@ -346,8 +347,11 @@ impl Mul<Scalar> for Scalar {
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         let mut ret = blst_fr::default();
+
+        let mut words = [0u64; 4];
+        words[0] = value;
         unsafe {
-            blst_fr_from_uint64(&mut ret, &value);
+            blst_fr_from_uint64(&mut ret, &words[0]);
         }
         Self::from(ret)
     }
@@ -358,9 +362,9 @@ impl ScalarType for Scalar {}
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
     let odd: bool;
     unsafe {
-        let mut ret = 0u64;
-        blst_uint64_from_fr(&mut ret, value);
-        odd = ret % 2 == 1;
+        let mut ret = [0u64; 4];
+        blst_uint64_from_fr(&mut ret[0], value);
+        odd = ret[0] % 2 == 1;
     }
     odd
 }
