@@ -547,7 +547,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                 .into_iter()
                 .map(|x| &x.borrow().sig)
                 .collect::<Vec<_>>(),
-            true,
+            false,
         )
         .map(|sig| BLS12381AggregateSignature {
             sig: Some(sig.to_signature()),
