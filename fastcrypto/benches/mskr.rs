@@ -132,7 +132,7 @@ mod mskr_benches {
             |b, (sigs, randomized_pks, msgs)| {
                 b.iter(|| {
                     let r = KP::PubKey::verify_batch_empty_fail_different_msg(
-                        &msgs,
+                        msgs,
                         randomized_pks,
                         sigs,
                     );
