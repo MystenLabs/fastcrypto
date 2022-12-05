@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/conversions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>conversions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e3630034d0b07e68.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-3bcdcab5f4113412.css"><link rel="stylesheet" disabled href="../../static.files/dark-091ecdca18d5df85.css"><link rel="stylesheet" disabled href="../../static.files/ayu-45445754dcd01ab2.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-287cecec4dbb45b0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto_zkp/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/conversions.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>conversions.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e963ab4a0d0c903e.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-046227e470cd3629.css"><link rel="stylesheet" disabled href="../../static.files/dark-800f2ee593c8e6f7.css"><link rel="stylesheet" disabled href="../../static.files/ayu-9edae3c387f5a5b3.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-287cecec4dbb45b0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto_zkp/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -819,6 +819,16 @@
 <a href="#819" id="819">819</a>
 <a href="#820" id="820">820</a>
 <a href="#821" id="821">821</a>
+<a href="#822" id="822">822</a>
+<a href="#823" id="823">823</a>
+<a href="#824" id="824">824</a>
+<a href="#825" id="825">825</a>
+<a href="#826" id="826">826</a>
+<a href="#827" id="827">827</a>
+<a href="#828" id="828">828</a>
+<a href="#829" id="829">829</a>
+<a href="#830" id="830">830</a>
+<a href="#831" id="831">831</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
@@ -827,7 +837,6 @@
 <span class="kw">use </span>blst::{blst_fp2, blst_p1_deserialize};
 <span class="kw">use </span>blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
 <span class="kw">use </span>blst::{blst_p2_affine, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
-<span class="kw">use </span>byte_slice_cast::AsByteSlice;
 
 <span class="kw">pub use </span>ark_bls12_381::Fr <span class="kw">as </span>BlsFr;
 <span class="kw">use </span>ark_bls12_381::{Fq, Fq2};
@@ -835,10 +844,11 @@
 <span class="kw">use </span>ark_bls12_381::{Fq6, G1Affine <span class="kw">as </span>BlsG1Affine};
 
 <span class="kw">use </span>blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
+<span class="kw">use </span>byte_slice_cast::AsByteSlice;
 
 <span class="kw">const </span>SCALAR_SIZE: usize = <span class="number">32</span>;
 <span class="kw">const </span>G1_UNCOMPRESSED_SIZE: usize = <span class="number">96</span>;
-<span class="doccomment">/// G1 Affline point compressed size
+<span class="doccomment">/// G1 affine point compressed size.
 </span><span class="kw">pub const </span>G1_COMPRESSED_SIZE: usize = <span class="number">48</span>;
 <span class="kw">const </span>G2_UNCOMPRESSED_SIZE: usize = <span class="number">192</span>;
 <span class="kw">const </span>G2_COMPRESSED_SIZE: usize = <span class="number">96</span>;
@@ -854,7 +864,7 @@
 }
 
 <span class="comment">// Scalar Field conversions
-</span><span class="doccomment">/// Convert an Arkworks BLS12-381 scalar field element to a blst scalar field element
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 scalar field element to a blst scalar field element.
 </span><span class="kw">pub fn </span>bls_fr_to_blst_fr(fe: <span class="kw-2">&amp;</span>BlsFr) -&gt; blst_fr {
     <span class="macro">debug_assert_eq!</span>(fe.serialized_size(), SCALAR_SIZE);
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; SCALAR_SIZE];
@@ -867,7 +877,7 @@
     out
 }
 
-<span class="doccomment">/// Convert a blst scalar field element to an Arkworks BLS12-381 scalar field element
+<span class="doccomment">/// Convert a blst scalar field element to an Arkworks BLS12-381 scalar field element.
 </span><span class="kw">pub fn </span>blst_fr_to_bls_fr(fe: <span class="kw-2">&amp;</span>blst_fr) -&gt; BlsFr {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">4</span>];
     <span class="kw">unsafe </span>{ blst_uint64_from_fr(out.as_mut_ptr(), fe) };
@@ -877,7 +887,7 @@
 }
 
 <span class="comment">// Base Field conversions
-</span><span class="doccomment">/// Convert an Arkworks BLS12-381 prime field element to a blst prime field element
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 prime field element to a blst prime field element.
 </span><span class="kw">pub fn </span>bls_fq_to_blst_fp(f: <span class="kw-2">&amp;</span>Fq) -&gt; blst_fp {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
@@ -890,7 +900,7 @@
     blst_fp
 }
 
-<span class="doccomment">/// Convert a blst prime field element to an Arkworks BLS12-381 prime field element
+<span class="doccomment">/// Convert a blst prime field element to an Arkworks BLS12-381 prime field element.
 </span><span class="kw">pub fn </span>blst_fp_to_bls_fq(f: <span class="kw-2">&amp;</span>blst_fp) -&gt; Fq {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u64</span>; <span class="number">6</span>];
     <span class="kw">unsafe </span>{ blst_uint64_from_fp(out.as_mut_ptr(), f) };
@@ -899,7 +909,9 @@
 }
 
 <span class="comment">// QFE conversions
-</span><span class="doccomment">/// Convert an Arkworks BLS12-381 quadratic extension field element to a blst quadratic extension field element
+
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 quadratic extension field element to a blst quadratic extension
+/// field element.
 </span><span class="kw">pub fn </span>bls_fq2_to_blst_fp2(f: <span class="kw-2">&amp;</span>Fq2) -&gt; blst_fp2 {
     <span class="kw">let </span><span class="kw-2">mut </span>fp_bytes_le = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE / <span class="number">2</span>];
     f.serialize_uncompressed(<span class="kw-2">&amp;mut </span>fp_bytes_le[..])
@@ -921,7 +933,8 @@
     }
 }
 
-<span class="doccomment">/// Convert a blst quadratic extension field element to an Arkworks BLS12-381 quadratic extension field element
+<span class="doccomment">/// Convert a blst quadratic extension field element to an Arkworks BLS12-381 quadratic extension
+/// field element.
 </span><span class="kw">pub fn </span>blst_fp2_to_bls_fq2(f: <span class="kw-2">&amp;</span>blst_fp2) -&gt; Fq2 {
     <span class="kw">let </span>[fp1, fp2] = f.fp;
     <span class="kw">let </span>bls_fp1 = blst_fp_to_bls_fq(<span class="kw-2">&amp;</span>fp1);
@@ -931,7 +944,8 @@
 
 <span class="comment">// Target Field conversions
 
-</span><span class="doccomment">/// Convert an Arkworks BLS12-381 degree-6 extension field element to a blst degree-6 extension field element
+</span><span class="doccomment">/// Convert an Arkworks BLS12-381 degree-6 extension field element to a blst degree-6 extension
+/// field element.
 </span><span class="kw">pub fn </span>bls_fq6_to_blst_fp6(f: <span class="kw-2">&amp;</span>Fq6) -&gt; blst_fp6 {
     <span class="kw">let </span>c0 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c0);
     <span class="kw">let </span>c1 = bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>f.c1);
@@ -939,7 +953,8 @@
     blst_fp6 { fp2: [c0, c1, c2] }
 }
 
-<span class="doccomment">/// Convert a blst degree-6 extension field element to an Arkworks BLS12-381 degree-6 extension field element
+<span class="doccomment">/// Convert a blst degree-6 extension field element to an Arkworks BLS12-381 degree-6 extension
+/// field element.
 </span><span class="kw">pub fn </span>blst_fp6_to_bls_fq6(f: <span class="kw-2">&amp;</span>blst_fp6) -&gt; Fq6 {
     <span class="kw">let </span>c0 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">0</span>]);
     <span class="kw">let </span>c1 = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>f.fp2[<span class="number">1</span>]);
@@ -947,14 +962,14 @@
     Fq6::new(c0, c1, c2)
 }
 
-<span class="doccomment">/// Convert an Arkworks BLS12-381 target field element to a blst target field element
+<span class="doccomment">/// Convert an Arkworks BLS12-381 target field element to a blst target field element.
 </span><span class="kw">pub fn </span>bls_fq12_to_blst_fp12(f: <span class="kw-2">&amp;</span>Fq12) -&gt; blst_fp12 {
     <span class="kw">let </span>c0 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c0);
     <span class="kw">let </span>c1 = bls_fq6_to_blst_fp6(<span class="kw-2">&amp;</span>f.c1);
     blst_fp12 { fp6: [c0, c1] }
 }
 
-<span class="doccomment">/// Convert a blst target field element to an Arkworks BLS12-381 target field element
+<span class="doccomment">/// Convert a blst target field element to an Arkworks BLS12-381 target field element.
 </span><span class="kw">pub fn </span>blst_fp12_to_bls_fq12(f: <span class="kw-2">&amp;</span>blst_fp12) -&gt; Fq12 {
     <span class="kw">let </span>c0 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">0</span>]);
     <span class="kw">let </span>c1 = blst_fp6_to_bls_fq6(<span class="kw-2">&amp;</span>f.fp6[<span class="number">1</span>]);
@@ -975,7 +990,7 @@
     BlsG1Affine::new(Fq::zero(), Fq::one(), <span class="bool-val">true</span>)
 }
 
-<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G1 point to a blst affine G1 point
+<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G1 point to a blst affine G1 point.
 </span><span class="kw">pub fn </span>bls_g1_affine_to_blst_g1_affine(pt: <span class="kw-2">&amp;</span>BlsG1Affine) -&gt; blst_p1_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G1_UNCOMPRESSED_SIZE);
     <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G1
@@ -992,20 +1007,24 @@
         y: bls_fq_to_blst_fp(<span class="kw-2">&amp;</span>pt.y),
     };
     <span class="comment">// See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
-    // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved alternatively using
-    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks. Note:
-    // this is an uncompressed serialization - deserialization.
+    // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved
+    // alternatively using https://github.com/arkworks-rs/algebra/issues/308 in a later release of
+    // Arkworks.
+    // Note: this is an uncompressed serialization - deserialization.
     </span><span class="kw">let </span><span class="kw-2">mut </span>tmp2 = [<span class="number">0u8</span>; <span class="number">96</span>];
     <span class="kw">unsafe </span>{
         blst_p1_affine_serialize(tmp2.as_mut_ptr(), <span class="kw-2">&amp;</span>tmp_p1);
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>g1 = blst_p1_affine::default();
-    <span class="macro">assert!</span>(<span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1, tmp2.as_ptr()) },
+        BLST_ERROR::BLST_SUCCESS
+    );
     g1
 }
 
-<span class="doccomment">/// Convert a blst affine G1 point to an Arkworks BLS12-381 affine G1 point
+<span class="doccomment">/// Convert a blst affine G1 point to an Arkworks BLS12-381 affine G1 point.
 </span><span class="kw">pub fn </span>blst_g1_affine_to_bls_g1_affine(pt: <span class="kw-2">&amp;</span>blst_p1_affine) -&gt; BlsG1Affine {
     <span class="kw">let </span><span class="kw-2">mut </span>out = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE];
     <span class="kw">unsafe </span>{
@@ -1023,7 +1042,7 @@
     }
     <span class="kw">let </span>y = Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[<span class="number">48</span>..]);
     <span class="kw">let </span>x = {
-        <span class="comment">// Mask away the flag bits (which Arkworks doesn&#39;t use)
+        <span class="comment">// Mask away the flag bits (which Arkworks doesn&#39;t use).
         </span>out[<span class="number">0</span>] &amp;= <span class="number">0b0001_1111</span>;
         Fp384::from_be_bytes_mod_order(<span class="kw-2">&amp;</span>out[..<span class="number">48</span>])
     };
@@ -1041,7 +1060,7 @@
     BlsG2Affine::new(Fq2::zero(), Fq2::one(), <span class="bool-val">true</span>)
 }
 
-<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G2 point to a blst affine G2 point
+<span class="doccomment">/// Convert an Arkworks BLS12-381 affine G2 point to a blst affine G2 point.
 </span><span class="kw">pub fn </span>bls_g2_affine_to_blst_g2_affine(pt: <span class="kw-2">&amp;</span>BlsG2Affine) -&gt; blst_p2_affine {
     <span class="macro">debug_assert_eq!</span>(pt.uncompressed_size(), G2_UNCOMPRESSED_SIZE);
     <span class="comment">// BLST disagrees with Arkworks on the uncompressed representation of the infinity point on G2
@@ -1058,20 +1077,24 @@
         y: bls_fq2_to_blst_fp2(<span class="kw-2">&amp;</span>pt.y),
     };
     <span class="comment">// See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
-    // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved alternatively using
-    // https://github.com/arkworks-rs/algebra/issues/308 in a later release of arkworks. Note:
-    // this is an uncompressed serialization - deserialization.
+    // we&#39;re in fact applying correct masks that arkworks does not use. This may be solved
+    // alternatively using https://github.com/arkworks-rs/algebra/issues/308 in a later release of
+    // Arkworks.
+    // Note: this is an uncompressed serialization - deserialization.
     </span><span class="kw">let </span><span class="kw-2">mut </span>tmp2 = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE];
     <span class="kw">unsafe </span>{
         blst_p2_affine_serialize(tmp2.as_mut_ptr(), <span class="kw-2">&amp;</span>tmp_p2);
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>g2 = blst_p2_affine::default();
-    <span class="macro">assert!</span>(<span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2, tmp2.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
+    <span class="macro">assert_eq!</span>(
+        <span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2, tmp2.as_ptr()) },
+        BLST_ERROR::BLST_SUCCESS
+    );
     g2
 }
 
-<span class="doccomment">/// Convert a blst affine G2 point to an Arkworks BLS12-381 affine G2 point
+<span class="doccomment">/// Convert a blst affine G2 point to an Arkworks BLS12-381 affine G2 point.
 </span><span class="kw">pub fn </span>blst_g2_affine_to_bls_g2_affine(pt: <span class="kw-2">&amp;</span>blst_p2_affine) -&gt; BlsG2Affine {
     <span class="kw">let </span>ptx = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.x);
     <span class="kw">let </span>pty = blst_fp2_to_bls_fq2(<span class="kw-2">&amp;</span>pt.y);
@@ -1101,7 +1124,7 @@
 // and https://datatracker.ietf.org/doc/draft-irtf-cfrg-bls-signature/ Appendix A
 // for its choice as a standard.
 
-// A note on BLST: blst uses zcash point encoding formats across the board.
+// A note on BLST: blst uses Zcash point encoding formats across the board.
 
 </span><span class="kw">fn </span>bls_fq_to_zcash_bytes(field: <span class="kw-2">&amp;</span>Fq) -&gt; [u8; G1_COMPRESSED_SIZE] {
     <span class="kw">let </span><span class="kw-2">mut </span>result = [<span class="number">0u8</span>; G1_COMPRESSED_SIZE];
@@ -1165,26 +1188,18 @@
 
 <span class="doccomment">/// This deserializes an Arkworks G1Affine point from a Zcash point encoding.
 </span><span class="kw">pub fn </span>bls_g1_affine_from_zcash_bytes(bytes: <span class="kw-2">&amp;</span>[u8; G1_COMPRESSED_SIZE]) -&gt; <span class="prelude-ty">Option</span>&lt;BlsG1Affine&gt; {
-    <span class="comment">// Obtain the three flags from the start of the byte sequence
+    <span class="comment">// Obtain the three flags from the start of the byte sequence.
     </span><span class="kw">let </span>flags = EncodingFlags::from(<span class="kw-2">&amp;</span>bytes[..]);
 
     <span class="kw">if </span>!flags.is_compressed {
-        <span class="kw">return </span><span class="prelude-val">None</span>; <span class="comment">// We only support compressed points
+        <span class="kw">return </span><span class="prelude-val">None</span>; <span class="comment">// We only support compressed points.
     </span>}
 
     <span class="kw">if </span>flags.is_infinity {
         <span class="kw">return </span><span class="prelude-val">Some</span>(BlsG1Affine::default());
     }
-    <span class="comment">// Attempt to obtain the x-coordinate
-    </span><span class="kw">let </span>x = {
-        <span class="kw">let </span><span class="kw-2">mut </span>tmp = [<span class="number">0</span>; G1_COMPRESSED_SIZE];
-        tmp.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">0</span>..<span class="number">48</span>]);
-
-        <span class="comment">// Mask away the flag bits
-        </span>tmp[<span class="number">0</span>] &amp;= <span class="number">0b0001_1111</span>;
-
-        bls_fq_from_zcash_bytes(<span class="kw-2">&amp;</span>tmp)<span class="question-mark">?
-    </span>};
+    <span class="comment">// Attempt to obtain the x-coordinate.
+    </span><span class="kw">let </span>x = obtain_x_coordinate(bytes.as_slice())<span class="question-mark">?</span>;
 
     BlsG1Affine::get_point_from_x(x, flags.is_lexicographically_largest)
 }
@@ -1207,23 +1222,14 @@
     </span><span class="kw">let </span>flags = EncodingFlags::from(<span class="kw-2">&amp;</span>bytes[..]);
 
     <span class="kw">if </span>!flags.is_compressed {
-        <span class="kw">return </span><span class="prelude-val">None</span>; <span class="comment">// We only support compressed points
+        <span class="kw">return </span><span class="prelude-val">None</span>; <span class="comment">// We only support compressed points.
     </span>}
 
     <span class="kw">if </span>flags.is_infinity {
         <span class="kw">return </span><span class="prelude-val">Some</span>(BlsG2Affine::default());
     }
 
-    <span class="comment">// Attempt to obtain the x-coordinate
-    </span><span class="kw">let </span>xc1 = {
-        <span class="kw">let </span><span class="kw-2">mut </span>tmp = [<span class="number">0</span>; G1_COMPRESSED_SIZE];
-        tmp.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">0</span>..<span class="number">48</span>]);
-
-        <span class="comment">// Mask away the flag bits
-        </span>tmp[<span class="number">0</span>] &amp;= <span class="number">0b0001_1111</span>;
-
-        bls_fq_from_zcash_bytes(<span class="kw-2">&amp;</span>tmp)<span class="question-mark">?
-    </span>};
+    <span class="kw">let </span>xc1 = obtain_x_coordinate(bytes.as_slice())<span class="question-mark">?</span>;
     <span class="kw">let </span>xc0 = {
         <span class="kw">let </span><span class="kw-2">mut </span>tmp = [<span class="number">0</span>; G1_COMPRESSED_SIZE];
         tmp.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">48</span>..<span class="number">96</span>]);
@@ -1255,6 +1261,19 @@
     bytes
 }
 
+<span class="comment">// Attempt to obtain x_coordinate
+</span><span class="kw">fn </span>obtain_x_coordinate(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Option</span>&lt;Fq&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>tmp = [<span class="number">0</span>; G1_COMPRESSED_SIZE];
+    <span class="comment">// this is safe as the private obtain_x_coordinate function is only invoked with G1 (48) and
+    // G2 (96) size inputs.
+    </span>tmp.copy_from_slice(<span class="kw-2">&amp;</span>bytes[<span class="number">0</span>..G1_COMPRESSED_SIZE]);
+
+    <span class="comment">// Mask away the flag bits
+    </span>tmp[<span class="number">0</span>] &amp;= <span class="number">0b0001_1111</span>;
+
+    bls_fq_from_zcash_bytes(<span class="kw-2">&amp;</span>tmp)
+}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -1268,14 +1287,14 @@
     };
     <span class="kw">use </span>proptest::{collection, prelude::<span class="kw-2">*</span>};
 
-    <span class="comment">// Scalar roundtrips
+    <span class="comment">// Scalar roundtrips.
 
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_bls_fr() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsFr&gt; {
         collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>)
             .prop_map(|bytes| BlsFr::from_random_bytes(<span class="kw-2">&amp;</span>bytes[..]))
             .prop_filter(<span class="string">&quot;Valid field elements&quot;</span>, Option::is_some)
             .prop_map(|opt_fr| opt_fr.unwrap())
-            .no_shrink() <span class="comment">// this is arbitrary
+            .no_shrink() <span class="comment">// this is arbitrary.
     </span>}
 
     <span class="kw">fn </span>arb_blst_fr() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_fr&gt; {
@@ -1285,7 +1304,7 @@
                 <span class="kw">unsafe </span>{ blst_fr_from_uint64(<span class="kw-2">&amp;mut </span>out, u64s[..].as_ptr()) };
                 out
             })
-            .no_shrink() <span class="comment">// this is arbitrary
+            .no_shrink() <span class="comment">// this is arbitrary.
     </span>}
 
     <span class="macro">proptest! </span>{
@@ -1304,14 +1323,14 @@
         }
     }
 
-    <span class="comment">// Base field rountrips
+    <span class="comment">// Base field roundtrips.
 
     </span><span class="kw">fn </span>arb_bls_fq() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fp384&lt;FqParameters&gt;&gt; {
         collection::vec(any::&lt;u8&gt;(), <span class="number">48</span>..=<span class="number">48</span>)
             .prop_map(|bytes| Fp384::from_random_bytes(<span class="kw-2">&amp;</span>bytes[..]))
             .prop_filter(<span class="string">&quot;Valid field elements&quot;</span>, Option::is_some)
             .prop_map(|opt_fr| opt_fr.unwrap())
-            .no_shrink() <span class="comment">// this is arbitrary
+            .no_shrink() <span class="comment">// this is arbitrary.
     </span>}
 
     <span class="kw">fn </span>arb_blst_fp() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_fp&gt; {
@@ -1321,7 +1340,7 @@
                 <span class="kw">unsafe </span>{ blst_fp_from_uint64(<span class="kw-2">&amp;mut </span>out, u64s[..].as_ptr()) };
                 out
             })
-            .no_shrink() <span class="comment">// this is arbitrary
+            .no_shrink() <span class="comment">// this is arbitrary.
     </span>}
 
     <span class="macro">proptest! </span>{
@@ -1347,7 +1366,8 @@
         }
     }
 
-    <span class="comment">// QFE roundtrips
+    <span class="comment">// QFE roundtrips.
+
     </span><span class="kw">fn </span>arb_bls_fq2() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fq2&gt; {
         (arb_bls_fq(), arb_bls_fq())
             .prop_map(|(fp1, fp2)| Fq2::new(fp1, fp2))
@@ -1376,7 +1396,7 @@
         }
     }
 
-    <span class="comment">// Target field roundtrips
+    <span class="comment">// Target field roundtrips.
 
     </span><span class="kw">fn </span>arb_bls_fq6() -&gt; <span class="kw">impl </span>Strategy&lt;Value = Fq6&gt; {
         (arb_bls_fq2(), arb_bls_fq2(), arb_bls_fq2())
@@ -1436,7 +1456,7 @@
         }
     }
 
-    <span class="comment">// Affine point roundtrips
+    <span class="comment">// Affine point roundtrips.
 
     </span><span class="kw">fn </span>bls_g1_affine_infinity() -&gt; BlsG1Affine {
         <span class="kw">let </span>res = BlsG1Affine::zero();
@@ -1446,10 +1466,10 @@
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_bls_g1_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsG1Affine&gt; {
         <span class="macro">prop_oneof!</span>[
-            <span class="comment">// 1% chance of being the point at infinity
+            <span class="comment">// 1% chance of being the point at infinity.
             </span><span class="number">1 </span>=&gt;
             Just(bls_g1_affine_infinity()),
-            <span class="number">99 </span>=&gt;  <span class="comment">// slow, but good enough for tests
+            <span class="number">99 </span>=&gt;  <span class="comment">// slow, but good enough for tests.
             </span>(arb_bls_fr()).prop_map(|s| {
 
                     BlsG1Affine::prime_subgroup_generator()
@@ -1464,21 +1484,21 @@
         <span class="kw">let </span><span class="kw-2">mut </span>res = [<span class="number">0u8</span>; G1_UNCOMPRESSED_SIZE];
         res[<span class="number">0</span>] = <span class="number">0x40</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>g1_infinity = blst_p1_affine::default();
-        <span class="macro">assert!</span>(
-            <span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1_infinity, res.as_ptr()) }
-                == BLST_ERROR::BLST_SUCCESS
+        <span class="macro">assert_eq!</span>(
+            <span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1_infinity, res.as_ptr()) },
+            BLST_ERROR::BLST_SUCCESS
         );
         g1_infinity
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_blst_g1_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_p1_affine&gt; {
         <span class="macro">prop_oneof!</span>[
-                <span class="comment">// 1% chance of being the point at infinity
+                <span class="comment">// 1% chance of being the point at infinity.
                 </span><span class="number">1 </span>=&gt; Just(blst_g1_affine_infinity()),
                 <span class="number">99 </span>=&gt;
                 (collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>)).prop_map(|msg| {
 
-                        <span class="comment">// we actually hash to a G1Projective, then convert to affine
+                        <span class="comment">// We actually hash to a G1Projective, then convert to affine.
                         </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p1::default();
                         <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
                         <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
@@ -1529,11 +1549,11 @@
         <span class="attr">#[test]
         </span><span class="kw">fn </span>compatibility_bls_blst_g1_affine_serde(b <span class="kw">in </span>arb_bls_g1_affine(), bt <span class="kw">in </span>arb_blst_g1_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g1_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
-            <span class="comment">// blst accepts &amp; expects zcash encodings
+            <span class="comment">// blst accepts &amp; expects Zcash encodings.
             </span><span class="kw">let </span><span class="kw-2">mut </span>g1 = blst_p1_affine::default();
-            <span class="macro">assert!</span>(<span class="kw">unsafe </span>{ blst_p1_uncompress(<span class="kw-2">&amp;mut </span>g1, zcash_bytes.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
+            <span class="macro">assert_eq!</span>(<span class="kw">unsafe </span>{ blst_p1_uncompress(<span class="kw-2">&amp;mut </span>g1, zcash_bytes.as_ptr()) }, BLST_ERROR::BLST_SUCCESS);
 
-            <span class="comment">// blst produces zcash encodings
+            <span class="comment">// blst produces Zcash encodings.
             </span><span class="kw">let </span><span class="kw-2">mut </span>tmp2 = [<span class="number">0u8</span>; <span class="number">48</span>];
             <span class="kw">unsafe </span>{
                 blst_p1_affine_compress(tmp2.as_mut_ptr(), <span class="kw-2">&amp;</span>bt);
@@ -1549,7 +1569,7 @@
     }
 
     <span class="kw">fn </span>arb_bls_g2_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = BlsG2Affine&gt; {
-        <span class="comment">// slow, but good enough for tests
+        <span class="comment">// slow, but good enough for tests.
         </span>(arb_bls_fr(), any::&lt;f32&gt;()).prop_map(|(s, maybe_infinity)| {
             <span class="kw">if </span>maybe_infinity &lt; <span class="number">0.1 </span>{
                 bls_g2_affine_infinity()
@@ -1565,19 +1585,19 @@
         <span class="kw">let </span><span class="kw-2">mut </span>res = [<span class="number">0u8</span>; G2_UNCOMPRESSED_SIZE];
         res[<span class="number">0</span>] = <span class="number">0x40</span>;
         <span class="kw">let </span><span class="kw-2">mut </span>g2_infinity = blst_p2_affine::default();
-        <span class="macro">assert!</span>(
-            <span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2_infinity, res.as_ptr()) }
-                == BLST_ERROR::BLST_SUCCESS
+        <span class="macro">assert_eq!</span>(
+            <span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2_infinity, res.as_ptr()) },
+            BLST_ERROR::BLST_SUCCESS
         );
         g2_infinity
     }
 
     <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arb_blst_g2_affine() -&gt; <span class="kw">impl </span>Strategy&lt;Value = blst_p2_affine&gt; {
         <span class="macro">prop_oneof!</span>[
-            <span class="number">1 </span>=&gt;<span class="comment">// 1% chance of being the point at infinity
+            <span class="number">1 </span>=&gt; <span class="comment">// 1% chance of being the point at infinity.
                 </span>Just(blst_g2_affine_infinity()),
             <span class="number">99 </span>=&gt; (collection::vec(any::&lt;u8&gt;(), <span class="number">32</span>..=<span class="number">32</span>)).prop_map(|msg| {
-                <span class="comment">// we actually hash to a G2Projective, then convert to affine
+                <span class="comment">// We actually hash to a G2Projective, then convert to affine.
                 </span><span class="kw">let </span><span class="kw-2">mut </span>out = blst_p2::default();
                 <span class="kw">const </span>DST: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
                 <span class="kw">const </span>AUG: [u8; <span class="number">16</span>] = [<span class="number">0</span>; <span class="number">16</span>];
@@ -1628,10 +1648,10 @@
         </span><span class="kw">fn </span>compatibility_bls_blst_g2_affine_serde(b <span class="kw">in </span>arb_bls_g2_affine(), bt <span class="kw">in </span>arb_blst_g2_affine()) {
             <span class="kw">let </span>zcash_bytes = bls_g2_affine_to_zcash_bytes(<span class="kw-2">&amp;</span>b);
             <span class="kw">let </span><span class="kw-2">mut </span>g2 = blst_p2_affine::default();
-            <span class="comment">// blst accepts &amp; expects zcash encodings
+            <span class="comment">// blst accepts &amp; expects Zcash encodings.
             </span><span class="macro">assert!</span>(<span class="kw">unsafe </span>{ blst_p2_uncompress(<span class="kw-2">&amp;mut </span>g2, zcash_bytes.as_ptr()) } == BLST_ERROR::BLST_SUCCESS);
 
-            <span class="comment">// blst produces zcash encodings
+            <span class="comment">// blst produces Zcash encodings.
             </span><span class="kw">let </span><span class="kw-2">mut </span>tmp2 = [<span class="number">0u8</span>; <span class="number">96</span>];
             <span class="kw">unsafe </span>{
                 blst_p2_affine_compress(tmp2.as_mut_ptr(), <span class="kw-2">&amp;</span>bt);
@@ -1641,4 +1661,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (c090c6880 2022-12-01)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (53e4b9dd7 2022-12-04)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>

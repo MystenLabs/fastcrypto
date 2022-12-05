@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e3630034d0b07e68.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-3bcdcab5f4113412.css"><link rel="stylesheet" disabled href="../../static.files/dark-091ecdca18d5df85.css"><link rel="stylesheet" disabled href="../../static.files/ayu-45445754dcd01ab2.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-287cecec4dbb45b0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e963ab4a0d0c903e.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-046227e470cd3629.css"><link rel="stylesheet" disabled href="../../static.files/dark-800f2ee593c8e6f7.css"><link rel="stylesheet" disabled href="../../static.files/ayu-9edae3c387f5a5b3.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-287cecec4dbb45b0.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -1412,7 +1412,7 @@
 /// Implement AggregateAuthenticator
 ///
 
-</span><span class="comment">// Don&#39;t try to use this externally
+</span><span class="comment">// Don&#39;t try to use this externally.
 </span><span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381AggregateSignature {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="kw">match </span><span class="self">self</span>.sig {
@@ -1431,7 +1431,7 @@
     }
 }
 
-<span class="comment">// see [#34](https://github.com/MystenLabs/narwhal/issues/34)
+<span class="comment">// see [#34](https://github.com/MystenLabs/narwhal/issues/34).
 </span><span class="kw">impl </span>Default <span class="kw">for </span>BLS12381AggregateSignature {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         BLS12381AggregateSignature {
@@ -1446,7 +1446,7 @@
     <span class="kw">type </span>PubKey = BLS12381PublicKey;
     <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
 
-    <span class="doccomment">/// Parse a key from its byte representation
+    <span class="doccomment">/// Parse a key from its byte representation.
     </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
@@ -1573,7 +1573,7 @@
 }
 
 <span class="doccomment">///
-/// Implement VerifyingKeyBytes
+/// Implement VerifyingKeyBytes.
 ///
 
 </span><span class="kw">impl </span>TryFrom&lt;BLS12381PublicKeyBytes&gt; <span class="kw">for </span>BLS12381PublicKey {
@@ -1629,7 +1629,7 @@
     }
 }
 
-}} <span class="comment">// macro_rules! define_bls12381
+}} <span class="comment">// macro_rules! define_bls12381.
 
 </span><span class="doccomment">/// The length of a private key in bytes.
 </span><span class="kw">pub const </span>BLS_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
@@ -1645,7 +1645,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::min_sig::BlsSignature;
     <span class="kw">use </span>blst::min_sig <span class="kw">as </span>blst;
-    <span class="doccomment">/// Hash-to-curve domain seperation tag.
+    <span class="doccomment">/// Hash-to-curve domain separation tag.
     </span><span class="kw">pub const </span>DST_G1: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
     <span class="macro">define_bls12381!</span>(BLS_G2_LENGTH, BLS_G1_LENGTH, DST_G1);
 }
@@ -1655,7 +1655,7 @@
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
     <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::min_pk::BlsSignature;
     <span class="kw">use </span>blst::min_pk <span class="kw">as </span>blst;
-    <span class="doccomment">/// Hash-to-curve domain seperation tag.
+    <span class="doccomment">/// Hash-to-curve domain separation tag.
     </span><span class="kw">pub const </span>DST_G2: <span class="kw-2">&amp;</span>[u8] = <span class="string">b&quot;BLS_SIG_BLS12381G2_XMD:SHA-256_SSWU_RO_NUL_&quot;</span>;
     <span class="macro">define_bls12381!</span>(BLS_G1_LENGTH, BLS_G2_LENGTH, DST_G2);
 
@@ -1705,23 +1705,23 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>serialized: [u8; <span class="number">96</span>] = [<span class="number">0</span>; <span class="number">96</span>];
 
                 <span class="kw">unsafe </span>{
-                    <span class="comment">// Public key as affine point
+                    <span class="comment">// Public key as affine point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>pubkey_affine_pt = blst_p1_affine::default();
                     blst_p1_deserialize(<span class="kw-2">&amp;mut </span>pubkey_affine_pt, pubkey_bytes.as_ptr());
 
-                    <span class="comment">// Public key as point
+                    <span class="comment">// Public key as point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>pubkey_pt = blst_p1::default();
                     blst_p1_from_affine(<span class="kw-2">&amp;mut </span>pubkey_pt, <span class="kw-2">&amp;</span>pubkey_affine_pt);
 
-                    <span class="comment">// Randomization factor as scalar
+                    <span class="comment">// Randomization factor as scalar.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>scalar = blst_scalar::default();
                     blst_scalar_from_fr(<span class="kw-2">&amp;mut </span>scalar, r);
 
-                    <span class="comment">// Randomized public key as point
+                    <span class="comment">// Randomized public key as point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>randomized_pt = blst_p1::default();
                     blst_p1_mult(<span class="kw-2">&amp;mut </span>randomized_pt, <span class="kw-2">&amp;</span>pubkey_pt, <span class="kw-2">&amp;</span>(scalar.b[<span class="number">0</span>]), <span class="number">256</span>);
 
-                    <span class="comment">// Serialize randomized public key
+                    <span class="comment">// Serialize randomized public key.
                     </span>blst_p1_serialize(serialized.as_mut_ptr(), <span class="kw-2">&amp;</span>randomized_pt);
                 }
                 BLS12381PublicKey {
@@ -1741,23 +1741,23 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>serialized: [u8; <span class="number">192</span>] = [<span class="number">0</span>; <span class="number">192</span>];
 
                 <span class="kw">unsafe </span>{
-                    <span class="comment">// Signagure as affine point
+                    <span class="comment">// Signature as affine point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>pubkey_affine_pt = blst_p2_affine::default();
                     blst_p2_deserialize(<span class="kw-2">&amp;mut </span>pubkey_affine_pt, pubkey_bytes.as_ptr());
 
-                    <span class="comment">// Signature as point
+                    <span class="comment">// Signature as point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>pubkey_pt = blst_p2::default();
                     blst_p2_from_affine(<span class="kw-2">&amp;mut </span>pubkey_pt, <span class="kw-2">&amp;</span>pubkey_affine_pt);
 
-                    <span class="comment">// Randomization factor as scalar
+                    <span class="comment">// Randomization factor as scalar.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>scalar = blst_scalar::default();
                     blst_scalar_from_fr(<span class="kw-2">&amp;mut </span>scalar, r);
 
-                    <span class="comment">// Randomized signature as point
+                    <span class="comment">// Randomized signature as point.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>randomized_pt = blst_p2::default();
                     blst_p2_mult(<span class="kw-2">&amp;mut </span>randomized_pt, <span class="kw-2">&amp;</span>pubkey_pt, <span class="kw-2">&amp;</span>(scalar.b[<span class="number">0</span>]), <span class="number">256</span>);
 
-                    <span class="comment">// Serialize randomized signature
+                    <span class="comment">// Serialize randomized signature.
                     </span>blst_p2_serialize(serialized.as_mut_ptr(), <span class="kw-2">&amp;</span>randomized_pt);
                 }
 
@@ -1776,23 +1776,23 @@
                 <span class="kw">let </span><span class="kw-2">mut </span>randomized_bytes: [u8; <span class="number">32</span>] = [<span class="number">0</span>; <span class="number">32</span>];
 
                 <span class="kw">unsafe </span>{
-                    <span class="comment">// Parse private key as scalar
+                    <span class="comment">// Parse private key as scalar.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>as_scalar = blst_scalar::default();
                     blst_scalar_from_bendian(<span class="kw-2">&amp;mut </span>as_scalar, privkey_bytes.as_ptr());
 
-                    <span class="comment">// Convert scalar to field element
+                    <span class="comment">// Convert scalar to field element.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>as_field_element = blst_fr::default();
                     blst_fr_from_scalar(<span class="kw-2">&amp;mut </span>as_field_element, <span class="kw-2">&amp;</span>as_scalar);
 
-                    <span class="comment">// Randomize field element
+                    <span class="comment">// Randomize field element.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>randomized_as_field_element = blst_fr::default();
                     blst_fr_mul(<span class="kw-2">&amp;mut </span>randomized_as_field_element, <span class="kw-2">&amp;</span>as_field_element, r);
 
-                    <span class="comment">// Convert to scalar
+                    <span class="comment">// Convert to scalar.
                     </span><span class="kw">let </span><span class="kw-2">mut </span>randomized = blst_scalar::default();
                     blst_scalar_from_fr(<span class="kw-2">&amp;mut </span>randomized, <span class="kw-2">&amp;</span>randomized_as_field_element);
 
-                    <span class="comment">// Serialize scalar
+                    <span class="comment">// Serialize scalar.
                     </span>blst_bendian_from_scalar(randomized_bytes.as_mut_ptr(), <span class="kw-2">&amp;</span>randomized);
                 }
 
@@ -1815,4 +1815,4 @@
     }
 }
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (c090c6880 2022-12-01)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.67.0-nightly (53e4b9dd7 2022-12-04)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
