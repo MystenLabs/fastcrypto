@@ -61,6 +61,11 @@ harness = false
 name = "encoding"
 harness = false
 
+[[bench]]
+name = "mskr"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = ["secure"]
 secure = []
