@@ -1,21 +1,24 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bls12381::min_pk::DST_G2;
+use crate::bls12381::min_sig::DST_G1;
+use crate::groups::{FromHashedMessage, GroupElement, Pair, Scalar as ScalarType};
 use crate::error::FastCryptoError;
-use crate::groups::GroupElement;
-use crate::groups::Scalar as ScalarType;
 use crate::traits::AllowedRng;
 use blst::{
     blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
     blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
-    blst_fr_sub, blst_lendian_from_scalar, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
-    blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
-    blst_p2_from_affine, blst_p2_mult, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
-    blst_scalar_from_lendian, Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_p1,
+    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult,
+    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
+    blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian,
+    blst_scalar_from_fr, blst_scalar_from_lendian, Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
@@ -135,6 +138,43 @@ impl GroupElement for G1Element {
     }
 }
 
+impl Pair for G1Element {
+    type Other = G2Element;
+    type Output = GTElement;
+
+    fn pair(&self, other: &Self::Other) -> Self::Output {
+        let mut self_affine = blst_p1_affine::default();
+        let mut other_affine = blst_p2_affine::default();
+        unsafe {
+            blst_p1_to_affine(&mut self_affine, &self.0);
+            blst_p2_to_affine(&mut other_affine, &other.0);
+        }
+        // The API requires DST although we don't use hash-to-curve here.
+        let unused_dst = [0u8; 3];
+        let mut pairing_blst = Pairing::new(false, &unused_dst);
+        pairing_blst.raw_aggregate(&other_affine, &self_affine);
+        Self::Output::from(pairing_blst.as_fp12())
+    }
+}
+
+impl FromHashedMessage for G1Element {
+    fn hash(msg: &[u8]) -> Self {
+        let mut res = blst_p1::default();
+        unsafe {
+            blst_hash_to_g1(
+                &mut res,
+                msg.as_ptr(),
+                msg.len(),
+                DST_G1.as_ptr(),
+                DST_G1.len(),
+                ptr::null(),
+                0,
+            );
+        }
+        Self::from(res)
+    }
+}
+
 impl Add for G2Element {
     type Output = Self;
 
@@ -215,6 +255,24 @@ impl GroupElement for G2Element {
             blst_p2_from_affine(&mut ret, &BLS12_381_G2);
         }
         Self::from(ret)
+    }
+}
+
+impl FromHashedMessage for G2Element {
+    fn hash(msg: &[u8]) -> Self {
+        let mut res = blst_p2::default();
+        unsafe {
+            blst_hash_to_g2(
+                &mut res,
+                msg.as_ptr(),
+                msg.len(),
+                DST_G2.as_ptr(),
+                DST_G2.len(),
+                ptr::null(),
+                0,
+            );
+        }
+        Self::from(res)
     }
 }
 

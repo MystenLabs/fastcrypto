@@ -44,3 +44,14 @@ pub trait Scalar:
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
+
+pub trait Pair {
+    type Other;
+    type Output;
+
+    fn pair(&self, other: &Self::Other) -> Self::Output;
+}
+
+pub trait FromHashedMessage {
+    fn hash(msg: &[u8]) -> Self;
+}

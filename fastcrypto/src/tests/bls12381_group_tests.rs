@@ -2,7 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
-use crate::groups::GroupElement;
+use crate::groups::{FromHashedMessage, GroupElement, Pair};
+
+const MSG: &[u8] = b"test message";
+
+// TODO: add regression tests with test vectors.
 
 #[test]
 fn test_g1_arithmetic() {
@@ -86,4 +90,19 @@ fn test_gt_arithmetic() {
 
     assert_ne!(GTElement::zero(), g);
     assert_eq!(GTElement::zero(), g - g);
+}
+
+#[test]
+fn test_pairing_and_hash_to_curve() {
+    let e1 = G1Element::hash(&MSG);
+    let sk1 = Scalar::generator();
+    let pk1 = G2Element::generator() * sk1;
+    let sig1 = e1 * sk1;
+    assert_eq!(e1.pair(&pk1), sig1.pair(&G2Element::generator()));
+
+    let e2 = G2Element::hash(&MSG);
+    let sk2 = Scalar::generator();
+    let pk2 = G1Element::generator() * sk2;
+    let sig2 = e2 * sk2;
+    assert_eq!(pk2.pair(&e2), G1Element::generator().pair(&sig2));
 }
