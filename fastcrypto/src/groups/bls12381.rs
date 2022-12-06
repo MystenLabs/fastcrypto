@@ -98,8 +98,6 @@ impl Mul<Scalar> for G1Element {
         let mut result = blst_p1::default();
         if bytes == 0 {
             return G1Element::zero();
-        } else if bytes == 1 && scalar.b[0] == 1 {
-            return self;
         } else {
             unsafe {
                 blst_p1_mult(
@@ -177,8 +175,6 @@ impl Mul<Scalar> for G2Element {
         let mut result = blst_p2::default();
         if bytes == 0 {
             return G2Element::zero();
-        } else if bytes == 1 && scalar.b[0] == 1 {
-            return self;
         } else {
             unsafe {
                 blst_p2_mult(
@@ -371,6 +367,8 @@ impl Div<Scalar> for Scalar {
     type Output = Self;
 
     fn div(self, rhs: Self) -> Self::Output {
+        // TODO: Is there a better way?
+        assert_ne!(rhs, Scalar::zero());
         let mut ret = blst_fr::default();
         unsafe {
             let mut inverse = blst_fr::default();
