@@ -3,16 +3,18 @@
 
 use crate::groups::GroupElement;
 use crate::groups::Scalar as ScalarType;
+use crate::traits::AllowedRng;
 use blst::{
     blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
-    blst_fr_add, blst_fr_cneg, blst_fr_from_uint64, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
-    blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult, blst_p2,
-    blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
-    blst_scalar_from_fr, blst_uint64_from_fr, Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse,
+    blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
+    blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
+    blst_p2_from_affine, blst_p2_mult, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
+    blst_uint64_from_fr, Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
@@ -357,7 +359,33 @@ impl From<u64> for Scalar {
     }
 }
 
-impl ScalarType for Scalar {}
+impl Div<Scalar> for Scalar {
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        let mut ret = blst_fr::default();
+        unsafe {
+            let mut inverse = blst_fr::default();
+            blst_fr_inverse(&mut inverse, &rhs.0);
+            blst_fr_mul(&mut ret, &self.0, &inverse);
+        }
+        Self::from(ret)
+    }
+}
+
+impl ScalarType for Scalar {
+    fn rand<R: AllowedRng>(rng: &mut R) -> Self {
+        let mut ret = blst_fr::default();
+        let mut bytes = [0u8; 32];
+        rng.fill_bytes(&mut bytes);
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
+        }
+        Scalar::from(ret)
+    }
+}
 
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
     let odd: bool;
