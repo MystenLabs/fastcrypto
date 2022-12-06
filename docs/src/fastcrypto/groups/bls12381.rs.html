@@ -438,10 +438,14 @@
 <a href="#438" id="438">438</a>
 <a href="#439" id="439">439</a>
 <a href="#440" id="440">440</a>
+<a href="#441" id="441">441</a>
+<a href="#442" id="442">442</a>
+<a href="#443" id="443">443</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
+</span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
+<span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
 <span class="kw">use </span><span class="kw">crate</span>::groups::Scalar <span class="kw">as </span>ScalarType;
 <span class="kw">use </span><span class="kw">crate</span>::traits::AllowedRng;
 <span class="kw">use </span>blst::{
@@ -818,18 +822,20 @@
 }
 
 <span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>Scalar {
-    <span class="kw">type </span>Output = <span class="self">Self</span>;
+    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
-    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self</span>::Output {
-        <span class="comment">// TODO: Is there a better way?
-        </span><span class="macro">assert_ne!</span>(rhs, Scalar::zero());
+    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>rhs == Scalar::zero() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
+
         <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>inverse = blst_fr::default();
             blst_fr_inverse(<span class="kw-2">&amp;mut </span>inverse, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
             blst_fr_mul(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>inverse);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(ret))
     }
 }
 

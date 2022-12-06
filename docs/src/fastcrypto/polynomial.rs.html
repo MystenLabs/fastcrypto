@@ -307,7 +307,7 @@
                     * (C::ScalarType::from(j.get() <span class="kw">as </span>u64) - C::ScalarType::from(i.get() <span class="kw">as </span>u64));
             }
             <span class="comment">// Next line is safe since i != j.
-            </span><span class="kw">let </span>inv = C::ScalarType::generator() / den;
+            </span><span class="kw">let </span>inv = (C::ScalarType::generator() / den).unwrap();
             acc += <span class="kw-2">*</span>share_i * num * inv;
         }
 
