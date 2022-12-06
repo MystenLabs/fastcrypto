@@ -7,10 +7,10 @@ use crate::traits::AllowedRng;
 use blst::{
     blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
     blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
-    blst_fr_sub, blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult,
-    blst_p2, blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
-    blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, blst_uint64_from_fr,
-    Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_fr_sub, blst_lendian_from_scalar, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
+    blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
+    blst_p2_from_affine, blst_p2_mult, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
+    blst_scalar_from_lendian, Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -410,9 +410,11 @@ impl ScalarType for Scalar {
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
     let odd: bool;
     unsafe {
-        let mut ret = [0u64; 4];
-        blst_uint64_from_fr(&mut ret[0], value);
-        odd = ret[0] % 2 == 1;
+        let mut scalar = blst_scalar::default();
+        blst_scalar_from_fr(&mut scalar, value);
+        let mut bytes = [0u8; 32];
+        blst_lendian_from_scalar(bytes.as_mut_ptr(), &scalar);
+        odd = bytes[0] % 2 == 1;
     }
     odd
 }
