@@ -7,10 +7,10 @@ use crate::traits::AllowedRng;
 use blst::{
     blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
     blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
-    blst_fr_sub, blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult,
-    blst_p2, blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
-    blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, blst_uint64_from_fr,
-    Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_fr_sub, blst_lendian_from_scalar, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
+    blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
+    blst_p2_from_affine, blst_p2_mult, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
+    blst_scalar_from_lendian, blst_uint64_from_fr, Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -95,19 +95,25 @@ impl Mul<Scalar> for G1Element {
         // Count the number of bytes to be multiplied.
         let bytes = size_in_bytes(&scalar);
 
-        let mut result = blst_p1::default();
         if bytes == 0 {
             return G1Element::zero();
-        } else {
-            unsafe {
-                blst_p1_mult(
-                    &mut result,
-                    &self.0,
-                    &(scalar.b[0]),
-                    size_in_bits(&scalar, bytes),
-                );
-            }
         }
+
+        // If rhs = 1, return self
+        if bytes == 1 && scalar.b[0] == 1 {
+            return self;
+        }
+
+        let mut result = blst_p1::default();
+        unsafe {
+            blst_p1_mult(
+                &mut result,
+                &self.0,
+                &(scalar.b[0]),
+                size_in_bits(&scalar, bytes),
+            );
+        }
+
         Self::from(result)
     }
 }
@@ -172,19 +178,25 @@ impl Mul<Scalar> for G2Element {
         // Count the number of bytes to be multiplied.
         let bytes = size_in_bytes(&scalar);
 
-        let mut result = blst_p2::default();
         if bytes == 0 {
             return G2Element::zero();
-        } else {
-            unsafe {
-                blst_p2_mult(
-                    &mut result,
-                    &self.0,
-                    &(scalar.b[0]),
-                    size_in_bits(&scalar, bytes),
-                );
-            }
         }
+
+        // If rhs = 1, return self
+        if bytes == 1 && scalar.b[0] == 1 {
+            return self;
+        }
+
+        let mut result = blst_p2::default();
+        unsafe {
+            blst_p2_mult(
+                &mut result,
+                &self.0,
+                &(scalar.b[0]),
+                size_in_bits(&scalar, bytes),
+            );
+        }
+
         Self::from(result)
     }
 }
@@ -242,28 +254,30 @@ impl Mul<Scalar> for GTElement {
 
     fn mul(self, rhs: Scalar) -> Self::Output {
         if rhs == Scalar::zero() {
-            Self::zero()
-        } else if rhs.0 == BLST_FR_ONE {
-            self
-        } else {
-            let mut y: blst_fp12 = blst_fp12::default();
-            let mut n = rhs.0;
-            let mut x = self.0;
+            return Self::zero();
+        }
 
-            // Compute n * x using repeated doubling (~ additive version of exponentiation by repeated squaring)
-            unsafe {
-                // Keep going while n > 1
-                while n != blst_fr::default() && n != BLST_FR_ONE {
-                    if is_odd(&n) {
-                        blst_fr_sub(&mut n, &n, &BLST_FR_ONE);
-                        y *= x;
-                    }
-                    blst_fp12_sqr(&mut x, &x);
-                    blst_fr_rshift(&mut n, &n, 1);
+        if rhs.0 == BLST_FR_ONE {
+            return self;
+        }
+
+        let mut y: blst_fp12 = blst_fp12::default();
+        let mut n = rhs.0;
+        let mut x = self.0;
+
+        // Compute n * x using repeated doubling (~ additive version of exponentiation by repeated squaring)
+        unsafe {
+            // Keep going while n > 1
+            while n != blst_fr::default() && n != BLST_FR_ONE {
+                if is_odd(&n) {
+                    blst_fr_sub(&mut n, &n, &BLST_FR_ONE);
+                    y *= x;
                 }
-                y *= x;
-                Self::from(y)
+                blst_fp12_sqr(&mut x, &x);
+                blst_fr_rshift(&mut n, &n, 1);
             }
+            y *= x;
+            Self::from(y)
         }
     }
 }
