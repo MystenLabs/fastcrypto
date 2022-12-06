@@ -6,11 +6,11 @@ use crate::groups::Scalar as ScalarType;
 use crate::traits::AllowedRng;
 use blst::{
     blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
-    blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse,
-    blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
-    blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
-    blst_p2_from_affine, blst_p2_mult, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
-    blst_uint64_from_fr, Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
+    blst_fr_sub, blst_p1, blst_p1_add_or_double, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult,
+    blst_p2, blst_p2_add_or_double, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_scalar,
+    blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, blst_uint64_from_fr,
+    Pairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -350,13 +350,15 @@ impl Mul<Scalar> for Scalar {
 
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
-        // blst_fr uses little-endian encoding of four 64 bit words
-        // See https://github.com/supranational/blst/blob/05f896cda89a7f215aa718a3a98c3cb8791caa54/src/exports.c#L461-L479
+        let low_bytes: [u8; 8] = u64::to_le_bytes(value);
+        let mut bytes = [0u8; 32];
+        bytes[0..8].copy_from_slice(&low_bytes);
+
         let mut ret = blst_fr::default();
-        let mut words = [0u64; 4];
-        words[0] = value;
         unsafe {
-            blst_fr_from_uint64(&mut ret, &words[0]);
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_lendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
         }
         Self::from(ret)
     }
