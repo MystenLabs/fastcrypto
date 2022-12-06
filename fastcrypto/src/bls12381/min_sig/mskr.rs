@@ -76,13 +76,13 @@ impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LE
     fn randomize_internal(&self, r: &blst_fr) -> Self {
         // It's not possible to extract the underlying point from a pk directly, so we serialize
         // it and deserialize it as a point.
-        let pubkey_bytes = &self.sig.serialize();
+        let sig_bytes = &self.sig.serialize();
         let mut serialized: [u8; 96] = [0; 96];
 
         unsafe {
-            // Signagure as affine point
+            // Signature as affine point
             let mut pubkey_affine_pt = blst_p1_affine::default();
-            blst_p1_deserialize(&mut pubkey_affine_pt, pubkey_bytes.as_ptr());
+            blst_p1_deserialize(&mut pubkey_affine_pt, sig_bytes.as_ptr());
 
             // Signature as point
             let mut pubkey_pt = blst_p1::default();

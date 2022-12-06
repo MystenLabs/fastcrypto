@@ -277,7 +277,7 @@ impl VerifyingKey for BLS12381PublicKey {
     }
 }
 
-fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
+pub fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
@@ -295,7 +295,7 @@ fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
     }
 }
 
-fn get_one() -> blst_scalar {
+pub fn get_one() -> blst_scalar {
     let mut one = blst_scalar::default();
     let mut vals = [0u8; 32];
     vals[0] = 1;
