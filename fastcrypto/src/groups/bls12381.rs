@@ -348,8 +348,9 @@ impl Mul<Scalar> for Scalar {
 
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
+        // blst_fr uses little-endian encoding of four 64 bit words
+        // See https://github.com/supranational/blst/blob/05f896cda89a7f215aa718a3a98c3cb8791caa54/src/exports.c#L461-L479
         let mut ret = blst_fr::default();
-
         let mut words = [0u64; 4];
         words[0] = value;
         unsafe {
