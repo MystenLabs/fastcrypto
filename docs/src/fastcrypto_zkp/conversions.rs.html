@@ -829,6 +829,7 @@
 <a href="#829" id="829">829</a>
 <a href="#830" id="830">830</a>
 <a href="#831" id="831">831</a>
+<a href="#832" id="832">832</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
@@ -847,11 +848,12 @@
 <span class="kw">use </span>byte_slice_cast::AsByteSlice;
 
 <span class="kw">const </span>SCALAR_SIZE: usize = <span class="number">32</span>;
-<span class="kw">const </span>G1_UNCOMPRESSED_SIZE: usize = <span class="number">96</span>;
 <span class="doccomment">/// G1 affine point compressed size.
 </span><span class="kw">pub const </span>G1_COMPRESSED_SIZE: usize = <span class="number">48</span>;
-<span class="kw">const </span>G2_UNCOMPRESSED_SIZE: usize = <span class="number">192</span>;
 <span class="kw">const </span>G2_COMPRESSED_SIZE: usize = <span class="number">96</span>;
+
+<span class="kw">const </span>G1_UNCOMPRESSED_SIZE: usize = <span class="number">96</span>;
+<span class="kw">const </span>G2_UNCOMPRESSED_SIZE: usize = <span class="number">192</span>;
 
 <span class="attr">#[inline]
 </span><span class="kw">fn </span>u64s_from_bytes(bytes: <span class="kw-2">&amp;</span>[u8; <span class="number">32</span>]) -&gt; [u64; <span class="number">4</span>] {
