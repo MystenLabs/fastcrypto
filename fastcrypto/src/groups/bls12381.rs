@@ -5,7 +5,7 @@ use crate::groups::GroupElement;
 use crate::groups::Scalar as ScalarType;
 use crate::traits::AllowedRng;
 use blst::{
-    blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
+    blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
     blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_lendian_from_scalar, blst_p1, blst_p1_add_or_double, blst_p1_cneg,
     blst_p1_from_affine, blst_p1_mult, blst_p2, blst_p2_add_or_double, blst_p2_cneg,
@@ -122,7 +122,7 @@ impl GroupElement for G1Element {
     type ScalarType = Scalar;
 
     fn zero() -> Self {
-        Self::from(G1_IDENTITY)
+        Self::from(blst_p1::default())
     }
 
     fn generator() -> Self {
@@ -427,13 +427,6 @@ const BLST_FR_ONE: blst_fr = blst_fr {
         11064306276430008309,
         1739710354780652911,
     ],
-};
-
-/// This helper constant makes it easier to use compute the linear combination involved in the pairing inputs.
-const G1_IDENTITY: blst_p1 = blst_p1 {
-    x: blst_fp { l: [0; 6] },
-    y: blst_fp { l: [0; 6] },
-    z: blst_fp { l: [0; 6] },
 };
 
 /// Returns the log base 2 of b in O(lg(N)) time.
