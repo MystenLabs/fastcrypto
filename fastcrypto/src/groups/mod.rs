@@ -5,6 +5,7 @@ use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::ops::{AddAssign, SubAssign};
 
+pub mod bls12381;
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive cyclic group.
