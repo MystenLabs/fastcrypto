@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::FastCryptoError;
 use crate::groups::GroupElement;
 use crate::groups::Scalar as ScalarType;
 use crate::traits::AllowedRng;
@@ -378,18 +379,20 @@ impl From<u64> for Scalar {
 }
 
 impl Div<Scalar> for Scalar {
-    type Output = Self;
+    type Output = Result<Self, FastCryptoError>;
 
-    fn div(self, rhs: Self) -> Self::Output {
-        // TODO: Is there a better way?
-        assert_ne!(rhs, Scalar::zero());
+    fn div(self, rhs: Self) -> Result<Self, FastCryptoError> {
+        if rhs == Scalar::zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         let mut ret = blst_fr::default();
         unsafe {
             let mut inverse = blst_fr::default();
             blst_fr_inverse(&mut inverse, &rhs.0);
             blst_fr_mul(&mut ret, &self.0, &inverse);
         }
-        Self::from(ret)
+        Ok(Self::from(ret))
     }
 }
 

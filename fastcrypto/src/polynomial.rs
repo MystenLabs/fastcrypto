@@ -129,7 +129,7 @@ impl<C: GroupElement> Poly<C> {
                     * (C::ScalarType::from(j.get() as u64) - C::ScalarType::from(i.get() as u64));
             }
             // Next line is safe since i != j.
-            let inv = C::ScalarType::generator() / den;
+            let inv = (C::ScalarType::generator() / den).unwrap();
             acc += *share_i * num * inv;
         }
 

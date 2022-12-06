@@ -150,12 +150,13 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
 }
 
 impl Div<RistrettoScalar> for RistrettoScalar {
-    type Output = RistrettoScalar;
+    type Output = Result<RistrettoScalar, FastCryptoError>;
 
-    fn div(self, rhs: RistrettoScalar) -> RistrettoScalar {
-        // TODO: Is there a better way?
-        assert_ne!(rhs.0, ExternalRistrettoScalar::zero());
-        RistrettoScalar::from(self.0 * rhs.0.invert())
+    fn div(self, rhs: RistrettoScalar) -> Result<RistrettoScalar, FastCryptoError> {
+        if rhs.0 == ExternalRistrettoScalar::zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(RistrettoScalar::from(self.0 * rhs.0.invert()))
     }
 }
 

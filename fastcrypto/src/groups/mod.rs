@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::FastCryptoError;
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::ops::{AddAssign, SubAssign};
@@ -36,7 +37,10 @@ pub trait GroupElement:
 
 /// Trait impl'd by scalars to be used with [AdditiveGroupElement].
 pub trait Scalar:
-    GroupElement<ScalarType = Self> + Copy + From<u64> + Div<Self, Output = Self>
+    GroupElement<ScalarType = Self>
+    + Copy
+    + From<u64>
+    + Div<Self, Output = Result<Self, FastCryptoError>>
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
