@@ -7,13 +7,14 @@ use crate::error::FastCryptoError;
 use crate::groups::{FromHashedMessage, GroupElement, Pair, Scalar as ScalarType};
 use crate::traits::AllowedRng;
 use blst::{
-    blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
-    blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
-    blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_p1,
-    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_from_affine, blst_p1_mult,
-    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
-    blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian,
-    blst_scalar_from_fr, blst_scalar_from_lendian, Pairing, BLS12_381_G1, BLS12_381_G2,
+    blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
+    blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
+    blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
+    blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
+    blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double,
+    blst_p2_affine, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine,
+    blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, Pairing,
+    BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -145,15 +146,14 @@ impl Pair for G1Element {
     fn pair(&self, other: &Self::Other) -> Self::Output {
         let mut self_affine = blst_p1_affine::default();
         let mut other_affine = blst_p2_affine::default();
+        let mut res = blst_fp12::default();
         unsafe {
             blst_p1_to_affine(&mut self_affine, &self.0);
             blst_p2_to_affine(&mut other_affine, &other.0);
+            blst_miller_loop(&mut res, &other_affine, &self_affine);
+            blst_final_exp(&mut res, &res);
         }
-        // The API requires DST although we don't use hash-to-curve here.
-        let unused_dst = [0u8; 3];
-        let mut pairing_blst = Pairing::new(false, &unused_dst);
-        pairing_blst.raw_aggregate(&other_affine, &self_affine);
-        Self::Output::from(pairing_blst.as_fp12())
+        Self::Output::from(res)
     }
 }
 
