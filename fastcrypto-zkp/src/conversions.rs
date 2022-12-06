@@ -16,11 +16,12 @@ use blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 use byte_slice_cast::AsByteSlice;
 
 const SCALAR_SIZE: usize = 32;
-const G1_UNCOMPRESSED_SIZE: usize = 96;
 /// G1 affine point compressed size.
 pub const G1_COMPRESSED_SIZE: usize = 48;
-const G2_UNCOMPRESSED_SIZE: usize = 192;
 const G2_COMPRESSED_SIZE: usize = 96;
+
+const G1_UNCOMPRESSED_SIZE: usize = 96;
+const G2_UNCOMPRESSED_SIZE: usize = 192;
 
 #[inline]
 fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
