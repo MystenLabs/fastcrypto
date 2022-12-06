@@ -296,7 +296,7 @@ impl GroupElement for GTElement {
             let dst = [0u8; 3];
             let mut pairing_blst = Pairing::new(false, &dst);
             pairing_blst.raw_aggregate(&BLS12_381_G2, &BLS12_381_G1);
-            Self::from(pairing_blst.as_fp12()) // this implies pairing_blst.commit()
+            Self::from(pairing_blst.as_fp12())
         }
     }
 }
