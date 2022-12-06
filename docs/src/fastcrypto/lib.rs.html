@@ -156,6 +156,11 @@
 <a href="#156" id="156">156</a>
 <a href="#157" id="157">157</a>
 <a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -231,6 +236,11 @@
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/ristretto255_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>ristretto255_tests;
+
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/bls12381_group_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>bls12381_group_tests;
+
 <span class="comment">// Signing traits
 </span><span class="kw">pub mod </span>traits;
 <span class="comment">// Key scheme implementations
