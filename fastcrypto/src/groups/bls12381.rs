@@ -33,6 +33,9 @@ pub struct GTElement(blst_fp12);
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct Scalar(blst_fr);
 
+/// Length of [Scalar]s in bytes.
+pub const SCALAR_LENGTH: usize = 32;
+
 impl Add for G1Element {
     type Output = Self;
 
@@ -351,7 +354,7 @@ impl Mul<Scalar> for Scalar {
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         let low_bytes: [u8; 8] = u64::to_le_bytes(value);
-        let mut bytes = [0u8; 32];
+        let mut bytes = [0u8; SCALAR_LENGTH];
         bytes[0..8].copy_from_slice(&low_bytes);
 
         let mut ret = blst_fr::default();
@@ -381,7 +384,7 @@ impl Div<Scalar> for Scalar {
 impl ScalarType for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         let mut ret = blst_fr::default();
-        let mut bytes = [0u8; 32];
+        let mut bytes = [0u8; SCALAR_LENGTH];
         rng.fill_bytes(&mut bytes);
         unsafe {
             let mut scalar = blst_scalar::default();
