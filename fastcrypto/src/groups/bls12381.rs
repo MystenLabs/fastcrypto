@@ -3,8 +3,8 @@
 
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
-use crate::groups::{FromHashedMessage, GroupElement, Pair, Scalar as ScalarType};
 use crate::error::FastCryptoError;
+use crate::groups::{FromHashedMessage, GroupElement, Pair, Scalar as ScalarType};
 use crate::traits::AllowedRng;
 use blst::{
     blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr,
