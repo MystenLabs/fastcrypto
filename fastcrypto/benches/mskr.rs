@@ -310,11 +310,11 @@ mod mskr_benches {
         );
     }
 
-    fn verify_dabo_min_sig_(c: &mut Criterion) {
+    fn verify_dabo_min_sig(c: &mut Criterion) {
         let batch_sizes: Vec<usize> = (100..=1_000).step_by(100).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify DABO");
         for size in batch_sizes {
-            verify_dabo_single("BLS12381 min_sig", size, &mut group);
+            verify_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
 
             // verify_dabo_single::<
             //     min_pk::BLS12381KeyPair,
@@ -330,8 +330,8 @@ mod mskr_benches {
     criterion_group! {
         name = mskr_benches;
         config = Criterion::default().sample_size(100);
-        // targets = verify, verify_dabo, aggregate, keygen, sign,
-        targets = verify_dabo
+        // targets = verify, verify_dabo_min_sig, aggregate, keygen, sign,
+        targets = verify_dabo_min_sig
     }
 }
 
