@@ -194,6 +194,8 @@ impl<'de> Deserialize<'de> for G1Element {
                 return Err(de::Error::custom("Deserialization failed"));
             }
             blst_p1_from_affine(&mut ret, &affine);
+
+            // Verify that the deserialized element is in G1
             if !blst_p1_in_g1(&ret) {
                 return Err(de::Error::custom("Element is not in subgroup"));
             }
@@ -329,6 +331,8 @@ impl<'de> Deserialize<'de> for G2Element {
                 return Err(de::Error::custom("Deserialization failed"));
             }
             blst_p2_from_affine(&mut ret, &affine);
+
+            // Verify that the deserialized element is in G2
             if !blst_p2_in_g2(&ret) {
                 return Err(de::Error::custom("Element is not in subgroup"));
             }
