@@ -10,3 +10,4 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto" }
+rand = { version = "0.8.5", features = ["std"] }

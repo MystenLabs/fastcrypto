@@ -1087,6 +1087,7 @@ name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
  "fastcrypto",
+ "rand",
 ]
 
 [[package]]
