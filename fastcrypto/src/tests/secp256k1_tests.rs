@@ -12,6 +12,7 @@ use crate::{
 };
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
+use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
 use signature::{Signer, Verifier};
@@ -489,4 +490,25 @@ fn dont_display_secrets() {
 fn test_default_values() {
     let _default_pubkey = Secp256k1PublicKey::default();
     let _default_signature = Secp256k1Signature::default();
+}
+
+// Arbitrary implementations for the proptests
+fn arb_keypair() -> impl Strategy<Value = Secp256k1KeyPair> {
+    any::<[u8; 32]>()
+        .prop_map(|seed| {
+            let mut rng = StdRng::from_seed(seed);
+            Secp256k1KeyPair::generate(&mut rng)
+        })
+        .no_shrink()
+}
+
+proptest! {
+    #[test]
+    fn test_keypair_roundtrip(
+        kp in arb_keypair(),
+    ){
+        let serialized = bincode::serialize(&kp).unwrap();
+        let deserialized: Secp256k1KeyPair = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(kp.public(), deserialized.public());
+    }
 }

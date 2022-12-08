@@ -3,11 +3,9 @@
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::IsHigh;
 use p256::AffinePoint;
-//#[cfg(feature = "copy_key")]
-//use proptest::arbitrary::Arbitrary;
+use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
-
 use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
@@ -454,4 +452,25 @@ fn dont_display_secrets() {
             "<elided secret for Secp256r1PrivateKey>"
         );
     });
+}
+
+// Arbitrary implementations for the proptests
+fn arb_keypair() -> impl Strategy<Value = Secp256r1KeyPair> {
+    any::<[u8; 32]>()
+        .prop_map(|seed| {
+            let mut rng = StdRng::from_seed(seed);
+            Secp256r1KeyPair::generate(&mut rng)
+        })
+        .no_shrink()
+}
+
+proptest! {
+    #[test]
+    fn test_keypair_roundtrip(
+        kp in arb_keypair(),
+    ){
+        let serialized = bincode::serialize(&kp).unwrap();
+        let deserialized: Secp256r1KeyPair = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(kp.public(), deserialized.public());
+    }
 }

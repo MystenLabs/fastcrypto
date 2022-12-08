@@ -71,7 +71,6 @@ pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 // There is a strong requirement for this specific impl. in Fab benchmarks
 /// Ed25519 public/private keypair.
 #[derive(Debug, Serialize, Deserialize)]
-#[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct Ed25519KeyPair {
     name: Ed25519PublicKey,
     secret: Ed25519PrivateKey,

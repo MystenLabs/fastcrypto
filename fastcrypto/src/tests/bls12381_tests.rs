@@ -628,6 +628,15 @@ proptest! {
         let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
     }
 
+    #[test]
+    fn test_keypair_roundtrip(
+        kp in arb_keypair(),
+    ){
+        let serialized = bincode::serialize(&kp).unwrap();
+        let deserialized: BLS12381KeyPair = bincode::deserialize(&serialized).unwrap();
+        assert_eq!(kp.public(), deserialized.public());
+    }
+
     // Tests that signature verif does not panic
     #[test]
     fn test_basic_verify_signature(
