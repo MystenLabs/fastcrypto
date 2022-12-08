@@ -4,7 +4,7 @@
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
-use crate::groups::{FromHashedMessage, GroupElement, Pair, Scalar as ScalarType};
+use crate::groups::{GroupElement, HashToGroupElement, Pair, Scalar as ScalarType};
 use crate::traits::AllowedRng;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
@@ -143,7 +143,7 @@ impl Pair for G1Element {
     type Other = G2Element;
     type Output = GTElement;
 
-    fn pair(&self, other: &Self::Other) -> Self::Output {
+    fn pair(&self, other: &Self::Other) -> <Self as Pair>::Output {
         let mut self_affine = blst_p1_affine::default();
         let mut other_affine = blst_p2_affine::default();
         let mut res = blst_fp12::default();
@@ -153,12 +153,12 @@ impl Pair for G1Element {
             blst_miller_loop(&mut res, &other_affine, &self_affine);
             blst_final_exp(&mut res, &res);
         }
-        Self::Output::from(res)
+        <Self as Pair>::Output::from(res)
     }
 }
 
-impl FromHashedMessage for G1Element {
-    fn hash(msg: &[u8]) -> Self {
+impl HashToGroupElement for G1Element {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
         let mut res = blst_p1::default();
         unsafe {
             blst_hash_to_g1(
@@ -258,8 +258,8 @@ impl GroupElement for G2Element {
     }
 }
 
-impl FromHashedMessage for G2Element {
-    fn hash(msg: &[u8]) -> Self {
+impl HashToGroupElement for G2Element {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
         let mut res = blst_p2::default();
         unsafe {
             blst_hash_to_g2(
