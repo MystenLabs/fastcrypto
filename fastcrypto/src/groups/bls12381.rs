@@ -6,17 +6,7 @@ use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
 use crate::traits::AllowedRng;
-use blst::{
-    blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
-    blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
-    blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
-    blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
-    blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
-    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
-    blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian,
-    blst_scalar_from_fr, blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1,
-    BLS12_381_G2, BLST_ERROR,
-};
+use blst::{blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR, blst_p2_in_g2};
 use derive_more::From;
 
 use fastcrypto_derive::GroupOpsExtend;
@@ -310,6 +300,40 @@ impl HashToGroupElement for G2Element {
             );
         }
         Self::from(res)
+    }
+}
+
+impl Serialize for G2Element {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut bytes = [0u8; 96];
+        unsafe {
+            blst_p2_compress(bytes.as_mut_ptr(), &self.0);
+        }
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for G2Element {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let mut ret = blst_p2::default();
+        unsafe {
+            let mut affine = blst_p2_affine::default();
+            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(de::Error::custom("Deserialization failed"));
+            }
+            blst_p2_from_affine(&mut ret, &affine);
+            if !blst_p2_in_g2(&ret) {
+                return Err(de::Error::custom("Element is not in subgroup"));
+            }
+        }
+        Ok(G2Element::from(ret))
     }
 }
 

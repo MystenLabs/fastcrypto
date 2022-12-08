@@ -114,3 +114,11 @@ fn test_g1_serialize_deserialize<'a>() {
     let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 }
+
+#[test]
+fn test_g2_serialize_deserialize<'a>() {
+    let p = G2Element::generator() * Scalar::from(7);
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+}
