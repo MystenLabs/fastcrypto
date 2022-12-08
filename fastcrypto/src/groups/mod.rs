@@ -41,6 +41,7 @@ pub trait Scalar:
     + Copy
     + From<u64>
     + Div<Self, Output = Result<Self, FastCryptoError>>
+    + Sized
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
