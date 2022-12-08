@@ -4,7 +4,7 @@
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
-use crate::groups::{GroupElement, HashToGroupElement, Pair, Scalar as ScalarType};
+use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
 use crate::traits::AllowedRng;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
@@ -13,10 +13,11 @@ use blst::{
     blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
     blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double,
     blst_p2_affine, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine,
-    blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, Pairing,
-    BLS12_381_G1, BLS12_381_G2,
+    blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
+    Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2,
 };
 use derive_more::From;
+
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
@@ -139,11 +140,11 @@ impl GroupElement for G1Element {
     }
 }
 
-impl Pair for G1Element {
+impl Pairing for G1Element {
     type Other = G2Element;
     type Output = GTElement;
 
-    fn pair(&self, other: &Self::Other) -> <Self as Pair>::Output {
+    fn pair(&self, other: &Self::Other) -> <Self as Pairing>::Output {
         let mut self_affine = blst_p1_affine::default();
         let mut other_affine = blst_p2_affine::default();
         let mut res = blst_fp12::default();
@@ -153,7 +154,7 @@ impl Pair for G1Element {
             blst_miller_loop(&mut res, &other_affine, &self_affine);
             blst_final_exp(&mut res, &res);
         }
-        <Self as Pair>::Output::from(res)
+        <Self as Pairing>::Output::from(res)
     }
 }
 
@@ -353,7 +354,7 @@ impl GroupElement for GTElement {
             // Compute the generator as e(G1, G2).
             // TODO: Should be precomputed.
             let dst = [0u8; 3];
-            let mut pairing_blst = Pairing::new(false, &dst);
+            let mut pairing_blst = BlstPairing::new(false, &dst);
             pairing_blst.raw_aggregate(&BLS12_381_G2, &BLS12_381_G1);
             Self::from(pairing_blst.as_fp12())
         }

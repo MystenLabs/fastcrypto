@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
-use crate::groups::{GroupElement, HashToGroupElement, Pair};
+use crate::groups::{GroupElement, HashToGroupElement, Pairing};
 
 const MSG: &[u8] = b"test message";
 

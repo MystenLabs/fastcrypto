@@ -45,11 +45,11 @@ pub trait Scalar:
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
-pub trait Pair: GroupElement {
+pub trait Pairing: GroupElement {
     type Other: GroupElement;
     type Output;
 
-    fn pair(&self, other: &Self::Other) -> <Self as Pair>::Output;
+    fn pair(&self, other: &Self::Other) -> <Self as Pairing>::Output;
 }
 
 /// Trait for groups that have a standardized "hash_to_point"/"hash_to_curve" function (see
