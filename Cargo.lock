@@ -1083,6 +1083,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-tbls"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+]
+
+[[package]]
 name = "fastcrypto-zkp"
 version = "0.1.0"
 dependencies = [

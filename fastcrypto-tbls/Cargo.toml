@@ -1,0 +1,12 @@
+[package]
+name = "fastcrypto-tbls"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+readme = "README.md"
+description = "Threshold BLS and DKG protocols"
+repository = "https://github.com/MystenLabs/fastcrypto"
+
+[dependencies]
+fastcrypto = { path = "../fastcrypto" }
