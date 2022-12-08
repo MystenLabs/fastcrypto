@@ -49,7 +49,7 @@ pub trait Pairing: GroupElement {
     type Other: GroupElement;
     type Output;
 
-    fn pair(&self, other: &Self::Other) -> <Self as Pairing>::Output;
+    fn pairing(&self, other: &Self::Other) -> <Self as Pairing>::Output;
 }
 
 /// Trait for groups that have a standardized "hash_to_point"/"hash_to_curve" function (see

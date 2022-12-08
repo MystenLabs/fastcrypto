@@ -98,13 +98,13 @@ fn test_pairing_and_hash_to_curve() {
     let sk1 = Scalar::generator();
     let pk1 = G2Element::generator() * sk1;
     let sig1 = e1 * sk1;
-    assert_eq!(e1.pair(&pk1), sig1.pair(&G2Element::generator()));
+    assert_eq!(e1.pairing(&pk1), sig1.pairing(&G2Element::generator()));
 
     let e2 = G2Element::hash_to_group_element(MSG);
     let sk2 = Scalar::generator();
     let pk2 = G1Element::generator() * sk2;
     let sig2 = e2 * sk2;
-    assert_eq!(pk2.pair(&e2), G1Element::generator().pair(&sig2));
+    assert_eq!(pk2.pairing(&e2), G1Element::generator().pairing(&sig2));
 }
 
 #[test]
