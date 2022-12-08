@@ -44,3 +44,17 @@ pub trait Scalar:
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
+
+pub trait Pairing: GroupElement {
+    type Other: GroupElement;
+    type Output;
+
+    fn pair(&self, other: &Self::Other) -> <Self as Pairing>::Output;
+}
+
+/// Trait for groups that have a standardized "hash_to_point"/"hash_to_curve" function (see
+/// [https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve#section-3].
+pub trait HashToGroupElement {
+    /// Hashes the given message and maps the result to a group element.
+    fn hash_to_group_element(msg: &[u8]) -> Self;
+}
