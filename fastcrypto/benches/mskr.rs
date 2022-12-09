@@ -415,7 +415,7 @@ mod mskr_benches {
                         .map(|(sig, r)| randomize_g1_signature(sig, r))
                         .collect::<Vec<_>>();
 
-                    let aggregate_sig =
+                    let _ =
                         min_sig::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
                 });
             },
@@ -459,7 +459,7 @@ mod mskr_benches {
                         .map(|(sig, r)| randomize_g2_signature(sig, r))
                         .collect::<Vec<_>>();
 
-                    let aggregate_sig =
+                    let _ =
                         min_pk::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
                 });
             },
