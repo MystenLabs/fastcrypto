@@ -43,6 +43,8 @@ pub struct Scalar(blst_fr);
 
 /// Length of [Scalar]s in bytes.
 pub const SCALAR_LENGTH: usize = 32;
+pub const G1_SERIALIZED_LENGTH: usize = 96;
+pub const G2_SERIALIZED_LENGTH: usize = 192;
 
 impl Add for G1Element {
     type Output = Self;
@@ -183,7 +185,7 @@ impl Serialize for G1Element {
     where
         S: serde::Serializer,
     {
-        let mut bytes = [0u8; 96];
+        let mut bytes = [0u8; G1_SERIALIZED_LENGTH];
         unsafe {
             blst_p1_serialize(bytes.as_mut_ptr(), &self.0);
         }
@@ -320,7 +322,7 @@ impl Serialize for G2Element {
     where
         S: serde::Serializer,
     {
-        let mut bytes = [0u8; 192];
+        let mut bytes = [0u8; G2_SERIALIZED_LENGTH];
         unsafe {
             blst_p2_serialize(bytes.as_mut_ptr(), &self.0);
         }
