@@ -25,32 +25,30 @@ pub fn randomize_g1_signature(
     signature: &min_sig::BLS12381Signature,
     r: &blst_scalar,
 ) -> min_sig::BLS12381Signature {
-    // let sig_bytes = signature.sig.serialize();
-    // let mut serialized: [u8; 96] = [0; 96];
+    let sig_bytes = signature.sig.serialize();
+    let mut serialized: [u8; 96] = [0; 96];
 
-    // unsafe {
-    //     // Signature as affine point
-    //     let mut pubkey_affine_pt = blst_p1_affine::default();
-    //     blst_p1_deserialize(&mut pubkey_affine_pt, sig_bytes.as_ptr());
+    unsafe {
+        // Signature as affine point
+        let mut pubkey_affine_pt = blst_p1_affine::default();
+        blst_p1_deserialize(&mut pubkey_affine_pt, sig_bytes.as_ptr());
 
-    //     // Signature as point
-    //     let mut pubkey_pt = blst_p1::default();
-    //     blst_p1_from_affine(&mut pubkey_pt, &pubkey_affine_pt);
+        // Signature as point
+        let mut pubkey_pt = blst_p1::default();
+        blst_p1_from_affine(&mut pubkey_pt, &pubkey_affine_pt);
 
-    //     // Randomized signature as point
-    //     let mut randomized_pt = blst_p1::default();
-    //     blst_p1_mult(&mut randomized_pt, &pubkey_pt, &(r.b[0]), 256);
+        // Randomized signature as point
+        let mut randomized_pt = blst_p1::default();
+        blst_p1_mult(&mut randomized_pt, &pubkey_pt, &(r.b[0]), 256);
 
-    //     // Serialize randomized signature
-    //     blst_p1_serialize(serialized.as_mut_ptr(), &randomized_pt);
-    // }
+        // Serialize randomized signature
+        blst_p1_serialize(serialized.as_mut_ptr(), &randomized_pt);
+    }
 
-    // min_sig::BLS12381Signature {
-    //     sig: self::blst::Signature::deserialize(&serialized).unwrap(),
-    //     bytes: OnceCell::new(),
-    // }
-
-    signature.clone()
+    min_sig::BLS12381Signature {
+        sig: self::blst::Signature::deserialize(&serialized).unwrap(),
+        bytes: OnceCell::new(),
+    }
 }
 
 pub fn randomize_g2_pk(
@@ -84,6 +82,4 @@ pub fn randomize_g2_pk(
         pubkey: self::blst::PublicKey::deserialize(&serialized).unwrap(),
         bytes: OnceCell::new(),
     }
-
-    // pk.clone()
 }

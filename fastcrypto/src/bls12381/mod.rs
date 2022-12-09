@@ -23,7 +23,6 @@ use std::{
 
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 
-use once_cell::sync::OnceCell;
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};

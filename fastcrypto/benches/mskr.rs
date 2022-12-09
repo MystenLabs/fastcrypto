@@ -11,6 +11,7 @@ mod mskr_benches {
     use criterion::BenchmarkGroup;
     use criterion::BenchmarkId;
     use criterion::Criterion;
+    use fastcrypto::bls12381::min_pk::{randomize_g1_pk, randomize_g2_signature};
     use fastcrypto::bls12381::min_sig::get_128bit_scalar;
     use fastcrypto::bls12381::min_sig::get_one;
     use fastcrypto::bls12381::min_sig::{randomize_g1_signature, randomize_g2_pk};
@@ -284,7 +285,8 @@ mod mskr_benches {
             .map(|(sig, r)| randomize_g1_signature(sig, r))
             .collect::<Vec<_>>();
 
-        let aggregate_sig = min_sig::BLS12381AggregateSignature::aggregate(&sigs).unwrap();
+        let aggregate_sig =
+            min_sig::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
 
         let randomized_pks = pks
             .iter()
@@ -310,28 +312,174 @@ mod mskr_benches {
         );
     }
 
-    fn verify_dabo_min_sig(c: &mut Criterion) {
+    fn verify_dabo_min_pk_single<M: measurement::Measurement>(
+        name: &str,
+        size: usize,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let msg = Sha256::digest(*b"Hello, world!").to_vec();
+
+        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let kps = (0..size)
+            .map(|_| min_pk::BLS12381KeyPair::generate(&mut csprng))
+            .collect::<Vec<_>>();
+        let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
+
+        let sigs = kps
+            .iter()
+            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
+            .collect::<Vec<_>>();
+
+        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
+        rands.push(get_one());
+        for _ in 1..sigs.len() {
+            rands.push(get_128bit_scalar(&mut csprng));
+        }
+
+        let randomized_sigs = sigs
+            .iter()
+            .zip(rands.iter())
+            .map(|(sig, r)| randomize_g2_signature(sig, r))
+            .collect::<Vec<_>>();
+
+        let aggregate_sig =
+            min_pk::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
+
+        let randomized_pks = pks
+            .iter()
+            .map(|pk| pk.randomize(pk, &pks))
+            .collect::<Vec<_>>();
+
+        let data = (aggregate_sig, randomized_pks, msg, rands);
+
+        c.bench_with_input(
+            BenchmarkId::new(name.to_string(), size),
+            &(data),
+            |b, (aggregate_sig, pks, msg, rands)| {
+                b.iter(|| {
+                    let randomized_pks = pks
+                        .iter()
+                        .zip(rands.iter())
+                        .map(|(pk, r)| randomize_g1_pk(pk, r))
+                        .collect::<Vec<_>>();
+                    let r = aggregate_sig.verify(&randomized_pks, msg);
+                    assert!(r.is_ok());
+                });
+            },
+        );
+    }
+
+    fn verify_dabo(c: &mut Criterion) {
         let batch_sizes: Vec<usize> = (100..=1_000).step_by(100).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify DABO");
         for size in batch_sizes {
             verify_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
+            verify_dabo_min_pk_single("BLS12381 min_pk", size, &mut group);
+        }
+    }
 
-            // verify_dabo_single::<
-            //     min_pk::BLS12381KeyPair,
-            //     min_pk::BLS12381AggregateSignature,
-            //     blst_fr,
-            //     min_pk::mskr::BLS12381Hash,
-            //     { <min_pk::BLS12381PublicKey as VerifyingKey>::LENGTH },
-            //     _,
-            // >("BLS12381 min_pk", size, &mut group);
+    fn aggregate_dabo_min_sig_single<M: measurement::Measurement>(
+        name: &str,
+        size: usize,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let msg = Sha256::digest(*b"Hello, world!").to_vec();
+
+        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let kps = (0..size)
+            .map(|_| min_sig::BLS12381KeyPair::generate(&mut csprng))
+            .collect::<Vec<_>>();
+        let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
+
+        let sigs = kps
+            .iter()
+            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
+            .collect::<Vec<_>>();
+
+        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
+        rands.push(get_one());
+        for _ in 1..sigs.len() {
+            rands.push(get_128bit_scalar(&mut csprng));
+        }
+
+        let data = (sigs, rands);
+
+        c.bench_with_input(
+            BenchmarkId::new(name.to_string(), size),
+            &(data),
+            |b, (sigs, rands)| {
+                b.iter(|| {
+                    let randomized_sigs = sigs
+                        .iter()
+                        .zip(rands.iter())
+                        .map(|(sig, r)| randomize_g1_signature(sig, r))
+                        .collect::<Vec<_>>();
+
+                    let aggregate_sig =
+                        min_sig::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
+                });
+            },
+        );
+    }
+
+    fn aggregate_dabo_min_pk_single<M: measurement::Measurement>(
+        name: &str,
+        size: usize,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let msg = Sha256::digest(*b"Hello, world!").to_vec();
+
+        let mut csprng: rand::rngs::ThreadRng = thread_rng();
+        let kps = (0..size)
+            .map(|_| min_pk::BLS12381KeyPair::generate(&mut csprng))
+            .collect::<Vec<_>>();
+        let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
+
+        let sigs = kps
+            .iter()
+            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
+            .collect::<Vec<_>>();
+
+        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
+        rands.push(get_one());
+        for _ in 1..sigs.len() {
+            rands.push(get_128bit_scalar(&mut csprng));
+        }
+
+        let data = (sigs, rands);
+
+        c.bench_with_input(
+            BenchmarkId::new(name.to_string(), size),
+            &(data),
+            |b, (sigs, rands)| {
+                b.iter(|| {
+                    let randomized_sigs = sigs
+                        .iter()
+                        .zip(rands.iter())
+                        .map(|(sig, r)| randomize_g2_signature(sig, r))
+                        .collect::<Vec<_>>();
+
+                    let aggregate_sig =
+                        min_pk::BLS12381AggregateSignature::aggregate(&randomized_sigs).unwrap();
+                });
+            },
+        );
+    }
+
+    fn aggregate_dabo(c: &mut Criterion) {
+        let batch_sizes: Vec<usize> = (100..=1_000).step_by(100).collect();
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate DABO");
+        for size in batch_sizes {
+            aggregate_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
+            aggregate_dabo_min_pk_single("BLS12381 min_pk", size, &mut group);
         }
     }
 
     criterion_group! {
         name = mskr_benches;
         config = Criterion::default().sample_size(100);
-        // targets = verify, verify_dabo_min_sig, aggregate, keygen, sign,
-        targets = verify_dabo_min_sig
+        // targets = verify, verify_dabo, aggregate, aggregate_dabo, keygen, sign,
+        targets = aggregate_dabo
     }
 }
 
