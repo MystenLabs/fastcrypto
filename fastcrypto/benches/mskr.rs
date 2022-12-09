@@ -478,8 +478,7 @@ mod mskr_benches {
     criterion_group! {
         name = mskr_benches;
         config = Criterion::default().sample_size(100);
-        // targets = verify, verify_dabo, aggregate, aggregate_dabo, keygen, sign,
-        targets = aggregate_dabo
+        targets = verify, verify_dabo, aggregate, aggregate_dabo, keygen, sign,
     }
 }
 
