@@ -38,11 +38,20 @@ fn test_tbls_e2e() {
         &sig3
     ));
 
+    // Verify should fail with an invalid signature.
+    assert!(!ThresholdBls12381MinSig::partial_verify(
+        &public_poly,
+        b"other message",
+        &sig1
+    ));
+    // Aggregate should fail if we don't have enough signatures.
+    assert!(ThresholdBls12381MinSig::aggregate(t, &[sig1.clone(), sig2.clone()]).is_err());
+
     // Signatures should be the same no matter if calculated with the private key or from a
     // threshold of partial signatures.
     let full_sig = ThresholdBls12381MinSig::aggregate(t, &[sig1, sig2, sig3]).unwrap();
     assert!(ThresholdBls12381MinSig::verify(
-        &public_poly.c0(),
+        public_poly.c0(),
         msg,
         &full_sig
     ));

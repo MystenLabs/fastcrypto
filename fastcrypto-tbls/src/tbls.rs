@@ -51,7 +51,7 @@ pub trait ThresholdBls {
         threshold: u32,
         partials: &[PartialSignature<Self::Signature>],
     ) -> Result<Self::Signature, FastCryptoError> {
-        // No conversion is requires since PartialSignature<S> and Eval<S> are different aliases to
+        // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
         let sig = Poly::<Self::Signature>::recover_c0(threshold, partials)?;
         Ok(sig)
