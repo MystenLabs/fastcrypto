@@ -6,7 +6,17 @@ use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
 use crate::traits::AllowedRng;
-use blst::{blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR, blst_p2_in_g2};
+use blst::{
+    blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
+    blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
+    blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
+    blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
+    blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
+    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
+    blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
+    blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
+    blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+};
 use derive_more::From;
 
 use fastcrypto_derive::GroupOpsExtend;
