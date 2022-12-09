@@ -6,12 +6,12 @@
 
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing, Scalar};
-use fastcrypto::polynomial::{Eval, IndexedValue, Poly};
+use fastcrypto::polynomial::{IndexedValue, Poly};
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
 
-/// * Trait ThresholdBls provides sign & verify functions for standard and partial BLS signatures.
+/// Trait ThresholdBls provides sign & verify functions for standard and partial BLS signatures.
 pub trait ThresholdBls {
     type Private: Scalar;
     /// `Public` represents the group over which the public keys are represented.
@@ -51,19 +51,15 @@ pub trait ThresholdBls {
         threshold: u32,
         partials: &[PartialSignature<Self::Signature>],
     ) -> Result<Self::Signature, FastCryptoError> {
-        let partials = partials
-            .iter()
-            .map(|partial| Eval {
-                index: partial.index,
-                value: partial.value.clone(),
-            })
-            .collect();
+        // No conversion is requires since PartialSignature<S> and Eval<S> are different aliases to
+        // IndexedValue<S>.
         let sig = Poly::<Self::Signature>::recover_c0(threshold, partials)?;
         Ok(sig)
     }
 }
 
-/// Instance of [ThresholdBls] for BLS12-381-min-sig.
+/// Instance of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be defined
+/// in a similar way if needed in the future.
 pub struct ThresholdBls12381MinSig {}
 
 impl ThresholdBls for ThresholdBls12381MinSig {
@@ -74,7 +70,7 @@ impl ThresholdBls for ThresholdBls12381MinSig {
     fn verify_pairings(pk: &Self::Public, sig: &Self::Signature, hm: &Self::Signature) -> bool {
         // e(sig, g2)
         let left = sig.pairing(&Self::Public::generator());
-        // e(H(m), pub)
+        // e(H(m), pk)
         let right = hm.pairing(pk);
         left == right
     }

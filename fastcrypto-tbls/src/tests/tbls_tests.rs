@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::tbls::{ThresholdBls, ThresholdBls12381MinSig};
-use fastcrypto::groups::{bls12381, Scalar};
+use fastcrypto::groups::bls12381;
 use fastcrypto::polynomial::Poly;
 use rand::prelude::*;
 use std::num::NonZeroU32;
@@ -38,6 +38,8 @@ fn test_tbls_e2e() {
         &sig3
     ));
 
+    // Signatures should be the same no matter if calculated with the private key or from a
+    // threshold of partial signatures.
     let full_sig = ThresholdBls12381MinSig::aggregate(t, &[sig1, sig2, sig3]).unwrap();
     assert!(ThresholdBls12381MinSig::verify(
         &public_poly.c0(),
