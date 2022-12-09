@@ -108,7 +108,7 @@ fn test_pairing_and_hash_to_curve() {
 }
 
 #[test]
-fn test_g1_serialize_deserialize<'a>() {
+fn test_g1_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G1Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
@@ -123,7 +123,7 @@ fn test_g1_serialize_deserialize<'a>() {
 }
 
 #[test]
-fn test_g2_serialize_deserialize<'a>() {
+fn test_g2_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G2Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
