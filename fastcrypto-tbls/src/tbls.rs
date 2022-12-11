@@ -11,7 +11,7 @@ use fastcrypto::polynomial::{IndexedValue, Poly};
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
 
-/// Trait ThresholdBls provides sign & verify functions for standard and partial BLS signatures.
+/// Trait [ThresholdBls] provides sign & verify functions for standard and partial BLS signatures.
 pub trait ThresholdBls {
     type Private: Scalar;
     /// `Public` represents the group over which the public keys are represented.
@@ -58,8 +58,8 @@ pub trait ThresholdBls {
     }
 }
 
-/// Instance of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be defined
-/// in a similar way if needed in the future.
+/// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
+/// defined in a similar way if needed in the future.
 pub struct ThresholdBls12381MinSig {}
 
 impl ThresholdBls for ThresholdBls12381MinSig {
