@@ -28,7 +28,7 @@ pub trait ThresholdBls {
 
     fn verify(public: &Self::Public, msg: &[u8], sig: &Self::Signature) -> bool {
         let h = Self::Signature::hash_to_group_element(msg);
-        Self::verify_pairings(public, &sig, &h)
+        Self::verify_pairings(public, sig, &h)
     }
 
     fn partial_sign(share: &Share<Self::Private>, msg: &[u8]) -> PartialSignature<Self::Signature> {
