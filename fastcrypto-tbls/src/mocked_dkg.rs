@@ -8,7 +8,7 @@
 //! the DKG protocol is implemented.
 //!
 //! ```rust
-//! # use std::num::NonZeroU32;
+//! use std::num::NonZeroU32;
 //! use fastcrypto_tbls::mocked_dkg;
 //! use fastcrypto_tbls::tbls::{ThresholdBls, ThresholdBls12381MinSig};
 //!
