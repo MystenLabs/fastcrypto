@@ -12,6 +12,7 @@ use wycheproof::TestResult;
 
 use super::*;
 use crate::secp256r1::SIGNATURE_SIZE;
+use crate::secp256r1::RECOVERABLE_SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
@@ -423,12 +424,39 @@ fn wycheproof_test() {
             for i in 0..4 {
                 n_bytes[64] = i;
                 let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                assert!(sig.is_recoverable());
                 if pk.verify(test.msg.as_slice(), &sig).is_ok() {
                     res = TestResult::Valid;
                     break;
                 } else {
                     continue;
                 }
+            }
+            assert_eq!(map_result(test.result), res, "{}", test.comment);
+        }
+    }
+}
+
+#[test]
+fn wycheproof_test_norecover() {
+    let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
+        for test in test_group.tests {
+            let signature = match &Signature::from_der(&test.sig) {
+                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(s))
+                    .unwrap(),
+                Err(_) => {
+                    assert_eq!(map_result(test.result), TestResult::Invalid);
+                    continue;
+                }
+            };
+
+            assert!(!signature.is_recoverable());
+
+            let mut res = TestResult::Invalid;
+            if pk.verify(test.msg.as_slice(), &signature).is_ok() {
+                res = TestResult::Valid;
             }
             assert_eq!(map_result(test.result), res, "{}", test.comment);
         }
