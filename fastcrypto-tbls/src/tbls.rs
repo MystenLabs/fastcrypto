@@ -67,8 +67,7 @@ pub trait ThresholdBls {
     ) -> Result<Self::Signature, FastCryptoError> {
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
-        let sig = Poly::<Self::Signature>::recover_c0(threshold, partials)?;
-        Ok(sig)
+        Ok(Poly::<Self::Signature>::recover_c0(threshold, partials)?)
     }
 }
 
