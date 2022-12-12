@@ -16,3 +16,5 @@ pub mod tbls;
 #[cfg(test)]
 #[path = "tests/tbls_tests.rs"]
 pub mod tbls_tests;
+
+pub mod mocked_dkg;
