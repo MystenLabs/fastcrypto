@@ -19,26 +19,30 @@ pub trait ThresholdBls {
     /// `Signature` represents the group over which the signatures are represented.
     type Signature: GroupElement<ScalarType = Self::Private> + HashToGroupElement;
 
+    /// Curve dependent implementation of computing and comparing the pairings as part of the
+    /// signature verification.
     fn verify_pairings(
-        p: &Self::Public,
+        pk: &Self::Public,
         sig: &Self::Signature,
-        hm: &Self::Signature,
+        msg: &[u8],
     ) -> Result<(), FastCryptoError>;
 
+    /// Sign a message using the private key.
     fn sign(private: &Self::Private, msg: &[u8]) -> Self::Signature {
         let h = Self::Signature::hash_to_group_element(msg);
         h * private
     }
 
+    /// Verify a signature on a given message.
     fn verify(
         public: &Self::Public,
         msg: &[u8],
         sig: &Self::Signature,
     ) -> Result<(), FastCryptoError> {
-        let h = Self::Signature::hash_to_group_element(msg);
-        Self::verify_pairings(public, sig, &h).map_err(|_| FastCryptoError::InvalidSignature)
+        Self::verify_pairings(public, sig, msg).map_err(|_| FastCryptoError::InvalidSignature)
     }
 
+    /// Sign a message using the private share/partial key.
     fn partial_sign(share: &Share<Self::Private>, msg: &[u8]) -> PartialSignature<Self::Signature> {
         PartialSignature {
             index: share.index,
@@ -46,6 +50,7 @@ pub trait ThresholdBls {
         }
     }
 
+    /// Verify a signature done by a partial key holder.
     fn partial_verify(
         vss_pk: &Poly<Self::Public>,
         msg: &[u8],
@@ -55,6 +60,7 @@ pub trait ThresholdBls {
         Self::verify(&pk_i.value, msg, &partial_sig.value)
     }
 
+    /// Interpolate partial signatures to recover the full signature.
     fn aggregate(
         threshold: u32,
         partials: &[PartialSignature<Self::Signature>],
@@ -78,12 +84,13 @@ impl ThresholdBls for ThresholdBls12381MinSig {
     fn verify_pairings(
         pk: &Self::Public,
         sig: &Self::Signature,
-        hm: &Self::Signature,
+        msg: &[u8],
     ) -> Result<(), FastCryptoError> {
+        let hashed_message = Self::Signature::hash_to_group_element(msg);
         // e(sig, g2)
         let left = sig.pairing(&Self::Public::generator());
         // e(H(m), pk)
-        let right = hm.pairing(pk);
+        let right = hashed_message.pairing(pk);
         match left == right {
             true => Ok(()),
             false => Err(FastCryptoError::InvalidInput),
