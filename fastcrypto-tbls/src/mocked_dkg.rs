@@ -17,8 +17,8 @@
 //! const MSG: [u8; 4] = [1, 2, 3, 4];
 //!
 //! // Parties get their private shares from the mock.
-//! let (share1, _, _) = mocked_dkg::generate_partial_key_pair(threshold, epoch, NonZeroU32::new(1).unwrap());
-//! let (share2, _, _) = mocked_dkg::generate_partial_key_pair(threshold, epoch, NonZeroU32::new(2).unwrap());
+//! let (share1, _, _) = mocked_dkg::generate_share_and_public_keys(threshold, epoch, NonZeroU32::new(1).unwrap());
+//! let (share2, _, _) = mocked_dkg::generate_share_and_public_keys(threshold, epoch, NonZeroU32::new(2).unwrap());
 //!
 //! // Parties may sign messages with their shares.
 //! let sig1 = ThresholdBls12381MinSig::partial_sign(&share1, &MSG);
@@ -51,7 +51,7 @@ fn get_private_key(epoch: u64) -> PrivateBlsKey {
 }
 
 /// Emulate the output of DKG for a given id.
-pub fn generate_partial_key_pair(
+pub fn generate_share_and_public_keys(
     threshold: u32,
     epoch: u64,
     id: ShareIndex,
@@ -72,7 +72,7 @@ pub fn generate_partial_key_pair(
 /// Emulate the public output of DKG.
 pub fn generate_public_keys(threshold: u32, epoch: u64) -> (PublicBlsKey, PublicVssKey) {
     let (_, bls_pk, vss_pk) =
-        generate_partial_key_pair(threshold, epoch, ShareIndex::new(1).unwrap());
+        generate_share_and_public_keys(threshold, epoch, ShareIndex::new(1).unwrap());
     (bls_pk, vss_pk)
 }
 
