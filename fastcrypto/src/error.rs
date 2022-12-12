@@ -30,6 +30,10 @@ pub enum FastCryptoError {
     #[error("Expected input of length exactly {0}")]
     InputLengthWrong(usize),
 
+    /// Invalid signature was given to the function
+    #[error("Invalid signature was given to the function")]
+    InvalidSignature,
+
     /// General opaque cryptographic error.
     #[error("General cryptographic error")]
     GeneralError,
