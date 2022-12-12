@@ -56,7 +56,7 @@ pub fn generate_share_and_public_keys(
     epoch: u64,
     id: ShareIndex,
 ) -> (Share, PublicBlsKey, PublicVssKey) {
-    // The private polynomial is c_0=epoch and c_i = 1.
+    // The private polynomial is c_0 = epoch and c_i = 1.
     let mut coefficients: Vec<Scalar> = (0..threshold)
         .into_iter()
         .map(|_| Scalar::generator())
