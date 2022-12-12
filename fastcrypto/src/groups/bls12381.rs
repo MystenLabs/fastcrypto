@@ -11,14 +11,16 @@ use blst::{
     blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
     blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
     blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
-    blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double,
-    blst_p2_affine, blst_p2_cneg, blst_p2_from_affine, blst_p2_mult, blst_p2_to_affine,
-    blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
-    Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2,
+    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
+    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
+    blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_serialize,
+    blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
+    blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 
 use fastcrypto_derive::GroupOpsExtend;
+use serde::{de, Deserialize, Serialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 
@@ -41,6 +43,8 @@ pub struct Scalar(blst_fr);
 
 /// Length of [Scalar]s in bytes.
 pub const SCALAR_LENGTH: usize = 32;
+pub const G1_SERIALIZED_LENGTH: usize = 96;
+pub const G2_SERIALIZED_LENGTH: usize = 192;
 
 impl Add for G1Element {
     type Output = Self;
@@ -176,6 +180,42 @@ impl HashToGroupElement for G1Element {
     }
 }
 
+impl Serialize for G1Element {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut bytes = [0u8; G1_SERIALIZED_LENGTH];
+        unsafe {
+            blst_p1_serialize(bytes.as_mut_ptr(), &self.0);
+        }
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for G1Element {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let mut ret = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(de::Error::custom("Deserialization failed"));
+            }
+            blst_p1_from_affine(&mut ret, &affine);
+
+            // Verify that the deserialized element is in G1
+            if !blst_p1_in_g1(&ret) {
+                return Err(de::Error::custom("Element is not in subgroup"));
+            }
+        }
+        Ok(G1Element::from(ret))
+    }
+}
+
 impl Add for G2Element {
     type Output = Self;
 
@@ -274,6 +314,42 @@ impl HashToGroupElement for G2Element {
             );
         }
         Self::from(res)
+    }
+}
+
+impl Serialize for G2Element {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut bytes = [0u8; G2_SERIALIZED_LENGTH];
+        unsafe {
+            blst_p2_serialize(bytes.as_mut_ptr(), &self.0);
+        }
+        serializer.serialize_bytes(&bytes)
+    }
+}
+
+impl<'de> Deserialize<'de> for G2Element {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let mut ret = blst_p2::default();
+        unsafe {
+            let mut affine = blst_p2_affine::default();
+            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(de::Error::custom("Deserialization failed"));
+            }
+            blst_p2_from_affine(&mut ret, &affine);
+
+            // Verify that the deserialized element is in G2
+            if !blst_p2_in_g2(&ret) {
+                return Err(de::Error::custom("Element is not in subgroup"));
+            }
+        }
+        Ok(G2Element::from(ret))
     }
 }
 

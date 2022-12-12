@@ -106,3 +106,33 @@ fn test_pairing_and_hash_to_curve() {
     let sig2 = e2 * sk2;
     assert_eq!(pk2.pair(&e2), G1Element::generator().pair(&sig2));
 }
+
+#[test]
+fn test_g1_serialize_deserialize() {
+    // Serialize and deserialize 7*G1
+    let p = G1Element::generator() * Scalar::from(7);
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+
+    // Serialize and deserialize O
+    let p = G1Element::zero();
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+}
+
+#[test]
+fn test_g2_serialize_deserialize() {
+    // Serialize and deserialize 7*G1
+    let p = G2Element::generator() * Scalar::from(7);
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+
+    // Serialize and deserialize O
+    let p = G2Element::zero();
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+}
