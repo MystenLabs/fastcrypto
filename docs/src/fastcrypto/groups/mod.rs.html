@@ -58,6 +58,7 @@
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
 <a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -101,6 +102,7 @@
     + Copy
     + From&lt;u64&gt;
     + Div&lt;<span class="self">Self</span>, Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;&gt;
+    + Sized
 {
     <span class="kw">fn </span>rand&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
@@ -109,7 +111,7 @@
     <span class="kw">type </span>Other: GroupElement;
     <span class="kw">type </span>Output;
 
-    <span class="kw">fn </span>pair(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>::Other) -&gt; &lt;<span class="self">Self </span><span class="kw">as </span>Pairing&gt;::Output;
+    <span class="kw">fn </span>pairing(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>::Other) -&gt; &lt;<span class="self">Self </span><span class="kw">as </span>Pairing&gt;::Output;
 }
 
 <span class="doccomment">/// Trait for groups that have a standardized &quot;hash_to_point&quot;/&quot;hash_to_curve&quot; function (see

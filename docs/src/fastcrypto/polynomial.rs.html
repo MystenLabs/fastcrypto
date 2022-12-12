@@ -271,7 +271,7 @@
 
     <span class="doccomment">/// Given at least `t` polynomial evaluations, it will recover the polynomial&#39;s
     /// constant term
-    </span><span class="kw">pub fn </span>recover_c0(t: u32, shares: Vec&lt;Eval&lt;C&gt;&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
+    </span><span class="kw">pub fn </span>recover_c0(t: u32, shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
         <span class="kw">if </span>shares.len() &lt; t.try_into().unwrap() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
@@ -291,12 +291,12 @@
         <span class="kw">for </span>IndexedValue {
             index: i,
             value: share_i,
-        } <span class="kw">in </span><span class="kw-2">&amp;</span>shares
+        } <span class="kw">in </span>shares
         {
             <span class="kw">let </span><span class="kw-2">mut </span>num = C::ScalarType::generator();
             <span class="kw">let </span><span class="kw-2">mut </span>den = C::ScalarType::generator();
 
-            <span class="kw">for </span>IndexedValue { index: j, value: <span class="kw">_ </span>} <span class="kw">in </span><span class="kw-2">&amp;</span>shares {
+            <span class="kw">for </span>IndexedValue { index: j, value: <span class="kw">_ </span>} <span class="kw">in </span>shares {
                 <span class="kw">if </span>i == j {
                     <span class="kw">continue</span>;
                 };

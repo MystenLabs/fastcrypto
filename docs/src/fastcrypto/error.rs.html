@@ -34,6 +34,10 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -65,6 +69,10 @@
     <span class="doccomment">/// Input length is wrong.
     </span><span class="attr">#[error(<span class="string">&quot;Expected input of length exactly {0}&quot;</span>)]
     </span>InputLengthWrong(usize),
+
+    <span class="doccomment">/// Invalid signature was given to the function
+    </span><span class="attr">#[error(<span class="string">&quot;Invalid signature was given to the function&quot;</span>)]
+    </span>InvalidSignature,
 
     <span class="doccomment">/// General opaque cryptographic error.
     </span><span class="attr">#[error(<span class="string">&quot;General cryptographic error&quot;</span>)]
