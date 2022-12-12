@@ -28,7 +28,7 @@ fn test_tbls_e2e() {
 
     // Verify should fail with an invalid signature.
     assert!(
-        !ThresholdBls12381MinSig::partial_verify(&public_poly, b"other message", &sig1).is_ok()
+        ThresholdBls12381MinSig::partial_verify(&public_poly, b"other message", &sig1).is_err()
     );
     // Aggregate should fail if we don't have enough signatures.
     assert!(ThresholdBls12381MinSig::aggregate(t, &[sig1.clone(), sig2.clone()]).is_err());
