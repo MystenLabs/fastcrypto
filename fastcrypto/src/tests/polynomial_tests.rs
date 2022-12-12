@@ -37,7 +37,10 @@ fn eval_regression() {
     let s2 = p.eval(NonZeroU32::new(20).unwrap());
     let s3 = p.eval(NonZeroU32::new(30).unwrap());
     let shares = vec![s1, s2, s3];
-    assert_eq!(Poly::<RistrettoScalar>::recover_c0(3, shares).unwrap(), one);
+    assert_eq!(
+        Poly::<RistrettoScalar>::recover_c0(3, &shares).unwrap(),
+        one
+    );
 }
 
 #[test]
@@ -73,5 +76,5 @@ fn interpolation_insufficient_shares() {
         .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
         .collect::<Vec<_>>();
 
-    Poly::<RistrettoScalar>::recover_c0(threshold, shares).unwrap_err();
+    Poly::<RistrettoScalar>::recover_c0(threshold, &shares).unwrap_err();
 }

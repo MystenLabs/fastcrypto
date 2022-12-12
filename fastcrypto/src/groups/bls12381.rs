@@ -148,7 +148,7 @@ impl Pairing for G1Element {
     type Other = G2Element;
     type Output = GTElement;
 
-    fn pair(&self, other: &Self::Other) -> <Self as Pairing>::Output {
+    fn pairing(&self, other: &Self::Other) -> <Self as Pairing>::Output {
         let mut self_affine = blst_p1_affine::default();
         let mut other_affine = blst_p2_affine::default();
         let mut res = blst_fp12::default();

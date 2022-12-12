@@ -93,7 +93,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Given at least `t` polynomial evaluations, it will recover the polynomial's
     /// constant term
-    pub fn recover_c0(t: u32, shares: Vec<Eval<C>>) -> Result<C, FastCryptoError> {
+    pub fn recover_c0(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
         if shares.len() < t.try_into().unwrap() {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -113,12 +113,12 @@ impl<C: GroupElement> Poly<C> {
         for IndexedValue {
             index: i,
             value: share_i,
-        } in &shares
+        } in shares
         {
             let mut num = C::ScalarType::generator();
             let mut den = C::ScalarType::generator();
 
-            for IndexedValue { index: j, value: _ } in &shares {
+            for IndexedValue { index: j, value: _ } in shares {
                 if i == j {
                     continue;
                 };
