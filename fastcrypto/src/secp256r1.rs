@@ -495,9 +495,9 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Return true if the public key is recoverble from this signature, eg. if it has a recovery_id.
+    /// Return true if the public key is recoverable from this signature, eg. if it has a recovery_id.
     pub fn is_recoverable(&self) -> bool {
-        return self.recovery_id.is_some();
+        self.recovery_id.is_some()
     }
 
     /// Recover the public used to create this signature. This assumes the recovery id byte has been set.

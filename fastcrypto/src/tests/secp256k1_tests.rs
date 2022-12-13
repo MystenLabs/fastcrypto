@@ -412,10 +412,15 @@ proptest::proptest! {
             pub_key_1.to_bytes().as_slice()
         );
 
-        // same recovered pubkey are recovered
-        let recovered_key = signature.sig.recover(&hashed_msg).unwrap();
-        let recovered_key_1 = signature_1.recover_verifying_key(message).expect("couldn't recover pubkey");
-        assert_eq!(recovered_key.serialize(),recovered_key_1.to_bytes().as_slice());
+        match signature.sig {
+            crate::secp256k1::SignatureType::RECOVERABLE(sig) => {
+                // same recovered pubkey are recovered
+                let recovered_key = sig.recover(&hashed_msg).unwrap();
+                    let recovered_key_1 = signature_1.recover_verifying_key(message).expect("couldn't recover pubkey");
+                    assert_eq!(recovered_key.serialize(),recovered_key_1.to_bytes().as_slice());
+            },
+            crate::secp256k1::SignatureType::NONRECOVERABLE(_) => panic!(),
+        };
 
         // same signatures produced from both implementations
         assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
@@ -432,7 +437,7 @@ proptest::proptest! {
 }
 
 #[test]
-fn wycheproof_test() {
+fn wycheproof_test_recoverable() {
     let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
     for test_group in test_set.test_groups {
         let pk = Secp256k1PublicKey::from_uncompressed(&test_group.key.key);
@@ -453,6 +458,7 @@ fn wycheproof_test() {
             for i in 0..4 {
                 n_bytes[64] = i;
                 let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                assert!(sig.is_recoverable());
                 if pk
                     .verify_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
                     .is_ok()
@@ -463,6 +469,40 @@ fn wycheproof_test() {
                     continue;
                 }
             }
+            assert_eq!(map_result(test.result), res);
+        }
+    }
+}
+
+#[test]
+fn wycheproof_test_nonrecoverable() {
+    let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
+    for test_group in test_set.test_groups {
+        let pk = Secp256k1PublicKey::from_uncompressed(&test_group.key.key);
+        for test in test_group.tests {
+            let bytes = match Signature::from_der(&test.sig) {
+                Ok(mut s) => {
+                    // The secp256k1 crate fails on high-s values (https://docs.rs/secp256k1/0.24.1/secp256k1/ecdsa/struct.Signature.html#method.normalize_s)
+                    s.normalize_s();
+                    s.serialize_compact()
+                }
+                Err(_) => {
+                    assert_eq!(test.result, TestResult::Invalid);
+                    continue;
+                }
+            };
+
+            let mut res = TestResult::Invalid;
+            let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&bytes).unwrap();
+            assert!(!sig.is_recoverable());
+
+            if pk
+                .verify_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
+                .is_ok()
+            {
+                res = TestResult::Valid;
+            }
+
             assert_eq!(map_result(test.result), res);
         }
     }

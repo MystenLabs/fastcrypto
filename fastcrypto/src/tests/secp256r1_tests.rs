@@ -400,25 +400,22 @@ fn test_sk_zeroization_on_drop() {
 // }
 
 #[test]
-fn wycheproof_test() {
+fn wycheproof_test_recoverable() {
     let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
     for test_group in test_set.test_groups {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
-            let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(s))
-                    .unwrap(),
+            let signature = match Signature::from_der(&test.sig) {
+                Ok(s) => s,
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
                 }
             };
 
-            let bytes = signature.as_ref();
-
             // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
             let mut n_bytes = [0u8; 65];
-            n_bytes[..64].copy_from_slice(&bytes[..64]);
+            n_bytes[..64].copy_from_slice(signature.as_ref());
             let mut res = TestResult::Invalid;
 
             for i in 0..4 {
@@ -438,13 +435,13 @@ fn wycheproof_test() {
 }
 
 #[test]
-fn wycheproof_test_norecover() {
+fn wycheproof_test_nonrecoverable() {
     let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
     for test_group in test_set.test_groups {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
-            let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(s))
+            let signature = match Signature::from_der(&test.sig) {
+                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(&s))
                     .unwrap(),
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
