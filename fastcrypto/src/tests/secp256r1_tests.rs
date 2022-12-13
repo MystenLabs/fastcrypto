@@ -123,9 +123,15 @@ fn serialize_private_key_only_for_keypair() {
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");
+
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+
+    let nonrecoverable = signature.as_nonrecoverable();
+    let sig_bytes = nonrecoverable.as_ref();
+    let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
+    assert_eq!(rebuilt_sig.as_ref(), nonrecoverable.as_ref());
 }
 
 #[test]
