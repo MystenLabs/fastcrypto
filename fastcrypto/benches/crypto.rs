@@ -53,13 +53,37 @@ mod signature_benches {
         });
     }
 
+    fn verify_secp256k1_nonrecoverable<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
+        let msg = b"";
+        let mut csprng: ThreadRng = thread_rng();
+        let keypair = Secp256k1KeyPair::generate(&mut csprng);
+        let public_key = keypair.public();
+        let signature = keypair.sign(msg).as_nonrecoverable();
+        c.bench_function("Secp256k1 nonrecoverable", move |b| {
+            b.iter(|| public_key.verify(msg, &signature))
+        });
+    }
+
+    fn verify_secp256r1_nonrecoverable<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
+        let msg = b"";
+        let mut csprng: ThreadRng = thread_rng();
+        let keypair = Secp256r1KeyPair::generate(&mut csprng);
+        let public_key = keypair.public();
+        let signature = keypair.sign(msg).as_nonrecoverable();
+        c.bench_function("Secp256r1 nonrecoverable", move |b| {
+            b.iter(|| public_key.verify(msg, &signature))
+        });
+    }
+
     fn verify(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify");
         verify_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
         verify_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
         verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
-        verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
-        verify_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        verify_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
+        verify_secp256k1_nonrecoverable(&mut group);
+        verify_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
+        verify_secp256r1_nonrecoverable(&mut group);
     }
 
     struct TestDataBatchedVerification<KP: KeyPair> {
