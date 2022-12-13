@@ -466,6 +466,18 @@ impl Secp256k1Signature {
             },
         }
     }
+
+    /// Converts this signature to a non-recoverable one. If the signature already is non-recoverable,
+    /// `self` is returned.
+    pub fn as_nonrecoverable(&self) -> Self {
+        match self.sig {
+            RECOVERABLE(s) => Self {
+                sig: NONRECOVERABLE(s.to_standard()),
+                bytes: OnceCell::new(),
+            },
+            NONRECOVERABLE(_) => self.clone(),
+        }
+    }
 }
 
 impl zeroize::Zeroize for Secp256k1PrivateKey {

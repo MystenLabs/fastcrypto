@@ -119,10 +119,16 @@ impl VerifyingKey for Secp256r1PublicKey {
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
         match signature.recovery_id {
-            None => self
-                .pubkey
-                .verify(msg, &signature.sig)
-                .map_err(|_| signature::Error::new()),
+            None => {
+                // We enforce non malleability, eg. that the s value must be low. This is aligned with
+                // the ECDSA implementation in the secp256k1 crate.
+                if signature.sig.s().is_high().into() {
+                    return Err(signature::Error::new());
+                }
+                self.pubkey
+                    .verify(msg, &signature.sig)
+                    .map_err(|_| signature::Error::new())
+            }
             Some(_) => {
                 let pk = signature
                     .recover(msg)
@@ -282,7 +288,15 @@ impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         let recovery_id = match bytes.len() {
             SIGNATURE_SIZE => None,
-            RECOVERABLE_SIGNATURE_SIZE => Some(bytes[RECOVERABLE_SIGNATURE_SIZE - 1]),
+            RECOVERABLE_SIGNATURE_SIZE => {
+                // Recovery id is 0, 1, 2 or 3. See eg.
+                // https://docs.rs/secp256k1-abc-sys/0.1.2/secp256k1_abc_sys/fn.secp256k1_ecdsa_recoverable_signature_parse_compact.html
+                let recovery_id = bytes[RECOVERABLE_SIGNATURE_SIZE - 1];
+                if recovery_id > 3 {
+                    return Err(signature::Error::new());
+                }
+                Some(recovery_id)
+            }
             _ => return Err(signature::Error::new()),
         };
 
@@ -553,6 +567,16 @@ impl Secp256r1Signature {
                 bytes: OnceCell::new(),
             })
             .map_err(|_| signature::Error::new())
+    }
+
+    /// Converts this signature to a non-recoverable one. If the signature already is non-recoverable,
+    /// `self` is returned.
+    pub fn as_nonrecoverable(&self) -> Self {
+        Self {
+            sig: self.sig,
+            recovery_id: None,
+            bytes: OnceCell::new(),
+        }
     }
 }
 

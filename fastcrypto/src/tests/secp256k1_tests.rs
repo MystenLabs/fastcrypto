@@ -146,6 +146,10 @@ fn verify_valid_signature() {
 
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 }
 
 #[test]
@@ -161,6 +165,13 @@ fn verify_valid_signature_against_hashed_msg() {
     assert!(kp
         .public()
         .verify_hashed(Keccak256::digest(message).as_ref(), &signature)
+        .is_ok());
+    assert!(kp
+        .public()
+        .verify_hashed(
+            Keccak256::digest(message).as_ref(),
+            &signature.as_nonrecoverable()
+        )
         .is_ok());
 }
 
@@ -234,6 +245,10 @@ fn verify_hashed_failed_if_message_unhashed() {
 
     // Verify the signature against unhashed msg fails.
     assert!(kp.public().verify_hashed(message, &signature).is_err());
+    assert!(kp
+        .public()
+        .verify_hashed(message, &signature.as_nonrecoverable())
+        .is_err());
 }
 
 #[test]
@@ -248,12 +263,20 @@ fn verify_invalid_signature() {
     // Verify the signature against good digest passes.
     let signature = kp.sign(digest.as_ref());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = Sha256::digest(bad_message);
 
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_err());
 }
 
 #[test]
@@ -299,6 +322,11 @@ fn fail_to_verify_if_upper_s() {
     // Failed to verify with upper S.
     assert!(pk.verify_hashed(&msg, &rec_sig).is_err());
 
+    // Test for nonrecoverable
+    assert!(pk
+        .verify_hashed(&msg, &rec_sig.as_nonrecoverable())
+        .is_err());
+
     // Nomralize S to be less than N/2.
     sig.normalize_s();
     let mut sig_bytes1 = [0u8; 65];
@@ -308,6 +336,11 @@ fn fail_to_verify_if_upper_s() {
 
     // Verify with normalized lower S.
     assert!(pk.verify_hashed(&msg, &normalized_rec_sig).is_ok());
+
+    // Test for nonrecoverable
+    assert!(pk
+        .verify_hashed(&msg, &normalized_rec_sig.as_nonrecoverable())
+        .is_ok());
 }
 
 #[tokio::test]
@@ -328,6 +361,9 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+    assert!(pk
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 }
 
 #[test]
