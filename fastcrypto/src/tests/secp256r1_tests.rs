@@ -80,9 +80,8 @@ fn test_public_key_recovery_error() {
     // incorrect length
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
 
-    // TODO: Uncomment when recovery byte is added
     // invalid recovery id at index 65
-    // assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
     // Invalid signature: Zeros in signatures are not allowed
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err());
@@ -142,6 +141,10 @@ fn verify_valid_signature() {
 
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256r1PublicKey>, Vec<Secp256r1Signature>) {
@@ -215,12 +218,20 @@ fn verify_invalid_signature() {
     // Verify the signature against good digest passes.
     let signature = kp.sign(digest.as_ref());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = Sha256::digest(bad_message);
 
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
+    assert!(kp
+        .public()
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_err());
 }
 
 #[test]
@@ -262,6 +273,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Failed to verify with upper S.
     assert!(pk.verify(&digest.digest, &sig).is_err());
+    assert!(pk.verify(&digest.digest, &sig.as_nonrecoverable()).is_err());
 
     let normalized = sig.sig.normalize_s().unwrap();
 
@@ -271,6 +283,9 @@ fn fail_to_verify_if_upper_s() {
 
     // Verify with normalized lower S.
     assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
+    assert!(pk
+        .verify(&digest.digest, &normalized_sig.as_nonrecoverable())
+        .is_ok());
 }
 
 #[tokio::test]
@@ -291,6 +306,9 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
+    assert!(pk
+        .verify(digest.as_ref(), &signature.as_nonrecoverable())
+        .is_ok());
 }
 
 #[test]
@@ -441,8 +459,11 @@ fn wycheproof_test_nonrecoverable() {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let signature = match Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(&s))
-                    .unwrap(),
+                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(
+                    // Wycheproof tests do not enforce low s but we do, so we need to normalize
+                    &s.normalize_s().unwrap_or(s),
+                ))
+                .unwrap(),
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
