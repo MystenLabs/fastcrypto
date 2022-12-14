@@ -5,12 +5,9 @@ extern crate criterion;
 
 // cargo criterion --bench mskr --features experimental
 mod mskr_benches {
-    use std::time::Duration;
-
-    use criterion::measurement;
-
     use blst::blst_fr;
     use blst::blst_scalar;
+    use criterion::measurement;
     use criterion::BenchmarkGroup;
     use criterion::BenchmarkId;
     use criterion::Criterion;
@@ -25,6 +22,11 @@ mod mskr_benches {
     use fastcrypto::traits::mskr::Randomize;
     use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
     use rand::thread_rng;
+    use std::time::Duration;
+
+    const MIN_SIGNERS: usize = 100;
+    const MAX_SIGNERS: usize = 1_000;
+    const STEP_SIGNERS: usize = 100;
 
     fn verify_single<
         KP: KeyPair + Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
@@ -75,7 +77,7 @@ mod mskr_benches {
     }
 
     fn verify(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (MIN_SIGNERS..=MAX_SIGNERS).step_by(STEP_SIGNERS).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify");
         for size in batch_sizes {
             verify_single::<
@@ -139,7 +141,7 @@ mod mskr_benches {
     }
 
     fn aggregate(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (MIN_SIGNERS..=MAX_SIGNERS).step_by(STEP_SIGNERS).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate");
         for size in batch_sizes {
             aggregate_single::<
@@ -369,7 +371,7 @@ mod mskr_benches {
     }
 
     fn verify_dabo(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (MIN_SIGNERS..=MAX_SIGNERS).step_by(STEP_SIGNERS).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify DABO");
         for size in batch_sizes {
             verify_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
@@ -462,7 +464,7 @@ mod mskr_benches {
     }
 
     fn aggregate_dabo(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (MIN_SIGNERS..=MAX_SIGNERS).step_by(STEP_SIGNERS).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate DABO");
         for size in batch_sizes {
             aggregate_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
