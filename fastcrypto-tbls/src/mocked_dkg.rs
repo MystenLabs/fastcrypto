@@ -10,7 +10,8 @@
 //! ```rust
 //! use std::num::NonZeroU32;
 //! use fastcrypto_tbls::mocked_dkg;
-//! use fastcrypto_tbls::tbls::{ThresholdBls, ThresholdBls12381MinSig};
+//! use fastcrypto_tbls::types::ThresholdBls12381MinSig;
+//! use fastcrypto_tbls::tbls::ThresholdBls;
 //!
 //! let threshold: u32 = 2;
 //! let epoch: u64 = 10;
@@ -36,15 +37,11 @@
 //!
 
 use crate::tbls;
-use crate::tbls::ThresholdBls12381MinSig;
+use crate::types::{PrivateBlsKey, PublicBlsKey, PublicVssKey, Share, ThresholdBls12381MinSig};
 use fastcrypto::groups::GroupElement;
-use fastcrypto::polynomial::{Eval, PrivatePoly, PublicPoly, ShareIndex};
+use fastcrypto::polynomial::{PrivatePoly, PublicPoly, ShareIndex};
 
 type Scalar = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Private;
-pub type Share = Eval<<ThresholdBls12381MinSig as tbls::ThresholdBls>::Private>;
-pub type PrivateBlsKey = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Private;
-pub type PublicBlsKey = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Public;
-pub type PublicVssKey = PublicPoly<<ThresholdBls12381MinSig as tbls::ThresholdBls>::Public>;
 
 fn get_private_key(epoch: u64) -> PrivateBlsKey {
     PrivateBlsKey::from(epoch)
