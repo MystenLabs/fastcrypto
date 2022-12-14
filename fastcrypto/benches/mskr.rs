@@ -73,7 +73,7 @@ mod mskr_benches {
     }
 
     fn verify(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=10).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify");
         for size in batch_sizes {
             verify_single::<
@@ -137,7 +137,7 @@ mod mskr_benches {
     }
 
     fn aggregate(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=10).step_by(10).collect();
+        let batch00).step_by(10).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate");
         for size in batch_sizes {
             aggregate_single::<
@@ -367,7 +367,7 @@ mod mskr_benches {
     }
 
     fn verify_dabo(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=10).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Verify DABO");
         for size in batch_sizes {
             verify_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
@@ -460,7 +460,7 @@ mod mskr_benches {
     }
 
     fn aggregate_dabo(c: &mut Criterion) {
-        let batch_sizes: Vec<usize> = (10..=10).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate DABO");
         for size in batch_sizes {
             aggregate_dabo_min_sig_single("BLS12381 min_sig", size, &mut group);
