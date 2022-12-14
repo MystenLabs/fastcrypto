@@ -474,9 +474,9 @@ mod mskr_benches {
 
     criterion_group! {
         name = mskr_benches;
-        config = Criterion::default().sample_size(100).warm_up_time(Duration::from_secs(10));
+        config = Criterion::default().sample_size(100);
         // targets = verify, verify_dabo, aggregate, aggregate_dabo, keygen, sign,
-        targets = verify, aggregate
+        targets = verify_dabo, aggregate_dabo
     }
 }
 
