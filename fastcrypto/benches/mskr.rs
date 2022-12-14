@@ -137,7 +137,7 @@ mod mskr_benches {
     }
 
     fn aggregate(c: &mut Criterion) {
-        let batch00).step_by(10).collect();
+        let batch_sizes: Vec<usize> = (10..=100).step_by(10).collect();
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Aggregate");
         for size in batch_sizes {
             aggregate_single::<
