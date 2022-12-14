@@ -269,10 +269,7 @@ mod mskr_benches {
             .collect::<Vec<_>>();
         let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
 
-        let sigs = kps
-            .iter()
-            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
-            .collect::<Vec<_>>();
+        let sigs = kps.iter().map(|kp| kp.sign(&msg)).collect::<Vec<_>>();
 
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
         rands.push(get_one());
@@ -283,7 +280,8 @@ mod mskr_benches {
         let randomized_sigs = sigs
             .iter()
             .zip(rands.iter())
-            .map(|(sig, r)| randomize_g1_signature(sig, r))
+            .zip(pks.iter())
+            .map(|((sig, r), pk)| randomize_g1_signature(sig, r).randomize(pk, &pks))
             .collect::<Vec<_>>();
 
         let aggregate_sig =
@@ -326,10 +324,7 @@ mod mskr_benches {
             .collect::<Vec<_>>();
         let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
 
-        let sigs = kps
-            .iter()
-            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
-            .collect::<Vec<_>>();
+        let sigs = kps.iter().map(|kp| kp.sign(&msg)).collect::<Vec<_>>();
 
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
         rands.push(get_one());
@@ -340,7 +335,8 @@ mod mskr_benches {
         let randomized_sigs = sigs
             .iter()
             .zip(rands.iter())
-            .map(|(sig, r)| randomize_g2_signature(sig, r))
+            .zip(pks.iter())
+            .map(|((sig, r), pk)| randomize_g2_signature(sig, r).randomize(pk, &pks))
             .collect::<Vec<_>>();
 
         let aggregate_sig =
@@ -392,10 +388,7 @@ mod mskr_benches {
             .collect::<Vec<_>>();
         let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
 
-        let sigs = kps
-            .iter()
-            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
-            .collect::<Vec<_>>();
+        let sigs = kps.iter().map(|kp| kp.sign(&msg)).collect::<Vec<_>>();
 
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
         rands.push(get_one());
@@ -413,7 +406,8 @@ mod mskr_benches {
                     let randomized_sigs = sigs
                         .iter()
                         .zip(rands.iter())
-                        .map(|(sig, r)| randomize_g1_signature(sig, r))
+                        .zip(pks.iter())
+                        .map(|((sig, r), pk)| randomize_g1_signature(sig, r).randomize(pk, &pks))
                         .collect::<Vec<_>>();
 
                     let _ =
@@ -436,10 +430,7 @@ mod mskr_benches {
             .collect::<Vec<_>>();
         let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
 
-        let sigs = kps
-            .iter()
-            .map(|kp| kp.randomize(kp.public(), &pks).sign(&msg))
-            .collect::<Vec<_>>();
+        let sigs = kps.iter().map(|kp| kp.sign(&msg)).collect::<Vec<_>>();
 
         let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
         rands.push(get_one());
@@ -447,17 +438,18 @@ mod mskr_benches {
             rands.push(get_128bit_scalar(&mut csprng));
         }
 
-        let data = (sigs, rands);
+        let data = (sigs, rands, pks);
 
         c.bench_with_input(
             BenchmarkId::new(name.to_string(), size),
             &(data),
-            |b, (sigs, rands)| {
+            |b, (sigs, rands, pks)| {
                 b.iter(|| {
                     let randomized_sigs = sigs
                         .iter()
                         .zip(rands.iter())
-                        .map(|(sig, r)| randomize_g2_signature(sig, r))
+                        .zip(pks.iter())
+                        .map(|((sig, r), pk)| randomize_g2_signature(sig, r).randomize(pk, &pks))
                         .collect::<Vec<_>>();
 
                     let _ =
