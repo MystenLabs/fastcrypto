@@ -11,10 +11,10 @@
 //! An experimental crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
+pub mod mocked_dkg;
 pub mod tbls;
+pub mod types;
 
 #[cfg(test)]
 #[path = "tests/tbls_tests.rs"]
 pub mod tbls_tests;
-
-pub mod mocked_dkg;
