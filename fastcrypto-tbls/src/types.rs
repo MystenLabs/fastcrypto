@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::tbls;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
