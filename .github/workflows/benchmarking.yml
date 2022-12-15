@@ -5,33 +5,33 @@ on:
     types: [published]
 
 jobs:
-   benchmark:
-     name: Continuous benchmarking
-     runs-on: ubuntu-ghcloud
-     steps:
-       - uses: actions/checkout@v3
-       - name: Get old benchmarks
-         uses: actions/checkout@v3
-         with:
-           ref: gh-pages
-           path: gh-pages
-       - run: mkdir -p target; cp -r gh-pages/benchmarks/criterion target;
-       - name: Install criterion
-         run: cargo install cargo-criterion
-       - name: Run benchmarks
-         run: cd fastcrypto; cargo criterion --message-format=json --no-default-features --features no-threads-blst > ../${{ github.sha }}.json; cd ..
-       - name: Deploy latest benchmark report
-         uses: peaceiris/actions-gh-pages@v3
-         with:
-           github_token: ${{ secrets.GITHUB_TOKEN }}
-           publish_dir: ./target/criterion
-           destination_dir: benchmarks/criterion
-       - name: Move benchmark json to history
-         run: mkdir history; cp ${{ github.sha }}.json history/
-       - name: Deploy benchmark history
-         uses: peaceiris/actions-gh-pages@v3
-         with:
-           github_token: ${{ secrets.GITHUB_TOKEN }}
-           publish_dir: history/
-           destination_dir: benchmarks/history
-           keep_files: true
+  benchmark:
+    name: Continuous benchmarking
+    runs-on: ubuntu-ghcloud
+    steps:
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - name: Get old benchmarks
+        uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+        with:
+          ref: gh-pages
+          path: gh-pages
+      - run: mkdir -p target; cp -r gh-pages/benchmarks/criterion target;
+      - name: Install criterion
+        run: cargo install cargo-criterion
+      - name: Run benchmarks
+        run: cd fastcrypto; cargo criterion --message-format=json --no-default-features --features no-threads-blst > ../${{ github.sha }}.json; cd ..
+      - name: Deploy latest benchmark report
+        uses: peaceiris/actions-gh-pages@de7ea6f8efb354206b205ef54722213d99067935 # pin@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./target/criterion
+          destination_dir: benchmarks/criterion
+      - name: Move benchmark json to history
+        run: mkdir history; cp ${{ github.sha }}.json history/
+      - name: Deploy benchmark history
+        uses: peaceiris/actions-gh-pages@de7ea6f8efb354206b205ef54722213d99067935 # pin@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: history/
+          destination_dir: benchmarks/history
+          keep_files: true
