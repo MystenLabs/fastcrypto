@@ -102,7 +102,15 @@ fn test_accumulator() {
     accumulator3.insert(b"!");
     assert_ne!(accumulator, accumulator3);
 
+    // Adding the same element twice should give a different hash
+    accumulator2.insert_all([b"!", b"!"]);
+    assert_ne!(accumulator2, accumulator3);
+
     // Removing it again should make the hash equal again
     accumulator3.remove(b"!");
     assert_eq!(accumulator, accumulator3);
+
+    // Removing all added elements will make the hash equal again
+    accumulator2.remove_all([b"!", b"!"]);
+    assert_eq!(accumulator, accumulator2);
 }
