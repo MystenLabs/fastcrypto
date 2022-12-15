@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["ThresholdBls12381MinSig","Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be defined in a similar way if needed in the future."]],"type":[["PrivateBlsKey",""],["PublicBlsKey",""],["PublicVssKey",""],["Share",""],["Signature",""]]};

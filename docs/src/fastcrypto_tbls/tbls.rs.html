@@ -70,32 +70,6 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -103,7 +77,7 @@
 // modified for our needs.
 
 </span><span class="kw">use </span>fastcrypto::error::FastCryptoError;
-<span class="kw">use </span>fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing, Scalar};
+<span class="kw">use </span>fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
 <span class="kw">use </span>fastcrypto::polynomial::{IndexedValue, Poly};
 
 <span class="kw">pub type </span>Share&lt;S&gt; = IndexedValue&lt;S&gt;;
@@ -166,32 +140,6 @@
         <span class="comment">// No conversion is required since PartialSignature&lt;S&gt; and Eval&lt;S&gt; are different aliases to
         // IndexedValue&lt;S&gt;.
         </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0(threshold, partials)
-    }
-}
-
-<span class="doccomment">/// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
-/// defined in a similar way if needed in the future.
-</span><span class="kw">pub struct </span>ThresholdBls12381MinSig {}
-
-<span class="kw">impl </span>ThresholdBls <span class="kw">for </span>ThresholdBls12381MinSig {
-    <span class="kw">type </span>Private = bls12381::Scalar;
-    <span class="kw">type </span>Public = bls12381::G2Element;
-    <span class="kw">type </span>Signature = bls12381::G1Element;
-
-    <span class="kw">fn </span>verify_pairings(
-        pk: <span class="kw-2">&amp;</span><span class="self">Self</span>::Public,
-        sig: <span class="kw-2">&amp;</span><span class="self">Self</span>::Signature,
-        msg: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>hashed_message = <span class="self">Self</span>::Signature::hash_to_group_element(msg);
-        <span class="comment">// e(sig, g2)
-        </span><span class="kw">let </span>left = sig.pairing(<span class="kw-2">&amp;</span><span class="self">Self</span>::Public::generator());
-        <span class="comment">// e(H(m), pk)
-        </span><span class="kw">let </span>right = hashed_message.pairing(pk);
-        <span class="kw">match </span>left == right {
-            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
-        }
     }
 }
 </code></pre></div>
