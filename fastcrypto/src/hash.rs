@@ -17,13 +17,13 @@
 //! ```
 
 use core::fmt::Debug;
-use curve25519_dalek_ng::ristretto::RistrettoPoint;
 use digest::OutputSizeUser;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::{fmt, marker::PhantomData};
+use std::fmt;
 
 use crate::encoding::{Base64, Encoding};
+use crate::groups::ristretto255::RistrettoPoint;
 
 /// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_as]
@@ -200,7 +200,7 @@ impl HashFunction<32> for Blake3 {
 ///
 /// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
 /// result. The hash of two multisets can be compared by using the Eq trait impl'd for the given hash function,
-/// and the hash function should be collision resistant.
+/// and the hash function should be collision resistant. Items may also be removed again.
 ///
 /// See ["Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking" by D. Clarke
 /// et al.](https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12) for a discussion of this type of hash
@@ -220,18 +220,27 @@ impl HashFunction<32> for Blake3 {
 ///
 /// assert_eq!(hash1, hash2);
 /// ```
-pub trait MultisetHash<I>: Eq {
+pub trait MultisetHash: Eq {
     /// Insert an item into this hash function.
-    fn insert(&mut self, item: &I);
+    fn insert<Data: AsRef<[u8]>>(&mut self, item: Data);
 
     /// Insert multiple items into this hash function.
-    fn insert_all<'a, It>(&'a mut self, items: It)
+    fn insert_all<It, Data>(&mut self, items: It)
     where
-        It: 'a + IntoIterator<Item = &'a I>,
-        I: 'a;
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>;
 
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
+
+    /// Remove an element from this hash function.
+    fn remove<Data: AsRef<[u8]>>(&mut self, item: Data);
+
+    /// Remove multiple items from this hash function.
+    fn remove_all<It, Data>(&mut self, items: It)
+    where
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>;
 }
 
 /// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
@@ -241,70 +250,62 @@ pub trait MultisetHash<I>: Eq {
 /// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
 /// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
 #[derive(Default, Clone, Serialize, Deserialize)]
-pub struct EllipticCurveMultisetHash<I: MultisetItem> {
+pub struct EllipticCurveMultisetHash {
     accumulator: RistrettoPoint,
-    item_type: PhantomData<I>,
 }
 
-impl<I: MultisetItem> PartialEq for EllipticCurveMultisetHash<I> {
+impl PartialEq for EllipticCurveMultisetHash {
     fn eq(&self, other: &Self) -> bool {
         self.accumulator == other.accumulator
     }
 }
 
-impl<I: MultisetItem> Eq for EllipticCurveMultisetHash<I> {}
+impl Eq for EllipticCurveMultisetHash {}
 
-impl<I: MultisetItem> MultisetHash<I> for EllipticCurveMultisetHash<I> {
-    fn insert(&mut self, item: &I) {
-        let mut hash_function = Sha512::default();
-        item.as_bytes(|data: &[u8]| hash_function.update(data));
-        let hash = hash_function.finalize().digest;
-        let point: RistrettoPoint = RistrettoPoint::from_uniform_bytes(&hash);
-        self.accumulator += point;
+impl MultisetHash for EllipticCurveMultisetHash {
+    fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        self.accumulator += Self::hash_to_point(item);
     }
 
-    fn insert_all<'a, It>(&'a mut self, items: It)
+    fn insert_all<It, Data>(&mut self, items: It)
     where
-        It: 'a + IntoIterator<Item = &'a I>,
-        I: 'a,
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>,
     {
         for i in items {
             self.insert(i);
         }
     }
 
-    fn union(&mut self, other: &EllipticCurveMultisetHash<I>) {
+    fn union(&mut self, other: &Self) {
         self.accumulator += other.accumulator;
     }
+
+    fn remove<Data: AsRef<[u8]>>(&mut self, item: Data) {
+        self.accumulator -= Self::hash_to_point(item);
+    }
+
+    fn remove_all<It, Data>(&mut self, items: It)
+    where
+        It: IntoIterator<Item = Data>,
+        Data: AsRef<[u8]>,
+    {
+        for i in items {
+            self.remove(i);
+        }
+    }
 }
 
-impl<I: MultisetItem> Debug for EllipticCurveMultisetHash<I> {
+impl EllipticCurveMultisetHash {
+    /// Hash the given item into a RistrettoPoint to be used by the insert and remove methods.
+    fn hash_to_point<Data: AsRef<[u8]>>(item: Data) -> RistrettoPoint {
+        // By default we use Sha512, but this could be made generic if needed.
+        RistrettoPoint::from_uniform_bytes(&Sha512::digest(item).digest)
+    }
+}
+
+impl Debug for EllipticCurveMultisetHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Accumulator").finish()
-    }
-}
-
-/// Impl'd by items that can be be represented uniquely in binary form. This form is used when an item is
-/// inserted into a multiset mash function.
-pub trait MultisetItem {
-    /// Gives a unique binary representation of this accumulateble object to the given consumer.
-    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F);
-}
-
-impl MultisetItem for [u8] {
-    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
-        consumer(self);
-    }
-}
-
-impl<const N: usize> MultisetItem for [u8; N] {
-    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
-        consumer(self.as_slice());
-    }
-}
-
-impl MultisetItem for Vec<u8> {
-    fn as_bytes<F: FnOnce(&[u8])>(&self, consumer: F) {
-        consumer(self.as_slice())
     }
 }
