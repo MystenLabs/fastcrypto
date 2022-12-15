@@ -219,8 +219,9 @@ impl HashFunction<32> for Blake3 {
 /// hash2.insert(b"Hello");
 ///
 /// assert_eq!(hash1, hash2);
+/// assert_eq!(hash1.digest(), hash2.digest());
 /// ```
-pub trait MultisetHash: Eq {
+pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     /// Insert an item into this hash function.
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data);
 
@@ -241,6 +242,9 @@ pub trait MultisetHash: Eq {
     where
         It: IntoIterator<Item = Data>,
         Data: AsRef<[u8]>;
+
+    /// Generate a digest of the current state of this hash function.
+    fn digest(&self) -> Digest<DIGEST_LENGTH>;
 }
 
 /// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
@@ -249,6 +253,9 @@ pub trait MultisetHash: Eq {
 ///
 /// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
 /// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
+///
+/// It uses Sha512 to hash to construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map,
+/// and Sha256 to construct a digest from a serialization of the resulting RistrettoPoint, so digests are 32 bytes long.
 #[derive(Default, Clone, Serialize, Deserialize)]
 pub struct EllipticCurveMultisetHash {
     accumulator: RistrettoPoint,
@@ -262,7 +269,7 @@ impl PartialEq for EllipticCurveMultisetHash {
 
 impl Eq for EllipticCurveMultisetHash {}
 
-impl MultisetHash for EllipticCurveMultisetHash {
+impl MultisetHash<32> for EllipticCurveMultisetHash {
     fn insert<Data: AsRef<[u8]>>(&mut self, item: Data) {
         self.accumulator += Self::hash_to_point(item);
     }
@@ -293,6 +300,11 @@ impl MultisetHash for EllipticCurveMultisetHash {
         for i in items {
             self.remove(i);
         }
+    }
+
+    fn digest(&self) -> Digest<32> {
+        let serialized = &bincode::serialize(&self.accumulator).unwrap();
+        Sha256::digest(serialized)
     }
 }
 

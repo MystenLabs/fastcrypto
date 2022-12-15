@@ -50,6 +50,7 @@ sha3 = "0.10.6"
 thiserror = "1.0.37"
 twox-hash = { version = "1.6.3", optional = true }
 schemars ="0.8.10"
+bincode = "1.3.3"
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 
@@ -75,7 +76,6 @@ no-threads-blst = ["blst/no-threads"]
 experimental = []
 
 [dev-dependencies]
-bincode = "1.3.3"
 criterion = "0.4.0"
 hex-literal = "0.3.4"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
