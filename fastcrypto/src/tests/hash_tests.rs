@@ -81,11 +81,13 @@ fn test_accumulator() {
     let check1 = accumulator.clone();
     accumulator.insert(b"World");
     assert_ne!(check1, accumulator);
+    assert_ne!(check1.digest(), accumulator.digest());
 
     // Hashing the same elements should give the same hash
     let mut accumulator2 = EllipticCurveMultisetHash::default();
     accumulator2.insert_all([b"Hello", b"World"]);
     assert_eq!(accumulator, accumulator2);
+    assert_eq!(accumulator.digest(), accumulator2.digest());
 
     // The order doesn't matter
     let mut accumulator3 = EllipticCurveMultisetHash::default();
