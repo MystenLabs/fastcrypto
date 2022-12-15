@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hash.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>hash.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9def1262ebc682c9.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-94f39d4346842c1e.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-c55e1eb52e1886b4.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hash.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>hash.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-918aaffdca2f1bdb.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-ebce58d0a40c3431.css"><link rel="stylesheet" disabled href="../../static.files/dark-f23faae4a2daf9a6.css"><link rel="stylesheet" disabled href="../../static.files/ayu-94f39d4346842c1e.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-5cf2e01a42cc9858.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-a211dbb005fb8161.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><div class="width-limiter"><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -308,6 +308,7 @@
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
 <a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -327,13 +328,13 @@
 //! ```
 
 </span><span class="kw">use </span>core::fmt::Debug;
-<span class="kw">use </span>curve25519_dalek_ng::ristretto::RistrettoPoint;
 <span class="kw">use </span>digest::OutputSizeUser;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_with::serde_as;
-<span class="kw">use </span>std::{fmt, marker::PhantomData};
+<span class="kw">use </span>std::fmt;
 
 <span class="kw">use </span><span class="kw">crate</span>::encoding::{Base64, Encoding};
+<span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::RistrettoPoint;
 
 <span class="doccomment">/// Represents a digest of `DIGEST_LEN` bytes.
 </span><span class="attr">#[serde_as]
@@ -510,7 +511,7 @@
 ///
 /// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
 /// result. The hash of two multisets can be compared by using the Eq trait impl&#39;d for the given hash function,
-/// and the hash function should be collision resistant.
+/// and the hash function should be collision resistant. Items may also be removed again.
 ///
 /// See [&quot;Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking&quot; by D. Clarke
 /// et al.](https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12) for a discussion of this type of hash
@@ -530,18 +531,27 @@
 ///
 /// assert_eq!(hash1, hash2);
 /// ```
-</span><span class="kw">pub trait </span>MultisetHash&lt;I&gt;: Eq {
+</span><span class="kw">pub trait </span>MultisetHash: Eq {
     <span class="doccomment">/// Insert an item into this hash function.
-    </span><span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>I);
+    </span><span class="kw">fn </span>insert&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: Data);
 
     <span class="doccomment">/// Insert multiple items into this hash function.
-    </span><span class="kw">fn </span>insert_all&lt;<span class="lifetime">&#39;a</span>, It&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>, items: It)
+    </span><span class="kw">fn </span>insert_all&lt;It, Data&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: It)
     <span class="kw">where
-        </span>It: <span class="lifetime">&#39;a </span>+ IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>I&gt;,
-        I: <span class="lifetime">&#39;a</span>;
+        </span>It: IntoIterator&lt;Item = Data&gt;,
+        Data: AsRef&lt;[u8]&gt;;
 
     <span class="doccomment">/// Add all the elements of another hash function into this hash function.
     </span><span class="kw">fn </span>union(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>);
+
+    <span class="doccomment">/// Remove an element from this hash function.
+    </span><span class="kw">fn </span>remove&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: Data);
+
+    <span class="doccomment">/// Remove multiple items from this hash function.
+    </span><span class="kw">fn </span>remove_all&lt;It, Data&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: It)
+    <span class="kw">where
+        </span>It: IntoIterator&lt;Item = Data&gt;,
+        Data: AsRef&lt;[u8]&gt;;
 }
 
 <span class="doccomment">/// `EllipticCurveMultisetHash` (ECMH) is a homomorphic multiset hash function. Concretely, each element is mapped
@@ -551,72 +561,64 @@
 /// For more information about the construction of ECMH and its security, see [&quot;Elliptic Curve Multiset Hash&quot; by J.
 /// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
 </span><span class="attr">#[derive(Default, Clone, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>EllipticCurveMultisetHash&lt;I: MultisetItem&gt; {
+</span><span class="kw">pub struct </span>EllipticCurveMultisetHash {
     accumulator: RistrettoPoint,
-    item_type: PhantomData&lt;I&gt;,
 }
 
-<span class="kw">impl</span>&lt;I: MultisetItem&gt; PartialEq <span class="kw">for </span>EllipticCurveMultisetHash&lt;I&gt; {
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>EllipticCurveMultisetHash {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.accumulator == other.accumulator
     }
 }
 
-<span class="kw">impl</span>&lt;I: MultisetItem&gt; Eq <span class="kw">for </span>EllipticCurveMultisetHash&lt;I&gt; {}
+<span class="kw">impl </span>Eq <span class="kw">for </span>EllipticCurveMultisetHash {}
 
-<span class="kw">impl</span>&lt;I: MultisetItem&gt; MultisetHash&lt;I&gt; <span class="kw">for </span>EllipticCurveMultisetHash&lt;I&gt; {
-    <span class="kw">fn </span>insert(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: <span class="kw-2">&amp;</span>I) {
-        <span class="kw">let </span><span class="kw-2">mut </span>hash_function = Sha512::default();
-        item.as_bytes(|data: <span class="kw-2">&amp;</span>[u8]| hash_function.update(data));
-        <span class="kw">let </span>hash = hash_function.finalize().digest;
-        <span class="kw">let </span>point: RistrettoPoint = RistrettoPoint::from_uniform_bytes(<span class="kw-2">&amp;</span>hash);
-        <span class="self">self</span>.accumulator += point;
+<span class="kw">impl </span>MultisetHash <span class="kw">for </span>EllipticCurveMultisetHash {
+    <span class="kw">fn </span>insert&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: Data) {
+        <span class="self">self</span>.accumulator += <span class="self">Self</span>::hash_to_point(item);
     }
 
-    <span class="kw">fn </span>insert_all&lt;<span class="lifetime">&#39;a</span>, It&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span><span class="self">self</span>, items: It)
+    <span class="kw">fn </span>insert_all&lt;It, Data&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: It)
     <span class="kw">where
-        </span>It: <span class="lifetime">&#39;a </span>+ IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>I&gt;,
-        I: <span class="lifetime">&#39;a</span>,
+        </span>It: IntoIterator&lt;Item = Data&gt;,
+        Data: AsRef&lt;[u8]&gt;,
     {
         <span class="kw">for </span>i <span class="kw">in </span>items {
             <span class="self">self</span>.insert(i);
         }
     }
 
-    <span class="kw">fn </span>union(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span>EllipticCurveMultisetHash&lt;I&gt;) {
+    <span class="kw">fn </span>union(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) {
         <span class="self">self</span>.accumulator += other.accumulator;
+    }
+
+    <span class="kw">fn </span>remove&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, item: Data) {
+        <span class="self">self</span>.accumulator -= <span class="self">Self</span>::hash_to_point(item);
+    }
+
+    <span class="kw">fn </span>remove_all&lt;It, Data&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, items: It)
+    <span class="kw">where
+        </span>It: IntoIterator&lt;Item = Data&gt;,
+        Data: AsRef&lt;[u8]&gt;,
+    {
+        <span class="kw">for </span>i <span class="kw">in </span>items {
+            <span class="self">self</span>.remove(i);
+        }
     }
 }
 
-<span class="kw">impl</span>&lt;I: MultisetItem&gt; Debug <span class="kw">for </span>EllipticCurveMultisetHash&lt;I&gt; {
+<span class="kw">impl </span>EllipticCurveMultisetHash {
+    <span class="doccomment">/// Hash the given item into a RistrettoPoint to be used by the insert and remove methods.
+    </span><span class="kw">fn </span>hash_to_point&lt;Data: AsRef&lt;[u8]&gt;&gt;(item: Data) -&gt; RistrettoPoint {
+        <span class="comment">// By default we use Sha512, but this could be made generic if needed.
+        </span>RistrettoPoint::from_uniform_bytes(<span class="kw-2">&amp;</span>Sha512::digest(item).digest)
+    }
+}
+
+<span class="kw">impl </span>Debug <span class="kw">for </span>EllipticCurveMultisetHash {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
         f.debug_struct(<span class="string">&quot;Accumulator&quot;</span>).finish()
     }
 }
-
-<span class="doccomment">/// Impl&#39;d by items that can be be represented uniquely in binary form. This form is used when an item is
-/// inserted into a multiset mash function.
-</span><span class="kw">pub trait </span>MultisetItem {
-    <span class="doccomment">/// Gives a unique binary representation of this accumulateble object to the given consumer.
-    </span><span class="kw">fn </span>as_bytes&lt;F: FnOnce(<span class="kw-2">&amp;</span>[u8])&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, consumer: F);
-}
-
-<span class="kw">impl </span>MultisetItem <span class="kw">for </span>[u8] {
-    <span class="kw">fn </span>as_bytes&lt;F: FnOnce(<span class="kw-2">&amp;</span>[u8])&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, consumer: F) {
-        consumer(<span class="self">self</span>);
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="kw">const </span>N: usize&gt; MultisetItem <span class="kw">for </span>[u8; N] {
-    <span class="kw">fn </span>as_bytes&lt;F: FnOnce(<span class="kw-2">&amp;</span>[u8])&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, consumer: F) {
-        consumer(<span class="self">self</span>.as_slice());
-    }
-}
-
-<span class="kw">impl </span>MultisetItem <span class="kw">for </span>Vec&lt;u8&gt; {
-    <span class="kw">fn </span>as_bytes&lt;F: FnOnce(<span class="kw-2">&amp;</span>[u8])&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, consumer: F) {
-        consumer(<span class="self">self</span>.as_slice())
-    }
-}
 </code></pre></div>
-</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (37d7de337 2022-12-12)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (b70baa4f9 2022-12-14)" data-search-js="search-444266647c4dba98.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-af96d9e2fc13e081.css" ></div></body></html>
