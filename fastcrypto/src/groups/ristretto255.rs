@@ -19,7 +19,7 @@ use serde::{de, Deserialize, Serialize};
 use std::ops::{Div, Mul};
 
 /// Represents a point in the Ristretto group for Curve25519.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
+#[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct RistrettoPoint(ExternalRistrettoPoint);
 
 impl RistrettoPoint {

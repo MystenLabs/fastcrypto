@@ -97,4 +97,12 @@ fn test_accumulator() {
     accumulator3.insert(b"World");
     accumulator3.union(&check1);
     assert_eq!(accumulator, accumulator3);
+
+    // Adding one more element will make the hash different
+    accumulator3.insert(b"!");
+    assert_ne!(accumulator, accumulator3);
+
+    // Removing it again should make the hash equal again
+    accumulator3.remove(b"!");
+    assert_eq!(accumulator, accumulator3);
 }
