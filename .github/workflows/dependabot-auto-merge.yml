@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
-      - uses: actions/checkout@v3
-      - uses: ahmadnassri/action-dependabot-auto-merge@v2.6
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: ahmadnassri/action-dependabot-auto-merge@7dbc44641f77fb62b23158c1294b5b757d6091a5 # pin@v2.6
         with:
           github-token: ${{ secrets.AUTOMERGE_TOKEN }}
           command: 'squash and merge'

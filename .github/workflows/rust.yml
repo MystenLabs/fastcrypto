@@ -34,8 +34,8 @@ jobs:
     name: license-check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
       - run: scripts/license_check.sh
 
   test:
@@ -49,9 +49,9 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
-      - uses: taiki-e/install-action@nextest
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
+      - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       # make sure benches don't bit-rot
       - name: build benches
         run: cargo build --benches --all-features
@@ -67,8 +67,8 @@ jobs:
   clippy:
     runs-on: ubuntu-ghcloud
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
         with:
           components: clippy
       # See '.cargo/config' for list of enabled/disappled clippy lints
@@ -78,12 +78,12 @@ jobs:
   rustfmt:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
         with:
           components: rustfmt
       - name: rustfmt
-        uses: actions-rs/cargo@v1
+        uses: actions-rs/cargo@844f36862e911db73fe0815f00a4a2602c279505 # pin@v1
         with:
           command: fmt
           args: --all --check
@@ -92,5 +92,5 @@ jobs:
     name: cargo-deny (advisories, licenses, bans, ...)
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - uses: EmbarkStudios/cargo-deny-action@v1
+      - uses: actions/checkout@755da8c3cf115ac066823e79a1e1788f8940201b # pin@v3
+      - uses: EmbarkStudios/cargo-deny-action@8a8607bd8e2b3a514d5a40174cc7c55b229d9ba7 # pin@v1
