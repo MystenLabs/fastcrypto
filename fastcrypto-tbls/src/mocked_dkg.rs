@@ -43,7 +43,9 @@ use fastcrypto::polynomial::{PrivatePoly, PublicPoly, ShareIndex};
 
 type Scalar = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Private;
 
-fn get_private_key(epoch: u64) -> PrivateBlsKey { PrivateBlsKey::from(epoch + 1) }
+fn get_private_key(epoch: u64) -> PrivateBlsKey {
+    PrivateBlsKey::from(epoch + 1)
+}
 
 /// Emulate the output of DKG for a given id.
 pub fn generate_share_and_public_keys(
