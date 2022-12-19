@@ -407,9 +407,9 @@ dependencies = [
 
 [[package]]
 name = "blake2"
-version = "0.10.5"
+version = "0.10.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b12e5fd123190ce1c2e559308a94c9bacad77907d4c6005d9e58fe1a0689e55e"
+checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
 dependencies = [
  "digest 0.10.6",
 ]
@@ -1023,7 +1023,7 @@ dependencies = [
  "base64 0.20.0",
  "base64ct",
  "bincode",
- "blake2 0.10.5",
+ "blake2 0.10.6",
  "blake3",
  "blst",
  "bs58",
@@ -1105,7 +1105,7 @@ dependencies = [
  "ark-relations",
  "ark-serialize",
  "ark-std",
- "blake2 0.10.5",
+ "blake2 0.10.6",
  "blst",
  "byte-slice-cast",
  "criterion",
