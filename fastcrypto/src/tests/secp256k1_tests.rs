@@ -266,13 +266,11 @@ fn verify_invalid_signature() {
     // Verify the signature against good digest passes.
     let signature = kp.sign(digest.as_ref());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = Sha256::digest(bad_message);
 
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
