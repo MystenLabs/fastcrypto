@@ -40,7 +40,13 @@ use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
+
 use zeroize::Zeroize;
+
+#[cfg(test)]
+use crate::hash::HashFunction;
+#[cfg(test)]
+use crate::hash::Keccak256;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
@@ -51,6 +57,10 @@ pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
     pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
 }
+
+/// Binary representation of an instance of [Secp256k1PublicKey].
+pub type Secp256k1PublicKeyBytes =
+PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 /// Secp256k1 private key.
 #[readonly::make]
@@ -524,6 +534,41 @@ impl SignAsRecoverable for Secp256k1KeyPair {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
         })
+    }
+}
+
+impl Secp256k1KeyPair {
+    // This test is used in the proptest because the k256 lib uses keccak256 as hash function.
+    #[cfg(test)]
+    pub fn try_sign_as_recoverable_keccak256(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256k1RecoverableSignature, signature::Error> {
+        let secp = Secp256k1::signing_only();
+
+        let message =
+            rust_secp256k1::Message::from_slice(Keccak256::digest(msg).digest.as_ref()).unwrap();
+
+        // Creates a 65-bytes signature of shape [r, s, v] where v can be 0 or 1.
+        // Pseudo-random deterministic nonce generation is used according to RFC6979.
+        Ok(Secp256k1RecoverableSignature {
+            sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
+            bytes: OnceCell::new(),
+        })
+    }
+}
+
+impl TryFrom<Secp256k1PublicKeyBytes> for Secp256k1PublicKey {
+    type Error = signature::Error;
+
+    fn try_from(bytes: Secp256k1PublicKeyBytes) -> Result<Secp256k1PublicKey, Self::Error> {
+        Secp256k1PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
+    }
+}
+
+impl From<&Secp256k1PublicKey> for Secp256k1PublicKeyBytes {
+    fn from(pk: &Secp256k1PublicKey) -> Self {
+        Secp256k1PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 
