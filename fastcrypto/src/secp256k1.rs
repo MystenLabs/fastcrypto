@@ -35,11 +35,11 @@ use rust_secp256k1::{
 };
 use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
+use std::borrow::Borrow;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
-use std::borrow::Borrow;
 use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
@@ -341,7 +341,7 @@ impl<'de> Deserialize<'de> for Secp256k1RecoverableSignature {
     }
 }
 
-impl <S: Borrow<Secp256k1RecoverableSignature>> From<S> for Secp256k1Signature {
+impl<S: Borrow<Secp256k1RecoverableSignature>> From<S> for Secp256k1Signature {
     fn from(recoverable_signature: S) -> Self {
         Secp256k1Signature {
             sig: recoverable_signature.borrow().sig.to_standard(),
@@ -495,7 +495,6 @@ impl FromStr for Secp256k1KeyPair {
 
 impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1Signature, signature::Error> {
-
         // Sha256 is used by default
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
 
