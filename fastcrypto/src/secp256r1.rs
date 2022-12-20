@@ -384,8 +384,6 @@ impl TryFrom<(&Secp256r1Signature, u8)> for Secp256r1RecoverableSignature {
 
 impl ToFromBytes for Secp256r1RecoverableSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // Recovery id is 0, 1, 2 or 3. See eg.
-        // https://docs.rs/secp256k1-abc-sys/0.1.2/secp256k1_abc_sys/fn.secp256k1_ecdsa_recoverable_signature_parse_compact.html
         let recovery_id = RecoveryId::from_byte(bytes[RECOVERABLE_SIGNATURE_SIZE - 1])
             .ok_or(FastCryptoError::InvalidInput)?;
 
