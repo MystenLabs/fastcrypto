@@ -19,6 +19,7 @@
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use crate::serialize_deserialize_with_to_from_bytes;
+use crate::traits::{RecoverableSignature, SignAsRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -44,7 +45,7 @@ use p256::elliptic_curve::IsHigh;
 use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint, Field};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
-use signature::{Signature, Signer, Verifier};
+use signature::{Error, Signature, Signer, Verifier};
 use std::borrow::Borrow;
 use std::{
     fmt::{self, Debug, Display},
@@ -80,8 +81,16 @@ pub struct Secp256r1PrivateKey {
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
-    pub bytes: OnceCell<Vec<u8>>,
-    pub recovery_id: Option<u8>,
+    pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
+}
+
+/// Secp256r1 signature.
+#[readonly::make]
+#[derive(Debug, Clone)]
+pub struct Secp256r1RecoverableSignature {
+    pub sig: ExternalSignature,
+    pub recovery_id: RecoveryId,
+    pub bytes: OnceCell<[u8; RECOVERABLE_SIGNATURE_SIZE]>,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -118,29 +127,14 @@ impl VerifyingKey for Secp256r1PublicKey {
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
-        match signature.recovery_id {
-            None => {
-                // We enforce non malleability, eg. that the s value must be low. This is aligned with
-                // the ECDSA implementation in the secp256k1 crate.
-                if signature.sig.s().is_high().into() {
-                    return Err(signature::Error::new());
-                }
-                self.pubkey
-                    .verify(msg, &signature.sig)
-                    .map_err(|_| signature::Error::new())
-            }
-            Some(_) => {
-                let pk = signature
-                    .recover(msg)
-                    .map_err(|_| signature::Error::new())?;
-
-                if pk != *self {
-                    return Err(signature::Error::new());
-                }
-
-                Ok(())
-            }
+        // We enforce non malleability, eg. that the s value must be low. This is aligned with
+        // the ECDSA implementation in the secp256k1 crate.
+        if signature.sig.s().is_high().into() {
+            return Err(signature::Error::new());
         }
+        self.pubkey
+            .verify(msg, &signature.sig)
+            .map_err(|_| signature::Error::new())
     }
 }
 
@@ -286,26 +280,14 @@ impl<'de> Deserialize<'de> for Secp256r1Signature {
 
 impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let recovery_id = match bytes.len() {
-            SIGNATURE_SIZE => None,
-            RECOVERABLE_SIGNATURE_SIZE => {
-                // Recovery id is 0, 1, 2 or 3. See eg.
-                // https://docs.rs/secp256k1-abc-sys/0.1.2/secp256k1_abc_sys/fn.secp256k1_ecdsa_recoverable_signature_parse_compact.html
-                let recovery_id = bytes[RECOVERABLE_SIGNATURE_SIZE - 1];
-                if recovery_id > 3 {
-                    return Err(signature::Error::new());
-                }
-                Some(recovery_id)
-            }
-            _ => return Err(signature::Error::new()),
-        };
+        if bytes.len() != SIGNATURE_SIZE {
+            return Err(signature::Error::new());
+        }
 
-        let sig =
-            <ExternalSignature as Signature>::from_bytes(&bytes[..RECOVERABLE_SIGNATURE_SIZE - 1])?;
+        let sig = <ExternalSignature as Signature>::from_bytes(bytes)?;
 
         Ok(Secp256r1Signature {
             sig,
-            recovery_id,
             bytes: OnceCell::new(),
         })
     }
@@ -314,20 +296,15 @@ impl Signature for Secp256r1Signature {
 impl Authenticator for Secp256r1Signature {
     type PubKey = Secp256r1PublicKey;
     type PrivKey = Secp256r1PrivateKey;
-    const LENGTH: usize = RECOVERABLE_SIGNATURE_SIZE;
+    const LENGTH: usize = SIGNATURE_SIZE;
 }
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(self.sig.as_ref());
-
-        if self.recovery_id.is_some() {
-            bytes.push(self.recovery_id.unwrap());
-        }
-
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
+            .get_or_try_init::<_, eyre::Report>(|| {
+                Ok(<[u8; 64]>::try_from(self.sig.as_ref()).unwrap())
+            })
             .expect("OnceCell invariant violated")
     }
 }
@@ -359,7 +336,163 @@ impl Default for Secp256r1Signature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
             bytes: OnceCell::new(),
-            recovery_id: None,
+        }
+    }
+}
+
+impl Serialize for Secp256r1RecoverableSignature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.as_ref().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Secp256r1RecoverableSignature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let data: Vec<u8> = Vec::deserialize(deserializer)?;
+        Secp256r1RecoverableSignature::from_bytes(&data)
+            .map_err(|e| de::Error::custom(e.to_string()))
+    }
+}
+
+impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
+    fn from(recoverable_signature: &Secp256r1RecoverableSignature) -> Self {
+        Secp256r1Signature {
+            sig: recoverable_signature.sig,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+impl TryFrom<(&Secp256r1Signature, u8)> for Secp256r1RecoverableSignature {
+    type Error = FastCryptoError;
+
+    fn try_from((signature, rec_id): (&Secp256r1Signature, u8)) -> Result<Self, FastCryptoError> {
+        let recovery_id = RecoveryId::from_byte(rec_id).ok_or(FastCryptoError::InvalidInput)?;
+        Ok(Secp256r1RecoverableSignature {
+            sig: signature.sig,
+            recovery_id,
+            bytes: OnceCell::new(),
+        })
+    }
+}
+
+impl ToFromBytes for Secp256r1RecoverableSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        // Recovery id is 0, 1, 2 or 3. See eg.
+        // https://docs.rs/secp256k1-abc-sys/0.1.2/secp256k1_abc_sys/fn.secp256k1_ecdsa_recoverable_signature_parse_compact.html
+        let recovery_id = RecoveryId::from_byte(bytes[RECOVERABLE_SIGNATURE_SIZE - 1])
+            .ok_or(FastCryptoError::InvalidInput)?;
+
+        let sig =
+            <ExternalSignature as Signature>::from_bytes(&bytes[..RECOVERABLE_SIGNATURE_SIZE - 1])
+                .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        Ok(Secp256r1RecoverableSignature {
+            sig,
+            recovery_id,
+            bytes: OnceCell::new(),
+        })
+    }
+}
+
+impl RecoverableSignature for Secp256r1RecoverableSignature {
+    type PubKey = Secp256r1PublicKey;
+    type Sig = Secp256r1Signature;
+
+    fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        self.recover_hashed(&Sha256::digest(msg).digest)
+    }
+}
+
+impl Secp256r1RecoverableSignature {
+    /// Recover the public key given an already hashed digest.
+    pub fn recover_hashed(&self, digest: &[u8; 32]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        // This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+
+        let (r, s) = self.sig.split_scalars();
+        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(*digest));
+
+        // Note: This has been added because it does not seem to be done in k256
+        let r_bytes = match self.recovery_id.is_x_reduced() {
+            true => U256::from(r.as_ref())
+                .wrapping_add(&NistP256::ORDER)
+                .to_be_byte_array(),
+            false => r.to_bytes(),
+        };
+
+        let big_r =
+            AffinePoint::decompress(&r_bytes, Choice::from(self.recovery_id.is_y_odd() as u8));
+
+        if big_r.is_some().into() {
+            let big_r = ProjectivePoint::from(big_r.unwrap());
+            let r_inv = r.invert().unwrap();
+            let u1 = -(r_inv * z);
+            let u2 = r_inv * *s;
+            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
+
+            Ok(Secp256r1PublicKey {
+                pubkey: ExternalPublicKey::from_affine(pk)
+                    .map_err(|_| FastCryptoError::GeneralError)?,
+                bytes: OnceCell::new(),
+            })
+        } else {
+            Err(FastCryptoError::GeneralError)
+        }
+    }
+
+    /// Get the recovery id for this recoverable signature.
+    pub fn recovery_id(&self) -> u8 {
+        self.as_ref()[RECOVERABLE_SIGNATURE_SIZE - 1]
+    }
+}
+
+impl AsRef<[u8]> for Secp256r1RecoverableSignature {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes
+            .get_or_try_init::<_, eyre::Report>(|| {
+                let mut bytes = [0u8; RECOVERABLE_SIGNATURE_SIZE];
+                bytes[0..RECOVERABLE_SIGNATURE_SIZE - 1].copy_from_slice(self.sig.as_ref());
+                bytes[RECOVERABLE_SIGNATURE_SIZE - 1] = self.recovery_id.to_byte();
+                Ok(bytes)
+            })
+            .expect("OnceCell invariant violated")
+    }
+}
+
+impl std::hash::Hash for Secp256r1RecoverableSignature {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.as_ref().hash(state);
+    }
+}
+
+impl PartialEq for Secp256r1RecoverableSignature {
+    fn eq(&self, other: &Self) -> bool {
+        self.sig == other.sig
+    }
+}
+
+impl Eq for Secp256r1RecoverableSignature {}
+
+impl Display for Secp256r1RecoverableSignature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode(self.as_ref()))
+    }
+}
+
+impl Default for Secp256r1RecoverableSignature {
+    fn default() -> Self {
+        // Return the signature (1,1)
+        Secp256r1RecoverableSignature {
+            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
+                .unwrap(),
+            recovery_id: RecoveryId::from_byte(0).unwrap(),
+            bytes: OnceCell::new(),
         }
     }
 }
@@ -433,7 +566,23 @@ impl FromStr for Secp256r1KeyPair {
 }
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
+    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, Error> {
+        let sig = self.secret.privkey.try_sign(msg)?;
+        let sig_low = sig.normalize_s().unwrap_or(sig);
+        Ok(Secp256r1Signature {
+            sig: sig_low,
+            bytes: OnceCell::new(),
+        })
+    }
+}
+
+impl SignAsRecoverable for Secp256r1KeyPair {
+    type RecoverableSig = Secp256r1RecoverableSignature;
+
+    fn try_sign_as_recoverable(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256r1RecoverableSignature, signature::Error> {
         // Code copied from Sign.rs in k256@0.11.6
 
         // Hash message
@@ -483,10 +632,10 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
         let sig_low = sig.normalize_s().unwrap_or(sig);
         let recovery_id = RecoveryId::new(is_y_odd.into(), false);
 
-        Ok(Secp256r1Signature {
+        Ok(Secp256r1RecoverableSignature {
             sig: sig_low,
+            recovery_id,
             bytes: OnceCell::new(),
-            recovery_id: Some(recovery_id.to_byte()),
         })
     }
 }
@@ -509,74 +658,15 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Return true if the public key is recoverable from this signature, eg. if it has a recovery_id.
-    pub fn is_recoverable(&self) -> bool {
-        self.recovery_id.is_some()
-    }
-
-    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
-    ///
-    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-    ///
-    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        if !self.is_recoverable() {
-            // Signature is not recoverable
-            return Err(FastCryptoError::GeneralError);
-        }
-
-        let (r, s) = self.sig.split_scalars();
-        let v = RecoveryId::from_byte(self.recovery_id.unwrap())
-            .ok_or(FastCryptoError::InvalidInput)?;
-        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
-
-        // Note: This has been added because it does not seem to be done in k256
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
-
-        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            Ok(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralError)
-        }
-    }
-
     /// util function to parse wycheproof test key from DER format.
     #[cfg(test)]
     pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
         <ExternalSignature as Signature>::from_bytes(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
-                recovery_id: None,
                 bytes: OnceCell::new(),
             })
             .map_err(|_| signature::Error::new())
-    }
-
-    /// Converts this signature to a non-recoverable one. If the signature already is non-recoverable,
-    /// `self` is returned.
-    pub fn as_nonrecoverable(&self) -> Self {
-        Self {
-            sig: self.sig,
-            recovery_id: None,
-            bytes: OnceCell::new(),
-        }
     }
 }
 
