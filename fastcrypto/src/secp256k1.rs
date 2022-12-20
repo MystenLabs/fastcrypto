@@ -39,6 +39,7 @@ use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
+use std::borrow::Borrow;
 use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
@@ -347,10 +348,10 @@ impl<'de> Deserialize<'de> for Secp256k1RecoverableSignature {
     }
 }
 
-impl From<&Secp256k1RecoverableSignature> for Secp256k1Signature {
-    fn from(recoverable_signature: &Secp256k1RecoverableSignature) -> Self {
+impl <S: Borrow<Secp256k1RecoverableSignature>> From<S> for Secp256k1Signature {
+    fn from(recoverable_signature: S) -> Self {
         Secp256k1Signature {
-            sig: recoverable_signature.sig.to_standard(),
+            sig: recoverable_signature.borrow().sig.to_standard(),
             bytes: OnceCell::new(), // TODO: May use the first 64 bytes of an existing serialization
         }
     }

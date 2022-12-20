@@ -321,7 +321,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Test for nonrecoverable
     assert!(pk
-        .verify_hashed(&msg, &Secp256k1Signature::from(&rec_sig))
+        .verify_hashed(&msg, &Secp256k1Signature::from(rec_sig))
         .is_err());
 
     // Nomralize S to be less than N/2.
@@ -336,7 +336,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Verify with normalized lower S.
     assert!(pk
-        .verify_hashed(&msg, &Secp256k1Signature::from(&normalized_rec_sig))
+        .verify_hashed(&msg, &Secp256k1Signature::from(normalized_rec_sig))
         .is_ok());
 }
 

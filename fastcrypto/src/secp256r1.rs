@@ -360,10 +360,10 @@ impl<'de> Deserialize<'de> for Secp256r1RecoverableSignature {
     }
 }
 
-impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
-    fn from(recoverable_signature: &Secp256r1RecoverableSignature) -> Self {
+impl <S: Borrow<Secp256r1RecoverableSignature>> From<S> for Secp256r1Signature {
+    fn from(recoverable_signature: S) -> Self {
         Secp256r1Signature {
-            sig: recoverable_signature.sig,
+            sig: recoverable_signature.borrow().sig,
             bytes: OnceCell::new(),
         }
     }
