@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use p256::ecdsa::Signature;
-use p256::elliptic_curve::IsHigh;
 use p256::AffinePoint;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
@@ -12,7 +11,8 @@ use wycheproof::TestResult;
 
 use super::*;
 use crate::secp256r1::SIGNATURE_SIZE;
-use crate::secp256r1::RECOVERABLE_SIGNATURE_SIZE;
+use crate::secp256r1::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
+use crate::traits::{RecoverableSignature, SignAsRecoverable};
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
@@ -70,7 +70,7 @@ fn import_export_public_key() {
 fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
-    let signature: Secp256r1Signature = kp.sign(message);
+    let signature: Secp256r1RecoverableSignature = kp.try_sign_as_recoverable(message).unwrap();
     let recovered_key = signature.recover(message).unwrap();
     assert_eq!(recovered_key, *kp.public());
 }
@@ -85,6 +85,22 @@ fn test_public_key_recovery_error() {
 
     // Invalid signature: Zeros in signatures are not allowed
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err());
+}
+
+#[test]
+fn recoverable_conversion() {
+    let kp = keys().pop().unwrap();
+
+    let msg = b"Hello, world!";
+    let recoverable_signature = kp.try_sign_as_recoverable(msg).unwrap();
+    let recovery_id = recoverable_signature.recovery_id();
+
+    let as_standard = Secp256r1Signature::from(&recoverable_signature);
+    assert!(kp.name.verify(msg, &as_standard).is_ok());
+
+    let reconstructed =
+        Secp256r1RecoverableSignature::try_from((&as_standard, recovery_id)).unwrap();
+    assert_eq!(reconstructed.as_ref(), recoverable_signature.as_ref())
 }
 
 #[test]
@@ -122,16 +138,17 @@ fn serialize_private_key_only_for_keypair() {
 #[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
-    let signature = kpref.sign(b"Hello, world!");
 
+    let signature = kpref.sign(b"Hello, world!");
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    assert_eq!(rebuilt_sig, signature);
 
-    let nonrecoverable = signature.as_nonrecoverable();
-    let sig_bytes = nonrecoverable.as_ref();
-    let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), nonrecoverable.as_ref());
+    let recoverable_signature = kpref.try_sign_as_recoverable(b"Hello, world!").unwrap();
+    let recoverable_sig_bytes = recoverable_signature.as_ref();
+    let rebuilt_recoverable_sig =
+        <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(recoverable_sig_bytes).unwrap();
+    assert_eq!(rebuilt_recoverable_sig, recoverable_signature);
 }
 
 #[test]
@@ -147,10 +164,7 @@ fn verify_valid_signature() {
 
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp
-        .public()
-        .verify(digest.as_ref(), &signature.as_nonrecoverable())
-        .is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256r1PublicKey>, Vec<Secp256r1Signature>) {
@@ -224,20 +238,14 @@ fn verify_invalid_signature() {
     // Verify the signature against good digest passes.
     let signature = kp.sign(digest.as_ref());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp
-        .public()
-        .verify(digest.as_ref(), &signature.as_nonrecoverable())
-        .is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = Sha256::digest(bad_message);
 
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
-    assert!(kp
-        .public()
-        .verify(digest.as_ref(), &signature.as_nonrecoverable())
-        .is_err());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
 #[test]
@@ -272,14 +280,13 @@ fn fail_to_verify_if_upper_s() {
         &hex::decode("0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a").unwrap(),
     )
     .unwrap();
-    let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
-
-    // Assert that S is in upper half
-    assert_ne!(sig.sig.s().is_high().unwrap_u8(), 0);
+    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
 
     // Failed to verify with upper S.
-    assert!(pk.verify(&digest.digest, &sig).is_err());
-    assert!(pk.verify(&digest.digest, &sig.as_nonrecoverable()).is_err());
+    assert_ne!(sig.recover_hashed(&digest.digest).unwrap(), pk);
+    assert!(pk
+        .verify(&digest.digest, &Secp256r1Signature::from(&sig))
+        .is_err());
 
     let normalized = sig.sig.normalize_s().unwrap();
 
@@ -289,9 +296,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Verify with normalized lower S.
     assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
-    assert!(pk
-        .verify(&digest.digest, &normalized_sig.as_nonrecoverable())
-        .is_ok());
+    assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
 }
 
 #[tokio::test]
@@ -312,9 +317,7 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
-    assert!(pk
-        .verify(digest.as_ref(), &signature.as_nonrecoverable())
-        .is_ok());
+    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
 
 #[test]
@@ -444,13 +447,18 @@ fn wycheproof_test_recoverable() {
 
             for i in 0..4 {
                 n_bytes[64] = i;
-                let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
-                assert!(sig.is_recoverable());
-                if pk.verify(test.msg.as_slice(), &sig).is_ok() {
-                    res = TestResult::Valid;
-                    break;
-                } else {
-                    continue;
+                let sig =
+                    <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                match sig.recover(test.msg.as_slice()) {
+                    Ok(recovered) => {
+                        if recovered == pk {
+                            res = TestResult::Valid;
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        continue;
+                    }
                 }
             }
             assert_eq!(map_result(test.result), res, "{}", test.comment);
@@ -475,8 +483,6 @@ fn wycheproof_test_nonrecoverable() {
                     continue;
                 }
             };
-
-            assert!(!signature.is_recoverable());
 
             let mut res = TestResult::Invalid;
             if pk.verify(test.msg.as_slice(), &signature).is_ok() {

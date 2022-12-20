@@ -200,6 +200,24 @@ pub trait Authenticator:
     const LENGTH: usize;
 }
 
+/// Trait impl'd by signatures where the public key used for signing can be recovered.
+pub trait RecoverableSignature: ToFromBytes {
+    type PubKey: VerifyingKey;
+    type Sig: Authenticator<PubKey = Self::PubKey>;
+
+    /// Recover public key from signature.
+    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError>;
+}
+
+/// Trait impl'd by key pairs that can create [RecoverableSignature]s.
+pub trait SignAsRecoverable: KeyPair {
+    type RecoverableSig: RecoverableSignature<PubKey = Self::PubKey>;
+
+    /// Sign a message as a [RecoverableSignature].
+    fn try_sign_as_recoverable(&self, msg: &[u8])
+        -> Result<Self::RecoverableSig, signature::Error>;
+}
+
 /// Trait impl'd by a public / private key pair in asymmetric cryptography.
 ///
 pub trait KeyPair:

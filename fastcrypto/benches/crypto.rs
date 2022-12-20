@@ -9,6 +9,7 @@ mod signature_benches {
     use super::*;
     use criterion::*;
     use fastcrypto::secp256r1::Secp256r1KeyPair;
+    use fastcrypto::traits::{RecoverableSignature, SignAsRecoverable};
     use fastcrypto::{
         bls12381,
         ed25519::*,
@@ -53,25 +54,23 @@ mod signature_benches {
         });
     }
 
-    fn verify_secp256k1_nonrecoverable<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
+    fn verify_secp256k1_recover<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
         let msg = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = Secp256k1KeyPair::generate(&mut csprng);
-        let public_key = keypair.public();
-        let signature = keypair.sign(msg).as_nonrecoverable();
-        c.bench_function("Secp256k1 nonrecoverable", move |b| {
-            b.iter(|| public_key.verify(msg, &signature))
+        let signature = keypair.try_sign_as_recoverable(msg).unwrap();
+        c.bench_function("Secp256k1 recover", move |b| {
+            b.iter(|| signature.recover(msg))
         });
     }
 
-    fn verify_secp256r1_nonrecoverable<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
+    fn verify_secp256r1_recover<M: measurement::Measurement>(c: &mut BenchmarkGroup<M>) {
         let msg = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = Secp256r1KeyPair::generate(&mut csprng);
-        let public_key = keypair.public();
-        let signature = keypair.sign(msg).as_nonrecoverable();
-        c.bench_function("Secp256r1 nonrecoverable", move |b| {
-            b.iter(|| public_key.verify(msg, &signature))
+        let signature = keypair.try_sign_as_recoverable(msg).unwrap();
+        c.bench_function("Secp256r1 recover", move |b| {
+            b.iter(|| signature.recover(msg))
         });
     }
 
@@ -81,9 +80,13 @@ mod signature_benches {
         verify_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
         verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
         verify_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
-        verify_secp256k1_nonrecoverable(&mut group);
         verify_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
-        verify_secp256r1_nonrecoverable(&mut group);
+    }
+
+    fn recover(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Recover");
+        verify_secp256k1_recover(&mut group);
+        verify_secp256r1_recover(&mut group);
     }
 
     struct TestDataBatchedVerification<KP: KeyPair> {
@@ -380,6 +383,7 @@ mod signature_benches {
            verify_batch_signatures_different_msg,
            aggregate_signatures,
            key_generation,
+           recover,
     }
 }
 
