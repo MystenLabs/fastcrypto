@@ -146,6 +146,7 @@ impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
 }
 
 impl Secp256k1PublicKey {
+    /// Verify the signature over an already hashed message.
     pub fn verify_hashed(
         &self,
         hashed_msg: &[u8],
