@@ -70,6 +70,11 @@ pub mod ristretto255_tests;
 #[path = "tests/bls12381_group_tests.rs"]
 pub mod bls12381_group_tests;
 
+#[cfg(feature = "intent")]
+#[cfg(test)]
+#[path = "tests/intent_tests.rs"]
+pub mod intent_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -90,6 +95,10 @@ pub mod error;
 pub mod private_seed;
 pub mod serde_helpers;
 pub mod signature_service;
+
+/// This module contains enums and structs related to intent signing.
+#[cfg(feature = "intent")]
+pub mod intent;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
