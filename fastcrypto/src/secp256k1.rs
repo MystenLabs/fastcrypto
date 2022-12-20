@@ -130,15 +130,8 @@ impl VerifyingKey for Secp256k1PublicKey {
 
 impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), signature::Error> {
-        // // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash
-        // // function to match in proptest.
-        // #[cfg(test)]
-        // let message =
-        //     Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
-        //         .unwrap();
-        //
-        // #[cfg(not(test))]
-        let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
+        // Sha256 is used by default as digest
+        let message = Message::from_hashed_data::<sha256::Hash>(msg);
 
         signature
             .sig
@@ -502,19 +495,14 @@ impl FromStr for Secp256k1KeyPair {
 
 impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1Signature, signature::Error> {
-        let secp = Secp256k1::signing_only();
-        // #[cfg(test)]
-        // let message =
-        //     Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
-        //         .unwrap();
-        //
-        // #[cfg(not(test))]
-        let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
+
+        // Sha256 is used by default
+        let message = Message::from_hashed_data::<sha256::Hash>(msg);
 
         // Creates a 64-bytes signature of shape [r, s].
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
         Ok(Secp256k1Signature {
-            sig: secp.sign_ecdsa(&message, &self.secret.privkey),
+            sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
         })
     }
