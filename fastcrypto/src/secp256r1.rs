@@ -138,6 +138,7 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     }
 }
 
+// TODO: Add verify_hashed if it's needed
 impl Secp256r1PublicKey {}
 
 impl AsRef<[u8]> for Secp256r1PublicKey {
@@ -445,7 +446,7 @@ impl Secp256r1RecoverableSignature {
 
     /// Get the recovery id for this recoverable signature.
     pub fn recovery_id(&self) -> u8 {
-        self.as_ref()[RECOVERABLE_SIGNATURE_SIZE - 1]
+        self.recovery_id.to_byte()
     }
 }
 
