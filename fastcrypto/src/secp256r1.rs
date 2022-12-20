@@ -360,7 +360,7 @@ impl<'de> Deserialize<'de> for Secp256r1RecoverableSignature {
     }
 }
 
-impl <S: Borrow<Secp256r1RecoverableSignature>> From<S> for Secp256r1Signature {
+impl<S: Borrow<Secp256r1RecoverableSignature>> From<S> for Secp256r1Signature {
     fn from(recoverable_signature: S) -> Self {
         Secp256r1Signature {
             sig: recoverable_signature.borrow().sig,
