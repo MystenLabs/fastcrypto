@@ -403,7 +403,6 @@ impl ToFromBytes for Secp256r1RecoverableSignature {
 
 impl RecoverableSignature for Secp256r1RecoverableSignature {
     type PubKey = Secp256r1PublicKey;
-    type Sig = Secp256r1Signature;
 
     fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
         self.recover_hashed(&Sha256::digest(msg).digest)

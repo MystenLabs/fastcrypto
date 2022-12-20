@@ -373,7 +373,6 @@ impl ToFromBytes for Secp256k1RecoverableSignature {
 
 impl crate::traits::RecoverableSignature for Secp256k1RecoverableSignature {
     type PubKey = Secp256k1PublicKey;
-    type Sig = Secp256k1Signature;
 
     fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError> {
         match self

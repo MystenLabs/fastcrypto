@@ -203,7 +203,6 @@ pub trait Authenticator:
 /// Trait impl'd by signatures where the public key used for signing can be recovered.
 pub trait RecoverableSignature: ToFromBytes {
     type PubKey: VerifyingKey;
-    type Sig: Authenticator<PubKey = Self::PubKey>;
 
     /// Recover public key from signature.
     fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError>;
