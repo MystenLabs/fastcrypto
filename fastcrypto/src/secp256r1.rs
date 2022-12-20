@@ -384,12 +384,12 @@ impl TryFrom<(&Secp256r1Signature, u8)> for Secp256r1RecoverableSignature {
 
 impl ToFromBytes for Secp256r1RecoverableSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let recovery_id = RecoveryId::from_byte(bytes[RECOVERABLE_SIGNATURE_SIZE - 1])
-            .ok_or(FastCryptoError::InvalidInput)?;
-
         let sig =
             <ExternalSignature as Signature>::from_bytes(&bytes[..RECOVERABLE_SIGNATURE_SIZE - 1])
                 .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        let recovery_id = RecoveryId::from_byte(bytes[RECOVERABLE_SIGNATURE_SIZE - 1])
+            .ok_or(FastCryptoError::InvalidInput)?;
 
         Ok(Secp256r1RecoverableSignature {
             sig,
