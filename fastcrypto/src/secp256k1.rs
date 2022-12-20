@@ -101,11 +101,6 @@ pub struct Secp256k1RecoverableSignature {
     pub bytes: OnceCell<[u8; RECOVERABLE_SIGNATURE_SIZE]>,
 }
 
-pub enum Secp256k1SignatureType {
-    Signature(Secp256k1Signature),
-    RecoverableSignature(Secp256k1RecoverableSignature),
-}
-
 impl std::hash::Hash for Secp256k1PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
