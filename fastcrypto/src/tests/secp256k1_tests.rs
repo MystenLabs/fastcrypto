@@ -158,7 +158,6 @@ fn verify_valid_signature() {
 
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
 #[test]
@@ -171,10 +170,6 @@ fn verify_valid_signature_against_hashed_msg() {
     let signature = kp.sign(message);
 
     // Verify the signature against hashed message.
-    assert!(kp
-        .public()
-        .verify_hashed(Sha256::digest(message).as_ref(), &signature)
-        .is_ok());
     assert!(kp
         .public()
         .verify_hashed(Sha256::digest(message).as_ref(), &signature)
@@ -250,7 +245,6 @@ fn verify_hashed_failed_if_message_unhashed() {
     let signature = kp.sign(message);
 
     // Verify the signature against unhashed msg fails.
-    assert!(kp.public().verify_hashed(message, &signature).is_err());
     assert!(kp.public().verify_hashed(message, &signature).is_err());
 }
 
@@ -355,7 +349,6 @@ async fn signature_service() {
     //    digest.into()
 
     // Verify the signature we received.
-    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
 
