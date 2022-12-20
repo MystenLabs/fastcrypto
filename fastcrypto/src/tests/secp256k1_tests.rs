@@ -413,20 +413,21 @@ proptest::proptest! {
         let key_pair_copied_2 = key_pair.copy();
         let signature: Secp256k1RecoverableSignature = key_pair.try_sign_as_recoverable_keccak256(message).unwrap();
         assert!(key_pair.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(&signature)).is_ok());
+        assert_eq!(&signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
 
-        // // construct a signature with r, s, v where v is flipped from the original signature.
-        // let bytes = ToFromBytes::as_bytes(&signature);
-        // let mut flipped_bytes = [0u8; 65];
-        // flipped_bytes[..64].copy_from_slice(&bytes[..64]);
-        // if bytes[64] == 0 {
-        //     flipped_bytes[64] = 1;
-        // } else {
-        //     flipped_bytes[64] = 0;
-        // }
-        // let malleated_signature: Secp256k1RecoverableSignature = Secp256k1RecoverableSignature::from_bytes(&flipped_bytes).unwrap();
-        //
-        // // malleable(altered) signature with opposite sign fails to verify
-        // assert_ne!(key_pair.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(&malleated_signature)).is_err());
+        // construct a signature with r, s, v where v is flipped from the original signature.
+        let bytes = ToFromBytes::as_bytes(&signature);
+        let mut flipped_bytes = [0u8; 65];
+        flipped_bytes[..64].copy_from_slice(&bytes[..64]);
+        if bytes[64] == 0 {
+            flipped_bytes[64] = 1;
+        } else {
+            flipped_bytes[64] = 0;
+        }
+        let malleated_signature: Secp256k1RecoverableSignature = Secp256k1RecoverableSignature::from_bytes(&flipped_bytes).unwrap();
+
+        // malleable(altered) signature with opposite sign fails to verify
+        assert_ne!(&malleated_signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
 
         // use k256 to construct private key with the same bytes and signs the same message
         let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(&r).unwrap();
