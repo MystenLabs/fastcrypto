@@ -18,6 +18,7 @@ use blst::{
     blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
+use serde_with::serde_as;
 
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
@@ -180,6 +181,15 @@ impl HashToGroupElement for G1Element {
     }
 }
 
+// Serde treats arrays larger than 32 as variable length arrays, and then add the length as a prefix.
+// Since we want a fixed sized representation, we wrap it in this helper struct and use serder_as.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+struct G1ElementHelper {
+    #[serde_as(as = "[_; G1_SERIALIZED_LENGTH]")]
+    e: [u8; G1_SERIALIZED_LENGTH],
+}
+
 impl Serialize for G1Element {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -189,7 +199,7 @@ impl Serialize for G1Element {
         unsafe {
             blst_p1_serialize(bytes.as_mut_ptr(), &self.0);
         }
-        serializer.serialize_bytes(&bytes)
+        G1ElementHelper { e: bytes }.serialize(serializer)
     }
 }
 
@@ -198,11 +208,11 @@ impl<'de> Deserialize<'de> for G1Element {
     where
         D: de::Deserializer<'de>,
     {
-        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let helper: G1ElementHelper = Deserialize::deserialize(deserializer)?;
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p1_deserialize(&mut affine, helper.e.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(de::Error::custom("Deserialization failed"));
             }
             blst_p1_from_affine(&mut ret, &affine);
@@ -317,6 +327,15 @@ impl HashToGroupElement for G2Element {
     }
 }
 
+// Serde treats arrays larger than 32 as variable length arrays, and then add the length as a prefix.
+// Since we want a fixed sized representation, we wrap it in this helper struct and use serder_as.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+struct G2ElementHelper {
+    #[serde_as(as = "[_; G2_SERIALIZED_LENGTH]")]
+    e: [u8; G2_SERIALIZED_LENGTH],
+}
+
 impl Serialize for G2Element {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -326,7 +345,7 @@ impl Serialize for G2Element {
         unsafe {
             blst_p2_serialize(bytes.as_mut_ptr(), &self.0);
         }
-        serializer.serialize_bytes(&bytes)
+        G2ElementHelper { e: bytes }.serialize(serializer)
     }
 }
 
@@ -335,11 +354,11 @@ impl<'de> Deserialize<'de> for G2Element {
     where
         D: de::Deserializer<'de>,
     {
-        let bytes: Vec<u8> = Vec::deserialize(deserializer)?;
+        let helper: G2ElementHelper = Deserialize::deserialize(deserializer)?;
         let mut ret = blst_p2::default();
         unsafe {
             let mut affine = blst_p2_affine::default();
-            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p2_deserialize(&mut affine, helper.e.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(de::Error::custom("Deserialization failed"));
             }
             blst_p2_from_affine(&mut ret, &affine);
