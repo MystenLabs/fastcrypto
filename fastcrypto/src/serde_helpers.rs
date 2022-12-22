@@ -10,7 +10,10 @@ use serde::{
 use serde_with::{Bytes, DeserializeAs, SerializeAs};
 use std::fmt::Debug;
 
-use crate::traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey};
+use crate::{
+    encoding::{Base64, Encoding},
+    traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey},
+};
 
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
 where
@@ -30,8 +33,7 @@ macro_rules! define_bls_signature {
                 S: Serializer,
             {
                 if serializer.is_human_readable() {
-                    base64ct::Base64::encode_string(source.to_bytes().as_ref())
-                        .serialize(serializer)
+                    Base64::encode(source.to_bytes()).serialize(serializer)
                 } else {
                     // Serialise to Bytes
                     Bytes::serialize_as(&source.serialize(), serializer)
@@ -77,11 +79,8 @@ pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> Result<T, eyre::Report>
         return Err(eyre::eyre!("Invalid keypair length"));
     }
     let secret = <T as KeyPair>::PrivKey::from_bytes(&bytes[..sk_length])?;
-    let kp: T = secret.into();
-    if kp.public().as_ref() != &bytes[sk_length..] {
-        return Err(eyre::eyre!("Invalid keypair"));
-    }
-    Ok(kp)
+    // Read only sk bytes for privkey, and derive pubkey from privkey and returns keypair
+    Ok(secret.into())
 }
 
 pub struct Ed25519Signature;
@@ -96,7 +95,7 @@ impl SerializeAs<ed25519_consensus::Signature> for Ed25519Signature {
     {
         if serializer.is_human_readable() {
             // Serialise to Base64 encoded String
-            base64ct::Base64::encode_string(source.to_bytes().as_ref()).serialize(serializer)
+            Base64::encode(source.to_bytes()).serialize(serializer)
         } else {
             // Serialise to Bytes
             Bytes::serialize_as(&source.to_bytes(), serializer)

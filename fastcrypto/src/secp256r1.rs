@@ -348,7 +348,9 @@ impl EncodeDecodeBase64 for Secp256r1KeyPair {
     fn encode_base64(&self) -> String {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
-        bytes.extend_from_slice(self.name.as_ref());
+        // Derive pubkey from privkey
+        let name = Secp256r1PublicKey::from(&self.secret);
+        bytes.extend_from_slice(name.as_ref());
         Base64::encode(&bytes[..])
     }
 
