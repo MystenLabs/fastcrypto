@@ -20,13 +20,13 @@ use blst::{
 use derive_more::From;
 use serde_with::serde_as;
 
-use fastcrypto_derive::GroupOpsExtend;
+use fastcrypto_derive::{Base64Rep, GroupOpsExtend};
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend, Base64Rep)]
 pub struct G1Element(blst_p1);
 
 /// Elements of the group G_2 in BLS 12-381.
@@ -46,6 +46,7 @@ pub struct Scalar(blst_fr);
 pub const SCALAR_LENGTH: usize = 32;
 pub const G1_SERIALIZED_LENGTH: usize = 48;
 pub const G2_SERIALIZED_LENGTH: usize = 96;
+pub const G1ELEMENT_BYTE_LENGTH: usize = G1_SERIALIZED_LENGTH;
 
 impl Add for G1Element {
     type Output = Self;
