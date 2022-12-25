@@ -4,34 +4,39 @@ use crate::groups::bls12381::Base64G1Element;
 use crate::groups::bls12381::G1Element;
 use crate::groups::GroupElement;
 use serde::de::DeserializeOwned;
-use serde::ser::SerializeTuple;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Serialize};
 use std::fmt::Debug;
-use std::{fmt::Display, marker::PhantomData};
+use std::marker::PhantomData;
 
 /// Basic wrapper that stores a bincode serialized version of object T.
 /// To be used in external interfaces instead of the internal object.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Base64Representation<T, const N: usize> {
-    pub bytes: [u8; N],
+    bytes: [u8; N],
     phantom: PhantomData<T>,
 }
 
-impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N> {
-    pub fn from_type(value: &T) -> Result<Self, FastCryptoError> {
-        let buffer = bincode::serialize(value).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(Self {
-            bytes: buffer
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
+impl<T: Serialize + DeserializeOwned, const N: usize> From<&T> for Base64Representation<T, N> {
+    fn from(value: &T) -> Self {
+        // Serialize would fail only if (T, N) is an invalid pair of values, meaning that the type
+        // itself is invalid and therefore the caller has nothing to do with it in runtime.
+        let buffer = bincode::serialize(value).unwrap();
+        Self {
+            bytes: buffer.try_into().unwrap(), // As explained above, this would fail only if (T, N) is an invalid pair of values.
             phantom: Default::default(),
-        })
+        }
+    }
+}
+
+impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N> {
+    fn bytes_to_type(bytes: &[u8]) -> Result<T, FastCryptoError> {
+        Ok(bincode::deserialize(bytes).map_err(|_| FastCryptoError::InvalidInput)?)
     }
 
-    pub fn to_type(&self) -> Result<T, FastCryptoError> {
-        let res: T =
-            bincode::deserialize(&self.bytes).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(res)
+    pub fn to_type(&self) -> T {
+        // We always check that the byte array represent a valid object before we set it, thus we
+        // will always be able to deserialize it.
+        Self::bytes_to_type(&self.bytes).unwrap()
     }
 }
 
@@ -41,6 +46,8 @@ impl<T, const N: usize> AsRef<[u8]> for Base64Representation<T, N> {
     }
 }
 
+// Define our own serialize/deserialize functions instead of using #[serde_as(as = "Base64")]
+// so we could serialize a flat object (i.e., "1234" instead of "{ bytes: 1234 }").
 impl<T, const N: usize> Serialize for Base64Representation<T, N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -50,7 +57,9 @@ impl<T, const N: usize> Serialize for Base64Representation<T, N> {
     }
 }
 
-impl<'de, T, const N: usize> Deserialize<'de> for Base64Representation<T, N> {
+impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
+    for Base64Representation<T, N>
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -58,9 +67,17 @@ impl<'de, T, const N: usize> Deserialize<'de> for Base64Representation<T, N> {
         let s = String::deserialize(deserializer)?;
         let decoded =
             Base64::decode(&s).map_err(|_| de::Error::custom("Base64 decoding failed"))?;
-        let bytes: [u8; N] = decoded
-            .try_into()
-            .map_err(|_| de::Error::custom("Base64 decoding failed"))?;
+        if decoded.len() != N {
+            return Err(de::Error::custom(format!(
+                "Invalid buffer length {}, expecting {}",
+                decoded.len(),
+                N
+            )));
+        }
+        let mut bytes = [0u8; N];
+        bytes.copy_from_slice(&decoded[..N]);
+        Self::bytes_to_type(&bytes)
+            .map_err(|_| de::Error::custom("Deserialization resulted in an invalid object"))?;
         Ok(Self {
             bytes,
             phantom: Default::default(),
@@ -79,17 +96,15 @@ struct Dummy {
 fn test_g1() {
     type T = Base64G1Element;
     let g = G1Element::generator();
-    let g_as_bytes = T::from_type(&g).unwrap();
+    let g_as_bytes = T::from(&g);
     let ser = bincode::serialize(&g_as_bytes).unwrap();
     println!("1 {}", serde_json::to_string(&g_as_bytes).unwrap());
     println!("2 {}", serde_json::to_string(&ser).unwrap());
 
     let g_as_bytes2: T = bincode::deserialize(&ser).unwrap();
     assert_eq!(g_as_bytes, g_as_bytes2);
-    let g2 = g_as_bytes2.to_type().unwrap();
+    let g2 = g_as_bytes2.to_type();
     assert_eq!(g, g2);
-    let d = Dummy {
-        e: T::from_type(&g).unwrap(),
-    };
+    let d = Dummy { e: T::from(&g) };
     println!("3 {}", serde_json::to_string(&d).unwrap());
 }
