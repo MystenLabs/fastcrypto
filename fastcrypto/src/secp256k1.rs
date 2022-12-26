@@ -57,7 +57,7 @@ pub type Secp256k1PublicKeyBytes =
 
 /// Secp256k1 private key.
 #[readonly::make]
-#[derive(SilentDebug, SilentDisplay)]
+#[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
     pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,
@@ -315,7 +315,7 @@ impl Default for Secp256k1Signature {
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
 /// Secp256k1 public/private key pair.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Secp256k1KeyPair {
     pub name: Secp256k1PublicKey,
     pub secret: Secp256k1PrivateKey,

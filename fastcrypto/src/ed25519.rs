@@ -70,11 +70,19 @@ pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
 /// Ed25519 public/private keypair.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Ed25519KeyPair {
     name: Ed25519PublicKey,
     secret: Ed25519PrivateKey,
 }
+
+impl PartialEq for Ed25519PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for Ed25519PrivateKey {}
 
 /// Ed25519 signature.
 #[derive(Debug, Clone, PartialEq, Eq)]

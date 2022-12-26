@@ -81,9 +81,17 @@ pub struct BLS12381PrivateKey {
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
 }
 
+impl PartialEq for BLS12381PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for BLS12381PrivateKey {}
+
 // There is a strong requirement for this specific impl. in Fab benchmarks.
 /// BLS 12-381 public/private keypair.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct BLS12381KeyPair {
     name: BLS12381PublicKey,
     secret: BLS12381PrivateKey,
