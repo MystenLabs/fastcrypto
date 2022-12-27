@@ -146,7 +146,7 @@ fn test_g2_serialize_deserialize() {
 }
 
 #[test]
-fn test_consistent_BLS12381_serialization() {
+fn test_consistent_bls12381_serialization() {
     // Generate with BLS signature APIs.
     let pair = BLS12381KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let (pk1, sk1) = (pair.public().clone(), pair.private());
