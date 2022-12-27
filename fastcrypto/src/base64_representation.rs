@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
 use crate::groups::bls12381::Base64G1Element;
