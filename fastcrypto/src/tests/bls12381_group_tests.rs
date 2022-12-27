@@ -1,7 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
+use crate::groups::bls12381::{
+    G1Element, G2Element, GTElement, Scalar, G1_SERIALIZED_LENGTH, G2_SERIALIZED_LENGTH,
+};
 use crate::groups::{GroupElement, HashToGroupElement, Pairing};
 
 const MSG: &[u8] = b"test message";
@@ -112,6 +114,7 @@ fn test_g1_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G1Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
+    assert_eq!(serialized.len(), G1_SERIALIZED_LENGTH);
     let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 
@@ -127,6 +130,7 @@ fn test_g2_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G2Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
+    assert_eq!(serialized.len(), G2_SERIALIZED_LENGTH);
     let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 
