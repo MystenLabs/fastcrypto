@@ -608,9 +608,9 @@
     blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
     blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
     blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
-    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
+    blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
     blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
-    blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_serialize,
+    blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
     blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
     blst_scalar_from_lendian, Pairing <span class="kw">as </span>BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
@@ -641,8 +641,8 @@
 
 <span class="doccomment">/// Length of [Scalar]s in bytes.
 </span><span class="kw">pub const </span>SCALAR_LENGTH: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>G1_SERIALIZED_LENGTH: usize = <span class="number">96</span>;
-<span class="kw">pub const </span>G2_SERIALIZED_LENGTH: usize = <span class="number">192</span>;
+<span class="kw">pub const </span>G1_SERIALIZED_LENGTH: usize = <span class="number">48</span>;
+<span class="kw">pub const </span>G2_SERIALIZED_LENGTH: usize = <span class="number">96</span>;
 
 <span class="kw">impl </span>Add <span class="kw">for </span>G1Element {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
@@ -794,7 +794,7 @@
     {
         <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; G1_SERIALIZED_LENGTH];
         <span class="kw">unsafe </span>{
-            blst_p1_serialize(bytes.as_mut_ptr(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
+            blst_p1_compress(bytes.as_mut_ptr(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
         }
         G1ElementHelper { e: bytes }.serialize(serializer)
     }
@@ -940,7 +940,7 @@
     {
         <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; G2_SERIALIZED_LENGTH];
         <span class="kw">unsafe </span>{
-            blst_p2_serialize(bytes.as_mut_ptr(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
+            blst_p2_compress(bytes.as_mut_ptr(), <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
         }
         G2ElementHelper { e: bytes }.serialize(serializer)
     }
