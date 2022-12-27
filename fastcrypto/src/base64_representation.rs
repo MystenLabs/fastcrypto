@@ -3,9 +3,6 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
-use crate::groups::bls12381::Base64G1Element;
-use crate::groups::bls12381::G1Element;
-use crate::groups::GroupElement;
 use serde::de::DeserializeOwned;
 use serde::{de, Deserialize, Serialize};
 use std::fmt::Debug;
@@ -33,7 +30,7 @@ impl<T: Serialize + DeserializeOwned, const N: usize> From<&T> for Base64Represe
 
 impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N> {
     fn bytes_to_type(bytes: &[u8]) -> Result<T, FastCryptoError> {
-        Ok(bincode::deserialize(bytes).map_err(|_| FastCryptoError::InvalidInput)?)
+        bincode::deserialize(bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
 
     pub fn to_type(&self) -> T {
@@ -45,7 +42,7 @@ impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N>
 
 impl<T, const N: usize> AsRef<[u8]> for Base64Representation<T, N> {
     fn as_ref(&self) -> &[u8] {
-        &self.bytes.as_ref()
+        self.bytes.as_ref()
     }
 }
 
@@ -56,7 +53,7 @@ impl<T, const N: usize> Serialize for Base64Representation<T, N> {
     where
         S: serde::Serializer,
     {
-        Base64::encode(&self.bytes).serialize(serializer)
+        Base64::encode(self.bytes).serialize(serializer)
     }
 }
 
