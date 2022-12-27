@@ -84,27 +84,3 @@ impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
         })
     }
 }
-
-// remove ...
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-struct Dummy {
-    e: Base64G1Element,
-}
-
-#[test]
-fn test_g1() {
-    type T = Base64G1Element;
-    let g = G1Element::generator();
-    let g_as_bytes = T::from(&g);
-    let ser = bincode::serialize(&g_as_bytes).unwrap();
-    println!("1 {}", serde_json::to_string(&g_as_bytes).unwrap());
-    println!("2 {}", serde_json::to_string(&ser).unwrap());
-
-    let g_as_bytes2: T = bincode::deserialize(&ser).unwrap();
-    assert_eq!(g_as_bytes, g_as_bytes2);
-    let g2 = g_as_bytes2.to_type();
-    assert_eq!(g, g2);
-    let d = Dummy { e: T::from(&g) };
-    println!("3 {}", serde_json::to_string(&d).unwrap());
-}
