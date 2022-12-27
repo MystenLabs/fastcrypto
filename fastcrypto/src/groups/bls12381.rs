@@ -6,6 +6,7 @@ use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
 use crate::traits::AllowedRng;
+use crate::base64_representation::Base64Representation;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
     blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
@@ -19,7 +20,6 @@ use blst::{
 };
 use derive_more::From;
 use serde_with::serde_as;
-
 use fastcrypto_derive::{Base64Rep, GroupOpsExtend};
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
