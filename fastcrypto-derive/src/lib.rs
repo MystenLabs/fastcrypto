@@ -7,8 +7,9 @@
 //! Imported from diem-crypto-derive@0.0.3
 //! https://github.com/diem/diem/blob/release-1.4.3/crypto/crypto-derive/src/lib.rs#L113
 
+use convert_case::{Case, Casing};
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::DeriveInput;
 
 /// Derive the `SilentDisplay` trait, which is an implementation of `Display` that does not print the contents of the struct.
@@ -76,6 +77,25 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
         auto_ops::impl_op!(* |a: #name, b: &<#name as GroupElement>::ScalarType| -> #name { <#name as core::ops::Mul<<#name as GroupElement>::ScalarType>>::mul(a, *b) });
 
         auto_ops::impl_op!(- |a: &#name| -> #name { <#name as core::ops::Neg>::neg(*a) });
+    };
+    gen.into()
+}
+
+/// Derives a Base64 type for the given identifier.
+/// For identifier 'DummyStruct' requires defining the const 'DUMMY_STRUCT_BYTE_LENGTH' to be the
+/// byte length.
+#[proc_macro_derive(Base64Rep)]
+pub fn base64_representation(source: TokenStream) -> TokenStream {
+    let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
+    let type_name = &ast.ident;
+    let new_type_name = format_ident!("Base64{}", type_name);
+    let size_type = format_ident!(
+        "{}_BYTE_LENGTH",
+        type_name.to_string().to_case(Case::UpperSnake)
+    );
+
+    let gen = quote! {
+        pub type #new_type_name = Base64Representation<#type_name, #size_type>;
     };
     gen.into()
 }

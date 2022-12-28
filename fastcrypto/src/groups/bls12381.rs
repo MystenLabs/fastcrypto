@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::base64_representation::Base64Representation;
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
@@ -18,15 +19,14 @@ use blst::{
     blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
-use serde_with::serde_as;
-
-use fastcrypto_derive::GroupOpsExtend;
+use fastcrypto_derive::{Base64Rep, GroupOpsExtend};
 use serde::{de, Deserialize, Serialize};
+use serde_with::serde_as;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend, Base64Rep)]
 pub struct G1Element(blst_p1);
 
 /// Elements of the group G_2 in BLS 12-381.
@@ -44,8 +44,8 @@ pub struct Scalar(blst_fr);
 
 /// Length of [Scalar]s in bytes.
 pub const SCALAR_LENGTH: usize = 32;
-pub const G1_SERIALIZED_LENGTH: usize = 48;
-pub const G2_SERIALIZED_LENGTH: usize = 96;
+pub const G_1_ELEMENT_BYTE_LENGTH: usize = 48;
+pub const G_2_ELEMENT_BYTE_LENGTH: usize = 96;
 
 impl Add for G1Element {
     type Output = Self;
@@ -186,8 +186,8 @@ impl HashToGroupElement for G1Element {
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 struct G1ElementHelper {
-    #[serde_as(as = "[_; G1_SERIALIZED_LENGTH]")]
-    e: [u8; G1_SERIALIZED_LENGTH],
+    #[serde_as(as = "[_; G_1_ELEMENT_BYTE_LENGTH]")]
+    e: [u8; G_1_ELEMENT_BYTE_LENGTH],
 }
 
 impl Serialize for G1Element {
@@ -195,7 +195,7 @@ impl Serialize for G1Element {
     where
         S: serde::Serializer,
     {
-        let mut bytes = [0u8; G1_SERIALIZED_LENGTH];
+        let mut bytes = [0u8; G_1_ELEMENT_BYTE_LENGTH];
         unsafe {
             blst_p1_compress(bytes.as_mut_ptr(), &self.0);
         }
@@ -332,8 +332,8 @@ impl HashToGroupElement for G2Element {
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 struct G2ElementHelper {
-    #[serde_as(as = "[_; G2_SERIALIZED_LENGTH]")]
-    e: [u8; G2_SERIALIZED_LENGTH],
+    #[serde_as(as = "[_; G_2_ELEMENT_BYTE_LENGTH]")]
+    e: [u8; G_2_ELEMENT_BYTE_LENGTH],
 }
 
 impl Serialize for G2Element {
@@ -341,7 +341,7 @@ impl Serialize for G2Element {
     where
         S: serde::Serializer,
     {
-        let mut bytes = [0u8; G2_SERIALIZED_LENGTH];
+        let mut bytes = [0u8; G_2_ELEMENT_BYTE_LENGTH];
         unsafe {
             blst_p2_compress(bytes.as_mut_ptr(), &self.0);
         }
