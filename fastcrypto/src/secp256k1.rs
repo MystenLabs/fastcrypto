@@ -19,7 +19,7 @@ use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
     serde_helpers::keypair_decode_base64,
-    serialize_deserialize_from_encode_decode_base64,
+    serialize_deserialize_with_to_from_bytes,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
         VerifyingKey,
@@ -186,7 +186,7 @@ impl Display for Secp256k1PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Secp256k1PublicKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey);
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
@@ -216,7 +216,7 @@ impl ToFromBytes for Secp256k1PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Secp256k1PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey);
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {

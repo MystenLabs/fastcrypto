@@ -3,9 +3,9 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
+use crate::serde_helpers::SerializationHelper;
 use serde::de::DeserializeOwned;
 use serde::{de, Deserialize, Serialize};
-use serde_with::serde_as;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
@@ -49,12 +49,6 @@ impl<T, const N: usize> AsRef<[u8]> for BytesRepresentation<T, N> {
         self.bytes.as_ref()
     }
 }
-
-// Serde treats arrays larger than 32 as variable length arrays, and then add the length as a prefix.
-// Since we want a fixed sized representation, we wrap it in this helper struct and use serde_as.
-#[serde_as]
-#[derive(Serialize, Deserialize)]
-pub struct SerializationHelper<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
 // Define our own serialize/deserialize functions instead of using #[serde_as(as = "Base64")]
 // so we could serialize a flat object (i.e., "1234" instead of "{ bytes: 1234 }").
@@ -111,8 +105,10 @@ impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G_1_ELEMENT_BYTE_LENGTH};
+    use crate::groups::bls12381::{G1Element, G_1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
+
+    type G1ElementAsBytes = BytesRepresentation<G1Element, G_1_ELEMENT_BYTE_LENGTH>;
 
     #[derive(Serialize, Deserialize)]
     struct Dummy<T> {

@@ -30,7 +30,7 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
-    serde_helpers::keypair_decode_base64, serialize_deserialize_from_encode_decode_base64,
+    serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
 };
 use eyre::eyre;
 use serde::{Deserialize, Serialize};
@@ -177,7 +177,7 @@ impl Debug for BLS12381PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
-serialize_deserialize_from_encode_decode_base64!(BLS12381PublicKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey);
 
 impl Verifier<BLS12381Signature> for BLS12381PublicKey {
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
@@ -401,7 +401,7 @@ impl ToFromBytes for BLS12381PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(BLS12381PrivateKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PrivateKey);
 
 impl SigningKey for BLS12381PrivateKey {
     type PubKey = BLS12381PublicKey;
