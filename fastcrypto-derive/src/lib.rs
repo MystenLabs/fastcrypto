@@ -84,7 +84,7 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
 /// Derives a Base64 type for the given identifier.
 /// For identifier 'DummyStruct' requires defining the const 'DUMMY_STRUCT_BYTE_LENGTH' to be the
 /// byte length.
-#[proc_macro_derive(Base64Rep)]
+#[proc_macro_derive(AsBytesRep)]
 pub fn base64_representation(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
     let type_name = &ast.ident;
