@@ -65,14 +65,6 @@ fn import_export_public_key() {
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
 }
 
-// #[test]
-// fn test_public_key_bytes_conversion() {
-//     let kp = keys().pop().unwrap();
-//     let pk_bytes: Secp256r1PublicKeyBytes = kp.public().into();
-//     let rebuilt_pk: Secp256r1PublicKey = pk_bytes.try_into().unwrap();
-//     assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-// }
-
 #[test]
 fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
