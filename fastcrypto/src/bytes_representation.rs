@@ -11,6 +11,9 @@ use std::marker::PhantomData;
 
 /// Basic wrapper that stores a bincode serialized version of object T.
 /// To be used in external interfaces instead of the internal object.
+///
+/// Can be derived using [AsBytesRep].
+/// Uses Base64 when serialized with a human readable serializer, and raw bytes otherwise.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BytesRepresentation<T, const N: usize> {
     bytes: [u8; N],
