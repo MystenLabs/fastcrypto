@@ -3,9 +3,10 @@
 
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
-use crate::bytes_representation::{BytesRepresentation, SerializationHelper};
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
+use crate::serde_helpers::{SerializationHelper, ToFromByteArray};
+use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
@@ -19,13 +20,13 @@ use blst::{
     blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
-use fastcrypto_derive::{AsBytesRep, GroupOpsExtend};
+use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend, AsBytesRep)]
+#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct G1Element(blst_p1);
 
 /// Elements of the group G_2 in BLS 12-381.
@@ -45,6 +46,34 @@ pub struct Scalar(blst_fr);
 pub const SCALAR_LENGTH: usize = 32;
 pub const G_1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G_2_ELEMENT_BYTE_LENGTH: usize = 96;
+
+impl ToFromByteArray<G_1_ELEMENT_BYTE_LENGTH> for G1Element {
+    fn from_byte_array(bytes: &[u8; G_1_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        let mut ret = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            blst_p1_from_affine(&mut ret, &affine);
+            // Verify that the deserialized element is in G1
+            if !blst_p1_in_g1(&ret) {
+                return Err(FastCryptoError::GeneralError);
+            }
+        }
+        Ok(G1Element::from(ret))
+    }
+
+    fn to_byte_array(&self) -> [u8; G_1_ELEMENT_BYTE_LENGTH] {
+        let mut bytes = [0u8; G_1_ELEMENT_BYTE_LENGTH];
+        unsafe {
+            blst_p1_compress(bytes.as_mut_ptr(), &self.0);
+        }
+        bytes
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(G1Element);
 
 impl Add for G1Element {
     type Output = Self;
@@ -177,43 +206,6 @@ impl HashToGroupElement for G1Element {
             );
         }
         Self::from(res)
-    }
-}
-
-impl Serialize for G1Element {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut bytes = [0u8; G_1_ELEMENT_BYTE_LENGTH];
-        unsafe {
-            blst_p1_compress(bytes.as_mut_ptr(), &self.0);
-        }
-        SerializationHelper::<G_1_ELEMENT_BYTE_LENGTH>(bytes).serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for G1Element {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let helper: SerializationHelper<G_1_ELEMENT_BYTE_LENGTH> =
-            Deserialize::deserialize(deserializer)?;
-        let mut ret = blst_p1::default();
-        unsafe {
-            let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, helper.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
-                return Err(de::Error::custom("Deserialization failed"));
-            }
-            blst_p1_from_affine(&mut ret, &affine);
-
-            // Verify that the deserialized element is in G1
-            if !blst_p1_in_g1(&ret) {
-                return Err(de::Error::custom("Element is not in subgroup"));
-            }
-        }
-        Ok(G1Element::from(ret))
     }
 }
 

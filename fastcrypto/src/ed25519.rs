@@ -14,7 +14,7 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::{encoding::Encoding, serialize_deserialize_from_encode_decode_base64, traits};
+use crate::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -229,7 +229,7 @@ impl Ord for Ed25519PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Ed25519PublicKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey);
 
 ///
 /// Implement SigningKey
@@ -250,7 +250,7 @@ impl ToFromBytes for Ed25519PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Ed25519PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey);
 
 ///
 /// Implement Authenticator
