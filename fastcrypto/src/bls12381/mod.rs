@@ -29,7 +29,7 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
-    encoding::Base64, encoding::Encoding, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
+    encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serde_helpers::keypair_decode_base64, serialize_deserialize_from_encode_decode_base64,
 };
 use eyre::eyre;
@@ -69,9 +69,6 @@ pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
     pub bytes: OnceCell<[u8; $pk_length]>,
 }
-
-/// Binary representation of a [BLS12381PublicKey].
-pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 /// BLS 12-381 private key.
 #[readonly::make]
@@ -676,20 +673,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 ///
 /// Implement VerifyingKeyBytes.
 ///
-
-impl TryFrom<BLS12381PublicKeyBytes> for BLS12381PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: BLS12381PublicKeyBytes) -> Result<BLS12381PublicKey, Self::Error> {
-        BLS12381PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&BLS12381PublicKey> for BLS12381PublicKeyBytes {
-    fn from(pk: &BLS12381PublicKey) -> BLS12381PublicKeyBytes {
-        BLS12381PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
-    }
-}
 
 impl zeroize::Zeroize for BLS12381PrivateKey {
     fn zeroize(&mut self) {

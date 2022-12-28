@@ -5,7 +5,7 @@ use super::*;
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
     secp256k1::{
-        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1PublicKeyBytes,
+        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey,
         Secp256k1Signature,
     },
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
@@ -65,13 +65,13 @@ fn import_export_public_key() {
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
 }
 
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Secp256k1PublicKeyBytes = kp.public().into();
-    let rebuilt_pk: Secp256k1PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-}
+// #[test]
+// fn test_public_key_bytes_conversion() {
+//     let kp = keys().pop().unwrap();
+//     let pk_bytes: Secp256k1PublicKeyBytes = kp.public().into();
+//     let rebuilt_pk: Secp256k1PublicKey = pk_bytes.try_into().unwrap();
+//     assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
+// }
 
 #[test]
 fn test_public_key_recovery() {
