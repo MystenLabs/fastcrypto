@@ -88,14 +88,14 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
 pub fn base64_representation(source: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(source).expect("Incorrect macro input");
     let type_name = &ast.ident;
-    let new_type_name = format_ident!("Base64{}", type_name);
+    let new_type_name = format_ident!("{}AsBytes", type_name);
     let size_type = format_ident!(
         "{}_BYTE_LENGTH",
         type_name.to_string().to_case(Case::UpperSnake)
     );
 
     let gen = quote! {
-        pub type #new_type_name = BytesRepresentation<#type_name, #size_type, true>;
+        pub type #new_type_name = BytesRepresentation<#type_name, #size_type>;
     };
     gen.into()
 }

@@ -626,7 +626,6 @@ impl Signer<Ed25519Signature> for Ed25519KeyPair {
 /// Implement VerifyingKeyBytes
 ///
 
-
 impl zeroize::Zeroize for Ed25519KeyPair {
     fn zeroize(&mut self) {
         self.secret.0.zeroize()
