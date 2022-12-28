@@ -128,11 +128,11 @@ impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for Ed25519Signature 
 // Objects that do not store a cached version of the serialized object should implement
 // [ToFromByteArray] and call [serialize_deserialize_with_to_from_byte_array].
 // Objects that do store a cached version should implement [ToFromBytes] and call
-// [serialize_deserialize_from_encode_decode_base64].
+// [serialize_deserialize_with_to_from_bytes].
 //
 
-// Serde treats arrays larger than 32 as variable length arrays, and then add the length as a prefix.
-// Since we want a fixed sized representation, we wrap it in this helper struct and use serde_as.
+// Serde treats arrays larger than 32 as variable length arrays, and adds the length as a prefix.
+// Since we want a fixed size representation, we wrap it in this helper struct and use serde_as.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
 pub struct SerializationHelper<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
