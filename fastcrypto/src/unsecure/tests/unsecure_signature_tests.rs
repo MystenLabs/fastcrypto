@@ -10,10 +10,9 @@ use crate::{
         UnsecureAggregateSignature, UnsecureKeyPair, UnsecurePrivateKey, UnsecurePublicKey,
         UnsecurePublicKeyBytes, UnsecureSignature,
     },
-    SignatureService,
 };
 
-use ::signature::{Signer, Verifier};
+use ::signature::Verifier;
 use rand::{rngs::StdRng, SeedableRng as _};
 
 pub fn keys() -> Vec<UnsecureKeyPair> {
