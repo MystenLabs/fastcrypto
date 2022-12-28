@@ -36,6 +36,18 @@ fn import_export_public_key() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
+fn serialize_private_key_only_for_keypair() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|kp| {
+        let sk = kp.copy().private();
+        let serialized_kp = bincode::serialize(&kp).unwrap();
+        let serialized_sk = bincode::serialize(&sk).unwrap();
+        assert_eq!(serialized_sk, serialized_kp);
+    });
+}
+
+#[test]
 fn import_export_secret_key() {
     let kpref = keys().pop().unwrap();
     let secret_key = kpref.private();
@@ -718,5 +730,16 @@ pub mod min_pk {
         let key = BLS12381PublicKey::from_bytes(&key).unwrap();
         let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&sig).unwrap();
         assert!(key.verify(&msg, &sig).is_ok());
+    }
+
+    #[test]
+    fn test_keypair_roundtrdip() {
+        let mut rng = StdRng::from_seed([0; 32]);
+        let kp = BLS12381KeyPair::generate(&mut rng);
+
+        let serialized = bincode::serialize(&kp).unwrap();
+        println!("serialized: {:?}", serialized);
+        println!("serialized len: {:?}", serialized.len());
+        println!("serialized: {:?}", kp.private().as_bytes());
     }
 }

@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 975319aea7607201a3fd9d219b6e376d6a556b4c10a4d2b82d1aef9f5cd4fe38 # shrinks to kp = Ed25519KeyPair { name: VzMca5xdVAmpC6SmhhwiqjmwQXXV5La4LotubtmWwQQ=, secret: <elided secret for Ed25519PrivateKey> }

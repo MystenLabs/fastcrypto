@@ -640,6 +640,18 @@ fn dont_display_secrets() {
     });
 }
 
+#[test]
+#[cfg(feature = "copy_key")]
+fn serialize_private_key_only_for_keypair() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|kp| {
+        let sk = kp.copy().private();
+        let serialized_kp = bincode::serialize(&kp).unwrap();
+        let serialized_sk = bincode::serialize(&sk).unwrap();
+        assert_eq!(serialized_sk, serialized_kp);
+    });
+}
+
 // Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = Ed25519KeyPair> {
     any::<[u8; 32]>()

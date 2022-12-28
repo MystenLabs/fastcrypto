@@ -37,7 +37,7 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
-    serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
+    serde_helpers::Ed25519Signature as Ed25519Sig,
     traits::{
         AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
@@ -50,8 +50,11 @@ pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
 /// The length of a public key in bytes.
 pub const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
 
-/// The lenght of a signature in bytes.
+/// The length of a signature in bytes.
 pub const ED25519_SIGNATURE_LENGTH: usize = 64;
+
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const ED_25519_KEY_PAIR_BYTE_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 const BASE64_FIELD_NAME: &str = "base64";
 const RAW_FIELD_NAME: &str = "raw";
@@ -64,9 +67,7 @@ pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-/// Ed25519 public/private keypair.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Ed25519KeyPair {
     name: Ed25519PublicKey,
     secret: Ed25519PrivateKey,
@@ -550,20 +551,20 @@ impl From<Ed25519PrivateKey> for Ed25519KeyPair {
     }
 }
 
-impl EncodeDecodeBase64 for Ed25519KeyPair {
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = Ed25519PublicKey::from(&self.secret);
-        bytes.extend_from_slice(name.as_ref());
-        Base64::encode(&bytes[..])
-    }
-
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for Ed25519KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ed25519PrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
 }
+
+impl AsRef<[u8]> for Ed25519KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
+    }
+}
+
+serialize_deserialize_with_to_from_bytes!(Ed25519KeyPair);
 
 impl KeyPair for Ed25519KeyPair {
     type PubKey = Ed25519PublicKey;

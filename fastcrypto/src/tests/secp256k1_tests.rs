@@ -113,6 +113,18 @@ fn test_copy_key_pair() {
 }
 
 #[test]
+#[cfg(feature = "copy_key")]
+fn serialize_private_key_only_for_keypair() {
+    let keypairs = keys();
+    keypairs.into_iter().for_each(|kp| {
+        let sk = kp.copy().private();
+        let serialized_kp = bincode::serialize(&kp).unwrap();
+        let serialized_sk = bincode::serialize(&sk).unwrap();
+        assert_eq!(serialized_sk, serialized_kp);
+    });
+}
+
+#[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");
