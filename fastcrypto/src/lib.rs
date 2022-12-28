@@ -18,10 +18,6 @@ pub use signature::{Signature as _, Verifier};
 pub mod signature_tests;
 
 #[cfg(test)]
-#[path = "tests/pubkey_bytes_tests.rs"]
-pub mod pubkey_bytes_tests;
-
-#[cfg(test)]
 #[path = "tests/ed25519_tests.rs"]
 pub mod ed25519_tests;
 
@@ -93,7 +89,6 @@ pub mod base64_representation;
 pub mod encoding;
 pub mod error;
 pub mod private_seed;
-pub mod pubkey_bytes;
 pub mod serde_helpers;
 pub mod signature_service;
 
