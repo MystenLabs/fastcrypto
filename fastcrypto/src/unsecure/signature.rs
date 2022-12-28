@@ -40,6 +40,9 @@ const PRIVATE_KEY_LENGTH: usize = 32;
 const PUBLIC_KEY_LENGTH: usize = 96;
 const SIGNATURE_LENGTH: usize = 48;
 
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+const KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_LENGTH;
+
 type DefaultHashFunction = Fast256HashUnsecure;
 
 #[readonly::make]
@@ -52,7 +55,7 @@ pub type UnsecurePublicKeyBytes = PublicKeyBytes<UnsecurePublicKey, { PUBLIC_KEY
 pub struct UnsecurePrivateKey(pub [u8; PRIVATE_KEY_LENGTH]);
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone)]
 #[serde(tag = "type")] // necessary so as not to deser under a != type
 pub struct UnsecureKeyPair {
     name: UnsecurePublicKey,
@@ -290,18 +293,56 @@ impl From<UnsecurePrivateKey> for UnsecureKeyPair {
     }
 }
 
-impl EncodeDecodeBase64 for UnsecureKeyPair {
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for UnsecureKeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ed25519_consensus::SigningKey::try_from(bytes)
+            .map(Ed25519PrivateKey)
+            .map_err(|_| FastCryptoError::InvalidInput)
+            .map(|s| s.into())
     }
+}
 
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = UnsecurePublicKey::from(&self.secret);
-        Base64::encode_string(&bytes[..])
+impl AsRef<[u8]> for UnsecureKeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
     }
+}
+
+impl Serialize for UnsecureKeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        UnsecureKeyPairHelper {
+            e: self
+                .as_bytes()
+                .try_into()
+                .map_err(|_| serde::ser::Error::custom("Invalid bytes length"))?,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for UnsecureKeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let helper: UnsecureKeyPairHelper = Deserialize::deserialize(deserializer)?;
+        UnsecureKeyPair::from_bytes(&helper.e)
+            .map_err(|_| de::Error::custom("Invalid bytes length"))
+    }
+}
+
+/// Helper struct to serialize Ed25519KeyPair.
+/// Note that the serialization of a keypair only includes the private key bytes without public key.
+/// The latter is always derived.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+struct UnsecureKeyPairHelper {
+    #[serde_as(as = "[_; KEY_PAIR_BYTES_LENGTH]")]
+    e: [u8; KEY_PAIR_BYTES_LENGTH],
 }
 
 impl KeyPair for UnsecureKeyPair {

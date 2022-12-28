@@ -22,7 +22,6 @@ use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
-    serde_helpers::keypair_decode_base64,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
         VerifyingKey,
@@ -45,6 +44,7 @@ use p256::elliptic_curve::IsHigh;
 use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint, Field};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use serde::{de, Deserialize, Serialize};
+use serde_with::serde_as;
 use signature::{Signature, Signer, Verifier};
 use std::borrow::Borrow;
 use std::{
@@ -57,6 +57,8 @@ pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
 pub const SIGNATURE_SIZE: usize = 64 + 1;
 
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const SECP256R1_KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_SIZE;
 /// Secp256r1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -336,27 +338,59 @@ impl Default for Secp256r1Signature {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-/// Secp256r1 public/private key pair.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Secp256r1KeyPair {
     pub name: Secp256r1PublicKey,
     pub secret: Secp256r1PrivateKey,
 }
 
-impl EncodeDecodeBase64 for Secp256r1KeyPair {
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = Secp256r1PublicKey::from(&self.secret);
-        bytes.extend_from_slice(name.as_ref());
-        Base64::encode(&bytes[..])
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for Secp256r1KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Secp256r1PrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
+}
 
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+impl AsRef<[u8]> for Secp256r1KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
     }
+}
+
+impl Serialize for Secp256r1KeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        Secp256r1KeyPairHelper {
+            e: self
+                .as_bytes()
+                .try_into()
+                .map_err(|_| serde::ser::Error::custom("Invalid bytes length"))?,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Secp256r1KeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let helper: Secp256r1KeyPairHelper = Deserialize::deserialize(deserializer)?;
+        Secp256r1KeyPair::from_bytes(&helper.e)
+            .map_err(|_| de::Error::custom("Invalid bytes length"))
+    }
+}
+
+/// Helper struct to serialize Ed25519KeyPair.
+/// Note that the serialization of a keypair only includes the private key bytes without public key.
+/// The latter is always derived.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+struct Secp256r1KeyPairHelper {
+    #[serde_as(as = "[_; SECP256R1_KEY_PAIR_BYTES_LENGTH]")]
+    e: [u8; SECP256R1_KEY_PAIR_BYTES_LENGTH],
 }
 
 impl KeyPair for Secp256r1KeyPair {

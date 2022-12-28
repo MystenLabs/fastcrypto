@@ -14,10 +14,11 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
+use crate::base64_representation::Base64Representation;
 use crate::{encoding::Encoding, serialize_deserialize_from_encode_decode_base64, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
-use fastcrypto_derive::{SilentDebug, SilentDisplay};
+use fastcrypto_derive::{Base64Rep, SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
@@ -38,7 +39,7 @@ use crate::{
     encoding::Base64,
     error::FastCryptoError,
     pubkey_bytes::PublicKeyBytes,
-    serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
+    serde_helpers::Ed25519Signature as Ed25519Sig,
     traits::{
         AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
@@ -51,8 +52,11 @@ pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
 /// The length of a public key in bytes.
 pub const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
 
-/// The lenght of a signature in bytes.
+/// The length of a signature in bytes.
 pub const ED25519_SIGNATURE_LENGTH: usize = 64;
+
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const ED_25519_KEY_PAIR_BYTE_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 const BASE64_FIELD_NAME: &str = "base64";
 const RAW_FIELD_NAME: &str = "raw";
@@ -68,9 +72,7 @@ pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519Publi
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-/// Ed25519 public/private keypair.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Base64Rep)]
 pub struct Ed25519KeyPair {
     name: Ed25519PublicKey,
     secret: Ed25519PrivateKey,
@@ -554,19 +556,52 @@ impl From<Ed25519PrivateKey> for Ed25519KeyPair {
     }
 }
 
-impl EncodeDecodeBase64 for Ed25519KeyPair {
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = Ed25519PublicKey::from(&self.secret);
-        bytes.extend_from_slice(name.as_ref());
-        Base64::encode(&bytes[..])
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for Ed25519KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ed25519PrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
+}
 
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+impl AsRef<[u8]> for Ed25519KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
     }
+}
+
+impl Serialize for Ed25519KeyPair {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        Ed25519KeyPairHelper {
+            e: self
+                .as_bytes()
+                .try_into()
+                .map_err(|_| serde::ser::Error::custom("Invalid bytes length"))?,
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Ed25519KeyPair {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: de::Deserializer<'de>,
+    {
+        let helper: Ed25519KeyPairHelper = Deserialize::deserialize(deserializer)?;
+        Ed25519KeyPair::from_bytes(&helper.e).map_err(|_| de::Error::custom("Invalid bytes length"))
+    }
+}
+
+/// Helper struct to serialize Ed25519KeyPair.
+/// Note that the serialization of a keypair only includes the private key bytes without public key.
+/// The latter is always derived.
+#[serde_as]
+#[derive(Serialize, Deserialize)]
+struct Ed25519KeyPairHelper {
+    #[serde_as(as = "[_; ED_25519_KEY_PAIR_BYTE_LENGTH]")]
+    e: [u8; ED_25519_KEY_PAIR_BYTE_LENGTH],
 }
 
 impl KeyPair for Ed25519KeyPair {
