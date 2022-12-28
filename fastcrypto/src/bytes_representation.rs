@@ -51,7 +51,7 @@ impl<T, const N: usize> AsRef<[u8]> for BytesRepresentation<T, N> {
 // Since we want a fixed sized representation, we wrap it in this helper struct and use serde_as.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
-struct SerializationHelper<const N: usize>(#[serde_as(as = "[_; N]")] [u8; N]);
+pub struct SerializationHelper<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
 // Define our own serialize/deserialize functions instead of using #[serde_as(as = "Base64")]
 // so we could serialize a flat object (i.e., "1234" instead of "{ bytes: 1234 }").
