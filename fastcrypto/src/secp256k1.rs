@@ -18,7 +18,6 @@
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
-    serde_helpers::keypair_decode_base64,
     serialize_deserialize_with_to_from_bytes,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
@@ -61,6 +60,8 @@ pub struct Secp256k1PrivateKey {
 /// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
 pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
 
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const SECP_256_K_1_KEY_PAIR_BYTE_LENGTH: usize = constants::SECRET_KEY_SIZE;
 /// Secp256k1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -308,26 +309,24 @@ impl Default for Secp256k1Signature {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-/// Secp256k1 public/private key pair.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Secp256k1KeyPair {
     pub name: Secp256k1PublicKey,
     pub secret: Secp256k1PrivateKey,
 }
 
-impl EncodeDecodeBase64 for Secp256k1KeyPair {
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = Secp256k1PublicKey::from(&self.secret);
-        bytes.extend_from_slice(name.as_ref());
-        Base64::encode(&bytes[..])
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for Secp256k1KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Secp256k1PrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
+}
 
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair);
+
+impl AsRef<[u8]> for Secp256k1KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
     }
 }
 
