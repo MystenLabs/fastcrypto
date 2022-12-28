@@ -89,7 +89,7 @@ pub mod secp256k1;
 pub mod secp256r1;
 
 // Other tooling
-pub mod base64_representation;
+pub mod bytes_representation;
 pub mod encoding;
 pub mod error;
 pub mod private_seed;
