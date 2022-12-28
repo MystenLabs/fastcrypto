@@ -95,7 +95,7 @@ pub fn base64_representation(source: TokenStream) -> TokenStream {
     );
 
     let gen = quote! {
-        pub type #new_type_name = Base64Representation<#type_name, #size_type>;
+        pub type #new_type_name = BytesRepresentation<#type_name, #size_type, true>;
     };
     gen.into()
 }

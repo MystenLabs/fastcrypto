@@ -11,12 +11,12 @@ use std::marker::PhantomData;
 /// Basic wrapper that stores a bincode serialized version of object T.
 /// To be used in external interfaces instead of the internal object.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Base64Representation<T, const N: usize> {
+pub struct BytesRepresentation<T, const N: usize, const B64_SERIALIZATION: bool> {
     bytes: [u8; N],
     phantom: PhantomData<T>,
 }
 
-impl<T: Serialize + DeserializeOwned, const N: usize> From<&T> for Base64Representation<T, N> {
+impl<T: Serialize + DeserializeOwned, const N: usize, const B64_SERIALIZATION: bool> From<&T> for BytesRepresentation<T, N, B64_SERIALIZATION> {
     fn from(value: &T) -> Self {
         // Serialize would fail only if (T, N) is an invalid pair of values, meaning that the type
         // itself is invalid and therefore the caller has nothing to do with it in runtime.
@@ -28,7 +28,7 @@ impl<T: Serialize + DeserializeOwned, const N: usize> From<&T> for Base64Represe
     }
 }
 
-impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N> {
+impl<T: Serialize + DeserializeOwned, const N: usize, const B64_SERIALIZATION: bool> BytesRepresentation<T, N, B64_SERIALIZATION> {
     fn bytes_to_type(bytes: &[u8]) -> Result<T, FastCryptoError> {
         bincode::deserialize(bytes).map_err(|_| FastCryptoError::InvalidInput)
     }
@@ -40,7 +40,7 @@ impl<T: Serialize + DeserializeOwned, const N: usize> Base64Representation<T, N>
     }
 }
 
-impl<T, const N: usize> AsRef<[u8]> for Base64Representation<T, N> {
+impl<T, const N: usize, const B64_SERIALIZATION: bool> AsRef<[u8]> for BytesRepresentation<T, N, B64_SERIALIZATION> {
     fn as_ref(&self) -> &[u8] {
         self.bytes.as_ref()
     }
@@ -48,7 +48,7 @@ impl<T, const N: usize> AsRef<[u8]> for Base64Representation<T, N> {
 
 // Define our own serialize/deserialize functions instead of using #[serde_as(as = "Base64")]
 // so we could serialize a flat object (i.e., "1234" instead of "{ bytes: 1234 }").
-impl<T, const N: usize> Serialize for Base64Representation<T, N> {
+impl<T, const N: usize, const B64_SERIALIZATION: bool> Serialize for BytesRepresentation<T, N, B64_SERIALIZATION> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -57,8 +57,8 @@ impl<T, const N: usize> Serialize for Base64Representation<T, N> {
     }
 }
 
-impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
-    for Base64Representation<T, N>
+impl<'de, T: Serialize + DeserializeOwned, const N: usize, const B64_SERIALIZATION: bool> Deserialize<'de>
+    for BytesRepresentation<T, N, B64_SERIALIZATION>
 {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
