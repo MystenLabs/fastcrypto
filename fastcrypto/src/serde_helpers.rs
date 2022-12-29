@@ -18,59 +18,12 @@ use crate::{
     traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 
-fn to_custom_error<'de, D, E>(e: E) -> D::Error
+pub fn to_custom_error<'de, D, E>(e: E) -> D::Error
 where
     E: Debug,
     D: Deserializer<'de>,
 {
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
-}
-
-macro_rules! define_bls_signature {
-    () => {
-        pub struct BlsSignature;
-
-        impl SerializeAs<blst::Signature> for BlsSignature {
-            fn serialize_as<S>(source: &blst::Signature, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                if serializer.is_human_readable() {
-                    Base64::encode(source.to_bytes()).serialize(serializer)
-                } else {
-                    // Serialise to Bytes
-                    Bytes::serialize_as(&source.serialize(), serializer)
-                }
-            }
-        }
-
-        impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
-            fn deserialize_as<D>(deserializer: D) -> Result<blst::Signature, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                let bytes = if deserializer.is_human_readable() {
-                    let s = String::deserialize(deserializer)?;
-                    base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
-                } else {
-                    Bytes::deserialize_as(deserializer)?
-                };
-                blst::Signature::deserialize(&bytes).map_err(to_custom_error::<'de, D, _>)
-            }
-        }
-    };
-} // macro_rules! define_bls_signature
-
-pub mod min_sig {
-    use super::*;
-    use blst::min_sig as blst;
-    define_bls_signature!();
-}
-
-pub mod min_pk {
-    use super::*;
-    use blst::min_pk as blst;
-    define_bls_signature!();
 }
 
 pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> Result<T, eyre::Report> {

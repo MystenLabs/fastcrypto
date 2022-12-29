@@ -300,6 +300,7 @@ fn test_serialize_deserialize_aggregate_signatures() {
 
     let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
+    println!("!! {:?}", serialized.len());
     let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized.as_ref(), sig.as_ref());
 }
