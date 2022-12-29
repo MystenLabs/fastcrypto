@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
+use schemars::JsonSchema;
 use serde::{
     de,
     de::{Deserializer, Error},
@@ -10,7 +11,6 @@ use serde::{
 };
 use serde_with::{serde_as, Bytes, DeserializeAs, SerializeAs};
 use std::fmt::Debug;
-use schemars::JsonSchema;
 
 use crate::error::FastCryptoError;
 use crate::{
@@ -241,7 +241,6 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// Note that in theory external types should not be stored and only be serialized with
 /// is_human_readable(). For storage and usage, internal types should be used (see above).
 ///
-
 
 // schemars is used for guiding JsonSchema.
 #[derive(Clone, Debug, PartialEq, Eq, JsonSchema)]
