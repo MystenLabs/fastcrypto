@@ -45,8 +45,8 @@ pub struct Scalar(blst_fr);
 
 /// Length of [Scalar]s in bytes.
 pub const SCALAR_LENGTH: usize = 32;
-pub const G_1_ELEMENT_BYTE_LENGTH: usize = 48;
-pub const G_2_ELEMENT_BYTE_LENGTH: usize = 96;
+pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
+pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
 
 impl Add for G1Element {
     type Output = Self;
@@ -182,8 +182,8 @@ impl HashToGroupElement for G1Element {
     }
 }
 
-impl ToFromByteArray<G_1_ELEMENT_BYTE_LENGTH> for G1Element {
-    fn from_byte_array(bytes: &[u8; G_1_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+impl ToFromByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
+    fn from_byte_array(bytes: &[u8; G1_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
@@ -199,8 +199,8 @@ impl ToFromByteArray<G_1_ELEMENT_BYTE_LENGTH> for G1Element {
         Ok(G1Element::from(ret))
     }
 
-    fn to_byte_array(&self) -> [u8; G_1_ELEMENT_BYTE_LENGTH] {
-        let mut bytes = [0u8; G_1_ELEMENT_BYTE_LENGTH];
+    fn to_byte_array(&self) -> [u8; G1_ELEMENT_BYTE_LENGTH] {
+        let mut bytes = [0u8; G1_ELEMENT_BYTE_LENGTH];
         unsafe {
             blst_p1_compress(bytes.as_mut_ptr(), &self.0);
         }
@@ -209,7 +209,7 @@ impl ToFromByteArray<G_1_ELEMENT_BYTE_LENGTH> for G1Element {
 }
 
 serialize_deserialize_with_to_from_byte_array!(G1Element);
-generate_bytes_representation!(G1Element, G_1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
+generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
 impl Add for G2Element {
     type Output = Self;
@@ -312,8 +312,8 @@ impl HashToGroupElement for G2Element {
     }
 }
 
-impl ToFromByteArray<G_2_ELEMENT_BYTE_LENGTH> for G2Element {
-    fn from_byte_array(bytes: &[u8; G_2_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
+    fn from_byte_array(bytes: &[u8; G2_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
         let mut ret = blst_p2::default();
         unsafe {
             let mut affine = blst_p2_affine::default();
@@ -329,8 +329,8 @@ impl ToFromByteArray<G_2_ELEMENT_BYTE_LENGTH> for G2Element {
         Ok(G2Element::from(ret))
     }
 
-    fn to_byte_array(&self) -> [u8; G_2_ELEMENT_BYTE_LENGTH] {
-        let mut bytes = [0u8; G_2_ELEMENT_BYTE_LENGTH];
+    fn to_byte_array(&self) -> [u8; G2_ELEMENT_BYTE_LENGTH] {
+        let mut bytes = [0u8; G2_ELEMENT_BYTE_LENGTH];
         unsafe {
             blst_p2_compress(bytes.as_mut_ptr(), &self.0);
         }
@@ -339,7 +339,7 @@ impl ToFromByteArray<G_2_ELEMENT_BYTE_LENGTH> for G2Element {
 }
 
 serialize_deserialize_with_to_from_byte_array!(G2Element);
-generate_bytes_representation!(G2Element, G_2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
+generate_bytes_representation!(G2Element, G2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
 
 impl Add for GTElement {
     type Output = Self;
