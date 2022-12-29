@@ -3,7 +3,7 @@
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{
-    G1Element, G2Element, GTElement, Scalar, G_1_ELEMENT_BYTE_LENGTH, G_2_ELEMENT_BYTE_LENGTH,
+    G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{GroupElement, HashToGroupElement, Pairing};
 use crate::traits::{KeyPair, ToFromBytes};
@@ -118,7 +118,7 @@ fn test_g1_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G1Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
-    assert_eq!(serialized.len(), G_1_ELEMENT_BYTE_LENGTH);
+    assert_eq!(serialized.len(), G1_ELEMENT_BYTE_LENGTH);
     let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 
@@ -134,7 +134,7 @@ fn test_g2_serialize_deserialize() {
     // Serialize and deserialize 7*G1
     let p = G2Element::generator() * Scalar::from(7);
     let serialized = bincode::serialize(&p).unwrap();
-    assert_eq!(serialized.len(), G_2_ELEMENT_BYTE_LENGTH);
+    assert_eq!(serialized.len(), G2_ELEMENT_BYTE_LENGTH);
     let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized, p);
 

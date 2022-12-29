@@ -129,10 +129,10 @@ impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for Ed25519Signature 
 /// - Else, return the bytes as a fixed size array. This should be the canonical representation of
 ///   the object (e.g., as defined in RFCs).
 ///
-/// Types that do store a cached version of the serialized object should implement [ToFromBytes]
+/// Types that do store a *cached* version of the serialized object should implement [ToFromBytes]
 /// and call [serialize_deserialize_with_to_from_bytes].
 ///
-/// Types that do not store a cached version of the serialized object should implement
+/// Types that do *not* store a cached version of the serialized object should implement
 /// [ToFromByteArray] and call [serialize_deserialize_with_to_from_byte_array].
 ///
 /// Note that in theory internal types should not be exposed via APIs and thus never be serialized
@@ -152,6 +152,7 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
     fn to_byte_array(&self) -> [u8; LENGTH];
 }
 
+/// Macro for generating Serialize/Deserialize for a type that implements [ToFromByteArray].
 #[macro_export]
 macro_rules! serialize_deserialize_with_to_from_byte_array {
     ($type:ty) => {
@@ -206,6 +207,7 @@ macro_rules! serialize_deserialize_with_to_from_byte_array {
 }
 
 // TODO: use base64 only when is_human_readable(), else use SerializationHelper.
+/// Macro for generating Serialize/Deserialize for a type that implements [ToFromBytes].
 #[macro_export]
 macro_rules! serialize_deserialize_with_to_from_bytes {
     ($type:ty) => {
@@ -236,8 +238,7 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// - Uses Base64 when serialized with a human readable serializer, and raw bytes otherwise.
 ///
 /// Note that in theory external types should not be stored and only be serialized with
-/// is_human_readable(). For storage and usage, internal types should be used (see
-/// above).
+/// is_human_readable(). For storage and usage, internal types should be used (see above).
 ///
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -329,7 +330,7 @@ impl<'de, const N: usize> Deserialize<'de> for BytesRepresentation<N> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G_1_ELEMENT_BYTE_LENGTH};
+    use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
 
     #[derive(Serialize, Deserialize)]
@@ -349,7 +350,7 @@ mod tests {
         );
         // Test that we don't add extra bytes on top of the actual serialized data.
         let ser = bincode::serialize(&d1).unwrap();
-        assert_eq!(G_1_ELEMENT_BYTE_LENGTH, ser.len());
+        assert_eq!(G1_ELEMENT_BYTE_LENGTH, ser.len());
         // Check we can go back correctly.
         let d2: Dummy<G1ElementAsBytes> = bincode::deserialize(&ser).unwrap();
         let g2 = G1Element::try_from(&d2.key).unwrap();
