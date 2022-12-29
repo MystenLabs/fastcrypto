@@ -81,17 +81,16 @@ impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
                         N
                     )));
                 }
-                let bytes: [u8; N] = decoded.try_into().unwrap();
-                Self::bytes_to_type(&bytes).map_err(|_| {
-                    de::Error::custom("Deserialization resulted in an invalid object")
-                })?;
-                bytes
+                decoded.try_into().unwrap()
             }
             false => {
                 let helper: SerializationHelper<N> = Deserialize::deserialize(deserializer)?;
                 helper.0
             }
         };
+        Self::bytes_to_type(&bytes).map_err(|_| {
+            de::Error::custom("Deserialization resulted in an invalid object")
+        })?;
         Ok(Self {
             bytes,
             phantom: Default::default(),
