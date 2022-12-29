@@ -5,9 +5,10 @@ use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
+use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
-use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
+use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
     blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
@@ -208,6 +209,7 @@ impl ToFromByteArray<G_1_ELEMENT_BYTE_LENGTH> for G1Element {
 }
 
 serialize_deserialize_with_to_from_byte_array!(G1Element);
+generate_bytes_representation!(G1Element, G_1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
 impl Add for G2Element {
     type Output = Self;
@@ -337,6 +339,7 @@ impl ToFromByteArray<G_2_ELEMENT_BYTE_LENGTH> for G2Element {
 }
 
 serialize_deserialize_with_to_from_byte_array!(G2Element);
+generate_bytes_representation!(G2Element, G_2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
 
 impl Add for GTElement {
     type Output = Self;
