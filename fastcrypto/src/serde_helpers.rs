@@ -10,6 +10,7 @@ use serde::{
 };
 use serde_with::{serde_as, Bytes, DeserializeAs, SerializeAs};
 use std::fmt::Debug;
+use schemars::JsonSchema;
 
 use crate::error::FastCryptoError;
 use crate::{
@@ -241,8 +242,10 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// is_human_readable(). For storage and usage, internal types should be used (see above).
 ///
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct BytesRepresentation<const N: usize>(pub [u8; N]);
+
+// schemars is used for guiding JsonSchema.
+#[derive(Clone, Debug, PartialEq, Eq, JsonSchema)]
+pub struct BytesRepresentation<const N: usize>(#[schemars(with = "Base64")] pub [u8; N]);
 
 /// Macro for generating a new alias for BytesRepresentation with the given $length, and From
 /// functions for both directions.
@@ -253,7 +256,7 @@ pub struct BytesRepresentation<const N: usize>(pub [u8; N]);
 // TODO: Can we deduce $new_type from $type?
 #[macro_export]
 macro_rules! generate_bytes_representation {
-    ($type:ty, $length:ident, $new_type:ident) => {
+    ($type:ty, $length:tt, $new_type:ident) => {
 
         pub type $new_type = BytesRepresentation<$length>;
 
@@ -333,7 +336,7 @@ mod tests {
     use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
 
-    #[derive(Serialize, Deserialize)]
+    #[derive(Serialize, Deserialize, JsonSchema)]
     struct Dummy<T> {
         key: T,
     }
