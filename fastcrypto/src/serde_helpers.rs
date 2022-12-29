@@ -181,9 +181,7 @@ macro_rules! serialize_deserialize_with_to_from_byte_array {
                                 { <$type>::BYTE_LENGTH }
                             )));
                         }
-                        let mut bytes = [0u8; { <$type>::BYTE_LENGTH }];
-                        bytes.copy_from_slice(&decoded[..{ <$type>::BYTE_LENGTH }]);
-                        bytes
+                        decoded.try_into().unwrap()
                     }
                     false => {
                         let helper: SerializationHelper<{ <$type>::BYTE_LENGTH }> =
