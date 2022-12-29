@@ -50,8 +50,6 @@ impl<T, const N: usize> AsRef<[u8]> for BytesRepresentation<T, N> {
     }
 }
 
-// Define our own serialize/deserialize functions instead of using #[serde_as(as = "Base64")]
-// so we could serialize a flat object (i.e., "1234" instead of "{ bytes: 1234 }").
 impl<T, const N: usize> Serialize for BytesRepresentation<T, N> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -83,8 +81,7 @@ impl<'de, T: Serialize + DeserializeOwned, const N: usize> Deserialize<'de>
                         N
                     )));
                 }
-                let mut bytes = [0u8; N];
-                bytes.copy_from_slice(&decoded[..N]);
+                let bytes: [u8; N] = decoded.try_into().unwrap();
                 Self::bytes_to_type(&bytes).map_err(|_| {
                     de::Error::custom("Deserialization resulted in an invalid object")
                 })?;
