@@ -3,7 +3,6 @@
 
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
-use crate::bytes_representation::BytesRepresentation;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
 use crate::serde_helpers::BytesRepresentation;
