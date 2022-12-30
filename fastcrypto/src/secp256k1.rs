@@ -18,9 +18,8 @@
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
-    pubkey_bytes::PublicKeyBytes,
     serde_helpers::keypair_decode_base64,
-    serialize_deserialize_from_encode_decode_base64,
+    serialize_deserialize_with_to_from_bytes,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
         VerifyingKey,
@@ -50,10 +49,6 @@ pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
     pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
 }
-
-/// Binary representation of an instance of [Secp256k1PublicKey].
-pub type Secp256k1PublicKeyBytes =
-    PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 /// Secp256k1 private key.
 #[readonly::make]
@@ -191,7 +186,7 @@ impl Display for Secp256k1PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Secp256k1PublicKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey);
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
@@ -221,7 +216,7 @@ impl ToFromBytes for Secp256k1PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Secp256k1PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey);
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {
@@ -399,20 +394,6 @@ impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
         })
-    }
-}
-
-impl TryFrom<Secp256k1PublicKeyBytes> for Secp256k1PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: Secp256k1PublicKeyBytes) -> Result<Secp256k1PublicKey, Self::Error> {
-        Secp256k1PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&Secp256k1PublicKey> for Secp256k1PublicKeyBytes {
-    fn from(pk: &Secp256k1PublicKey) -> Self {
-        Secp256k1PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 

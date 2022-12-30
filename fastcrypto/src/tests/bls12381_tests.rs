@@ -447,14 +447,6 @@ fn test_hkdf_generate_from_ikm() {
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
 }
 
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: BLS12381PublicKeyBytes = kp.public().into();
-    let rebuilt_pk: BLS12381PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-}
-
 #[tokio::test]
 async fn signature_service() {
     // Get a keypair.
@@ -689,7 +681,7 @@ pub mod min_sig {
     use super::*;
     use crate::bls12381::min_sig::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381PublicKeyBytes, BLS12381Signature,
+        BLS12381Signature,
     };
     define_tests!();
 }
@@ -698,7 +690,7 @@ pub mod min_pk {
     use super::*;
     use crate::bls12381::min_pk::{
         BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381PublicKeyBytes, BLS12381Signature,
+        BLS12381Signature,
     };
     define_tests!();
 

@@ -7,7 +7,7 @@ use crate::encoding::Encoding;
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
-        Ed25519PublicKeyBytes, Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
+        Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
     },
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
@@ -529,14 +529,6 @@ fn test_hkdf_generate_from_ikm() {
     let kp = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(seed, salt, &[]).unwrap();
     let kp2 = hkdf_generate_from_ikm::<Sha3_256, Ed25519KeyPair>(seed, salt, &[]).unwrap();
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
-}
-
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Ed25519PublicKeyBytes = kp.public().into();
-    let rebuilt_pk: Ed25519PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]

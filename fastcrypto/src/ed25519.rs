@@ -14,7 +14,7 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::{encoding::Encoding, serialize_deserialize_from_encode_decode_base64, traits};
+use crate::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -37,7 +37,6 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
-    pubkey_bytes::PublicKeyBytes,
     serde_helpers::{keypair_decode_base64, Ed25519Signature as Ed25519Sig},
     traits::{
         AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
@@ -60,9 +59,6 @@ const RAW_FIELD_NAME: &str = "raw";
 /// Ed25519 public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
-
-/// Binary representation of an instance of [Ed25519PublicKey].
-pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
 /// Ed25519 private key.
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
@@ -233,7 +229,7 @@ impl Ord for Ed25519PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Ed25519PublicKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey);
 
 ///
 /// Implement SigningKey
@@ -254,7 +250,7 @@ impl ToFromBytes for Ed25519PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(Ed25519PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey);
 
 ///
 /// Implement Authenticator
@@ -629,23 +625,6 @@ impl Signer<Ed25519Signature> for Ed25519KeyPair {
 ///
 /// Implement VerifyingKeyBytes
 ///
-
-impl TryFrom<Ed25519PublicKeyBytes> for Ed25519PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: Ed25519PublicKeyBytes) -> Result<Ed25519PublicKey, Self::Error> {
-        VerificationKeyBytes::try_from(bytes.as_ref())
-            .and_then(ed25519_consensus::VerificationKey::try_from)
-            .map(Ed25519PublicKey)
-            .map_err(|_| signature::Error::new())
-    }
-}
-
-impl From<&Ed25519PublicKey> for Ed25519PublicKeyBytes {
-    fn from(pk: &Ed25519PublicKey) -> Self {
-        Ed25519PublicKeyBytes::new(pk.0.to_bytes())
-    }
-}
 
 impl zeroize::Zeroize for Ed25519KeyPair {
     fn zeroize(&mut self) {

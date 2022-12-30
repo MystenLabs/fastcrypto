@@ -29,8 +29,8 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::{
-    encoding::Base64, encoding::Encoding, error::FastCryptoError, pubkey_bytes::PublicKeyBytes,
-    serde_helpers::keypair_decode_base64, serialize_deserialize_from_encode_decode_base64,
+    encoding::Base64, encoding::Encoding, error::FastCryptoError,
+    serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
 };
 use eyre::eyre;
 use serde::{Deserialize, Serialize};
@@ -69,9 +69,6 @@ pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
     pub bytes: OnceCell<[u8; $pk_length]>,
 }
-
-/// Binary representation of a [BLS12381PublicKey].
-pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 /// BLS 12-381 private key.
 #[readonly::make]
@@ -180,7 +177,7 @@ impl Debug for BLS12381PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
-serialize_deserialize_from_encode_decode_base64!(BLS12381PublicKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey);
 
 impl Verifier<BLS12381Signature> for BLS12381PublicKey {
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
@@ -404,7 +401,7 @@ impl ToFromBytes for BLS12381PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(BLS12381PrivateKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PrivateKey);
 
 impl SigningKey for BLS12381PrivateKey {
     type PubKey = BLS12381PublicKey;
@@ -676,20 +673,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 ///
 /// Implement VerifyingKeyBytes.
 ///
-
-impl TryFrom<BLS12381PublicKeyBytes> for BLS12381PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: BLS12381PublicKeyBytes) -> Result<BLS12381PublicKey, Self::Error> {
-        BLS12381PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&BLS12381PublicKey> for BLS12381PublicKeyBytes {
-    fn from(pk: &BLS12381PublicKey) -> BLS12381PublicKeyBytes {
-        BLS12381PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
-    }
-}
 
 impl zeroize::Zeroize for BLS12381PrivateKey {
     fn zeroize(&mut self) {

@@ -14,10 +14,7 @@ use super::*;
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
-    secp256r1::{
-        Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1PublicKeyBytes,
-        Secp256r1Signature,
-    },
+    secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
@@ -66,14 +63,6 @@ fn import_export_public_key() {
     let import = Secp256r1PublicKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
-}
-
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Secp256r1PublicKeyBytes = kp.public().into();
-    let rebuilt_pk: Secp256r1PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]
