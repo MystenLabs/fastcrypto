@@ -4,10 +4,7 @@
 use super::*;
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
-    secp256k1::{
-        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey,
-        Secp256k1Signature,
-    },
+    secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };

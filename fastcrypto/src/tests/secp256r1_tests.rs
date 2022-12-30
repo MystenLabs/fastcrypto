@@ -14,10 +14,7 @@ use super::*;
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
-    secp256r1::{
-        Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey,
-        Secp256r1Signature,
-    },
+    secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
