@@ -448,14 +448,6 @@ fn test_hkdf_generate_from_ikm() {
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
 }
 
-// #[test]
-// fn test_public_key_bytes_conversion() {
-//     let kp = keys().pop().unwrap();
-//     let pk_bytes: BLS12381PublicKeyBytes = kp.public().into();
-//     let rebuilt_pk: BLS12381PublicKey = pk_bytes.try_into().unwrap();
-//     assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-// }
-
 #[tokio::test]
 async fn signature_service() {
     // Get a keypair.
