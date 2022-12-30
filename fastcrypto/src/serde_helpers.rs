@@ -242,8 +242,10 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// is_human_readable(). For storage and usage, internal types should be used (see above).
 ///
 
-// schemars is used for guiding JsonSchema.
+// schemars is used for guiding JsonSchema to create a schema with type Base64 and no wrapping
+// type.
 #[derive(Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[schemars(transparent)]
 pub struct BytesRepresentation<const N: usize>(#[schemars(with = "Base64")] pub [u8; N]);
 
 /// Macro for generating a new alias for BytesRepresentation with the given $length, and From
@@ -334,6 +336,7 @@ mod tests {
     use super::*;
     use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
+    use schemars::schema_for;
 
     #[derive(Serialize, Deserialize, JsonSchema)]
     struct Dummy<T> {
@@ -357,5 +360,29 @@ mod tests {
         let d2: Dummy<G1ElementAsBytes> = bincode::deserialize(&ser).unwrap();
         let g2 = G1Element::try_from(&d2.key).unwrap();
         assert_eq!(g1, g2);
+        // Check the resulting schema.
+        let schema = schema_for!(Dummy::<G1ElementAsBytes>);
+        assert_eq!(
+            r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dummy_for_Base64",
+  "type": "object",
+  "required": [
+    "key"
+  ],
+  "properties": {
+    "key": {
+      "$ref": "#/definitions/Base64"
+    }
+  },
+  "definitions": {
+    "Base64": {
+      "description": "Base64 encoding",
+      "type": "string"
+    }
+  }
+}"##,
+            serde_json::to_string_pretty(&schema).unwrap()
+        );
     }
 }
