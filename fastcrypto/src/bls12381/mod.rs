@@ -21,20 +21,20 @@ use std::{
     str::FromStr,
 };
 
-use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-
-use once_cell::sync::OnceCell;
-use zeroize::Zeroize;
-
-use fastcrypto_derive::{SilentDebug, SilentDisplay};
-
+use crate::generate_bytes_representation;
+use crate::serde_helpers::{to_custom_error, BytesRepresentation, SerializationHelper};
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
 };
+use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 use eyre::eyre;
-use serde::{Deserialize, Serialize};
+use fastcrypto_derive::{SilentDebug, SilentDisplay};
+use once_cell::sync::OnceCell;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::serde_as;
+use serde_with::{DeserializeAs, SerializeAs};
+use zeroize::Zeroize;
 
 use signature::{Signature, Signer, Verifier};
 
@@ -115,6 +115,9 @@ pub struct BLS12381AggregateSignature {
     #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
+
+// We need another byte for Optional<>.
+generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length+1}, BLS12381AggregateSignatureAsBytes);
 
 ///
 /// Implement SigningKey
@@ -713,7 +716,40 @@ impl ToFromBytes for BLS12381AggregateSignature {
     }
 }
 
-}} // macro_rules! define_bls12381.
+pub struct BlsSignature;
+
+impl SerializeAs<blst::Signature> for BlsSignature {
+    fn serialize_as<S>(source: &blst::Signature, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            Base64::encode(source.to_bytes()).serialize(serializer)
+        } else {
+            SerializationHelper::<$sig_length>(source.to_bytes()).serialize(serializer)
+        }
+    }
+}
+
+impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
+    fn deserialize_as<D>(deserializer: D) -> Result<blst::Signature, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            <[u8; $sig_length]>::try_from(Base64::decode(&s).map_err(to_custom_error::<'de, D, _>)?).map_err(to_custom_error::<'de, D, _>)?
+        } else {
+            let helper: SerializationHelper<$sig_length> =
+                            Deserialize::deserialize(deserializer)?;
+            helper.0
+        };
+        blst::Signature::from_bytes(&bytes).map_err(to_custom_error::<'de, D, _>)
+    }
+}
+};
+
+} // macro_rules! define_bls12381.
 
 /// The length of a private key in bytes.
 pub const BLS_PRIVATE_KEY_LENGTH: usize = 32;

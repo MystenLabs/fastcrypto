@@ -302,6 +302,13 @@ fn test_serialize_deserialize_aggregate_signatures() {
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
     assert_eq!(deserialized.as_ref(), sig.as_ref());
+
+    let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
+    let as_bytes_ser = bincode::serialize(&sig_as_bytes).unwrap();
+    assert_eq!(serialized, as_bytes_ser);
+    let as_bytes_des: BLS12381AggregateSignatureAsBytes = bincode::deserialize(&as_bytes_ser).unwrap();
+    let sig2 = BLS12381AggregateSignature::try_from(&as_bytes_des).unwrap();
+    assert_eq!(sig.sig, sig2.sig);
 }
 
 #[test]
@@ -680,8 +687,8 @@ proptest! {
 pub mod min_sig {
     use super::*;
     use crate::bls12381::min_sig::{
-        BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381Signature,
+        BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
     define_tests!();
 }
@@ -689,8 +696,8 @@ pub mod min_sig {
 pub mod min_pk {
     use super::*;
     use crate::bls12381::min_pk::{
-        BLS12381AggregateSignature, BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey,
-        BLS12381Signature,
+        BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
+        BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
     define_tests!();
 
