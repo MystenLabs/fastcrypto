@@ -238,8 +238,9 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 /// - Derive by calling [generate_bytes_representation].
 /// - Uses Base64 when serialized with a human readable serializer, and raw bytes otherwise.
 ///
-/// Note that in theory external types should not be stored and only be serialized with
-/// is_human_readable(). For storage and usage, internal types should be used (see above).
+/// Note that in theory external types should not be stored in Sui and only be serialized with
+/// is_human_readable(). For storage and computation in Sui, internal types should be used (see
+/// above).
 ///
 
 // schemars is used for guiding JsonSchema to create a schema with type Base64 and no wrapping
