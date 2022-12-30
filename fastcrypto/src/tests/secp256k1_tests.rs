@@ -8,6 +8,7 @@ use crate::{
         Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1PublicKeyBytes,
         Secp256k1Signature,
     },
+    signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 #[cfg(feature = "copy_key")]

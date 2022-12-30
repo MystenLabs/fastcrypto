@@ -12,6 +12,7 @@ use crate::{
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
+    signature_service::SignatureService,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 use proptest::prelude::*;
