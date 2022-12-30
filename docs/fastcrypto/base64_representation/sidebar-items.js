@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["Base64Representation","Basic wrapper that stores a bincode serialized version of object T. To be used in external interfaces instead of the internal object."]]};

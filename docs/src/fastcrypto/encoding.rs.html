@@ -251,7 +251,7 @@
     </span><span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String;
 }
 
-<span class="doccomment">/// Base64 encoding.
+<span class="doccomment">/// Base64 encoding
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
 #[serde(try_from = <span class="string">&quot;String&quot;</span>)]
 </span><span class="kw">pub struct </span>Base64(String);
