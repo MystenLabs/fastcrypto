@@ -40,7 +40,7 @@ pub trait Encoding {
     fn encode<T: AsRef<[u8]>>(data: T) -> String;
 }
 
-/// Base64 encoding.
+/// Base64 encoding
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
 #[serde(try_from = "String")]
 pub struct Base64(String);

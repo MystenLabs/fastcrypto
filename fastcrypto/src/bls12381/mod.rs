@@ -22,25 +22,24 @@ use std::{
 };
 
 use crate::generate_bytes_representation;
-use crate::serde_helpers::BytesRepresentation;
-use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-use once_cell::sync::OnceCell;
-use zeroize::Zeroize;
-use crate::serde_helpers::SerializationHelper;
 use crate::serde_helpers::to_custom_error;
+use crate::serde_helpers::BytesRepresentation;
+use crate::serde_helpers::SerializationHelper;
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
 };
+use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
+use once_cell::sync::OnceCell;
 use serde::Deserializer;
 use serde::Serializer;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use serde_with::Bytes;
 use serde_with::DeserializeAs;
 use serde_with::SerializeAs;
+use zeroize::Zeroize;
 
 use signature::{Signature, Signer, Verifier};
 
