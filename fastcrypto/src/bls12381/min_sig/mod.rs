@@ -4,7 +4,6 @@
 //! Module minimizing the size of signatures. See also [min_pk].
 
 use super::*;
-use crate::serde_helpers::min_sig::BlsSignature;
 use blst::min_sig as blst;
 /// Hash-to-curve domain separation tag.
 pub const DST_G1: &[u8] = b"BLS_SIG_BLS12381G1_XMD:SHA-256_SSWU_RO_NUL_";
