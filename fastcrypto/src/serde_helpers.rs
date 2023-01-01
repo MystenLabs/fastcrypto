@@ -18,7 +18,7 @@ use crate::{
     traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 
-pub fn to_custom_error<'de, D, E>(e: E) -> D::Error
+pub(crate) fn to_custom_error<'de, D, E>(e: E) -> D::Error
 where
     E: Debug,
     D: Deserializer<'de>,
