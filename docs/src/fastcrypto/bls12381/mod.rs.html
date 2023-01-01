@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-1e2b7c35f427742c.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-bb5b51a242922cfa.css"><link rel="stylesheet" disabled href="../../../static.files/dark-4f2b7151e76e78d6.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-07d82ab1a93c2170.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-4a084badb5778746.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-3cc3084b477498a6.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-4a084badb5778746.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -729,6 +729,42 @@
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -752,20 +788,20 @@
     str::FromStr,
 };
 
-<span class="kw">use </span>blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-
-<span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>zeroize::Zeroize;
-
-<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
-
+<span class="kw">use </span><span class="kw">crate</span>::generate_bytes_representation;
+<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::{to_custom_error, BytesRepresentation, SerializationHelper};
 <span class="kw">use crate</span>::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
 };
+<span class="kw">use </span>blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 <span class="kw">use </span>eyre::eyre;
-<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
 <span class="kw">use </span>serde_with::serde_as;
+<span class="kw">use </span>serde_with::{DeserializeAs, SerializeAs};
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span>signature::{Signature, Signer, Verifier};
 
@@ -846,6 +882,9 @@
     <span class="attr">#[serde(skip)]
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
+
+<span class="comment">// We need another byte for Optional&lt;&gt;.
+</span><span class="macro">generate_bytes_representation!</span>(BLS12381AggregateSignature, {<span class="macro-nonterminal">$sig_length</span>+<span class="number">1</span>}, BLS12381AggregateSignatureAsBytes);
 
 <span class="doccomment">///
 /// Implement SigningKey
@@ -1444,7 +1483,40 @@
     }
 }
 
-}} <span class="comment">// macro_rules! define_bls12381.
+<span class="kw">pub struct </span>BlsSignature;
+
+<span class="kw">impl </span>SerializeAs&lt;blst::Signature&gt; <span class="kw">for </span>BlsSignature {
+    <span class="kw">fn </span>serialize_as&lt;S&gt;(source: <span class="kw-2">&amp;</span>blst::Signature, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
+    {
+        <span class="kw">if </span>serializer.is_human_readable() {
+            Base64::encode(source.to_bytes()).serialize(serializer)
+        } <span class="kw">else </span>{
+            SerializationHelper::&lt;<span class="macro-nonterminal">$sig_length</span>&gt;(source.to_bytes()).serialize(serializer)
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, blst::Signature&gt; <span class="kw">for </span>BlsSignature {
+    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;blst::Signature, D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        <span class="kw">let </span>bytes = <span class="kw">if </span>deserializer.is_human_readable() {
+            <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
+            &lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;::try_from(Base64::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?</span>).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?
+        </span>} <span class="kw">else </span>{
+            <span class="kw">let </span>helper: SerializationHelper&lt;<span class="macro-nonterminal">$sig_length</span>&gt; =
+                            Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
+            helper.<span class="number">0
+        </span>};
+        blst::Signature::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
+    }
+}
+};
+
+} <span class="comment">// macro_rules! define_bls12381.
 
 </span><span class="doccomment">/// The length of a private key in bytes.
 </span><span class="kw">pub const </span>BLS_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
@@ -1461,4 +1533,4 @@
 <span class="doccomment">/// Module minimizing the size of public keys. See also [min_sig].
 </span><span class="kw">pub mod </span>min_pk;
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (ad8ae0504 2022-12-29)" data-search-js="search-181581080540673f.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-58836c674e2f7bd2.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (574b64a97 2022-12-31)" data-search-js="search-181581080540673f.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-58836c674e2f7bd2.css" ></div></body></html>
