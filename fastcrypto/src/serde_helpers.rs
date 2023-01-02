@@ -98,6 +98,7 @@ impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for Ed25519Signature 
 // Since we want a fixed size representation, we wrap it in this helper struct and use serde_as.
 #[serde_as]
 #[derive(Serialize, Deserialize)]
+#[serde(transparent)]
 pub struct SerializationHelper<const N: usize>(#[serde_as(as = "[_; N]")] pub [u8; N]);
 
 pub trait ToFromByteArray<const LENGTH: usize>: Sized {
@@ -199,7 +200,7 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 // schemars is used for guiding JsonSchema to create a schema with type Base64 and no wrapping
 // type.
 #[derive(Clone, Debug, PartialEq, Eq, JsonSchema)]
-#[schemars(transparent)]
+#[serde(transparent)]
 pub struct BytesRepresentation<const N: usize>(#[schemars(with = "Base64")] pub [u8; N]);
 
 /// Macro for generating a new alias for BytesRepresentation with the given $length, and From
