@@ -25,7 +25,7 @@ use crate::generate_bytes_representation;
 use crate::serde_helpers::{to_custom_error, BytesRepresentation, SerializationHelper};
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
-    serde_helpers::keypair_decode_base64, serialize_deserialize_with_to_from_bytes,
+    serialize_deserialize_with_to_from_bytes,
 };
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 use eyre::eyre;
@@ -86,9 +86,7 @@ impl PartialEq for BLS12381PrivateKey {
 
 impl Eq for BLS12381PrivateKey {}
 
-// There is a strong requirement for this specific impl. in Fab benchmarks.
-/// BLS 12-381 public/private keypair.
-#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct BLS12381KeyPair {
     name: BLS12381PublicKey,
     secret: BLS12381PrivateKey,
@@ -434,18 +432,18 @@ impl From<BLS12381PrivateKey> for BLS12381KeyPair {
     }
 }
 
-impl EncodeDecodeBase64 for BLS12381KeyPair {
-    fn encode_base64(&self) -> String {
-        let mut bytes: Vec<u8> = Vec::new();
-        bytes.extend_from_slice(self.secret.as_ref());
-        // Derive pubkey from privkey
-        let name = BLS12381PublicKey::from(&self.secret);
-        bytes.extend_from_slice(name.as_ref());
-        Base64::encode(&bytes[..])
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for BLS12381KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        BLS12381PrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
+}
 
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
-        keypair_decode_base64(value)
+serialize_deserialize_with_to_from_bytes!(BLS12381KeyPair);
+
+impl AsRef<[u8]> for BLS12381KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.secret.as_ref()
     }
 }
 
@@ -760,6 +758,8 @@ pub const BLS_G1_LENGTH: usize = 48;
 /// The length of public keys when using the [min_sig] module and the length of signatures when using the [min_pk] module.
 pub const BLS_G2_LENGTH: usize = 96;
 
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const BLS_KEY_PAIR_BYTES_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 /// Module minimizing the size of signatures. See also [min_pk].
 pub mod min_sig;
 
