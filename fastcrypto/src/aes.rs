@@ -12,7 +12,7 @@
 //! let key = AesKey::generate(&mut thread_rng());
 //! let iv = InitializationVector::generate(&mut thread_rng());
 //! let cipher = Aes256Ctr::new(key);
-//! let ciphertext = cipher.encrypt(&iv, plaintext).unwrap();
+//! let ciphertext = cipher.encrypt(&iv, plaintext);
 //! let decrypted = cipher.decrypt(&iv, &ciphertext).unwrap();
 //! assert_eq!(decrypted, plaintext);
 //! ```
