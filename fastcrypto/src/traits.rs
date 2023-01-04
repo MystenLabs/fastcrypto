@@ -377,7 +377,7 @@ pub trait Cipher {
     fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8>;
 
     /// Decrypt `ciphertext` using the given IV and return the result. An error may be returned in
-    /// CBC-mode if the ciphertext is not correctly padded, but in CTR mode this method always
+    /// CBC-mode if the ciphertext is not correctly padded, but in other modes this method always
     /// return Ok.
     fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
 }
