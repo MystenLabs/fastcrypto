@@ -95,22 +95,19 @@ pub struct BLS12381KeyPair {
 /// BLS 12-381 signature.
 #[readonly::make]
 #[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BLS12381Signature {
-    #[serde_as(as = "BlsSignature")]
     pub sig: blst::Signature,
-    #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
+serialize_deserialize_with_to_from_bytes!(BLS12381Signature);
+
 /// Aggregation of multiple BLS 12-381 signatures.
 #[readonly::make]
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BLS12381AggregateSignature {
-    #[serde_as(as = "Option<BlsSignature>")]
     pub sig: Option<blst::Signature>,
-    #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
@@ -713,6 +710,8 @@ impl ToFromBytes for BLS12381AggregateSignature {
         })
     }
 }
+
+serialize_deserialize_with_to_from_bytes!(BLS12381AggregateSignature);
 
 pub struct BlsSignature;
 
