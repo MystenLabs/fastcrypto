@@ -85,7 +85,7 @@ fn test_cipher<
     let cipher = cipher_builder(key);
 
     // Encrypt into buffer1
-    let ciphertext = cipher.encrypt(&iv, &PLAINTEXT).unwrap();
+    let ciphertext = cipher.encrypt(&iv, &PLAINTEXT);
 
     // Decrypt into buffer2
     let plaintext = cipher.decrypt(&iv, &ciphertext).unwrap();
@@ -118,7 +118,7 @@ fn single_wycheproof_test<
 ) -> Result<(), FastCryptoError> {
     let iv = InitializationVector::from_bytes(test.nonce.as_slice()).unwrap();
 
-    let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt)?;
+    let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt);
 
     // Verify that the cipher text is
     if test.ct != ciphertext[..test.pt.len()] {
