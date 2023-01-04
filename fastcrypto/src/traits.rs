@@ -373,10 +373,12 @@ pub trait Nonce:
 pub trait Cipher {
     type IVType: Nonce;
 
-    /// Encrypt `plaintext` and write result to `buffer` using the given IV
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
+    /// Encrypt `plaintext` using the given IV and return the result.
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8>;
 
-    /// Decrypt `ciphertext` and write result to `buffer` using the given IV
+    /// Decrypt `ciphertext` using the given IV and return the result. An error may be returned in
+    /// CBC-mode if the ciphertext is not correctly padded, but in CTR mode this method always
+    /// return Ok.
     fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
 }
 
@@ -385,15 +387,11 @@ pub trait Cipher {
 pub trait AuthenticatedCipher {
     type IVType: Nonce;
 
-    /// Encrypt `plaintext` and write result to `buffer` using the given IV and authentication data
-    fn encrypt_authenticated(
-        &self,
-        iv: &Self::IVType,
-        aad: &[u8],
-        plaintext: &[u8],
-    ) -> Result<Vec<u8>, FastCryptoError>;
+    /// Encrypt `plaintext` using the given IV and authentication data and return the result.
+    fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8>;
 
-    /// Decrypt `ciphertext` and write result to `buffer` using the given IV and authentication data
+    /// Decrypt `ciphertext` using the given IV and authentication data and return the result.
+    /// An error is returned if the authentication data does not match the supplied ciphertext.
     fn decrypt_authenticated(
         &self,
         iv: &Self::IVType,
