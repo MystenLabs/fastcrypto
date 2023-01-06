@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::secp256k1::Secp256k1RecoverableSignature;
+use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::traits::{RecoverableSignature, SignAsRecoverable};
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},

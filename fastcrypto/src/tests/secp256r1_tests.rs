@@ -12,6 +12,7 @@ use wycheproof::TestResult;
 use super::*;
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::secp256r1::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
+use crate::secp256r1::recoverable::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
 use crate::traits::{RecoverableSignature, SignAsRecoverable};
 use crate::{
     hash::{HashFunction, Sha256},
