@@ -54,7 +54,7 @@ fn test_serde_signatures_non_human_readable() {
     let sig = keys().pop().unwrap().sign(message);
     let serialized = bincode::serialize(&sig).unwrap();
     let deserialized: Ed25519Signature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.sig, sig.sig);
+    assert_eq!(deserialized, sig);
 }
 
 #[test]
@@ -100,7 +100,7 @@ fn to_from_bytes_signature() {
     let signature = kpref.sign(b"Hello, world");
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Ed25519Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    assert_eq!(rebuilt_sig, signature);
 }
 
 #[test]

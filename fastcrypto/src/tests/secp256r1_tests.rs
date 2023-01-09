@@ -52,7 +52,7 @@ fn serialize_deserialize() {
     let serialized = serde_json::to_string(&signature).unwrap();
     println!("{:?}", serialized);
     let deserialized: Secp256r1Signature = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), signature.as_ref());
+    assert_eq!(deserialized, signature);
 }
 
 #[test]

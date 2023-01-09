@@ -310,7 +310,7 @@ impl std::hash::Hash for Secp256r1Signature {
 
 impl PartialEq for Secp256r1Signature {
     fn eq(&self, other: &Self) -> bool {
-        self.sig == other.sig
+        self.sig.as_ref() == other.sig.as_ref()
     }
 }
 

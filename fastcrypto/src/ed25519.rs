@@ -82,13 +82,20 @@ impl PartialEq for Ed25519PrivateKey {
 impl Eq for Ed25519PrivateKey {}
 
 /// Ed25519 signature.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct Ed25519Signature {
     pub sig: ed25519_consensus::Signature,
     // Helps implementing AsRef<[u8]>.
     pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
 }
 
+impl PartialEq for Ed25519Signature {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl Eq for Ed25519Signature {}
 /// Aggregation of multiple Ed25519 signatures.
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
