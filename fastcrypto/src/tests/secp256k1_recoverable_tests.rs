@@ -4,7 +4,7 @@
 use super::*;
 use crate::secp256k1::recoverable::{
     Secp256k1RecoverableKeyPair, Secp256k1RecoverablePrivateKey, Secp256k1RecoverablePublicKey,
-    Secp256k1RecoverablePublicKeyBytes, Secp256k1RecoverableSignature, TestDigester,
+    Secp256k1RecoverableSignature, TestDigester,
 };
 use crate::secp256k1::{Secp256k1PublicKey, Secp256k1Signature};
 use crate::signature_service::SignatureService;
@@ -67,14 +67,6 @@ fn import_export_public_key() {
 }
 
 #[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Secp256k1RecoverablePublicKeyBytes<TestDigester, 20> = kp.public().into();
-    let rebuilt_pk: Secp256k1RecoverablePublicKey<TestDigester> = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-}
-
-#[test]
 fn verify_valid_signature() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
@@ -110,6 +102,15 @@ fn test_public_key_recovery_error() {
     assert!(signature
         .recover(Keccak256::digest(message).as_ref())
         .is_err());
+}
+
+#[test]
+fn test_public_key_recovery() {
+    let kp = keys().pop().unwrap();
+    let message: &[u8] = b"Hello, world!";
+    let signature: Secp256k1RecoverableSignature<TestDigester> = kp.sign(message);
+    let recovered_key = signature.recover(message).unwrap();
+    assert_eq!(TestDigester::digest(&recovered_key), kp.public().0);
 }
 
 #[test]
