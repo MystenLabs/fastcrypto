@@ -671,6 +671,10 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     }
 }
 
+///
+/// Implement VerifyingKeyBytes
+///
+
 impl zeroize::Zeroize for BLS12381PrivateKey {
     fn zeroize(&mut self) {
         self.bytes.take().zeroize();
