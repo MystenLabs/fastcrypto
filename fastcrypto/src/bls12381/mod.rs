@@ -672,7 +672,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 }
 
 ///
-/// Implement VerifyingKeyBytes
+/// Implement VerifyingKeyBytes.
 ///
 
 impl zeroize::Zeroize for BLS12381PrivateKey {
