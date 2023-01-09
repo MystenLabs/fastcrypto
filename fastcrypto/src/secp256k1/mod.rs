@@ -28,7 +28,6 @@ use crate::{
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
-use rust_secp256k1::ecdsa::RecoverableSignature;
 use rust_secp256k1::hashes::sha256;
 use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
@@ -66,15 +65,7 @@ pub const SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE;
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const SECP_256_K_1_KEY_PAIR_BYTE_LENGTH: usize = constants::SECRET_KEY_SIZE;
 
-/// Either a recoverable (meaning that the public key can be recovered from the signature) or
-/// nonrecoverable signature.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SignatureType {
-    RECOVERABLE(RecoverableSignature),
-    NONRECOVERABLE(NonrecoverableSignature),
-}
-
-/// Secp256k1 signature holding either a recoverable of nonrecoverable (see [SignatureType]) ECDSA signature.
+/// Secp256k1 ECDSA signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1Signature {
