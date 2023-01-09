@@ -10,7 +10,7 @@ use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
 use super::*;
-use crate::secp256r1::recoverable::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
+use crate::secp256r1::recoverable::{Secp256r1RecoverableSignature, TestDigester};
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::secp256r1::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
 use crate::traits::{RecoverableSignature, SignAsRecoverable};
@@ -283,7 +283,7 @@ fn fail_to_verify_if_upper_s() {
         &hex::decode("0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a").unwrap(),
     )
     .unwrap();
-    let sig = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
+    let sig = <Secp256r1RecoverableSignature<TestDigester> as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
 
     // Failed to verify with upper S.
     assert_ne!(sig.recover_hashed(&digest.digest).unwrap(), pk);

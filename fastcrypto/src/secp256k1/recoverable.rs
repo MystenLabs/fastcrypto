@@ -3,10 +3,8 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
-#[cfg(test)]
 use crate::hash::HashFunction;
-#[cfg(test)]
-use crate::hash::Keccak256;
+use crate::hash::Sha256;
 use crate::pubkey_bytes::PublicKeyBytes;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
@@ -14,7 +12,7 @@ use crate::secp256k1::{
 use crate::secp256r1::PRIVATE_KEY_SIZE;
 use crate::serde_helpers::keypair_decode_base64;
 use crate::traits::{
-    AllowedRng, Authenticator, PublicKeyDigest, EncodeDecodeBase64, KeyPair, RecoverableSignature,
+    AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, PublicKeyDigest, RecoverableSignature,
     SigningKey, ToFromBytes, VerifyingKey,
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -77,7 +75,9 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Display for Secp256k1Recov
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1RecoverablePublicKey<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes
+    for Secp256k1RecoverablePublicKey<D>
+{
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         Ok(Secp256k1RecoverablePublicKey(
             D::Digest::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?,
@@ -85,14 +85,16 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1R
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverablePublicKey<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]>
+    for Secp256k1RecoverablePublicKey<D>
+{
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> Verifier<Secp256k1RecoverableSignature<D>>
-    for Secp256k1RecoverablePublicKey<D>
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static>
+    Verifier<Secp256k1RecoverableSignature<D>> for Secp256k1RecoverablePublicKey<D>
 {
     fn verify(
         &self,
@@ -107,8 +109,8 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> Verifier<Secp256
     }
 }
 
-impl<'a, D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<&'a Secp256k1RecoverablePrivateKey<D>>
-    for Secp256k1RecoverablePublicKey<D>
+impl<'a, D: PublicKeyDigest<BasePK = Secp256k1PublicKey>>
+    From<&'a Secp256k1RecoverablePrivateKey<D>> for Secp256k1RecoverablePublicKey<D>
 {
     fn from(sk: &'a Secp256k1RecoverablePrivateKey<D>) -> Self {
         Self::from(Secp256k1PublicKey::from(&sk.0))
@@ -205,7 +207,9 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> TryFrom<(&Secp256k1Signatu
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Serialize for Secp256k1RecoverableSignature<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Serialize
+    for Secp256k1RecoverableSignature<D>
+{
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -238,7 +242,9 @@ impl<'a, D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<&'a Secp256k1Reco
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Signature for Secp256k1RecoverableSignature<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Signature
+    for Secp256k1RecoverableSignature<D>
+{
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() != 65 {
             return Err(signature::Error::new());
@@ -297,7 +303,9 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Secp256k1RecoverableSignat
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverableSignature<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]>
+    for Secp256k1RecoverableSignature<D>
+{
     fn as_ref(&self) -> &[u8] {
         let mut bytes = [0u8; RECOVERABLE_SIGNATURE_SIZE];
         let (recovery_id, sig) = self.sig.serialize_compact();
@@ -333,7 +341,9 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Default for Secp256k1Recov
 //
 // Secp256k1RecoverablePrivateKey
 //
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1RecoverablePrivateKey<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes
+    for Secp256k1RecoverablePrivateKey<D>
+{
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         Ok(Secp256k1RecoverablePrivateKey(
             Secp256k1PrivateKey::from_bytes(bytes)?,
@@ -342,7 +352,9 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1R
     }
 }
 
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverablePrivateKey<D> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]>
+    for Secp256k1RecoverablePrivateKey<D>
+{
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
@@ -487,5 +499,41 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> KeyPair
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let kp = Secp256k1KeyPair::generate(rng);
         Secp256k1RecoverableKeyPair::from(kp)
+    }
+}
+
+/// Digester used for testing which hashes the public key and returns the first 20 bytes.
+#[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct TestDigester {}
+
+#[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct TestDigest([u8; 20]);
+
+impl AsRef<[u8]> for TestDigest {
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl ToFromBytes for TestDigest {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        if bytes.len() != 20 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut digest = [0u8; 20];
+        digest.copy_from_slice(bytes);
+        Ok(TestDigest(digest))
+    }
+}
+
+impl PublicKeyDigest for TestDigester {
+    type BasePK = Secp256k1PublicKey;
+    type Digest = TestDigest;
+    const DIGEST_SIZE: usize = 20;
+
+    fn digest(pk: &Secp256k1PublicKey) -> TestDigest {
+        let mut digest = [0u8; 20];
+        digest.copy_from_slice(&Sha256::digest(pk.pubkey.serialize()).digest[0..20]);
+        TestDigest(digest)
     }
 }
