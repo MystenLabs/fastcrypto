@@ -38,7 +38,6 @@ use zeroize::Zeroize;
 
 use signature::{Signature, Signer, Verifier};
 
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::traits::{
     AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
     ToFromBytes, VerifyingKey,
@@ -70,9 +69,6 @@ pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
     pub bytes: OnceCell<[u8; $pk_length]>,
 }
-
-/// Binary representation of a [BLS12381PublicKey].
-pub type BLS12381PublicKeyBytes = PublicKeyBytes<BLS12381PublicKey, { BLS12381PublicKey::LENGTH }>;
 
 /// BLS 12-381 private key.
 #[readonly::make]
@@ -672,24 +668,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             }
         }
         Ok(())
-    }
-}
-
-///
-/// Implement VerifyingKeyBytes.
-///
-
-impl TryFrom<BLS12381PublicKeyBytes> for BLS12381PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: BLS12381PublicKeyBytes) -> Result<BLS12381PublicKey, Self::Error> {
-        BLS12381PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&BLS12381PublicKey> for BLS12381PublicKeyBytes {
-    fn from(pk: &BLS12381PublicKey) -> BLS12381PublicKeyBytes {
-        BLS12381PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 

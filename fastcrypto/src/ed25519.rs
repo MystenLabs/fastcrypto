@@ -34,7 +34,6 @@ use std::{
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
@@ -63,9 +62,6 @@ const RAW_FIELD_NAME: &str = "raw";
 /// Ed25519 public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
-
-/// Binary representation of an instance of [Ed25519PublicKey].
-pub type Ed25519PublicKeyBytes = PublicKeyBytes<Ed25519PublicKey, { Ed25519PublicKey::LENGTH }>;
 
 /// Ed25519 private key.
 #[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
@@ -631,27 +627,6 @@ impl Signer<Ed25519Signature> for Ed25519KeyPair {
             sig: self.secret.0.sign(msg),
             bytes: OnceCell::new(),
         })
-    }
-}
-
-///
-/// Implement VerifyingKeyBytes
-///
-
-impl TryFrom<Ed25519PublicKeyBytes> for Ed25519PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: Ed25519PublicKeyBytes) -> Result<Ed25519PublicKey, Self::Error> {
-        VerificationKeyBytes::try_from(bytes.as_ref())
-            .and_then(ed25519_consensus::VerificationKey::try_from)
-            .map(Ed25519PublicKey)
-            .map_err(|_| signature::Error::new())
-    }
-}
-
-impl From<&Ed25519PublicKey> for Ed25519PublicKeyBytes {
-    fn from(pk: &Ed25519PublicKey) -> Self {
-        Ed25519PublicKeyBytes::new(pk.0.to_bytes())
     }
 }
 

@@ -17,7 +17,6 @@
 
 pub mod recoverable;
 
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -52,10 +51,6 @@ pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
     pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
 }
-
-/// Binary representation of an instance of [Secp256k1PublicKey].
-pub type Secp256k1PublicKeyBytes =
-    PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 /// Secp256k1 private key.
 #[readonly::make]
@@ -363,20 +358,6 @@ impl FromStr for Secp256k1KeyPair {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
         Ok(kp)
-    }
-}
-
-impl TryFrom<Secp256k1PublicKeyBytes> for Secp256k1PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: Secp256k1PublicKeyBytes) -> Result<Secp256k1PublicKey, Self::Error> {
-        Secp256k1PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&Secp256k1PublicKey> for Secp256k1PublicKeyBytes {
-    fn from(pk: &Secp256k1PublicKey) -> Self {
-        Secp256k1PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 

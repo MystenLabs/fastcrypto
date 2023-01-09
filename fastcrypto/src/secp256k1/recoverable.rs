@@ -5,7 +5,6 @@ use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
@@ -36,11 +35,6 @@ pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE 
 pub struct Secp256k1RecoverablePublicKey<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>>(
     pub D::Digest,
 );
-
-/// Binary representation of an instance of [Secp256k1RecoverablePublicKey]. Note that the [LENGTH] must
-/// be equal to the length of the digests produced by [D].
-pub type Secp256k1RecoverablePublicKeyBytes<D, const LENGTH: usize> =
-    PublicKeyBytes<Secp256k1RecoverablePublicKey<D>, LENGTH>;
 
 /// Secp256k1 private key.
 #[readonly::make]
@@ -164,26 +158,6 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Secp256k1RecoverablePublic
             return Err(Error::new());
         }
         Ok(())
-    }
-}
-
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static, const L: usize>
-    TryFrom<Secp256k1RecoverablePublicKeyBytes<D, L>> for Secp256k1RecoverablePublicKey<D>
-{
-    type Error = signature::Error;
-
-    fn try_from(
-        bytes: Secp256k1RecoverablePublicKeyBytes<D, L>,
-    ) -> Result<Secp256k1RecoverablePublicKey<D>, Self::Error> {
-        Secp256k1RecoverablePublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static, const L: usize>
-    From<&Secp256k1RecoverablePublicKey<D>> for Secp256k1RecoverablePublicKeyBytes<D, L>
-{
-    fn from(pk: &Secp256k1RecoverablePublicKey<D>) -> Self {
-        Secp256k1RecoverablePublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 

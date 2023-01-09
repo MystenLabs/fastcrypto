@@ -23,7 +23,6 @@ use std::str::FromStr;
 
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::secp256r1::Secp256r1PublicKey;
 use crate::secp256r1::Secp256r1Signature;
 use crate::secp256r1::SIGNATURE_SIZE;
@@ -57,10 +56,6 @@ pub struct Secp256r1RecoverableSignature<D: PublicKeyDigest<BasePK = Secp256r1Pu
 pub struct Secp256r1RecoverablePublicKey<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>>(
     pub D::Digest,
 );
-
-/// Binary representation of an instance of [Secp256r1RecoverablePublicKey].
-pub type Secp256r1RecoverablePublicKeyBytes<D, const DIGEST_SIZE: usize> =
-    PublicKeyBytes<Secp256r1RecoverablePublicKey<D>, DIGEST_SIZE>;
 
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
@@ -149,27 +144,6 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static> VerifyingKey
     type PrivKey = Secp256r1RecoverablePrivateKey<D>;
     type Sig = Secp256r1RecoverableSignature<D>;
     const LENGTH: usize = Secp256r1PublicKey::LENGTH;
-}
-
-impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static, const DIGEST_SIZE: usize>
-    TryFrom<Secp256r1RecoverablePublicKeyBytes<D, DIGEST_SIZE>>
-    for Secp256r1RecoverablePublicKey<D>
-{
-    type Error = signature::Error;
-
-    fn try_from(
-        bytes: Secp256r1RecoverablePublicKeyBytes<D, DIGEST_SIZE>,
-    ) -> Result<Secp256r1RecoverablePublicKey<D>, Self::Error> {
-        Secp256r1RecoverablePublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static, const DIGEST_SIZE: usize>
-    From<&Secp256r1RecoverablePublicKey<D>> for Secp256r1RecoverablePublicKeyBytes<D, DIGEST_SIZE>
-{
-    fn from(pk: &Secp256r1RecoverablePublicKey<D>) -> Self {
-        Secp256r1RecoverablePublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
-    }
 }
 
 impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> From<Secp256r1PublicKey>
