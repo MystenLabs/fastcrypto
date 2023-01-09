@@ -35,7 +35,6 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
-use crate::pubkey_bytes::PublicKeyBytes;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -61,9 +60,6 @@ pub struct Secp256r1PublicKey {
     pub pubkey: ExternalPublicKey,
     pub bytes: OnceCell<[u8; PUBLIC_KEY_SIZE]>,
 }
-
-/// Binary representation of an instance of [Secp256r1PublicKey].
-pub type Secp256r1PublicKeyBytes = PublicKeyBytes<Secp256r1PublicKey, { PUBLIC_KEY_SIZE }>;
 
 /// Secp256r1 private key.
 #[readonly::make]
@@ -196,20 +192,6 @@ impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
             pubkey: ExternalPublicKey::from(&secret.privkey),
             bytes: OnceCell::new(),
         }
-    }
-}
-
-impl TryFrom<Secp256r1PublicKeyBytes> for Secp256r1PublicKey {
-    type Error = signature::Error;
-
-    fn try_from(bytes: Secp256r1PublicKeyBytes) -> Result<Secp256r1PublicKey, Self::Error> {
-        Secp256r1PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
-    }
-}
-
-impl From<&Secp256r1PublicKey> for Secp256r1PublicKeyBytes {
-    fn from(pk: &Secp256r1PublicKey) -> Self {
-        Secp256r1PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 
