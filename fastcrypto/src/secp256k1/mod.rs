@@ -17,6 +17,7 @@
 
 pub mod recoverable;
 
+use crate::pubkey_bytes::PublicKeyBytes;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -28,6 +29,7 @@ use crate::{
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
+use rust_secp256k1::ecdsa::RecoverableSignature;
 use rust_secp256k1::hashes::sha256;
 use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
@@ -39,7 +41,6 @@ use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
-use rust_secp256k1::ecdsa::RecoverableSignature;
 use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
@@ -51,6 +52,10 @@ pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
     pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
 }
+
+/// Binary representation of an instance of [Secp256k1PublicKey].
+pub type Secp256k1PublicKeyBytes =
+    PublicKeyBytes<Secp256k1PublicKey, { Secp256k1PublicKey::LENGTH }>;
 
 /// Secp256k1 private key.
 #[readonly::make]
@@ -118,7 +123,6 @@ impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), signature::Error> {
         // Sha256 is used by default as digest
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
-
         signature
             .sig
             .verify(&message, &self.pubkey)
@@ -359,6 +363,20 @@ impl FromStr for Secp256k1KeyPair {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
         Ok(kp)
+    }
+}
+
+impl TryFrom<Secp256k1PublicKeyBytes> for Secp256k1PublicKey {
+    type Error = signature::Error;
+
+    fn try_from(bytes: Secp256k1PublicKeyBytes) -> Result<Secp256k1PublicKey, Self::Error> {
+        Secp256k1PublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
+    }
+}
+
+impl From<&Secp256k1PublicKey> for Secp256k1PublicKeyBytes {
+    fn from(pk: &Secp256k1PublicKey) -> Self {
+        Secp256k1PublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
 
