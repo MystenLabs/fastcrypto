@@ -10,8 +10,7 @@ use wycheproof::TestResult;
 
 use crate::secp256r1::recoverable::{
     Secp256r1RecoverableKeyPair, Secp256r1RecoverablePrivateKey, Secp256r1RecoverablePublicKey,
-    Secp256r1RecoverablePublicKeyBytes, Secp256r1RecoverableSignature, TestDigester,
-    RECOVERABLE_SIGNATURE_SIZE,
+    Secp256r1RecoverableSignature, TestDigester, RECOVERABLE_SIGNATURE_SIZE,
 };
 use crate::signature_service::SignatureService;
 use crate::traits::{PublicKeyDigest, RecoverableSignature};
@@ -68,14 +67,6 @@ fn import_export_public_key() {
     let import = Secp256r1RecoverablePublicKey::<TestDigester>::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
-}
-
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Secp256r1RecoverablePublicKeyBytes<TestDigester, 20> = kp.public().into();
-    let rebuilt_pk: Secp256r1RecoverablePublicKey<TestDigester> = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]

@@ -12,8 +12,6 @@ use wycheproof::TestResult;
 use super::*;
 use crate::secp256r1::recoverable::{Secp256r1RecoverableSignature, TestDigester};
 use crate::secp256r1::SIGNATURE_SIZE;
-use crate::secp256r1::{Secp256r1RecoverableSignature, RECOVERABLE_SIGNATURE_SIZE};
-use crate::traits::{RecoverableSignature, SignAsRecoverable};
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
@@ -23,7 +21,6 @@ use crate::{
 
 pub fn keys() -> Vec<Secp256r1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
-
     (0..4)
         .map(|_| Secp256r1KeyPair::generate(&mut rng))
         .collect()
@@ -68,15 +65,6 @@ fn import_export_public_key() {
 }
 
 #[test]
-fn test_public_key_recovery() {
-    let kp = keys().pop().unwrap();
-    let message: &[u8] = b"Hello, world!";
-    let signature: Secp256r1RecoverableSignature = kp.try_sign_as_recoverable(message).unwrap();
-    let recovered_key = signature.recover(message).unwrap();
-    assert_eq!(recovered_key, *kp.public());
-}
-
-#[test]
 fn test_public_key_recovery_error() {
     // incorrect length
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
@@ -86,30 +74,6 @@ fn test_public_key_recovery_error() {
 
     // Invalid signature: Zeros in signatures are not allowed
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err());
-}
-
-#[test]
-fn recoverable_conversion() {
-    let kp = keys().pop().unwrap();
-
-    let msg = b"Hello, world!";
-    let recoverable_signature = kp.try_sign_as_recoverable(msg).unwrap();
-    let recovery_id = recoverable_signature.recovery_id();
-
-    let as_standard = Secp256r1Signature::from(&recoverable_signature);
-    assert!(kp.name.verify(msg, &as_standard).is_ok());
-
-    let reconstructed =
-        Secp256r1RecoverableSignature::try_from((&as_standard, recovery_id)).unwrap();
-    assert_eq!(reconstructed.as_ref(), recoverable_signature.as_ref())
-}
-
-#[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: Secp256r1PublicKeyBytes = kp.public().into();
-    let rebuilt_pk: Secp256r1PublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
 }
 
 #[test]
@@ -147,11 +111,10 @@ fn serialize_private_key_only_for_keypair() {
 #[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
-
     let signature = kpref.sign(b"Hello, world!");
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig, signature);
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
 }
 
 #[test]
