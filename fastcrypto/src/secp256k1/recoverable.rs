@@ -34,7 +34,7 @@ pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE 
 #[readonly::make]
 #[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Secp256k1RecoverablePublicKey<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>>(
-    pub(crate) D::Digest,
+    pub D::Digest,
 );
 
 /// Binary representation of an instance of [Secp256k1RecoverablePublicKey]. Note that the [LENGTH] must

@@ -55,7 +55,7 @@ pub struct Secp256r1RecoverableSignature<D: PublicKeyDigest<BasePK = Secp256r1Pu
 #[readonly::make]
 #[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct Secp256r1RecoverablePublicKey<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>>(
-    pub(crate) D::Digest,
+    pub D::Digest,
 );
 
 /// Binary representation of an instance of [Secp256r1RecoverablePublicKey].
