@@ -21,7 +21,7 @@ jobs:
       - name: Run benchmarks
         run: cd fastcrypto; cargo criterion --message-format=json --no-default-features --features no-threads-blst > ../${{ github.sha }}.json; cd ..
       - name: Deploy latest benchmark report
-        uses: peaceiris/actions-gh-pages@de7ea6f8efb354206b205ef54722213d99067935 # pin@v3
+        uses: peaceiris/actions-gh-pages@64b46b4226a4a12da2239ba3ea5aa73e3163c75b # pin@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./target/criterion
@@ -29,7 +29,7 @@ jobs:
       - name: Move benchmark json to history
         run: mkdir history; cp ${{ github.sha }}.json history/
       - name: Deploy benchmark history
-        uses: peaceiris/actions-gh-pages@de7ea6f8efb354206b205ef54722213d99067935 # pin@v3
+        uses: peaceiris/actions-gh-pages@64b46b4226a4a12da2239ba3ea5aa73e3163c75b # pin@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: history/
