@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::error::FastCryptoError;
 use crate::secp256k1::recoverable::{
     Secp256k1RecoverableKeyPair, Secp256k1RecoverablePrivateKey, Secp256k1RecoverablePublicKey,
-    Secp256k1RecoverablePublicKeyBytes, Secp256k1RecoverableSignature,
+    Secp256k1RecoverablePublicKeyBytes, Secp256k1RecoverableSignature, TestDigester,
 };
 use crate::secp256k1::{Secp256k1PublicKey, Secp256k1Signature};
 use crate::signature_service::SignatureService;
@@ -17,46 +16,8 @@ use crate::{
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
 use signature::{Signer, Verifier};
-use std::fmt;
-use std::fmt::{Display, Formatter};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
-
-/// Digester used for testing which hashes the public key and returns the first 20 bytes.
-#[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct TestDigester {}
-
-#[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
-pub struct TestDigest([u8; 20]);
-
-impl AsRef<[u8]> for TestDigest {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl ToFromBytes for TestDigest {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        if bytes.len() != 20 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let mut digest = [0u8; 20];
-        digest.copy_from_slice(bytes);
-        Ok(TestDigest(digest))
-    }
-}
-
-impl PublicKeyDigest for TestDigester {
-    type BasePK = Secp256k1PublicKey;
-    type Digest = TestDigest;
-    const DIGEST_SIZE: usize = 20;
-
-    fn digest(pk: &Secp256k1PublicKey) -> TestDigest {
-        let mut digest = [0u8; 20];
-        digest.copy_from_slice(&Sha256::digest(pk.pubkey.serialize()).digest[0..20]);
-        TestDigest(digest)
-    }
-}
 
 pub fn keys() -> Vec<Secp256k1RecoverableKeyPair<TestDigester>> {
     let mut rng = StdRng::from_seed([0; 32]);

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
-use crate::secp256k1_recoverable_tests::TestDigester;
+use crate::secp256k1::recoverable::{Secp256k1RecoverableSignature, TestDigester};
 use crate::traits::RecoverableSignature;
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
@@ -11,8 +10,8 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-#[cfg(feature = "copy_key")]
-use proptest::arbitrary::Arbitrary;
+//#[cfg(feature = "copy_key")]
+//use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
@@ -82,7 +81,9 @@ fn test_public_key_recovery_error() {
     // invalid recovery id at index 65
     assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
-    let signature = <Secp256k1RecoverableSignature<crate::secp256k1_recoverable_tests::TestDigester> as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
+    let signature =
+        <Secp256k1RecoverableSignature<TestDigester> as ToFromBytes>::from_bytes(&[0u8; 65])
+            .unwrap();
     let message: &[u8] = b"Hello, world!";
     assert!(signature
         .recover(Keccak256::digest(message).as_ref())
