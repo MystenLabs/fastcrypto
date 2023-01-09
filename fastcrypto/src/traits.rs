@@ -7,6 +7,7 @@ use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
 pub use signature::Signer;
+use std::hash::Hash;
 use std::{
     borrow::Borrow,
     fmt::{Debug, Display},
@@ -228,6 +229,26 @@ pub trait RecoverableSignature: Authenticator {
 
     /// Recover public key from signature.
     fn recover(&self, msg: &[u8]) -> Result<Self::BasePubKey, FastCryptoError>;
+}
+
+/// Digester used with recoverable signatures. The verifying key is represented as a digest of the actual
+/// public key and the digest function is computed using this trait.
+pub trait PublicKeyDigest: Debug + Clone + Default + Ord + PartialOrd + Hash + Sync + Send {
+    type BasePK: VerifyingKey;
+    type Digest: Eq
+        + Sized
+        + Debug
+        + Clone
+        + Sync
+        + Send
+        + Default
+        + Ord
+        + PartialOrd
+        + Hash
+        + ToFromBytes;
+    const DIGEST_SIZE: usize;
+
+    fn digest(pk: &Self::BasePK) -> Self::Digest;
 }
 
 /// Trait impl'd by a public / private key pair in asymmetric cryptography.

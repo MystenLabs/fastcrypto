@@ -11,14 +11,12 @@ use crate::pubkey_bytes::PublicKeyBytes;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
-use crate::secp256r1::{PRIVATE_KEY_SIZE, PUBLIC_KEY_SIZE};
+use crate::secp256r1::PRIVATE_KEY_SIZE;
 use crate::serde_helpers::keypair_decode_base64;
-use crate::serialize_deserialize_from_encode_decode_base64;
 use crate::traits::{
-    AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, RecoverableSignature, SigningKey,
-    ToFromBytes, VerifyingKey,
+    AllowedRng, Authenticator, PublicKeyDigest, EncodeDecodeBase64, KeyPair, RecoverableSignature,
+    SigningKey, ToFromBytes, VerifyingKey,
 };
-use derive_more::Display;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use rust_secp256k1::ecdsa::{RecoverableSignature as ExternalRecoverableSignature, RecoveryId};
@@ -26,119 +24,163 @@ use rust_secp256k1::hashes::sha256;
 use rust_secp256k1::{constants, Message, Secp256k1};
 use serde::{de, Deserialize, Serialize};
 use signature::{Error, Signature, Signer, Verifier};
-use std::borrow::Borrow;
 use std::fmt;
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 use std::str::FromStr;
 
 pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
 
 /// Secp256k1 ecdsa "public key" for recoverable signatures.
 #[readonly::make]
-#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Display, Hash)]
-pub struct Secp256k1RecoverablePublicKey(pub(crate) Secp256k1PublicKey);
+#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+pub struct Secp256k1RecoverablePublicKey<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>>(
+    pub(crate) D::Digest,
+);
 
-/// Binary representation of an instance of [Secp256k1PublicKey].
-pub type Secp256k1RecoverablePublicKeyBytes =
-    PublicKeyBytes<Secp256k1RecoverablePublicKey, { Secp256k1PublicKey::LENGTH }>;
+/// Binary representation of an instance of [Secp256k1RecoverablePublicKey]. Note that the [LENGTH] must
+/// be equal to the length of the digests produced by [D].
+pub type Secp256k1RecoverablePublicKeyBytes<D, const LENGTH: usize> =
+    PublicKeyBytes<Secp256k1RecoverablePublicKey<D>, LENGTH>;
 
 /// Secp256k1 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
-pub struct Secp256k1RecoverablePrivateKey(pub(crate) Secp256k1PrivateKey);
+pub struct Secp256k1RecoverablePrivateKey<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>>(
+    pub(crate) Secp256k1PrivateKey,
+    PhantomData<D>,
+);
 
 /// Secp256k1 ecdsa recoverable signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
-pub struct Secp256k1RecoverableSignature {
+pub struct Secp256k1RecoverableSignature<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> {
     pub sig: ExternalRecoverableSignature,
     pub bytes: OnceCell<[u8; RECOVERABLE_SIGNATURE_SIZE]>,
+    pub digest_type: PhantomData<D>,
 }
 
 /// Secp256k1 public/private key pair.
 #[derive(Debug)]
-pub struct Secp256k1RecoverableKeyPair {
-    pub name: Secp256k1RecoverablePublicKey,
-    pub secret: Secp256k1RecoverablePrivateKey,
+pub struct Secp256k1RecoverableKeyPair<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> {
+    pub name: Secp256k1RecoverablePublicKey<D>,
+    pub secret: Secp256k1RecoverablePrivateKey<D>,
 }
 
 //
 // Secp256k1RecoverablePublicKey
 //
-impl ToFromBytes for Secp256k1RecoverablePublicKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Display for Secp256k1RecoverablePublicKey<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:?}", self.0.as_ref())
+    }
+}
+
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1RecoverablePublicKey<D> {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         Ok(Secp256k1RecoverablePublicKey(
-            Secp256k1PublicKey::from_bytes(bytes)?,
+            D::Digest::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?,
         ))
     }
 }
 
-impl AsRef<[u8]> for Secp256k1RecoverablePublicKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverablePublicKey<D> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl Verifier<Secp256k1RecoverableSignature> for Secp256k1RecoverablePublicKey {
-    fn verify(&self, msg: &[u8], signature: &Secp256k1RecoverableSignature) -> Result<(), Error> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> Verifier<Secp256k1RecoverableSignature<D>>
+    for Secp256k1RecoverablePublicKey<D>
+{
+    fn verify(
+        &self,
+        msg: &[u8],
+        signature: &Secp256k1RecoverableSignature<D>,
+    ) -> Result<(), Error> {
         let recovered = signature.recover(msg).map_err(|_| Error::new())?;
-        if recovered != self.0 {
+        if D::digest(&recovered) != self.0 {
             return Err(Error::new());
         }
         Ok(())
     }
 }
 
-impl<'a> From<&'a Secp256k1RecoverablePrivateKey> for Secp256k1RecoverablePublicKey {
-    fn from(sk: &'a Secp256k1RecoverablePrivateKey) -> Self {
-        Secp256k1RecoverablePublicKey(Secp256k1PublicKey::from(&sk.0))
+impl<'a, D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<&'a Secp256k1RecoverablePrivateKey<D>>
+    for Secp256k1RecoverablePublicKey<D>
+{
+    fn from(sk: &'a Secp256k1RecoverablePrivateKey<D>) -> Self {
+        Self::from(Secp256k1PublicKey::from(&sk.0))
     }
 }
 
-impl From<Secp256k1PublicKey> for Secp256k1RecoverablePublicKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<Secp256k1PublicKey>
+    for Secp256k1RecoverablePublicKey<D>
+{
     fn from(pk: Secp256k1PublicKey) -> Self {
-        Secp256k1RecoverablePublicKey(pk)
+        Secp256k1RecoverablePublicKey(D::digest(&pk))
     }
 }
 
-impl VerifyingKey for Secp256k1RecoverablePublicKey {
-    type PrivKey = Secp256k1RecoverablePrivateKey;
-    type Sig = Secp256k1RecoverableSignature;
-    const LENGTH: usize = PUBLIC_KEY_SIZE;
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> VerifyingKey
+    for Secp256k1RecoverablePublicKey<D>
+{
+    type PrivKey = Secp256k1RecoverablePrivateKey<D>;
+    type Sig = Secp256k1RecoverableSignature<D>;
+    const LENGTH: usize = D::DIGEST_SIZE;
 }
 
-serialize_deserialize_from_encode_decode_base64!(Secp256k1RecoverablePublicKey);
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ::serde::Serialize
+    for Secp256k1RecoverablePublicKey<D>
+{
+    fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.encode_base64())
+    }
+}
 
-impl Secp256k1RecoverablePublicKey {
+impl<'de, Di: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ::serde::Deserialize<'de>
+    for Secp256k1RecoverablePublicKey<Di>
+{
+    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
+        Self::decode_base64(&s).map_err(::serde::de::Error::custom)
+    }
+}
+
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Secp256k1RecoverablePublicKey<D> {
     pub fn verify_hashed(
         &self,
         hashed_msg: &[u8],
-        signature: &Secp256k1RecoverableSignature,
+        signature: &Secp256k1RecoverableSignature<D>,
     ) -> Result<(), signature::Error> {
         let message = Message::from_slice(hashed_msg).map_err(|_| signature::Error::new())?;
         let recovered = signature
             .recover_hashed(message.as_ref())
             .map_err(|_| Error::new())?;
-        if recovered != self.0 {
+        if D::digest(&recovered) != self.0 {
             return Err(Error::new());
         }
         Ok(())
     }
 }
 
-impl TryFrom<Secp256k1RecoverablePublicKeyBytes> for Secp256k1RecoverablePublicKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static, const L: usize>
+    TryFrom<Secp256k1RecoverablePublicKeyBytes<D, L>> for Secp256k1RecoverablePublicKey<D>
+{
     type Error = signature::Error;
 
     fn try_from(
-        bytes: Secp256k1RecoverablePublicKeyBytes,
-    ) -> Result<Secp256k1RecoverablePublicKey, Self::Error> {
+        bytes: Secp256k1RecoverablePublicKeyBytes<D, L>,
+    ) -> Result<Secp256k1RecoverablePublicKey<D>, Self::Error> {
         Secp256k1RecoverablePublicKey::from_bytes(bytes.as_ref()).map_err(|_| Self::Error::new())
     }
 }
 
-impl From<&Secp256k1RecoverablePublicKey> for Secp256k1RecoverablePublicKeyBytes {
-    fn from(pk: &Secp256k1RecoverablePublicKey) -> Self {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static, const L: usize>
+    From<&Secp256k1RecoverablePublicKey<D>> for Secp256k1RecoverablePublicKeyBytes<D, L>
+{
+    fn from(pk: &Secp256k1RecoverablePublicKey<D>) -> Self {
         Secp256k1RecoverablePublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
     }
 }
@@ -146,7 +188,9 @@ impl From<&Secp256k1RecoverablePublicKey> for Secp256k1RecoverablePublicKeyBytes
 //
 // Secp256k1RecoverableSignature
 //
-impl TryFrom<(&Secp256k1Signature, u8)> for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> TryFrom<(&Secp256k1Signature, u8)>
+    for Secp256k1RecoverableSignature<D>
+{
     type Error = FastCryptoError;
     fn try_from((signature, rec_id): (&Secp256k1Signature, u8)) -> Result<Self, FastCryptoError> {
         let recovery_id =
@@ -156,11 +200,12 @@ impl TryFrom<(&Secp256k1Signature, u8)> for Secp256k1RecoverableSignature {
         Ok(Secp256k1RecoverableSignature {
             sig,
             bytes: OnceCell::new(),
+            digest_type: PhantomData::default(),
         })
     }
 }
 
-impl Serialize for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Serialize for Secp256k1RecoverableSignature<D> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -169,27 +214,31 @@ impl Serialize for Secp256k1RecoverableSignature {
     }
 }
 
-impl<'de> Deserialize<'de> for Secp256k1RecoverableSignature {
+impl<'de, Di: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Deserialize<'de>
+    for Secp256k1RecoverableSignature<Di>
+{
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let data: Vec<u8> = Vec::deserialize(deserializer)?;
-        <Secp256k1RecoverableSignature as Signature>::from_bytes(&data)
+        <Secp256k1RecoverableSignature<Di> as Signature>::from_bytes(&data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
 
-impl<S: Borrow<Secp256k1RecoverableSignature>> From<S> for Secp256k1Signature {
-    fn from(recoverable_signature: S) -> Self {
+impl<'a, D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<&'a Secp256k1RecoverableSignature<D>>
+    for Secp256k1Signature
+{
+    fn from(s: &'a Secp256k1RecoverableSignature<D>) -> Self {
         Secp256k1Signature {
-            sig: recoverable_signature.borrow().sig.to_standard(),
+            sig: s.sig.to_standard(),
             bytes: OnceCell::new(), // TODO: May use the first 64 bytes of an existing serialization
         }
     }
 }
 
-impl Signature for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Signature for Secp256k1RecoverableSignature<D> {
     fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() != 65 {
             return Err(signature::Error::new());
@@ -200,6 +249,7 @@ impl Signature for Secp256k1RecoverableSignature {
                     Secp256k1RecoverableSignature {
                         sig,
                         bytes: OnceCell::new(),
+                        digest_type: PhantomData::default(),
                     }
                 })
             })
@@ -207,13 +257,17 @@ impl Signature for Secp256k1RecoverableSignature {
     }
 }
 
-impl Authenticator for Secp256k1RecoverableSignature {
-    type PubKey = Secp256k1RecoverablePublicKey;
-    type PrivKey = Secp256k1RecoverablePrivateKey;
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> Authenticator
+    for Secp256k1RecoverableSignature<D>
+{
+    type PubKey = Secp256k1RecoverablePublicKey<D>;
+    type PrivKey = Secp256k1RecoverablePrivateKey<D>;
     const LENGTH: usize = RECOVERABLE_SIGNATURE_SIZE;
 }
 
-impl RecoverableSignature for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> RecoverableSignature
+    for Secp256k1RecoverableSignature<D>
+{
     type BasePubKey = Secp256k1PublicKey;
 
     fn recover(&self, msg: &[u8]) -> Result<Secp256k1PublicKey, FastCryptoError> {
@@ -227,7 +281,7 @@ impl RecoverableSignature for Secp256k1RecoverableSignature {
     }
 }
 
-impl Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Secp256k1RecoverableSignature<D> {
     /// Recover the public key given an already hashed digest.
     pub fn recover_hashed(&self, digest: &[u8]) -> Result<Secp256k1PublicKey, FastCryptoError> {
         let message = Message::from_slice(digest).map_err(|_| FastCryptoError::InvalidInput)?;
@@ -243,7 +297,7 @@ impl Secp256k1RecoverableSignature {
     }
 }
 
-impl AsRef<[u8]> for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverableSignature<D> {
     fn as_ref(&self) -> &[u8] {
         let mut bytes = [0u8; RECOVERABLE_SIGNATURE_SIZE];
         let (recovery_id, sig) = self.sig.serialize_compact();
@@ -255,83 +309,107 @@ impl AsRef<[u8]> for Secp256k1RecoverableSignature {
     }
 }
 
-impl Hash for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Hash for Secp256k1RecoverableSignature<D> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
-impl Display for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Display for Secp256k1RecoverableSignature<D> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
-impl Default for Secp256k1RecoverableSignature {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Default for Secp256k1RecoverableSignature<D> {
     fn default() -> Self {
-        <Secp256k1RecoverableSignature as Signature>::from_bytes(&[1u8; RECOVERABLE_SIGNATURE_SIZE])
-            .unwrap()
+        <Secp256k1RecoverableSignature<D> as Signature>::from_bytes(
+            &[1u8; RECOVERABLE_SIGNATURE_SIZE],
+        )
+        .unwrap()
     }
 }
 
 //
 // Secp256k1RecoverablePrivateKey
 //
-impl ToFromBytes for Secp256k1RecoverablePrivateKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ToFromBytes for Secp256k1RecoverablePrivateKey<D> {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         Ok(Secp256k1RecoverablePrivateKey(
             Secp256k1PrivateKey::from_bytes(bytes)?,
+            PhantomData::default(),
         ))
     }
 }
 
-impl AsRef<[u8]> for Secp256k1RecoverablePrivateKey {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> AsRef<[u8]> for Secp256k1RecoverablePrivateKey<D> {
     fn as_ref(&self) -> &[u8] {
         self.0.as_ref()
     }
 }
 
-impl SigningKey for Secp256k1RecoverablePrivateKey {
-    type PubKey = Secp256k1RecoverablePublicKey;
-    type Sig = Secp256k1RecoverableSignature;
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> SigningKey
+    for Secp256k1RecoverablePrivateKey<D>
+{
+    type PubKey = Secp256k1RecoverablePublicKey<D>;
+    type Sig = Secp256k1RecoverableSignature<D>;
     const LENGTH: usize = PRIVATE_KEY_SIZE;
 }
 
-serialize_deserialize_from_encode_decode_base64!(Secp256k1RecoverablePrivateKey);
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ::serde::Serialize
+    for Secp256k1RecoverablePrivateKey<D>
+{
+    fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.encode_base64())
+    }
+}
+
+impl<'de, Di: PublicKeyDigest<BasePK = Secp256k1PublicKey>> ::serde::Deserialize<'de>
+    for Secp256k1RecoverablePrivateKey<Di>
+{
+    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
+        Self::decode_base64(&s).map_err(::serde::de::Error::custom)
+    }
+}
 
 //
 // Secp256k1KeyPair
 //
-impl Secp256k1KeyPair {
-    // This test is used in the proptest because the k256 lib uses keccak256 as hash function.
-    #[cfg(test)]
-    pub fn try_sign_as_recoverable_keccak256(
-        &self,
-        msg: &[u8],
-    ) -> Result<Secp256k1RecoverableSignature, signature::Error> {
-        let secp = Secp256k1::signing_only();
+// impl Secp256k1KeyPair {
+//     // This test is used in the proptest because the k256 lib uses keccak256 as hash function.
+//     #[cfg(test)]
+//     pub fn try_sign_as_recoverable_keccak256(
+//         &self,
+//         msg: &[u8],
+//     ) -> Result<Secp256k1RecoverableSignature<D>, signature::Error> {
+//         let secp = Secp256k1::signing_only();
+//
+//         let message =
+//             rust_secp256k1::Message::from_slice(Keccak256::digest(msg).digest.as_ref()).unwrap();
+//
+//         // Creates a 65-bytes signature of shape [r, s, v] where v can be 0 or 1.
+//         // Pseudo-random deterministic nonce generation is used according to RFC6979.
+//         Ok(Secp256k1RecoverableSignature {
+//             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
+//             bytes: OnceCell::new(),
+//         })
+//     }
+// }
 
-        let message =
-            rust_secp256k1::Message::from_slice(Keccak256::digest(msg).digest.as_ref()).unwrap();
-
-        // Creates a 65-bytes signature of shape [r, s, v] where v can be 0 or 1.
-        // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        Ok(Secp256k1RecoverableSignature {
-            sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
-            bytes: OnceCell::new(),
-        })
-    }
-}
-
-impl From<Secp256k1RecoverablePrivateKey> for Secp256k1RecoverableKeyPair {
-    fn from(secret: Secp256k1RecoverablePrivateKey) -> Self {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<Secp256k1RecoverablePrivateKey<D>>
+    for Secp256k1RecoverableKeyPair<D>
+{
+    fn from(secret: Secp256k1RecoverablePrivateKey<D>) -> Self {
         let name = Secp256k1RecoverablePublicKey::from(&secret);
         Secp256k1RecoverableKeyPair { name, secret }
     }
 }
 
-impl Signer<Secp256k1RecoverableSignature> for Secp256k1RecoverableKeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1RecoverableSignature, Error> {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> Signer<Secp256k1RecoverableSignature<D>>
+    for Secp256k1RecoverableKeyPair<D>
+{
+    fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1RecoverableSignature<D>, Error> {
         let secp = Secp256k1::signing_only();
 
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
@@ -341,11 +419,14 @@ impl Signer<Secp256k1RecoverableSignature> for Secp256k1RecoverableKeyPair {
         Ok(Secp256k1RecoverableSignature {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.0.privkey),
             bytes: OnceCell::new(),
+            digest_type: PhantomData::default(),
         })
     }
 }
 
-impl EncodeDecodeBase64 for Secp256k1RecoverableKeyPair {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> EncodeDecodeBase64
+    for Secp256k1RecoverableKeyPair<D>
+{
     fn encode_base64(&self) -> String {
         let mut bytes: Vec<u8> = Vec::new();
         bytes.extend_from_slice(self.secret.as_ref());
@@ -358,7 +439,9 @@ impl EncodeDecodeBase64 for Secp256k1RecoverableKeyPair {
     }
 }
 
-impl FromStr for Secp256k1RecoverableKeyPair {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> FromStr
+    for Secp256k1RecoverableKeyPair<D>
+{
     type Err = eyre::Report;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -367,19 +450,23 @@ impl FromStr for Secp256k1RecoverableKeyPair {
     }
 }
 
-impl From<Secp256k1KeyPair> for Secp256k1RecoverableKeyPair {
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey>> From<Secp256k1KeyPair>
+    for Secp256k1RecoverableKeyPair<D>
+{
     fn from(kp: Secp256k1KeyPair) -> Self {
         Secp256k1RecoverableKeyPair {
-            name: Secp256k1RecoverablePublicKey(kp.name.clone()),
-            secret: Secp256k1RecoverablePrivateKey::from_bytes(kp.secret.as_ref()).unwrap(),
+            name: Secp256k1RecoverablePublicKey::<D>::from(kp.name.clone()),
+            secret: Secp256k1RecoverablePrivateKey::<D>::from_bytes(kp.secret.as_ref()).unwrap(),
         }
     }
 }
 
-impl KeyPair for Secp256k1RecoverableKeyPair {
-    type PubKey = Secp256k1RecoverablePublicKey;
-    type PrivKey = Secp256k1RecoverablePrivateKey;
-    type Sig = Secp256k1RecoverableSignature;
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> KeyPair
+    for Secp256k1RecoverableKeyPair<D>
+{
+    type PubKey = Secp256k1RecoverablePublicKey<D>;
+    type PrivKey = Secp256k1RecoverablePrivateKey<D>;
+    type Sig = Secp256k1RecoverableSignature<D>;
 
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
