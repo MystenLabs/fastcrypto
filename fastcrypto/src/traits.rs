@@ -75,6 +75,28 @@ impl<T: ToFromBytes> EncodeDecodeBase64 for T {
     }
 }
 
+/// A macro that derives a `Serialize` and `Deserialize` impl for a type that
+/// implements `EncodeDecodeBase64`.
+#[macro_export]
+macro_rules! serialize_deserialize_from_encode_decode_base64 {
+    ($type:ty) => {
+        impl ::serde::Serialize for $type {
+            fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                serializer.serialize_str(&self.encode_base64())
+            }
+        }
+
+        impl<'de> ::serde::Deserialize<'de> for $type {
+            fn deserialize<D: ::serde::Deserializer<'de>>(
+                deserializer: D,
+            ) -> Result<Self, D::Error> {
+                let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
+                Self::decode_base64(&s).map_err(::serde::de::Error::custom)
+            }
+        }
+    };
+}
+
 /// Trait impl'd by public keys in asymmetric cryptography.
 ///
 /// The trait bounds are implemented so as to be symmetric and equivalent
@@ -201,20 +223,11 @@ pub trait Authenticator:
 }
 
 /// Trait impl'd by signatures where the public key used for signing can be recovered.
-pub trait RecoverableSignature: ToFromBytes {
-    type PubKey: VerifyingKey;
+pub trait RecoverableSignature: Authenticator {
+    type BasePubKey: VerifyingKey;
 
     /// Recover public key from signature.
-    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError>;
-}
-
-/// Trait impl'd by key pairs that can create [RecoverableSignature]s.
-pub trait SignAsRecoverable: KeyPair {
-    type RecoverableSig: RecoverableSignature<PubKey = Self::PubKey>;
-
-    /// Sign a message as a [RecoverableSignature].
-    fn try_sign_as_recoverable(&self, msg: &[u8])
-        -> Result<Self::RecoverableSig, signature::Error>;
+    fn recover(&self, msg: &[u8]) -> Result<Self::BasePubKey, FastCryptoError>;
 }
 
 /// Trait impl'd by a public / private key pair in asymmetric cryptography.
