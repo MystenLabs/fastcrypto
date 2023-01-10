@@ -3,6 +3,7 @@
 [![crate][crate-image]][crate-link]
 [![Docs][docs-image]][docs-link]
 [![Build status](https://github.com/MystenLabs/fastcrypto/actions/workflows/rust.yml/badge.svg)](https://github.com/MystenLabs/fastcrypto/actions)
+[![Update the Fastcrypto pointer Sui](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml/badge.svg)](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml)
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
 
