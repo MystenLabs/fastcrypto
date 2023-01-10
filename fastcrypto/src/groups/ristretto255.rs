@@ -134,6 +134,14 @@ impl RistrettoScalar {
     pub fn group_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
     }
+
+    /// Hash the given bytes in a uniformly random scalar.
+    pub fn hash_to_scalar<H: HashFunction<64>>(bytes: &[u8]) -> Self {
+        // Implementation copied from https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(
+            &H::digest(bytes).digest,
+        ))
+    }
 }
 
 impl From<u64> for RistrettoScalar {
