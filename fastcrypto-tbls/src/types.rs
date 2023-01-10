@@ -38,3 +38,4 @@ pub type PrivateBlsKey = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Privat
 pub type PublicBlsKey = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Public;
 pub type PublicVssKey = PublicPoly<<ThresholdBls12381MinSig as tbls::ThresholdBls>::Public>;
 pub type Signature = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Signature;
+pub type RawSignature = bls12381::G1ElementAsBytes;
