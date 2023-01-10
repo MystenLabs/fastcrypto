@@ -66,6 +66,10 @@ pub mod ristretto255_tests;
 #[path = "tests/bls12381_group_tests.rs"]
 pub mod bls12381_group_tests;
 
+#[cfg(test)]
+#[path = "tests/vrf_tests.rs"]
+pub mod vrf_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
