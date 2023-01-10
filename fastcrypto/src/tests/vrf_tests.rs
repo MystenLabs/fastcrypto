@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::vrf::ecvrf::ECVRFKeyPair;
+use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
 
@@ -38,4 +38,12 @@ fn test_serialize_deserialize() {
     let sk_serialized = bincode::serialize(&kp.sk).unwrap();
     let sk_reconstructed = bincode::deserialize(&sk_serialized).unwrap();
     assert_eq!(&kp.sk, &sk_reconstructed);
+
+    let input = b"Hello, world!";
+    let (output, proof) = kp.output(input);
+    let proof_serialized = bincode::serialize(&proof).unwrap();
+    let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
+    assert!(proof_reconstructed
+        .verify_output(input, &kp.pk, output)
+        .is_ok());
 }

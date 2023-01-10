@@ -38,7 +38,7 @@ pub trait VRFKeyPair<const OUTPUT_SIZE: usize>: Serialize + DeserializeOwned + E
 }
 
 /// A proof that the output of a VRF was computed correctly.
-pub trait VRFProof<const OUTPUT_SIZE: usize> {
+pub trait VRFProof<const OUTPUT_SIZE: usize>: Serialize + DeserializeOwned + Eq + Debug {
     type PublicKey: VRFPublicKey;
 
     /// Verify the correctness of this proof.
@@ -157,7 +157,9 @@ pub mod ecvrf {
         }
     }
 
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFProof {
+        // TODO: This doesn't serialize according to the specs. Both because the c is allowed to be 128 bits but also because the scalars should be big-endian.
         gamma: RistrettoPoint,
         c: RistrettoScalar,
         s: RistrettoScalar,
