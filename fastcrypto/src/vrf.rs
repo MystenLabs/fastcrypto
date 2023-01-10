@@ -114,6 +114,7 @@ pub mod ecvrf {
         points
             .into_iter()
             .for_each(|p| hash.update(p.borrow().compress()));
+        // TODO: In the specs, the scalar is truncated to half size before, in this case 128 bits, but here we keep it as full size.
         RistrettoScalar::hash_to_scalar(hash)
     }
 
@@ -159,7 +160,7 @@ pub mod ecvrf {
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFProof {
-        // TODO: This doesn't serialize according to the specs. Both because the c is allowed to be 128 bits but also because the scalars should be big-endian.
+        // TODO: This doesn't serialize according to the specs. Both because the c is allowed to be 128 bits but also because the scalars should be big-endian. https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.4.3
         gamma: RistrettoPoint,
         c: RistrettoScalar,
         s: RistrettoScalar,
