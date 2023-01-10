@@ -148,7 +148,7 @@ impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashF
     }
 }
 
-// Impl std::io::Write for HashFunctionWrapper. Needed for compatability in Sui.
+// Impl std::io::Write for HashFunctionWrapper. Needed for compatibility in Sui.
 impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> std::io::Write
     for HashFunctionWrapper<Variant, DIGEST_LEN>
 {

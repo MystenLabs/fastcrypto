@@ -11,12 +11,12 @@
   <img width="300" src="images/fastcrypto_logo_800.png">
 </p>
 
-`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is published as an independent crate to encourage reusability across different applications and domains. It is a wrapper library around several carefully selected crates with the following considerations: 
+`fastcrypto` is a common cryptography library used in software at Mysten Labs. It is published as an independent crate to encourage reusability across different applications and domains. It is a wrapper library around several carefully selected crates with the following considerations:
 
-- Security: Whether the libraries are vulnerable to known attack vectors or possible misuses. 
-- Performance: Whether the crate performs cryptographic operations with speed after extensive benchmarking. This is critical for the Sui Network to be performant when signing and verifying large amounts of transactions and certificates. 
+- Security: Whether the libraries are vulnerable to known attack vectors or possible misuses.
+- Performance: Whether the crate performs cryptographic operations with speed after extensive benchmarking. This is critical for the Sui Network to be performant when signing and verifying large amounts of transactions and certificates.
 - Determinism: Whether the signature is non-malleable.
-- Popularity: Whether the library is used by other consensus critical systems. 
+- Popularity: Whether the library is used by other consensus critical systems.
 
 Furthermore, we extend the selected libraries with additional features:
 - Robust testing framework: [Wycheproof tests](https://github.com/google/wycheproof) and [prop tests](https://altsysrq.github.io/proptest-book/intro.html) are added when possible to protect against arbitrary inputs and crafted edge cases.
@@ -27,8 +27,8 @@ This library will be continuously updated with more schemes and faster implement
 
 This crate contains:
 
-- Traits that should be implemented by concrete types representing digital cryptographic materials. 
-    - [`SigningKey`]: Trait implemented by the private key with associated types of its public key and signature. 
+- Traits that should be implemented by concrete types representing digital cryptographic materials.
+    - [`SigningKey`]: Trait implemented by the private key with associated types of its public key and signature.
     - [`VerifyingKey`]: Trait implemented by the public key with associated types of its private key and signature. It also includes a default implementation of batch verification that fails on empty batch verification.
     - [`Authenticator`]: Trait implemented by the signature with associated types of its public key and private key.
     - [`AggregateAuthenticator`]: Trait implemented by the aggregated signature, which allows adding signatures to the aggregated signature and verifying against the public keys with the corresponding messages.
@@ -55,7 +55,7 @@ $ cargo test
 ```
 
 ## Benchmarks
-One can compare all currently implemented schemes for *sign, verify, verify_batch* and 
+One can compare all currently implemented schemes for *sign, verify, verify_batch* and
 *key-generation* by running:
 ```
 $ cargo bench
