@@ -85,6 +85,7 @@ pub mod error;
 pub mod private_seed;
 pub mod serde_helpers;
 pub mod signature_service;
+pub mod vrf;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
