@@ -102,7 +102,7 @@ pub mod ecvrf {
     /// Implementation of hashing a list of points to a scalar. Follows https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.4.3.
     fn ecvrf_hash_points<
         'a,
-        H: HashFunction<32>,
+        H: HashFunction<64>,
         K: Borrow<RistrettoPoint> + 'a,
         I: IntoIterator<Item = &'a K>,
     >(
@@ -114,7 +114,7 @@ pub mod ecvrf {
         points
             .into_iter()
             .for_each(|p| hash.update(p.borrow().compress()));
-        RistrettoScalar::from_bits(hash.finalize().digest)
+        RistrettoScalar::hash_to_scalar(hash)
     }
 
     impl VRFKeyPair<32> for ECVRFKeyPair {
@@ -141,12 +141,12 @@ pub mod ecvrf {
             let h = RistrettoPoint::map_to_point::<Sha512>(hash1.finalize().as_ref());
             let gamma = h * self.sk.0;
 
-            let mut hash2 = Sha256::default();
+            let mut hash2 = Sha512::default();
             hash2.update(bincode::serialize(&self.sk.0).unwrap());
             hash2.update(h.compress());
-            let k = RistrettoScalar::from_bits(hash2.finalize().digest);
+            let k = RistrettoScalar::hash_to_scalar(hash2);
 
-            let c = ecvrf_hash_points::<Sha256, _, _>(vec![
+            let c = ecvrf_hash_points::<Sha512, _, _>(vec![
                 &h,
                 &gamma,
                 &(RistrettoPoint::generator() * k),
@@ -181,7 +181,7 @@ pub mod ecvrf {
             let u = RistrettoPoint::generator() * self.s - public_key.0 * self.c;
             let v = h * self.s - self.gamma * self.c;
 
-            let c_prime = ecvrf_hash_points::<Sha256, _, _>(vec![&h, &self.gamma, &u, &v]);
+            let c_prime = ecvrf_hash_points::<Sha512, _, _>(vec![&h, &self.gamma, &u, &v]);
 
             if c_prime != self.c {
                 return Err(FastCryptoError::GeneralError);

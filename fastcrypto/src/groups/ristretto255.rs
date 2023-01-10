@@ -135,11 +135,12 @@ impl RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
     }
 
-    /// Hash the given bytes in a uniformly random scalar.
-    pub fn hash_to_scalar<H: HashFunction<64>>(bytes: &[u8]) -> Self {
+    /// Use the output of the given hash function to construct a uniformly random scalar. This consumes
+    /// the hash function.
+    pub fn hash_to_scalar<H: HashFunction<64>>(hash_function: H) -> Self {
         // Implementation copied from https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
         RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(
-            &H::digest(bytes).digest,
+            &hash_function.finalize().digest,
         ))
     }
 }
