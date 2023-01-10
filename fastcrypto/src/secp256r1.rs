@@ -271,7 +271,7 @@ impl<'de> Deserialize<'de> for Secp256r1Signature {
 
 impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        // TODO: Compatability with signatures without recovery id
+        // TODO: Compatibility with signatures without recovery id
         if bytes.len() != SIGNATURE_SIZE {
             return Err(signature::Error::new());
         }

@@ -48,7 +48,7 @@ use crate::traits::{
 // - Minimal-signature-size (or min-sig) - signatures are in G1 and public keys are in G2.
 // - Minimal-pubkey-size (or min-pk) - signature are in G2 and public keys are in G1.
 //
-// Below we define BLS related objects for each of the modes, seperated using modules min_sig and
+// Below we define BLS related objects for each of the modes, separated using modules min_sig and
 // min_pk.
 
 macro_rules! define_bls12381 {
