@@ -130,10 +130,10 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Serialize
     }
 }
 
-impl<'de, Di: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Deserialize<'de>
-    for Secp256r1RecoverablePublicKey<Di>
+impl<'de, D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Deserialize<'de>
+    for Secp256r1RecoverablePublicKey<D>
 {
-    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<De: ::serde::Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
         Self::decode_base64(&s).map_err(::serde::de::Error::custom)
     }
@@ -194,15 +194,15 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> Serialize
     }
 }
 
-impl<'de, Di: PublicKeyDigest<BasePK = Secp256r1PublicKey>> Deserialize<'de>
-    for Secp256r1RecoverableSignature<Di>
+impl<'de, D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> Deserialize<'de>
+    for Secp256r1RecoverableSignature<D>
 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    fn deserialize<De>(deserializer: De) -> Result<Self, De::Error>
     where
-        D: serde::Deserializer<'de>,
+        De: serde::Deserializer<'de>,
     {
         let data: Vec<u8> = Vec::deserialize(deserializer)?;
-        <Secp256r1RecoverableSignature<Di> as Signature>::from_bytes(&data)
+        <Secp256r1RecoverableSignature<D> as Signature>::from_bytes(&data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
@@ -262,7 +262,7 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static> RecoverableSigna
 }
 
 impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> Secp256r1RecoverableSignature<D> {
-    /// Recover the public key given an already hashed digest.
+    /// Recover the public key given an already hashed message.
     pub fn recover_hashed(&self, digest: &[u8; 32]) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
 
@@ -393,10 +393,10 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Serialize
     }
 }
 
-impl<'de, Di: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Deserialize<'de>
-    for Secp256r1RecoverablePrivateKey<Di>
+impl<'de, D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> ::serde::Deserialize<'de>
+    for Secp256r1RecoverablePrivateKey<D>
 {
-    fn deserialize<D: ::serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn deserialize<De: ::serde::Deserializer<'de>>(deserializer: De) -> Result<Self, De::Error> {
         let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
         Self::decode_base64(&s).map_err(::serde::de::Error::custom)
     }
@@ -547,6 +547,7 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static> KeyPair
 #[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TestDigester {}
 
+/// Digest type for [TestDigester].
 #[derive(Debug, Copy, Clone, Default, Ord, PartialOrd, Eq, PartialEq, Hash)]
 pub struct TestDigest([u8; 20]);
 

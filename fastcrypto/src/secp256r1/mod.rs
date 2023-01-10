@@ -122,7 +122,6 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     }
 }
 
-// TODO: Add verify_hashed if it's needed
 impl Secp256r1PublicKey {}
 
 impl AsRef<[u8]> for Secp256r1PublicKey {
@@ -165,7 +164,6 @@ impl Display for Secp256r1PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for Secp256r1PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -213,7 +211,6 @@ impl ToFromBytes for Secp256r1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for Secp256r1PrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -223,7 +220,6 @@ impl Serialize for Secp256r1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl<'de> Deserialize<'de> for Secp256r1PrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
