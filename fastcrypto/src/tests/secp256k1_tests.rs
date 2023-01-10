@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+#[cfg(test)]
+use crate::hash::Keccak256;
 use crate::secp256k1::recoverable::{Secp256k1RecoverableSignature, TestDigester};
 use crate::{
     hash::{HashFunction, Sha256},
@@ -9,8 +11,9 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-//#[cfg(feature = "copy_key")]
-//use proptest::arbitrary::Arbitrary;
+#[cfg(feature = "copy_key")]
+use proptest::arbitrary::Arbitrary;
+use crate::secp256k1::recoverable::Secp256k1RecoverableKeyPair;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
@@ -349,71 +352,74 @@ fn test_sk_zeroization_on_drop() {
     assert_ne!(sk_memory, &sk_bytes[..]);
 }
 
-// proptest::proptest! {
-//     #[test]
-//     #[cfg(feature = "copy_key")]
-//     fn test_k256_against_secp256k1_lib_with_recovery(
-//         r in <[u8; 32]>::arbitrary()
-// ) {
-//         let message: &[u8] = b"hello world!";
-//         let hashed_msg = rust_secp256k1::Message::from_slice(Keccak256::digest(message).as_ref()).unwrap();
-//
-//         // construct private key with bytes and signs message
-//         let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
-//         let key_pair = Secp256k1KeyPair::from(priv_key);
-//         let key_pair_copied = key_pair.copy();
-//         let key_pair_copied_2 = key_pair.copy();
-//         let signature: Secp256k1RecoverableSignature = key_pair.try_sign_as_recoverable_keccak256(message).unwrap();
-//         assert!(key_pair.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(&signature)).is_ok());
-//         assert_eq!(&signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
-//
-//         // construct a signature with r, s, v where v is flipped from the original signature.
-//         let bytes = ToFromBytes::as_bytes(&signature);
-//         let mut flipped_bytes = [0u8; 65];
-//         flipped_bytes[..64].copy_from_slice(&bytes[..64]);
-//         if bytes[64] == 0 {
-//             flipped_bytes[64] = 1;
-//         } else {
-//             flipped_bytes[64] = 0;
-//         }
-//         let malleated_signature: Secp256k1RecoverableSignature = <Secp256k1RecoverableSignature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
-//
-//         // malleable(altered) signature with opposite sign fails to verify
-//         assert_ne!(&malleated_signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
-//
-//         // use k256 to construct private key with the same bytes and signs the same message
-//         let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(&r).unwrap();
-//         let pub_key_1 = priv_key_1.verifying_key();
-//         let signature_1: k256::ecdsa::recoverable::Signature = priv_key_1.sign(message);
-//         assert!(pub_key_1.verify(message, &signature_1).is_ok());
-//
-//         // two private keys are serialized the same
-//         assert_eq!(key_pair_copied.private().as_bytes(), priv_key_1.to_bytes().as_slice());
-//
-//         // two pubkeys are the same
-//         assert_eq!(
-//             key_pair.public().as_bytes(),
-//             pub_key_1.to_bytes().as_slice()
-//         );
-//
-//                 // same recovered pubkey are recovered
-//                 let recovered_key = signature.recover_hashed(hashed_msg.as_ref()).unwrap();
-//                     let recovered_key_1 = signature_1.recover_verifying_key(message).expect("couldn't recover pubkey");
-//                     assert_eq!(recovered_key.as_ref(), recovered_key_1.to_bytes().as_slice());
-//
-//         // same signatures produced from both implementations
-//         assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
-//
-//         // use ffi-implemented keypair to verify sig constructed by k256
-//         let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
-//         let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(&sig_bytes_1).unwrap();
-//         assert!(key_pair_copied_2.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(secp_sig1)).is_ok());
-//
-//         // use k256 keypair to verify sig constructed by ffi-implementation
-//         let typed_sig = k256::ecdsa::recoverable::Signature::try_from(signature.as_ref()).unwrap();
-//         assert!(pub_key_1.verify(message, &typed_sig).is_ok());
-//     }
-// }
+proptest::proptest! {
+    #[test]
+    #[cfg(feature = "copy_key")]
+    fn test_k256_against_secp256k1_lib_with_recovery(
+        r in <[u8; 32]>::arbitrary()
+) {
+        let message: &[u8] = b"hello world!";
+        let hashed_msg = rust_secp256k1::Message::from_slice(Keccak256::digest(message).as_ref()).unwrap();
+
+        // construct private key with bytes and signs message
+        let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
+        let key_pair = Secp256k1KeyPair::from(priv_key);
+        let key_pair_copied = key_pair.copy();
+        let key_pair_copied_2 = key_pair.copy();
+        let key_pair_copied_3 = key_pair.copy();
+
+        let rec_key_pair = Secp256k1RecoverableKeyPair::from(key_pair_copied_3);
+        let signature: Secp256k1RecoverableSignature<TestDigester> = rec_key_pair.try_sign_as_recoverable_keccak256(message).unwrap();
+        assert!(key_pair.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(&signature)).is_ok());
+        assert_eq!(&signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
+
+        // construct a signature with r, s, v where v is flipped from the original signature.
+        let bytes = ToFromBytes::as_bytes(&signature);
+        let mut flipped_bytes = [0u8; 65];
+        flipped_bytes[..64].copy_from_slice(&bytes[..64]);
+        if bytes[64] == 0 {
+            flipped_bytes[64] = 1;
+        } else {
+            flipped_bytes[64] = 0;
+        }
+        let malleated_signature: Secp256k1RecoverableSignature<TestDigester> = <Secp256k1RecoverableSignature<TestDigester> as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
+
+        // malleable(altered) signature with opposite sign fails to verify
+        assert_ne!(&malleated_signature.recover_hashed(hashed_msg.as_ref()).unwrap(), key_pair.public());
+
+        // use k256 to construct private key with the same bytes and signs the same message
+        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(&r).unwrap();
+        let pub_key_1 = priv_key_1.verifying_key();
+        let signature_1: k256::ecdsa::recoverable::Signature = priv_key_1.sign(message);
+        assert!(pub_key_1.verify(message, &signature_1).is_ok());
+
+        // two private keys are serialized the same
+        assert_eq!(key_pair_copied.private().as_bytes(), priv_key_1.to_bytes().as_slice());
+
+        // two pubkeys are the same
+        assert_eq!(
+            key_pair.public().as_bytes(),
+            pub_key_1.to_bytes().as_slice()
+        );
+
+        // same recovered pubkey are recovered
+        let recovered_key = signature.recover_hashed(hashed_msg.as_ref()).unwrap();
+        let recovered_key_1 = signature_1.recover_verifying_key(message).expect("couldn't recover pubkey");
+        assert_eq!(recovered_key.as_ref(), recovered_key_1.to_bytes().as_slice());
+
+        // same signatures produced from both implementations
+        assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
+
+        // use ffi-implemented keypair to verify sig constructed by k256
+        let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
+        let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature<TestDigester>>(&sig_bytes_1).unwrap();
+        assert!(key_pair_copied_2.public().verify_hashed(hashed_msg.as_ref(), &Secp256k1Signature::from(&secp_sig1)).is_ok());
+
+        // use k256 keypair to verify sig constructed by ffi-implementation
+        let typed_sig = k256::ecdsa::recoverable::Signature::try_from(signature.as_ref()).unwrap();
+        assert!(pub_key_1.verify(message, &typed_sig).is_ok());
+    }
+}
 
 #[test]
 fn wycheproof_test() {
