@@ -325,7 +325,6 @@ impl Default for Secp256r1Signature {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 /// Secp256r1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256r1KeyPair {
