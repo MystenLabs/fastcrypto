@@ -3,8 +3,9 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::error::FastCryptoError;
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
+#[cfg(test)]
+use crate::hash::Keccak256;
+use crate::hash::{HashFunction, Sha256};
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
@@ -473,6 +474,27 @@ impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> KeyPair
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let kp = Secp256k1KeyPair::generate(rng);
         Secp256k1RecoverableKeyPair::from(kp)
+    }
+}
+
+impl<D: PublicKeyDigest<BasePK = Secp256k1PublicKey> + 'static> Secp256k1RecoverableKeyPair<D> {
+    // Used for proptests since secp256k1_lib uses keccak256 as hash function
+    #[cfg(test)]
+    pub fn try_sign_as_recoverable_keccak256(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256k1RecoverableSignature<D>, Error> {
+        let secp = Secp256k1::signing_only();
+
+        let message = Message::from_slice(Keccak256::digest(msg).as_ref()).unwrap();
+
+        // Creates a 65-bytes signature of shape [r, s, v] where v can be 0 or 1.
+        // Pseudo-random deterministic nonce generation is used according to RFC6979.
+        Ok(Secp256k1RecoverableSignature {
+            sig: secp.sign_ecdsa_recoverable(&message, &self.secret.0.privkey),
+            bytes: OnceCell::new(),
+            digest_type: PhantomData::default(),
+        })
     }
 }
 
