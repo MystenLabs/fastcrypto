@@ -4,6 +4,7 @@
 use super::*;
 #[cfg(test)]
 use crate::hash::Keccak256;
+use crate::secp256k1::recoverable::Secp256k1RecoverableKeyPair;
 use crate::secp256k1::recoverable::{Secp256k1RecoverableSignature, TestDigester};
 use crate::{
     hash::{HashFunction, Sha256},
@@ -13,7 +14,6 @@ use crate::{
 };
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
-use crate::secp256k1::recoverable::Secp256k1RecoverableKeyPair;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
