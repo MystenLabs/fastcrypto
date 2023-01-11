@@ -1096,8 +1096,15 @@ dependencies = [
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
+ "bincode",
+ "digest 0.10.6",
  "fastcrypto",
+ "fastcrypto-derive",
  "rand",
+ "serde",
+ "sha3 0.10.6",
+ "typenum",
+ "zeroize",
 ]
 
 [[package]]
