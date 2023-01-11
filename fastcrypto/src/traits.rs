@@ -76,28 +76,6 @@ impl<T: ToFromBytes> EncodeDecodeBase64 for T {
     }
 }
 
-/// A macro that derives a `Serialize` and `Deserialize` impl for a type that
-/// implements `EncodeDecodeBase64`.
-#[macro_export]
-macro_rules! serialize_deserialize_from_encode_decode_base64 {
-    ($type:ty) => {
-        impl ::serde::Serialize for $type {
-            fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                serializer.serialize_str(&self.encode_base64())
-            }
-        }
-
-        impl<'de> ::serde::Deserialize<'de> for $type {
-            fn deserialize<D: ::serde::Deserializer<'de>>(
-                deserializer: D,
-            ) -> Result<Self, D::Error> {
-                let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
-                Self::decode_base64(&s).map_err(::serde::de::Error::custom)
-            }
-        }
-    };
-}
-
 /// Trait impl'd by public keys in asymmetric cryptography.
 ///
 /// The trait bounds are implemented so as to be symmetric and equivalent
