@@ -8,6 +8,8 @@ extern crate rand;
 mod signature_benches {
     use super::*;
     use criterion::*;
+    use fastcrypto::secp256k1::recoverable::Secp256k1RecoverableKeyPair;
+    use fastcrypto::secp256r1::recoverable::Secp256r1RecoverableKeyPair;
     use fastcrypto::secp256r1::Secp256r1KeyPair;
     use fastcrypto::{
         bls12381,
@@ -60,6 +62,14 @@ mod signature_benches {
         verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
         verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
         verify_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        verify_single::<
+            Secp256k1RecoverableKeyPair<fastcrypto::secp256k1::recoverable::TestDigester>,
+            _,
+        >("Secp256k1 recoverable", &mut group);
+        verify_single::<
+            Secp256r1RecoverableKeyPair<fastcrypto::secp256r1::recoverable::TestDigester>,
+            _,
+        >("Secp256r1 recoverable", &mut group);
     }
 
     struct TestDataBatchedVerification<KP: KeyPair> {

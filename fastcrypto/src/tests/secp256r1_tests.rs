@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use p256::ecdsa::Signature;
-use p256::elliptic_curve::IsHigh;
 use p256::AffinePoint;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
@@ -11,6 +10,7 @@ use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
 use super::*;
+use crate::secp256r1::recoverable::{Secp256r1RecoverableSignature, TestDigester};
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
@@ -21,7 +21,6 @@ use crate::{
 
 pub fn keys() -> Vec<Secp256r1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
-
     (0..4)
         .map(|_| Secp256r1KeyPair::generate(&mut rng))
         .collect()
@@ -66,22 +65,12 @@ fn import_export_public_key() {
 }
 
 #[test]
-fn test_public_key_recovery() {
-    let kp = keys().pop().unwrap();
-    let message: &[u8] = b"Hello, world!";
-    let signature: Secp256r1Signature = kp.sign(message);
-    let recovered_key = signature.recover(message).unwrap();
-    assert_eq!(recovered_key, *kp.public());
-}
-
-#[test]
 fn test_public_key_recovery_error() {
     // incorrect length
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
 
-    // TODO: Uncomment when recovery byte is added
     // invalid recovery id at index 65
-    // assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
     // Invalid signature: Zeros in signatures are not allowed
     assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err());
@@ -140,6 +129,7 @@ fn verify_valid_signature() {
     let signature = kp.sign(digest.as_ref());
 
     // Verify the signature.
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 }
 
@@ -214,11 +204,13 @@ fn verify_invalid_signature() {
     // Verify the signature against good digest passes.
     let signature = kp.sign(digest.as_ref());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
 
     // Verify the signature against bad digest fails.
     let bad_message: &[u8] = b"Bad message!";
     let digest = Sha256::digest(bad_message);
 
+    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
 }
 
@@ -254,13 +246,13 @@ fn fail_to_verify_if_upper_s() {
         &hex::decode("0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a").unwrap(),
     )
     .unwrap();
-    let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
-
-    // Assert that S is in upper half
-    assert_ne!(sig.sig.s().is_high().unwrap_u8(), 0);
+    let sig = <Secp256r1RecoverableSignature<TestDigester> as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a00").unwrap()).unwrap();
 
     // Failed to verify with upper S.
-    assert!(pk.verify(&digest.digest, &sig).is_err());
+    assert_ne!(sig.recover_hashed(&digest.digest).unwrap(), pk);
+    assert!(pk
+        .verify(&digest.digest, &Secp256r1Signature::from(&sig))
+        .is_err());
 
     let normalized = sig.sig.normalize_s().unwrap();
 
@@ -289,6 +281,7 @@ async fn signature_service() {
     //    digest.into()
 
     // Verify the signature we received.
+    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
 
@@ -399,36 +392,26 @@ fn test_sk_zeroization_on_drop() {
 // }
 
 #[test]
-fn wycheproof_test() {
+fn wycheproof_test_nonrecoverable() {
     let test_set = TestSet::load(EcdsaSecp256r1Sha256).unwrap();
     for test_group in test_set.test_groups {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
-            let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(s))
-                    .unwrap(),
+            let signature = match Signature::from_der(&test.sig) {
+                Ok(s) => Secp256r1Signature::from_uncompressed(signature::Signature::as_bytes(
+                    // Wycheproof tests do not enforce low s but we do, so we need to normalize
+                    &s.normalize_s().unwrap_or(s),
+                ))
+                .unwrap(),
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
                 }
             };
 
-            let bytes = signature.as_ref();
-
-            // Wycheproof tests do not provide a recovery id, iterate over all possible ones to verify.
-            let mut n_bytes = [0u8; 65];
-            n_bytes[..64].copy_from_slice(&bytes[..64]);
             let mut res = TestResult::Invalid;
-
-            for i in 0..4 {
-                n_bytes[64] = i;
-                let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
-                if pk.verify(test.msg.as_slice(), &sig).is_ok() {
-                    res = TestResult::Valid;
-                    break;
-                } else {
-                    continue;
-                }
+            if pk.verify(test.msg.as_slice(), &signature).is_ok() {
+                res = TestResult::Valid;
             }
             assert_eq!(map_result(test.result), res, "{}", test.comment);
         }

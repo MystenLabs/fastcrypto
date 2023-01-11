@@ -16,9 +16,25 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
 use crate::serialize_deserialize_with_to_from_bytes;
+use std::{
+    fmt::{self, Debug, Display},
+    str::FromStr,
+};
+
+use once_cell::sync::OnceCell;
+use p256::ecdsa::Signature as ExternalSignature;
+use p256::ecdsa::SigningKey as ExternalSecretKey;
+use p256::ecdsa::VerifyingKey as ExternalPublicKey;
+use p256::elliptic_curve::group::GroupEncoding;
+use p256::elliptic_curve::IsHigh;
+use p256::{AffinePoint, Scalar};
+use serde::{de, Deserialize, Serialize};
+use signature::{Error, Signature, Signer, Verifier};
+use zeroize::Zeroize;
+
+use fastcrypto_derive::{SilentDebug, SilentDisplay};
+
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -27,37 +43,16 @@ use crate::{
         VerifyingKey,
     },
 };
-use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
-use ecdsa::elliptic_curve::subtle::Choice;
-use ecdsa::elliptic_curve::ScalarCore;
-use ecdsa::RecoveryId;
-use fastcrypto_derive::{SilentDebug, SilentDisplay};
-use once_cell::sync::OnceCell;
-use p256::ecdsa::Signature as ExternalSignature;
-use p256::ecdsa::SigningKey as ExternalSecretKey;
-use p256::ecdsa::VerifyingKey as ExternalPublicKey;
-use p256::elliptic_curve::bigint::ArrayEncoding;
-use p256::elliptic_curve::group::GroupEncoding;
-use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::sec1::ToEncodedPoint;
-use p256::elliptic_curve::IsHigh;
-use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint, Field};
-use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-use serde::{de, Deserialize, Serialize};
-use signature::{Signature, Signer, Verifier};
-use std::borrow::Borrow;
-use std::{
-    fmt::{self, Debug, Display},
-    str::FromStr,
-};
-use zeroize::Zeroize;
+
+pub mod recoverable;
 
 pub const PUBLIC_KEY_SIZE: usize = 33;
 pub const PRIVATE_KEY_SIZE: usize = 32;
-pub const SIGNATURE_SIZE: usize = 64 + 1;
+pub const SIGNATURE_SIZE: usize = 64;
 
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const SECP256R1_KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_SIZE;
+
 /// Secp256r1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -80,7 +75,6 @@ pub struct Secp256r1PrivateKey {
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
     pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
-    pub recovery_id: u8,
 }
 
 impl std::hash::Hash for Secp256r1PublicKey {
@@ -117,15 +111,14 @@ impl VerifyingKey for Secp256r1PublicKey {
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
-        let pk = signature
-            .recover(msg)
-            .map_err(|_| signature::Error::new())?;
-
-        if pk != *self {
+        // We enforce non malleability, eg. that the s value must be low. This is aligned with
+        // the ECDSA implementation in the secp256k1 crate.
+        if signature.sig.s().is_high().into() {
             return Err(signature::Error::new());
         }
-
-        Ok(())
+        self.pubkey
+            .verify(msg, &signature.sig)
+            .map_err(|_| signature::Error::new())
     }
 }
 
@@ -171,7 +164,6 @@ impl Display for Secp256r1PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for Secp256r1PublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -219,7 +211,6 @@ impl ToFromBytes for Secp256r1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl Serialize for Secp256r1PrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -229,7 +220,6 @@ impl Serialize for Secp256r1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
 impl<'de> Deserialize<'de> for Secp256r1PrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -271,17 +261,16 @@ impl<'de> Deserialize<'de> for Secp256r1Signature {
 
 impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        // TODO: Compatability with signatures without recovery id
         if bytes.len() != SIGNATURE_SIZE {
             return Err(signature::Error::new());
         }
-        <ExternalSignature as Signature>::from_bytes(&bytes[..SIGNATURE_SIZE - 1])
-            .map(|sig| Secp256r1Signature {
-                sig,
-                recovery_id: bytes[SIGNATURE_SIZE - 1],
-                bytes: OnceCell::new(),
-            })
-            .map_err(|_| signature::Error::new())
+
+        let sig = <ExternalSignature as Signature>::from_bytes(bytes)?;
+
+        Ok(Secp256r1Signature {
+            sig,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
@@ -293,11 +282,10 @@ impl Authenticator for Secp256r1Signature {
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
-        let mut bytes = [0u8; SIGNATURE_SIZE];
-        bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.as_ref());
-        bytes[SIGNATURE_SIZE - 1] = self.recovery_id;
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
+            .get_or_try_init::<_, eyre::Report>(|| {
+                Ok(<[u8; 64]>::try_from(self.sig.as_ref()).unwrap())
+            })
             .expect("OnceCell invariant violated")
     }
 }
@@ -329,11 +317,11 @@ impl Default for Secp256r1Signature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
             bytes: OnceCell::new(),
-            recovery_id: 0u8,
         }
     }
 }
 
+/// Secp256r1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256r1KeyPair {
     pub name: Secp256r1PublicKey,
@@ -403,72 +391,14 @@ impl FromStr for Secp256r1KeyPair {
 }
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
-        // Code copied from Sign.rs in k256@0.11.6
-
-        // Hash message
-        let z = FieldBytes::from(Sha256::digest(msg).digest);
-
-        // Private key as scalar
-        let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
-
-        // Generate k deterministically according to RFC6979
-        let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
-        let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
-
-        if k.borrow().is_zero().into() {
-            return Err(signature::Error::new());
-        }
-
-        let z = Scalar::from_be_bytes_reduced(z);
-
-        // Compute scalar inversion of 𝑘
-        let k_inv = Option::<Scalar>::from(k.invert()).ok_or_else(signature::Error::new)?;
-
-        // Compute 𝑹 = 𝑘×𝑮
-        let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
-
-        // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
-        // integer, then reduce it into an element of the scalar field
-        let r = Scalar::from_be_bytes_reduced(big_r.x());
-
-        let x = Scalar::from_be_bytes_reduced(x.to_be_byte_array());
-
-        // Compute 𝒔 as a signature over 𝒓 and 𝒛.
-        let s = k_inv * (z + (r * x));
-
-        if s.is_zero().into() {
-            return Err(signature::Error::new());
-        }
-
-        let sig = ExternalSignature::from_scalars(r, s)?;
-
-        // Note: This line is introduced here because big_r.y is a private field.
-        let y: Scalar = get_y_coordinate(&big_r);
-
-        // Compute recovery id and normalize signature
-        let is_r_odd = y.is_odd();
-        let is_s_high = sig.s().is_high();
-        let is_y_odd = is_r_odd ^ is_s_high;
+    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, Error> {
+        let sig = self.secret.privkey.try_sign(msg)?;
         let sig_low = sig.normalize_s().unwrap_or(sig);
-        let recovery_id = RecoveryId::new(is_y_odd.into(), false);
-
         Ok(Secp256r1Signature {
             sig: sig_low,
             bytes: OnceCell::new(),
-            recovery_id: recovery_id.to_byte(),
         })
     }
-}
-
-/// Get the y-coordinate from a given affine point.
-fn get_y_coordinate(point: &AffinePoint) -> Scalar {
-    let encoded_point = point.to_encoded_point(false);
-
-    // The encoded point is in uncompressed form, so we can safely get the y-coordinate here
-    let y = encoded_point.y().unwrap();
-
-    Scalar::from_be_bytes_reduced(*y)
 }
 
 impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
@@ -479,50 +409,12 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
 }
 
 impl Secp256r1Signature {
-    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
-    ///
-    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-    ///
-    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        let (r, s) = self.sig.split_scalars();
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
-
-        // Note: This has been added because it does not seem to be done in k256
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
-
-        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            Ok(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralError)
-        }
-    }
-
     /// util function to parse wycheproof test key from DER format.
     #[cfg(test)]
     pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
         <ExternalSignature as Signature>::from_bytes(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
-                recovery_id: 0u8,
                 bytes: OnceCell::new(),
             })
             .map_err(|_| signature::Error::new())
