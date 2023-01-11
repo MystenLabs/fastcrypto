@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::polynomial::Poly;
 use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::groups::bls12381;
-use fastcrypto::polynomial::Poly;
 use rand::prelude::*;
 use std::num::NonZeroU32;
 
