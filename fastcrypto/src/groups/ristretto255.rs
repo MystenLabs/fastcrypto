@@ -4,7 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-use crate::groups::{GroupElement, Scalar};
+use crate::groups::{GroupElement, HashToGroupElement, Scalar};
 use crate::traits::AllowedRng;
 use crate::{error::FastCryptoError, hash::HashFunction};
 use curve25519_dalek_ng;
@@ -14,6 +14,7 @@ use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, Div, From, Neg, Sub};
+use digest::Digest;
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Div, Mul};
@@ -173,6 +174,16 @@ impl GroupElement for RistrettoScalar {
 
 impl Scalar for RistrettoScalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
+        Self(ExternalRistrettoScalar::random(rng))
+    }
+}
+
+impl HashToGroupElement for RistrettoScalar {
+    fn hash_to_group_element(bytes: &[u8]) -> Self {
+        let mut hasher = sha3::Sha3_512::default();
+        hasher.update(bytes);
+        let mut hash = [0u8; 64];
+        hash.copy_from_slice(hasher.finalize().as_slice());
+        Self(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
     }
 }
