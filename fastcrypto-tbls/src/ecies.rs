@@ -58,8 +58,6 @@ where
         Self(G::ScalarType::rand(rng))
     }
 
-    // TODO: implement a proof of possession.
-
     pub fn decrypt(&self, enc: &Encryption<G>) -> Vec<u8> {
         enc.decrypt(&self.0)
     }
