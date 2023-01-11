@@ -5,9 +5,10 @@
 // modified for our needs.
 //
 
-use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-use crate::groups::*;
 use crate::polynomial::*;
+use crate::types::ShareIndex;
+use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use fastcrypto::groups::*;
 use rand::prelude::*;
 use std::num::NonZeroU32;
 
@@ -45,7 +46,7 @@ fn eval_regression() {
 
 #[test]
 fn poly_degree() {
-    let s: usize = 5;
+    let s: u32 = 5;
     let p = Poly::<RistrettoScalar>::rand(s as u32, &mut thread_rng());
     assert_eq!(p.degree(), s);
 }

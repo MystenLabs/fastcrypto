@@ -36,10 +36,12 @@
 //! ```
 //!
 
+use crate::polynomial::{PrivatePoly, PublicPoly};
 use crate::tbls;
-use crate::types::{PrivateBlsKey, PublicBlsKey, PublicVssKey, Share, ThresholdBls12381MinSig};
+use crate::types::{
+    PrivateBlsKey, PublicBlsKey, PublicVssKey, Share, ShareIndex, ThresholdBls12381MinSig,
+};
 use fastcrypto::groups::GroupElement;
-use fastcrypto::polynomial::{PrivatePoly, PublicPoly, ShareIndex};
 
 type Scalar = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Private;
 
