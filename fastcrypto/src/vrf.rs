@@ -107,7 +107,7 @@ pub mod ecvrf {
             // Compute expand_message_xmd for the given message.
             let mut expanded_message =
                 elliptic_curve::hash2curve::ExpandMsgXmd::<sha2::Sha512>::expand_message(
-                    &[&self.0.compress(), &alpha_string],
+                    &[&self.0.compress(), alpha_string],
                     DST,
                     H::OUTPUT_SIZE,
                 )
