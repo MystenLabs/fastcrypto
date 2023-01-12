@@ -5,8 +5,13 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::groups::{GroupElement, Scalar};
+use crate::serde_helpers::BytesRepresentation;
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
-use crate::{error::FastCryptoError, hash::HashFunction};
+use crate::{
+    error::FastCryptoError, generate_bytes_representation, hash::HashFunction,
+    serialize_deserialize_with_to_from_byte_array,
+};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
@@ -15,8 +20,11 @@ use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use serde::{de, Deserialize, Serialize};
+use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
+
+const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
+const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -66,26 +74,6 @@ impl GroupElement for RistrettoPoint {
     }
 }
 
-impl Serialize for RistrettoPoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let bytes = self.0.compress();
-        serializer.serialize_bytes(bytes.as_bytes())
-    }
-}
-
-impl<'de> Deserialize<'de> for RistrettoPoint {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let bytes = Vec::deserialize(deserializer)?;
-        RistrettoPoint::try_from(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
-
 impl TryFrom<&[u8]> for RistrettoPoint {
     type Error = FastCryptoError;
 
@@ -97,22 +85,25 @@ impl TryFrom<&[u8]> for RistrettoPoint {
     }
 }
 
+impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
+    fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        Self::try_from(bytes.as_slice())
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
+        self.compress()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
+generate_bytes_representation!(
+    RistrettoPoint,
+    RISTRETTO_POINT_BYTE_LENGTH,
+    RistrettoPointAsBytes
+);
+
 /// Represents a scalar.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    From,
-    Add,
-    Sub,
-    Neg,
-    Div,
-    GroupOpsExtend,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
@@ -132,6 +123,12 @@ impl RistrettoScalar {
     /// The order of the base point.
     pub fn group_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
+    }
+
+    /// Use the output of a hash function to construct a uniformly random scalar.
+    pub fn hash_to_scalar(hash: [u8; 64]) -> Self {
+        // Implementation copied from https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
     }
 }
 
@@ -176,3 +173,24 @@ impl Scalar for RistrettoScalar {
         RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
     }
 }
+
+impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
+    fn from_byte_array(
+        bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
+    ) -> Result<Self, FastCryptoError> {
+        Ok(RistrettoScalar(
+            ExternalRistrettoScalar::from_bytes_mod_order(*bytes),
+        ))
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
+        self.0.to_bytes()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoScalar);
+generate_bytes_representation!(
+    RistrettoScalar,
+    RISTRETTO_SCALAR_BYTE_LENGTH,
+    RistrettoScalarAsBytes
+);
