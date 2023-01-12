@@ -330,7 +330,7 @@ impl std::hash::Hash for BLS12381Signature {
 
 impl PartialEq for BLS12381Signature {
     fn eq(&self, other: &Self) -> bool {
-        self.sig == other.sig
+        self.as_ref() == other.as_ref()
     }
 }
 
