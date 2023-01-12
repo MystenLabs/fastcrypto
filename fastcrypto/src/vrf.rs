@@ -70,6 +70,7 @@ pub mod ecvrf {
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::{GroupElement, Scalar};
     use crate::hash::{HashFunction, Sha512};
+    use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
     use elliptic_curve::hash2curve::{ExpandMsg, Expander};
@@ -104,7 +105,10 @@ pub mod ecvrf {
             // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
             // SHA-512. The hash-to-curve for ristretto255 follows appendix B of draft-irtf-cfrg-hash-to-curve-16.
 
-            // Compute expand_message_xmd for the given message.
+            // Compute expand_message_xmd for the given message. Note that expand_message only returns
+            // and error if the len_in_bytes and output size of the hash function is out of bounds
+            // (https://github.com/mikelodder7/hash2field/blob/cdf56a2b722aeae25b8019945afe4cccec132f25/src/expand_msg_xmd.rs#L21),
+            // so we can safely unwrap since they are constants here.
             let mut expanded_message =
                 elliptic_curve::hash2curve::ExpandMsgXmd::<sha2::Sha512>::expand_message(
                     &[&self.0.compress(), alpha_string],
@@ -135,9 +139,9 @@ pub mod ecvrf {
     impl ECVRFPrivateKey {
         /// Generate nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> RistrettoScalar {
-            let hashed_sk_string = Sha512::digest(bincode::serialize(&self.0).unwrap());
-            let truncated_hashed_sk_string: [u8; 32] =
-                hashed_sk_string.digest[32..64].try_into().unwrap();
+            let hashed_sk_string = Sha512::digest(self.0.to_byte_array());
+            let mut truncated_hashed_sk_string = [0u8; 32];
+            truncated_hashed_sk_string.copy_from_slice(&hashed_sk_string.digest[32..64]);
 
             let mut hash_function = Sha512::default();
             hash_function.update(truncated_hashed_sk_string);
@@ -163,7 +167,9 @@ pub mod ecvrf {
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();
 
-        Challenge(digest.digest[..C_LEN].try_into().unwrap())
+        let mut challenge_bytes = [0u8; C_LEN];
+        challenge_bytes.copy_from_slice(&digest.digest[..C_LEN]);
+        Challenge(challenge_bytes)
     }
 
     /// Type representing a scalar of [C_LEN] bytes.
