@@ -5,8 +5,13 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::groups::{GroupElement, HashToGroupElement, Scalar};
+use crate::serde_helpers::BytesRepresentation;
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
-use crate::{error::FastCryptoError, hash::HashFunction};
+use crate::{
+    error::FastCryptoError, generate_bytes_representation, hash::HashFunction,
+    serialize_deserialize_with_to_from_byte_array,
+};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
@@ -18,6 +23,8 @@ use digest::Digest;
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize, Serialize};
 use std::ops::{Div, Mul};
+
+const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -67,26 +74,6 @@ impl GroupElement for RistrettoPoint {
     }
 }
 
-impl Serialize for RistrettoPoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let bytes = self.0.compress();
-        serializer.serialize_bytes(bytes.as_bytes())
-    }
-}
-
-impl<'de> Deserialize<'de> for RistrettoPoint {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let bytes = Vec::deserialize(deserializer)?;
-        RistrettoPoint::try_from(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
-
 impl TryFrom<&[u8]> for RistrettoPoint {
     type Error = FastCryptoError;
 
@@ -97,6 +84,23 @@ impl TryFrom<&[u8]> for RistrettoPoint {
         Ok(RistrettoPoint::from(decompressed_point))
     }
 }
+
+impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
+    fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        Self::try_from(bytes.as_slice())
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
+        self.compress()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
+generate_bytes_representation!(
+    RistrettoPoint,
+    RISTRETTO_POINT_BYTE_LENGTH,
+    RistrettoPointAsBytes
+);
 
 /// Represents a scalar.
 #[derive(
