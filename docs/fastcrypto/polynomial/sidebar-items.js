@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":[["IndexedValue",""],["Poly","A polynomial that is using a scalar for the variable x and a generic element for the coefficients."]],"type":[["Eval",""],["PrivatePoly",""],["PublicPoly",""],["ShareIndex","Indexes of shares (0 is reserved for the secret itself)."]]};

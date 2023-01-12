@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Encryption",""],["PrivateKey","Simple ECIES encryption using a generic group and AES-256-counter."],["PublicKey",""],["RecoveryPackage","A recovery package that allows decrypting a specific ECIES Encryption. It also includes a NIZK proof of correctness."]]};

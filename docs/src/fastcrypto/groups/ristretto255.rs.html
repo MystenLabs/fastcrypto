@@ -176,13 +176,24 @@
 <a href="#176" id="176">176</a>
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="doccomment">//! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-</span><span class="kw">use </span><span class="kw">crate</span>::groups::{GroupElement, Scalar};
+</span><span class="kw">use </span><span class="kw">crate</span>::groups::{GroupElement, HashToGroupElement, Scalar};
 <span class="kw">use </span><span class="kw">crate</span>::traits::AllowedRng;
 <span class="kw">use crate</span>::{error::FastCryptoError, hash::HashFunction};
 <span class="kw">use </span>curve25519_dalek_ng;
@@ -192,6 +203,7 @@
 <span class="kw">use </span>curve25519_dalek_ng::scalar::Scalar <span class="kw">as </span>ExternalRistrettoScalar;
 <span class="kw">use </span>curve25519_dalek_ng::traits::Identity;
 <span class="kw">use </span>derive_more::{Add, Div, From, Neg, Sub};
+<span class="kw">use </span>digest::Digest;
 <span class="kw">use </span>fastcrypto_derive::GroupOpsExtend;
 <span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>std::ops::{Div, Mul};
@@ -351,7 +363,17 @@
 
 <span class="kw">impl </span>Scalar <span class="kw">for </span>RistrettoScalar {
     <span class="kw">fn </span>rand&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
-        RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
+        <span class="self">Self</span>(ExternalRistrettoScalar::random(rng))
+    }
+}
+
+<span class="kw">impl </span>HashToGroupElement <span class="kw">for </span>RistrettoScalar {
+    <span class="kw">fn </span>hash_to_group_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>hasher = sha3::Sha3_512::default();
+        hasher.update(bytes);
+        <span class="kw">let </span><span class="kw-2">mut </span>hash = [<span class="number">0u8</span>; <span class="number">64</span>];
+        hash.copy_from_slice(hasher.finalize().as_slice());
+        <span class="self">Self</span>(ExternalRistrettoScalar::from_bytes_mod_order_wide(<span class="kw-2">&amp;</span>hash))
     }
 }
 </code></pre></div>

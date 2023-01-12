@@ -18,6 +18,21 @@
 <a href="#18" id="18">18</a>
 <a href="#19" id="19">19</a>
 <a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -31,12 +46,27 @@
 </span><span class="doccomment">//! An experimental crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-</span><span class="kw">pub mod </span>mocked_dkg;
+</span><span class="kw">pub mod </span>ecies;
+<span class="kw">pub mod </span>mocked_dkg;
+<span class="kw">pub mod </span>polynomial;
+<span class="kw">pub mod </span>random_oracle;
 <span class="kw">pub mod </span>tbls;
 <span class="kw">pub mod </span>types;
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/tbls_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>tbls_tests;
+
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/polynomial_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>polynomial_tests;
+
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/ecies_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>ecies_tests;
+
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/random_oracle_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>random_oracle_tests;
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (1e4f90061 2023-01-11)" data-search-js="search-181581080540673f.js" data-settings-js="settings-bebeae96e00e4617.js" data-settings-css="settings-58836c674e2f7bd2.css" ></div></body></html>

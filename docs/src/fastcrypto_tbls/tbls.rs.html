@@ -70,15 +70,17 @@
 <a href="#70" id="70">70</a>
 <a href="#71" id="71">71</a>
 <a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Some of the code below is based on code from https://github.com/celo-org/celo-threshold-bls-rs,
 // modified for our needs.
 
-</span><span class="kw">use </span>fastcrypto::error::FastCryptoError;
+</span><span class="kw">use </span><span class="kw">crate</span>::polynomial::Poly;
+<span class="kw">use </span><span class="kw">crate</span>::types::IndexedValue;
+<span class="kw">use </span>fastcrypto::error::FastCryptoError;
 <span class="kw">use </span>fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
-<span class="kw">use </span>fastcrypto::polynomial::{IndexedValue, Poly};
 
 <span class="kw">pub type </span>Share&lt;S&gt; = IndexedValue&lt;S&gt;;
 <span class="kw">pub type </span>PartialSignature&lt;S&gt; = IndexedValue&lt;S&gt;;

@@ -113,11 +113,6 @@
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
 <a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -173,10 +168,6 @@
 #[path = <span class="string">&quot;tests/encoding_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>encoding_tests;
 
-<span class="attr">#[cfg(test)]
-#[path = <span class="string">&quot;tests/polynomial_tests.rs&quot;</span>]
-</span><span class="kw">pub mod </span>polynomial_tests;
-
 <span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
 #[cfg(test)]
 #[path = <span class="string">&quot;tests/mskr_tests.rs&quot;</span>]
@@ -200,7 +191,6 @@
 <span class="kw">pub mod </span>groups;
 <span class="kw">pub mod </span>hash;
 <span class="kw">pub mod </span>hmac;
-<span class="kw">pub mod </span>polynomial;
 <span class="kw">pub mod </span>secp256k1;
 <span class="kw">pub mod </span>secp256r1;
 
