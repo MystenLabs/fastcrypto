@@ -74,7 +74,6 @@ pub mod ecvrf {
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
     use elliptic_curve::hash2curve::{ExpandMsg, Expander};
     use serde::{Deserialize, Serialize};
-    use std::borrow::Borrow;
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
     /// designs should specify a different suite_string constant, so we use 0x05 here.
@@ -160,9 +159,7 @@ pub mod ecvrf {
         let mut hash = H::default();
         hash.update(SUITE_STRING);
         hash.update([0x02]); //challenge_generation_domain_separator_front
-        points
-            .into_iter()
-            .for_each(|p| hash.update(p.borrow().compress()));
+        points.into_iter().for_each(|p| hash.update(p.compress()));
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();
 
