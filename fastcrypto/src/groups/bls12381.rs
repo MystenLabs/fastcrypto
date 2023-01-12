@@ -5,7 +5,6 @@ use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::FastCryptoError;
 use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
-use crate::hash::{HashFunction, Sha256};
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -531,19 +530,6 @@ impl ScalarType for Scalar {
             blst_fr_from_scalar(&mut ret, &scalar);
         }
         Scalar::from(ret)
-    }
-}
-
-impl HashToGroupElement for Scalar {
-    fn hash_to_group_element(bytes: &[u8]) -> Self {
-        let digest = Sha256::digest(bytes); // TODO: should this be 512?
-        let mut field_value = blst_fr::default();
-        unsafe {
-            let mut scalar: blst_scalar = blst_scalar::default();
-            blst_scalar_from_bendian(&mut scalar, digest.digest.as_ptr());
-            blst_fr_from_scalar(&mut field_value, &scalar);
-        }
-        Self(field_value)
     }
 }
 
