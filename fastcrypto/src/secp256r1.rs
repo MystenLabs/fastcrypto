@@ -52,34 +52,37 @@ use std::{
 };
 use zeroize::Zeroize;
 
-pub const PUBLIC_KEY_SIZE: usize = 33;
-pub const PRIVATE_KEY_SIZE: usize = 32;
-pub const SIGNATURE_SIZE: usize = 64 + 1;
+pub const SECP256R1_PUBLIC_KEY_LENGTH: usize = 33;
+pub const SECP256R1_PRIVATE_KEY_LENGTH: usize = 32;
+pub const SECP256R1_SIGNATURE_LENGTH: usize = 64 + 1;
 
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-pub const SECP256R1_KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_SIZE;
+pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 /// Secp256r1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1PublicKey {
     pub pubkey: ExternalPublicKey,
-    pub bytes: OnceCell<[u8; PUBLIC_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256R1_PUBLIC_KEY_LENGTH]>,
 }
+
+serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
 
 /// Secp256r1 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 pub struct Secp256r1PrivateKey {
     pub privkey: ExternalSecretKey,
-    pub bytes: OnceCell<[u8; PRIVATE_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256R1_PRIVATE_KEY_LENGTH]>,
 }
 
+serialize_deserialize_with_to_from_bytes!(Secp256r1PrivateKey, SECP256R1_PRIVATE_KEY_LENGTH);
 /// Secp256r1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256r1Signature {
     pub sig: ExternalSignature,
-    pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256R1_SIGNATURE_LENGTH]>,
     pub recovery_id: u8,
 }
 
@@ -112,7 +115,7 @@ impl Eq for Secp256r1PublicKey {}
 impl VerifyingKey for Secp256r1PublicKey {
     type PrivKey = Secp256r1PrivateKey;
     type Sig = Secp256r1Signature;
-    const LENGTH: usize = PUBLIC_KEY_SIZE;
+    const LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
 }
 
 impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
@@ -145,7 +148,7 @@ impl ToFromBytes for Secp256r1PublicKey {
             Ok(pubkey) => Ok(Secp256r1PublicKey {
                 pubkey,
                 // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
-                bytes: match <[u8; PUBLIC_KEY_SIZE]>::try_from(bytes) {
+                bytes: match <[u8; SECP256R1_PUBLIC_KEY_LENGTH]>::try_from(bytes) {
                     Ok(result) => OnceCell::with_value(result),
                     Err(_) => OnceCell::new(),
                 },
@@ -171,27 +174,6 @@ impl Display for Secp256r1PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256r1PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-impl<'de> Deserialize<'de> for Secp256r1PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = <String as serde::Deserialize>::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
-    }
-}
-
 impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
     fn from(secret: &'a Secp256r1PrivateKey) -> Self {
         Secp256r1PublicKey {
@@ -204,7 +186,7 @@ impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
 impl SigningKey for Secp256r1PrivateKey {
     type PubKey = Secp256r1PublicKey;
     type Sig = Secp256r1Signature;
-    const LENGTH: usize = PRIVATE_KEY_SIZE;
+    const LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 }
 
 impl ToFromBytes for Secp256r1PrivateKey {
@@ -216,28 +198,6 @@ impl ToFromBytes for Secp256r1PrivateKey {
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256r1PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_str(&self.encode_base64())
-    }
-}
-
-// There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for Secp256r1PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        let value = Self::decode_base64(&s).map_err(|e| de::Error::custom(e.to_string()))?;
-        Ok(value)
     }
 }
 
@@ -272,13 +232,13 @@ impl<'de> Deserialize<'de> for Secp256r1Signature {
 impl Signature for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         // TODO: Compatability with signatures without recovery id
-        if bytes.len() != SIGNATURE_SIZE {
+        if bytes.len() != SECP256R1_SIGNATURE_LENGTH {
             return Err(signature::Error::new());
         }
-        <ExternalSignature as Signature>::from_bytes(&bytes[..SIGNATURE_SIZE - 1])
+        <ExternalSignature as Signature>::from_bytes(&bytes[..SECP256R1_SIGNATURE_LENGTH - 1])
             .map(|sig| Secp256r1Signature {
                 sig,
-                recovery_id: bytes[SIGNATURE_SIZE - 1],
+                recovery_id: bytes[SECP256R1_SIGNATURE_LENGTH - 1],
                 bytes: OnceCell::new(),
             })
             .map_err(|_| signature::Error::new())
@@ -288,14 +248,14 @@ impl Signature for Secp256r1Signature {
 impl Authenticator for Secp256r1Signature {
     type PubKey = Secp256r1PublicKey;
     type PrivKey = Secp256r1PrivateKey;
-    const LENGTH: usize = SIGNATURE_SIZE;
+    const LENGTH: usize = SECP256R1_SIGNATURE_LENGTH;
 }
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
-        let mut bytes = [0u8; SIGNATURE_SIZE];
-        bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.as_ref());
-        bytes[SIGNATURE_SIZE - 1] = self.recovery_id;
+        let mut bytes = [0u8; SECP256R1_SIGNATURE_LENGTH];
+        bytes[..SECP256R1_SIGNATURE_LENGTH - 1].copy_from_slice(self.sig.as_ref());
+        bytes[SECP256R1_SIGNATURE_LENGTH - 1] = self.recovery_id;
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
             .expect("OnceCell invariant violated")
@@ -347,7 +307,7 @@ impl ToFromBytes for Secp256r1KeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(Secp256r1KeyPair);
+serialize_deserialize_with_to_from_bytes!(Secp256r1KeyPair, SECP256R1_KEYPAIR_LENGTH);
 
 impl AsRef<[u8]> for Secp256r1KeyPair {
     fn as_ref(&self) -> &[u8] {
