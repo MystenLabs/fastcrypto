@@ -284,7 +284,7 @@ impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| {
-                Ok(<[u8; 64]>::try_from(self.sig.as_ref()).unwrap())
+                Ok(<[u8; SIGNATURE_SIZE]>::try_from(self.sig.as_ref()).unwrap())
             })
             .expect("OnceCell invariant violated")
     }
