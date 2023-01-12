@@ -4,6 +4,7 @@
 use crate::error::FastCryptoError;
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
+use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
 pub mod bls12381;
@@ -13,6 +14,7 @@ pub mod ristretto255;
 pub trait GroupElement:
     Copy
     + Clone
+    + Debug
     + Eq
     + Add<Output = Self>
     + AddAssign
@@ -42,6 +44,7 @@ pub trait Scalar:
     + From<u64>
     + Div<Self, Output = Result<Self, FastCryptoError>>
     + Sized
+    + Debug
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }

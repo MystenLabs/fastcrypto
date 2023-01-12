@@ -5,23 +5,14 @@
 // modified for our needs.
 //
 
-use crate::error::FastCryptoError;
-use crate::groups::{GroupElement, Scalar};
-use crate::traits::AllowedRng;
+use crate::types::{IndexedValue, ShareIndex};
+use fastcrypto::error::FastCryptoError;
+use fastcrypto::groups::{GroupElement, Scalar};
+use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::num::NonZeroU32;
 
 //// Types
-
-/// Indexes of shares (0 is reserved for the secret itself).
-pub type ShareIndex = NonZeroU32;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct IndexedValue<A> {
-    pub index: ShareIndex,
-    pub value: A,
-}
 
 pub type Eval<A> = IndexedValue<A>;
 
@@ -37,10 +28,10 @@ pub type PublicPoly<C> = Poly<C>;
 
 impl<C> Poly<C> {
     /// Returns the degree of the polynomial
-    pub fn degree(&self) -> usize {
+    pub fn degree(&self) -> u32 {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
-        self.0.len() - 1
+        (self.0.len() - 1) as u32
     }
 }
 

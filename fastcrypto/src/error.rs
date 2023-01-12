@@ -34,6 +34,10 @@ pub enum FastCryptoError {
     #[error("Invalid signature was given to the function")]
     InvalidSignature,
 
+    /// Invalid proof was given to the function
+    #[error("Invalid proof was given to the function")]
+    InvalidProof,
+
     /// General opaque cryptographic error.
     #[error("General cryptographic error")]
     GeneralError,

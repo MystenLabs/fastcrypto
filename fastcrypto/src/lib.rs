@@ -53,10 +53,6 @@ pub mod hmac_tests;
 #[path = "tests/encoding_tests.rs"]
 pub mod encoding_tests;
 
-#[cfg(test)]
-#[path = "tests/polynomial_tests.rs"]
-pub mod polynomial_tests;
-
 #[cfg(feature = "experimental")]
 #[cfg(test)]
 #[path = "tests/mskr_tests.rs"]
@@ -80,7 +76,6 @@ pub mod ed25519;
 pub mod groups;
 pub mod hash;
 pub mod hmac;
-pub mod polynomial;
 pub mod secp256k1;
 pub mod secp256r1;
 

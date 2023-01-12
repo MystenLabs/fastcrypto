@@ -6,3 +6,13 @@ members = [
     "fastcrypto-tbls",
     "fastcrypto-zkp"
 ]
+
+# Dependencies that should be kept in sync through the whole workspace
+[workspace.dependencies]
+rand = { version = "0.8.5", features = ["std"] }
+serde = { version = "1.0.151", features = ["derive"] }
+bincode = "1.3.3"
+typenum = "1.16.0"
+zeroize = "1.5.7"
+sha3 = "0.10.6"
+digest = "0.10.6"

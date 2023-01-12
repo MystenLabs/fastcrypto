@@ -4,9 +4,10 @@
 // Some of the code below is based on code from https://github.com/celo-org/celo-threshold-bls-rs,
 // modified for our needs.
 
+use crate::polynomial::Poly;
+use crate::types::IndexedValue;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
-use fastcrypto::polynomial::{IndexedValue, Poly};
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
