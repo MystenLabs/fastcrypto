@@ -63,22 +63,66 @@ pub trait VRFProof<const OUTPUT_SIZE: usize>: Serialize + DeserializeOwned + Eq 
 }
 
 /// An implementation of an Elliptic Curve VRF (ECVRF) using the Ristretto255 group.
-/// The implementation follows the specifications in https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.
+/// The implementation follows the specifications in draft-irtf-cfrg-vrf-15
+/// (https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/).
 pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::{GroupElement, Scalar};
-    use crate::hash::{HashFunction, Sha256, Sha512};
+    use crate::hash::{HashFunction, Sha512};
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
+    use elliptic_curve::hash2curve::{ExpandMsg, Expander};
     use serde::{Deserialize, Serialize};
     use std::borrow::Borrow;
+
+    /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
+    /// designs should specify a different suite_string constant, so we use 0x05 here.
+    const SUITE_STRING: [u8; 1] = [0x05];
+
+    /// Length of challenge. Must be smaller than the length of field elements which is 32 in this case.
+    const C_LEN: usize = 16;
+
+    /// Default hash function
+    type H = Sha512;
+
+    /// Domain seperation tak used in ecvrf_encode_to_curve
+    const DST: &[u8; 43] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_5";
+
+    const COFACTOR: u64 = 8;
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFPublicKey(RistrettoPoint);
 
     impl VRFPublicKey for ECVRFPublicKey {
         type PrivateKey = ECVRFPrivateKey;
+    }
+
+    impl ECVRFPublicKey {
+        /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
+        fn ecvrf_encode_to_curve(&self, alpha_string: &[u8]) -> RistrettoPoint {
+            // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
+            // SHA-512. The hash-to-curve for ristretto255 follows appendix B of draft-irtf-cfrg-hash-to-curve-16.
+
+            // Compute expand_message_xmd for the given message.
+            let mut expanded_message =
+                elliptic_curve::hash2curve::ExpandMsgXmd::<sha2::Sha512>::expand_message(
+                    &[&self.0.compress(), &alpha_string],
+                    DST,
+                    H::OUTPUT_SIZE,
+                )
+                .unwrap();
+
+            let mut bytes = [0u8; H::OUTPUT_SIZE];
+            expanded_message.fill_bytes(&mut bytes);
+            RistrettoPoint::map_to_point::<H>(&bytes)
+        }
+
+        /// Implements ECVRF_validate_key which checks the validity of a public key.
+        fn valid(&self) -> bool {
+            // Follows section 5.4.5 of draft-irtf-cfrg-vrf-15.
+            self.0 * RistrettoScalar::from(COFACTOR) != RistrettoPoint::zero()
+        }
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
@@ -88,37 +132,55 @@ pub mod ecvrf {
         type PublicKey = ECVRFPublicKey;
     }
 
+    impl ECVRFPrivateKey {
+        /// Generate nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
+        fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> RistrettoScalar {
+            let hashed_sk_string = Sha512::digest(bincode::serialize(&self.0).unwrap());
+            let truncated_hashed_sk_string: [u8; 32] =
+                hashed_sk_string.digest[32..64].try_into().unwrap();
+
+            let mut hash_function = Sha512::default();
+            hash_function.update(truncated_hashed_sk_string);
+            hash_function.update(h_string);
+            let k_string = hash_function.finalize();
+
+            RistrettoScalar::hash_to_scalar(k_string.digest)
+        }
+    }
+
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFKeyPair {
         pub pk: ECVRFPublicKey,
         pub sk: ECVRFPrivateKey,
     }
 
-    /// https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04 specifies suites for suite-strings
-    /// 0x00-0x04 and notes that future designs "should specify a different suite_string constant",
-    /// so we use 0x05 here.
-    const SUITE_STRING: [u8; 1] = [0x05];
-
-    /// Implementation of hashing a list of points to a scalar. Follows https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.4.3.
-    fn ecvrf_hash_points<
-        'a,
-        H: HashFunction<64>,
-        K: Borrow<RistrettoPoint> + 'a,
-        I: IntoIterator<Item = &'a K>,
-    >(
-        points: I,
-    ) -> RistrettoScalar {
+    /// Generate challenge from five points. See section 5.4.3. of draft-irtf-cfrg-vrf-15.
+    fn ecvrf_challenge_generation(points: [&RistrettoPoint; 5]) -> Challenge {
         let mut hash = H::default();
         hash.update(SUITE_STRING);
-        hash.update([0x02]);
+        hash.update([0x02]); //challenge_generation_domain_separator_front
         points
             .into_iter()
             .for_each(|p| hash.update(p.borrow().compress()));
-        // TODO: In the specs, the scalar is truncated to half size before, in this case 128 bits, but here we keep it as full size.
-        RistrettoScalar::hash_to_scalar(hash)
+        hash.update([0x00]); //challenge_generation_domain_separator_back
+        let digest = hash.finalize();
+
+        Challenge(digest.digest[..C_LEN].try_into().unwrap())
     }
 
-    impl VRFKeyPair<32> for ECVRFKeyPair {
+    /// Type representing a scalar of C_LEN bytes.
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+    struct Challenge([u8; C_LEN]);
+
+    impl From<&Challenge> for RistrettoScalar {
+        fn from(c: &Challenge) -> Self {
+            let mut scalar = [0u8; 32];
+            scalar[..C_LEN].copy_from_slice(&c.0);
+            RistrettoScalar::from_bits(scalar)
+        }
+    }
+
+    impl VRFKeyPair<64> for ECVRFKeyPair {
         type Proof = ECVRFProof;
         type PrivateKey = ECVRFPrivateKey;
         type PublicKey = ECVRFPublicKey;
@@ -132,59 +194,55 @@ pub mod ecvrf {
             }
         }
 
-        fn prove(&self, input: &[u8]) -> ECVRFProof {
-            // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.1
+        fn prove(&self, alpha_string: &[u8]) -> ECVRFProof {
+            // Follows section 5.1 of draft-irtf-cfrg-vrf-15.
 
-            let mut hash1 = Sha512::default();
-            hash1.update(SUITE_STRING);
-            hash1.update(self.pk.0.compress());
-            hash1.update(input);
-            let h = RistrettoPoint::map_to_point::<Sha512>(hash1.finalize().as_ref());
+            let h = self.pk.ecvrf_encode_to_curve(alpha_string);
+            let h_string = h.compress();
             let gamma = h * self.sk.0;
+            let k = self.sk.ecvrf_nonce_generation(&h_string);
 
-            let mut hash2 = Sha512::default();
-            hash2.update(bincode::serialize(&self.sk.0).unwrap());
-            hash2.update(h.compress());
-            let k = RistrettoScalar::hash_to_scalar(hash2);
-
-            let c = ecvrf_hash_points::<Sha512, _, _>(vec![
+            let c = ecvrf_challenge_generation([
+                &self.pk.0,
                 &h,
                 &gamma,
                 &(RistrettoPoint::generator() * k),
                 &(h * k),
             ]);
-            let s = k + c * self.sk.0;
+            let s = k + RistrettoScalar::from(&c) * self.sk.0;
+
             ECVRFProof { gamma, c, s }
         }
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFProof {
-        // TODO: This doesn't serialize according to the specs. Both because the c is allowed to be 128 bits but also because the scalars should be big-endian. https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.4.3
         gamma: RistrettoPoint,
-        c: RistrettoScalar,
+        c: Challenge,
         s: RistrettoScalar,
     }
 
-    impl VRFProof<32> for ECVRFProof {
+    impl VRFProof<64> for ECVRFProof {
         type PublicKey = ECVRFPublicKey;
 
         fn verify(
             &self,
-            input: &[u8],
+            alpha_string: &[u8],
             public_key: &Self::PublicKey,
         ) -> Result<(), FastCryptoError> {
-            let mut hash = Sha512::default();
-            hash.update(SUITE_STRING);
-            hash.update(public_key.0.compress());
-            hash.update(input);
+            // Follows section 5.3 of draft-irtf-cfrg-vrf-15.
 
-            let h = RistrettoPoint::map_to_point::<Sha512>(hash.finalize().as_ref());
+            if !public_key.valid() {
+                return Err(FastCryptoError::InvalidInput);
+            }
 
-            let u = RistrettoPoint::generator() * self.s - public_key.0 * self.c;
-            let v = h * self.s - self.gamma * self.c;
+            let h = public_key.ecvrf_encode_to_curve(alpha_string);
 
-            let c_prime = ecvrf_hash_points::<Sha512, _, _>(vec![&h, &self.gamma, &u, &v]);
+            let challenge = RistrettoScalar::from(&self.c);
+            let u = RistrettoPoint::generator() * self.s - public_key.0 * challenge;
+            let v = h * self.s - self.gamma * challenge;
+
+            let c_prime = ecvrf_challenge_generation([&public_key.0, &h, &self.gamma, &u, &v]);
 
             if c_prime != self.c {
                 return Err(FastCryptoError::GeneralError);
@@ -192,14 +250,13 @@ pub mod ecvrf {
             Ok(())
         }
 
-        fn to_hash(&self) -> [u8; 32] {
-            // https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-vrf-04#section-5.2
-            let mut hash = Sha256::default();
+        fn to_hash(&self) -> [u8; 64] {
+            // Follows section 5.2 of draft-irtf-cfrg-vrf-15.
+            let mut hash = H::default();
             hash.update(SUITE_STRING);
-            hash.update([0x03]);
-
-            // The cofactor of the Ristretto group is 8
-            hash.update((self.gamma * RistrettoScalar::from(8)).compress());
+            hash.update([0x03]); // proof_to_hash_domain_separator_front
+            hash.update((self.gamma * RistrettoScalar::from(COFACTOR)).compress());
+            hash.update([0x00]); // proof_to_hash_domain_separator_back
             hash.finalize().digest
         }
     }
