@@ -119,9 +119,9 @@ pub mod ecvrf {
             RistrettoPoint::map_to_point::<H>(&bytes)
         }
 
-        /// Implements ECVRF_validate_key which checks the validity of a public key.
+        /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5
+        /// of draft-irtf-cfrg-vrf-15.
         fn valid(&self) -> bool {
-            // Follows section 5.4.5 of draft-irtf-cfrg-vrf-15.
             self.0 * RistrettoScalar::from(COFACTOR) != RistrettoPoint::zero()
         }
     }
@@ -169,7 +169,7 @@ pub mod ecvrf {
         Challenge(digest.digest[..C_LEN].try_into().unwrap())
     }
 
-    /// Type representing a scalar of C_LEN bytes.
+    /// Type representing a scalar of [C_LEN] bytes.
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     struct Challenge([u8; C_LEN]);
 
