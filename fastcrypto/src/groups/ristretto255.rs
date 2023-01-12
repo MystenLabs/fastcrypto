@@ -20,10 +20,11 @@ use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use serde::{de, Deserialize, Serialize};
+use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
+const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -102,21 +103,7 @@ generate_bytes_representation!(
 );
 
 /// Represents a scalar.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    From,
-    Add,
-    Sub,
-    Neg,
-    Div,
-    GroupOpsExtend,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
@@ -186,3 +173,24 @@ impl Scalar for RistrettoScalar {
         RistrettoScalar::from(ExternalRistrettoScalar::random(rng))
     }
 }
+
+impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
+    fn from_byte_array(
+        bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
+    ) -> Result<Self, FastCryptoError> {
+        Ok(RistrettoScalar(
+            ExternalRistrettoScalar::from_bytes_mod_order(*bytes),
+        ))
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
+        self.0.to_bytes()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoScalar);
+generate_bytes_representation!(
+    RistrettoScalar,
+    RISTRETTO_SCALAR_BYTE_LENGTH,
+    RistrettoScalarAsBytes
+);
