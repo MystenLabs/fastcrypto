@@ -42,6 +42,10 @@ fn test_serialize_deserialize() {
     let input = b"Hello, world!";
     let (output, proof) = kp.output(input);
     let proof_serialized = bincode::serialize(&proof).unwrap();
+
+    // TODO: Ristretto points are currently serialized with the length as a prefix
+    //assert_eq!(32 + 16 + 32, proof_serialized.len());
+
     let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
     assert!(proof_reconstructed
         .verify_output(input, &kp.pk, output)
