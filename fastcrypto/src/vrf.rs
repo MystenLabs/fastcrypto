@@ -80,13 +80,14 @@ pub mod ecvrf {
     /// designs should specify a different suite_string constant, so we use 0x05 here.
     const SUITE_STRING: [u8; 1] = [0x05];
 
-    /// Length of challenge. Must be smaller than the length of field elements which is 32 in this case.
+    /// Length of challenge. Must not exceed the length of field elements which is 32 in this case and
+    /// the other suites uses half the length, so we do the same here.
     const C_LEN: usize = 16;
 
     /// Default hash function
     type H = Sha512;
 
-    /// Domain seperation tak used in ecvrf_encode_to_curve
+    /// Domain separation tag used in ecvrf_encode_to_curve
     const DST: &[u8; 43] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_5";
 
     const COFACTOR: u64 = 8;
