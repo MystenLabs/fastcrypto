@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::traits::EncodeDecodeBase64;
 use crate::{
     error::FastCryptoError,
     hash::{Digest, HashFunction},
@@ -8,30 +9,24 @@ use crate::{
 use base64ct::{Base64, Encoding};
 use eyre::eyre;
 use rand::Rng;
-use serde::{
-    Deserialize, Serialize,
-};
+use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use serde_with::serde_as;
+use signature::{Signature, Signer, Verifier};
 use std::{
     borrow::Borrow,
     fmt::{self, Display},
     str::FromStr,
 };
-use crate::traits::EncodeDecodeBase64;
-use signature::{Signature, Signer, Verifier};
 
 use crate::traits::{
-    AggregateAuthenticator, Authenticator, KeyPair, SigningKey, ToFromBytes,
-    VerifyingKey,
+    AggregateAuthenticator, Authenticator, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
 };
 
 use super::hash::Fast256HashUnsecure;
-use crate::{
-    serialize_deserialize_with_to_from_bytes, generate_bytes_representation
-};
-use crate::traits::AllowedRng;
 use crate::serde_helpers::BytesRepresentation;
+use crate::traits::AllowedRng;
+use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 
 ///
 /// Define Structs
@@ -64,20 +59,25 @@ pub struct UnsecureSignature {
 
 impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
     fn from(digest: Digest<DIGEST_LEN>) -> Self {
-        UnsecureSignature { sig: digest.to_vec().try_into().unwrap() }
+        UnsecureSignature {
+            sig: digest.to_vec().try_into().unwrap(),
+        }
     }
 }
 
 impl From<&[u8]> for UnsecureSignature {
     fn from(digest: &[u8]) -> Self {
-        UnsecureSignature { sig: digest.try_into().unwrap() }
+        UnsecureSignature {
+            sig: digest.try_into().unwrap(),
+        }
     }
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnsecureAggregateSignature {
-    #[serde(with = "BigArray")] pub sig: [u8; SIGNATURE_LENGTH],
+    #[serde(with = "BigArray")]
+    pub sig: [u8; SIGNATURE_LENGTH],
 }
 
 /// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
@@ -182,7 +182,9 @@ impl VerifyingKey for UnsecurePublicKey {
 
 impl Default for UnsecureSignature {
     fn default() -> Self {
-        Self{ sig: [0; SIGNATURE_LENGTH] }
+        Self {
+            sig: [0; SIGNATURE_LENGTH],
+        }
     }
 }
 
@@ -202,7 +204,7 @@ impl Signature for UnsecureSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         let bytes_fixed: [u8; SIGNATURE_LENGTH] =
             bytes.try_into().map_err(|_| signature::Error::new())?;
-        Ok(Self {sig: bytes_fixed })
+        Ok(Self { sig: bytes_fixed })
     }
 }
 
@@ -219,7 +221,6 @@ impl Authenticator for UnsecureSignature {
 }
 
 serialize_deserialize_with_to_from_bytes!(UnsecureSignature);
-
 
 ///
 /// Implement SigningKey
@@ -345,7 +346,9 @@ impl Display for UnsecureAggregateSignature {
 
 impl ToFromBytes for UnsecureAggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature { sig: bytes.try_into().unwrap() })
+        Ok(UnsecureAggregateSignature {
+            sig: bytes.try_into().unwrap(),
+        })
     }
 }
 
@@ -356,7 +359,9 @@ fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
 
 impl Default for UnsecureAggregateSignature {
     fn default() -> Self {
-        Self { sig: [0; SIGNATURE_LENGTH] }
+        Self {
+            sig: [0; SIGNATURE_LENGTH],
+        }
     }
 }
 
@@ -374,7 +379,7 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
                 .into_iter()
                 .map(|s| s.borrow().sig)
                 .reduce(xor)
-                .unwrap()
+                .unwrap(),
         })
     }
 
@@ -393,7 +398,11 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         msg: &[u8],
     ) -> Result<(), FastCryptoError> {
-        let actual = pks.iter().map(|pk| sign(pk.0, msg).sig).reduce(xor).unwrap();
+        let actual = pks
+            .iter()
+            .map(|pk| sign(pk.0, msg).sig)
+            .reduce(xor)
+            .unwrap();
 
         if actual == self.sig {
             return Ok(());
@@ -444,4 +453,8 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
     }
 }
 
-generate_bytes_representation!(UnsecureAggregateSignature, SIGNATURE_LENGTH, UnsecureAggregateSignatureAsBytes);
+generate_bytes_representation!(
+    UnsecureAggregateSignature,
+    SIGNATURE_LENGTH,
+    UnsecureAggregateSignatureAsBytes
+);

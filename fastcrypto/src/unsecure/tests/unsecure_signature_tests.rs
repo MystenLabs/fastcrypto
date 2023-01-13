@@ -2,6 +2,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::signature_service::SignatureService;
 use crate::{
     hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
@@ -11,7 +12,6 @@ use crate::{
         UnsecureSignature,
     },
 };
-use crate::signature_service::SignatureService;
 use ::signature::Verifier;
 use rand::{rngs::StdRng, SeedableRng as _};
 use signature::Signer;

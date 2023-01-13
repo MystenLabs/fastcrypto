@@ -68,7 +68,7 @@ harness = false
 required-features = ["experimental"]
 
 [features]
-default = ["unsecure_schemes"]
+default = ["secure"]
 secure = []
 copy_key = []
 unsecure_schemes = ["dep:twox-hash", "dep:serde-big-array"]
