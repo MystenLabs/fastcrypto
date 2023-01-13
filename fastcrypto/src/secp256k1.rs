@@ -40,13 +40,21 @@ use std::{
 use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
+pub const SECP256K1_PUBLIC_KEY_LENGTH: usize = constants::PUBLIC_KEY_SIZE;
+pub const SECP256K1_PRIVATE_KEY_LENGTH: usize = constants::SECRET_KEY_SIZE;
 
+/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
+pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
+pub const SECP256K1_SIGNATURE_LENGTH: usize = RECOVERABLE_SIGNATURE_SIZE;
+
+/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
+pub const SECP256K1_KEYPAIR_LENGTH: usize = constants::SECRET_KEY_SIZE;
 /// Secp256k1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
-    pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256K1_PUBLIC_KEY_LENGTH]>,
 }
 
 /// Secp256k1 private key.
@@ -54,14 +62,9 @@ pub struct Secp256k1PublicKey {
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
-    pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256K1_PRIVATE_KEY_LENGTH]>,
 }
 
-/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
-pub const RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE + 1;
-
-/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-pub const SECP_256_K_1_KEY_PAIR_BYTE_LENGTH: usize = constants::SECRET_KEY_SIZE;
 /// Secp256k1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -186,8 +189,7 @@ impl Display for Secp256k1PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey, SECP256K1_PUBLIC_KEY_LENGTH);
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
@@ -216,8 +218,7 @@ impl ToFromBytes for Secp256k1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey, SECP256K1_PRIVATE_KEY_LENGTH);
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {
@@ -322,7 +323,7 @@ impl ToFromBytes for Secp256k1KeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair);
+serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair, SECP256K1_KEYPAIR_LENGTH);
 
 impl AsRef<[u8]> for Secp256k1KeyPair {
     fn as_ref(&self) -> &[u8] {
