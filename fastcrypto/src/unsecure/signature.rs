@@ -4,14 +4,11 @@
 use crate::{
     error::FastCryptoError,
     hash::{Digest, HashFunction},
-    pubkey_bytes::PublicKeyBytes,
-    serde_helpers::keypair_decode_base64,
 };
 use base64ct::{Base64, Encoding};
 use eyre::eyre;
 use rand::Rng;
 use serde::{
-    de::{self},
     Deserialize, Serialize,
 };
 use serde_big_array::BigArray;
@@ -21,15 +18,20 @@ use std::{
     fmt::{self, Display},
     str::FromStr,
 };
-
+use crate::traits::EncodeDecodeBase64;
 use signature::{Signature, Signer, Verifier};
 
 use crate::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
+    AggregateAuthenticator, Authenticator, KeyPair, SigningKey, ToFromBytes,
     VerifyingKey,
 };
 
 use super::hash::Fast256HashUnsecure;
+use crate::{
+    serialize_deserialize_with_to_from_bytes, generate_bytes_representation
+};
+use crate::traits::AllowedRng;
+use crate::serde_helpers::BytesRepresentation;
 
 ///
 /// Define Structs
@@ -40,46 +42,43 @@ const PRIVATE_KEY_LENGTH: usize = 32;
 const PUBLIC_KEY_LENGTH: usize = 96;
 const SIGNATURE_LENGTH: usize = 48;
 
-/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-const KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_LENGTH;
-
 type DefaultHashFunction = Fast256HashUnsecure;
 
 #[readonly::make]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
 pub struct UnsecurePublicKey(pub [u8; PUBLIC_KEY_LENGTH]);
 
-pub type UnsecurePublicKeyBytes = PublicKeyBytes<UnsecurePublicKey, { PUBLIC_KEY_LENGTH }>;
-
-#[derive(Default, Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct UnsecurePrivateKey(pub [u8; PRIVATE_KEY_LENGTH]);
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-#[derive(Debug, Clone)]
-#[serde(tag = "type")] // necessary so as not to deser under a != type
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnsecureKeyPair {
     name: UnsecurePublicKey,
     secret: UnsecurePrivateKey,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnsecureSignature(#[serde(with = "BigArray")] pub [u8; SIGNATURE_LENGTH]);
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnsecureSignature {
+    pub sig: [u8; SIGNATURE_LENGTH],
+}
 
 impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
     fn from(digest: Digest<DIGEST_LEN>) -> Self {
-        UnsecureSignature(digest.to_vec().try_into().unwrap())
+        UnsecureSignature { sig: digest.to_vec().try_into().unwrap() }
     }
 }
 
 impl From<&[u8]> for UnsecureSignature {
     fn from(digest: &[u8]) -> Self {
-        UnsecureSignature(digest.try_into().unwrap())
+        UnsecureSignature { sig: digest.try_into().unwrap() }
     }
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnsecureAggregateSignature(#[serde(with = "BigArray")] pub [u8; SIGNATURE_LENGTH]);
+pub struct UnsecureAggregateSignature {
+    #[serde(with = "BigArray")] pub sig: [u8; SIGNATURE_LENGTH],
+}
 
 /// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
 fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
@@ -125,38 +124,18 @@ impl std::hash::Hash for UnsecurePublicKey {
     }
 }
 
-impl PartialEq for UnsecurePublicKey {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for UnsecurePublicKey {}
-
-impl PartialOrd for UnsecurePublicKey {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
-    }
-}
-impl Ord for UnsecurePublicKey {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_ref().cmp(other.as_ref())
-    }
-}
-
 impl Display for UnsecurePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_from_encode_decode_base64!(UnsecurePublicKey);
+serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey);
 
 impl Verifier<UnsecureSignature> for UnsecurePublicKey {
     fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
         let digest = sign(self.0, msg);
-        if ToFromBytes::as_bytes(signature) == digest.0 {
+        if ToFromBytes::as_bytes(signature) == digest.sig {
             return Ok(());
         }
         Err(signature::Error::new())
@@ -203,13 +182,13 @@ impl VerifyingKey for UnsecurePublicKey {
 
 impl Default for UnsecureSignature {
     fn default() -> Self {
-        Self([0; SIGNATURE_LENGTH])
+        Self{ sig: [0; SIGNATURE_LENGTH] }
     }
 }
 
 impl AsRef<[u8]> for UnsecureSignature {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        &self.sig
     }
 }
 
@@ -219,19 +198,11 @@ impl std::hash::Hash for UnsecureSignature {
     }
 }
 
-impl PartialEq for UnsecureSignature {
-    fn eq(&self, other: &Self) -> bool {
-        self.0 == other.0
-    }
-}
-
-impl Eq for UnsecureSignature {}
-
 impl Signature for UnsecureSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         let bytes_fixed: [u8; SIGNATURE_LENGTH] =
             bytes.try_into().map_err(|_| signature::Error::new())?;
-        Ok(Self(bytes_fixed))
+        Ok(Self {sig: bytes_fixed })
     }
 }
 
@@ -246,6 +217,9 @@ impl Authenticator for UnsecureSignature {
     type PrivKey = UnsecurePrivateKey;
     const LENGTH: usize = 0;
 }
+
+serialize_deserialize_with_to_from_bytes!(UnsecureSignature);
+
 
 ///
 /// Implement SigningKey
@@ -266,13 +240,13 @@ impl ToFromBytes for UnsecurePrivateKey {
     }
 }
 
-serialize_deserialize_from_encode_decode_base64!(UnsecurePrivateKey);
-
 impl SigningKey for UnsecurePrivateKey {
     type PubKey = UnsecurePublicKey;
     type Sig = UnsecureSignature;
     const LENGTH: usize = PRIVATE_KEY_LENGTH;
 }
+
+serialize_deserialize_with_to_from_bytes!(UnsecurePrivateKey);
 
 ///
 /// Implement KeyPair
@@ -296,10 +270,8 @@ impl From<UnsecurePrivateKey> for UnsecureKeyPair {
 /// The bytes form of the keypair always only contain the private key bytes
 impl ToFromBytes for UnsecureKeyPair {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ed25519_consensus::SigningKey::try_from(bytes)
-            .map(Ed25519PrivateKey)
-            .map_err(|_| FastCryptoError::InvalidInput)
-            .map(|s| s.into())
+        let sk = UnsecurePrivateKey::from_bytes(bytes)?;
+        Ok(UnsecureKeyPair::from(sk))
     }
 }
 
@@ -353,13 +325,15 @@ impl FromStr for UnsecureKeyPair {
     }
 }
 
+serialize_deserialize_with_to_from_bytes!(UnsecureKeyPair);
+
 ///
 /// Implement AggregateAuthenticator. Aggregate signatures are implemented as xor's of the individual signatures.
 ///
 
 impl AsRef<[u8]> for UnsecureAggregateSignature {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        &self.sig
     }
 }
 
@@ -371,7 +345,7 @@ impl Display for UnsecureAggregateSignature {
 
 impl ToFromBytes for UnsecureAggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature(bytes.try_into().unwrap()))
+        Ok(UnsecureAggregateSignature { sig: bytes.try_into().unwrap() })
     }
 }
 
@@ -382,7 +356,7 @@ fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
 
 impl Default for UnsecureAggregateSignature {
     fn default() -> Self {
-        Self([0; SIGNATURE_LENGTH])
+        Self { sig: [0; SIGNATURE_LENGTH] }
     }
 }
 
@@ -395,22 +369,22 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature(
-            signatures
+        Ok(UnsecureAggregateSignature {
+            sig: signatures
                 .into_iter()
-                .map(|s| s.borrow().0)
+                .map(|s| s.borrow().sig)
                 .reduce(xor)
-                .unwrap(),
-        ))
+                .unwrap()
+        })
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        self.0 = xor(self.0, signature.0);
+        self.sig = xor(self.sig, signature.sig);
         Ok(())
     }
 
     fn add_aggregate(&mut self, signatures: Self) -> Result<(), FastCryptoError> {
-        self.0 = xor(self.0, signatures.0);
+        self.sig = xor(self.sig, signatures.sig);
         Ok(())
     }
 
@@ -419,9 +393,9 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         msg: &[u8],
     ) -> Result<(), FastCryptoError> {
-        let actual = pks.iter().map(|pk| sign(pk.0, msg).0).reduce(xor).unwrap();
+        let actual = pks.iter().map(|pk| sign(pk.0, msg).sig).reduce(xor).unwrap();
 
-        if actual == self.0 {
+        if actual == self.sig {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)
@@ -459,31 +433,15 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         let actual = pks
             .iter()
             .zip(messages.iter())
-            .map(|(pk, m)| sign(pk.0, m).0)
+            .map(|(pk, m)| sign(pk.0, m).sig)
             .reduce(xor)
             .unwrap();
 
-        if actual == self.0 {
+        if actual == self.sig {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)
     }
 }
 
-///
-/// Implement VerifyingKeyBytes
-///
-
-impl TryFrom<UnsecurePublicKeyBytes> for UnsecurePublicKey {
-    type Error = FastCryptoError;
-
-    fn try_from(bytes: UnsecurePublicKeyBytes) -> Result<UnsecurePublicKey, Self::Error> {
-        UnsecurePublicKey::from_bytes(bytes.as_ref())
-    }
-}
-
-impl From<&UnsecurePublicKey> for UnsecurePublicKeyBytes {
-    fn from(pk: &UnsecurePublicKey) -> UnsecurePublicKeyBytes {
-        UnsecurePublicKeyBytes::from_bytes(pk.as_ref()).unwrap()
-    }
-}
+generate_bytes_representation!(UnsecureAggregateSignature, SIGNATURE_LENGTH, UnsecureAggregateSignatureAsBytes);

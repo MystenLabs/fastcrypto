@@ -14,6 +14,17 @@ pub mod hash;
 /// without taking into account the cost of cryptographic primitives - and hence providing a theoretical maximal
 /// throughput that a system could achieve if the cost of crypto is optimized away.
 ///
+/// The scheme is implemented as follows: The private key is PRIVATE_KEY_LENGTH random bytes and the public
+/// key is defined from the private key as follows:
+///
+/// if PRIVATE_KEY_LENGTH >= PUBLIC_KEY_LENGTH {
+///     pk = sk[0..PUBLIC_KEY_LENGTH]
+/// } else {
+///     pk = sk || 0...0
+/// }
+///
+/// Signatures are implemented as H(pk || msg) where H is the non-cryptographic hash function, XXHash.///
+///
 /// Warning: All schemes in this file are completely unsafe to use in production.
 pub mod signature;
 
