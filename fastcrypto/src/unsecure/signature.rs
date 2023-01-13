@@ -53,32 +53,23 @@ pub struct UnsecureKeyPair {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnsecureSignature {
-    pub sig: [u8; SIGNATURE_LENGTH],
-}
+pub struct UnsecureSignature(pub [u8; SIGNATURE_LENGTH]);
 
 impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
     fn from(digest: Digest<DIGEST_LEN>) -> Self {
-        UnsecureSignature {
-            sig: digest.to_vec().try_into().unwrap(),
-        }
+        UnsecureSignature(digest.to_vec().try_into().unwrap())
     }
 }
 
 impl From<&[u8]> for UnsecureSignature {
     fn from(digest: &[u8]) -> Self {
-        UnsecureSignature {
-            sig: digest.try_into().unwrap(),
-        }
+        UnsecureSignature(digest.try_into().unwrap())
     }
 }
 
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct UnsecureAggregateSignature {
-    #[serde(with = "BigArray")]
-    pub sig: [u8; SIGNATURE_LENGTH],
-}
+pub struct UnsecureAggregateSignature(#[serde(with = "BigArray")] pub [u8; SIGNATURE_LENGTH]);
 
 /// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
 fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
@@ -135,7 +126,7 @@ serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey);
 impl Verifier<UnsecureSignature> for UnsecurePublicKey {
     fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
         let digest = sign(self.0, msg);
-        if ToFromBytes::as_bytes(signature) == digest.sig {
+        if ToFromBytes::as_bytes(signature) == digest.0 {
             return Ok(());
         }
         Err(signature::Error::new())
@@ -182,15 +173,13 @@ impl VerifyingKey for UnsecurePublicKey {
 
 impl Default for UnsecureSignature {
     fn default() -> Self {
-        Self {
-            sig: [0; SIGNATURE_LENGTH],
-        }
+        Self([0; SIGNATURE_LENGTH])
     }
 }
 
 impl AsRef<[u8]> for UnsecureSignature {
     fn as_ref(&self) -> &[u8] {
-        &self.sig
+        &self.0
     }
 }
 
@@ -204,7 +193,7 @@ impl Signature for UnsecureSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         let bytes_fixed: [u8; SIGNATURE_LENGTH] =
             bytes.try_into().map_err(|_| signature::Error::new())?;
-        Ok(Self { sig: bytes_fixed })
+        Ok(Self(bytes_fixed))
     }
 }
 
@@ -334,7 +323,7 @@ serialize_deserialize_with_to_from_bytes!(UnsecureKeyPair);
 
 impl AsRef<[u8]> for UnsecureAggregateSignature {
     fn as_ref(&self) -> &[u8] {
-        &self.sig
+        &self.0
     }
 }
 
@@ -346,9 +335,7 @@ impl Display for UnsecureAggregateSignature {
 
 impl ToFromBytes for UnsecureAggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature {
-            sig: bytes.try_into().unwrap(),
-        })
+        Ok(UnsecureAggregateSignature(bytes.try_into().unwrap()))
     }
 }
 
@@ -359,9 +346,7 @@ fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
 
 impl Default for UnsecureAggregateSignature {
     fn default() -> Self {
-        Self {
-            sig: [0; SIGNATURE_LENGTH],
-        }
+        Self([0; SIGNATURE_LENGTH])
     }
 }
 
@@ -374,22 +359,22 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        Ok(UnsecureAggregateSignature {
-            sig: signatures
+        Ok(UnsecureAggregateSignature(
+            signatures
                 .into_iter()
-                .map(|s| s.borrow().sig)
+                .map(|s| s.borrow().0)
                 .reduce(xor)
                 .unwrap(),
-        })
+        ))
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        self.sig = xor(self.sig, signature.sig);
+        self.0 = xor(self.0, signature.0);
         Ok(())
     }
 
     fn add_aggregate(&mut self, signatures: Self) -> Result<(), FastCryptoError> {
-        self.sig = xor(self.sig, signatures.sig);
+        self.0 = xor(self.0, signatures.0);
         Ok(())
     }
 
@@ -398,13 +383,9 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         msg: &[u8],
     ) -> Result<(), FastCryptoError> {
-        let actual = pks
-            .iter()
-            .map(|pk| sign(pk.0, msg).sig)
-            .reduce(xor)
-            .unwrap();
+        let actual = pks.iter().map(|pk| sign(pk.0, msg).0).reduce(xor).unwrap();
 
-        if actual == self.sig {
+        if actual == self.0 {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)
@@ -442,11 +423,11 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         let actual = pks
             .iter()
             .zip(messages.iter())
-            .map(|(pk, m)| sign(pk.0, m).sig)
+            .map(|(pk, m)| sign(pk.0, m).0)
             .reduce(xor)
             .unwrap();
 
-        if actual == self.sig {
+        if actual == self.0 {
             return Ok(());
         }
         Err(FastCryptoError::GeneralError)

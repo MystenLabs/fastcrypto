@@ -103,7 +103,7 @@ fn verify_invalid_signature() {
     let mut signature = kp.sign(&digest.digest);
 
     // Modify the signature
-    signature.sig[3] += 1;
+    signature.0[3] ^= 1;
 
     // Verification should fail.
     assert!(kp.public().verify(&digest.digest, &signature).is_err());
@@ -164,7 +164,7 @@ fn verify_invalid_batch() {
         .unzip();
 
     // Modify one of the signatures
-    signatures[1].sig[0] ^= 1;
+    signatures[1].0[0] ^= 1;
 
     // Verify the batch.
     let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.digest, &pubkeys, &signatures);
@@ -207,7 +207,7 @@ fn verify_invalid_aggregate_signature() {
         .unzip();
 
     // Modify one of the signatures
-    signatures[1].sig[0] += 1;
+    signatures[1].0[0] ^= 1;
 
     let aggregated_signature = UnsecureAggregateSignature::aggregate(&signatures).unwrap();
 
