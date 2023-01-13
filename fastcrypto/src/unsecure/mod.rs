@@ -23,7 +23,8 @@ pub mod hash;
 ///     pk = sk || 0...0
 /// }
 ///
-/// Signatures are implemented as H(pk || msg) where H is the non-cryptographic hash function, XXHash.///
+/// Signatures are implemented as H(pk || msg) where H is the non-cryptographic hash function XXHash, and
+/// an aggregated signature is computed as the XOR of the individual signatures.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
 pub mod signature;
