@@ -264,7 +264,7 @@ impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey> + 'static> RecoverableSigna
 impl<D: PublicKeyDigest<BasePK = Secp256r1PublicKey>> Secp256r1RecoverableSignature<D> {
     /// Recover the public key given an already hashed message.
     pub fn recover_hashed(&self, digest: &[u8; 32]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        // This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+        // This follows `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few additions.
 
         let (r, s) = self.sig.split_scalars();
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(*digest));
