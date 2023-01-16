@@ -128,7 +128,9 @@ pub struct Ed25519AggregateSignature {
     pub bytes: OnceCell<Vec<u8>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, JsonSchema)]
+///
+#[derive(Debug, Clone, PartialEq, Eq, Default, JsonSchema)]
+#[serde(transparent)]
 pub struct Ed25519AggregateSignatureAsBytes(#[schemars(with = "Base64")] Vec<u8>);
 
 ///
