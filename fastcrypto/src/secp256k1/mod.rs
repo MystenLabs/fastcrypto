@@ -284,6 +284,14 @@ impl Default for Secp256k1Signature {
     }
 }
 
+impl PartialEq for Secp256k1Signature {
+    fn eq(&self, other: &Self) -> bool {
+        self.sig == other.sig
+    }
+}
+
+impl Eq for Secp256k1Signature {}
+
 /// Secp256k1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256k1KeyPair {
