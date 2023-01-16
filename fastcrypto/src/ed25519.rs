@@ -600,7 +600,7 @@ impl TryFrom<&Ed25519AggregateSignatureAsBytes> for Ed25519AggregateSignature {
     type Error = FastCryptoError;
 
     fn try_from(bytes: &Ed25519AggregateSignatureAsBytes) -> Result<Self, Self::Error> {
-        Ok(Ed25519AggregateSignature::from_bytes(bytes.0.as_slice())?)
+        Ed25519AggregateSignature::from_bytes(bytes.0.as_slice())
     }
 }
 
