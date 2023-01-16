@@ -128,7 +128,7 @@ impl RistrettoScalar {
 
     /// Use the output of a hash function to construct a uniformly random scalar.
     pub fn hash_to_scalar(hash: [u8; 64]) -> Self {
-        // Implementation copied from https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
+        // See https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
         RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
     }
 }
