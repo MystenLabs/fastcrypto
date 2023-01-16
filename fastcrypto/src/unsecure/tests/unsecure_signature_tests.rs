@@ -2,18 +2,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::signature_service::SignatureService;
 use crate::{
     hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
     traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
     unsecure::signature::{
         UnsecureAggregateSignature, UnsecureKeyPair, UnsecurePrivateKey, UnsecurePublicKey,
-        UnsecurePublicKeyBytes, UnsecureSignature,
+        UnsecureSignature,
     },
 };
-
 use ::signature::Verifier;
 use rand::{rngs::StdRng, SeedableRng as _};
+use signature::Signer;
 
 pub fn keys() -> Vec<UnsecureKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -102,7 +103,7 @@ fn verify_invalid_signature() {
     let mut signature = kp.sign(&digest.digest);
 
     // Modify the signature
-    signature.0[3] += 1;
+    signature.0[3] ^= 1;
 
     // Verification should fail.
     assert!(kp.public().verify(&digest.digest, &signature).is_err());
@@ -163,7 +164,7 @@ fn verify_invalid_batch() {
         .unzip();
 
     // Modify one of the signatures
-    signatures[1].0[0] += 1;
+    signatures[1].0[0] ^= 1;
 
     // Verify the batch.
     let res = UnsecurePublicKey::verify_batch_empty_fail(&digest.digest, &pubkeys, &signatures);
@@ -206,7 +207,7 @@ fn verify_invalid_aggregate_signature() {
         .unzip();
 
     // Modify one of the signatures
-    signatures[1].0[0] += 1;
+    signatures[1].0[0] ^= 1;
 
     let aggregated_signature = UnsecureAggregateSignature::aggregate(&signatures).unwrap();
 
@@ -376,14 +377,6 @@ fn test_hkdf_generate_from_ikm() {
 }
 
 #[test]
-fn test_public_key_bytes_conversion() {
-    let kp = keys().pop().unwrap();
-    let pk_bytes: UnsecurePublicKeyBytes = kp.public().into();
-    let rebuilt_pk: UnsecurePublicKey = pk_bytes.try_into().unwrap();
-    assert_eq!(kp.public().as_bytes(), rebuilt_pk.as_bytes());
-}
-
-#[test]
 #[cfg(feature = "copy_key")]
 fn test_copy_key_pair() {
     let kp = keys().pop().unwrap();
@@ -400,7 +393,7 @@ async fn signature_service() {
     let pk = kp.public().clone();
 
     // Spawn the signature service.
-    let mut service = SignatureService::new(kp);
+    let service = SignatureService::new(kp);
 
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
