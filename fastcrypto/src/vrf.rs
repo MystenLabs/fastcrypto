@@ -180,7 +180,7 @@ pub mod ecvrf {
         fn from(c: &Challenge) -> Self {
             let mut scalar = [0u8; 32];
             scalar[..C_LEN].copy_from_slice(&c.0);
-            RistrettoScalar::from_bytes_mod_order(scalar)
+            RistrettoScalar::from_byte_array(&scalar).unwrap()
         }
     }
 
