@@ -148,7 +148,7 @@ pub mod ecvrf {
             hash_function.update(h_string);
             let k_string = hash_function.finalize();
 
-            RistrettoScalar::hash_to_scalar(k_string.digest)
+            RistrettoScalar::from_bytes_mod_order_wide(k_string.digest)
         }
     }
 
@@ -180,7 +180,7 @@ pub mod ecvrf {
         fn from(c: &Challenge) -> Self {
             let mut scalar = [0u8; 32];
             scalar[..C_LEN].copy_from_slice(&c.0);
-            RistrettoScalar::from_bits(scalar)
+            RistrettoScalar::from_bytes_mod_order(scalar)
         }
     }
 

@@ -108,28 +108,19 @@ generate_bytes_representation!(
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
-    /// Attempt to create a new scalar from the given bytes in canonical representation.
-    pub fn from_canonical_bytes(bytes: [u8; 32]) -> Result<RistrettoScalar, FastCryptoError> {
-        ExternalRistrettoScalar::from_canonical_bytes(bytes)
-            .map_or(Err(FastCryptoError::InvalidInput), |r| {
-                Ok(RistrettoScalar(r))
-            })
-    }
-
-    /// Create a scalar from the low 255 bits of the given 256-bit integer.
-    pub fn from_bits(value: [u8; 32]) -> RistrettoScalar {
-        RistrettoScalar(ExternalRistrettoScalar::from_bits(value))
-    }
-
     /// The order of the base point.
     pub fn group_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
     }
 
-    /// Use the output of a hash function to construct a uniformly random scalar.
-    pub fn hash_to_scalar(hash: [u8; 64]) -> Self {
-        // See https://docs.rs/curve25519-dalek-ng/4.1.1/src/curve25519_dalek_ng/scalar.rs.html#629
-        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
+    /// Construct a [RistrettoScalar] by reducing a 64-byte little-endian integer modulo the group order.
+    pub fn from_bytes_mod_order_wide(bytes: [u8; 64]) -> Self {
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(&bytes))
+    }
+
+    /// Construct a [RistrettoScalar] by reducing a 32-byte little-endian integer modulo the group order.
+    pub fn from_bytes_mod_order(bytes: [u8; 32]) -> Self {
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order(bytes))
     }
 }
 
@@ -181,7 +172,7 @@ impl HashToGroupElement for RistrettoScalar {
         hasher.update(bytes);
         let mut hash = [0u8; 64];
         hash.copy_from_slice(hasher.finalize().as_slice());
-        Self(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
+        Self::from_bytes_mod_order_wide(hash)
     }
 }
 
