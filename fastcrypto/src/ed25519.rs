@@ -128,9 +128,9 @@ pub struct Ed25519AggregateSignature {
     pub bytes: OnceCell<Vec<u8>>,
 }
 
-///
-#[derive(Debug, Clone, PartialEq, Eq, Default, JsonSchema)]
-#[serde(transparent)]
+/// Wrapper for storing a binary representation of an instance of [Ed25519AggregateSignature]. The
+/// implementation is aligned with [serde_helpers::BytesRepresentation] but allows dynamic length.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, JsonSchema)]
 pub struct Ed25519AggregateSignatureAsBytes(#[schemars(with = "Base64")] Vec<u8>);
 
 ///
