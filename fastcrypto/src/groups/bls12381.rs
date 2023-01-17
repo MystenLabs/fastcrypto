@@ -10,12 +10,12 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 use blst::{
-    blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr,
-    blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul,
-    blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar,
-    blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg,
-    blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
-    blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
+    blst_bendian_from_scalar, blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
+    blst_fp12_one, blst_fp12_sqr, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar,
+    blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2,
+    blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine,
+    blst_p1_cneg, blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1,
+    blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
     blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
     blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
     blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
@@ -532,6 +532,29 @@ impl ScalarType for Scalar {
         Scalar::from(ret)
     }
 }
+
+impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
+    fn from_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
+        let mut ret = blst_fr::default();
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
+        }
+        Ok(Scalar::from(ret))
+    }
+
+    fn to_byte_array(&self) -> [u8; SCALAR_LENGTH] {
+        let mut bytes = [0u8; SCALAR_LENGTH];
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_fr(&mut scalar, &self.0);
+            blst_bendian_from_scalar(bytes.as_mut_ptr(), &scalar);
+        }
+        bytes
+    }
+}
+serialize_deserialize_with_to_from_byte_array!(Scalar);
 
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
     let odd: bool;

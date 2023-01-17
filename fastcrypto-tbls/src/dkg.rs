@@ -17,8 +17,10 @@ use fastcrypto::traits::AllowedRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
 
-// TODO: add weights to PkiNode, and change the DKG accordingly
+/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
+/// for the group of the ECIES public key.
 
+// TODO: Add weights to PkiNode, and change the DKG accordingly.
 /// PKI node, with a unique id and its encryption public key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkiNode<EG: GroupElement> {
@@ -30,7 +32,7 @@ pub type Nodes<EG> = Vec<PkiNode<EG>>;
 
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq)]
-struct Party<G: GroupElement, EG: GroupElement> {
+pub struct Party<G: GroupElement, EG: GroupElement> {
     id: ShareIndex,
     nodes: Nodes<EG>,
     ecies_sk: ecies::PrivateKey<EG>,
@@ -42,56 +44,57 @@ struct Party<G: GroupElement, EG: GroupElement> {
 }
 
 /// [EncryptedShare] holds the ECIES encryption of a share destined to the receiver.
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EncryptedShare<EG: GroupElement> {
     pub receiver: ShareIndex,
-    // TODO: Replace with a Enc(hkdf(g^{sk_i sk_j}), share) instead of sending a random group
-    // element, or extend ECIES to work like that.
+    // TODO: Consider replacing with a Enc(hkdf(g^{sk_i sk_j}), share) instead of sending a random
+    // group element, or extend ECIES to work like that.
     pub encryption: ecies::Encryption<EG>,
 }
 
-/// [DkgFirstMessage] holds all encrypted shares a dealer creates during the first
-/// phase of the protocol.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+/// [DkgFirstMessage] holds all encrypted shares a dealer sends during the first phase of the
+/// protocol.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FirstMessage<G: GroupElement, EG: GroupElement> {
     pub sender: ShareIndex,
     /// The encrypted shares created by the sender.
     pub encrypted_shares: Vec<EncryptedShare<EG>>,
     /// The commitment of the secret polynomial created by the sender.
-    // TODO: add a proof of possession/knowledge.
+    // TODO: add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
-#[derive(Clone, PartialEq)]
+// TODO: add Serialize & Deserialize.
+#[derive(Clone, PartialEq, Eq)]
 pub enum Complaint<EG: GroupElement> {
     /// The identity of the sender.
     NoShare(ShareIndex),
-    /// The identity of the sender and the delegated key.
+    /// The identity of the sender and the recovery package.
     // An alternative to using ECIES & ZKPoK for complaints is to use different ECIES public key
     // for each sender, and in case of a complaint, simply reveal the relevant secret key.
     // This saves the ZKPoK with the price of publishing one ECIES public key & PoP for each party,
-    // resulting in larger communication in the happy path.
+    // resulting in larger communication in the happy-path.
     InvalidEncryptedShare(ShareIndex, RecoveryPackage<EG>),
 }
 
 /// A [DkgSecondMessage] is sent during the second phase of the protocol. It includes complaints
 /// created by receiver of invalid encrypted shares.
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SecondMessage<EG: GroupElement> {
     pub sender: ShareIndex,
-    // List of complaints against other parties. Empty if there are non.
+    /// List of complaints against other parties. Empty if there are none.
     pub complaints: Vec<Complaint<EG>>,
 }
 
-/// Mapping from node id to the share I received from that leader.
+/// Mapping from node id to the share received from that leader.
 pub type SharesMap<G> = HashMap<ShareIndex, <G as GroupElement>::ScalarType>;
 
 /// [DkgOutput] is the final output of the DKG protocol in case it runs
 /// successfully. It can be used later with [ThresholdBls], see examples in tests.
 #[derive(Clone, Debug)]
 pub struct DkgOutput<G: GroupElement, EG: GroupElement> {
-    pub nodes: Nodes<EG>, // do we need this?
+    pub nodes: Nodes<EG>,
     pub vss_pk: Poly<G>,
     pub share: Share<G::ScalarType>,
 }
@@ -111,7 +114,7 @@ where
     pub fn new<R: AllowedRng>(
         ecies_sk: ecies::PrivateKey<EG>,
         nodes: Nodes<EG>,
-        threshold: u32,
+        threshold: u32, // The number of parties that are needed to reconstruct the full signature.
         random_oracle: RandomOracle,
         rng: &mut R,
     ) -> Result<Self, FastCryptoError> {
@@ -120,8 +123,8 @@ where
         // Check if the public key is in one of the nodes.
         let curr_node = nodes
             .iter()
-            .find(|n| &n.pk == &ecies_pk)
-            .ok_or_else(|| FastCryptoError::InvalidInput)?;
+            .find(|n| n.pk == ecies_pk)
+            .ok_or(FastCryptoError::InvalidInput)?;
 
         // Generate a secret polynomial and commit to it.
         let vss_sk = PrivatePoly::<G>::rand(threshold - 1, rng);
@@ -139,14 +142,20 @@ where
         })
     }
 
+    pub fn threshold(&self) -> u32 {
+        self.threshold
+    }
+
     /// 4. Create the first message to be broadcasted.
     pub fn create_first_message<R: AllowedRng>(&self, rng: &mut R) -> FirstMessage<G, EG> {
         let encrypted_shares = self
             .nodes
             .iter()
+            .filter(|n| n.id != self.id)
             .map(|n| {
                 let share = self.vss_sk.eval(n.id);
-                let buff = bincode::serialize(&share.value).unwrap();
+                let buff = bincode::serialize(&share.value)
+                    .expect("serialize of a share should never fail");
                 let encryption = n.pk.encrypt(&buff, rng);
                 EncryptedShare {
                     receiver: n.id,
@@ -190,6 +199,10 @@ where
             if message.vss_pk.degree() != self.threshold - 1 {
                 continue;
             }
+            if message.sender == my_id {
+                shares.insert(message.sender, self.vss_sk.eval(my_id).value);
+                continue;
+            }
             // TODO: check that current dealer is in the list of pki nodes.
             // Get the relevant encrypted share (or skip message).
             let encrypted_share = message
@@ -208,7 +221,7 @@ where
                 &self.ecies_sk,
                 my_id,
                 &message.vss_pk,
-                encrypted_share.unwrap(),
+                encrypted_share.expect("checked above that is not None"),
             );
             match share {
                 Ok(sh) => {
@@ -220,7 +233,9 @@ where
                         .push(Complaint::InvalidEncryptedShare(
                             message.sender,
                             self.ecies_sk.create_recovery_package(
-                                &encrypted_share.unwrap().encryption,
+                                &encrypted_share
+                                    .expect("checked above that is not None")
+                                    .encryption,
                                 &self.random_oracle.extend("ecies"),
                                 rng,
                             ),
@@ -228,7 +243,10 @@ where
                 }
             }
         }
-
+        assert!(
+            !shares.is_empty(),
+            "since we process t messages, at least one of them should be valid"
+        );
         Ok((shares, next_message))
     }
 
@@ -267,14 +285,14 @@ where
                 if !shares.contains_key(&accused) {
                     continue 'inner;
                 }
-                // TODO: check that current accuser is in nodes (and thus in id_to_pk).
                 let accuser = m2.sender;
+                // TODO: check that current accuser is in nodes (and thus in id_to_pk).
                 let accuser_pk = id_to_pk.get(&accuser).unwrap();
-                let relevant_m1 = id_to_m1.get(&accused);
+                let related_m1 = id_to_m1.get(&accused);
                 // If the claim refers to a non existing message, it's an invalid complaint.
-                let mut valid_complaint = relevant_m1.is_some() && {
-                    let encrypted_share = relevant_m1
-                        .unwrap()
+                let valid_complaint = related_m1.is_some() && {
+                    let encrypted_share = related_m1
+                        .expect("checked above that is not None")
                         .encrypted_shares
                         .iter()
                         .find(|s| s.receiver == accuser);
@@ -283,19 +301,19 @@ where
                             // Check if there is a share.
                             encrypted_share.is_none()
                         }
-                        Complaint::InvalidEncryptedShare(accused, recovery_pkg) => {
-                            if encrypted_share.is_none() {
-                                false // Strange case indeed, but still an invalid claim.
-                            } else {
+                        Complaint::InvalidEncryptedShare(_accused, recovery_pkg) => {
+                            if let Some(sh) = encrypted_share {
                                 Self::check_delegated_key_and_share(
                                     recovery_pkg,
-                                    &accuser_pk,
+                                    accuser_pk,
                                     accuser,
-                                    &relevant_m1.unwrap().vss_pk,
-                                    encrypted_share.unwrap(),
+                                    &related_m1.expect("checked above that is not None").vss_pk,
+                                    sh,
                                     &self.random_oracle.extend("ecies"),
                                 )
                                 .is_ok()
+                            } else {
+                                false // Strange case indeed, but still an invalid claim.
                             }
                         }
                     }
@@ -327,23 +345,15 @@ where
         shares: SharesMap<G>,
     ) -> DkgOutput<G, EG> {
         let id_to_m1: HashMap<_, _> = first_messages.iter().map(|m| (m.sender, m)).collect();
-        let mut nodes = Vec::new();
         let mut vss_pk = PublicPoly::<G>::zero();
         let mut sk = G::ScalarType::zero();
         for (from_sender, share) in shares {
-            nodes.push(
-                self.nodes
-                    .iter()
-                    .find(|n| n.id == from_sender)
-                    .unwrap() // Safe since the caller already checked that previously.
-                    .clone(),
-            );
             vss_pk.add(&id_to_m1.get(&from_sender).unwrap().vss_pk);
             sk += share;
         }
 
         DkgOutput {
-            nodes,
+            nodes: self.nodes.clone(),
             vss_pk,
             share: Share {
                 index: self.id,
@@ -359,16 +369,16 @@ where
         encrypted_share: &EncryptedShare<EG>,
     ) -> Result<G::ScalarType, FastCryptoError> {
         let buffer = sk.decrypt(&encrypted_share.encryption);
-        Self::deserialize_and_check_share(buffer, id, vss_pk)
+        Self::deserialize_and_check_share(buffer.as_slice(), id, vss_pk)
     }
 
     fn deserialize_and_check_share(
-        buffer: Vec<u8>,
+        buffer: &[u8],
         id: ShareIndex,
         vss_pk: &PublicPoly<G>,
     ) -> Result<G::ScalarType, FastCryptoError> {
         let share: G::ScalarType =
-            bincode::deserialize(&buffer).map_err(|_| FastCryptoError::InvalidInput)?;
+            bincode::deserialize(buffer).map_err(|_| FastCryptoError::InvalidInput)?;
         if !vss_pk.is_valid_share(id, &share) {
             return Err(FastCryptoError::InvalidProof);
         }
@@ -384,10 +394,10 @@ where
         random_oracle: &RandomOracle,
     ) -> Result<G::ScalarType, FastCryptoError> {
         let buffer = ecies_pk.decrypt_with_recovery_package(
-            &recovery_pkg,
+            recovery_pkg,
             random_oracle,
             &encrypted_share.encryption,
         )?;
-        Self::deserialize_and_check_share(buffer, id, vss_pk)
+        Self::deserialize_and_check_share(buffer.as_slice(), id, vss_pk)
     }
 }

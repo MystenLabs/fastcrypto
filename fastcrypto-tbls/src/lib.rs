@@ -11,6 +11,7 @@
 //! An experimental crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
+pub mod dkg;
 pub mod ecies;
 pub mod mocked_dkg;
 pub mod polynomial;
@@ -33,3 +34,7 @@ pub mod ecies_tests;
 #[cfg(test)]
 #[path = "tests/random_oracle_tests.rs"]
 pub mod random_oracle_tests;
+
+#[cfg(test)]
+#[path = "tests/dkg_tests.rs"]
+pub mod dkg_tests;
