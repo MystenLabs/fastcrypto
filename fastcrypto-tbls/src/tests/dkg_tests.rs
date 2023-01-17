@@ -28,12 +28,12 @@ fn gen_ecies_keys(n: usize) -> Vec<(ShareIndex, ecies::PrivateKey<EG>, ecies::Pu
 
 fn setup_party(
     id: usize,
-    keys: &Vec<(ShareIndex, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)>,
+    keys: &[(ShareIndex, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)],
 ) -> Party<G, EG> {
     let nodes = keys
         .iter()
         .map(|(id, _sk, pk)| PkiNode::<EG> {
-            id: id.clone(),
+            id: *id,
             pk: pk.clone(),
         })
         .collect();
@@ -119,5 +119,5 @@ fn test_dkg_e2e_4_parties_threshold_2() {
 
     let sigs = vec![sig1, sig4];
     let sig = S::aggregate(d1.threshold(), &sigs).unwrap();
-    S::verify(&o1.vss_pk.c0(), &MSG, &sig).unwrap();
+    S::verify(o1.vss_pk.c0(), &MSG, &sig).unwrap();
 }
