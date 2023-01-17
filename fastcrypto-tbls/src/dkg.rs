@@ -21,6 +21,7 @@ use std::collections::HashMap;
 /// for the group of the ECIES public key.
 
 // TODO: Add weights to PkiNode, and change the DKG accordingly.
+
 /// PKI node, with a unique id and its encryption public key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PkiNode<EG: GroupElement> {
