@@ -3,7 +3,7 @@
 
 use crate::hash::{
     Blake2b256, Blake3, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,
-    Sha3_256, Sha512,
+    Sha3_256, Sha3_512, Sha512,
 };
 
 #[test]
@@ -36,6 +36,17 @@ fn test_sha512() {
     assert_eq!(
         digest.as_ref(),
         hex::decode("cbd83ff929e1b4a72e144b5533e59edba3a90f761e188bd809f994137d67ecd8b87e4c250d461f7f4c64c22f10e9f5c598849f2685f5b828b501e38d2b252d12").unwrap()
+    );
+}
+
+#[test]
+fn test_sha3_512() {
+    let data =
+        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
+    let digest = Sha3_512::digest(data);
+    assert_eq!(
+        digest.as_ref(),
+        hex::decode("94f0c851d61857a84bc6702a0f997250a2646e3c53951ce684977f0d626362208892e3cce36f18997888887570e5a7529ec4c420a8840567dea91fd3f36eee17").unwrap()
     );
 }
 
