@@ -78,7 +78,7 @@ pub mod ecvrf {
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
     /// designs should specify a different suite_string constant, so we use 0x05 here.
-    const SUITE_STRING: [u8; 1] = [0x05];
+    const SUITE_STRING: [u8; 1] = [0x05]; // TODO: Update this with future releases of the draft or final version.
 
     /// Length of challenge. Must not exceed the length of field elements which is 32 in this case and
     /// the other suites uses half the length, so we do the same here.
