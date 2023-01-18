@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
+use crate::serde_helpers::ToFromByteArray;
 use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
@@ -44,7 +46,12 @@ fn test_serialize_deserialize() {
     let proof_serialized = bincode::serialize(&proof).unwrap();
 
     // A proof consists of a point, a challenge (half length of field elements) and a field element.
-    assert_eq!(32 + 16 + 32, proof_serialized.len());
+    assert_eq!(
+        RistrettoPoint::BYTE_LENGTH
+            + RistrettoScalar::BYTE_LENGTH / 2
+            + RistrettoScalar::BYTE_LENGTH,
+        proof_serialized.len()
+    );
 
     let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
     assert!(proof_reconstructed

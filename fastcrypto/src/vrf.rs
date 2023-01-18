@@ -148,7 +148,7 @@ pub mod ecvrf {
             hash_function.update(h_string);
             let k_string = hash_function.finalize();
 
-            RistrettoScalar::from_bytes_mod_order_wide(k_string.digest)
+            RistrettoScalar::from_bytes_mod_order_wide(&k_string.digest)
         }
     }
 

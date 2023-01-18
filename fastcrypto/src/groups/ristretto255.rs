@@ -5,6 +5,7 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::groups::{GroupElement, HashToGroupElement, Scalar};
+use crate::hash::Sha512;
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -19,7 +20,6 @@ use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, Div, From, Neg, Sub};
-use digest::Digest;
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
@@ -114,8 +114,8 @@ impl RistrettoScalar {
     }
 
     /// Construct a [RistrettoScalar] by reducing a 64-byte little-endian integer modulo the group order.
-    pub fn from_bytes_mod_order_wide(bytes: [u8; 64]) -> Self {
-        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(&bytes))
+    pub fn from_bytes_mod_order_wide(bytes: &[u8; 64]) -> Self {
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(bytes))
     }
 }
 
@@ -163,11 +163,7 @@ impl Scalar for RistrettoScalar {
 
 impl HashToGroupElement for RistrettoScalar {
     fn hash_to_group_element(bytes: &[u8]) -> Self {
-        let mut hasher = sha3::Sha3_512::default();
-        hasher.update(bytes);
-        let mut hash = [0u8; 64];
-        hash.copy_from_slice(hasher.finalize().as_slice());
-        Self::from_bytes_mod_order_wide(hash)
+        Self::from_bytes_mod_order_wide(&Sha512::digest(bytes).digest)
     }
 }
 
