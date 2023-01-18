@@ -180,6 +180,8 @@ impl Debug for BLS12381PublicKey {
 // There is a strong requirement for this specific impl. in Fab benchmarks.
 serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey);
 
+generate_bytes_representation!(BLS12381PublicKey, {$pk_length}, BLS12381PublicKeyAsBytes);
+
 impl Verifier<BLS12381Signature> for BLS12381PublicKey {
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
         let err = signature
