@@ -6,12 +6,10 @@
 
 use crate::groups::{GroupElement, HashToGroupElement, Scalar};
 use crate::hash::Sha512;
-use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{
-    error::FastCryptoError, generate_bytes_representation, hash::HashFunction,
-    serialize_deserialize_with_to_from_byte_array,
+    error::FastCryptoError, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
 };
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
@@ -26,6 +24,7 @@ use std::ops::{Div, Mul};
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
+pub const COFACTOR: u64 = 8;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -97,11 +96,6 @@ impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 }
 
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
-generate_bytes_representation!(
-    RistrettoPoint,
-    RISTRETTO_POINT_BYTE_LENGTH,
-    RistrettoPointAsBytes
-);
 
 /// Represents a scalar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
@@ -182,8 +176,3 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
 }
 
 serialize_deserialize_with_to_from_byte_array!(RistrettoScalar);
-generate_bytes_representation!(
-    RistrettoScalar,
-    RISTRETTO_SCALAR_BYTE_LENGTH,
-    RistrettoScalarAsBytes
-);
