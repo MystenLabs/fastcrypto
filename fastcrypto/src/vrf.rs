@@ -84,8 +84,8 @@ pub mod ecvrf {
     /// Default hash function
     type H = Sha512;
 
-    /// Domain separation tag used in ecvrf_encode_to_curve
-    const DST: &[u8; 43] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_5";
+    /// Domain separation tag used in ecvrf_encode_to_curve (see also draft-irtf-cfrg-hash-to-curve-16)
+    const DST: &[u8; 49] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_sui_vrf";
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     pub struct ECVRFPublicKey(RistrettoPoint);
