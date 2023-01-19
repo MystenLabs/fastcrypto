@@ -10,7 +10,7 @@
 //! # use fastcrypto::secp256r1::recoverable::*;
 //! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
 //! use rand::thread_rng;
-//! let kp = Secp256r1KeyPair::generate(&mut thread_rng());
+//! let kp = Secp256r1RecoverableKeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
@@ -61,7 +61,7 @@ pub const SECP256R1_KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_SIZE;
 /// Secp256r1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
-pub struct Secp256r1PublicKey {
+pub struct Secp256r1RecoverablePublicKey {
     pub pubkey: ExternalPublicKey,
     pub bytes: OnceCell<[u8; PUBLIC_KEY_SIZE]>,
 }
@@ -69,7 +69,7 @@ pub struct Secp256r1PublicKey {
 /// Secp256r1 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
-pub struct Secp256r1PrivateKey {
+pub struct Secp256r1RecoverablePrivateKey {
     pub privkey: ExternalSecretKey,
     pub bytes: OnceCell<[u8; PRIVATE_KEY_SIZE]>,
 }
@@ -77,46 +77,50 @@ pub struct Secp256r1PrivateKey {
 /// Secp256r1 signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
-pub struct Secp256r1Signature {
+pub struct Secp256r1RecoverableSignature {
     pub sig: ExternalSignature,
     pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
     pub recovery_id: u8,
 }
 
-impl std::hash::Hash for Secp256r1PublicKey {
+impl std::hash::Hash for Secp256r1RecoverablePublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
-impl PartialOrd for Secp256r1PublicKey {
+impl PartialOrd for Secp256r1RecoverablePublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         self.as_ref().partial_cmp(other.as_ref())
     }
 }
 
-impl Ord for Secp256r1PublicKey {
+impl Ord for Secp256r1RecoverablePublicKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.as_ref().cmp(other.as_ref())
     }
 }
 
-impl PartialEq for Secp256r1PublicKey {
+impl PartialEq for Secp256r1RecoverablePublicKey {
     fn eq(&self, other: &Self) -> bool {
         self.pubkey == other.pubkey
     }
 }
 
-impl Eq for Secp256r1PublicKey {}
+impl Eq for Secp256r1RecoverablePublicKey {}
 
-impl VerifyingKey for Secp256r1PublicKey {
-    type PrivKey = Secp256r1PrivateKey;
-    type Sig = Secp256r1Signature;
+impl VerifyingKey for Secp256r1RecoverablePublicKey {
+    type PrivKey = Secp256r1RecoverablePrivateKey;
+    type Sig = Secp256r1RecoverableSignature;
     const LENGTH: usize = PUBLIC_KEY_SIZE;
 }
 
-impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
-    fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), signature::Error> {
+impl Verifier<Secp256r1RecoverableSignature> for Secp256r1RecoverablePublicKey {
+    fn verify(
+        &self,
+        msg: &[u8],
+        signature: &Secp256r1RecoverableSignature,
+    ) -> Result<(), signature::Error> {
         let pk = signature
             .recover(msg)
             .map_err(|_| signature::Error::new())?;
@@ -129,9 +133,9 @@ impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
     }
 }
 
-impl Secp256r1PublicKey {}
+impl Secp256r1RecoverablePublicKey {}
 
-impl AsRef<[u8]> for Secp256r1PublicKey {
+impl AsRef<[u8]> for Secp256r1RecoverablePublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.as_ref().to_bytes().into()))
@@ -139,10 +143,10 @@ impl AsRef<[u8]> for Secp256r1PublicKey {
     }
 }
 
-impl ToFromBytes for Secp256r1PublicKey {
+impl ToFromBytes for Secp256r1RecoverablePublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match ExternalPublicKey::try_from(bytes) {
-            Ok(pubkey) => Ok(Secp256r1PublicKey {
+            Ok(pubkey) => Ok(Secp256r1RecoverablePublicKey {
                 pubkey,
                 // If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
                 bytes: match <[u8; PUBLIC_KEY_SIZE]>::try_from(bytes) {
@@ -155,24 +159,24 @@ impl ToFromBytes for Secp256r1PublicKey {
     }
 }
 
-impl Default for Secp256r1PublicKey {
+impl Default for Secp256r1RecoverablePublicKey {
     fn default() -> Self {
         // Default public key is just the generator for the group
-        Secp256r1PublicKey {
+        Secp256r1RecoverablePublicKey {
             pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
             bytes: OnceCell::new(),
         }
     }
 }
 
-impl Display for Secp256r1PublicKey {
+impl Display for Secp256r1RecoverablePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256r1PublicKey {
+impl Serialize for Secp256r1RecoverablePublicKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -181,7 +185,7 @@ impl Serialize for Secp256r1PublicKey {
     }
 }
 
-impl<'de> Deserialize<'de> for Secp256r1PublicKey {
+impl<'de> Deserialize<'de> for Secp256r1RecoverablePublicKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -192,25 +196,25 @@ impl<'de> Deserialize<'de> for Secp256r1PublicKey {
     }
 }
 
-impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
-    fn from(secret: &'a Secp256r1PrivateKey) -> Self {
-        Secp256r1PublicKey {
+impl<'a> From<&'a Secp256r1RecoverablePrivateKey> for Secp256r1RecoverablePublicKey {
+    fn from(secret: &'a Secp256r1RecoverablePrivateKey) -> Self {
+        Secp256r1RecoverablePublicKey {
             pubkey: ExternalPublicKey::from(&secret.privkey),
             bytes: OnceCell::new(),
         }
     }
 }
 
-impl SigningKey for Secp256r1PrivateKey {
-    type PubKey = Secp256r1PublicKey;
-    type Sig = Secp256r1Signature;
+impl SigningKey for Secp256r1RecoverablePrivateKey {
+    type PubKey = Secp256r1RecoverablePublicKey;
+    type Sig = Secp256r1RecoverableSignature;
     const LENGTH: usize = PRIVATE_KEY_SIZE;
 }
 
-impl ToFromBytes for Secp256r1PrivateKey {
+impl ToFromBytes for Secp256r1RecoverablePrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match ExternalSecretKey::try_from(bytes) {
-            Ok(privkey) => Ok(Secp256r1PrivateKey {
+            Ok(privkey) => Ok(Secp256r1RecoverablePrivateKey {
                 privkey,
                 bytes: OnceCell::with_value(<[u8; 32]>::try_from(bytes).unwrap()),
             }),
@@ -220,7 +224,7 @@ impl ToFromBytes for Secp256r1PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl Serialize for Secp256r1PrivateKey {
+impl Serialize for Secp256r1RecoverablePrivateKey {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -230,7 +234,7 @@ impl Serialize for Secp256r1PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-impl<'de> Deserialize<'de> for Secp256r1PrivateKey {
+impl<'de> Deserialize<'de> for Secp256r1RecoverablePrivateKey {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: de::Deserializer<'de>,
@@ -241,7 +245,7 @@ impl<'de> Deserialize<'de> for Secp256r1PrivateKey {
     }
 }
 
-impl AsRef<[u8]> for Secp256r1PrivateKey {
+impl AsRef<[u8]> for Secp256r1RecoverablePrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| Ok(self.privkey.to_bytes().into()))
@@ -249,7 +253,7 @@ impl AsRef<[u8]> for Secp256r1PrivateKey {
     }
 }
 
-impl Serialize for Secp256r1Signature {
+impl Serialize for Secp256r1RecoverableSignature {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -258,18 +262,18 @@ impl Serialize for Secp256r1Signature {
     }
 }
 
-impl<'de> Deserialize<'de> for Secp256r1Signature {
+impl<'de> Deserialize<'de> for Secp256r1RecoverableSignature {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         let data: Vec<u8> = Vec::deserialize(deserializer)?;
-        <Secp256r1Signature as Signature>::from_bytes(&data)
+        <Secp256r1RecoverableSignature as Signature>::from_bytes(&data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
 
-impl Signature for Secp256r1Signature {
+impl Signature for Secp256r1RecoverableSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
         // TODO: Compatibility with signatures without recovery id
         if bytes.len() != SIGNATURE_SIZE {
@@ -285,13 +289,13 @@ impl Signature for Secp256r1Signature {
     }
 }
 
-impl Authenticator for Secp256r1Signature {
-    type PubKey = Secp256r1PublicKey;
-    type PrivKey = Secp256r1PrivateKey;
+impl Authenticator for Secp256r1RecoverableSignature {
+    type PubKey = Secp256r1RecoverablePublicKey;
+    type PrivKey = Secp256r1RecoverablePrivateKey;
     const LENGTH: usize = SIGNATURE_SIZE;
 }
 
-impl AsRef<[u8]> for Secp256r1Signature {
+impl AsRef<[u8]> for Secp256r1RecoverableSignature {
     fn as_ref(&self) -> &[u8] {
         let mut bytes = [0u8; SIGNATURE_SIZE];
         bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.to_bytes().as_slice());
@@ -302,30 +306,30 @@ impl AsRef<[u8]> for Secp256r1Signature {
     }
 }
 
-impl std::hash::Hash for Secp256r1Signature {
+impl std::hash::Hash for Secp256r1RecoverableSignature {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
     }
 }
 
-impl PartialEq for Secp256r1Signature {
+impl PartialEq for Secp256r1RecoverableSignature {
     fn eq(&self, other: &Self) -> bool {
         self.sig == other.sig
     }
 }
 
-impl Eq for Secp256r1Signature {}
+impl Eq for Secp256r1RecoverableSignature {}
 
-impl Display for Secp256r1Signature {
+impl Display for Secp256r1RecoverableSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 
-impl Default for Secp256r1Signature {
+impl Default for Secp256r1RecoverableSignature {
     fn default() -> Self {
         // Return the signature (1,1)
-        Secp256r1Signature {
+        Secp256r1RecoverableSignature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
             bytes: OnceCell::new(),
@@ -335,44 +339,44 @@ impl Default for Secp256r1Signature {
 }
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct Secp256r1KeyPair {
-    pub name: Secp256r1PublicKey,
-    pub secret: Secp256r1PrivateKey,
+pub struct Secp256r1RecoverableKeyPair {
+    pub name: Secp256r1RecoverablePublicKey,
+    pub secret: Secp256r1RecoverablePrivateKey,
 }
 
 /// The bytes form of the keypair always only contain the private key bytes
-impl ToFromBytes for Secp256r1KeyPair {
+impl ToFromBytes for Secp256r1RecoverableKeyPair {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Secp256r1PrivateKey::from_bytes(bytes).map(|secret| secret.into())
+        Secp256r1RecoverablePrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(Secp256r1KeyPair);
+serialize_deserialize_with_to_from_bytes!(Secp256r1RecoverableKeyPair);
 
-impl AsRef<[u8]> for Secp256r1KeyPair {
+impl AsRef<[u8]> for Secp256r1RecoverableKeyPair {
     fn as_ref(&self) -> &[u8] {
         self.secret.as_ref()
     }
 }
 
-impl KeyPair for Secp256r1KeyPair {
-    type PubKey = Secp256r1PublicKey;
-    type PrivKey = Secp256r1PrivateKey;
-    type Sig = Secp256r1Signature;
+impl KeyPair for Secp256r1RecoverableKeyPair {
+    type PubKey = Secp256r1RecoverablePublicKey;
+    type PrivKey = Secp256r1RecoverablePrivateKey;
+    type Sig = Secp256r1RecoverableSignature;
 
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
     }
 
     fn private(self) -> Self::PrivKey {
-        Secp256r1PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
+        Secp256r1RecoverablePrivateKey::from_bytes(self.secret.as_ref()).unwrap()
     }
 
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
-        Secp256r1KeyPair {
+        Secp256r1RecoverableKeyPair {
             name: self.name.clone(),
-            secret: Secp256r1PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
+            secret: Secp256r1RecoverablePrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
         }
     }
 
@@ -380,12 +384,12 @@ impl KeyPair for Secp256r1KeyPair {
         let privkey = ExternalSecretKey::random(rng);
         let pubkey = ExternalPublicKey::from(&privkey);
 
-        Secp256r1KeyPair {
-            name: Secp256r1PublicKey {
+        Secp256r1RecoverableKeyPair {
+            name: Secp256r1RecoverablePublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             },
-            secret: Secp256r1PrivateKey {
+            secret: Secp256r1RecoverablePrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             },
@@ -393,7 +397,7 @@ impl KeyPair for Secp256r1KeyPair {
     }
 }
 
-impl FromStr for Secp256r1KeyPair {
+impl FromStr for Secp256r1RecoverableKeyPair {
     type Err = eyre::Report;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -402,8 +406,8 @@ impl FromStr for Secp256r1KeyPair {
     }
 }
 
-impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, signature::Error> {
+impl Signer<Secp256r1RecoverableSignature> for Secp256r1RecoverableKeyPair {
+    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1RecoverableSignature, signature::Error> {
         // Code copied from Sign.rs in k256@0.11.6
 
         // Hash message
@@ -453,7 +457,7 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
         let sig_low = sig.normalize_s().unwrap_or(sig);
         let recovery_id = RecoveryId::new(is_y_odd.into(), false);
 
-        Ok(Secp256r1Signature {
+        Ok(Secp256r1RecoverableSignature {
             sig: sig_low,
             bytes: OnceCell::new(),
             recovery_id: recovery_id.to_byte(),
@@ -471,20 +475,20 @@ fn get_y_coordinate(point: &AffinePoint) -> Scalar {
     Scalar::from_be_bytes_reduced(*y)
 }
 
-impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
-    fn from(secret: Secp256r1PrivateKey) -> Self {
-        let name = Secp256r1PublicKey::from(&secret);
-        Secp256r1KeyPair { name, secret }
+impl From<Secp256r1RecoverablePrivateKey> for Secp256r1RecoverableKeyPair {
+    fn from(secret: Secp256r1RecoverablePrivateKey) -> Self {
+        let name = Secp256r1RecoverablePublicKey::from(&secret);
+        Secp256r1RecoverableKeyPair { name, secret }
     }
 }
 
-impl Secp256r1Signature {
+impl Secp256r1RecoverableSignature {
     /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
     ///
     /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
     ///
     /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
@@ -506,7 +510,7 @@ impl Secp256r1Signature {
             let u2 = r_inv * *s;
             let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
 
-            Ok(Secp256r1PublicKey {
+            Ok(Secp256r1RecoverablePublicKey {
                 pubkey: ExternalPublicKey::from_affine(pk)
                     .map_err(|_| FastCryptoError::GeneralError)?,
                 bytes: OnceCell::new(),
@@ -529,30 +533,30 @@ impl Secp256r1Signature {
     }
 }
 
-impl zeroize::Zeroize for Secp256r1PrivateKey {
+impl zeroize::Zeroize for Secp256r1RecoverablePrivateKey {
     fn zeroize(&mut self) {
         self.bytes.take().zeroize();
         // SigningKey from the p256 crate implements zeroize on drop, so we do not need to zeroize it here.
     }
 }
 
-impl Drop for Secp256r1PrivateKey {
+impl Drop for Secp256r1RecoverablePrivateKey {
     fn drop(&mut self) {
         self.bytes.take().zeroize();
     }
 }
 
-impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
+impl zeroize::ZeroizeOnDrop for Secp256r1RecoverablePrivateKey {}
 
-impl zeroize::Zeroize for Secp256r1KeyPair {
+impl zeroize::Zeroize for Secp256r1RecoverableKeyPair {
     fn zeroize(&mut self) {
         self.secret.zeroize()
     }
 }
 
-impl zeroize::ZeroizeOnDrop for Secp256r1KeyPair {}
+impl zeroize::ZeroizeOnDrop for Secp256r1RecoverableKeyPair {}
 
-impl Drop for Secp256r1KeyPair {
+impl Drop for Secp256r1RecoverableKeyPair {
     fn drop(&mut self) {
         self.secret.zeroize();
     }
