@@ -13,7 +13,7 @@ mod signature_benches {
         bls12381,
         ed25519::*,
         hash::{Blake2b256, HashFunction},
-        secp256k1::Secp256k1KeyPair,
+        secp256k1::recoverable::Secp256k1KeyPair,
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
         Verifier,
     };

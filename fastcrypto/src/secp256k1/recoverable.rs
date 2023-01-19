@@ -6,7 +6,7 @@
 //! Messages can be signed and the signature can be verified again:
 //! # Example
 //! ```rust
-//! # use fastcrypto::secp256k1::*;
+//! # use fastcrypto::secp256k1::recoverable::*;
 //! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
 //! use rand::thread_rng;
 //! let kp = Secp256k1KeyPair::generate(&mut thread_rng());
