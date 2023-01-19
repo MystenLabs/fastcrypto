@@ -62,7 +62,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 /// An implementation of an Elliptic Curve VRF (ECVRF) using the Ristretto255 group.
 /// The implementation follows the specifications in draft-irtf-cfrg-vrf-15
 /// (https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/).
-pub mod sui_vrf {
+pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, COFACTOR};
     use crate::groups::{GroupElement, Scalar};
@@ -74,10 +74,10 @@ pub mod sui_vrf {
     use serde::{Deserialize, Serialize};
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
-    /// designs should specify a different suite_string constant, so we use 0x05 here.
-    const SUITE_STRING: [u8; 1] = [0x05]; // TODO: Update this with future releases of the draft or final version.
+    /// designs should specify a different suite_string constant, so we use "sui_vrf" here.
+    const SUITE_STRING: &[u8; 7] = b"sui_vrf";
 
-    /// Length of challenge. Must not exceed the length of field elements which is 32 in this case.
+    /// Length of challenges. Must not exceed the length of field elements which is 32 in this case.
     /// We set C_LEN = 16 which is the same as the existing ECVRF suites in draft-irtf-cfrg-vrf-15.
     const C_LEN: usize = 16;
 
@@ -88,13 +88,13 @@ pub mod sui_vrf {
     const DST: &[u8; 43] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_5";
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-    pub struct SuiVRFPublicKey(RistrettoPoint);
+    pub struct ECVRFPublicKey(RistrettoPoint);
 
-    impl VRFPublicKey for SuiVRFPublicKey {
-        type PrivateKey = SuiVRFPrivateKey;
+    impl VRFPublicKey for ECVRFPublicKey {
+        type PrivateKey = ECVRFPrivateKey;
     }
 
-    impl SuiVRFPublicKey {
+    impl ECVRFPublicKey {
         /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
         fn ecvrf_encode_to_curve(&self, alpha_string: &[u8]) -> RistrettoPoint {
             // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
@@ -125,13 +125,13 @@ pub mod sui_vrf {
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-    pub struct SuiVRFPrivateKey(RistrettoScalar);
+    pub struct ECVRFPrivateKey(RistrettoScalar);
 
-    impl VRFPrivateKey for SuiVRFPrivateKey {
-        type PublicKey = SuiVRFPublicKey;
+    impl VRFPrivateKey for ECVRFPrivateKey {
+        type PublicKey = ECVRFPublicKey;
     }
 
-    impl SuiVRFPrivateKey {
+    impl ECVRFPrivateKey {
         /// Generate nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> RistrettoScalar {
             let hashed_sk_string = Sha512::digest(self.0.to_byte_array());
@@ -148,9 +148,9 @@ pub mod sui_vrf {
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-    pub struct SuiVRFKeyPair {
-        pub pk: SuiVRFPublicKey,
-        pub sk: SuiVRFPrivateKey,
+    pub struct ECVRFKeyPair {
+        pub pk: ECVRFPublicKey,
+        pub sk: ECVRFPrivateKey,
     }
 
     /// Generate challenge from five points. See section 5.4.3. of draft-irtf-cfrg-vrf-15.
@@ -180,21 +180,21 @@ pub mod sui_vrf {
         }
     }
 
-    impl VRFKeyPair<64> for SuiVRFKeyPair {
-        type Proof = SuiVRFProof;
-        type PrivateKey = SuiVRFPrivateKey;
-        type PublicKey = SuiVRFPublicKey;
+    impl VRFKeyPair<64> for ECVRFKeyPair {
+        type Proof = ECVRFProof;
+        type PrivateKey = ECVRFPrivateKey;
+        type PublicKey = ECVRFPublicKey;
 
         fn generate<R: AllowedRng>(rng: &mut R) -> Self {
             let s = RistrettoScalar::rand(rng);
             let p = RistrettoPoint::generator() * s;
-            SuiVRFKeyPair {
-                pk: SuiVRFPublicKey(p),
-                sk: SuiVRFPrivateKey(s),
+            ECVRFKeyPair {
+                pk: ECVRFPublicKey(p),
+                sk: ECVRFPrivateKey(s),
             }
         }
 
-        fn prove(&self, alpha_string: &[u8]) -> SuiVRFProof {
+        fn prove(&self, alpha_string: &[u8]) -> ECVRFProof {
             // Follows section 5.1 of draft-irtf-cfrg-vrf-15.
 
             let h = self.pk.ecvrf_encode_to_curve(alpha_string);
@@ -211,19 +211,19 @@ pub mod sui_vrf {
             ]);
             let s = k + RistrettoScalar::from(&c) * self.sk.0;
 
-            SuiVRFProof { gamma, c, s }
+            ECVRFProof { gamma, c, s }
         }
     }
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-    pub struct SuiVRFProof {
+    pub struct ECVRFProof {
         gamma: RistrettoPoint,
         c: Challenge,
         s: RistrettoScalar,
     }
 
-    impl VRFProof<64> for SuiVRFProof {
-        type PublicKey = SuiVRFPublicKey;
+    impl VRFProof<64> for ECVRFProof {
+        type PublicKey = ECVRFPublicKey;
 
         fn verify(
             &self,

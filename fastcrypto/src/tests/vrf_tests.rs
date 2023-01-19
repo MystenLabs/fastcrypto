@@ -3,13 +3,13 @@
 
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::serde_helpers::ToFromByteArray;
-use crate::vrf::sui_vrf::{SuiVRFKeyPair, SuiVRFProof};
+use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
 
 #[test]
 fn test_proof() {
-    let kp = SuiVRFKeyPair::generate(&mut thread_rng());
+    let kp = ECVRFKeyPair::generate(&mut thread_rng());
     let input1 = b"Hello, world!";
     let (output1, proof1) = kp.output(input1);
 
@@ -27,7 +27,7 @@ fn test_proof() {
 
 #[test]
 fn test_serialize_deserialize() {
-    let kp = SuiVRFKeyPair::generate(&mut thread_rng());
+    let kp = ECVRFKeyPair::generate(&mut thread_rng());
 
     let kp_serialized = bincode::serialize(&kp).unwrap();
     let kp_reconstructed = bincode::deserialize(&kp_serialized).unwrap();
@@ -53,7 +53,7 @@ fn test_serialize_deserialize() {
         proof_serialized.len()
     );
 
-    let proof_reconstructed: SuiVRFProof = bincode::deserialize(&proof_serialized).unwrap();
+    let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
     assert!(proof_reconstructed
         .verify_output(input, &kp.pk, output)
         .is_ok());
