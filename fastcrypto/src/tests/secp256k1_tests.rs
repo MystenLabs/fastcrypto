@@ -5,7 +5,8 @@ use super::*;
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
     secp256k1::recoverable::{
-        Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
+        Secp256k1RecoverableKeyPair, Secp256k1RecoverablePrivateKey, Secp256k1RecoverablePublicKey,
+        Secp256k1RecoverableSignature,
     },
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
@@ -19,11 +20,11 @@ use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
-pub fn keys() -> Vec<Secp256k1KeyPair> {
+pub fn keys() -> Vec<Secp256k1RecoverableKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
 
     (0..4)
-        .map(|_| Secp256k1KeyPair::generate(&mut rng))
+        .map(|_| Secp256k1RecoverableKeyPair::generate(&mut rng))
         .collect()
 }
 
@@ -33,25 +34,25 @@ fn serialize_deserialize() {
     let public_key = kpref.public();
 
     let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<Secp256k1PublicKey>(&bytes).unwrap();
+    let pk2 = bincode::deserialize::<Secp256k1RecoverablePublicKey>(&bytes).unwrap();
     assert_eq!(public_key.as_ref(), pk2.as_ref());
 
     let private_key = kpref.private();
     let bytes = bincode::serialize(&private_key).unwrap();
-    let privkey = bincode::deserialize::<Secp256k1PrivateKey>(&bytes).unwrap();
+    let privkey = bincode::deserialize::<Secp256k1RecoverablePrivateKey>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 
-    let signature = Secp256k1Signature::default();
+    let signature = Secp256k1RecoverableSignature::default();
     let bytes = bincode::serialize(&signature).unwrap();
-    let sig = bincode::deserialize::<Secp256k1Signature>(&bytes).unwrap();
+    let sig = bincode::deserialize::<Secp256k1RecoverableSignature>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&sig).unwrap();
     assert_eq!(bytes, bytes2);
 
     // test serde_json serialization
     let serialized = serde_json::to_string(&signature).unwrap();
     println!("{:?}", serialized);
-    let deserialized: Secp256k1Signature = serde_json::from_str(&serialized).unwrap();
+    let deserialized: Secp256k1RecoverableSignature = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized, signature);
 }
 
@@ -60,7 +61,7 @@ fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
     let export = public_key.encode_base64();
-    let import = Secp256k1PublicKey::decode_base64(&export);
+    let import = Secp256k1RecoverablePublicKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
 }
@@ -69,7 +70,7 @@ fn import_export_public_key() {
 fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
-    let signature: Secp256k1Signature = kp.sign(message);
+    let signature: Secp256k1RecoverableSignature = kp.sign(message);
     let recovered_key = signature
         .recover(Keccak256::digest(message).as_ref())
         .unwrap();
@@ -79,19 +80,19 @@ fn test_public_key_recovery() {
 #[test]
 fn test_public_key_recovery_error() {
     // incorrect length
-    assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
+    assert!(<Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&[0u8; 1]).is_err());
 
     // invalid recovery id at index 65
-    assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
+    assert!(<Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
-    let signature = <Secp256k1Signature as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
+    let signature = <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
     let message: &[u8] = b"Hello, world!";
     assert!(signature
         .recover(Keccak256::digest(message).as_ref())
         .is_err());
 
     let kp = keys().pop().unwrap();
-    let signature_2: Secp256k1Signature = kp.sign(message);
+    let signature_2: Secp256k1RecoverableSignature = kp.sign(message);
     assert!(signature_2.recover(message).is_err());
 }
 #[test]
@@ -99,7 +100,7 @@ fn import_export_secret_key() {
     let kpref = keys().pop().unwrap();
     let secret_key = kpref.private();
     let export = secret_key.encode_base64();
-    let import = Secp256k1PrivateKey::decode_base64(&export);
+    let import = Secp256k1RecoverablePrivateKey::decode_base64(&export);
     assert!(import.is_ok());
     assert_eq!(import.unwrap().as_ref(), secret_key.as_ref());
 }
@@ -131,7 +132,8 @@ fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");
     let sig_bytes = signature.as_ref();
-    let rebuilt_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
+    let rebuilt_sig =
+        <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
     assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
 }
 
@@ -166,11 +168,18 @@ fn verify_valid_signature_against_hashed_msg() {
         .is_ok());
 }
 
-fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
+fn signature_test_inputs() -> (
+    Vec<u8>,
+    Vec<Secp256k1RecoverablePublicKey>,
+    Vec<Secp256k1RecoverableSignature>,
+) {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
     let digest = Sha256::digest(message);
-    let (pubkeys, signatures): (Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) = keys()
+    let (pubkeys, signatures): (
+        Vec<Secp256k1RecoverablePublicKey>,
+        Vec<Secp256k1RecoverableSignature>,
+    ) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
@@ -186,7 +195,8 @@ fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Si
 fn verify_valid_batch() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
 
-    let res = Secp256k1PublicKey::verify_batch_empty_fail(&digest[..], &pubkeys, &signatures);
+    let res =
+        Secp256k1RecoverablePublicKey::verify_batch_empty_fail(&digest[..], &pubkeys, &signatures);
     assert!(res.is_ok(), "{:?}", res);
 }
 
@@ -194,9 +204,10 @@ fn verify_valid_batch() {
 fn verify_invalid_batch() {
     let (digest, pubkeys, mut signatures) = signature_test_inputs();
     // mangle one signature
-    signatures[0] = Secp256k1Signature::default();
+    signatures[0] = Secp256k1RecoverableSignature::default();
 
-    let res = Secp256k1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures);
+    let res =
+        Secp256k1RecoverablePublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -204,7 +215,7 @@ fn verify_invalid_batch() {
 fn verify_empty_batch() {
     let (digest, _, _) = signature_test_inputs();
 
-    let res = Secp256k1PublicKey::verify_batch_empty_fail(&digest[..], &[], &[]);
+    let res = Secp256k1RecoverablePublicKey::verify_batch_empty_fail(&digest[..], &[], &[]);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -213,11 +224,12 @@ fn verify_batch_missing_public_keys() {
     let (digest, pubkeys, signatures) = signature_test_inputs();
 
     // missing leading public keys
-    let res = Secp256k1PublicKey::verify_batch_empty_fail(&digest, &pubkeys[1..], &signatures);
+    let res =
+        Secp256k1RecoverablePublicKey::verify_batch_empty_fail(&digest, &pubkeys[1..], &signatures);
     assert!(res.is_err(), "{:?}", res);
 
     // missing trailing public keys
-    let res = Secp256k1PublicKey::verify_batch_empty_fail(
+    let res = Secp256k1RecoverablePublicKey::verify_batch_empty_fail(
         &digest,
         &pubkeys[..pubkeys.len() - 1],
         &signatures,
@@ -260,8 +272,9 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
-    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
+    let inputs =
+        signature_tests::signature_test_inputs_different_msg::<Secp256k1RecoverableKeyPair>();
+    let res = Secp256k1RecoverablePublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
         &inputs.signatures,
@@ -271,9 +284,10 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
-    inputs.signatures[0] = Secp256k1Signature::default();
-    let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
+    let mut inputs =
+        signature_tests::signature_test_inputs_different_msg::<Secp256k1RecoverableKeyPair>();
+    inputs.signatures[0] = Secp256k1RecoverableSignature::default();
+    let res = Secp256k1RecoverablePublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
         &inputs.signatures,
@@ -286,7 +300,7 @@ fn fail_to_verify_if_upper_s() {
     // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
     let msg =
         hex::decode("d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6").unwrap();
-    let pk = Secp256k1PublicKey::from_bytes(
+    let pk = Secp256k1RecoverablePublicKey::from_bytes(
         &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
     )
     .unwrap();
@@ -296,7 +310,7 @@ fn fail_to_verify_if_upper_s() {
     let mut sig_bytes = [0u8; 65];
     sig_bytes[..64].copy_from_slice(&sig.serialize_compact());
     sig_bytes[64] = 0;
-    let rec_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
+    let rec_sig = <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
 
     // Failed to verify with upper S.
     assert!(pk.verify_hashed(&msg, &rec_sig).is_err());
@@ -306,7 +320,8 @@ fn fail_to_verify_if_upper_s() {
     let mut sig_bytes1 = [0u8; 65];
     sig_bytes1[..64].copy_from_slice(&sig.serialize_compact());
     sig_bytes1[64] = 0;
-    let normalized_rec_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes1).unwrap();
+    let normalized_rec_sig =
+        <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes1).unwrap();
 
     // Verify with normalized lower S.
     assert!(pk.verify_hashed(&msg, &normalized_rec_sig).is_ok());
@@ -341,7 +356,7 @@ fn test_sk_zeroization_on_drop() {
 
     {
         let mut rng = StdRng::from_seed([9; 32]);
-        let kp = Secp256k1KeyPair::generate(&mut rng);
+        let kp = Secp256k1RecoverableKeyPair::generate(&mut rng);
         let sk = kp.private();
         sk_bytes.extend_from_slice(sk.as_ref());
 
@@ -378,11 +393,11 @@ proptest::proptest! {
         let hashed_msg = rust_secp256k1::Message::from_slice(Keccak256::digest(message).as_ref()).unwrap();
 
         // construct private key with bytes and signs message
-        let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
-        let key_pair = Secp256k1KeyPair::from(priv_key);
+        let priv_key = <Secp256k1RecoverablePrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
+        let key_pair = Secp256k1RecoverableKeyPair::from(priv_key);
         let key_pair_copied = key_pair.copy();
         let key_pair_copied_2 = key_pair.copy();
-        let signature: Secp256k1Signature = key_pair.sign(message);
+        let signature: Secp256k1RecoverableSignature = key_pair.sign(message);
         assert!(key_pair.public().verify(message, &signature).is_ok());
 
         // construct a signature with r, s, v where v is flipped from the original signature.
@@ -394,7 +409,7 @@ proptest::proptest! {
         } else {
             flipped_bytes[64] = 0;
         }
-        let malleated_signature: Secp256k1Signature = <Secp256k1Signature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
+        let malleated_signature: Secp256k1RecoverableSignature = <Secp256k1RecoverableSignature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
 
         // malleable(altered) signature with opposite sign fails to verify
         assert!(key_pair.public().verify(message, &malleated_signature).is_err());
@@ -424,7 +439,7 @@ proptest::proptest! {
 
         // use ffi-implemented keypair to verify sig constructed by k256
         let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
-        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(&sig_bytes_1).unwrap();
+        let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(&sig_bytes_1).unwrap();
         assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
         // use k256 keypair to verify sig constructed by ffi-implementation
@@ -437,7 +452,7 @@ proptest::proptest! {
 fn wycheproof_test() {
     let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
     for test_group in test_set.test_groups {
-        let pk = Secp256k1PublicKey::from_uncompressed(&test_group.key.key);
+        let pk = Secp256k1RecoverablePublicKey::from_uncompressed(&test_group.key.key);
         for test in test_group.tests {
             let bytes = match Signature::from_der(&test.sig) {
                 Ok(s) => s.serialize_compact(),
@@ -454,7 +469,8 @@ fn wycheproof_test() {
 
             for i in 0..4 {
                 n_bytes[64] = i;
-                let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
+                let sig =
+                    <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
                 if pk
                     .verify_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
                     .is_ok()
@@ -482,26 +498,29 @@ fn dont_display_secrets() {
     let keypairs = keys();
     keypairs.into_iter().for_each(|keypair| {
         let sk = keypair.private();
-        assert_eq!(format!("{}", sk), "<elided secret for Secp256k1PrivateKey>");
+        assert_eq!(
+            format!("{}", sk),
+            "<elided secret for Secp256k1RecoverablePrivateKey>"
+        );
         assert_eq!(
             format!("{:?}", sk),
-            "<elided secret for Secp256k1PrivateKey>"
+            "<elided secret for Secp256k1RecoverablePrivateKey>"
         );
     });
 }
 
 #[test]
 fn test_default_values() {
-    let _default_pubkey = Secp256k1PublicKey::default();
-    let _default_signature = Secp256k1Signature::default();
+    let _default_pubkey = Secp256k1RecoverablePublicKey::default();
+    let _default_signature = Secp256k1RecoverableSignature::default();
 }
 
 // Arbitrary implementations for the proptests
-fn arb_keypair() -> impl Strategy<Value = Secp256k1KeyPair> {
+fn arb_keypair() -> impl Strategy<Value = Secp256k1RecoverableKeyPair> {
     any::<[u8; 32]>()
         .prop_map(|seed| {
             let mut rng = StdRng::from_seed(seed);
-            Secp256k1KeyPair::generate(&mut rng)
+            Secp256k1RecoverableKeyPair::generate(&mut rng)
         })
         .no_shrink()
 }
@@ -512,7 +531,7 @@ proptest! {
         kp in arb_keypair(),
     ){
         let serialized = bincode::serialize(&kp).unwrap();
-        let deserialized: Secp256k1KeyPair = bincode::deserialize(&serialized).unwrap();
+        let deserialized: Secp256k1RecoverableKeyPair = bincode::deserialize(&serialized).unwrap();
         assert_eq!(kp.public(), deserialized.public());
     }
 }

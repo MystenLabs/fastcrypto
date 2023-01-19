@@ -13,7 +13,7 @@ mod signature_benches {
         bls12381,
         ed25519::*,
         hash::{Blake2b256, HashFunction},
-        secp256k1::recoverable::Secp256k1KeyPair,
+        secp256k1::recoverable::Secp256k1RecoverableKeyPair,
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
         Verifier,
     };
@@ -35,7 +35,7 @@ mod signature_benches {
         sign_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
         sign_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
         sign_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
-        sign_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
+        sign_single::<Secp256k1RecoverableKeyPair, _>("Secp256k1", &mut group);
         sign_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
     }
 
@@ -58,7 +58,7 @@ mod signature_benches {
         verify_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
         verify_single::<bls12381::min_sig::BLS12381KeyPair, _>("BLS12381MinSig", &mut group);
         verify_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
-        verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
+        verify_single::<Secp256k1RecoverableKeyPair, _>("Secp256k1", &mut group);
         verify_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
     }
 
@@ -339,7 +339,7 @@ mod signature_benches {
             b.iter(|| bls12381::min_pk::BLS12381KeyPair::generate(&mut csprng3))
         });
         group.bench_function("Secp256k1", move |b| {
-            b.iter(|| Secp256k1KeyPair::generate(&mut csprng4))
+            b.iter(|| Secp256k1RecoverableKeyPair::generate(&mut csprng4))
         });
         group.bench_function("Secp256r1", move |b| {
             b.iter(|| Secp256r1KeyPair::generate(&mut csprng5))
