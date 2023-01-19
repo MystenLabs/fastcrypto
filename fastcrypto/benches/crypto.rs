@@ -8,7 +8,7 @@ extern crate rand;
 mod signature_benches {
     use super::*;
     use criterion::*;
-    use fastcrypto::secp256r1::Secp256r1KeyPair;
+    use fastcrypto::secp256r1::recoverable::Secp256r1KeyPair;
     use fastcrypto::{
         bls12381,
         ed25519::*,
