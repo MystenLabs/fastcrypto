@@ -1108,6 +1108,7 @@ name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
  "bincode",
+ "criterion",
  "digest 0.10.6",
  "fastcrypto",
  "fastcrypto-derive",
