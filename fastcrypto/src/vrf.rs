@@ -132,7 +132,7 @@ pub mod ecvrf {
     }
 
     impl ECVRFPrivateKey {
-        /// Generate nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
+        /// Generate scalar/nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> RistrettoScalar {
             let hashed_sk_string = Sha512::digest(self.0.to_byte_array());
             let mut truncated_hashed_sk_string = [0u8; 32];
