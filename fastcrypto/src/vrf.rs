@@ -64,7 +64,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 /// (https://datatracker.ietf.org/doc/draft-irtf-cfrg-vrf/).
 pub mod ecvrf {
     use crate::error::FastCryptoError;
-    use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar, COFACTOR};
+    use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::{GroupElement, Scalar};
     use crate::hash::{HashFunction, Sha512};
     use crate::serde_helpers::ToFromByteArray;
@@ -120,7 +120,7 @@ pub mod ecvrf {
         /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5
         /// of draft-irtf-cfrg-vrf-15.
         fn valid(&self) -> bool {
-            self.0 * RistrettoScalar::from(COFACTOR) != RistrettoPoint::zero()
+            self.0 != RistrettoPoint::zero()
         }
     }
 
@@ -255,7 +255,7 @@ pub mod ecvrf {
             let mut hash = H::default();
             hash.update(SUITE_STRING);
             hash.update([0x03]); // proof_to_hash_domain_separator_front
-            hash.update((self.gamma * RistrettoScalar::from(COFACTOR)).compress());
+            hash.update(self.gamma.compress());
             hash.update([0x00]); // proof_to_hash_domain_separator_back
             hash.finalize().digest
         }
