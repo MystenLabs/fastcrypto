@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256k1.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>secp256k1.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-52c5db6f6f352e54.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-4743e13df3dfe8c4.css"><link rel="stylesheet" disabled href="../../static.files/dark-0e1b889528bd466b.css"><link rel="stylesheet" disabled href="../../static.files/ayu-65289d5d067c7c66.css"><script id="default-settings" ></script><script src="../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-ccceecc34bb68766.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256k1/recoverable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recoverable.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-a6e10e60fb712b0f.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-5f7299aa2b503fb1.css"><link rel="stylesheet" disabled href="../../../static.files/dark-dfb18ef8114bb428.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-4047a6aaddd3789d.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-3367e395607fafc1.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -444,6 +444,16 @@
 <a href="#444" id="444">444</a>
 <a href="#445" id="445">445</a>
 <a href="#446" id="446">446</a>
+<a href="#447" id="447">447</a>
+<a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
+<a href="#453" id="453">453</a>
+<a href="#454" id="454">454</a>
+<a href="#455" id="455">455</a>
+<a href="#456" id="456">456</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -452,10 +462,10 @@
 //! Messages can be signed and the signature can be verified again:
 //! # Example
 //! ```rust
-//! # use fastcrypto::secp256k1::*;
+//! # use fastcrypto::secp256k1::recoverable::*;
 //! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
 //! use rand::thread_rng;
-//! let kp = Secp256k1KeyPair::generate(&amp;mut thread_rng());
+//! let kp = Secp256k1RecoverableKeyPair::generate(&amp;mut thread_rng());
 //! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
@@ -490,7 +500,7 @@
 <span class="doccomment">/// Secp256k1 public key.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>Secp256k1PublicKey {
+</span><span class="kw">pub struct </span>Secp256k1RecoverablePublicKey {
     <span class="kw">pub </span>pubkey: PublicKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; constants::PUBLIC_KEY_SIZE]&gt;,
 }
@@ -498,7 +508,7 @@
 <span class="doccomment">/// Secp256k1 private key.
 </span><span class="attr">#[readonly::make]
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
-</span><span class="kw">pub struct </span>Secp256k1PrivateKey {
+</span><span class="kw">pub struct </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">pub </span>privkey: SecretKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; constants::SECRET_KEY_SIZE]&gt;,
 }
@@ -511,45 +521,49 @@
 <span class="doccomment">/// Secp256k1 signature.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>Secp256k1Signature {
+</span><span class="kw">pub struct </span>Secp256k1RecoverableSignature {
     <span class="kw">pub </span>sig: RecoverableSignature,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; RECOVERABLE_SIGNATURE_SIZE]&gt;,
 }
 
-<span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
         <span class="self">self</span>.as_ref().hash(state);
     }
 }
 
-<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
         <span class="self">self</span>.as_ref().partial_cmp(other.as_ref())
     }
 }
 
-<span class="kw">impl </span>Ord <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>Ord <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
         <span class="self">self</span>.as_ref().cmp(other.as_ref())
     }
 }
 
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.pubkey == other.pubkey
     }
 }
 
-<span class="kw">impl </span>Eq <span class="kw">for </span>Secp256k1PublicKey {}
+<span class="kw">impl </span>Eq <span class="kw">for </span>Secp256k1RecoverablePublicKey {}
 
-<span class="kw">impl </span>VerifyingKey <span class="kw">for </span>Secp256k1PublicKey {
-    <span class="kw">type </span>PrivKey = Secp256k1PrivateKey;
-    <span class="kw">type </span>Sig = Secp256k1Signature;
+<span class="kw">impl </span>VerifyingKey <span class="kw">for </span>Secp256k1RecoverablePublicKey {
+    <span class="kw">type </span>PrivKey = Secp256k1RecoverablePrivateKey;
+    <span class="kw">type </span>Sig = Secp256k1RecoverableSignature;
     <span class="kw">const </span>LENGTH: usize = constants::PUBLIC_KEY_SIZE;
 }
 
-<span class="kw">impl </span>Verifier&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1PublicKey {
-    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256k1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+<span class="kw">impl </span>Verifier&lt;Secp256k1RecoverableSignature&gt; <span class="kw">for </span>Secp256k1RecoverablePublicKey {
+    <span class="kw">fn </span>verify(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        msg: <span class="kw-2">&amp;</span>[u8],
+        signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
         <span class="comment">// k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
         </span><span class="attr">#[cfg(test)]
         </span><span class="kw">let </span>message =
@@ -568,11 +582,11 @@
     }
 }
 
-<span class="kw">impl </span>Secp256k1PublicKey {
+<span class="kw">impl </span>Secp256k1RecoverablePublicKey {
     <span class="kw">pub fn </span>verify_hashed(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         hased_msg: <span class="kw-2">&amp;</span>[u8],
-        signature: <span class="kw-2">&amp;</span>Secp256k1Signature,
+        signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
         <span class="kw">match </span>Message::from_slice(hased_msg) {
             <span class="prelude-val">Ok</span>(message) =&gt; <span class="kw">match </span>signature.sig.recover(<span class="kw-2">&amp;</span>message) {
@@ -596,7 +610,7 @@
     }
 }
 
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.bytes
             .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.pubkey.serialize()))
@@ -604,10 +618,10 @@
     }
 }
 
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>PublicKey::from_slice(bytes) {
-            <span class="prelude-val">Ok</span>(pubkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1PublicKey {
+            <span class="prelude-val">Ok</span>(pubkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1RecoverablePublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             }),
@@ -616,44 +630,44 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>Default <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         <span class="comment">// Return the generator for k256 (https://www.secg.org/sec2-v2.pdf)
-        </span>Secp256k1PublicKey {
+        </span>Secp256k1RecoverablePublicKey {
             pubkey: PublicKey::from_slice(hex::decode(<span class="string">&quot;0479BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8&quot;</span>).unwrap().as_slice()).unwrap(),
             bytes: OnceCell::new(),
         }
     }
 }
 
-<span class="kw">impl </span>Display <span class="kw">for </span>Secp256k1PublicKey {
+<span class="kw">impl </span>Display <span class="kw">for </span>Secp256k1RecoverablePublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
     }
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PublicKey);
+</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1RecoverablePublicKey);
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1PrivateKey&gt; <span class="kw">for </span>Secp256k1PublicKey {
-    <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1PrivateKey) -&gt; <span class="self">Self </span>{
-        Secp256k1PublicKey {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1RecoverablePrivateKey&gt; <span class="kw">for </span>Secp256k1RecoverablePublicKey {
+    <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1RecoverablePrivateKey) -&gt; <span class="self">Self </span>{
+        Secp256k1RecoverablePublicKey {
             pubkey: secret.privkey.public_key(<span class="kw-2">&amp;</span>SECP256K1),
             bytes: OnceCell::new(),
         }
     }
 }
 
-<span class="kw">impl </span>SigningKey <span class="kw">for </span>Secp256k1PrivateKey {
-    <span class="kw">type </span>PubKey = Secp256k1PublicKey;
-    <span class="kw">type </span>Sig = Secp256k1Signature;
+<span class="kw">impl </span>SigningKey <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
+    <span class="kw">type </span>PubKey = Secp256k1RecoverablePublicKey;
+    <span class="kw">type </span>Sig = Secp256k1RecoverableSignature;
     <span class="kw">const </span>LENGTH: usize = constants::SECRET_KEY_SIZE;
 }
 
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1PrivateKey {
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>SecretKey::from_slice(bytes) {
-            <span class="prelude-val">Ok</span>(privkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1PrivateKey {
+            <span class="prelude-val">Ok</span>(privkey) =&gt; <span class="prelude-val">Ok</span>(Secp256k1RecoverablePrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             }),
@@ -663,9 +677,9 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PrivateKey);
+</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1RecoverablePrivateKey);
 
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1PrivateKey {
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.bytes
             .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.privkey.secret_bytes()))
@@ -673,7 +687,7 @@
     }
 }
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
     <span class="kw">where
         </span>S: serde::Serializer,
@@ -682,18 +696,18 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
         </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
     {
         <span class="kw">let </span>data: Vec&lt;u8&gt; = Vec::deserialize(deserializer)<span class="question-mark">?</span>;
-        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
+        &lt;Secp256k1RecoverableSignature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
             .map_err(|e| de::Error::custom(e.to_string()))
     }
 }
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>Signature <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
         <span class="kw">if </span>bytes.len() != <span class="number">65 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
@@ -701,7 +715,7 @@
         RecoveryId::from_i32(bytes[<span class="number">64</span>] <span class="kw">as </span>i32)
             .and_then(|rec_id| {
                 RecoverableSignature::from_compact(<span class="kw-2">&amp;</span>bytes[..<span class="number">64</span>], rec_id).map(|sig| {
-                    Secp256k1Signature {
+                    Secp256k1RecoverableSignature {
                         sig,
                         bytes: OnceCell::new(),
                     }
@@ -711,13 +725,13 @@
     }
 }
 
-<span class="kw">impl </span>Authenticator <span class="kw">for </span>Secp256k1Signature {
-    <span class="kw">type </span>PubKey = Secp256k1PublicKey;
-    <span class="kw">type </span>PrivKey = Secp256k1PrivateKey;
+<span class="kw">impl </span>Authenticator <span class="kw">for </span>Secp256k1RecoverableSignature {
+    <span class="kw">type </span>PubKey = Secp256k1RecoverablePublicKey;
+    <span class="kw">type </span>PrivKey = Secp256k1RecoverablePrivateKey;
     <span class="kw">const </span>LENGTH: usize = RECOVERABLE_SIGNATURE_SIZE;
 }
 
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; RECOVERABLE_SIGNATURE_SIZE];
         <span class="kw">let </span>(recovery_id, sig) = <span class="self">self</span>.sig.serialize_compact();
@@ -729,83 +743,84 @@
     }
 }
 
-<span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
         <span class="self">self</span>.as_ref().hash(state);
     }
 }
 
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
         <span class="self">self</span>.as_ref() == other.as_ref()
     }
 }
 
-<span class="kw">impl </span>Eq <span class="kw">for </span>Secp256k1Signature {}
+<span class="kw">impl </span>Eq <span class="kw">for </span>Secp256k1RecoverableSignature {}
 
-<span class="kw">impl </span>Display <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>Display <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256k1Signature {
+<span class="kw">impl </span>Default <span class="kw">for </span>Secp256k1RecoverableSignature {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; RECOVERABLE_SIGNATURE_SIZE]).unwrap()
+        &lt;Secp256k1RecoverableSignature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; RECOVERABLE_SIGNATURE_SIZE])
+            .unwrap()
     }
 }
 
 <span class="attr">#[derive(Debug, PartialEq, Eq)]
-</span><span class="kw">pub struct </span>Secp256k1KeyPair {
-    <span class="kw">pub </span>name: Secp256k1PublicKey,
-    <span class="kw">pub </span>secret: Secp256k1PrivateKey,
+</span><span class="kw">pub struct </span>Secp256k1RecoverableKeyPair {
+    <span class="kw">pub </span>name: Secp256k1RecoverablePublicKey,
+    <span class="kw">pub </span>secret: Secp256k1RecoverablePrivateKey,
 }
 
 <span class="doccomment">/// The bytes form of the keypair always only contain the private key bytes
-</span><span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1KeyPair {
+</span><span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        Secp256k1PrivateKey::from_bytes(bytes).map(|secret| secret.into())
+        Secp256k1RecoverablePrivateKey::from_bytes(bytes).map(|secret| secret.into())
     }
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1KeyPair);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1RecoverableKeyPair);
 
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1KeyPair {
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.secret.as_ref()
     }
 }
 
-<span class="kw">impl </span>KeyPair <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">type </span>PubKey = Secp256k1PublicKey;
-    <span class="kw">type </span>PrivKey = Secp256k1PrivateKey;
-    <span class="kw">type </span>Sig = Secp256k1Signature;
+<span class="kw">impl </span>KeyPair <span class="kw">for </span>Secp256k1RecoverableKeyPair {
+    <span class="kw">type </span>PubKey = Secp256k1RecoverablePublicKey;
+    <span class="kw">type </span>PrivKey = Secp256k1RecoverablePrivateKey;
+    <span class="kw">type </span>Sig = Secp256k1RecoverableSignature;
 
     <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey {
         <span class="kw-2">&amp;</span><span class="self">self</span>.name
     }
 
     <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
-        Secp256k1PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
+        Secp256k1RecoverablePrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
     }
 
     <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        Secp256k1KeyPair {
+        Secp256k1RecoverableKeyPair {
             name: <span class="self">self</span>.name.clone(),
-            secret: Secp256k1PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap(),
+            secret: Secp256k1RecoverablePrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap(),
         }
     }
 
     <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>(privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
-        Secp256k1KeyPair {
-            name: Secp256k1PublicKey {
+        Secp256k1RecoverableKeyPair {
+            name: Secp256k1RecoverablePublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             },
-            secret: Secp256k1PrivateKey {
+            secret: Secp256k1RecoverablePrivateKey {
                 privkey,
                 bytes: OnceCell::new(),
             },
@@ -813,7 +828,7 @@
     }
 }
 
-<span class="kw">impl </span>FromStr <span class="kw">for </span>Secp256k1KeyPair {
+<span class="kw">impl </span>FromStr <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">type </span><span class="prelude-val">Err </span>= eyre::Report;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
@@ -822,8 +837,8 @@
     }
 }
 
-<span class="kw">impl </span>Signer&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1Signature, signature::Error&gt; {
+<span class="kw">impl </span>Signer&lt;Secp256k1RecoverableSignature&gt; <span class="kw">for </span>Secp256k1RecoverableKeyPair {
+    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1RecoverableSignature, signature::Error&gt; {
         <span class="kw">let </span>secp = Secp256k1::signing_only();
         <span class="attr">#[cfg(test)]
         </span><span class="kw">let </span>message =
@@ -835,26 +850,31 @@
 
         <span class="comment">// Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        </span><span class="prelude-val">Ok</span>(Secp256k1Signature {
+        </span><span class="prelude-val">Ok</span>(Secp256k1RecoverableSignature {
             sig: secp.sign_ecdsa_recoverable(<span class="kw-2">&amp;</span>message, <span class="kw-2">&amp;</span><span class="self">self</span>.secret.privkey),
             bytes: OnceCell::new(),
         })
     }
 }
 
-<span class="kw">impl </span>From&lt;Secp256k1PrivateKey&gt; <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">fn </span>from(secret: Secp256k1PrivateKey) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>name = Secp256k1PublicKey::from(<span class="kw-2">&amp;</span>secret);
-        Secp256k1KeyPair { name, secret }
+<span class="kw">impl </span>From&lt;Secp256k1RecoverablePrivateKey&gt; <span class="kw">for </span>Secp256k1RecoverableKeyPair {
+    <span class="kw">fn </span>from(secret: Secp256k1RecoverablePrivateKey) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>name = Secp256k1RecoverablePublicKey::from(<span class="kw-2">&amp;</span>secret);
+        Secp256k1RecoverableKeyPair { name, secret }
     }
 }
 
-<span class="kw">impl </span>Secp256k1Signature {
+<span class="kw">impl </span>Secp256k1RecoverableSignature {
     <span class="doccomment">/// Recover public key from signature
-    </span><span class="kw">pub fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, hashed_msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, FastCryptoError&gt; {
+    </span><span class="kw">pub fn </span>recover(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        hashed_msg: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1RecoverablePublicKey, FastCryptoError&gt; {
         <span class="kw">match </span>Message::from_slice(hashed_msg) {
             <span class="prelude-val">Ok</span>(message) =&gt; <span class="kw">match </span><span class="self">self</span>.sig.recover(<span class="kw-2">&amp;</span>message) {
-                <span class="prelude-val">Ok</span>(pubkey) =&gt; Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
+                <span class="prelude-val">Ok</span>(pubkey) =&gt; {
+                    Secp256k1RecoverablePublicKey::from_bytes(pubkey.serialize().as_slice())
+                }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError),
             },
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
@@ -862,33 +882,33 @@
     }
 }
 
-<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1PrivateKey {
+<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.privkey = rust_secp256k1::ONE_KEY;
         <span class="self">self</span>.bytes.take().zeroize();
     }
 }
 
-<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256k1PrivateKey {}
+<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256k1RecoverablePrivateKey {}
 
-<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256k1PrivateKey {
+<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.zeroize();
     }
 }
 
-<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1KeyPair {
+<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.secret.zeroize()
     }
 }
 
-<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256k1KeyPair {}
+<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256k1RecoverableKeyPair {}
 
-<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256k1KeyPair {
+<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.secret.zeroize();
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.68.0-nightly (333ee6c46 2023-01-18)" data-search-js="search-181581080540673f.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-cd1be5fcaa86d99b.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (5e37043d6 2023-01-22)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
