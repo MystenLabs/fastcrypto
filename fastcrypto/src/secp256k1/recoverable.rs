@@ -3,7 +3,7 @@
 
 //! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the [secp256k1 curve](http://www.secg.org/sec2-v2.pdf).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256k1::recoverable::*;
@@ -12,7 +12,7 @@
 //! let kp = Secp256k1RecoverableKeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &signature).is_ok());
+//! assert_eq!(signature.recover(message).unwrap(), kp.name);
 //! ```
 
 use crate::{
@@ -384,6 +384,7 @@ impl FromStr for Secp256k1RecoverableKeyPair {
 impl Signer<Secp256k1RecoverableSignature> for Secp256k1RecoverableKeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1RecoverableSignature, signature::Error> {
         let secp = Secp256k1::signing_only();
+        // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
         #[cfg(test)]
         let message =
             Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
@@ -409,8 +410,22 @@ impl From<Secp256k1RecoverablePrivateKey> for Secp256k1RecoverableKeyPair {
 }
 
 impl Secp256k1RecoverableSignature {
-    /// Recover public key from signature
-    pub fn recover(
+    /// Recover public key from signature.
+    pub fn recover(&self, msg: &[u8]) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {
+        // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
+        #[cfg(test)]
+        let message =
+            Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
+                .unwrap();
+
+        #[cfg(not(test))]
+        let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
+
+        self.recover_hashed(message.as_ref())
+    }
+
+    /// Recover public key from signature and an already hashed message.
+    pub fn recover_hashed(
         &self,
         hashed_msg: &[u8],
     ) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {
