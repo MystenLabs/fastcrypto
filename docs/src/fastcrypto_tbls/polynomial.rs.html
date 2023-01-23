@@ -167,6 +167,8 @@
 <a href="#167" id="167">167</a>
 <a href="#168" id="168">168</a>
 <a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -296,7 +298,9 @@
         <span class="prelude-val">Ok</span>(acc)
     }
 
-    <span class="doccomment">/// Checks if a given share is valid.
+    <span class="comment">// TODO: Create a batch version of is_valid_share that checks a vector in O(n) instead of O(n^2).
+
+    </span><span class="doccomment">/// Checks if a given share is valid.
     </span><span class="kw">pub fn </span>is_valid_share(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: ShareIndex, share: <span class="kw-2">&amp;</span>C::ScalarType) -&gt; bool {
         <span class="kw">let </span>e = C::generator() * share;
         <span class="kw">let </span>pub_eval = <span class="self">self</span>.eval(idx);
