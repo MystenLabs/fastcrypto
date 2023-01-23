@@ -109,23 +109,19 @@ impl Verifier<Secp256k1RecoverableSignature> for Secp256k1RecoverablePublicKey {
         signature: &Secp256k1RecoverableSignature,
     ) -> Result<(), signature::Error> {
         let message = hash_message(msg);
-
-        // If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
-        match signature.sig.recover(&message) {
-            Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => Ok(()),
-            _ => Err(signature::Error::new()),
-        }
+        self.verify_hashed(message.as_ref(), signature)
     }
 }
 
 impl Secp256k1RecoverablePublicKey {
     pub fn verify_hashed(
         &self,
-        hased_msg: &[u8],
+        hashed_msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
     ) -> Result<(), signature::Error> {
-        match Message::from_slice(hased_msg) {
+        // If pubkey recovered from signature matches original pubkey, verifies signature.
+        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
+        match Message::from_slice(hashed_msg) {
             Ok(message) => match signature.sig.recover(&message) {
                 Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => {
                     Ok(())
