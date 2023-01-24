@@ -5,8 +5,12 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::groups::{GroupElement, HashToGroupElement, Scalar};
+use crate::hash::Sha512;
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
-use crate::{error::FastCryptoError, hash::HashFunction};
+use crate::{
+    error::FastCryptoError, hash::HashFunction, serialize_deserialize_with_to_from_byte_array,
+};
 use curve25519_dalek_ng;
 use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT};
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
@@ -14,10 +18,12 @@ use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::Identity;
 use derive_more::{Add, Div, From, Neg, Sub};
-use digest::Digest;
 use fastcrypto_derive::GroupOpsExtend;
-use serde::{de, Deserialize, Serialize};
+use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
+
+const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
+const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -67,26 +73,6 @@ impl GroupElement for RistrettoPoint {
     }
 }
 
-impl Serialize for RistrettoPoint {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let bytes = self.0.compress();
-        serializer.serialize_bytes(bytes.as_bytes())
-    }
-}
-
-impl<'de> Deserialize<'de> for RistrettoPoint {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let bytes = Vec::deserialize(deserializer)?;
-        RistrettoPoint::try_from(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
-
 impl TryFrom<&[u8]> for RistrettoPoint {
     type Error = FastCryptoError;
 
@@ -98,41 +84,31 @@ impl TryFrom<&[u8]> for RistrettoPoint {
     }
 }
 
+impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
+    fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        Self::try_from(bytes.as_slice())
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_POINT_BYTE_LENGTH] {
+        self.compress()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
+
 /// Represents a scalar.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    From,
-    Add,
-    Sub,
-    Neg,
-    Div,
-    GroupOpsExtend,
-)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {
-    /// Attempt to create a new scalar from the given bytes in canonical representation.
-    pub fn from_canonical_bytes(bytes: [u8; 32]) -> Result<RistrettoScalar, FastCryptoError> {
-        ExternalRistrettoScalar::from_canonical_bytes(bytes)
-            .map_or(Err(FastCryptoError::InvalidInput), |r| {
-                Ok(RistrettoScalar(r))
-            })
-    }
-
-    /// Create a scalar from the low 255 bits of the given 256-bit integer.
-    pub fn from_bits(value: [u8; 32]) -> RistrettoScalar {
-        RistrettoScalar(ExternalRistrettoScalar::from_bits(value))
-    }
-
     /// The order of the base point.
     pub fn group_order() -> RistrettoScalar {
         RistrettoScalar(BASEPOINT_ORDER)
+    }
+
+    /// Construct a [RistrettoScalar] by reducing a 64-byte little-endian integer modulo the group order.
+    pub fn from_bytes_mod_order_wide(bytes: &[u8; 64]) -> Self {
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(bytes))
     }
 }
 
@@ -180,10 +156,22 @@ impl Scalar for RistrettoScalar {
 
 impl HashToGroupElement for RistrettoScalar {
     fn hash_to_group_element(bytes: &[u8]) -> Self {
-        let mut hasher = sha3::Sha3_512::default();
-        hasher.update(bytes);
-        let mut hash = [0u8; 64];
-        hash.copy_from_slice(hasher.finalize().as_slice());
-        Self(ExternalRistrettoScalar::from_bytes_mod_order_wide(&hash))
+        Self::from_bytes_mod_order_wide(&Sha512::digest(bytes).digest)
     }
 }
+
+impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
+    fn from_byte_array(
+        bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
+    ) -> Result<Self, FastCryptoError> {
+        Ok(RistrettoScalar(
+            ExternalRistrettoScalar::from_bytes_mod_order(*bytes),
+        ))
+    }
+
+    fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
+        self.0.to_bytes()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(RistrettoScalar);

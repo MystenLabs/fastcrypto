@@ -66,6 +66,10 @@ pub mod ristretto255_tests;
 #[path = "tests/bls12381_group_tests.rs"]
 pub mod bls12381_group_tests;
 
+#[cfg(test)]
+#[path = "tests/vrf_tests.rs"]
+pub mod vrf_tests;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations
@@ -85,6 +89,7 @@ pub mod error;
 pub mod private_seed;
 pub mod serde_helpers;
 pub mod signature_service;
+pub mod vrf;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence

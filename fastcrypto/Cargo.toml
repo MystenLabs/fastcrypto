@@ -51,6 +51,7 @@ thiserror = "1.0.38"
 twox-hash = { version = "1.6.3", optional = true }
 schemars ="0.8.10"
 bincode.workspace = true
+elliptic-curve = {version = "0.12.3", features = ["hash2curve"]}
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 
