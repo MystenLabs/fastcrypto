@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["ECVRFKeyPair",""],["ECVRFPrivateKey",""],["ECVRFProof",""],["ECVRFPublicKey",""]]};

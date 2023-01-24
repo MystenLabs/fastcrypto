@@ -113,6 +113,11 @@
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
 <a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
+<a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -181,6 +186,10 @@
 #[path = <span class="string">&quot;tests/bls12381_group_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>bls12381_group_tests;
 
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/vrf_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>vrf_tests;
+
 <span class="comment">// Signing traits
 </span><span class="kw">pub mod </span>traits;
 <span class="comment">// Key scheme implementations
@@ -200,6 +209,7 @@
 <span class="kw">pub mod </span>private_seed;
 <span class="kw">pub mod </span>serde_helpers;
 <span class="kw">pub mod </span>signature_service;
+<span class="kw">pub mod </span>vrf;
 
 <span class="doccomment">/// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
 /// benchmarking of systems without taking into account the cost of cryptographic primitives - and hence
