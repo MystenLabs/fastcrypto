@@ -5,6 +5,8 @@ extern crate criterion;
 
 mod encoding_benches {
     use super::*;
+    use base64::engine::general_purpose;
+    use base64::Engine;
     use base64ct::{Base64 as b64ct, Encoding};
     use criterion::*;
     use faster_hex::{
@@ -162,7 +164,7 @@ mod encoding_benches {
                 &("base64_encode_".to_owned() + test_message.name),
                 move |b| {
                     b.iter(|| {
-                        let ret = base64::encode(test_message.value);
+                        let ret = general_purpose::STANDARD.encode(test_message.value);
                         black_box(ret);
                     })
                 },
@@ -197,9 +199,10 @@ mod encoding_benches {
             group.bench_function(
                 &("base64_decode_".to_owned() + test_message.name),
                 move |b| {
-                    let base64_string: String = base64::encode(test_message.value);
+                    let base64_string: String =
+                        general_purpose::STANDARD.encode(test_message.value);
                     b.iter(|| {
-                        let ret = base64::decode(&base64_string).unwrap();
+                        let ret = general_purpose::STANDARD.encode(&base64_string);
                         black_box(ret);
                     })
                 },
