@@ -275,7 +275,7 @@ impl Signature for Secp256r1Signature {
         if bytes.len() != SIGNATURE_SIZE {
             return Err(signature::Error::new());
         }
-        <ExternalSignature as Signature>::from_bytes(&bytes[..SIGNATURE_SIZE - 1])
+        ExternalSignature::try_from(&bytes[..SIGNATURE_SIZE - 1])
             .map(|sig| Secp256r1Signature {
                 sig,
                 recovery_id: bytes[SIGNATURE_SIZE - 1],
@@ -294,7 +294,7 @@ impl Authenticator for Secp256r1Signature {
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
         let mut bytes = [0u8; SIGNATURE_SIZE];
-        bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.as_ref());
+        bytes[..SIGNATURE_SIZE - 1].copy_from_slice(self.sig.to_bytes().as_slice());
         bytes[SIGNATURE_SIZE - 1] = self.recovery_id;
         self.bytes
             .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
@@ -310,7 +310,7 @@ impl std::hash::Hash for Secp256r1Signature {
 
 impl PartialEq for Secp256r1Signature {
     fn eq(&self, other: &Self) -> bool {
-        self.sig.as_ref() == other.sig.as_ref()
+        self.sig == other.sig
     }
 }
 
@@ -441,7 +441,7 @@ impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
             return Err(signature::Error::new());
         }
 
-        let sig = ExternalSignature::from_scalars(r, s)?;
+        let sig = ExternalSignature::from_scalars(r, s).map_err(|_| signature::Error::new())?;
 
         // Note: This line is introduced here because big_r.y is a private field.
         let y: Scalar = get_y_coordinate(&big_r);
@@ -519,7 +519,7 @@ impl Secp256r1Signature {
     /// util function to parse wycheproof test key from DER format.
     #[cfg(test)]
     pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
-        <ExternalSignature as Signature>::from_bytes(bytes)
+        ExternalSignature::try_from(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
                 recovery_id: 0u8,

@@ -976,6 +976,7 @@ version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "82508ce57bd2b245e9914411800f87fd8fc8288f501bb26919cb9b2ee964028f"
 dependencies = [
+ "der",
  "elliptic-curve",
  "rfc6979",
  "signature 2.0.0",
@@ -1559,12 +1560,13 @@ checksum = "7b5bf27447411e9ee3ff51186bf7a08e16c341efdde93f4d823e8844429bed7e"
 
 [[package]]
 name = "p256"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51f44edd08f51e2ade572f141051021c5af22677e42b7dd28a88155151c33594"
+checksum = "49c124b3cbce43bcbac68c58ec181d98ed6cc7e6d0aa7c3ba97b2563410b0e55"
 dependencies = [
- "ecdsa 0.14.8",
+ "ecdsa 0.15.0",
  "elliptic-curve",
+ "primeorder",
  "sha2 0.10.6",
 ]
 
@@ -1645,6 +1647,15 @@ name = "ppv-lite86"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
+
+[[package]]
+name = "primeorder"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b54f7131b3dba65a2f414cf5bd25b66d4682e4608610668eae785750ba4c5b2"
+dependencies = [
+ "elliptic-curve",
+]
 
 [[package]]
 name = "proc-macro2"
