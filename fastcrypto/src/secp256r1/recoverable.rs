@@ -280,7 +280,7 @@ impl Signature for Secp256r1RecoverableSignature {
             return Err(signature::Error::new());
         }
         ExternalSignature::try_from(&bytes[..SIGNATURE_SIZE - 1])
-            .map(|sig| Secp256r1Signature {
+            .map(|sig| Secp256r1RecoverableSignature {
                 sig,
                 recovery_id: bytes[SIGNATURE_SIZE - 1],
                 bytes: OnceCell::new(),
@@ -524,7 +524,7 @@ impl Secp256r1RecoverableSignature {
     #[cfg(test)]
     pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
         ExternalSignature::try_from(bytes)
-            .map(|sig| Secp256r1Signature {
+            .map(|sig| Secp256r1RecoverableSignature {
                 sig,
                 recovery_id: 0u8,
                 bytes: OnceCell::new(),

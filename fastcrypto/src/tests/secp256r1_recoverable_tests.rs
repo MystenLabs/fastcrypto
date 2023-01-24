@@ -283,7 +283,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Normalize S to be less than N/2.
     let normalized_sig =
-        Secp256r1Signature::from_uncompressed(normalized.to_bytes().as_slice()).unwrap();
+        Secp256r1RecoverableSignature::from_uncompressed(normalized.to_bytes().as_slice()).unwrap();
 
     // Verify with normalized lower S.
     assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
@@ -422,7 +422,8 @@ fn wycheproof_test() {
         let pk = Secp256r1RecoverablePublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let signature = match &Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(s.to_bytes().as_slice()).unwrap(),
+                Ok(s) => Secp256r1RecoverableSignature::from_uncompressed(s.to_bytes().as_slice())
+                    .unwrap(),
                 Err(_) => {
                     assert_eq!(map_result(test.result), TestResult::Invalid);
                     continue;
