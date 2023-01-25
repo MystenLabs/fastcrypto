@@ -163,8 +163,7 @@ fn verify_invalid_batch() {
     // mangle one signature
     signatures[0] = Secp256r1Signature::default();
 
-    let res = Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures);
-    assert!(res.is_err(), "{:?}", res);
+    assert!(Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures).is_err())
 }
 
 #[test]

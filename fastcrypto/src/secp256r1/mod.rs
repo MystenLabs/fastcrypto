@@ -205,7 +205,7 @@ impl ToFromBytes for Secp256r1PrivateKey {
         match ExternalSecretKey::try_from(bytes) {
             Ok(privkey) => Ok(Secp256r1PrivateKey {
                 privkey,
-                bytes: OnceCell::with_value(<[u8; 32]>::try_from(bytes).unwrap()),
+                bytes: OnceCell::with_value(<[u8; PRIVATE_KEY_SIZE]>::try_from(bytes).unwrap()),
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
@@ -395,18 +395,11 @@ impl KeyPair for Secp256r1KeyPair {
 
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let privkey = ExternalSecretKey::random(rng);
-        let pubkey = ExternalPublicKey::from(&privkey);
-
-        Secp256r1KeyPair {
-            name: Secp256r1PublicKey {
-                pubkey,
-                bytes: OnceCell::new(),
-            },
-            secret: Secp256r1PrivateKey {
-                privkey,
-                bytes: OnceCell::new(),
-            },
+        Secp256r1PrivateKey {
+            privkey,
+            bytes: OnceCell::new(),
         }
+        .into()
     }
 }
 
