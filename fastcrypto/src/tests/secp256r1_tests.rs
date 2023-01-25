@@ -11,7 +11,6 @@ use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
 use super::*;
-use crate::secp256r1::recoverable::{Secp256r1RecoverablePublicKey, Secp256r1RecoverableSignature};
 use crate::secp256r1::SIGNATURE_SIZE;
 use crate::{
     hash::{HashFunction, Sha256},
@@ -401,7 +400,7 @@ fn wycheproof_test_nonrecoverable() {
             let signature = match Signature::from_der(&test.sig) {
                 Ok(s) => Secp256r1Signature::from_uncompressed(
                     // Wycheproof tests do not enforce low s but we do, so we need to normalize
-                    &s.normalize_s().unwrap_or(s).to_bytes().as_slice(),
+                    s.normalize_s().unwrap_or(s).to_bytes().as_slice(),
                 )
                 .unwrap(),
                 Err(_) => {
