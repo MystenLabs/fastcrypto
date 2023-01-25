@@ -15,7 +15,7 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::{GroupElement, HashToGroupElement};
 use fastcrypto::traits::AllowedRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
@@ -128,6 +128,9 @@ where
             .ok_or(FastCryptoError::InvalidInput)?;
 
         // Generate a secret polynomial and commit to it.
+        if threshold >= nodes.len() as u32 {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let vss_sk = PrivatePoly::<G>::rand(threshold - 1, rng);
         let vss_pk = vss_sk.commit::<G>();
 
@@ -173,7 +176,7 @@ where
     }
 
     /// 5. Process the first messages of exactly 'threshold' nodes and create the second message to
-    ///    be broadcast.
+    ///    be broadcasted.
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
     ///    Since we assume that at most t-1 of the nodes are malicious, we only need messages from
@@ -186,6 +189,14 @@ where
     ) -> Result<(SharesMap<G>, SecondMessage<EG>), FastCryptoError> {
         if messages.len() != self.threshold as usize {
             return Err(FastCryptoError::InputLengthWrong(self.threshold as usize));
+        }
+        let num_of_unique_senders = messages
+            .iter()
+            .map(|m| m.sender)
+            .collect::<HashSet<_>>()
+            .len();
+        if num_of_unique_senders != messages.len() {
+            return Err(FastCryptoError::InputTooShort(num_of_unique_senders));
         }
 
         let my_id = self.id;
