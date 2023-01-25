@@ -109,14 +109,12 @@ fn verify_valid_signature() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message, hashed to keccak256.
+    // Sign over raw message
     let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    let signature = kp.sign(digest.as_ref());
+    let signature = kp.sign(message);
 
     // Verify the signature.
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    assert!(kp.public().verify(message, &signature).is_ok());
 }
 
 #[test]
@@ -124,7 +122,7 @@ fn verify_valid_signature_against_hashed_msg() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message (hashed to keccak256 internally).
+    // Sign over raw message. Hashed with sha256 internally.
     let message: &[u8] = b"Hello, world!";
     let signature = kp.sign(message);
 
@@ -138,17 +136,16 @@ fn verify_valid_signature_against_hashed_msg() {
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
     let (pubkeys, signatures): (Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(digest.as_ref());
+            let sig = kp.sign(message);
             (kp.public().clone(), sig)
         })
         .unzip();
 
-    (digest.to_vec(), pubkeys, signatures)
+    (message.to_vec(), pubkeys, signatures)
 }
 
 #[test]
@@ -289,8 +286,6 @@ async fn signature_service() {
     let digest = Sha256::digest(message);
     let signature = service.request_signature(digest).await;
 
-    //    digest.into()
-
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
@@ -357,21 +352,21 @@ proptest::proptest! {
         // Two private keys are serialized as the same
         assert_eq!(key_pair_copied.private().as_bytes(), priv_key_1.to_bytes().as_slice());
 
-        // two pubkeys are the same
+        // Two pubkeys are the same
         assert_eq!(
             key_pair.public().as_bytes(),
             pub_key_1.to_bytes().as_slice()
         );
 
-        // same signatures produced from both implementations
+        // Same signatures produced from both implementations
         assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
 
-        // use ffi-implemented keypair to verify sig constructed by k256
+        // Use fastcrypto keypair to verify a signature constructed by k256
         let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
         let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(&sig_bytes_1).unwrap();
         assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
-        // use k256 keypair to verify sig constructed by ffi-implementation
+        // Use k256 keypair to verify sig constructed by fastcrypto
         let typed_sig = k256::ecdsa::Signature::try_from(signature.as_ref()).unwrap();
         assert!(pub_key_1.verify(message, &typed_sig).is_ok());
     }
