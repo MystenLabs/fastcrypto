@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the
-//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf). The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
+//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf) where the public key can be recovered from a signature.
+//! The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256r1::recoverable::*;
@@ -13,7 +14,7 @@
 //! let kp = Secp256r1RecoverableKeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &signature).is_ok());
+//! assert_eq!(kp.public(), &signature.recover(message).unwrap());
 //! ```
 
 use crate::hash::HashFunction;
