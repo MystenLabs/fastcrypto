@@ -22,6 +22,10 @@ pub mod signature_tests;
 pub mod ed25519_tests;
 
 #[cfg(test)]
+#[path = "tests/secp256k1_tests.rs"]
+pub mod secp256k1_tests;
+
+#[cfg(test)]
 #[path = "tests/secp256k1_recoverable_tests.rs"]
 pub mod secp256k1_recoverable_tests;
 
