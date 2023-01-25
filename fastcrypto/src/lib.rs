@@ -26,6 +26,10 @@ pub mod ed25519_tests;
 pub mod secp256k1_recoverable_tests;
 
 #[cfg(test)]
+#[path = "tests/secp256r1_tests.rs"]
+pub mod secp256r1_tests;
+
+#[cfg(test)]
 #[path = "tests/secp256r1_recoverable_tests.rs"]
 pub mod secp256r1_recoverable_tests;
 
