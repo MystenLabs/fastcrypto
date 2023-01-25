@@ -5,7 +5,7 @@
 //! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf) where the public key can be recovered from a signature.
 //! The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256r1::recoverable::*;
