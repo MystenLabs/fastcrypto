@@ -114,7 +114,7 @@ impl Verifier<Secp256k1RecoverableSignature> for Secp256k1RecoverablePublicKey {
 }
 
 impl Secp256k1RecoverablePublicKey {
-    pub fn verify_hashed(
+    pub(crate) fn verify_hashed(
         &self,
         hashed_msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
@@ -414,7 +414,7 @@ impl Secp256k1RecoverableSignature {
     }
 
     /// Recover public key from signature and an already hashed message.
-    pub fn recover_hashed(
+    pub(crate) fn recover_hashed(
         &self,
         hashed_msg: &[u8],
     ) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {
