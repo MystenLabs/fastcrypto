@@ -12,7 +12,7 @@
 //! let kp = Secp256k1RecoverableKeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
-//! assert_eq!(signature.recover(message).unwrap(), kp.name);
+//! assert_eq!(&signature.recover(message).unwrap(), kp.public());
 //! ```
 
 use crate::{
