@@ -561,13 +561,15 @@
 <a href="#561" id="561">561</a>
 <a href="#562" id="562">562</a>
 <a href="#563" id="563">563</a>
+<a href="#564" id="564">564</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="doccomment">//! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the
-//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf). The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
+//! [secp256r1 NIST-P1 curve](https://www.secg.org/SEC2-Ver-1.0.pdf) where the public key can be recovered from a signature.
+//! The nonce is generated deterministically according to [RFC6979](https://www.rfc-editor.org/rfc/rfc6979).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256r1::recoverable::*;
@@ -576,7 +578,7 @@
 //! let kp = Secp256r1RecoverableKeyPair::generate(&amp;mut thread_rng());
 //! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
 //! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &amp;signature).is_ok());
+//! assert_eq!(kp.public(), &amp;signature.recover(message).unwrap());
 //! ```
 
 </span><span class="kw">use </span><span class="kw">crate</span>::hash::HashFunction;
