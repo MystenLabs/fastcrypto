@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
-#[cfg(test)]
-use crate::hash::Keccak256;
 use crate::{
     hash::{HashFunction, Sha256},
     secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
@@ -371,7 +369,7 @@ proptest::proptest! {
         // use ffi-implemented keypair to verify sig constructed by k256
         let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
         let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(&sig_bytes_1).unwrap();
-        assert!(key_pair_copied_2.public().verify(message, &Secp256k1Signature::from(secp_sig1)).is_ok());
+        assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
         // use k256 keypair to verify sig constructed by ffi-implementation
         let typed_sig = k256::ecdsa::Signature::try_from(signature.as_ref()).unwrap();
