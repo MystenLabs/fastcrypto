@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":[["ecies",""],["mocked_dkg","This module contains a set of functions for emulating the outputs of a DKG protocol. Those outputs can be used as inputs to the threshold-BLS functions."],["polynomial",""],["random_oracle",""],["tbls",""],["types",""]]};
+window.SIDEBAR_ITEMS = {"mod":[["dkg",""],["ecies",""],["mocked_dkg","This module contains a set of functions for emulating the outputs of a DKG protocol. Those outputs can be used as inputs to the threshold-BLS functions."],["polynomial",""],["random_oracle",""],["tbls",""],["types",""]]};

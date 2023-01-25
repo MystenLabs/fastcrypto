@@ -33,6 +33,11 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -46,7 +51,8 @@
 </span><span class="doccomment">//! An experimental crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-</span><span class="kw">pub mod </span>ecies;
+</span><span class="kw">pub mod </span>dkg;
+<span class="kw">pub mod </span>ecies;
 <span class="kw">pub mod </span>mocked_dkg;
 <span class="kw">pub mod </span>polynomial;
 <span class="kw">pub mod </span>random_oracle;
@@ -68,5 +74,9 @@
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/random_oracle_tests.rs&quot;</span>]
 </span><span class="kw">pub mod </span>random_oracle_tests;
+
+<span class="attr">#[cfg(test)]
+#[path = <span class="string">&quot;tests/dkg_tests.rs&quot;</span>]
+</span><span class="kw">pub mod </span>dkg_tests;
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
