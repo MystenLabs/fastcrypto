@@ -53,8 +53,8 @@ pub const ED25519_PUBLIC_KEY_LENGTH: usize = 32;
 /// The length of a signature in bytes.
 pub const ED25519_SIGNATURE_LENGTH: usize = 64;
 
-/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-pub const ED_25519_KEY_PAIR_BYTE_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
+/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
+pub const ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 const BASE64_FIELD_NAME: &str = "base64";
 const RAW_FIELD_NAME: &str = "raw";
@@ -236,8 +236,7 @@ impl Ord for Ed25519PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
 
 ///
 /// Implement SigningKey
@@ -257,8 +256,7 @@ impl ToFromBytes for Ed25519PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
 
 ///
 /// Implement Authenticator
@@ -571,7 +569,7 @@ impl AsRef<[u8]> for Ed25519KeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(Ed25519KeyPair);
+serialize_deserialize_with_to_from_bytes!(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
 
 impl KeyPair for Ed25519KeyPair {
     type PubKey = Ed25519PublicKey;

@@ -11,11 +11,12 @@ use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
 use super::*;
+use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::recoverable::{
         Secp256r1RecoverableKeyPair, Secp256r1RecoverablePrivateKey, Secp256r1RecoverablePublicKey,
-        Secp256r1RecoverableSignature, SIGNATURE_SIZE,
+        Secp256r1RecoverableSignature,
     },
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
@@ -86,9 +87,10 @@ fn test_public_key_recovery_error() {
     // assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&[4u8; 65]).is_err());
 
     // Invalid signature: Zeros in signatures are not allowed
-    assert!(
-        <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&[0u8; SIGNATURE_SIZE]).is_err()
-    );
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(
+        &[0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH]
+    )
+    .is_err());
 }
 
 #[test]
