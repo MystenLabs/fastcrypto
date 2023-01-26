@@ -947,7 +947,7 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks.
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey);
+</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
 
 <span class="macro">generate_bytes_representation!</span>(BLS12381PublicKey, {<span class="macro-nonterminal">$pk_length</span>}, BLS12381PublicKeyAsBytes);
 
@@ -1173,7 +1173,7 @@
 }
 
 <span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PrivateKey);
+</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PrivateKey, BLS_PRIVATE_KEY_LENGTH);
 
 <span class="kw">impl </span>SigningKey <span class="kw">for </span>BLS12381PrivateKey {
     <span class="kw">type </span>PubKey = BLS12381PublicKey;
@@ -1210,7 +1210,7 @@
     }
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381KeyPair);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381KeyPair, BLS_KEYPAIR_LENGTH);
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381KeyPair {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -1530,11 +1530,11 @@
 </span><span class="kw">pub const </span>BLS_G2_LENGTH: usize = <span class="number">96</span>;
 
 <span class="doccomment">/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-</span><span class="kw">pub const </span>BLS_KEY_PAIR_BYTES_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
+</span><span class="kw">pub const </span>BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 <span class="doccomment">/// Module minimizing the size of signatures. See also [min_pk].
 </span><span class="kw">pub mod </span>min_sig;
 
 <span class="doccomment">/// Module minimizing the size of public keys. See also [min_sig].
 </span><span class="kw">pub mod </span>min_pk;
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c18a5e8a5 2023-01-25)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>

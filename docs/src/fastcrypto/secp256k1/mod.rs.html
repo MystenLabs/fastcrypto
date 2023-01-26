@@ -390,22 +390,6 @@
 <a href="#390" id="390">390</a>
 <a href="#391" id="391">391</a>
 <a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -441,7 +425,6 @@
     constants, ecdsa::Signature <span class="kw">as </span>NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
 };
-<span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>signature::{Signature, Signer, Verifier};
 <span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -451,12 +434,23 @@
 
 <span class="kw">pub static </span>SECP256K1: Lazy&lt;Secp256k1&lt;All&gt;&gt; = Lazy::new(rust_secp256k1::Secp256k1::new);
 
+<span class="doccomment">/// The length of a public key in bytes.
+</span><span class="kw">pub const </span>SECP256K1_PUBLIC_KEY_LENGTH: usize = constants::PUBLIC_KEY_SIZE;
+
+<span class="doccomment">/// The length of a private key in bytes.
+</span><span class="kw">pub const </span>SECP256K1_PRIVATE_KEY_LENGTH: usize = constants::SECRET_KEY_SIZE;
+
+<span class="doccomment">/// The length of a signature in bytes.
+</span><span class="kw">pub const </span>SECP256K1_SIGNATURE_LENGTH: usize = constants::COMPACT_SIGNATURE_SIZE;
+
+<span class="doccomment">/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
+</span><span class="kw">pub const </span>SECP256K1_KEYPAIR_LENGTH: usize = constants::SECRET_KEY_SIZE;
 <span class="doccomment">/// Secp256k1 public key.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1PublicKey {
     <span class="kw">pub </span>pubkey: PublicKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; constants::PUBLIC_KEY_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256K1_PUBLIC_KEY_LENGTH]&gt;,
 }
 
 <span class="doccomment">/// Secp256k1 private key.
@@ -464,21 +458,15 @@
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Secp256k1PrivateKey {
     <span class="kw">pub </span>privkey: SecretKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; constants::SECRET_KEY_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256K1_PRIVATE_KEY_LENGTH]&gt;,
 }
-
-<span class="doccomment">/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
-</span><span class="kw">pub const </span>SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE;
-
-<span class="doccomment">/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-</span><span class="kw">pub const </span>SECP_256_K_1_KEY_PAIR_BYTE_LENGTH: usize = constants::SECRET_KEY_SIZE;
 
 <span class="doccomment">/// Secp256k1 ECDSA signature.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1Signature {
     <span class="kw">pub </span>sig: NonrecoverableSignature,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SIGNATURE_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256K1_SIGNATURE_LENGTH]&gt;,
 }
 
 <span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256k1PublicKey {
@@ -582,8 +570,7 @@
     }
 }
 
-<span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PublicKey);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PublicKey, SECP256K1_PUBLIC_KEY_LENGTH);
 
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1PrivateKey&gt; <span class="kw">for </span>Secp256k1PublicKey {
     <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256k1PrivateKey) -&gt; <span class="self">Self </span>{
@@ -612,8 +599,7 @@
     }
 }
 
-<span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PrivateKey);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1PrivateKey, SECP256K1_PRIVATE_KEY_LENGTH);
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1PrivateKey {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -638,29 +624,11 @@
     }
 }
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256k1Signature {
-    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: serde::Serializer,
-    {
-        <span class="self">self</span>.as_ref().serialize(serializer)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256k1Signature {
-    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
-    <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>data: Vec&lt;u8&gt; = Vec::deserialize(deserializer)<span class="question-mark">?</span>;
-        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
-            .map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1Signature, SECP256K1_SIGNATURE_LENGTH);
 
 <span class="kw">impl </span>Signature <span class="kw">for </span>Secp256k1Signature {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">if </span>bytes.len() != SIGNATURE_SIZE {
+        <span class="kw">if </span>bytes.len() != SECP256K1_SIGNATURE_LENGTH {
             <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
         }
         NonrecoverableSignature::from_compact(bytes)
@@ -675,7 +643,7 @@
 <span class="kw">impl </span>Authenticator <span class="kw">for </span>Secp256k1Signature {
     <span class="kw">type </span>PubKey = Secp256k1PublicKey;
     <span class="kw">type </span>PrivKey = Secp256k1PrivateKey;
-    <span class="kw">const </span>LENGTH: usize = SIGNATURE_SIZE;
+    <span class="kw">const </span>LENGTH: usize = SECP256K1_SIGNATURE_LENGTH;
 }
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1Signature {
@@ -700,7 +668,7 @@
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Secp256k1Signature {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; SIGNATURE_SIZE]).unwrap()
+        &lt;Secp256k1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; SECP256K1_SIGNATURE_LENGTH]).unwrap()
     }
 }
 
@@ -726,7 +694,7 @@
     }
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1KeyPair);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256k1KeyPair, SECP256K1_KEYPAIR_LENGTH);
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256k1KeyPair {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -815,4 +783,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c18a5e8a5 2023-01-25)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>

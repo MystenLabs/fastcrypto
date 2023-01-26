@@ -645,8 +645,6 @@
 <a href="#645" id="645">645</a>
 <a href="#646" id="646">646</a>
 <a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -702,8 +700,8 @@
 <span class="doccomment">/// The length of a signature in bytes.
 </span><span class="kw">pub const </span>ED25519_SIGNATURE_LENGTH: usize = <span class="number">64</span>;
 
-<span class="doccomment">/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-</span><span class="kw">pub const </span>ED_25519_KEY_PAIR_BYTE_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
+<span class="doccomment">/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
+</span><span class="kw">pub const </span>ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 <span class="kw">const </span>BASE64_FIELD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;base64&quot;</span>;
 <span class="kw">const </span>RAW_FIELD_NAME: <span class="kw-2">&amp;</span>str = <span class="string">&quot;raw&quot;</span>;
@@ -885,8 +883,7 @@
     }
 }
 
-<span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PublicKey);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
 
 <span class="doccomment">///
 /// Implement SigningKey
@@ -906,8 +903,7 @@
     }
 }
 
-<span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PrivateKey);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
 
 <span class="doccomment">///
 /// Implement Authenticator
@@ -1220,7 +1216,7 @@
     }
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519KeyPair);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
 
 <span class="kw">impl </span>KeyPair <span class="kw">for </span>Ed25519KeyPair {
     <span class="kw">type </span>PubKey = Ed25519PublicKey;
@@ -1297,4 +1293,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c18a5e8a5 2023-01-25)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>

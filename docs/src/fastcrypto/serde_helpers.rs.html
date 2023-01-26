@@ -341,6 +341,17 @@
 <a href="#341" id="341">341</a>
 <a href="#342" id="342">342</a>
 <a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -504,14 +515,17 @@
     };
 }
 
-<span class="comment">// TODO: use base64 only when is_human_readable(), else use SerializationHelper.
-</span><span class="doccomment">/// Macro for generating Serialize/Deserialize for a type that implements [ToFromBytes].
-</span><span class="attr">#[macro_export]
+<span class="attr">#[macro_export]
 </span><span class="macro">macro_rules! </span>serialize_deserialize_with_to_from_bytes {
-    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>) =&gt; {
+    (<span class="macro-nonterminal">$</span><span class="kw">type</span>:<span class="macro-nonterminal">ty</span>, <span class="macro-nonterminal">$length</span>:tt) =&gt; {
         <span class="kw">impl </span>::serde::Serialize <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
             <span class="kw">fn </span><span class="macro-nonterminal">serialize</span>&lt;S: ::serde::Serializer&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt; {
-                serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.encode_base64())
+                <span class="kw">use </span><span class="macro-nonterminal">$crate::serde_helpers::SerializationHelper</span>;
+                <span class="kw">match </span>serializer.is_human_readable() {
+                    <span class="bool-val">true </span>=&gt; serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.encode_base64()),
+                    <span class="bool-val">false </span>=&gt; SerializationHelper::&lt;{ <span class="macro-nonterminal">$length </span>}&gt;(<span class="self">self</span>.as_ref().try_into().unwrap())
+                        .serialize(serializer),
+                }
             }
         }
 
@@ -519,8 +533,16 @@
             <span class="kw">fn </span><span class="macro-nonterminal">deserialize</span>&lt;D: ::serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(
                 deserializer: D,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
-                <span class="kw">let </span>s = &lt;String <span class="kw">as </span>::serde::Deserialize&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
-                <span class="self">Self</span>::decode_base64(<span class="kw-2">&amp;</span>s).map_err(::serde::de::Error::custom)
+                <span class="kw">use </span>serde::Deserialize;
+                <span class="kw">use </span><span class="macro-nonterminal">$crate::serde_helpers::SerializationHelper</span>;
+                <span class="kw">if </span>deserializer.is_human_readable() {
+                    <span class="kw">let </span>s = &lt;String <span class="kw">as </span>::serde::Deserialize&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
+                    <span class="self">Self</span>::decode_base64(<span class="kw-2">&amp;</span>s).map_err(::serde::de::Error::custom)
+                } <span class="kw">else </span>{
+                    <span class="kw">let </span>helper: SerializationHelper&lt;{ <span class="macro-nonterminal">$length </span>}&gt; =
+                        Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
+                    &lt;<span class="self">Self </span><span class="kw">as </span>ToFromBytes&gt;::from_bytes(<span class="kw-2">&amp;</span>helper.<span class="number">0</span>).map_err(::serde::de::Error::custom)
+                }
             }
         }
     };
@@ -685,4 +707,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c18a5e8a5 2023-01-25)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>

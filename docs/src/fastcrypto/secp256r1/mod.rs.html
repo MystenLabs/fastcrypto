@@ -398,51 +398,6 @@
 <a href="#398" id="398">398</a>
 <a href="#399" id="399">399</a>
 <a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -473,7 +428,6 @@
 <span class="kw">use </span>p256::elliptic_curve::group::GroupEncoding;
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
 <span class="kw">use </span>p256::{AffinePoint, NistP256, Scalar};
-<span class="kw">use </span>serde::{de, Deserialize, Serialize};
 <span class="kw">use </span>signature::{Error, Signature, Signer, Verifier};
 <span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -492,19 +446,24 @@
     },
 };
 
-<span class="kw">pub const </span>PUBLIC_KEY_SIZE: usize = <span class="number">33</span>;
-<span class="kw">pub const </span>PRIVATE_KEY_SIZE: usize = <span class="number">32</span>;
-<span class="kw">pub const </span>SIGNATURE_SIZE: usize = <span class="number">64</span>;
+<span class="doccomment">/// The length of a public key in bytes.
+</span><span class="kw">pub const </span>SECP256R1_PUBLIC_KEY_LENGTH: usize = <span class="number">33</span>;
 
-<span class="doccomment">/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-</span><span class="kw">pub const </span>SECP256R1_KEY_PAIR_BYTES_LENGTH: usize = PRIVATE_KEY_SIZE;
+<span class="doccomment">/// The length of a private key in bytes.
+</span><span class="kw">pub const </span>SECP256R1_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// The length of a signature in bytes.
+</span><span class="kw">pub const </span>SECP256R1_SIGNATURE_LENTH: usize = <span class="number">64</span>;
+
+<span class="doccomment">/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
+</span><span class="kw">pub const </span>SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 
 <span class="doccomment">/// Secp256r1 public key.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256r1PublicKey {
     <span class="kw">pub </span>pubkey: ExternalPublicKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; PUBLIC_KEY_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256R1_PUBLIC_KEY_LENGTH]&gt;,
 }
 
 <span class="doccomment">/// Secp256r1 private key.
@@ -512,7 +471,7 @@
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Secp256r1PrivateKey {
     <span class="kw">pub </span>privkey: ExternalSecretKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; PRIVATE_KEY_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256R1_PRIVATE_KEY_LENGTH]&gt;,
 }
 
 <span class="doccomment">/// Secp256r1 signature.
@@ -520,7 +479,7 @@
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256r1Signature {
     <span class="kw">pub </span>sig: ExternalSignature,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SIGNATURE_SIZE]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256R1_SIGNATURE_LENTH]&gt;,
 }
 
 <span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Secp256r1PublicKey {
@@ -552,8 +511,10 @@
 <span class="kw">impl </span>VerifyingKey <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">type </span>PrivKey = Secp256r1PrivateKey;
     <span class="kw">type </span>Sig = Secp256r1Signature;
-    <span class="kw">const </span>LENGTH: usize = PUBLIC_KEY_SIZE;
+    <span class="kw">const </span>LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
 }
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
 
 <span class="kw">impl </span>Verifier&lt;Secp256r1Signature&gt; <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256r1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
@@ -584,7 +545,7 @@
             <span class="prelude-val">Ok</span>(pubkey) =&gt; <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
                 pubkey,
                 <span class="comment">// If the given bytes is in the right format (compressed), we keep them for next time to_bytes is called
-                </span>bytes: <span class="kw">match </span>&lt;[u8; PUBLIC_KEY_SIZE]&gt;::try_from(bytes) {
+                </span>bytes: <span class="kw">match </span>&lt;[u8; SECP256R1_PUBLIC_KEY_LENGTH]&gt;::try_from(bytes) {
                     <span class="prelude-val">Ok</span>(result) =&gt; OnceCell::with_value(result),
                     <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; OnceCell::new(),
                 },
@@ -610,26 +571,6 @@
     }
 }
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256r1PublicKey {
-    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: serde::Serializer,
-    {
-        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.encode_base64())
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256r1PublicKey {
-    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
-    <span class="kw">where
-        </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>s = &lt;String <span class="kw">as </span>serde::Deserialize&gt;::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">let </span>value = <span class="self">Self</span>::decode_base64(<span class="kw-2">&amp;</span>s).map_err(|e| de::Error::custom(e.to_string()))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(value)
-    }
-}
-
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256r1PrivateKey&gt; <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Secp256r1PrivateKey) -&gt; <span class="self">Self </span>{
         Secp256r1PublicKey {
@@ -642,38 +583,22 @@
 <span class="kw">impl </span>SigningKey <span class="kw">for </span>Secp256r1PrivateKey {
     <span class="kw">type </span>PubKey = Secp256r1PublicKey;
     <span class="kw">type </span>Sig = Secp256r1Signature;
-    <span class="kw">const </span>LENGTH: usize = PRIVATE_KEY_SIZE;
+    <span class="kw">const </span>LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 }
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1PrivateKey, SECP256R1_PRIVATE_KEY_LENGTH);
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256r1PrivateKey {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>ExternalSecretKey::try_from(bytes) {
             <span class="prelude-val">Ok</span>(privkey) =&gt; <span class="prelude-val">Ok</span>(Secp256r1PrivateKey {
                 privkey,
-                bytes: OnceCell::with_value(&lt;[u8; PRIVATE_KEY_SIZE]&gt;::try_from(bytes).unwrap()),
+                bytes: OnceCell::with_value(
+                    &lt;[u8; SECP256R1_PRIVATE_KEY_LENGTH]&gt;::try_from(bytes).unwrap(),
+                ),
             }),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
-    }
-}
-
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256r1PrivateKey {
-    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: serde::Serializer,
-    {
-        serializer.serialize_str(<span class="kw-2">&amp;</span><span class="self">self</span>.encode_base64())
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256r1PrivateKey {
-    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
-    <span class="kw">where
-        </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">let </span>value = <span class="self">Self</span>::decode_base64(<span class="kw-2">&amp;</span>s).map_err(|e| de::Error::custom(e.to_string()))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(value)
     }
 }
 
@@ -700,29 +625,11 @@
 
 <span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256r1PrivateKey {}
 
-<span class="kw">impl </span>Serialize <span class="kw">for </span>Secp256r1Signature {
-    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: serde::Serializer,
-    {
-        <span class="self">self</span>.as_ref().serialize(serializer)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>Secp256r1Signature {
-    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
-    <span class="kw">where
-        </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>data: Vec&lt;u8&gt; = Vec::deserialize(deserializer)<span class="question-mark">?</span>;
-        &lt;Secp256r1Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>data)
-            .map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
 
 <span class="kw">impl </span>Signature <span class="kw">for </span>Secp256r1Signature {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
-        <span class="kw">if </span>bytes.len() != SIGNATURE_SIZE {
+        <span class="kw">if </span>bytes.len() != SECP256R1_SIGNATURE_LENTH {
             <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new());
         }
 
@@ -738,14 +645,17 @@
 <span class="kw">impl </span>Authenticator <span class="kw">for </span>Secp256r1Signature {
     <span class="kw">type </span>PubKey = Secp256r1PublicKey;
     <span class="kw">type </span>PrivKey = Secp256r1PrivateKey;
-    <span class="kw">const </span>LENGTH: usize = SIGNATURE_SIZE;
+    <span class="kw">const </span>LENGTH: usize = SECP256R1_SIGNATURE_LENTH;
 }
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256r1Signature {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.bytes
             .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| {
-                <span class="prelude-val">Ok</span>(&lt;[u8; SIGNATURE_SIZE]&gt;::try_from(<span class="self">self</span>.sig.to_bytes().as_slice()).unwrap())
+                <span class="prelude-val">Ok</span>(
+                    &lt;[u8; SECP256R1_SIGNATURE_LENTH]&gt;::try_from(<span class="self">self</span>.sig.to_bytes().as_slice())
+                        .unwrap(),
+                )
             })
             .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
     }
@@ -809,7 +719,7 @@
     }
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1KeyPair);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1KeyPair, SECP256R1_KEYPAIR_LENGTH);
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256r1KeyPair {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
@@ -889,4 +799,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c8e6a9e8b 2023-01-23)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-c3c521c753752a1a.js" data-settings-css="settings-08ddfdda51b8ee2e.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (c18a5e8a5 2023-01-25)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>
