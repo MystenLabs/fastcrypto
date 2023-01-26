@@ -3,6 +3,7 @@
 
 use super::*;
 use crate::{
+    encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
     secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
     signature_service::SignatureService,
@@ -106,12 +107,20 @@ fn to_from_bytes_signature() {
 
 #[test]
 fn verify_valid_signature() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
+    let kp: Secp256k1KeyPair = Secp256k1PrivateKey::from_bytes(&[
+        59, 148, 11, 85, 134, 130, 61, 253, 2, 174, 59, 70, 27, 180, 51, 107, 94, 203, 174, 253,
+        102, 39, 170, 146, 46, 252, 4, 143, 236, 12, 136, 28,
+    ])
+    .unwrap()
+    .into();
 
     // Sign over raw message
     let message: &[u8] = b"Hello, world!";
+
+    // Pin a signature using a deterministic private key bytes. This is useful to compare test result with typescript implementation.
+    // See: https://github.com/MystenLabs/sui/tree/main/sdk/typescript/test/unit/cryptography/secp256k1-keypair.test.ts
     let signature = kp.sign(message);
+    assert_eq!(Hex::encode(signature.clone()), "25d450f191f6d844bf5760c5c7b94bc67acc88be76398129d7f43abdef32dc7f7f1a65b7d65991347650f3dd3fa3b3a7f9892a0608521cbcf811ded433b31f8b");
 
     // Verify the signature.
     assert!(kp.public().verify(message, &signature).is_ok());
@@ -333,18 +342,19 @@ proptest::proptest! {
         r in <[u8; 32]>::arbitrary()
 ) {
         let message: &[u8] = b"hello world!";
+        let mut rng = StdRng::from_seed(r);
 
-        // Construct private key with bytes and sign message
-        let priv_key = <Secp256k1PrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
-        let key_pair = Secp256k1KeyPair::from(priv_key);
+        // construct private key with arbitrary seed and sign
+        let key_pair = Secp256k1KeyPair::generate(&mut rng);
         let key_pair_copied = key_pair.copy();
         let key_pair_copied_2 = key_pair.copy();
+        let key_pair_copied_3 = key_pair.copy();
 
         let signature: Secp256k1Signature = key_pair.try_sign(message).unwrap();
         assert!(key_pair.public().verify(message, &signature).is_ok());
 
         // Use k256 to construct private key with the same bytes and sign the same message
-        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(&r).unwrap();
+        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes()).unwrap();
         let pub_key_1 = priv_key_1.verifying_key();
         let signature_1: k256::ecdsa::Signature = priv_key_1.sign(message);
         assert!(pub_key_1.verify(message, &signature_1).is_ok());
@@ -362,8 +372,7 @@ proptest::proptest! {
         assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
 
         // Use fastcrypto keypair to verify a signature constructed by k256
-        let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
-        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(&sig_bytes_1).unwrap();
+        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(signature_1.as_ref()).unwrap();
         assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
         // Use k256 keypair to verify sig constructed by fastcrypto

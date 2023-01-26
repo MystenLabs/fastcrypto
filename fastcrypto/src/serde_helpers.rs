@@ -161,14 +161,17 @@ macro_rules! serialize_deserialize_with_to_from_byte_array {
     };
 }
 
-// TODO: use base64 only when is_human_readable(), else use SerializationHelper.
-/// Macro for generating Serialize/Deserialize for a type that implements [ToFromBytes].
 #[macro_export]
 macro_rules! serialize_deserialize_with_to_from_bytes {
-    ($type:ty) => {
+    ($type:ty, $length:tt) => {
         impl ::serde::Serialize for $type {
             fn serialize<S: ::serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                serializer.serialize_str(&self.encode_base64())
+                use $crate::serde_helpers::SerializationHelper;
+                match serializer.is_human_readable() {
+                    true => serializer.serialize_str(&self.encode_base64()),
+                    false => SerializationHelper::<{ $length }>(self.as_ref().try_into().unwrap())
+                        .serialize(serializer),
+                }
             }
         }
 
@@ -176,8 +179,16 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
             fn deserialize<D: ::serde::Deserializer<'de>>(
                 deserializer: D,
             ) -> Result<Self, D::Error> {
-                let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
-                Self::decode_base64(&s).map_err(::serde::de::Error::custom)
+                use serde::Deserialize;
+                use $crate::serde_helpers::SerializationHelper;
+                if deserializer.is_human_readable() {
+                    let s = <String as ::serde::Deserialize>::deserialize(deserializer)?;
+                    Self::decode_base64(&s).map_err(::serde::de::Error::custom)
+                } else {
+                    let helper: SerializationHelper<{ $length }> =
+                        Deserialize::deserialize(deserializer)?;
+                    <Self as ToFromBytes>::from_bytes(&helper.0).map_err(::serde::de::Error::custom)
+                }
             }
         }
     };

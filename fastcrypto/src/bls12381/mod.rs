@@ -178,7 +178,7 @@ impl Debug for BLS12381PublicKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks.
-serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey, $pk_length);
 
 generate_bytes_representation!(BLS12381PublicKey, {$pk_length}, BLS12381PublicKeyAsBytes);
 
@@ -404,7 +404,7 @@ impl ToFromBytes for BLS12381PrivateKey {
 }
 
 // There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(BLS12381PrivateKey);
+serialize_deserialize_with_to_from_bytes!(BLS12381PrivateKey, BLS_PRIVATE_KEY_LENGTH);
 
 impl SigningKey for BLS12381PrivateKey {
     type PubKey = BLS12381PublicKey;
@@ -441,7 +441,7 @@ impl ToFromBytes for BLS12381KeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(BLS12381KeyPair);
+serialize_deserialize_with_to_from_bytes!(BLS12381KeyPair, BLS_KEYPAIR_LENGTH);
 
 impl AsRef<[u8]> for BLS12381KeyPair {
     fn as_ref(&self) -> &[u8] {
@@ -761,7 +761,7 @@ pub const BLS_G1_LENGTH: usize = 48;
 pub const BLS_G2_LENGTH: usize = 96;
 
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-pub const BLS_KEY_PAIR_BYTES_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
+pub const BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 /// Module minimizing the size of signatures. See also [min_pk].
 pub mod min_sig;
 

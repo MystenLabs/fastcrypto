@@ -33,7 +33,6 @@ use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
 };
-use serde::{de, Deserialize, Serialize};
 use signature::{Signature, Signer, Verifier};
 use std::{
     fmt::{self, Debug, Display},
@@ -43,12 +42,23 @@ use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
+/// The length of a public key in bytes.
+pub const SECP256K1_PUBLIC_KEY_LENGTH: usize = constants::PUBLIC_KEY_SIZE;
+
+/// The length of a private key in bytes.
+pub const SECP256K1_PRIVATE_KEY_LENGTH: usize = constants::SECRET_KEY_SIZE;
+
+/// The length of a signature in bytes.
+pub const SECP256K1_SIGNATURE_LENGTH: usize = constants::COMPACT_SIGNATURE_SIZE;
+
+/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
+pub const SECP256K1_KEYPAIR_LENGTH: usize = constants::SECRET_KEY_SIZE;
 /// Secp256k1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1PublicKey {
     pub pubkey: PublicKey,
-    pub bytes: OnceCell<[u8; constants::PUBLIC_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256K1_PUBLIC_KEY_LENGTH]>,
 }
 
 /// Secp256k1 private key.
@@ -56,21 +66,15 @@ pub struct Secp256k1PublicKey {
 #[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
-    pub bytes: OnceCell<[u8; constants::SECRET_KEY_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256K1_PRIVATE_KEY_LENGTH]>,
 }
-
-/// Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature.
-pub const SIGNATURE_SIZE: usize = constants::COMPACT_SIGNATURE_SIZE;
-
-/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
-pub const SECP_256_K_1_KEY_PAIR_BYTE_LENGTH: usize = constants::SECRET_KEY_SIZE;
 
 /// Secp256k1 ECDSA signature.
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1Signature {
     pub sig: NonrecoverableSignature,
-    pub bytes: OnceCell<[u8; SIGNATURE_SIZE]>,
+    pub bytes: OnceCell<[u8; SECP256K1_SIGNATURE_LENGTH]>,
 }
 
 impl std::hash::Hash for Secp256k1PublicKey {
@@ -174,8 +178,7 @@ impl Display for Secp256k1PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey, SECP256K1_PUBLIC_KEY_LENGTH);
 
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
@@ -204,8 +207,7 @@ impl ToFromBytes for Secp256k1PrivateKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks
-serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey);
+serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey, SECP256K1_PRIVATE_KEY_LENGTH);
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {
@@ -230,29 +232,11 @@ impl Drop for Secp256k1PrivateKey {
     }
 }
 
-impl Serialize for Secp256k1Signature {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        self.as_ref().serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for Secp256k1Signature {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let data: Vec<u8> = Vec::deserialize(deserializer)?;
-        <Secp256k1Signature as Signature>::from_bytes(&data)
-            .map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
+serialize_deserialize_with_to_from_bytes!(Secp256k1Signature, SECP256K1_SIGNATURE_LENGTH);
 
 impl Signature for Secp256k1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        if bytes.len() != SIGNATURE_SIZE {
+        if bytes.len() != SECP256K1_SIGNATURE_LENGTH {
             return Err(signature::Error::new());
         }
         NonrecoverableSignature::from_compact(bytes)
@@ -267,7 +251,7 @@ impl Signature for Secp256k1Signature {
 impl Authenticator for Secp256k1Signature {
     type PubKey = Secp256k1PublicKey;
     type PrivKey = Secp256k1PrivateKey;
-    const LENGTH: usize = SIGNATURE_SIZE;
+    const LENGTH: usize = SECP256K1_SIGNATURE_LENGTH;
 }
 
 impl AsRef<[u8]> for Secp256k1Signature {
@@ -292,7 +276,7 @@ impl Display for Secp256k1Signature {
 
 impl Default for Secp256k1Signature {
     fn default() -> Self {
-        <Secp256k1Signature as Signature>::from_bytes(&[1u8; SIGNATURE_SIZE]).unwrap()
+        <Secp256k1Signature as Signature>::from_bytes(&[1u8; SECP256K1_SIGNATURE_LENGTH]).unwrap()
     }
 }
 
@@ -318,7 +302,7 @@ impl ToFromBytes for Secp256k1KeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair);
+serialize_deserialize_with_to_from_bytes!(Secp256k1KeyPair, SECP256K1_KEYPAIR_LENGTH);
 
 impl AsRef<[u8]> for Secp256k1KeyPair {
     fn as_ref(&self) -> &[u8] {

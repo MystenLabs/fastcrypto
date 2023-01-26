@@ -392,11 +392,13 @@ proptest::proptest! {
         let message: &[u8] = b"hello world!";
         let hashed_msg = rust_secp256k1::Message::from_slice(Keccak256::digest(message).as_ref()).unwrap();
 
-        // construct private key with bytes and signs message
-        let priv_key = <Secp256k1RecoverablePrivateKey as ToFromBytes>::from_bytes(&r).unwrap();
-        let key_pair = Secp256k1RecoverableKeyPair::from(priv_key);
+        // construct private key with arbitrary seed and sign
+        let mut rng = StdRng::from_seed(r);
+        let key_pair = Secp256k1RecoverableKeyPair::generate(&mut rng);
         let key_pair_copied = key_pair.copy();
         let key_pair_copied_2 = key_pair.copy();
+        let key_pair_copied_3 = key_pair.copy();
+
         let signature: Secp256k1RecoverableSignature = key_pair.sign(message);
         assert!(key_pair.public().verify(message, &signature).is_ok());
 
@@ -415,7 +417,7 @@ proptest::proptest! {
         assert!(key_pair.public().verify(message, &malleated_signature).is_err());
 
         // use k256 to construct private key with the same bytes and signs the same message
-        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(&r).unwrap();
+        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes()).unwrap();
         let pub_key_1 = priv_key_1.verifying_key();
         let signature_1: k256::ecdsa::recoverable::Signature = priv_key_1.sign(message);
         assert!(pub_key_1.verify(message, &signature_1).is_ok());
@@ -438,8 +440,7 @@ proptest::proptest! {
         assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
 
         // use ffi-implemented keypair to verify sig constructed by k256
-        let sig_bytes_1 = bincode::serialize(&signature_1.as_ref()).unwrap();
-        let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(&sig_bytes_1).unwrap();
+        let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(signature_1.as_ref()).unwrap();
         assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
         // use k256 keypair to verify sig constructed by ffi-implementation
