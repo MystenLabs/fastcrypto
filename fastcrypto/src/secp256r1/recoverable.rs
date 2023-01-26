@@ -142,7 +142,23 @@ impl Verifier<Secp256r1RecoverableSignature> for Secp256r1RecoverablePublicKey {
     }
 }
 
-impl Secp256r1RecoverablePublicKey {}
+impl Secp256r1RecoverablePublicKey {
+    pub fn verify_hashed(
+        &self,
+        hashed_msg: [u8; 32],
+        signature: &Secp256r1RecoverableSignature,
+    ) -> Result<(), signature::Error> {
+        let pk = signature
+            .recover_hashed_msg(hashed_msg)
+            .map_err(|_| signature::Error::new())?;
+
+        if pk != *self {
+            return Err(signature::Error::new());
+        }
+
+        Ok(())
+    }
+}
 
 impl AsRef<[u8]> for Secp256r1RecoverablePublicKey {
     fn as_ref(&self) -> &[u8] {
@@ -435,15 +451,10 @@ impl From<Secp256r1RecoverablePrivateKey> for Secp256r1RecoverableKeyPair {
 }
 
 impl Secp256r1RecoverableSignature {
-    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
-    ///
-    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-    ///
-    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
+    pub fn recover_hashed_msg(&self, msg: [u8; 32]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
+        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(msg));
 
         // Note: This has been added because it does not seem to be done in k256
         let r_bytes = match v.is_x_reduced() {
@@ -470,6 +481,15 @@ impl Secp256r1RecoverableSignature {
         } else {
             Err(FastCryptoError::GeneralError)
         }
+    }
+    
+    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
+    ///
+    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+    ///
+    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
+    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
+        self.recover_hashed_msg(Sha256::digest(msg).digest)
     }
 
     /// util function to parse wycheproof test key from DER format.
