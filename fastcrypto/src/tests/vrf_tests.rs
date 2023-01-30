@@ -16,11 +16,11 @@ fn test_proof() {
     let input2 = b"Farewell, world!";
     let (output2, proof2) = kp.output(input2);
 
-    assert!(proof1.verify_output(input1, &kp.pk, output1).is_ok());
-    assert!(proof1.verify_output(input1, &kp.pk, output2).is_err());
+    assert!(proof1.verify_output(input1, &kp.pk, &output1).is_ok());
+    assert!(proof1.verify_output(input1, &kp.pk, &output2).is_err());
 
     assert!(proof1.verify(input2, &kp.pk).is_err());
-    assert!(proof2.verify_output(input2, &kp.pk, output2).is_ok());
+    assert!(proof2.verify_output(input2, &kp.pk, &output2).is_ok());
 
     assert_ne!(output1, output2);
 }
@@ -55,6 +55,6 @@ fn test_serialize_deserialize() {
 
     let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
     assert!(proof_reconstructed
-        .verify_output(input, &kp.pk, output)
+        .verify_output(input, &kp.pk, &output)
         .is_ok());
 }
