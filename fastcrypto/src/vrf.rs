@@ -46,10 +46,10 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
         &self,
         input: &[u8],
         public_key: &Self::PublicKey,
-        output: [u8; OUTPUT_SIZE],
+        output: &[u8; OUTPUT_SIZE],
     ) -> Result<(), FastCryptoError> {
         self.verify(input, public_key)?;
-        if self.to_hash() != output {
+        if &self.to_hash() != output {
             return Err(FastCryptoError::GeneralError);
         }
         Ok(())
