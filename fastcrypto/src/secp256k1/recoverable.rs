@@ -3,7 +3,7 @@
 
 //! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the [secp256k1 curve](http://www.secg.org/sec2-v2.pdf).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256k1::recoverable::*;
@@ -12,7 +12,7 @@
 //! let kp = Secp256k1RecoverableKeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
 //! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &signature).is_ok());
+//! assert_eq!(&signature.recover(message).unwrap(), kp.public());
 //! ```
 
 use crate::{
@@ -108,31 +108,20 @@ impl Verifier<Secp256k1RecoverableSignature> for Secp256k1RecoverablePublicKey {
         msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
     ) -> Result<(), signature::Error> {
-        // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
-        #[cfg(test)]
-        let message =
-            Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
-                .unwrap();
-
-        #[cfg(not(test))]
-        let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
-
-        // If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
-        match signature.sig.recover(&message) {
-            Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => Ok(()),
-            _ => Err(signature::Error::new()),
-        }
+        let message = hash_message(msg);
+        self.verify_hashed(message.as_ref(), signature)
     }
 }
 
 impl Secp256k1RecoverablePublicKey {
-    pub fn verify_hashed(
+    pub(crate) fn verify_hashed(
         &self,
-        hased_msg: &[u8],
+        hashed_msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
     ) -> Result<(), signature::Error> {
-        match Message::from_slice(hased_msg) {
+        // If pubkey recovered from signature matches original pubkey, verifies signature.
+        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
+        match Message::from_slice(hashed_msg) {
             Ok(message) => match signature.sig.recover(&message) {
                 Ok(recovered_key) if self.as_bytes() == recovered_key.serialize().as_slice() => {
                     Ok(())
@@ -373,16 +362,25 @@ impl FromStr for Secp256k1RecoverableKeyPair {
     }
 }
 
+/// Hash a message using the default hash function.
+fn hash_message(msg: &[u8]) -> Message {
+    // k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
+    #[cfg(test)]
+    let message =
+        Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice()).unwrap();
+
+    // Default hash function is sha256
+    #[cfg(not(test))]
+    let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
+
+    message
+}
+
 impl Signer<Secp256k1RecoverableSignature> for Secp256k1RecoverableKeyPair {
     fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1RecoverableSignature, signature::Error> {
         let secp = Secp256k1::signing_only();
-        #[cfg(test)]
-        let message =
-            Message::from_slice(<sha3::Keccak256 as digest::Digest>::digest(msg).as_slice())
-                .unwrap();
 
-        #[cfg(not(test))]
-        let message = Message::from_hashed_data::<rust_secp256k1::hashes::sha256::Hash>(msg);
+        let message = hash_message(msg);
 
         // Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
@@ -401,8 +399,14 @@ impl From<Secp256k1RecoverablePrivateKey> for Secp256k1RecoverableKeyPair {
 }
 
 impl Secp256k1RecoverableSignature {
-    /// Recover public key from signature
-    pub fn recover(
+    /// Recover public key from signature.
+    pub fn recover(&self, msg: &[u8]) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {
+        let message = hash_message(msg);
+        self.recover_hashed(message.as_ref())
+    }
+
+    /// Recover public key from signature and an already hashed message.
+    pub(crate) fn recover_hashed(
         &self,
         hashed_msg: &[u8],
     ) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {

@@ -71,9 +71,7 @@ fn test_public_key_recovery() {
     let kp = keys().pop().unwrap();
     let message: &[u8] = b"Hello, world!";
     let signature: Secp256k1RecoverableSignature = kp.sign(message);
-    let recovered_key = signature
-        .recover(Keccak256::digest(message).as_ref())
-        .unwrap();
+    let recovered_key = signature.recover(message).unwrap();
     assert_eq!(*kp.public(), recovered_key);
 }
 
@@ -87,13 +85,12 @@ fn test_public_key_recovery_error() {
 
     let signature = <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&[0u8; 65]).unwrap();
     let message: &[u8] = b"Hello, world!";
-    assert!(signature
-        .recover(Keccak256::digest(message).as_ref())
-        .is_err());
+    assert!(signature.recover(message).is_err());
 
+    // Verify signature over non-hashed message
     let kp = keys().pop().unwrap();
     let signature_2: Secp256k1RecoverableSignature = kp.sign(message);
-    assert!(signature_2.recover(message).is_err());
+    assert!(signature_2.recover_hashed(message).is_err());
 }
 #[test]
 fn import_export_secret_key() {
