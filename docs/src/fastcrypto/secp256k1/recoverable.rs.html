@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256k1/recoverable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recoverable.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f2fc7b5fd698d27d.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-5f7299aa2b503fb1.css"><link rel="stylesheet" disabled href="../../../static.files/dark-dfb18ef8114bb428.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-4047a6aaddd3789d.css"><script id="default-settings" ></script><script src="../../../static.files/storage-d43fa987303ecbbb.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-02cbe07fc548e88c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256k1/recoverable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>recoverable.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-1f7d512b176f0f72.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-124a1ca42af929b6.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f2fc7b5fd698d27d.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../../static.files/light-5f7299aa2b503fb1.css"><link rel="stylesheet" disabled href="../../../static.files/dark-dfb18ef8114bb428.css"><link rel="stylesheet" disabled href="../../../static.files/ayu-4047a6aaddd3789d.css"><script id="default-settings" ></script><script src="../../../static.files/storage-ff4706381ddb2707.js"></script><script defer src="../../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-02cbe07fc548e88c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-5ec35bf9ca753509.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -446,12 +446,16 @@
 <a href="#446" id="446">446</a>
 <a href="#447" id="447">447</a>
 <a href="#448" id="448">448</a>
+<a href="#449" id="449">449</a>
+<a href="#450" id="450">450</a>
+<a href="#451" id="451">451</a>
+<a href="#452" id="452">452</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="doccomment">//! This module contains an implementation of the [ECDSA signature scheme](https://en.wikipedia.org/wiki/Elliptic_Curve_Digital_Signature_Algorithm) over the [secp256k1 curve](http://www.secg.org/sec2-v2.pdf).
 //!
-//! Messages can be signed and the signature can be verified again:
+//! Messages can be signed and the public key can be recovered from the signature:
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256k1::recoverable::*;
@@ -460,7 +464,7 @@
 //! let kp = Secp256k1RecoverableKeyPair::generate(&amp;mut thread_rng());
 //! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
 //! let signature = kp.sign(message);
-//! assert!(kp.public().verify(message, &amp;signature).is_ok());
+//! assert_eq!(&amp;signature.recover(message).unwrap(), kp.public());
 //! ```
 
 </span><span class="kw">use crate</span>::{
@@ -556,31 +560,20 @@
         msg: <span class="kw-2">&amp;</span>[u8],
         signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
-        <span class="comment">// k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
-        </span><span class="attr">#[cfg(test)]
-        </span><span class="kw">let </span>message =
-            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
-                .unwrap();
-
-        <span class="attr">#[cfg(not(test))]
-        </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;rust_secp256k1::hashes::sha256::Hash&gt;(msg);
-
-        <span class="comment">// If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
-        </span><span class="kw">match </span>signature.sig.recover(<span class="kw-2">&amp;</span>message) {
-            <span class="prelude-val">Ok</span>(recovered_key) <span class="kw">if </span><span class="self">self</span>.as_bytes() == recovered_key.serialize().as_slice() =&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(signature::Error::new()),
-        }
+        <span class="kw">let </span>message = hash_message(msg);
+        <span class="self">self</span>.verify_hashed(message.as_ref(), signature)
     }
 }
 
 <span class="kw">impl </span>Secp256k1RecoverablePublicKey {
-    <span class="kw">pub fn </span>verify_hashed(
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>verify_hashed(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        hased_msg: <span class="kw-2">&amp;</span>[u8],
+        hashed_msg: <span class="kw-2">&amp;</span>[u8],
         signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
-        <span class="kw">match </span>Message::from_slice(hased_msg) {
+        <span class="comment">// If pubkey recovered from signature matches original pubkey, verifies signature.
+        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
+        </span><span class="kw">match </span>Message::from_slice(hashed_msg) {
             <span class="prelude-val">Ok</span>(message) =&gt; <span class="kw">match </span>signature.sig.recover(<span class="kw-2">&amp;</span>message) {
                 <span class="prelude-val">Ok</span>(recovered_key) <span class="kw">if </span><span class="self">self</span>.as_bytes() == recovered_key.serialize().as_slice() =&gt; {
                     <span class="prelude-val">Ok</span>(())
@@ -821,16 +814,25 @@
     }
 }
 
+<span class="doccomment">/// Hash a message using the default hash function.
+</span><span class="kw">fn </span>hash_message(msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Message {
+    <span class="comment">// k256 defaults to keccak256 as digest to hash message for sign/verify, thus use this hash function to match in proptest.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">let </span>message =
+        Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice()).unwrap();
+
+    <span class="comment">// Default hash function is sha256
+    </span><span class="attr">#[cfg(not(test))]
+    </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;rust_secp256k1::hashes::sha256::Hash&gt;(msg);
+
+    message
+}
+
 <span class="kw">impl </span>Signer&lt;Secp256k1RecoverableSignature&gt; <span class="kw">for </span>Secp256k1RecoverableKeyPair {
     <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1RecoverableSignature, signature::Error&gt; {
         <span class="kw">let </span>secp = Secp256k1::signing_only();
-        <span class="attr">#[cfg(test)]
-        </span><span class="kw">let </span>message =
-            Message::from_slice(&lt;sha3::Keccak256 <span class="kw">as </span>digest::Digest&gt;::digest(msg).as_slice())
-                .unwrap();
 
-        <span class="attr">#[cfg(not(test))]
-        </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;rust_secp256k1::hashes::sha256::Hash&gt;(msg);
+        <span class="kw">let </span>message = hash_message(msg);
 
         <span class="comment">// Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
@@ -849,8 +851,14 @@
 }
 
 <span class="kw">impl </span>Secp256k1RecoverableSignature {
-    <span class="doccomment">/// Recover public key from signature
-    </span><span class="kw">pub fn </span>recover(
+    <span class="doccomment">/// Recover public key from signature.
+    </span><span class="kw">pub fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1RecoverablePublicKey, FastCryptoError&gt; {
+        <span class="kw">let </span>message = hash_message(msg);
+        <span class="self">self</span>.recover_hashed(message.as_ref())
+    }
+
+    <span class="doccomment">/// Recover public key from signature and an already hashed message.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>recover_hashed(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         hashed_msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1RecoverablePublicKey, FastCryptoError&gt; {
@@ -895,4 +903,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (e972bc808 2023-01-29)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-a43118d2dfb2799d.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (001a77fac 2023-01-30)" data-search-js="search-98d53477a794af0b.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-7c23ac01f615ce90.css" ></div></body></html>
