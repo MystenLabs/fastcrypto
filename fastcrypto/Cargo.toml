@@ -64,6 +64,10 @@ name = "encoding"
 harness = false
 
 [[bench]]
+name = "ecvrf_ristretto"
+harness = false
+
+[[bench]]
 name = "mskr"
 harness = false
 required-features = ["experimental"]
