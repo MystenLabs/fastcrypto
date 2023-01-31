@@ -3,7 +3,7 @@
 #[macro_use]
 extern crate criterion;
 
-mod vrf_benches {
+mod ecvrf_ristretto_benches {
 
     use criterion::Criterion;
     use fastcrypto::vrf::ecvrf::ECVRFKeyPair;
@@ -14,7 +14,7 @@ mod vrf_benches {
 
     fn keygen(c: &mut Criterion) {
         let mut csprng: ThreadRng = thread_rng();
-        c.bench_function("ECVRF key generation", move |b| {
+        c.bench_function("ECVRF Ristretto key generation", move |b| {
             b.iter(|| ECVRFKeyPair::generate(&mut csprng))
         });
     }
@@ -22,23 +22,25 @@ mod vrf_benches {
     fn proof(c: &mut Criterion) {
         let kp = ECVRFKeyPair::generate(&mut thread_rng());
         let input = b"Hello, world!";
-        c.bench_function("ECVRF proving", move |b| b.iter(|| kp.prove(input)));
+        c.bench_function("ECVRF Ristretto proving", move |b| {
+            b.iter(|| kp.prove(input))
+        });
     }
 
     fn verify(c: &mut Criterion) {
         let kp = ECVRFKeyPair::generate(&mut thread_rng());
         let input = b"Hello, world!";
         let proof = kp.prove(input);
-        c.bench_function("ECVRF verification", move |b| {
+        c.bench_function("ECVRF Ristretto verification", move |b| {
             b.iter(|| proof.verify(input, &kp.pk))
         });
     }
 
     criterion_group! {
-        name = vrf_benches;
+        name = ecvrf_ristretto_benches;
         config = Criterion::default().sample_size(100);
         targets = keygen, proof, verify,
     }
 }
 
-criterion_main!(vrf_benches::vrf_benches,);
+criterion_main!(ecvrf_ristretto_benches::ecvrf_ristretto_benches,);

@@ -64,7 +64,7 @@ name = "encoding"
 harness = false
 
 [[bench]]
-name = "vrf"
+name = "ecvrf_ristretto"
 harness = false
 
 [[bench]]
