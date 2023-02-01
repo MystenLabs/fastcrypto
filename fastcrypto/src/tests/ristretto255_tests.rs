@@ -3,7 +3,7 @@
 
 use crate::groups::ristretto255::RistrettoPoint;
 use crate::groups::ristretto255::RistrettoScalar;
-use crate::groups::GroupElement;
+use crate::groups::{GroupElement, MultiscalarMultiplication};
 
 #[test]
 fn test_arithmetic() {
@@ -156,4 +156,14 @@ fn test_vectors() {
         let expected = hex::decode(o).unwrap();
         assert_eq!(expected, actual.compress());
     }
+}
+
+#[test]
+fn test_multiscalar_mul() {
+    let g = RistrettoPoint::generator();
+    let h = RistrettoPoint::multiscalar_mul([1, 2, 3], [g, g, g]).unwrap();
+    assert_eq!(g * RistrettoScalar::from(6), h);
+
+    // Invalid lengths
+    assert!(RistrettoPoint::multiscalar_mul([1, 2], [g, g, g]).is_err());
 }

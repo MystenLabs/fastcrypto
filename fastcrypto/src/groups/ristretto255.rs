@@ -4,7 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-use crate::groups::{GroupElement, HashToGroupElement, Scalar};
+use crate::groups::{GroupElement, HashToGroupElement, MultiscalarMultiplication, Scalar};
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -16,7 +16,7 @@ use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT}
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
-use curve25519_dalek_ng::traits::Identity;
+use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
@@ -70,6 +70,22 @@ impl GroupElement for RistrettoPoint {
 
     fn generator() -> Self {
         RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
+    }
+}
+
+impl MultiscalarMultiplication for RistrettoPoint {
+    fn multiscalar_mul<I, J>(scalars: I, elements: J) -> Result<Self, FastCryptoError>
+    where
+        I: IntoIterator,
+        I::Item: Into<Self::ScalarType>,
+        J: IntoIterator<Item = Self>,
+    {
+        ExternalRistrettoPoint::optional_multiscalar_mul(
+            scalars.into_iter().map(|s| s.into().0),
+            elements.into_iter().map(|g| Option::Some(g.0)),
+        )
+        .map(RistrettoPoint)
+        .ok_or(FastCryptoError::GeneralError)
     }
 }
 
