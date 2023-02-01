@@ -512,7 +512,7 @@ fn test_recoverable_nonrecoverable_conversion() {
     let nonrecoverable_pk = Secp256r1PublicKey::from(kp.public());
     let nonrecoverable_signature = Secp256r1Signature::try_from(&signature).unwrap();
     assert!(nonrecoverable_pk
-        .verify(&message, &nonrecoverable_signature)
+        .verify(message, &nonrecoverable_signature)
         .is_ok());
 
     let recovered_pk = Secp256r1RecoverablePublicKey::from(&nonrecoverable_pk);
