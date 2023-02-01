@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::secp256k1::{Secp256k1PublicKey, Secp256k1Signature};
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
     secp256k1::recoverable::{
@@ -532,4 +533,32 @@ proptest! {
         let deserialized: Secp256k1RecoverableKeyPair = bincode::deserialize(&serialized).unwrap();
         assert_eq!(kp.public(), deserialized.public());
     }
+}
+
+#[test]
+fn test_recoverable_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message, hashed to keccak256.
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign(message);
+    assert!(kp.public().verify(message, &signature).is_ok());
+
+    // The recoverable tests uses keccak256 to align with the proptest
+    let hashed_message = hash::Keccak256::digest(message).digest;
+    let nonrecoverable_pk = Secp256k1PublicKey::from(kp.public());
+    let nonrecoverable_signature = Secp256k1Signature::try_from(&signature).unwrap();
+    assert!(nonrecoverable_pk
+        .verify_hashed(&hashed_message, &nonrecoverable_signature)
+        .is_ok());
+
+    let recovered_pk = Secp256k1RecoverablePublicKey::from(&nonrecoverable_pk);
+    let recovered_signature = Secp256k1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        &nonrecoverable_pk,
+        message,
+    )
+    .unwrap();
+    assert!(recovered_pk.verify(message, &recovered_signature).is_ok());
 }
