@@ -261,6 +261,9 @@
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -502,8 +505,11 @@
             <span class="kw">let </span>h = public_key.ecvrf_encode_to_curve(alpha_string);
 
             <span class="kw">let </span>challenge = RistrettoScalar::from(<span class="kw-2">&amp;</span><span class="self">self</span>.c);
-            <span class="kw">let </span>u = RistrettoPoint::generator() * <span class="self">self</span>.s - public_key.<span class="number">0 </span>* challenge;
-            <span class="kw">let </span>v = h * <span class="self">self</span>.s - <span class="self">self</span>.gamma * challenge;
+            <span class="kw">let </span>u = RistrettoPoint::multiscalar_mul(
+                [<span class="self">self</span>.s, -challenge],
+                [RistrettoPoint::generator(), public_key.<span class="number">0</span>],
+            )<span class="question-mark">?</span>;
+            <span class="kw">let </span>v = RistrettoPoint::multiscalar_mul([<span class="self">self</span>.s, -challenge], [h, <span class="self">self</span>.gamma])<span class="question-mark">?</span>;
 
             <span class="kw">let </span>c_prime = ecvrf_challenge_generation([<span class="kw-2">&amp;</span>public_key.<span class="number">0</span>, <span class="kw-2">&amp;</span>h, <span class="kw-2">&amp;</span><span class="self">self</span>.gamma, <span class="kw-2">&amp;</span>u, <span class="kw-2">&amp;</span>v]);
 
