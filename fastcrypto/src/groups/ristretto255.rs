@@ -16,7 +16,7 @@ use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT}
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
-use curve25519_dalek_ng::traits::Identity;
+use curve25519_dalek_ng::traits::{Identity, MultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
@@ -50,6 +50,27 @@ impl RistrettoPoint {
     /// Return this point in compressed form.
     pub fn decompress(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
         RistrettoPoint::try_from(bytes.as_slice())
+    }
+
+    /// Compute the linear combination of the given scalars and points. An error will be returned if
+    /// the sizes do not match.
+    pub fn multiscalar_mul<I, J>(scalars: I, points: J) -> Result<Self, FastCryptoError>
+    where
+        I: IntoIterator,
+        I::Item: Into<RistrettoScalar>,
+        J: IntoIterator<Item = Self>,
+    {
+        let scalars_iter = scalars.into_iter();
+        let points_iter = points.into_iter();
+
+        if scalars_iter.size_hint() != points_iter.size_hint() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        Ok(RistrettoPoint(ExternalRistrettoPoint::multiscalar_mul(
+            scalars_iter.map(|s| s.into().0),
+            points_iter.map(|g| g.0),
+        )))
     }
 }
 
