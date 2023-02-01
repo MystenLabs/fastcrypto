@@ -37,6 +37,7 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
+use crate::secp256r1::recoverable::{Secp256r1RecoverablePublicKey, Secp256r1RecoverableSignature};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -171,6 +172,15 @@ impl Display for Secp256r1PublicKey {
     }
 }
 
+impl From<&Secp256r1RecoverablePublicKey> for Secp256r1PublicKey {
+    fn from(recoverable_pk: &Secp256r1RecoverablePublicKey) -> Self {
+        Secp256r1PublicKey {
+            pubkey: recoverable_pk.pubkey,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
     fn from(secret: &'a Secp256r1PrivateKey) -> Self {
         Secp256r1PublicKey {
@@ -287,6 +297,15 @@ impl Default for Secp256r1Signature {
         Secp256r1Signature {
             sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
                 .unwrap(),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
+    fn from(recoverable_sig: &Secp256r1RecoverableSignature) -> Self {
+        Secp256r1Signature {
+            sig: recoverable_sig.sig,
             bytes: OnceCell::new(),
         }
     }
