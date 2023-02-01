@@ -19,7 +19,7 @@
 
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
-use crate::secp256r1::SECP256R1_KEYPAIR_LENGTH;
+use crate::secp256r1::{Secp256r1PublicKey, Secp256r1Signature, SECP256R1_KEYPAIR_LENGTH};
 use crate::serialize_deserialize_with_to_from_bytes;
 use crate::{
     encoding::{Base64, Encoding},
@@ -193,6 +193,15 @@ impl<'a> From<&'a Secp256r1RecoverablePrivateKey> for Secp256r1RecoverablePublic
     }
 }
 
+impl From<&Secp256r1PublicKey> for Secp256r1RecoverablePublicKey {
+    fn from(pk: &Secp256r1PublicKey) -> Self {
+        Secp256r1RecoverablePublicKey {
+            pubkey: pk.pubkey,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 impl SigningKey for Secp256r1RecoverablePrivateKey {
     type PubKey = Secp256r1RecoverablePublicKey;
     type Sig = Secp256r1RecoverableSignature;
@@ -287,6 +296,34 @@ impl Default for Secp256r1RecoverableSignature {
             bytes: OnceCell::new(),
             recovery_id: 0u8,
         }
+    }
+}
+
+impl Secp256r1RecoverableSignature {
+    pub fn try_from_nonrecoverable(
+        signature: &Secp256r1Signature,
+        pk: &Secp256r1PublicKey,
+        message: &[u8],
+    ) -> Result<Self, FastCryptoError> {
+        // Secp256r1Signature::as_bytes is guaranteed to return SECP256R1_SIGNATURE_LENGTH = SECP256R1_RECOVERABLE_SIGNATURE_SIZE - 1 bytes.
+        let mut recoverable_signature_bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+        recoverable_signature_bytes[0..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1]
+            .copy_from_slice(signature.as_ref());
+        let recoverable_pk: Secp256r1RecoverablePublicKey = pk.into();
+
+        for recovery_id in 0..4 {
+            recoverable_signature_bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1] = recovery_id;
+            let recoverable_signature = <Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(
+                &recoverable_signature_bytes,
+            )?;
+            if recoverable_pk
+                .verify(message, &recoverable_signature)
+                .is_ok()
+            {
+                return Ok(recoverable_signature);
+            }
+        }
+        Err(FastCryptoError::InvalidInput)
     }
 }
 

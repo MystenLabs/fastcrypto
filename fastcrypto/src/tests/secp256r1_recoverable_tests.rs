@@ -12,6 +12,7 @@ use wycheproof::TestResult;
 
 use super::*;
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
+use crate::secp256r1::{Secp256r1PublicKey, Secp256r1Signature};
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::recoverable::{
@@ -497,4 +498,29 @@ proptest! {
         let deserialized: Secp256r1RecoverableKeyPair = bincode::deserialize(&serialized).unwrap();
         assert_eq!(kp.public(), deserialized.public());
     }
+}
+
+#[test]
+fn test_recoverable_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign(message);
+    assert!(kp.public().verify(message, &signature).is_ok());
+
+    let nonrecoverable_pk = Secp256r1PublicKey::from(kp.public());
+    let nonrecoverable_signature = Secp256r1Signature::try_from(&signature).unwrap();
+    assert!(nonrecoverable_pk
+        .verify(&message, &nonrecoverable_signature)
+        .is_ok());
+
+    let recovered_pk = Secp256r1RecoverablePublicKey::from(&nonrecoverable_pk);
+    let recovered_signature = Secp256r1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        &nonrecoverable_pk,
+        message,
+    )
+    .unwrap();
+    assert!(recovered_pk.verify(message, &recovered_signature).is_ok());
 }
