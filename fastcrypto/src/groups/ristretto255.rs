@@ -84,6 +84,12 @@ impl TryFrom<&[u8]> for RistrettoPoint {
     }
 }
 
+impl HashToGroupElement for RistrettoPoint {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
+        RistrettoPoint::map_to_point::<Sha512>(msg)
+    }
+}
+
 impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
     fn from_byte_array(bytes: &[u8; RISTRETTO_POINT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
         Self::try_from(bytes.as_slice())

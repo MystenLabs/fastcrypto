@@ -68,6 +68,10 @@ name = "ecvrf_ristretto"
 harness = false
 
 [[bench]]
+name = "groups"
+harness = false
+
+[[bench]]
 name = "mskr"
 harness = false
 required-features = ["experimental"]
