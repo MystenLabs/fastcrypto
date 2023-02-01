@@ -4,7 +4,7 @@
 //! Implementations of the [ristretto255 group](https://www.ietf.org/archive/id/draft-irtf-cfrg-ristretto255-decaf448-03.html) which is a group of
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
-use crate::groups::{GroupElement, HashToGroupElement, MultiscalarMultiplication, Scalar};
+use crate::groups::{GroupElement, HashToGroupElement, Scalar};
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -51,6 +51,29 @@ impl RistrettoPoint {
     pub fn decompress(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
         RistrettoPoint::try_from(bytes.as_slice())
     }
+
+    /// Compute the linear combination of the given scalars and points. An error will be returned if
+    /// the sizes does not match.
+    pub fn multiscalar_mul<I, J>(scalars: I, points: J) -> Result<Self, FastCryptoError>
+    where
+        I: IntoIterator,
+        I::Item: Into<RistrettoScalar>,
+        J: IntoIterator<Item = Self>,
+    {
+        let scalars_iter = scalars.into_iter();
+        let points_iter = points.into_iter();
+
+        if scalars_iter.size_hint() != points_iter.size_hint() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        ExternalRistrettoPoint::optional_multiscalar_mul(
+            scalars_iter.map(|s| s.into().0),
+            points_iter.map(|g| Option::Some(g.0)),
+        )
+        .map(RistrettoPoint)
+        .ok_or(FastCryptoError::GeneralError)
+    }
 }
 
 impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
@@ -70,22 +93,6 @@ impl GroupElement for RistrettoPoint {
 
     fn generator() -> Self {
         RistrettoPoint::from(RISTRETTO_BASEPOINT_POINT)
-    }
-}
-
-impl MultiscalarMultiplication for RistrettoPoint {
-    fn multiscalar_mul<I, J>(scalars: I, elements: J) -> Result<Self, FastCryptoError>
-    where
-        I: IntoIterator,
-        I::Item: Into<Self::ScalarType>,
-        J: IntoIterator<Item = Self>,
-    {
-        ExternalRistrettoPoint::optional_multiscalar_mul(
-            scalars.into_iter().map(|s| s.into().0),
-            elements.into_iter().map(|g| Option::Some(g.0)),
-        )
-        .map(RistrettoPoint)
-        .ok_or(FastCryptoError::GeneralError)
     }
 }
 

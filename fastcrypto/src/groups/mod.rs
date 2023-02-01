@@ -62,12 +62,3 @@ pub trait HashToGroupElement {
     /// Hashes the given message and maps the result to a group element.
     fn hash_to_group_element(msg: &[u8]) -> Self;
 }
-
-/// Trait for groups that allow an optimised multiscalar multiplication.
-pub trait MultiscalarMultiplication: GroupElement {
-    fn multiscalar_mul<I, J>(scalars: I, elements: J) -> Result<Self, FastCryptoError>
-    where
-        I: IntoIterator,
-        I::Item: Into<Self::ScalarType>,
-        J: IntoIterator<Item = Self>;
-}
