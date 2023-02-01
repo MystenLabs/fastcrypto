@@ -53,7 +53,7 @@ impl RistrettoPoint {
     }
 
     /// Compute the linear combination of the given scalars and points. An error will be returned if
-    /// the sizes does not match.
+    /// the sizes do not match.
     pub fn multiscalar_mul<I, J>(scalars: I, points: J) -> Result<Self, FastCryptoError>
     where
         I: IntoIterator,
