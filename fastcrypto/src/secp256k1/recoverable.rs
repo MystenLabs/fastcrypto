@@ -445,7 +445,7 @@ impl Secp256k1RecoverableSignature {
     }
 
     /// Recover public key from signature and an already hashed message.
-    pub(crate) fn recover_hashed(
+    pub fn recover_hashed(
         &self,
         hashed_msg: &[u8],
     ) -> Result<Secp256k1RecoverablePublicKey, FastCryptoError> {
