@@ -334,6 +334,8 @@ fn test_add_signatures_to_aggregate() {
 
     // Test 'add signature'
     let mut sig1 = BLS12381AggregateSignature::default();
+    assert!(sig1.verify(&pks, message).is_err());
+
     // Test populated aggregate signature
     keys().into_iter().take(3).for_each(|kp| {
         let sig = kp.sign(message);
