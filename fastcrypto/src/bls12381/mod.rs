@@ -108,14 +108,13 @@ pub struct BLS12381Signature {
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BLS12381AggregateSignature {
-    #[serde_as(as = "Option<BlsSignature>")]
-    pub sig: Option<blst::Signature>,
+    #[serde_as(as = "BlsSignature")]
+    pub sig: blst::Signature,
     #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
-// We need another byte for Optional<>.
-generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length+1}, BLS12381AggregateSignatureAsBytes);
+generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length}, BLS12381AggregateSignatureAsBytes);
 
 ///
 /// Implement SigningKey
@@ -350,19 +349,13 @@ impl Signature for BLS12381Signature {
 
 impl Default for BLS12381Signature {
     fn default() -> Self {
-        // TODO: improve this!
-        let ikm: [u8; 32] = [
-            0x93, 0xad, 0x7e, 0x65, 0xde, 0xad, 0x05, 0x2a, 0x08, 0x3a, 0x91, 0x0c, 0x8b, 0x72,
-            0x85, 0x91, 0x46, 0x4c, 0xca, 0x56, 0x60, 0x5b, 0xb0, 0x56, 0xed, 0xfe, 0x2b, 0x60,
-            0xa6, 0x3c, 0x48, 0x99,
-        ];
+        // Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
+        // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
+        let mut infinity: [u8; $sig_length] = [0; $sig_length];
+        infinity[0] = 0xc0;
 
-        let sk = blst::SecretKey::key_gen(&ikm, &[]).unwrap();
-
-        let msg = b"hello foo";
-        let sig = sk.sign(msg, $dst_string, &[]);
         BLS12381Signature {
-            sig,
+            sig: blst::Signature::from_bytes(&infinity).expect("Should decode infinity signature"),
             bytes: OnceCell::new(),
         }
     }
@@ -516,13 +509,11 @@ impl FromStr for BLS12381KeyPair {
 // Don't try to use this externally.
 impl AsRef<[u8]> for BLS12381AggregateSignature {
     fn as_ref(&self) -> &[u8] {
-        match self.sig {
-            Some(sig) => self
+        self
                 .bytes
-                .get_or_try_init::<_, eyre::Report>(|| Ok(sig.to_bytes()))
-                .expect("OnceCell invariant violated"),
-            None => &[],
-        }
+                .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
+                .expect("OnceCell invariant violated")
+
     }
 }
 
@@ -532,11 +523,15 @@ impl Display for BLS12381AggregateSignature {
     }
 }
 
-// see [#34](https://github.com/MystenLabs/narwhal/issues/34).
 impl Default for BLS12381AggregateSignature {
     fn default() -> Self {
+        // Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
+        // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
+        let mut infinity: [u8; $sig_length] = [0; $sig_length];
+        infinity[0] = 0xc0;
+
         BLS12381AggregateSignature {
-            sig: None,
+            sig: blst::Signature::from_bytes(&infinity).expect("Should decode infinity signature"),
             bytes: OnceCell::new(),
         }
     }
@@ -559,46 +554,29 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             false,
         )
         .map(|sig| BLS12381AggregateSignature {
-            sig: Some(sig.to_signature()),
+            sig: sig.to_signature(),
             bytes: OnceCell::new(),
         })
         .map_err(|_| FastCryptoError::GeneralError)
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
-        match self.sig {
-            Some(ref mut sig) => {
-                let mut aggr_sig = blst::AggregateSignature::from_signature(sig);
+        let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
                 aggr_sig
                     .add_signature(&signature.sig, true)
                     .map_err(|_| FastCryptoError::GeneralError)?;
-                self.sig = Some(aggr_sig.to_signature());
+                self.sig = aggr_sig.to_signature();
                 Ok(())
-            }
-            None => {
-                self.sig = Some(signature.sig);
-                Ok(())
-            }
-        }
+
     }
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
-        match self.sig {
-            Some(ref mut sig) => match signature.sig {
-                Some(to_add) => {
-                    let result = blst::AggregateSignature::aggregate(&[sig, &to_add], true)
+        let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], true)
                         .map_err(|_| FastCryptoError::GeneralError)?
                         .to_signature();
-                    self.sig = Some(result);
-                    Ok(())
-                }
-                None => Ok(()),
-            },
-            None => {
-                self.sig = signature.sig;
-                Ok(())
-            }
-        }
+         self.sig = result;
+        Ok(())
+
     }
 
     fn verify(
@@ -608,7 +586,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     ) -> Result<(), FastCryptoError> {
         let result = self
             .sig
-            .ok_or(FastCryptoError::GeneralError)?
             .fast_aggregate_verify(
                 true,
                 message,
@@ -628,7 +605,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     ) -> Result<(), FastCryptoError> {
         let result = self
             .sig
-            .ok_or(FastCryptoError::GeneralError)?
             .aggregate_verify(
                 true,
                 messages,
@@ -654,7 +630,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         for i in 0..signatures.len() {
             let sig = signatures[i].sig;
             let result = sig
-                .ok_or(FastCryptoError::GeneralError)?
                 .fast_aggregate_verify(
                     true,
                     messages[i],
@@ -710,7 +685,7 @@ impl ToFromBytes for BLS12381AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
-            sig: Some(sig),
+            sig,
             bytes: OnceCell::new(),
         })
     }
