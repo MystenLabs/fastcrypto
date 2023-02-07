@@ -396,27 +396,6 @@
 <a href="#396" id="396">396</a>
 <a href="#397" id="397">397</a>
 <a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -446,7 +425,7 @@
 };
 <span class="kw">use </span>p256::elliptic_curve::group::GroupEncoding;
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
-<span class="kw">use </span>p256::{AffinePoint, NistP256, Scalar};
+<span class="kw">use </span>p256::NistP256;
 <span class="kw">use </span>signature::{Error, Signature, Signer, Verifier};
 <span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -575,16 +554,6 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256r1PublicKey {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Default public key is just the generator for the group
-        </span>Secp256r1PublicKey {
-            pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 <span class="kw">impl </span>Display <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
@@ -707,17 +676,6 @@
 <span class="kw">impl </span>Display <span class="kw">for </span>Secp256r1Signature {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256r1Signature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Return the signature (1,1)
-        </span>Secp256r1Signature {
-            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
-                .unwrap(),
-            bytes: OnceCell::new(),
-        }
     }
 }
 

@@ -528,28 +528,6 @@
 <a href="#528" id="528">528</a>
 <a href="#529" id="529">529</a>
 <a href="#530" id="530">530</a>
-<a href="#531" id="531">531</a>
-<a href="#532" id="532">532</a>
-<a href="#533" id="533">533</a>
-<a href="#534" id="534">534</a>
-<a href="#535" id="535">535</a>
-<a href="#536" id="536">536</a>
-<a href="#537" id="537">537</a>
-<a href="#538" id="538">538</a>
-<a href="#539" id="539">539</a>
-<a href="#540" id="540">540</a>
-<a href="#541" id="541">541</a>
-<a href="#542" id="542">542</a>
-<a href="#543" id="543">543</a>
-<a href="#544" id="544">544</a>
-<a href="#545" id="545">545</a>
-<a href="#546" id="546">546</a>
-<a href="#547" id="547">547</a>
-<a href="#548" id="548">548</a>
-<a href="#549" id="549">549</a>
-<a href="#550" id="550">550</a>
-<a href="#551" id="551">551</a>
-<a href="#552" id="552">552</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -720,16 +698,6 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256r1RecoverablePublicKey {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Default public key is just the generator for the group
-        </span>Secp256r1RecoverablePublicKey {
-            pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 <span class="kw">impl </span>Display <span class="kw">for </span>Secp256r1RecoverablePublicKey {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
@@ -836,18 +804,6 @@
 <span class="kw">impl </span>Display <span class="kw">for </span>Secp256r1RecoverableSignature {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
         <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>Secp256r1RecoverableSignature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Return the signature (1,1)
-        </span>Secp256r1RecoverableSignature {
-            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
-                .unwrap(),
-            bytes: OnceCell::new(),
-            recovery_id: <span class="number">0u8</span>,
-        }
     }
 }
 
