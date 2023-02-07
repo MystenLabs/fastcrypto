@@ -168,16 +168,6 @@ impl ToFromBytes for Secp256r1RecoverablePublicKey {
     }
 }
 
-impl Default for Secp256r1RecoverablePublicKey {
-    fn default() -> Self {
-        // Default public key is just the generator for the group
-        Secp256r1RecoverablePublicKey {
-            pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 impl Display for Secp256r1RecoverablePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base64::encode(self.as_ref()))
@@ -284,18 +274,6 @@ impl Eq for Secp256r1RecoverableSignature {}
 impl Display for Secp256r1RecoverableSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-impl Default for Secp256r1RecoverableSignature {
-    fn default() -> Self {
-        // Return the signature (1,1)
-        Secp256r1RecoverableSignature {
-            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
-                .unwrap(),
-            bytes: OnceCell::new(),
-            recovery_id: 0u8,
-        }
     }
 }
 
