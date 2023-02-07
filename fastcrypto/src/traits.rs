@@ -213,6 +213,24 @@ pub trait KeyPair:
     fn generate<R: AllowedRng>(rng: &mut R) -> Self;
 }
 
+/// Trait impl'd by public / private keypairs that can generate recoverable signatures
+pub trait RecoverableSigner {
+    type PublicKey;
+    type RecoverableSignature: RecoverableSignature<Signer = Self, PublicKey = Self::PublicKey>;
+
+    /// Sign as a recoverable signature.
+    fn sign_recoverable(&self, msg: &[u8]) -> Self::RecoverableSignature;
+}
+
+/// Trait impl'd by recoverable signatures
+pub trait RecoverableSignature {
+    type PublicKey;
+    type Signer: RecoverableSigner<RecoverableSignature = Self, PublicKey = Self::PublicKey>;
+
+    /// Recover the public key from this signature.
+    fn recover(&self, msg: &[u8]) -> Result<Self::PublicKey, FastCryptoError>;
+}
+
 /// Trait impl'd by aggregated signatures in asymmetric cryptography.
 ///
 /// The trait bounds are implemented to allow the aggregation of multiple signatures,
