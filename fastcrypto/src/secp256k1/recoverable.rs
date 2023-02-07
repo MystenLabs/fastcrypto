@@ -444,7 +444,9 @@ impl Secp256k1RecoverableSignature {
 
 impl zeroize::Zeroize for Secp256k1RecoverablePrivateKey {
     fn zeroize(&mut self) {
-        self.privkey = rust_secp256k1::ONE_KEY;
+        // Unwrap is safe here because we are using a constant and it has been tested
+        // (see fastcrypto/src/tests/secp256k1_recoverable_tests::test_sk_zeroization_on_drop)
+        self.privkey = SecretKey::from_slice(&constants::ONE).unwrap();
         self.bytes.take().zeroize();
     }
 }
