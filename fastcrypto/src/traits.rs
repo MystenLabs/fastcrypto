@@ -87,7 +87,6 @@ pub trait VerifyingKey:
     + Display
     + Eq  // required to make some cached bytes representations explicit.
     + Ord // required to put keys in BTreeMap.
-    + Default // see [#34](https://github.com/MystenLabs/narwhal/issues/34).
     + ToFromBytes
     + signature::Verifier<Self::Sig>
     + for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey.
@@ -185,15 +184,7 @@ pub trait SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync +
 /// to the ones on its associated types for private key and public key material.
 ///
 pub trait Authenticator:
-    signature::Signature
-    + Display
-    + Default
-    + Serialize
-    + DeserializeOwned
-    + Send
-    + Sync
-    + 'static
-    + Clone
+    signature::Signature + Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
 {
     type PubKey: VerifyingKey<Sig = Self>;
     type PrivKey: SigningKey<Sig = Self>;
@@ -228,7 +219,7 @@ pub trait KeyPair:
 /// where aggregation is not possible, a trivial implementation is provided.
 ///
 pub trait AggregateAuthenticator:
-    Display + Default + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
+    Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
 {
     type Sig: Authenticator<PubKey = Self::PubKey>;
     type PubKey: VerifyingKey<Sig = Self::Sig>;

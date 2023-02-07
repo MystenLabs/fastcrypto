@@ -163,16 +163,6 @@ impl ToFromBytes for Secp256k1PublicKey {
     }
 }
 
-impl Default for Secp256k1PublicKey {
-    fn default() -> Self {
-        // Return the generator for k256 (https://www.secg.org/sec2-v2.pdf)
-        Secp256k1PublicKey {
-            pubkey: PublicKey::from_slice(hex::decode("0479BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8").unwrap().as_slice()).unwrap(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 impl Display for Secp256k1PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base64::encode(self.as_ref()))
@@ -281,12 +271,6 @@ impl std::hash::Hash for Secp256k1Signature {
 impl Display for Secp256k1Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-impl Default for Secp256k1Signature {
-    fn default() -> Self {
-        <Secp256k1Signature as Signature>::from_bytes(&[1u8; SECP256K1_SIGNATURE_LENGTH]).unwrap()
     }
 }
 

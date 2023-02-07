@@ -21,6 +21,8 @@ use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+const MSG: &[u8] = b"Hello, world!";
+
 pub fn keys() -> Vec<Secp256k1RecoverableKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
 
@@ -44,7 +46,7 @@ fn serialize_deserialize() {
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 
-    let signature = Secp256k1RecoverableSignature::default();
+    let signature = keys().pop().unwrap().sign(MSG);
     let bytes = bincode::serialize(&signature).unwrap();
     let sig = bincode::deserialize::<Secp256k1RecoverableSignature>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&sig).unwrap();
@@ -202,7 +204,7 @@ fn verify_valid_batch() {
 fn verify_invalid_batch() {
     let (digest, pubkeys, mut signatures) = signature_test_inputs();
     // mangle one signature
-    signatures[0] = Secp256k1RecoverableSignature::default();
+    signatures.swap(0, 1);
 
     let res =
         Secp256k1RecoverablePublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures);
@@ -284,7 +286,7 @@ fn verify_valid_batch_different_msg() {
 fn verify_invalid_batch_different_msg() {
     let mut inputs =
         signature_tests::signature_test_inputs_different_msg::<Secp256k1RecoverableKeyPair>();
-    inputs.signatures[0] = Secp256k1RecoverableSignature::default();
+    inputs.signatures.swap(0, 1);
     let res = Secp256k1RecoverablePublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -506,12 +508,6 @@ fn dont_display_secrets() {
             "<elided secret for Secp256k1RecoverablePrivateKey>"
         );
     });
-}
-
-#[test]
-fn test_default_values() {
-    let _default_pubkey = Secp256k1RecoverablePublicKey::default();
-    let _default_signature = Secp256k1RecoverableSignature::default();
 }
 
 // Arbitrary implementations for the proptests

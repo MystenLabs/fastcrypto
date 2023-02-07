@@ -27,7 +27,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
-use p256::{AffinePoint, NistP256, Scalar};
+use p256::NistP256;
 use signature::{Error, Signature, Signer, Verifier};
 use std::{
     fmt::{self, Debug, Display},
@@ -156,16 +156,6 @@ impl ToFromBytes for Secp256r1PublicKey {
     }
 }
 
-impl Default for Secp256r1PublicKey {
-    fn default() -> Self {
-        // Default public key is just the generator for the group
-        Secp256r1PublicKey {
-            pubkey: ExternalPublicKey::from_affine(AffinePoint::GENERATOR).unwrap(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
 impl Display for Secp256r1PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base64::encode(self.as_ref()))
@@ -288,17 +278,6 @@ impl Eq for Secp256r1Signature {}
 impl Display for Secp256r1Signature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-impl Default for Secp256r1Signature {
-    fn default() -> Self {
-        // Return the signature (1,1)
-        Secp256r1Signature {
-            sig: ExternalSignature::from_scalars(Scalar::ONE.to_bytes(), Scalar::ONE.to_bytes())
-                .unwrap(),
-            bytes: OnceCell::new(),
-        }
     }
 }
 

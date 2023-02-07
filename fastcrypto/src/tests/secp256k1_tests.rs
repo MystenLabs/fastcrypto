@@ -18,6 +18,8 @@ use signature::{Signer, Verifier};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+const MSG: &[u8] = b"Hello, world!";
+
 pub fn keys() -> Vec<Secp256k1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
 
@@ -41,7 +43,7 @@ fn serialize_deserialize() {
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 
-    let signature = Secp256k1Signature::default();
+    let signature = keys().pop().unwrap().sign(MSG);
     let bytes = bincode::serialize(&signature).unwrap();
     let sig = bincode::deserialize::<Secp256k1Signature>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&sig).unwrap();
@@ -99,7 +101,7 @@ fn serialize_private_key_only_for_keypair() {
 #[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
-    let signature = kpref.sign(b"Hello, world!");
+    let signature = kpref.sign(MSG);
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
     assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
@@ -132,29 +134,27 @@ fn verify_valid_signature_against_hashed_msg() {
     let kp = keys().pop().unwrap();
 
     // Sign over raw message. Hashed with sha256 internally.
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign(message);
+    let signature = kp.sign(MSG);
 
     // Verify the signature against hashed message.
     assert!(kp
         .public()
-        .verify_hashed(Sha256::digest(message).as_ref(), &signature)
+        .verify_hashed(Sha256::digest(MSG).as_ref(), &signature)
         .is_ok());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
     // Make signatures.
-    let message: &[u8] = b"Hello, world!";
     let (pubkeys, signatures): (Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(message);
+            let sig = kp.sign(MSG);
             (kp.public().clone(), sig)
         })
         .unzip();
 
-    (message.to_vec(), pubkeys, signatures)
+    (MSG.to_vec(), pubkeys, signatures)
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn verify_valid_batch() {
 fn verify_invalid_batch() {
     let (digest, pubkeys, mut signatures) = signature_test_inputs();
     // mangle one signature
-    signatures[0] = Secp256k1Signature::default();
+    signatures.swap(0, 1);
 
     let res = Secp256k1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures);
     assert!(res.is_err(), "{:?}", res);
@@ -247,7 +247,7 @@ fn verify_valid_batch_different_msg() {
 #[test]
 fn verify_invalid_batch_different_msg() {
     let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
-    inputs.signatures[0] = Secp256k1Signature::default();
+    inputs.signatures.swap(0, 1);
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -431,12 +431,6 @@ fn dont_display_secrets() {
             "<elided secret for Secp256k1PrivateKey>"
         );
     });
-}
-
-#[test]
-fn test_default_values() {
-    let _default_pubkey = Secp256k1PublicKey::default();
-    let _default_signature = Secp256k1Signature::default();
 }
 
 // Arbitrary implementations for the proptests
