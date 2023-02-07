@@ -470,6 +470,8 @@
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
 <a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -916,7 +918,9 @@
 
 <span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1RecoverablePrivateKey {
     <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.privkey = rust_secp256k1::ONE_KEY;
+        <span class="comment">// Unwrap is safe here because we are using a constant and it has been tested
+        // (see fastcrypto/src/tests/secp256k1_recoverable_tests::test_sk_zeroization_on_drop)
+        </span><span class="self">self</span>.privkey = SecretKey::from_slice(<span class="kw-2">&amp;</span>constants::ONE).unwrap();
         <span class="self">self</span>.bytes.take().zeroize();
     }
 }
