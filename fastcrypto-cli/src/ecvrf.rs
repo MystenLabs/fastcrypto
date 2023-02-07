@@ -23,7 +23,7 @@ enum Command {
 
 #[derive(Parser, Clone)]
 struct ProveArguments {
-    /// The hex encoded input string. May be of arbitrary length but should ideally be at least 16 bytes.
+    /// The hex encoded input string.
     #[clap(short, long)]
     input: String,
 
@@ -42,14 +42,13 @@ struct VerifyArguments {
     #[clap(short, long)]
     proof: String,
 
-    /// Hex encoding of the input string used to generate the proof. May be of arbitrary length but
-    /// should ideally be at least 16 bytes.
+    /// Hex encoding of the input string used to generate the proof.
     #[clap(short, long)]
     input: String,
 
     /// The public key corresponding to the secret key used to generate the proof.
-    #[clap(short, long)]
-    verification_key: String,
+    #[clap(short = 'k', long)]
+    public_key: String,
 }
 
 fn main() {
@@ -92,10 +91,6 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
             let alpha_string = hex::decode(arguments.input)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input string."))?;
 
-            if alpha_string.len() < 16 {
-                println!("Warning: Input string should preferably be at least 16 bytes");
-            }
-
             // Create keypair from the secret key bytes
             let secret_key = bincode::deserialize::<ECVRFPrivateKey>(&secret_key_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Failed to parse private key."))?;
@@ -115,7 +110,7 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
 
         Command::Verify(arguments) => {
             // Parse inputs
-            let public_key_bytes = hex::decode(arguments.verification_key)
+            let public_key_bytes = hex::decode(arguments.public_key)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid public key."))?;
             let alpha_string = hex::decode(arguments.input)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input string."))?;
