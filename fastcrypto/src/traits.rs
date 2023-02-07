@@ -215,20 +215,20 @@ pub trait KeyPair:
 
 /// Trait impl'd by public / private keypairs that can generate recoverable signatures
 pub trait RecoverableSigner {
-    type PublicKey;
-    type RecoverableSignature: RecoverableSignature<Signer = Self, PublicKey = Self::PublicKey>;
+    type PubKey;
+    type Sig: RecoverableSignature<Signer = Self, PubKey = Self::PubKey>;
 
     /// Sign as a recoverable signature.
-    fn sign_recoverable(&self, msg: &[u8]) -> Self::RecoverableSignature;
+    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig;
 }
 
 /// Trait impl'd by recoverable signatures
 pub trait RecoverableSignature {
-    type PublicKey;
-    type Signer: RecoverableSigner<RecoverableSignature = Self, PublicKey = Self::PublicKey>;
+    type PubKey;
+    type Signer: RecoverableSigner<Sig = Self, PubKey = Self::PubKey>;
 
     /// Recover the public key from this signature.
-    fn recover(&self, msg: &[u8]) -> Result<Self::PublicKey, FastCryptoError>;
+    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError>;
 }
 
 /// Trait impl'd by aggregated signatures in asymmetric cryptography.

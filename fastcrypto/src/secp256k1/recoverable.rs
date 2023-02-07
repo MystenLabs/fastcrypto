@@ -142,7 +142,7 @@ impl Secp256k1RecoverableSignature {
 }
 
 impl traits::RecoverableSignature for Secp256k1RecoverableSignature {
-    type PublicKey = Secp256k1PublicKey;
+    type PubKey = Secp256k1PublicKey;
     type Signer = Secp256k1KeyPair;
 
     /// Recover public key from signature.
@@ -196,8 +196,8 @@ impl Secp256k1PublicKey {
 }
 
 impl RecoverableSigner for Secp256k1KeyPair {
-    type PublicKey = Secp256k1PublicKey;
-    type RecoverableSignature = Secp256k1RecoverableSignature;
+    type PubKey = Secp256k1PublicKey;
+    type Sig = Secp256k1RecoverableSignature;
 
     fn sign_recoverable(&self, msg: &[u8]) -> Secp256k1RecoverableSignature {
         let secp = Secp256k1::signing_only();
