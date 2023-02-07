@@ -17,5 +17,5 @@ rand.workspace = true
 exitcode = "1.1.2"
 
 [[bin]]
-name = "ecvrf"
+name = "ecvrf-cli"
 path = "src/ecvrf.rs"

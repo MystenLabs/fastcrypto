@@ -8,7 +8,7 @@ use rand::thread_rng;
 use std::io::{Error, ErrorKind};
 
 #[derive(Parser)]
-#[command(name = "ECVRF")]
+#[command(name = "ecvrf-cli")]
 #[command(about = "Elliptic Curve Verifiable Random Function (ECVRF) over Ristretto255 according to draft-irtf-cfrg-vrf-15.", long_about = None)]
 enum Command {
     /// Generate a key pair for proving and verification.
