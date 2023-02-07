@@ -4,7 +4,8 @@ members = [
     "fastcrypto",
     "fastcrypto-derive",
     "fastcrypto-tbls",
-    "fastcrypto-zkp"
+    "fastcrypto-zkp",
+    "fastcrypto-cli"
 ]
 
 # Dependencies that should be kept in sync through the whole workspace

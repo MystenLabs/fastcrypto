@@ -1,0 +1,21 @@
+[package]
+name = "fastcrypto-cli"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
+publish = ["crates-io"]
+description = "Command line tools for cryptographic functions"
+repository = "https://github.com/MystenLabs/fastcrypto"
+
+[dependencies]
+clap = { version = "4.1.4", features = ["derive"] }
+fastcrypto = { path = "../fastcrypto" }
+hex = "0.4.3"
+bincode.workspace = true
+rand.workspace = true
+exitcode = "1.1.2"
+
+[[bin]]
+name = "ecvrf-cli"
+path = "src/ecvrf.rs"
