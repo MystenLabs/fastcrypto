@@ -1,0 +1,3 @@
+(function() {var implementors = {
+"ecvrf_cli":[["impl Args for <a class=\"struct\" href=\"ecvrf_cli/struct.ProveArguments.html\" title=\"struct ecvrf_cli::ProveArguments\">ProveArguments</a>"],["impl Args for <a class=\"struct\" href=\"ecvrf_cli/struct.VerifyArguments.html\" title=\"struct ecvrf_cli::VerifyArguments\">VerifyArguments</a>"]]
+};if (window.register_implementors) {window.register_implementors(implementors);} else {window.pending_implementors = implementors;}})()
