@@ -27,7 +27,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
-use p256::{AffinePoint, NistP256, Scalar};
+use p256::NistP256;
 use signature::{Error, Signature, Signer, Verifier};
 use std::{
     fmt::{self, Debug, Display},

@@ -2,7 +2,6 @@ use elliptic_curve::IsHigh;
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use p256::ecdsa::Signature;
-use p256::AffinePoint;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
@@ -18,6 +17,8 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+
+const MSG: &[u8] = b"Hello, world!";
 
 pub fn keys() -> Vec<Secp256r1KeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -41,7 +42,7 @@ fn serialize_deserialize() {
     let bytes2 = bincode::serialize(&privkey).unwrap();
     assert_eq!(bytes, bytes2);
 
-    let signature = Secp256r1Signature::default();
+    let signature = keys().pop().unwrap().sign(MSG);
     let bytes = bincode::serialize(&signature).unwrap();
     let sig = bincode::deserialize::<Secp256r1Signature>(&bytes).unwrap();
     let bytes2 = bincode::serialize(&sig).unwrap();
@@ -164,7 +165,7 @@ fn verify_valid_batch() {
 fn verify_invalid_batch() {
     let (digest, pubkeys, mut signatures) = signature_test_inputs();
     // mangle one signature
-    signatures[0] = Secp256r1Signature::default();
+    signatures.swap(0, 1);
 
     assert!(Secp256r1PublicKey::verify_batch_empty_fail(&digest, &pubkeys, &signatures).is_err())
 }
@@ -230,7 +231,7 @@ fn verify_valid_batch_different_msg() {
 #[test]
 fn verify_invalid_batch_different_msg() {
     let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
-    inputs.signatures[0] = Secp256r1Signature::default();
+    inputs.signatures.swap(0, 1);
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -285,12 +286,6 @@ async fn signature_service() {
     // Verify the signature we received.
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
     assert!(pk.verify(digest.as_ref(), &signature).is_ok());
-}
-
-#[test]
-fn test_default_values() {
-    let pt = Secp256r1PublicKey::default();
-    assert_eq!(pt.pubkey.as_affine(), &AffinePoint::GENERATOR);
 }
 
 #[test]

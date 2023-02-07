@@ -184,14 +184,7 @@ pub trait SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync +
 /// to the ones on its associated types for private key and public key material.
 ///
 pub trait Authenticator:
-    signature::Signature
-    + Display
-    + Serialize
-    + DeserializeOwned
-    + Send
-    + Sync
-    + 'static
-    + Clone
+    signature::Signature + Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
 {
     type PubKey: VerifyingKey<Sig = Self>;
     type PrivKey: SigningKey<Sig = Self>;
