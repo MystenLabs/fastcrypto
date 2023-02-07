@@ -187,11 +187,7 @@ pub mod ecvrf {
 
         fn generate<R: AllowedRng>(rng: &mut R) -> Self {
             let s = RistrettoScalar::rand(rng);
-            let p = RistrettoPoint::generator() * s;
-            ECVRFKeyPair {
-                pk: ECVRFPublicKey(p),
-                sk: ECVRFPrivateKey(s),
-            }
+            ECVRFKeyPair::from(ECVRFPrivateKey(s))
         }
 
         fn prove(&self, alpha_string: &[u8]) -> ECVRFProof {
@@ -212,6 +208,16 @@ pub mod ecvrf {
             let s = k + RistrettoScalar::from(&c) * self.sk.0;
 
             ECVRFProof { gamma, c, s }
+        }
+    }
+
+    impl From<ECVRFPrivateKey> for ECVRFKeyPair {
+        fn from(sk: ECVRFPrivateKey) -> Self {
+            let p = RistrettoPoint::generator() * sk.0;
+            ECVRFKeyPair {
+                pk: ECVRFPublicKey(p),
+                sk,
+            }
         }
     }
 
