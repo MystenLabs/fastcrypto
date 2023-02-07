@@ -764,6 +764,7 @@ fn ed25519_speccheck() {
         "a9d55260f765261eb9b84e106f665e00b867287a761990d7135963ee0a7d59dca5bb704786be79fc476f91d3f3f89b03984d8068dcf1bb7dfc6637b45450ac04",
     ];
 
+    // TODO: What should we expect?
     let expected = [
         true, true, true, true, true, true, false, false, false, true, true, true,
     ];
