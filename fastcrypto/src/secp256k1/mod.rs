@@ -17,7 +17,7 @@
 
 pub mod recoverable;
 
-use crate::secp256k1::recoverable::{Secp256k1RecoverablePublicKey, Secp256k1RecoverableSignature};
+use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -175,15 +175,6 @@ impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
         Secp256k1PublicKey {
             pubkey: secret.privkey.public_key(&SECP256K1),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-impl From<&Secp256k1RecoverablePublicKey> for Secp256k1PublicKey {
-    fn from(pk: &Secp256k1RecoverablePublicKey) -> Self {
-        Secp256k1PublicKey {
-            pubkey: pk.pubkey,
             bytes: OnceCell::new(),
         }
     }
