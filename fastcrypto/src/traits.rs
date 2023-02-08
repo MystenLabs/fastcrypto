@@ -143,7 +143,7 @@ pub trait VerifyingKey:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
     /// use rand::thread_rng;
     /// let message1: &[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());

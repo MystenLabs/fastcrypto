@@ -6,7 +6,7 @@
 //! Messages can be signed and the signature can be verified again:
 //! ```rust
 //! # use fastcrypto::bls12381::min_sig::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
 //! let kp = BLS12381KeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";

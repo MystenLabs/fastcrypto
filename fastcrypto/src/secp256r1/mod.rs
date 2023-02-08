@@ -8,7 +8,7 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256r1::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
 //! let kp = Secp256r1KeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
