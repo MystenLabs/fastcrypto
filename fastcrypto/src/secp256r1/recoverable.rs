@@ -171,13 +171,14 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
 
         if k.borrow().is_zero().into() {
-            return Err(FastCryptoError::GeneralError);
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
 
         let z = Scalar::from_be_bytes_reduced(z);
 
         // Compute scalar inversion of 𝑘
-        let k_inv = Option::<Scalar>::from(k.invert()).ok_or(FastCryptoError::GeneralError)?;
+        let k_inv =
+            Option::<Scalar>::from(k.invert()).ok_or(FastCryptoError::GeneralOpaqueError)?;
 
         // Compute 𝑹 = 𝑘×𝑮
         let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
@@ -192,11 +193,11 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let s = k_inv * (z + (r * x));
 
         if s.is_zero().into() {
-            return Err(FastCryptoError::GeneralError);
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
 
-        let sig =
-            ExternalSignature::from_scalars(r, s).map_err(|_| FastCryptoError::GeneralError)?;
+        let sig = ExternalSignature::from_scalars(r, s)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
 
         // Note: This line is introduced here because big_r.y is a private field.
         let y: Scalar = get_y_coordinate(&big_r);
@@ -230,13 +231,12 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     type PubKey = Secp256r1PublicKey;
     type Signer = Secp256r1KeyPair;
 
-impl Secp256r1RecoverableSignature {
     /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
     ///
     /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
+    fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
         let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
