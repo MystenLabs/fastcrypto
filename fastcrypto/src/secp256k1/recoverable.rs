@@ -134,7 +134,7 @@ impl Secp256k1RecoverableSignature {
         match Message::from_slice(hashed_msg) {
             Ok(message) => match self.sig.recover(&message) {
                 Ok(pubkey) => Secp256k1PublicKey::from_bytes(pubkey.serialize().as_slice()),
-                Err(_) => Err(FastCryptoError::GeneralError),
+                Err(_) => Err(FastCryptoError::GeneralOpaqueError),
             },
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
