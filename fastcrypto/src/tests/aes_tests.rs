@@ -122,17 +122,17 @@ fn single_wycheproof_test<
 
     // Verify that the cipher text is
     if test.ct != ciphertext[..test.pt.len()] {
-        return Err(FastCryptoError::GeneralError);
+        return Err(FastCryptoError::GeneralOpaqueError);
     }
 
     if test.tag != ciphertext[test.pt.len()..] {
-        return Err(FastCryptoError::GeneralError);
+        return Err(FastCryptoError::GeneralOpaqueError);
     }
 
     let plaintext = cipher.decrypt_authenticated(&iv, &test.aad, &ciphertext)?;
 
     if test.pt != plaintext {
-        return Err(FastCryptoError::GeneralError);
+        return Err(FastCryptoError::GeneralOpaqueError);
     }
     Ok(())
 }

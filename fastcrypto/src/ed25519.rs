@@ -495,7 +495,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
 
         batch
             .verify(OsRng)
-            .map_err(|_| FastCryptoError::GeneralError)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 
     fn verify_different_msg(
@@ -515,7 +515,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
 
         batch
             .verify(OsRng)
-            .map_err(|_| FastCryptoError::GeneralError)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 
     fn batch_verify<'a>(
@@ -541,7 +541,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         }
         batch
             .verify(OsRng)
-            .map_err(|_| FastCryptoError::GeneralError)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 }
 
