@@ -169,7 +169,8 @@ impl RecoverableSigner for Secp256r1KeyPair {
 
         let z = Scalar::from_be_bytes_reduced(z);
 
-        // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0.
+        // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0 which is
+        // negligible because k is computed as a HMAC according to RFC6979.
         let k_inv = k.invert().unwrap();
 
         // Compute 𝑹 = 𝑘×𝑮
