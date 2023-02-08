@@ -32,7 +32,6 @@ use crate::{
 };
 use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
 use ecdsa::elliptic_curve::subtle::Choice;
-use ecdsa::elliptic_curve::ScalarCore;
 use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::Signature as ExternalSignature;
@@ -171,8 +170,6 @@ impl RecoverableSigner for Secp256r1KeyPair {
             &[],
         ));
 
-        let z = Scalar::from_be_bytes_reduced(z);
-
         // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0 which is
         // negligible because k is computed as a HMAC according to RFC6979.
         let k_inv = k.invert().unwrap();
@@ -184,9 +181,9 @@ impl RecoverableSigner for Secp256r1KeyPair {
         // integer, then reduce it into an element of the scalar field
         let r = Scalar::from_be_bytes_reduced(big_r.x());
 
-        let x = Scalar::from_uint_reduced(x);
-
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
+        let x = Scalar::from_uint_reduced(x);
+        let z = Scalar::from_be_bytes_reduced(z);
         let s = k_inv * (z + (r * x));
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
