@@ -7,7 +7,7 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256k1::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::{traits::{KeyPair, Signer, VerifyingKey}};
 //! use rand::thread_rng;
 //! let kp = Secp256k1KeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
@@ -34,7 +34,7 @@ use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
 };
-use signature::{Signature, Signer, Verifier};
+use signature::{Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -108,13 +108,12 @@ impl VerifyingKey for Secp256k1PublicKey {
     type PrivKey = Secp256k1PrivateKey;
     type Sig = Secp256k1Signature;
     const LENGTH: usize = constants::PUBLIC_KEY_SIZE;
-}
 
-impl Verifier<Secp256k1Signature> for Secp256k1PublicKey {
-    fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), signature::Error> {
+    fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), FastCryptoError> {
         // Sha256 is used by default as digest
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
         self.verify_hashed(message.as_ref(), signature)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 }
 

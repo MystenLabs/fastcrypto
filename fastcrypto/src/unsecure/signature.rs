@@ -12,7 +12,7 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use serde_with::serde_as;
-use signature::{Signature, Signer, Verifier};
+use signature::{Signature, Signer};
 use std::{
     borrow::Borrow,
     fmt::{self, Display},
@@ -123,16 +123,6 @@ impl Display for UnsecurePublicKey {
 
 serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey);
 
-impl Verifier<UnsecureSignature> for UnsecurePublicKey {
-    fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), signature::Error> {
-        let digest = sign(self.0, msg);
-        if ToFromBytes::as_bytes(signature) == digest.0 {
-            return Ok(());
-        }
-        Err(signature::Error::new())
-    }
-}
-
 impl<'a> From<&'a UnsecurePrivateKey> for UnsecurePublicKey {
     fn from(secret: &'a UnsecurePrivateKey) -> Self {
         let result = crate::hash::Sha256::digest(secret.0.as_ref());
@@ -149,6 +139,14 @@ impl VerifyingKey for UnsecurePublicKey {
     type Sig = UnsecureSignature;
 
     const LENGTH: usize = PUBLIC_KEY_LENGTH;
+
+    fn verify(&self, msg: &[u8], signature: &UnsecureSignature) -> Result<(), FastCryptoError> {
+        let digest = sign(self.0, msg);
+        if ToFromBytes::as_bytes(signature) == digest.0 {
+            return Ok(());
+        }
+        Err(FastCryptoError::InvalidSignature)
+    }
 
     fn verify_batch_empty_fail(
         _msg: &[u8],

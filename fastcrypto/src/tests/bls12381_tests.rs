@@ -14,7 +14,7 @@ use crate::{
 };
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::{Signature, Signer, Verifier};
+use signature::{Signature, Signer};
 
 // We use the following macro in order to run all tests for both min_sig and min_pk.
 macro_rules! define_tests { () => {

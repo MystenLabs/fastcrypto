@@ -5,7 +5,7 @@ use crate::bls12381::{min_pk, min_sig};
 use crate::traits::mskr::Randomize;
 use crate::traits::{AggregateAuthenticator, KeyPair};
 use rand::thread_rng;
-use signature::{Signer, Verifier};
+use signature::Signer;
 
 #[test]
 fn verify_randomized_signature_bls12381_min_pk() {

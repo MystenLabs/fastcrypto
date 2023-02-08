@@ -6,7 +6,7 @@
 //! Messages can be signed and the signature can be verified again:
 //! ```rust
 //! # use fastcrypto::ed25519::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::{traits::{KeyPair, Signer, VerifyingKey}};
 //! use rand::thread_rng;
 //! let kp = Ed25519KeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
@@ -26,7 +26,7 @@ use serde::{
 };
 use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
-use signature::{rand_core::OsRng, Signature, Signer, Verifier};
+use signature::{rand_core::OsRng, Signature, Signer};
 use std::{
     borrow::Borrow,
     fmt::{self, Debug, Display},
@@ -121,6 +121,13 @@ impl VerifyingKey for Ed25519PublicKey {
     type Sig = Ed25519Signature;
     const LENGTH: usize = ED25519_PUBLIC_KEY_LENGTH;
 
+    // Compliant to ZIP215: https://zips.z.cash/protocol/protocol.pdf#concreteed25519
+    fn verify(&self, msg: &[u8], signature: &Ed25519Signature) -> Result<(), FastCryptoError> {
+        self.0
+            .verify(&signature.sig, msg)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+    }
+
     fn verify_batch_empty_fail(
         msg: &[u8],
         pks: &[Self],
@@ -172,15 +179,6 @@ impl VerifyingKey for Ed25519PublicKey {
         batch
             .verify(OsRng)
             .map_err(|_| eyre!("Signature verification failed"))
-    }
-}
-
-impl Verifier<Ed25519Signature> for Ed25519PublicKey {
-    // Compliant to ZIP215: https://zips.z.cash/protocol/protocol.pdf#concreteed25519
-    fn verify(&self, msg: &[u8], signature: &Ed25519Signature) -> Result<(), signature::Error> {
-        self.0
-            .verify(&signature.sig, msg)
-            .map_err(|_| signature::Error::new())
     }
 }
 

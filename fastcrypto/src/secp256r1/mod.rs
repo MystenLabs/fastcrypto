@@ -28,7 +28,7 @@ use p256::ecdsa::{
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
 use p256::NistP256;
-use signature::{Error, Signature, Signer, Verifier};
+use signature::{Error, Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -113,22 +113,20 @@ impl VerifyingKey for Secp256r1PublicKey {
     type PrivKey = Secp256r1PrivateKey;
     type Sig = Secp256r1Signature;
     const LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
-}
 
-serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
-
-impl Verifier<Secp256r1Signature> for Secp256r1PublicKey {
-    fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), Error> {
+    fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), FastCryptoError> {
         // We enforce non malleability, eg. that the s value must be low. This is aligned with
         // the ECDSA implementation in the secp256k1 crate.
         if signature.sig.s().is_high().into() {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         self.pubkey
             .verify(msg, &signature.sig)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 }
+
+serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
 
 impl Secp256r1PublicKey {}
 

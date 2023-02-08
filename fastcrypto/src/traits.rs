@@ -89,7 +89,6 @@ pub trait VerifyingKey:
     + Eq  // required to make some cached bytes representations explicit.
     + Ord // required to put keys in BTreeMap.
     + ToFromBytes
-    + signature::Verifier<Self::Sig>
     + for<'a> From<&'a Self::PrivKey> // conversion PrivateKey -> PublicKey.
     + Send
     + Sync
@@ -100,6 +99,10 @@ pub trait VerifyingKey:
     type Sig: Authenticator<PubKey=Self>;
     const LENGTH: usize;
 
+    /// Use Self to verify that the provided signature for a given message bytestring is authentic.
+    /// Returns Error if it is inauthentic, or otherwise returns ().
+    fn verify(&self, msg: &[u8], signature: &Self::Sig) -> Result<(), FastCryptoError>;
+
     // Expected to be overridden by implementations
     /// Batch verification over the same message. Implementations of this method can be fast,
     /// assuming rogue key checks have already been performed.
@@ -108,7 +111,7 @@ pub trait VerifyingKey:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     /// let message: &[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
@@ -269,7 +272,7 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message: &[u8] = b"Hello, world!";
@@ -294,7 +297,7 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &[u8] = b"Hello, world!";
@@ -321,7 +324,7 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &[u8] = b"Hello, world!";
