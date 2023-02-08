@@ -50,7 +50,8 @@ pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
 
 impl<T: signature::Signature> ToFromBytes for T {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        <Self as signature::Signature>::from_bytes(bytes).map_err(|_| FastCryptoError::GeneralError)
+        <Self as signature::Signature>::from_bytes(bytes)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 }
 

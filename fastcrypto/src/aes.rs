@@ -272,7 +272,7 @@ where
         let mut buffer: Vec<u8> = ciphertext.to_vec();
         cipher
             .decrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
-            .map_err(|_| FastCryptoError::GeneralError)?;
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(buffer)
     }
 }

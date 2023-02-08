@@ -557,14 +557,14 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             sig: sig.to_signature(),
             bytes: OnceCell::new(),
         })
-        .map_err(|_| FastCryptoError::GeneralError)
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
                 aggr_sig
                     .add_signature(&signature.sig, true)
-                    .map_err(|_| FastCryptoError::GeneralError)?;
+                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
                 self.sig = aggr_sig.to_signature();
                 Ok(())
 
@@ -572,7 +572,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], true)
-                        .map_err(|_| FastCryptoError::GeneralError)?
+                        .map_err(|_| FastCryptoError::GeneralOpaqueError)?
                         .to_signature();
          self.sig = result;
         Ok(())
@@ -593,7 +593,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
             );
         if result != BLST_ERROR::BLST_SUCCESS {
-            return Err(FastCryptoError::GeneralError);
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         Ok(())
     }
@@ -613,7 +613,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                 true,
             );
         if result != BLST_ERROR::BLST_SUCCESS {
-            return Err(FastCryptoError::GeneralError);
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         Ok(())
     }
@@ -641,7 +641,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
                         .collect::<Vec<_>>()[..],
                 );
             if result != BLST_ERROR::BLST_SUCCESS {
-                return Err(FastCryptoError::GeneralError);
+                return Err(FastCryptoError::GeneralOpaqueError);
             }
         }
         Ok(())

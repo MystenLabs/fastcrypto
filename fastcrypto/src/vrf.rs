@@ -50,7 +50,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
     ) -> Result<(), FastCryptoError> {
         self.verify(input, public_key)?;
         if &self.to_hash() != output {
-            return Err(FastCryptoError::GeneralError);
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         Ok(())
     }
@@ -254,7 +254,7 @@ pub mod ecvrf {
             let c_prime = ecvrf_challenge_generation([&public_key.0, &h, &self.gamma, &u, &v]);
 
             if c_prime != self.c {
-                return Err(FastCryptoError::GeneralError);
+                return Err(FastCryptoError::GeneralOpaqueError);
             }
             Ok(())
         }

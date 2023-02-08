@@ -454,7 +454,7 @@ impl Secp256r1RecoverableSignature {
     ///
     /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
     ///
-    /// An [FastCryptoError::GeneralError] is returned if no public keys can be recovered.
+    /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
     pub fn recover(&self, msg: &[u8]) -> Result<Secp256r1RecoverablePublicKey, FastCryptoError> {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
@@ -479,11 +479,11 @@ impl Secp256r1RecoverableSignature {
 
             Ok(Secp256r1RecoverablePublicKey {
                 pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralError)?,
+                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
                 bytes: OnceCell::new(),
             })
         } else {
-            Err(FastCryptoError::GeneralError)
+            Err(FastCryptoError::GeneralOpaqueError)
         }
     }
 

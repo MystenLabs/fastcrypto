@@ -83,7 +83,7 @@ where
 
     let mut okm = vec![0u8; K::PrivKey::LENGTH];
     hk.expand(info, &mut okm)
-        .map_err(|_| FastCryptoError::GeneralError)?;
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
 
     let secret_key = K::PrivKey::from_bytes(&okm[..]).unwrap();
 
@@ -127,6 +127,6 @@ pub fn hkdf_sha3_256(
     let hk = hkdf::Hkdf::<sha3::Sha3_256, Hmac<sha3::Sha3_256>>::new(Some(salt), ikm.as_bytes());
     let mut output: Vec<u8> = vec![0; output_length];
     hk.expand(info, output.as_mut_slice())
-        .map_err(|_| FastCryptoError::GeneralError)?;
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
     Ok(output)
 }

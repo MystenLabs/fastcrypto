@@ -138,7 +138,7 @@ impl<'a> From<&'a UnsecurePrivateKey> for UnsecurePublicKey {
         let result = crate::hash::Sha256::digest(secret.0.as_ref());
         let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[0..PUBLIC_KEY_LENGTH]
             .try_into()
-            .map_err(|_| FastCryptoError::GeneralError)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
             .unwrap();
         UnsecurePublicKey(bytes)
     }
@@ -310,7 +310,7 @@ impl FromStr for UnsecureKeyPair {
     type Err = FastCryptoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kp = Self::decode_base64(s).map_err(|_| FastCryptoError::GeneralError)?;
+        let kp = Self::decode_base64(s).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(kp)
     }
 }
@@ -388,7 +388,7 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         if actual == self.0 {
             return Ok(());
         }
-        Err(FastCryptoError::GeneralError)
+        Err(FastCryptoError::GeneralOpaqueError)
     }
 
     fn batch_verify<'a>(
@@ -409,7 +409,7 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
                 .collect();
 
             if sig.verify(&public_keys, msg).is_err() {
-                return Err(FastCryptoError::GeneralError);
+                return Err(FastCryptoError::GeneralOpaqueError);
             }
         }
         Ok(())
@@ -430,7 +430,7 @@ impl AggregateAuthenticator for UnsecureAggregateSignature {
         if actual == self.0 {
             return Ok(());
         }
-        Err(FastCryptoError::GeneralError)
+        Err(FastCryptoError::GeneralOpaqueError)
     }
 }
 

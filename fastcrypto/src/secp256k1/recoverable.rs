@@ -435,7 +435,7 @@ impl Secp256k1RecoverableSignature {
                 Ok(pubkey) => {
                     Secp256k1RecoverablePublicKey::from_bytes(pubkey.serialize().as_slice())
                 }
-                Err(_) => Err(FastCryptoError::GeneralError),
+                Err(_) => Err(FastCryptoError::GeneralOpaqueError),
             },
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
