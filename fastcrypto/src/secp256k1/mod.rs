@@ -34,7 +34,6 @@ use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
 };
-use signature::{Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -226,17 +225,19 @@ impl Drop for Secp256k1PrivateKey {
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1Signature, SECP256K1_SIGNATURE_LENGTH);
 
-impl Signature for Secp256k1Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+impl ToFromBytes for Secp256k1Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256K1_SIGNATURE_LENGTH {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(
+                SECP256K1_SIGNATURE_LENGTH,
+            ));
         }
         NonrecoverableSignature::from_compact(bytes)
             .map(|sig| Secp256k1Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
 
@@ -310,6 +311,18 @@ impl KeyPair for Secp256k1KeyPair {
     type PrivKey = Secp256k1PrivateKey;
     type Sig = Secp256k1Signature;
 
+    fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
+        // Sha256 is used by default
+        let message = Message::from_hashed_data::<sha256::Hash>(msg);
+
+        // Creates a 64-bytes signature of shape [r, s].
+        // Pseudo-random deterministic nonce generation is used according to RFC6979.
+        Secp256k1Signature {
+            sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.secret.privkey),
+            bytes: OnceCell::new(),
+        }
+    }
+
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
     }
@@ -348,20 +361,6 @@ impl FromStr for Secp256k1KeyPair {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
         Ok(kp)
-    }
-}
-
-impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1Signature, signature::Error> {
-        // Sha256 is used by default
-        let message = Message::from_hashed_data::<sha256::Hash>(msg);
-
-        // Creates a 64-bytes signature of shape [r, s].
-        // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        Ok(Secp256k1Signature {
-            sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.secret.privkey),
-            bytes: OnceCell::new(),
-        })
     }
 }
 
