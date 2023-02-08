@@ -75,6 +75,7 @@ mod signature_benches {
         verify_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
         verify_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
         recover_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
+        recover_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
     }
 
     struct TestDataBatchedVerification<KP: KeyPair> {

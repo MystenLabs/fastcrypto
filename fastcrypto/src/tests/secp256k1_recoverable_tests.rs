@@ -5,8 +5,8 @@ use super::*;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
-use crate::traits::RecoverableSignature;
 use crate::traits::RecoverableSigner;
+use crate::traits::{RecoverableSignature, VerifyRecoverable};
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
     secp256k1::recoverable::Secp256k1RecoverableSignature,

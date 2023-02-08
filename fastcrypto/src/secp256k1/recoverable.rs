@@ -18,7 +18,7 @@
 //! ```
 
 use crate::secp256k1::{Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
-use crate::traits::RecoverableSigner;
+use crate::traits::{RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -166,31 +166,35 @@ fn hash_message(msg: &[u8]) -> Message {
     message
 }
 
-impl Secp256k1PublicKey {
+impl VerifyRecoverable for Secp256k1PublicKey {
+    type Sig = Secp256k1RecoverableSignature;
+
     /// Verify a recoverable signature using the default hash function (SHA-256).
-    pub fn verify_recoverable(
+    fn verify_recoverable(
         &self,
         msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         let message = hash_message(msg);
         self.verify_recoverable_hashed(message.as_ref(), signature)
     }
+}
 
+impl Secp256k1PublicKey {
     /// Verify a recoverable signature over an already hashed message.
     pub fn verify_recoverable_hashed(
         &self,
         hashed_msg: &[u8],
         signature: &Secp256k1RecoverableSignature,
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         // If pubkey recovered from signature matches original pubkey, verifies signature.
         // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
         match Message::from_slice(hashed_msg) {
             Ok(message) => match signature.recover_hashed(message.as_ref()) {
                 Ok(recovered_key) if self.as_bytes() == recovered_key.as_bytes() => Ok(()),
-                _ => Err(signature::Error::new()),
+                _ => Err(FastCryptoError::InvalidSignature),
             },
-            _ => Err(signature::Error::new()),
+            _ => Err(FastCryptoError::InvalidSignature),
         }
     }
 }
@@ -199,16 +203,19 @@ impl RecoverableSigner for Secp256k1KeyPair {
     type PubKey = Secp256k1PublicKey;
     type Sig = Secp256k1RecoverableSignature;
 
-    fn sign_recoverable(&self, msg: &[u8]) -> Secp256k1RecoverableSignature {
+    fn try_sign_recoverable(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256k1RecoverableSignature, FastCryptoError> {
         let secp = Secp256k1::signing_only();
 
         let message = hash_message(msg);
 
         // Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        Secp256k1RecoverableSignature {
+        Ok(Secp256k1RecoverableSignature {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
-        }
+        })
     }
 }
