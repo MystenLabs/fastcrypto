@@ -52,10 +52,12 @@ serialize_deserialize_with_to_from_bytes!(
     SECP256K1_RECOVERABLE_SIGNATURE_SIZE
 );
 
-impl Signature for Secp256k1RecoverableSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        if bytes.len() != 65 {
-            return Err(signature::Error::new());
+impl ToFromBytes for Secp256k1RecoverableSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        if bytes.len() != SECP256K1_RECOVERABLE_SIGNATURE_SIZE {
+            return Err(FastCryptoError::InputLengthWrong(
+                SECP256K1_RECOVERABLE_SIGNATURE_SIZE,
+            ));
         }
         RecoveryId::from_i32(bytes[64] as i32)
             .and_then(|rec_id| {
@@ -66,7 +68,7 @@ impl Signature for Secp256k1RecoverableSignature {
                     }
                 })
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
 

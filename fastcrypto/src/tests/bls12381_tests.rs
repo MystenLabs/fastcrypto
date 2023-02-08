@@ -638,8 +638,8 @@ proptest! {
 
     #[test]
     fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_G1_LENGTH..=BLS_G1_LENGTH)) {
-        let _ = <BLS12381Signature as Signature>::from_bytes(&bits);
-        let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
+        let _ = BLS12381Signature::from_bytes(&bits);
+        let _ = BLS12381Signature::from_bytes(&bits);
     }
 
     #[test]

@@ -346,7 +346,7 @@ proptest::proptest! {
         } else {
             flipped_bytes[64] = 0;
         }
-        let malleated_signature: Secp256k1RecoverableSignature = <Secp256k1RecoverableSignature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
+        let malleated_signature: Secp256k1RecoverableSignature = Secp256k1RecoverableSignature::from_bytes(&flipped_bytes).unwrap();
 
         // malleable(altered) signature with opposite sign fails to verify
         assert!(key_pair.public().verify_recoverable(message, &malleated_signature).is_err());

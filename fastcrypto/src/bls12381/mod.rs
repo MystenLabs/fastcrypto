@@ -335,9 +335,9 @@ impl PartialEq for BLS12381Signature {
 
 impl Eq for BLS12381Signature {}
 
-impl Signature for BLS12381Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let sig = blst::Signature::from_bytes(bytes).map_err(|_e| signature::Error::new())?;
+impl ToFromBytes for BLS12381Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_e| FastCryptoError::InvalidSignature)?;
         Ok(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -403,14 +403,14 @@ impl SigningKey for BLS12381PrivateKey {
     const LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 }
 
-impl Signer<BLS12381Signature> for BLS12381PrivateKey {
-    fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
+impl BLS12381PrivateKey {
+    pub fn sign(&self, msg: &[u8]) -> BLS12381Signature {
         let sig = self.privkey.sign(msg, $dst_string, &[]);
 
-        Ok(BLS12381Signature {
+        BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 
@@ -445,6 +445,16 @@ impl KeyPair for BLS12381KeyPair {
     type PrivKey = BLS12381PrivateKey;
     type Sig = BLS12381Signature;
 
+    fn sign(&self, msg: &[u8]) -> BLS12381Signature {
+        let blst_priv: &blst::SecretKey = &self.secret.privkey;
+        let sig = blst_priv.sign(msg, $dst_string, &[]);
+
+        BLS12381Signature {
+            sig,
+            bytes: OnceCell::new(),
+        }
+    }
+
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
     }
@@ -476,18 +486,6 @@ impl KeyPair for BLS12381KeyPair {
                 bytes: OnceCell::new(),
             },
         }
-    }
-}
-
-impl Signer<BLS12381Signature> for BLS12381KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
-        let blst_priv: &blst::SecretKey = &self.secret.privkey;
-        let sig = blst_priv.sign(msg, $dst_string, &[]);
-
-        Ok(BLS12381Signature {
-            sig,
-            bytes: OnceCell::new(),
-        })
     }
 }
 
