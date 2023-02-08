@@ -6,6 +6,7 @@ use eyre::eyre;
 use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
+pub use signature::Signer;
 use std::{
     borrow::Borrow,
     fmt::{Debug, Display},
@@ -18,7 +19,7 @@ use crate::{
 };
 
 /// Trait impl'd by concrete types that represent digital cryptographic material
-/// (keys).
+/// (keys). For signatures, we rely on `signature::Signature`, which may be more widely implemented.
 ///
 /// Key types *must* (as mandated by the `AsRef<[u8]>` bound) be a thin
 /// wrapper around the "bag-of-bytes" serialized form of a key which can
@@ -44,6 +45,13 @@ pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
     /// Borrow a byte slice representing the serialized form of this key
     fn as_bytes(&self) -> &[u8] {
         self.as_ref()
+    }
+}
+
+impl<T: signature::Signature> ToFromBytes for T {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        <Self as signature::Signature>::from_bytes(bytes)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
     }
 }
 
@@ -180,7 +188,7 @@ pub trait SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync +
 /// to the ones on its associated types for private key and public key material.
 ///
 pub trait Authenticator:
-    ToFromBytes + Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
+    signature::Signature + Display + Serialize + DeserializeOwned + Send + Sync + 'static + Clone
 {
     type PubKey: VerifyingKey<Sig = Self>;
     type PrivKey: SigningKey<Sig = Self>;
@@ -189,12 +197,12 @@ pub trait Authenticator:
 
 /// Trait impl'd by a public / private key pair in asymmetric cryptography.
 ///
-pub trait KeyPair: Sized + From<Self::PrivKey> + EncodeDecodeBase64 + FromStr {
+pub trait KeyPair:
+    Sized + From<Self::PrivKey> + Signer<Self::Sig> + EncodeDecodeBase64 + FromStr
+{
     type PubKey: VerifyingKey<PrivKey = Self::PrivKey, Sig = Self::Sig>;
     type PrivKey: SigningKey<PubKey = Self::PubKey, Sig = Self::Sig>;
     type Sig: Authenticator<PubKey = Self::PubKey, PrivKey = Self::PrivKey>;
-
-    fn sign(&self, msg: &[u8]) -> Self::Sig;
 
     /// Get the public key.
     fn public(&'_ self) -> &'_ Self::PubKey;
