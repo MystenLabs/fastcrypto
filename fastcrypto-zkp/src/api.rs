@@ -46,5 +46,6 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     )?;
 
-    verify_with_processed_vk(&blst_pvk, &[x], &proof).map_err(|_| FastCryptoError::GeneralOpaqueError)
+    verify_with_processed_vk(&blst_pvk, &[x], &proof)
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)
 }
