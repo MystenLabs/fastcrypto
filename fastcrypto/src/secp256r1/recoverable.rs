@@ -186,7 +186,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
         let s = k_inv * (z + (r * x));
 
-        // This fails if either r or s are zero which is negligible.
+        // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let sig = ExternalSignature::from_scalars(r, s).unwrap();
 
         // Note: This line is introduced here because big_r.y is a private field.
