@@ -28,6 +28,7 @@ use p256::ecdsa::{
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
 use p256::NistP256;
+use signature::{Error, Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -215,14 +216,13 @@ impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
 
-impl ToFromBytes for Secp256r1Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+impl Signature for Secp256r1Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         if bytes.len() != SECP256R1_SIGNATURE_LENTH {
-            return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
+            return Err(Error::new());
         }
 
-        let sig =
-            ExternalSignature::try_from(bytes).map_err(|_| FastCryptoError::InvalidSignature)?;
+        let sig = ExternalSignature::try_from(bytes).map_err(|_| Error::new())?;
 
         Ok(Secp256r1Signature {
             sig,
@@ -319,15 +319,6 @@ impl KeyPair for Secp256r1KeyPair {
     type PrivKey = Secp256r1PrivateKey;
     type Sig = Secp256r1Signature;
 
-    fn sign(&self, msg: &[u8]) -> Secp256r1Signature {
-        let sig: ecdsa::Signature<NistP256> = self.secret.privkey.sign(msg);
-        let sig_low = sig.normalize_s().unwrap_or(sig);
-        Secp256r1Signature {
-            sig: sig_low,
-            bytes: OnceCell::new(),
-        }
-    }
-
     fn public(&'_ self) -> &'_ Self::PubKey {
         &self.name
     }
@@ -360,6 +351,17 @@ impl FromStr for Secp256r1KeyPair {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
         Ok(kp)
+    }
+}
+
+impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
+    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, Error> {
+        let sig: ecdsa::Signature<NistP256> = self.secret.privkey.sign(msg);
+        let sig_low = sig.normalize_s().unwrap_or(sig);
+        Ok(Secp256r1Signature {
+            sig: sig_low,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
