@@ -164,8 +164,12 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
 
         // Generate k deterministically according to RFC6979
-        let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
-        let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
+        let k = Scalar::from_uint_reduced(*rfc6979::generate_k::<sha2::Sha256, U256>(
+            &x,
+            &NistP256::ORDER,
+            &z,
+            &[],
+        ));
 
         let z = Scalar::from_be_bytes_reduced(z);
 
