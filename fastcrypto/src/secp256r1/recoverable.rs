@@ -155,7 +155,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
     type Sig = Secp256r1RecoverableSignature;
 
     fn sign_recoverable(&self, msg: &[u8]) -> Secp256r1RecoverableSignature {
-        // Code copied from Sign.rs in k256@0.11.6
+        // Inspired by Sign.rs in k256@0.11.6
 
         // Hash message
         let z = FieldBytes::from(Sha256::digest(msg).digest);
