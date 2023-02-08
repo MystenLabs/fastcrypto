@@ -16,7 +16,6 @@ mod signature_benches {
         ed25519::*,
         hash::{Blake2b256, HashFunction},
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
-        Verifier,
     };
     use rand::{prelude::ThreadRng, thread_rng};
     use signature::Signer;
