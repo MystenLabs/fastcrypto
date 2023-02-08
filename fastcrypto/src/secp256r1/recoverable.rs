@@ -180,7 +180,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         // integer, then reduce it into an element of the scalar field
         let r = Scalar::from_be_bytes_reduced(big_r.x());
 
-        let x = Scalar::from_be_bytes_reduced(x.to_be_byte_array());
+        let x = Scalar::from_uint_reduced(x);
 
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
         let s = k_inv * (z + (r * x));
