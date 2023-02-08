@@ -41,7 +41,7 @@ use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::IsHigh;
-use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint, Field};
+use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use signature::Signature;
 use std::borrow::Borrow;
@@ -154,10 +154,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
     type PubKey = Secp256r1PublicKey;
     type Sig = Secp256r1RecoverableSignature;
 
-    fn try_sign_recoverable(
-        &self,
-        msg: &[u8],
-    ) -> Result<Secp256r1RecoverableSignature, FastCryptoError> {
+    fn sign_recoverable(&self, msg: &[u8]) -> Secp256r1RecoverableSignature {
         // Code copied from Sign.rs in k256@0.11.6
 
         // Hash message
@@ -170,15 +167,12 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let k = rfc6979::generate_k::<sha2::Sha256, U256>(&x, &NistP256::ORDER, &z, &[]);
         let k = Scalar::from(ScalarCore::<NistP256>::new(*k).unwrap());
 
-        if k.borrow().is_zero().into() {
-            return Err(FastCryptoError::GeneralOpaqueError);
-        }
-
         let z = Scalar::from_be_bytes_reduced(z);
 
-        // Compute scalar inversion of 𝑘
-        let k_inv =
-            Option::<Scalar>::from(k.invert()).ok_or(FastCryptoError::GeneralOpaqueError)?;
+        // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0.
+        let k_inv = Option::<Scalar>::from(k.invert())
+            .ok_or(FastCryptoError::GeneralOpaqueError)
+            .unwrap();
 
         // Compute 𝑹 = 𝑘×𝑮
         let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
@@ -192,12 +186,8 @@ impl RecoverableSigner for Secp256r1KeyPair {
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
         let s = k_inv * (z + (r * x));
 
-        if s.is_zero().into() {
-            return Err(FastCryptoError::GeneralOpaqueError);
-        }
-
-        let sig = ExternalSignature::from_scalars(r, s)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
+        // This fails if either r or s are zero which is negligible.
+        let sig = ExternalSignature::from_scalars(r, s).unwrap();
 
         // Note: This line is introduced here because big_r.y is a private field.
         let y: Scalar = get_y_coordinate(&big_r);
@@ -209,11 +199,11 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let sig_low = sig.normalize_s().unwrap_or(sig);
         let recovery_id = RecoveryId::new(is_y_odd.into(), false);
 
-        Ok(Secp256r1RecoverableSignature {
+        Secp256r1RecoverableSignature {
             sig: sig_low,
             bytes: OnceCell::new(),
             recovery_id: recovery_id.to_byte(),
-        })
+        }
     }
 }
 

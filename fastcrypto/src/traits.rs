@@ -219,13 +219,7 @@ pub trait RecoverableSigner {
     type Sig: RecoverableSignature<Signer = Self, PubKey = Self::PubKey>;
 
     /// Sign as a recoverable signature.
-    fn try_sign_recoverable(&self, msg: &[u8]) -> Result<Self::Sig, FastCryptoError>;
-
-    /// Sign as a recoverable signature.
-    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig {
-        self.try_sign_recoverable(msg)
-            .expect("Signature operation failed")
-    }
+    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig;
 }
 
 pub trait VerifyRecoverable: Eq + Sized {

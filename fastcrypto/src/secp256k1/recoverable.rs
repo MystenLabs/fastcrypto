@@ -203,19 +203,16 @@ impl RecoverableSigner for Secp256k1KeyPair {
     type PubKey = Secp256k1PublicKey;
     type Sig = Secp256k1RecoverableSignature;
 
-    fn try_sign_recoverable(
-        &self,
-        msg: &[u8],
-    ) -> Result<Secp256k1RecoverableSignature, FastCryptoError> {
+    fn sign_recoverable(&self, msg: &[u8]) -> Secp256k1RecoverableSignature {
         let secp = Secp256k1::signing_only();
 
         let message = hash_message(msg);
 
         // Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        Ok(Secp256k1RecoverableSignature {
+        Secp256k1RecoverableSignature {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
