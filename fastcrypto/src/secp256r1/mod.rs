@@ -37,7 +37,7 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
-use crate::secp256r1::recoverable::{Secp256r1RecoverablePublicKey, Secp256r1RecoverableSignature};
+use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -159,15 +159,6 @@ impl ToFromBytes for Secp256r1PublicKey {
 impl Display for Secp256r1PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-impl From<&Secp256r1RecoverablePublicKey> for Secp256r1PublicKey {
-    fn from(recoverable_pk: &Secp256r1RecoverablePublicKey) -> Self {
-        Secp256r1PublicKey {
-            pubkey: recoverable_pk.pubkey,
-            bytes: OnceCell::new(),
-        }
     }
 }
 
