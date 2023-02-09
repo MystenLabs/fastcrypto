@@ -205,7 +205,7 @@ impl VerifyingKey for BLS12381PublicKey {
         if err == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
-            Err(FastCryptoError::GeneralOpaqueError)
+            Err(FastCryptoError::InvalidSignature)
         }
     }
 
