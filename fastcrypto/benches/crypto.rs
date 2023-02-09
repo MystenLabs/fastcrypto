@@ -30,6 +30,18 @@ mod signature_benches {
         c.bench_function(&(name.to_string()), move |b| b.iter(|| keypair.sign(msg)));
     }
 
+    fn sign_recoverable_single<KP: KeyPair + RecoverableSigner, M: measurement::Measurement>(
+        name: &str,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let msg: &[u8] = b"";
+        let mut csprng: ThreadRng = thread_rng();
+        let keypair = KP::generate(&mut csprng);
+        c.bench_function(&(name.to_string()), move |b| {
+            b.iter(|| keypair.sign_recoverable(msg))
+        });
+    }
+
     fn sign(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Sign");
         sign_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
@@ -37,6 +49,8 @@ mod signature_benches {
         sign_single::<bls12381::min_pk::BLS12381KeyPair, _>("BLS12381MinPk", &mut group);
         sign_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
         sign_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        sign_recoverable_single::<Secp256k1KeyPair, _>("Secp256k1 recoverable", &mut group);
+        sign_recoverable_single::<Secp256r1KeyPair, _>("Secp256r1 recoverable", &mut group);
     }
 
     fn verify_single<KP: KeyPair, M: measurement::Measurement>(
