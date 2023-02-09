@@ -6,7 +6,7 @@
 //! Messages can be signed and the signature can be verified again:
 //! ```rust
 //! # use fastcrypto::bls12381::min_sig::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
 //! let kp = BLS12381KeyPair::generate(&mut thread_rng());
 //! let message: &[u8] = b"Hello, world!";
@@ -36,7 +36,7 @@ use serde_with::serde_as;
 use serde_with::{DeserializeAs, SerializeAs};
 use zeroize::Zeroize;
 
-use signature::{Signature, Signer, Verifier};
+use signature::{Signature, Signer};
 
 use crate::traits::{
     AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
@@ -181,19 +181,6 @@ serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey, $pk_length);
 
 generate_bytes_representation!(BLS12381PublicKey, {$pk_length}, BLS12381PublicKeyAsBytes);
 
-impl Verifier<BLS12381Signature> for BLS12381PublicKey {
-    fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), signature::Error> {
-        let err = signature
-            .sig
-            .verify(true, msg, $dst_string, &[], &self.pubkey, true);
-        if err == BLST_ERROR::BLST_SUCCESS {
-            Ok(())
-        } else {
-            Err(signature::Error::new())
-        }
-    }
-}
-
 impl<'a> From<&'a BLS12381PrivateKey> for BLS12381PublicKey {
     fn from(secret: &'a BLS12381PrivateKey) -> Self {
         let inner = &secret.privkey;
@@ -210,6 +197,17 @@ impl VerifyingKey for BLS12381PublicKey {
     type Sig = BLS12381Signature;
 
     const LENGTH: usize = $pk_length;
+
+    fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), FastCryptoError> {
+        let err = signature
+            .sig
+            .verify(true, msg, $dst_string, &[], &self.pubkey, true);
+        if err == BLST_ERROR::BLST_SUCCESS {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidSignature)
+        }
+    }
 
     fn verify_batch_empty_fail(
         msg: &[u8],

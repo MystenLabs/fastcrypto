@@ -11,7 +11,7 @@
 use hash::Digest;
 use rand::thread_rng;
 
-pub use signature::{Signature as _, Verifier};
+pub use signature::Signature as _;
 
 #[cfg(test)]
 #[path = "tests/signature_tests.rs"]

@@ -6,9 +6,10 @@ use crate::groups::bls12381::{
     G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{GroupElement, HashToGroupElement, Pairing};
+use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::{Signer, Verifier};
+use signature::Signer;
 
 const MSG: &[u8] = b"test message";
 

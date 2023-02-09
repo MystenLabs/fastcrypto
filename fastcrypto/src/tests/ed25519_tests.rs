@@ -18,7 +18,7 @@ use crate::{
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::{Signer, Verifier};
+use signature::Signer;
 use wycheproof::{eddsa::TestSet, TestResult};
 
 pub fn keys() -> Vec<Ed25519KeyPair> {

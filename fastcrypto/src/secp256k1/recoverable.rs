@@ -7,7 +7,7 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256k1::recoverable::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! # use fastcrypto::secp256k1::Secp256k1KeyPair;
 //! # use fastcrypto::traits::{RecoverableSignature, RecoverableSigner};
 //! use rand::thread_rng;
