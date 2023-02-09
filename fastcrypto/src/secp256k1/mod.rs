@@ -113,7 +113,7 @@ impl VerifyingKey for Secp256k1PublicKey {
         // Sha256 is used by default as digest
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
         self.verify_hashed(message.as_ref(), signature)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
 
