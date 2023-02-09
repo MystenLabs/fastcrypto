@@ -60,19 +60,13 @@ One can compare all currently implemented schemes for *sign, verify, verify_batc
 ```
 $ cargo bench
 ```
-A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in fastcrypto. As an example, we get these timings for signing messages and verifying the signature for the different schemes in fastcrypto as of revision [7dc17a](https://github.com/MystenLabs/fastcrypto/commit/7dc17afca3f9bfcd2a0a712e8cc6da3ad745eb90):
+A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in fastcrypto. As an example, we get these timings for signing messages and verifying the signature for the different schemes in fastcrypto as of revision [375ab9](https://github.com/MystenLabs/fastcrypto/commit/375ab9c2494e51cb7bd41157f3431ee0e4b3d784):
 
-| Scheme           | Sign      | Verify    |
-|------------------|-----------|-----------|
-| Ed25519          | 19.545 μs | 54.263 μs |
-| BLS12381 min_sig | 162.06 μs | 1145.1 μs |
-| BLS12381 min_pk  | 399.43 μs | 1276.9 μs |
-| Secp256k1        | 97.126 μs | 44.152 μs |
-| Secp256r1        | 171.49 μs | 311.82 μs |
+![Signature schemes comparison.](https://github.com/MystenLabs/fastcrypto/blob/plots/signatures-375ab9.svg)
 
+Below is another plot made using data from the benchmark report, showing benchmarks for batched signature verification where all signatures are on the same message:
 
-Below is a plot from the report, showing benchmarks for batched signature verification where all signatures are on the same message:
-![Batched signature verification with all signatures on same message.](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/Verify%20batch/lines.svg)
+![Batched signature verification with all signatures on same message.](https://github.com/MystenLabs/fastcrypto/blob/plots/batch-375ab9.svg)
 
 ## License
 
