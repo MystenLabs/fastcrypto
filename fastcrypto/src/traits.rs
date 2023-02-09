@@ -190,6 +190,7 @@ pub trait Authenticator:
 /// Trait impl'd by a key/keypair that can create signatures.
 ///
 pub trait Signer<Sig: Authenticator> {
+    /// Create a new signature over a message.
     fn sign(&self, msg: &[u8]) -> Sig;
 }
 
