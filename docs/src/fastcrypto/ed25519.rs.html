@@ -643,8 +643,6 @@
 <a href="#643" id="643">643</a>
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -653,7 +651,7 @@
 //! Messages can be signed and the signature can be verified again:
 //! ```rust
 //! # use fastcrypto::ed25519::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::{traits::{KeyPair, Signer, VerifyingKey}};
 //! use rand::thread_rng;
 //! let kp = Ed25519KeyPair::generate(&amp;mut thread_rng());
 //! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
@@ -673,7 +671,7 @@
 };
 <span class="kw">use </span>serde_bytes::{ByteBuf, Bytes};
 <span class="kw">use </span>serde_with::serde_as;
-<span class="kw">use </span>signature::{rand_core::OsRng, Signature, Signer, Verifier};
+<span class="kw">use </span>signature::{rand_core::OsRng, Signature, Signer};
 <span class="kw">use </span>std::{
     borrow::Borrow,
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -768,6 +766,13 @@
     <span class="kw">type </span>Sig = Ed25519Signature;
     <span class="kw">const </span>LENGTH: usize = ED25519_PUBLIC_KEY_LENGTH;
 
+    <span class="comment">// Compliant to ZIP215: https://zips.z.cash/protocol/protocol.pdf#concreteed25519
+    </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Ed25519Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+        <span class="self">self</span>.<span class="number">0
+            </span>.verify(<span class="kw-2">&amp;</span>signature.sig, msg)
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
+    }
+
     <span class="kw">fn </span>verify_batch_empty_fail(
         msg: <span class="kw-2">&amp;</span>[u8],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
@@ -819,15 +824,6 @@
         batch
             .verify(OsRng)
             .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
-    }
-}
-
-<span class="kw">impl </span>Verifier&lt;Ed25519Signature&gt; <span class="kw">for </span>Ed25519PublicKey {
-    <span class="comment">// Compliant to ZIP215: https://zips.z.cash/protocol/protocol.pdf#concreteed25519
-    </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Ed25519Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
-        <span class="self">self</span>.<span class="number">0
-            </span>.verify(<span class="kw-2">&amp;</span>signature.sig, msg)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
     }
 }
 
@@ -1293,4 +1289,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (bd39bbb4b 2023-02-07)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (ef934d9b6 2023-02-08)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

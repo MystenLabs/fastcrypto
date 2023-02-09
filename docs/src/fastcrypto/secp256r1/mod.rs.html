@@ -397,7 +397,7 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::secp256r1::*;
-//! # use fastcrypto::{traits::{KeyPair, Signer}, Verifier};
+//! # use fastcrypto::traits::{KeyPair, Signer, VerifyingKey};
 //! use rand::thread_rng;
 //! let kp = Secp256r1KeyPair::generate(&amp;mut thread_rng());
 //! let message: &amp;[u8] = b&quot;Hello, world!&quot;;
@@ -417,7 +417,7 @@
 <span class="kw">use </span>p256::elliptic_curve::group::GroupEncoding;
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
 <span class="kw">use </span>p256::NistP256;
-<span class="kw">use </span>signature::{Error, Signature, Signer, Verifier};
+<span class="kw">use </span>signature::{Error, Signature, Signer};
 <span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
     str::FromStr,
@@ -502,22 +502,22 @@
     <span class="kw">type </span>PrivKey = Secp256r1PrivateKey;
     <span class="kw">type </span>Sig = Secp256r1Signature;
     <span class="kw">const </span>LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
-}
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
-
-<span class="kw">impl </span>Verifier&lt;Secp256r1Signature&gt; <span class="kw">for </span>Secp256r1PublicKey {
-    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256r1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), Error&gt; {
+    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256r1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="comment">// We enforce non malleability, eg. that the s value must be low. This is aligned with
         // the ECDSA implementation in the secp256k1 crate.
         </span><span class="kw">if </span>signature.sig.s().is_high().into() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+                <span class="string">&quot;The s value of ECDSA signature must be low&quot;</span>.to_string(),
+            ));
         }
         <span class="self">self</span>.pubkey
             .verify(msg, <span class="kw-2">&amp;</span>signature.sig)
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
     }
 }
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
 
 <span class="kw">impl </span>Secp256r1PublicKey {}
 
@@ -777,4 +777,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (bd39bbb4b 2023-02-07)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (ef934d9b6 2023-02-08)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

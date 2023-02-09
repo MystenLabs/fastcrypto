@@ -468,6 +468,9 @@
 <a href="#468" id="468">468</a>
 <a href="#469" id="469">469</a>
 <a href="#470" id="470">470</a>
+<a href="#471" id="471">471</a>
+<a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -559,7 +562,6 @@
     + Eq  <span class="comment">// required to make some cached bytes representations explicit.
     </span>+ Ord <span class="comment">// required to put keys in BTreeMap.
     </span>+ ToFromBytes
-    + signature::Verifier&lt;<span class="self">Self</span>::Sig&gt;
     + <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey.
     </span>+ Send
     + Sync
@@ -570,6 +572,10 @@
     <span class="kw">type </span>Sig: Authenticator&lt;PubKey=<span class="self">Self</span>&gt;;
     <span class="kw">const </span>LENGTH: usize;
 
+    <span class="doccomment">/// Use Self to verify that the provided signature for a given message bytestring is authentic.
+    /// Returns Error if it is inauthentic, or otherwise returns ().
+    </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span><span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
+
     <span class="comment">// Expected to be overridden by implementations
     </span><span class="doccomment">/// Batch verification over the same message. Implementations of this method can be fast,
     /// assuming rogue key checks have already been performed.
@@ -578,7 +584,7 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
@@ -610,7 +616,7 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
     /// use rand::thread_rng;
     /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
@@ -739,7 +745,7 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
@@ -764,7 +770,7 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
@@ -791,7 +797,7 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}, Verifier};
+    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
@@ -939,4 +945,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (bd39bbb4b 2023-02-07)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (ef934d9b6 2023-02-08)" data-search-js="search-28136cea55c34037.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
