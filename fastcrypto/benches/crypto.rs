@@ -132,28 +132,6 @@ mod signature_benches {
         );
     }
 
-    fn verify_aggregate_signatures_single<
-        KP: KeyPair,
-        A: AggregateAuthenticator<Sig = KP::Sig, PrivKey = KP::PrivKey, PubKey = KP::PubKey>,
-        M: measurement::Measurement,
-    >(
-        name: &str,
-        size: usize,
-        c: &mut BenchmarkGroup<M>,
-    ) {
-        let test_data = generate_test_data::<KP>(size);
-
-        let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
-
-        c.bench_with_input(
-            BenchmarkId::new(name.to_string(), size),
-            &(&test_data.msg, &test_data.public_keys, &aggregate_signature),
-            |b, (msg, pks, sig)| {
-                b.iter(|| sig.verify(pks, msg));
-            },
-        );
-    }
-
     struct TestDataBatchedVerificationDifferentMsgs<KP: KeyPair> {
         msgs: Vec<[u8; 32]>,
         public_keys: Vec<<KP as KeyPair>::PubKey>,
@@ -203,34 +181,6 @@ mod signature_benches {
         );
     }
 
-    fn verify_aggregate_signatures_different_msg_single<
-        KP: KeyPair,
-        A: AggregateAuthenticator<Sig = KP::Sig, PrivKey = KP::PrivKey, PubKey = KP::PubKey>,
-        M: measurement::Measurement,
-    >(
-        name: &str,
-        size: usize,
-        c: &mut BenchmarkGroup<M>,
-    ) {
-        let test_data = generate_test_data_different_msg::<KP>(size);
-        let aggregate_signature = A::aggregate(&test_data.signatures).unwrap();
-        c.bench_with_input(
-            BenchmarkId::new(name.to_string(), size),
-            &(
-                test_data
-                    .msgs
-                    .iter()
-                    .map(|m| m.as_slice())
-                    .collect::<Vec<&[u8]>>(),
-                test_data.public_keys,
-                aggregate_signature,
-            ),
-            |b, (msgs, pk, sig)| {
-                b.iter(|| sig.verify_different_msg(pk, msgs));
-            },
-        );
-    }
-
     /// Benchmark batch verification of multiple signatures over the same message.
     fn verify_batch_signatures(c: &mut Criterion) {
         static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
@@ -247,16 +197,6 @@ mod signature_benches {
                 *size,
                 &mut group,
             );
-            verify_aggregate_signatures_single::<
-                bls12381::min_sig::BLS12381KeyPair,
-                bls12381::min_sig::BLS12381AggregateSignature,
-                _,
-            >("BLS12381MinSig_aggregated", *size, &mut group);
-            verify_aggregate_signatures_single::<
-                bls12381::min_pk::BLS12381KeyPair,
-                bls12381::min_pk::BLS12381AggregateSignature,
-                _,
-            >("BLS12381MinPk_aggregated", *size, &mut group);
         }
     }
 
@@ -272,11 +212,6 @@ mod signature_benches {
                 *size,
                 &mut group,
             );
-            verify_aggregate_signatures_different_msg_single::<
-                Ed25519KeyPair,
-                Ed25519AggregateSignature,
-                _,
-            >("Ed25519_aggregate", *size, &mut group);
             verify_batch_signatures_different_msg_single::<bls12381::min_sig::BLS12381KeyPair, _>(
                 "BLS12381MinSig_batch",
                 *size,
@@ -287,16 +222,6 @@ mod signature_benches {
                 *size,
                 &mut group,
             );
-            verify_aggregate_signatures_different_msg_single::<
-                bls12381::min_sig::BLS12381KeyPair,
-                bls12381::min_sig::BLS12381AggregateSignature,
-                _,
-            >("BLS12381MinSig_aggregate", *size, &mut group);
-            verify_aggregate_signatures_different_msg_single::<
-                bls12381::min_pk::BLS12381KeyPair,
-                bls12381::min_pk::BLS12381AggregateSignature,
-                _,
-            >("BLS12381MinPk_aggregate", *size, &mut group);
         }
     }
 
