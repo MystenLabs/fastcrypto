@@ -125,7 +125,7 @@ impl VerifyingKey for Ed25519PublicKey {
     fn verify(&self, msg: &[u8], signature: &Ed25519Signature) -> Result<(), FastCryptoError> {
         self.0
             .verify(&signature.sig, msg)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 
     fn verify_batch_empty_fail(
