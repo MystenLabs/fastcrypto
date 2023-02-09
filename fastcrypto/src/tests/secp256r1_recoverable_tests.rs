@@ -4,7 +4,7 @@ use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
 };
-use crate::traits::Signer;
+
 use crate::traits::VerifyingKey;
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
