@@ -236,6 +236,16 @@ mod signature_benches {
         static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify batch");
         for size in BATCH_SIZES.iter() {
+            verify_batch_signatures_single::<Secp256k1KeyPair, _>(
+                "Secp256k1_batch",
+                *size,
+                &mut group,
+            );
+            verify_batch_signatures_single::<Secp256r1KeyPair, _>(
+                "Secp256r1_batch",
+                *size,
+                &mut group,
+            );
             verify_batch_signatures_single::<Ed25519KeyPair, _>("Ed25519_batch", *size, &mut group);
             verify_batch_signatures_single::<bls12381::min_sig::BLS12381KeyPair, _>(
                 "BLS12381MinSig_batched",
