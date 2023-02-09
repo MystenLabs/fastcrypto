@@ -118,7 +118,9 @@ impl VerifyingKey for Secp256r1PublicKey {
         // We enforce non malleability, eg. that the s value must be low. This is aligned with
         // the ECDSA implementation in the secp256k1 crate.
         if signature.sig.s().is_high().into() {
-            return Err(FastCryptoError::GeneralError("The s value of ECDSA signature must be low"));
+            return Err(FastCryptoError::GeneralError(
+                "The s value of ECDSA signature must be low".to_string(),
+            ));
         }
         self.pubkey
             .verify(msg, &signature.sig)
