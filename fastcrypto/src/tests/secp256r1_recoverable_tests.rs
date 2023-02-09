@@ -1,18 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::traits::VerifyingKey;
-use p256::ecdsa::Signature;
-use p256::elliptic_curve::IsHigh;
-use proptest::{prelude::*, strategy::Strategy};
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
-use wycheproof::TestResult;
-
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
 };
+
+use crate::traits::VerifyingKey;
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     hash::{HashFunction, Sha256},
@@ -20,6 +13,13 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes},
 };
+use p256::ecdsa::Signature;
+use p256::elliptic_curve::IsHigh;
+use proptest::{prelude::*, strategy::Strategy};
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
+use wycheproof::TestResult;
 
 const MSG: &[u8] = b"Hello, world!";
 

@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::encoding::Encoding;
+use crate::traits::Signer;
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
@@ -18,7 +19,6 @@ use crate::{
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::Signer;
 use wycheproof::{eddsa::TestSet, TestResult};
 
 pub fn keys() -> Vec<Ed25519KeyPair> {

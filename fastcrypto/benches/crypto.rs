@@ -10,6 +10,7 @@ mod signature_benches {
     use criterion::*;
     use fastcrypto::secp256k1::Secp256k1KeyPair;
     use fastcrypto::secp256r1::Secp256r1KeyPair;
+    use fastcrypto::traits::Signer;
     use fastcrypto::traits::{RecoverableSignature, RecoverableSigner};
     use fastcrypto::{
         bls12381,
@@ -18,7 +19,6 @@ mod signature_benches {
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
     };
     use rand::{prelude::ThreadRng, thread_rng};
-    use signature::Signer;
 
     fn sign_single<KP: KeyPair, M: measurement::Measurement>(
         name: &str,

@@ -18,6 +18,7 @@
 pub mod recoverable;
 
 use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
+use crate::traits::Signer;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -34,7 +35,6 @@ use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
 };
-use signature::{Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -123,12 +123,12 @@ impl Secp256k1PublicKey {
         &self,
         hashed_msg: &[u8],
         signature: &Secp256k1Signature,
-    ) -> Result<(), signature::Error> {
-        let message = Message::from_slice(hashed_msg).map_err(|_| signature::Error::new())?;
+    ) -> Result<(), FastCryptoError> {
+        let message = Message::from_slice(hashed_msg).map_err(|_| FastCryptoError::InvalidInput)?;
         signature
             .sig
             .verify(&message, &self.pubkey)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 
     /// util function to parse wycheproof test key from DER format.
@@ -226,17 +226,19 @@ impl Drop for Secp256k1PrivateKey {
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1Signature, SECP256K1_SIGNATURE_LENGTH);
 
-impl Signature for Secp256k1Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+impl ToFromBytes for Secp256k1Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256K1_SIGNATURE_LENGTH {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(
+                SECP256K1_SIGNATURE_LENGTH,
+            ));
         }
         NonrecoverableSignature::from_compact(bytes)
             .map(|sig| Secp256k1Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
@@ -352,16 +354,16 @@ impl FromStr for Secp256k1KeyPair {
 }
 
 impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256k1Signature, signature::Error> {
+    fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
         // Sha256 is used by default
         let message = Message::from_hashed_data::<sha256::Hash>(msg);
 
         // Creates a 64-bytes signature of shape [r, s].
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
-        Ok(Secp256k1Signature {
+        Secp256k1Signature {
             sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 

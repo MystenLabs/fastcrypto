@@ -26,7 +26,7 @@ use serde::{
 };
 use serde_bytes::{ByteBuf, Bytes};
 use serde_with::serde_as;
-use signature::{rand_core::OsRng, Signature, Signer};
+use signature::rand_core::OsRng;
 use std::{
     borrow::Borrow,
     fmt::{self, Debug, Display},
@@ -34,6 +34,7 @@ use std::{
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use crate::traits::Signer;
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
@@ -272,14 +273,14 @@ impl AsRef<[u8]> for Ed25519PrivateKey {
     }
 }
 
-impl Signature for Ed25519Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
+impl ToFromBytes for Ed25519Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ed25519_consensus::Signature::try_from(bytes)
             .map(|sig| Ed25519Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
@@ -299,7 +300,7 @@ impl Display for Ed25519Signature {
 
 impl Default for Ed25519Signature {
     fn default() -> Self {
-        <Ed25519Signature as Signature>::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
+        Ed25519Signature::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
     }
 }
 
@@ -359,8 +360,7 @@ impl<'de> Deserialize<'de> for Ed25519Signature {
                     let b = seq
                         .next_element::<ByteBuf>()?
                         .ok_or_else(|| de::Error::missing_field(RAW_FIELD_NAME))?;
-                    <Ed25519Signature as Signature>::from_bytes(&b)
-                        .map_err(|e| de::Error::custom(e.to_string()))
+                    Ed25519Signature::from_bytes(&b).map_err(|e| de::Error::custom(e.to_string()))
                 }
             }
 
@@ -384,7 +384,7 @@ impl<'de> Deserialize<'de> for Ed25519Signature {
                     if entry.0 != RAW_FIELD_NAME {
                         return Err(de::Error::unknown_field(entry.0, &[RAW_FIELD_NAME]));
                     }
-                    <Ed25519Signature as Signature>::from_bytes(entry.1)
+                    Ed25519Signature::from_bytes(entry.1)
                         .map_err(|e| de::Error::custom(e.to_string()))
                 }
             }
@@ -618,11 +618,11 @@ impl From<ed25519_consensus::SigningKey> for Ed25519KeyPair {
 }
 
 impl Signer<Ed25519Signature> for Ed25519KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Ed25519Signature, signature::Error> {
-        Ok(Ed25519Signature {
+    fn sign(&self, msg: &[u8]) -> Ed25519Signature {
+        Ed25519Signature {
             sig: self.secret.0.sign(msg),
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 

@@ -28,7 +28,6 @@ use p256::ecdsa::{
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
 use p256::NistP256;
-use signature::{Error, Signature, Signer};
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -38,6 +37,7 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
+use crate::traits::Signer;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -218,13 +218,13 @@ impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
 
-impl Signature for Secp256r1Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+impl ToFromBytes for Secp256r1Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256R1_SIGNATURE_LENTH {
-            return Err(Error::new());
+            return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
         }
 
-        let sig = ExternalSignature::try_from(bytes).map_err(|_| Error::new())?;
+        let sig = ExternalSignature::try_from(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(Secp256r1Signature {
             sig,
@@ -284,13 +284,13 @@ impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
 impl Secp256r1Signature {
     /// util function to parse wycheproof test key from DER format.
     #[cfg(test)]
-    pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, signature::Error> {
+    pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ExternalSignature::try_from(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
@@ -357,13 +357,13 @@ impl FromStr for Secp256r1KeyPair {
 }
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<Secp256r1Signature, Error> {
+    fn sign(&self, msg: &[u8]) -> Secp256r1Signature {
         let sig: ecdsa::Signature<NistP256> = self.secret.privkey.sign(msg);
         let sig_low = sig.normalize_s().unwrap_or(sig);
-        Ok(Secp256r1Signature {
+        Secp256r1Signature {
             sig: sig_low,
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 

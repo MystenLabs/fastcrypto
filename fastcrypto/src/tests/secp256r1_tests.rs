@@ -1,22 +1,21 @@
 use elliptic_curve::IsHigh;
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use p256::ecdsa::Signature;
-use proptest::{prelude::*, strategy::Strategy};
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use signature::Signer;
-use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
-use wycheproof::TestResult;
-
 use super::*;
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
+use crate::traits::Signer;
 use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+use p256::ecdsa::Signature;
+use proptest::{prelude::*, strategy::Strategy};
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
+use wycheproof::TestResult;
 
 const MSG: &[u8] = b"Hello, world!";
 

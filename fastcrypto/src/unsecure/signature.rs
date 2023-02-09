@@ -187,10 +187,11 @@ impl std::hash::Hash for UnsecureSignature {
     }
 }
 
-impl Signature for UnsecureSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let bytes_fixed: [u8; SIGNATURE_LENGTH] =
-            bytes.try_into().map_err(|_| signature::Error::new())?;
+impl ToFromBytes for UnsecureSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let bytes_fixed: [u8; SIGNATURE_LENGTH] = bytes
+            .try_into()
+            .map_err(|_| FastCryptoError::InputLengthWrong(SIGNATURE_LENGTH))?;
         Ok(Self(bytes_fixed))
     }
 }
@@ -298,9 +299,9 @@ impl KeyPair for UnsecureKeyPair {
 }
 
 impl Signer<UnsecureSignature> for UnsecureKeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<UnsecureSignature, signature::Error> {
+    fn sign(&self, msg: &[u8]) -> Result<UnsecureSignature, FastCryptoError> {
         // A signature for msg is equal to H(pk || msg)
-        Ok(sign(self.name.0, msg))
+        sign(self.name.0, msg)
     }
 }
 
