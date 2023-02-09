@@ -671,7 +671,7 @@
 };
 <span class="kw">use </span>serde_bytes::{ByteBuf, Bytes};
 <span class="kw">use </span>serde_with::serde_as;
-<span class="kw">use </span>signature::{rand_core::OsRng, Signature, Signer};
+<span class="kw">use </span>signature::rand_core::OsRng;
 <span class="kw">use </span>std::{
     borrow::Borrow,
     fmt::{<span class="self">self</span>, Debug, Display},
@@ -679,6 +679,7 @@
 };
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
+<span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
 <span class="kw">use crate</span>::{
     encoding::Base64,
     error::FastCryptoError,
@@ -917,14 +918,14 @@
     }
 }
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         ed25519_consensus::Signature::try_from(bytes)
             .map(|sig| Ed25519Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 
@@ -944,7 +945,7 @@
 
 <span class="kw">impl </span>Default <span class="kw">for </span>Ed25519Signature {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        &lt;Ed25519Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; ED25519_SIGNATURE_LENGTH]).unwrap()
+        Ed25519Signature::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; ED25519_SIGNATURE_LENGTH]).unwrap()
     }
 }
 
@@ -1004,8 +1005,7 @@
                     <span class="kw">let </span>b = seq
                         .next_element::&lt;ByteBuf&gt;()<span class="question-mark">?
                         </span>.ok_or_else(|| de::Error::missing_field(RAW_FIELD_NAME))<span class="question-mark">?</span>;
-                    &lt;Ed25519Signature <span class="kw">as </span>Signature&gt;::from_bytes(<span class="kw-2">&amp;</span>b)
-                        .map_err(|e| de::Error::custom(e.to_string()))
+                    Ed25519Signature::from_bytes(<span class="kw-2">&amp;</span>b).map_err(|e| de::Error::custom(e.to_string()))
                 }
             }
 
@@ -1029,7 +1029,7 @@
                     <span class="kw">if </span>entry.<span class="number">0 </span>!= RAW_FIELD_NAME {
                         <span class="kw">return </span><span class="prelude-val">Err</span>(de::Error::unknown_field(entry.<span class="number">0</span>, <span class="kw-2">&amp;</span>[RAW_FIELD_NAME]));
                     }
-                    &lt;Ed25519Signature <span class="kw">as </span>Signature&gt;::from_bytes(entry.<span class="number">1</span>)
+                    Ed25519Signature::from_bytes(entry.<span class="number">1</span>)
                         .map_err(|e| de::Error::custom(e.to_string()))
                 }
             }
@@ -1263,11 +1263,11 @@
 }
 
 <span class="kw">impl </span>Signer&lt;Ed25519Signature&gt; <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Ed25519Signature, signature::Error&gt; {
-        <span class="prelude-val">Ok</span>(Ed25519Signature {
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Ed25519Signature {
+        Ed25519Signature {
             sig: <span class="self">self</span>.secret.<span class="number">0</span>.sign(msg),
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 

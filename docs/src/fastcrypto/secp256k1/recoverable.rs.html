@@ -216,6 +216,7 @@
 <a href="#216" id="216">216</a>
 <a href="#217" id="217">217</a>
 <a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -249,7 +250,6 @@
     ecdsa::{RecoverableSignature, RecoveryId},
     All, Message, Secp256k1,
 };
-<span class="kw">use </span>signature::Signature;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug, Display};
 
 <span class="kw">pub static </span>SECP256K1: Lazy&lt;Secp256k1&lt;All&gt;&gt; = Lazy::new(rust_secp256k1::Secp256k1::new);
@@ -270,10 +270,12 @@
     SECP256K1_RECOVERABLE_SIGNATURE_SIZE
 );
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>Secp256k1RecoverableSignature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">if </span>bytes.len() != <span class="number">65 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256k1RecoverableSignature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>bytes.len() != SECP256K1_RECOVERABLE_SIGNATURE_SIZE {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(
+                SECP256K1_RECOVERABLE_SIGNATURE_SIZE,
+            ));
         }
         RecoveryId::from_i32(bytes[<span class="number">64</span>] <span class="kw">as </span>i32)
             .and_then(|rec_id| {
@@ -284,7 +286,7 @@
                     }
                 })
             })
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 

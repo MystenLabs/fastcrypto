@@ -306,7 +306,6 @@
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
 <span class="kw">use </span>p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint};
 <span class="kw">use </span>p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-<span class="kw">use </span>signature::Signature;
 <span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug, Display};
 
@@ -326,11 +325,12 @@
     SECP256R1_RECOVERABLE_SIGNATURE_LENGTH
 );
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>Secp256r1RecoverableSignature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="comment">// TODO: Compatibility with signatures without recovery id
-        </span><span class="kw">if </span>bytes.len() != SECP256R1_RECOVERABLE_SIGNATURE_LENGTH {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256r1RecoverableSignature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>bytes.len() != SECP256R1_RECOVERABLE_SIGNATURE_LENGTH {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(
+                SECP256R1_RECOVERABLE_SIGNATURE_LENGTH,
+            ));
         }
         ExternalSignature::try_from(<span class="kw-2">&amp;</span>bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - <span class="number">1</span>])
             .map(|sig| Secp256r1RecoverableSignature {
@@ -338,7 +338,7 @@
                 recovery_id: bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - <span class="number">1</span>],
                 bytes: OnceCell::new(),
             })
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 
@@ -402,14 +402,14 @@
 
     <span class="doccomment">/// util function to parse wycheproof test key from DER format.
     </span><span class="attr">#[cfg(test)]
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_uncompressed(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_uncompressed(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         ExternalSignature::try_from(bytes)
             .map(|sig| Secp256r1RecoverableSignature {
                 sig,
                 recovery_id: <span class="number">0u8</span>,
                 bytes: OnceCell::new(),
             })
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 

@@ -417,7 +417,6 @@
 <span class="kw">use </span>p256::elliptic_curve::group::GroupEncoding;
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
 <span class="kw">use </span>p256::NistP256;
-<span class="kw">use </span>signature::{Error, Signature, Signer};
 <span class="kw">use </span>std::{
     fmt::{<span class="self">self</span>, Debug, Display},
     str::FromStr,
@@ -427,6 +426,7 @@
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 <span class="kw">use </span><span class="kw">crate</span>::secp256r1::recoverable::Secp256r1RecoverableSignature;
+<span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
 <span class="kw">use crate</span>::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -607,13 +607,13 @@
 
 <span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>Secp256r1Signature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Secp256r1Signature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">if </span>bytes.len() != SECP256R1_SIGNATURE_LENTH {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
         }
 
-        <span class="kw">let </span>sig = ExternalSignature::try_from(bytes).map_err(|<span class="kw">_</span>| Error::new())<span class="question-mark">?</span>;
+        <span class="kw">let </span>sig = ExternalSignature::try_from(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(Secp256r1Signature {
             sig,
@@ -673,13 +673,13 @@
 <span class="kw">impl </span>Secp256r1Signature {
     <span class="doccomment">/// util function to parse wycheproof test key from DER format.
     </span><span class="attr">#[cfg(test)]
-    </span><span class="kw">pub fn </span>from_uncompressed(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
+    </span><span class="kw">pub fn </span>from_uncompressed(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         ExternalSignature::try_from(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 
@@ -746,13 +746,13 @@
 }
 
 <span class="kw">impl </span>Signer&lt;Secp256r1Signature&gt; <span class="kw">for </span>Secp256r1KeyPair {
-    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1Signature, Error&gt; {
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256r1Signature {
         <span class="kw">let </span>sig: ecdsa::Signature&lt;NistP256&gt; = <span class="self">self</span>.secret.privkey.sign(msg);
         <span class="kw">let </span>sig_low = sig.normalize_s().unwrap_or(sig);
-        <span class="prelude-val">Ok</span>(Secp256r1Signature {
+        Secp256r1Signature {
             sig: sig_low,
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 

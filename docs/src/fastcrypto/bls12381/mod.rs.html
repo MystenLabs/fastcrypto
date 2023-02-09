@@ -732,14 +732,6 @@
 <a href="#732" id="732">732</a>
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -778,11 +770,9 @@
 <span class="kw">use </span>serde_with::{DeserializeAs, SerializeAs};
 <span class="kw">use </span>zeroize::Zeroize;
 
-<span class="kw">use </span>signature::{Signature, Signer};
-
 <span class="kw">use </span><span class="kw">crate</span>::traits::{
-    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
-    ToFromBytes, VerifyingKey,
+    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, Signer,
+    SigningKey, ToFromBytes, VerifyingKey,
 };
 
 <span class="comment">// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
@@ -1077,9 +1067,9 @@
 
 <span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381Signature {}
 
-<span class="kw">impl </span>Signature <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, signature::Error&gt; {
-        <span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|_e| signature::Error::new())<span class="question-mark">?</span>;
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381Signature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -1146,13 +1136,13 @@
 }
 
 <span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;BLS12381Signature, signature::Error&gt; {
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
         <span class="kw">let </span>sig = <span class="self">self</span>.privkey.sign(msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[]);
 
-        <span class="prelude-val">Ok</span>(BLS12381Signature {
+        BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 
@@ -1222,14 +1212,8 @@
 }
 
 <span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">fn </span>try_sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;BLS12381Signature, signature::Error&gt; {
-        <span class="kw">let </span>blst_priv: <span class="kw-2">&amp;</span>blst::SecretKey = <span class="kw-2">&amp;</span><span class="self">self</span>.secret.privkey;
-        <span class="kw">let </span>sig = blst_priv.sign(msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[]);
-
-        <span class="prelude-val">Ok</span>(BLS12381Signature {
-            sig,
-            bytes: OnceCell::new(),
-        })
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
+        <span class="self">self</span>.secret.sign(msg)
     }
 }
 
