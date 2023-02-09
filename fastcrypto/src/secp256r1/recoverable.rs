@@ -42,7 +42,6 @@ use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::IsHigh;
 use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-use signature::Signature;
 use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display};
 
@@ -62,11 +61,12 @@ serialize_deserialize_with_to_from_bytes!(
     SECP256R1_RECOVERABLE_SIGNATURE_LENGTH
 );
 
-impl Signature for Secp256r1RecoverableSignature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        // TODO: Compatibility with signatures without recovery id
+impl ToFromBytes for Secp256r1RecoverableSignature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256R1_RECOVERABLE_SIGNATURE_LENGTH {
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InputLengthWrong(
+                SECP256R1_RECOVERABLE_SIGNATURE_LENGTH,
+            ));
         }
         ExternalSignature::try_from(&bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1])
             .map(|sig| Secp256r1RecoverableSignature {
@@ -74,7 +74,7 @@ impl Signature for Secp256r1RecoverableSignature {
                 recovery_id: bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1],
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 

@@ -5,8 +5,7 @@ use super::*;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
-use crate::traits::RecoverableSigner;
-use crate::traits::{RecoverableSignature, VerifyRecoverable};
+use crate::traits::{RecoverableSignature, RecoverableSigner, Signer, VerifyRecoverable};
 use crate::{
     hash::{HashFunction, Keccak256, Sha256},
     secp256k1::recoverable::Secp256k1RecoverableSignature,
@@ -18,7 +17,8 @@ use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
-use signature::{Signer, Verifier};
+use signature::Signer as ExternalSigner;
+use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
@@ -346,7 +346,7 @@ proptest::proptest! {
         } else {
             flipped_bytes[64] = 0;
         }
-        let malleated_signature: Secp256k1RecoverableSignature = <Secp256k1RecoverableSignature as signature::Signature>::from_bytes(&flipped_bytes).unwrap();
+        let malleated_signature: Secp256k1RecoverableSignature = Secp256k1RecoverableSignature::from_bytes(&flipped_bytes).unwrap();
 
         // malleable(altered) signature with opposite sign fails to verify
         assert!(key_pair.public().verify_recoverable(message, &malleated_signature).is_err());
@@ -372,7 +372,7 @@ proptest::proptest! {
         assert_eq!(recovered_key.serialize(),recovered_key_1.to_bytes().as_slice());
 
         // same signatures produced from both implementations
-        assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
+        assert_eq!(signature.as_ref(), signature_1.as_bytes());
 
         // use ffi-implemented keypair to verify sig constructed by k256
         let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(signature_1.as_ref()).unwrap();

@@ -3,6 +3,7 @@
 
 use rand::{rngs::StdRng, SeedableRng};
 
+use crate::traits::Signer;
 use crate::{
     hash::{HashFunction, Sha256},
     traits::KeyPair,

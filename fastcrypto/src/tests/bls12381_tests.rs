@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::encoding::Encoding;
+use crate::traits::Signer;
 use crate::{
     bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
     encoding::Base64,
@@ -14,7 +15,6 @@ use crate::{
 };
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::{Signature, Signer};
 
 // We use the following macro in order to run all tests for both min_sig and min_pk.
 macro_rules! define_tests { () => {
@@ -638,7 +638,6 @@ proptest! {
 
     #[test]
     fn test_basic_deser_signature(bits in collection::vec(any::<u8>(), BLS_G1_LENGTH..=BLS_G1_LENGTH)) {
-        let _ = <BLS12381Signature as Signature>::from_bytes(&bits);
         let _ = <BLS12381Signature as ToFromBytes>::from_bytes(&bits);
     }
 

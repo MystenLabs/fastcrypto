@@ -3,6 +3,7 @@
 
 use crate::hash::Digest;
 use crate::traits;
+use crate::traits::Signer;
 use tokio::sync::mpsc::{channel, Sender};
 use tokio::sync::oneshot;
 
@@ -18,7 +19,7 @@ impl<Signature: traits::Authenticator, const DIGEST_LEN: usize>
 {
     pub fn new<S>(signer: S) -> Self
     where
-        S: signature::Signer<Signature> + Send + 'static,
+        S: Signer<Signature> + Send + 'static,
     {
         let (tx, mut rx): (Sender<(Digest<DIGEST_LEN>, oneshot::Sender<_>)>, _) = channel(100);
         tokio::spawn(async move {

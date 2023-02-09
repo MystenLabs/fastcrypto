@@ -36,11 +36,9 @@ use serde_with::serde_as;
 use serde_with::{DeserializeAs, SerializeAs};
 use zeroize::Zeroize;
 
-use signature::{Signature, Signer};
-
 use crate::traits::{
-    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
-    ToFromBytes, VerifyingKey,
+    AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, Signer,
+    SigningKey, ToFromBytes, VerifyingKey,
 };
 
 // BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
@@ -335,9 +333,9 @@ impl PartialEq for BLS12381Signature {
 
 impl Eq for BLS12381Signature {}
 
-impl Signature for BLS12381Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, signature::Error> {
-        let sig = blst::Signature::from_bytes(bytes).map_err(|_e| signature::Error::new())?;
+impl ToFromBytes for BLS12381Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -404,13 +402,13 @@ impl SigningKey for BLS12381PrivateKey {
 }
 
 impl Signer<BLS12381Signature> for BLS12381PrivateKey {
-    fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
+    fn sign(&self, msg: &[u8]) -> BLS12381Signature {
         let sig = self.privkey.sign(msg, $dst_string, &[]);
 
-        Ok(BLS12381Signature {
+        BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
-        })
+        }
     }
 }
 
@@ -480,14 +478,8 @@ impl KeyPair for BLS12381KeyPair {
 }
 
 impl Signer<BLS12381Signature> for BLS12381KeyPair {
-    fn try_sign(&self, msg: &[u8]) -> Result<BLS12381Signature, signature::Error> {
-        let blst_priv: &blst::SecretKey = &self.secret.privkey;
-        let sig = blst_priv.sign(msg, $dst_string, &[]);
-
-        Ok(BLS12381Signature {
-            sig,
-            bytes: OnceCell::new(),
-        })
+    fn sign(&self, msg: &[u8]) -> BLS12381Signature {
+        self.secret.sign(msg)
     }
 }
 

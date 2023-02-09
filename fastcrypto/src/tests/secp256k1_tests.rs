@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::traits::Signer;
 use crate::{
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
@@ -14,7 +15,8 @@ use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
-use signature::{Signer, Verifier};
+use signature::Signer as ExternalSigner;
+use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
@@ -350,7 +352,7 @@ proptest::proptest! {
         let key_pair_copied_2 = key_pair.copy();
         let key_pair_copied_3 = key_pair.copy();
 
-        let signature: Secp256k1Signature = key_pair.try_sign(message).unwrap();
+        let signature: Secp256k1Signature = key_pair.sign(message);
         assert!(key_pair.public().verify(message, &signature).is_ok());
 
         // Use k256 to construct private key with the same bytes and sign the same message
@@ -369,7 +371,7 @@ proptest::proptest! {
         );
 
         // Same signatures produced from both implementations
-        assert_eq!(signature.as_ref(), ToFromBytes::as_bytes(&signature_1));
+        assert_eq!(signature.as_ref(), signature_1.as_bytes());
 
         // Use fastcrypto keypair to verify a signature constructed by k256
         let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(signature_1.as_ref()).unwrap();
