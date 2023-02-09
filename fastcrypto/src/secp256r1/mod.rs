@@ -122,7 +122,7 @@ impl VerifyingKey for Secp256r1PublicKey {
         }
         self.pubkey
             .verify(msg, &signature.sig)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
 
