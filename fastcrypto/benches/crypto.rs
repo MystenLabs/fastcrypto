@@ -277,6 +277,18 @@ mod signature_benches {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Verify batch different messages");
 
         for size in BATCH_SIZES.iter() {
+            verify_batch_signatures_different_msg_single::<Secp256r1KeyPair, _>(
+                "Secp256r1_batch",
+                *size,
+                &mut group,
+            );
+
+            verify_batch_signatures_different_msg_single::<Secp256k1KeyPair, _>(
+                "Secp256k1_batch",
+                *size,
+                &mut group,
+            );
+
             verify_batch_signatures_different_msg_single::<Ed25519KeyPair, _>(
                 "Ed25519_batch",
                 *size,
