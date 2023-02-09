@@ -111,6 +111,43 @@ impl Display for Secp256r1RecoverableSignature {
 }
 
 impl Secp256r1RecoverableSignature {
+    /// Recover the public key used to create this signature. This assumes the recovery id byte has been set
+    /// and that the message have been hashed using a cryptographic hash function.
+    ///
+    /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
+    pub fn recover_hashed(&self, hashed_msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+        let (r, s) = self.sig.split_scalars();
+        let z = Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(hashed_msg));
+        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
+
+        // Note: This has been added because it does not seem to be done in k256
+        let r_bytes = match v.is_x_reduced() {
+            true => U256::from(r.as_ref())
+                .wrapping_add(&NistP256::ORDER)
+                .to_be_byte_array(),
+            false => r.to_bytes(),
+        };
+
+        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
+
+        if big_r.is_some().into() {
+            let big_r = ProjectivePoint::from(big_r.unwrap());
+            let r_inv = r.invert().unwrap();
+            let u1 = -(r_inv * z);
+            let u2 = r_inv * *s;
+            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
+
+            Ok(Secp256r1PublicKey {
+                pubkey: ExternalPublicKey::from_affine(pk)
+                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
+                bytes: OnceCell::new(),
+            })
+        } else {
+            Err(FastCryptoError::GeneralOpaqueError)
+        }
+    }
+
     pub fn try_from_nonrecoverable(
         signature: &Secp256r1Signature,
         pk: &Secp256r1PublicKey,
@@ -221,41 +258,12 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     type PubKey = Secp256r1PublicKey;
     type Signer = Secp256r1KeyPair;
 
-    /// Recover the public used to create this signature. This assumes the recovery id byte has been set.
-    ///
-    /// This is copied from `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+    /// Recover the public key used to create this signature. This assumes the recovery id byte has been set.
+    /// Internally, the message is hashed using SHA256 before it is signed.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
     fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        let (r, s) = self.sig.split_scalars();
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-        let z = Scalar::from_be_bytes_reduced(FieldBytes::from(Sha256::digest(msg).digest));
-
-        // Note: This has been added because it does not seem to be done in k256
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
-
-        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            Ok(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralOpaqueError)
-        }
+        self.recover_hashed(&Sha256::digest(msg).digest)
     }
 }
 
