@@ -123,12 +123,12 @@ impl Secp256k1PublicKey {
         &self,
         hashed_msg: &[u8],
         signature: &Secp256k1Signature,
-    ) -> Result<(), signature::Error> {
-        let message = Message::from_slice(hashed_msg).map_err(|_| signature::Error::new())?;
+    ) -> Result<(), FastCryptoError> {
+        let message = Message::from_slice(hashed_msg).map_err(|_| FastCryptoError::InvalidInput)?;
         signature
             .sig
             .verify(&message, &self.pubkey)
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::InvalidSignature)
     }
 
     /// util function to parse wycheproof test key from DER format.
