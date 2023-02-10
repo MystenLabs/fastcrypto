@@ -17,6 +17,7 @@
 
 pub mod recoverable;
 
+use crate::hash::{HashFunction, Sha256};
 use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::traits::Signer;
 use crate::{
@@ -30,7 +31,6 @@ use crate::{
 };
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
-use rust_secp256k1::hashes::sha256;
 use rust_secp256k1::{
     constants, ecdsa::Signature as NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
@@ -111,23 +111,23 @@ impl VerifyingKey for Secp256k1PublicKey {
 
     fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), FastCryptoError> {
         // Sha256 is used by default as digest
-        let message = Message::from_hashed_data::<sha256::Hash>(msg);
-        self.verify_hashed(message.as_ref(), signature)
+        self.verify_with_hash::<Sha256>(msg, signature)
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
 
 impl Secp256k1PublicKey {
-    /// Verify the signature over an already hashed message.
-    pub fn verify_hashed(
+    /// Verify the signature using the given hash function to hash the message.
+    pub fn verify_with_hash<H: HashFunction<32>>(
         &self,
-        hashed_msg: &[u8],
+        msg: &[u8],
         signature: &Secp256k1Signature,
     ) -> Result<(), FastCryptoError> {
-        let message = Message::from_slice(hashed_msg).map_err(|_| FastCryptoError::InvalidInput)?;
+        // This fails if the output of the hash function is not 32 bytes, but that is ensured by the def of H.
+        let hashed_message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
         signature
             .sig
-            .verify(&message, &self.pubkey)
+            .verify(&hashed_message, &self.pubkey)
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 
@@ -353,10 +353,10 @@ impl FromStr for Secp256k1KeyPair {
     }
 }
 
-impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
-    fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
-        // Sha256 is used by default
-        let message = Message::from_hashed_data::<sha256::Hash>(msg);
+impl Secp256k1KeyPair {
+    /// Create a new signature using the given hash function to hash the message.
+    fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
+        let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         // Creates a 64-bytes signature of shape [r, s].
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
@@ -364,6 +364,13 @@ impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
             sig: Secp256k1::signing_only().sign_ecdsa(&message, &self.secret.privkey),
             bytes: OnceCell::new(),
         }
+    }
+}
+
+impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
+    fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
+        // Sha256 is used by default
+        self.sign_with_hash::<Sha256>(msg)
     }
 }
 
