@@ -16,6 +16,7 @@ use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
 };
+use crate::error::FastCryptoResult;
 
 /// Trait impl'd by concrete types that represent digital cryptographic material
 /// (keys).
@@ -192,6 +193,12 @@ pub trait Authenticator:
 pub trait Signer<Sig> {
     /// Create a new signature over a message.
     fn sign(&self, msg: &[u8]) -> Sig;
+
+    /// Create a new signature over a message. Implementing this method allows error handling
+    /// in the signature operation if necessary. The default implementation just calls `sign`.
+    fn try_sign(&self, msg: &[u8]) -> FastCryptoResult<Sig> {
+        Ok(self.sign(msg))
+    }
 }
 
 /// Trait impl'd by a public / private key pair in asymmetric cryptography.
