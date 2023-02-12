@@ -15,6 +15,7 @@
 //! ```
 
 use crate::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
+use base64ct::Encoding as _;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -22,10 +23,10 @@ use once_cell::sync::OnceCell;
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
     ser::SerializeStruct,
-    Deserialize, Serialize,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 use serde_bytes::{ByteBuf, Bytes};
-use serde_with::serde_as;
+use serde_with::{serde_as, Bytes as SerdeBytes, DeserializeAs, SerializeAs};
 use signature::rand_core::OsRng;
 use std::{
     borrow::Borrow,
@@ -34,11 +35,11 @@ use std::{
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
+use crate::serde_helpers::to_custom_error;
 use crate::traits::Signer;
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
-    serde_helpers::Ed25519Signature as Ed25519Sig,
     traits::{
         AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
@@ -101,7 +102,7 @@ impl Eq for Ed25519Signature {}
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Ed25519AggregateSignature {
-    #[serde_as(as = "Vec<Ed25519Sig>")]
+    #[serde_as(as = "Vec<SingleSignature>")]
     pub sigs: Vec<ed25519_consensus::Signature>,
     // Helps implementing AsRef<[u8]>.
     #[serde(skip)]
@@ -641,5 +642,45 @@ impl zeroize::ZeroizeOnDrop for Ed25519KeyPair {}
 impl Drop for Ed25519KeyPair {
     fn drop(&mut self) {
         self.zeroize();
+    }
+}
+
+///
+/// Serde for a single signature of Ed25519AggregateSignature
+///
+
+pub struct SingleSignature;
+
+impl SerializeAs<ed25519_consensus::Signature> for SingleSignature {
+    fn serialize_as<S>(
+        source: &ed25519_consensus::Signature,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        if serializer.is_human_readable() {
+            // Serialise to Base64 encoded String
+            Base64::encode(source.to_bytes()).serialize(serializer)
+        } else {
+            // Serialise to Bytes
+            SerdeBytes::serialize_as(&source.to_bytes(), serializer)
+        }
+    }
+}
+
+impl<'de> DeserializeAs<'de, ed25519_consensus::Signature> for SingleSignature {
+    fn deserialize_as<D>(deserializer: D) -> Result<ed25519_consensus::Signature, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            base64ct::Base64::decode_vec(&s).map_err(to_custom_error::<'de, D, _>)?
+        } else {
+            SerdeBytes::deserialize_as(deserializer)?
+        };
+        ed25519_consensus::Signature::try_from(bytes.as_slice())
+            .map_err(to_custom_error::<'de, D, _>)
     }
 }
