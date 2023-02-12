@@ -6,6 +6,7 @@
 [![Update the Fastcrypto pointer Sui](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml/badge.svg)](https://github.com/MystenLabs/sui/actions/workflows/fastcrypto_pull.yml)
 ![Apache2/MIT licensed][license-image]
 ![Rust Version][rustc-image]
+[![codecov](https://codecov.io/gh/MystenLabs/fastcrypto/branch/main/graph/badge.svg?token=zlB0v8k4O5)](https://codecov.io/gh/MystenLabs/fastcrypto)
 
 <p align="center">
   <img width="300" src="images/fastcrypto_logo_800.png">
