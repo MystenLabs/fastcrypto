@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"trait":[["ThresholdBls","Trait [ThresholdBls] provides sign & verify functions for standard and partial BLS signatures."]],"type":[["PartialSignature",""],["Share",""]]};
+window.SIDEBAR_ITEMS = {"trait":["ThresholdBls"],"type":["PartialSignature","Share"]};

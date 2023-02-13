@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":[["SECP256K1_RECOVERABLE_SIGNATURE_SIZE","Length of a compact signature followed by one extra byte for recovery id, used to recover the public key from a signature."]],"static":[["SECP256K1",""]],"struct":[["Secp256k1RecoverableSignature","Secp256k1 signature."]]};
+window.SIDEBAR_ITEMS = {"constant":["SECP256K1_RECOVERABLE_SIGNATURE_SIZE"],"static":["SECP256K1"],"struct":["Secp256k1RecoverableSignature"]};

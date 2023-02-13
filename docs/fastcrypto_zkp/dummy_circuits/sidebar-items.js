@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["DummyCircuit","A dummy circuit that checks an addition constraint between some of its inputs as well as a parametrized number of dummy constraints."],["Fibonacci","A circuit that checks a parametrized number of R1CS constraints that verify the computation of the Fibonacci sequence. It generates constraints in layers, numbered from 1 to num_constraints, specifying the computation of the Fibonacci sequence. On each layer, it does:"]]};
+window.SIDEBAR_ITEMS = {"struct":["DummyCircuit","Fibonacci"]};

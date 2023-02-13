@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":[["FastCryptoError","Collection of errors to be used in fastcrypto."]],"type":[["FastCryptoResult",""]]};
+window.SIDEBAR_ITEMS = {"enum":["FastCryptoError"],"type":["FastCryptoResult"]};

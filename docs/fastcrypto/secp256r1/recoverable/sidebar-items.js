@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":[["SECP256R1_RECOVERABLE_SIGNATURE_LENGTH",""]],"struct":[["Secp256r1RecoverableSignature","Secp256r1 signature."]]};
+window.SIDEBAR_ITEMS = {"constant":["SECP256R1_RECOVERABLE_SIGNATURE_LENGTH"],"struct":["Secp256r1RecoverableSignature"]};

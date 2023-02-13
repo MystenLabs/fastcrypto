@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["RandomOracle","Random Oracle from Sha3."]]};
+window.SIDEBAR_ITEMS = {"struct":["RandomOracle"]};

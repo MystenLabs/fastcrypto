@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":[["BulletproofsRangeProof","Bulletproof Range Proofs"],["PedersenCommitment",""]]};
+window.SIDEBAR_ITEMS = {"struct":["BulletproofsRangeProof","PedersenCommitment"]};
