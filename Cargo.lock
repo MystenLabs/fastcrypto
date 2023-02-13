@@ -1009,9 +1009,9 @@ dependencies = [
 
 [[package]]
 name = "ecdsa"
-version = "0.15.0"
+version = "0.15.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82508ce57bd2b245e9914411800f87fd8fc8288f501bb26919cb9b2ee964028f"
+checksum = "12844141594ad74185a926d030f3b605f6a903b4e3fec351f3ea338ac5b7637e"
 dependencies = [
  "der",
  "elliptic-curve",
@@ -1119,7 +1119,7 @@ dependencies = [
  "curve25519-dalek-ng",
  "derive_more",
  "digest 0.10.6",
- "ecdsa 0.15.0",
+ "ecdsa 0.15.1",
  "ed25519-consensus",
  "elliptic-curve",
  "eyre",
@@ -1684,7 +1684,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49c124b3cbce43bcbac68c58ec181d98ed6cc7e6d0aa7c3ba97b2563410b0e55"
 dependencies = [
- "ecdsa 0.15.0",
+ "ecdsa 0.15.1",
  "elliptic-curve",
  "primeorder",
  "sha2 0.10.6",
