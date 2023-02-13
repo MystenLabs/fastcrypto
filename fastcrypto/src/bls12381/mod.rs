@@ -22,7 +22,7 @@ use std::{
 };
 
 use crate::generate_bytes_representation;
-use crate::serde_helpers::{to_custom_error, BytesRepresentation, SerializationHelper};
+use crate::serde_helpers::BytesRepresentation;
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
@@ -31,9 +31,6 @@ use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::serde_as;
-use serde_with::{DeserializeAs, SerializeAs};
 use zeroize::Zeroize;
 
 use crate::traits::{
@@ -92,26 +89,23 @@ pub struct BLS12381KeyPair {
 
 /// BLS 12-381 signature.
 #[readonly::make]
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BLS12381Signature {
-    #[serde_as(as = "BlsSignature")]
     pub sig: blst::Signature,
-    #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
+
+serialize_deserialize_with_to_from_bytes!(BLS12381Signature, $sig_length);
 
 /// Aggregation of multiple BLS 12-381 signatures.
 #[readonly::make]
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct BLS12381AggregateSignature {
-    #[serde_as(as = "BlsSignature")]
     pub sig: blst::Signature,
-    #[serde(skip)]
     pub bytes: OnceCell<[u8; $sig_length]>,
 }
 
+serialize_deserialize_with_to_from_bytes!(BLS12381AggregateSignature, $sig_length);
 generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length}, BLS12381AggregateSignatureAsBytes);
 
 ///
@@ -174,7 +168,6 @@ impl Debug for BLS12381PublicKey {
     }
 }
 
-// There is a strong requirement for this specific impl. in Fab benchmarks.
 serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey, $pk_length);
 
 generate_bytes_representation!(BLS12381PublicKey, {$pk_length}, BLS12381PublicKeyAsBytes);
@@ -681,37 +674,6 @@ impl ToFromBytes for BLS12381AggregateSignature {
     }
 }
 
-pub struct BlsSignature;
-
-impl SerializeAs<blst::Signature> for BlsSignature {
-    fn serialize_as<S>(source: &blst::Signature, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        if serializer.is_human_readable() {
-            Base64::encode(source.to_bytes()).serialize(serializer)
-        } else {
-            SerializationHelper::<$sig_length>(source.to_bytes()).serialize(serializer)
-        }
-    }
-}
-
-impl<'de> DeserializeAs<'de, blst::Signature> for BlsSignature {
-    fn deserialize_as<D>(deserializer: D) -> Result<blst::Signature, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let bytes = if deserializer.is_human_readable() {
-            let s = String::deserialize(deserializer)?;
-            <[u8; $sig_length]>::try_from(Base64::decode(&s).map_err(to_custom_error::<'de, D, _>)?).map_err(to_custom_error::<'de, D, _>)?
-        } else {
-            let helper: SerializationHelper<$sig_length> =
-                            Deserialize::deserialize(deserializer)?;
-            helper.0
-        };
-        blst::Signature::from_bytes(&bytes).map_err(to_custom_error::<'de, D, _>)
-    }
-}
 };
 
 } // macro_rules! define_bls12381.

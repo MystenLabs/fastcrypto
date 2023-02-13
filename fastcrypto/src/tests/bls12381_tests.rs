@@ -446,7 +446,7 @@ fn test_human_readable_signatures() {
     let serialized = serde_json::to_string(&signature).unwrap();
     assert_eq!(
         format!(
-            "{{\"sig\":\"{}\"}}",
+            "\"{}\"",
             Base64::encode(&signature.sig.to_bytes())
         ),
         serialized
