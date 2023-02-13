@@ -19,7 +19,7 @@ hkdf = { version = "0.12.3", features = ["std"] }
 rand.workspace = true
 rust_secp256k1 = { version = "0.26.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde.workspace = true
-serde_bytes = "0.11.8"
+serde_bytes = "0.11.9"
 serde_with = "2.1.0"
 serde-big-array = { version = "0.4.1", optional = true }
 signature = { version = "1.6.4", features = ["rand-preview"] }
