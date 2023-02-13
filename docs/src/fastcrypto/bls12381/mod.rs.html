@@ -694,44 +694,6 @@
 <a href="#694" id="694">694</a>
 <a href="#695" id="695">695</a>
 <a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -756,7 +718,7 @@
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::generate_bytes_representation;
-<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::{to_custom_error, BytesRepresentation, SerializationHelper};
+<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
 <span class="kw">use crate</span>::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
@@ -765,9 +727,6 @@
 <span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
-<span class="kw">use </span>serde_with::serde_as;
-<span class="kw">use </span>serde_with::{DeserializeAs, SerializeAs};
 <span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span><span class="kw">crate</span>::traits::{
@@ -826,26 +785,23 @@
 
 <span class="doccomment">/// BLS 12-381 signature.
 </span><span class="attr">#[readonly::make]
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>BLS12381Signature {
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;BlsSignature&quot;</span>)]
-    </span><span class="kw">pub </span>sig: blst::Signature,
-    <span class="attr">#[serde(skip)]
-    </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
+    <span class="kw">pub </span>sig: blst::Signature,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381Signature, <span class="macro-nonterminal">$sig_length</span>);
 
 <span class="doccomment">/// Aggregation of multiple BLS 12-381 signatures.
 </span><span class="attr">#[readonly::make]
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>BLS12381AggregateSignature {
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;BlsSignature&quot;</span>)]
-    </span><span class="kw">pub </span>sig: blst::Signature,
-    <span class="attr">#[serde(skip)]
-    </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
+    <span class="kw">pub </span>sig: blst::Signature,
+    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
 }
 
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381AggregateSignature, <span class="macro-nonterminal">$sig_length</span>);
 <span class="macro">generate_bytes_representation!</span>(BLS12381AggregateSignature, {<span class="macro-nonterminal">$sig_length</span>}, BLS12381AggregateSignatureAsBytes);
 
 <span class="doccomment">///
@@ -908,8 +864,7 @@
     }
 }
 
-<span class="comment">// There is a strong requirement for this specific impl. in Fab benchmarks.
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
 
 <span class="macro">generate_bytes_representation!</span>(BLS12381PublicKey, {<span class="macro-nonterminal">$pk_length</span>}, BLS12381PublicKeyAsBytes);
 
@@ -1415,37 +1370,6 @@
     }
 }
 
-<span class="kw">pub struct </span>BlsSignature;
-
-<span class="kw">impl </span>SerializeAs&lt;blst::Signature&gt; <span class="kw">for </span>BlsSignature {
-    <span class="kw">fn </span>serialize_as&lt;S&gt;(source: <span class="kw-2">&amp;</span>blst::Signature, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        <span class="kw">if </span>serializer.is_human_readable() {
-            Base64::encode(source.to_bytes()).serialize(serializer)
-        } <span class="kw">else </span>{
-            SerializationHelper::&lt;<span class="macro-nonterminal">$sig_length</span>&gt;(source.to_bytes()).serialize(serializer)
-        }
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, blst::Signature&gt; <span class="kw">for </span>BlsSignature {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;blst::Signature, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>bytes = <span class="kw">if </span>deserializer.is_human_readable() {
-            <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-            &lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;::try_from(Base64::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?</span>).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?
-        </span>} <span class="kw">else </span>{
-            <span class="kw">let </span>helper: SerializationHelper&lt;<span class="macro-nonterminal">$sig_length</span>&gt; =
-                            Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
-            helper.<span class="number">0
-        </span>};
-        blst::Signature::from_bytes(<span class="kw-2">&amp;</span>bytes).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
-    }
-}
 };
 
 } <span class="comment">// macro_rules! define_bls12381.

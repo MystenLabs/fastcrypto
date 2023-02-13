@@ -643,6 +643,47 @@
 <a href="#643" id="643">643</a>
 <a href="#644" id="644">644</a>
 <a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -660,6 +701,7 @@
 //! ```
 
 </span><span class="kw">use crate</span>::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
+<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
 <span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -667,10 +709,10 @@
 <span class="kw">use </span>serde::{
     de::{<span class="self">self</span>, MapAccess, SeqAccess, Visitor},
     ser::SerializeStruct,
-    Deserialize, Serialize,
+    Deserialize, Deserializer, Serialize, Serializer,
 };
 <span class="kw">use </span>serde_bytes::{ByteBuf, Bytes};
-<span class="kw">use </span>serde_with::serde_as;
+<span class="kw">use </span>serde_with::{serde_as, Bytes <span class="kw">as </span>SerdeBytes, DeserializeAs, SerializeAs};
 <span class="kw">use </span>signature::rand_core::OsRng;
 <span class="kw">use </span>std::{
     borrow::Borrow,
@@ -679,11 +721,11 @@
 };
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
+<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::to_custom_error;
 <span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
 <span class="kw">use crate</span>::{
     encoding::Base64,
     error::FastCryptoError,
-    serde_helpers::Ed25519Signature <span class="kw">as </span>Ed25519Sig,
     traits::{
         AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
         ToFromBytes, VerifyingKey,
@@ -746,7 +788,7 @@
 </span><span class="attr">#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 </span><span class="kw">pub struct </span>Ed25519AggregateSignature {
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;Ed25519Sig&gt;&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;SingleSignature&gt;&quot;</span>)]
     </span><span class="kw">pub </span>sigs: Vec&lt;ed25519_consensus::Signature&gt;,
     <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
     </span><span class="attr">#[serde(skip)]
@@ -1286,6 +1328,46 @@
 <span class="kw">impl </span>Drop <span class="kw">for </span>Ed25519KeyPair {
     <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="self">self</span>.zeroize();
+    }
+}
+
+<span class="doccomment">///
+/// Serde for a single signature of Ed25519AggregateSignature
+///
+
+</span><span class="kw">pub struct </span>SingleSignature;
+
+<span class="kw">impl </span>SerializeAs&lt;ed25519_consensus::Signature&gt; <span class="kw">for </span>SingleSignature {
+    <span class="kw">fn </span>serialize_as&lt;S&gt;(
+        source: <span class="kw-2">&amp;</span>ed25519_consensus::Signature,
+        serializer: S,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
+    {
+        <span class="kw">if </span>serializer.is_human_readable() {
+            <span class="comment">// Serialise to Base64 encoded String
+            </span>Base64::encode(source.to_bytes()).serialize(serializer)
+        } <span class="kw">else </span>{
+            <span class="comment">// Serialise to Bytes
+            </span>SerdeBytes::serialize_as(<span class="kw-2">&amp;</span>source.to_bytes(), serializer)
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, ed25519_consensus::Signature&gt; <span class="kw">for </span>SingleSignature {
+    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;ed25519_consensus::Signature, D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        <span class="kw">let </span>bytes = <span class="kw">if </span>deserializer.is_human_readable() {
+            <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
+            base64ct::Base64::decode_vec(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?
+        </span>} <span class="kw">else </span>{
+            SerdeBytes::deserialize_as(deserializer)<span class="question-mark">?
+        </span>};
+        ed25519_consensus::Signature::try_from(bytes.as_slice())
+            .map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
     }
 }
 </code></pre></div>

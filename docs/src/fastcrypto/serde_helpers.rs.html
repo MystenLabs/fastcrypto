@@ -315,43 +315,6 @@
 <a href="#315" id="315">315</a>
 <a href="#316" id="316">316</a>
 <a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
-<a href="#339" id="339">339</a>
-<a href="#340" id="340">340</a>
-<a href="#341" id="341">341</a>
-<a href="#342" id="342">342</a>
-<a href="#343" id="343">343</a>
-<a href="#344" id="344">344</a>
-<a href="#345" id="345">345</a>
-<a href="#346" id="346">346</a>
-<a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -360,10 +323,9 @@
 <span class="kw">use </span>serde::{
     de,
     de::{Deserializer, Error},
-    ser::Serializer,
     Deserialize, Serialize,
 };
-<span class="kw">use </span>serde_with::{serde_as, Bytes, DeserializeAs, SerializeAs};
+<span class="kw">use </span>serde_with::serde_as;
 <span class="kw">use </span>std::fmt::Debug;
 
 <span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
@@ -391,42 +353,6 @@
     <span class="kw">let </span>secret = &lt;T <span class="kw">as </span>KeyPair&gt;::PrivKey::from_bytes(<span class="kw-2">&amp;</span>bytes[..sk_length])<span class="question-mark">?</span>;
     <span class="comment">// Read only sk bytes for privkey, and derive pubkey from privkey and returns keypair
     </span><span class="prelude-val">Ok</span>(secret.into())
-}
-
-<span class="kw">pub struct </span>Ed25519Signature;
-
-<span class="kw">impl </span>SerializeAs&lt;ed25519_consensus::Signature&gt; <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>serialize_as&lt;S&gt;(
-        source: <span class="kw-2">&amp;</span>ed25519_consensus::Signature,
-        serializer: S,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        <span class="kw">if </span>serializer.is_human_readable() {
-            <span class="comment">// Serialise to Base64 encoded String
-            </span>Base64::encode(source.to_bytes()).serialize(serializer)
-        } <span class="kw">else </span>{
-            <span class="comment">// Serialise to Bytes
-            </span>Bytes::serialize_as(<span class="kw-2">&amp;</span>source.to_bytes(), serializer)
-        }
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, ed25519_consensus::Signature&gt; <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;ed25519_consensus::Signature, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
-    {
-        <span class="kw">let </span>bytes = <span class="kw">if </span>deserializer.is_human_readable() {
-            <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-            base64ct::Base64::decode_vec(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)<span class="question-mark">?
-        </span>} <span class="kw">else </span>{
-            Bytes::deserialize_as(deserializer)<span class="question-mark">?
-        </span>};
-        ed25519_consensus::Signature::try_from(bytes.as_slice())
-            .map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
-    }
 }
 
 <span class="doccomment">///
