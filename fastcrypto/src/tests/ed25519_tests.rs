@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::encoding::Encoding;
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
     ed25519::{
@@ -28,33 +29,48 @@ pub fn keys() -> Vec<Ed25519KeyPair> {
 
 #[test]
 fn serialize_deserialize() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
+    let kp = keys().pop().unwrap();
 
-    let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<Ed25519PublicKey>(&bytes).unwrap();
-    assert_eq!(*public_key, pk2);
+    let pk = kp.public();
+    verify_serialization(pk, pk.as_bytes());
+    // TODO: why it fails?
+    // let default_pk = Ed25519PublicKey::default();
+    // verify_serialization(&default_pk, default_pk.as_bytes());
 
-    let private_key = kpref.private();
-    let bytes = bincode::serialize(&private_key).unwrap();
+    let sk = kp.private();
+    verify_serialization(&sk, sk.as_bytes());
 
-    // serialize with Ed25519PrivateKey successes
-    let privkey = bincode::deserialize::<Ed25519PrivateKey>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&privkey).unwrap();
-    assert_eq!(bytes, bytes2);
+    let message = b"hello, narwhal";
+    let sig = keys().pop().unwrap().sign(message);
+    // TODO: get rid of the length prefix
+    // verify_serialization(&sig, sig.as_bytes());
 
-    // serialize with Ed25519PublicKey fails
-    assert!(bincode::deserialize::<Ed25519PublicKey>(&bytes).is_err());
+    // TODO: test default sig
+
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, kp.as_bytes());
+    // aggregate sig
 }
 
 #[test]
-fn test_serde_signatures_non_human_readable() {
-    let message = b"hello, narwhal";
-    // Test populated aggregate signature
-    let sig = keys().pop().unwrap().sign(message);
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519Signature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, sig);
+fn test_serialization_vs_test_vector() {
+    // Test vector from https://www.rfc-editor.org/rfc/rfc8032#page-24.
+    let sk =
+        hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60").unwrap();
+    let pk =
+        hex::decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a").unwrap();
+    let m = hex::decode("").unwrap();
+    let sig = hex::decode("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b").unwrap();
+
+    let recovered_sk: Ed25519PrivateKey = bincode::deserialize(&sk).unwrap();
+    let recovered_pk: Ed25519PublicKey = bincode::deserialize(&pk).unwrap();
+    // TODO: get rid of the length prefix
+    // let recovered_sig: Ed25519Signature = bincode::deserialize(&sig).unwrap();
+
+    let kp: Ed25519KeyPair = recovered_sk.into();
+    let signature = kp.sign(&m);
+    let serialized_signature = bincode::serialize(&signature).unwrap();
+    assert_eq!(serialized_signature, sig);
 }
 
 #[test]

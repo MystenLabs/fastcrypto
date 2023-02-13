@@ -99,7 +99,7 @@ serialize_deserialize_with_to_from_bytes!(BLS12381Signature, $sig_length);
 
 /// Aggregation of multiple BLS 12-381 signatures.
 #[readonly::make]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct BLS12381AggregateSignature {
     pub sig: blst::Signature,
     pub bytes: OnceCell<[u8; $sig_length]>,

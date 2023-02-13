@@ -78,6 +78,10 @@ pub mod bls12381_group_tests;
 #[path = "tests/vrf_tests.rs"]
 pub mod vrf_tests;
 
+#[cfg(test)]
+#[path = "tests/test_helpers.rs"]
+pub mod test_helpers;
+
 // Signing traits
 pub mod traits;
 // Key scheme implementations

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::encoding::Encoding;
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
     bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
@@ -13,8 +14,6 @@ use crate::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
-use proptest::{collection, prelude::*};
-use rand::{rngs::StdRng, SeedableRng as _};
 
 // We use the following macro in order to run all tests for both min_sig and min_pk.
 macro_rules! define_tests { () => {
@@ -292,13 +291,36 @@ fn verify_batch_missing_keys_in_batch() {
 }
 
 #[test]
-fn test_serialize_deserialize_aggregate_signatures() {
-    // Test empty aggregate signature
-    let sig = BLS12381AggregateSignature::default();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
+fn test_serialize_deserialize_standard_sig() {
+    let kp = keys().pop().unwrap();
 
+    let pk = kp.public();
+    verify_serialization(pk, pk.as_bytes());
+    let default_pk = BLS12381PublicKey::default();
+    verify_serialization(&default_pk, default_pk.as_bytes());
+
+    let sk = kp.private();
+    verify_serialization(&sk, sk.as_bytes());
+    // TODO: remove the following once the default sk is removed
+    // let default_sk = BLS12381PrivateKey::default();
+    // verify_serialization(&default_sk, default_sk.as_bytes());
+
+    let message = b"hello, narwhal";
+    let sig = keys().pop().unwrap().sign(message);
+    verify_serialization(&sig, sig.as_bytes());
+    let default_sig = BLS12381Signature::default();
+    verify_serialization(&default_sig, default_sig.as_bytes());
+
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, kp.as_bytes());
+}
+
+#[test]
+fn test_serialize_deserialize_aggregate_signatures() {
+    // Default agg sig
+    let default_sig = BLS12381AggregateSignature::default();
+    verify_serialization(&default_sig, default_sig.as_bytes());
+    // Standard agg sig
     let message = b"hello, narwhal";
     // Test populated aggregate signature
     let (_, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
@@ -309,14 +331,12 @@ fn test_serialize_deserialize_aggregate_signatures() {
             (kp.public().clone(), sig)
         })
         .unzip();
-
     let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
-
+    verify_serialization(&sig, sig.as_bytes());
+    // BLS12381AggregateSignatureAsBytes
     let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
     let as_bytes_ser = bincode::serialize(&sig_as_bytes).unwrap();
+    let serialized = bincode::serialize(&sig).unwrap();
     assert_eq!(serialized, as_bytes_ser);
     let as_bytes_des: BLS12381AggregateSignatureAsBytes = bincode::deserialize(&as_bytes_ser).unwrap();
     let sig2 = BLS12381AggregateSignature::try_from(&as_bytes_des).unwrap();
@@ -701,6 +721,9 @@ proptest! {
 
 }
 }} // macro_rules! define_tests
+use proptest::{collection, prelude::*};
+
+use rand::{rngs::StdRng, SeedableRng as _};
 
 pub mod min_sig {
     use super::*;
@@ -736,16 +759,5 @@ pub mod min_pk {
         let key = BLS12381PublicKey::from_bytes(&key).unwrap();
         let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&sig).unwrap();
         assert!(key.verify(&msg, &sig).is_ok());
-    }
-
-    #[test]
-    fn test_keypair_roundtrdip() {
-        let mut rng = StdRng::from_seed([0; 32]);
-        let kp = BLS12381KeyPair::generate(&mut rng);
-
-        let serialized = bincode::serialize(&kp).unwrap();
-        println!("serialized: {:?}", serialized);
-        println!("serialized len: {:?}", serialized.len());
-        println!("serialized: {:?}", kp.private().as_bytes());
     }
 }
