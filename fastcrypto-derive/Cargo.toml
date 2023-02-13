@@ -15,6 +15,6 @@ proc-macro = true
 
 [dependencies]
 syn = { version = "1.0.107", features = ["derive"] }
-proc-macro2 = "1.0.50"
+proc-macro2 = "1.0.51"
 quote = "1.0.23"
 convert_case = "0.6.0"
