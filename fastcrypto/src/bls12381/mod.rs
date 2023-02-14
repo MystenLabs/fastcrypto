@@ -547,7 +547,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
         aggr_sig.add_signature(&signature.sig, true).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         self.sig = aggr_sig.to_signature();
-        self.bytes = OnceCell::new();
+        self.bytes.take();
         Ok(())
     }
 
@@ -555,9 +555,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], true)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
         self.sig = result;
-        self.bytes = OnceCell::new();
+        self.bytes.take();
         Ok(())
-
     }
 
     fn verify(
