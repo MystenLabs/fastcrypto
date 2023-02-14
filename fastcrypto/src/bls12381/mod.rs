@@ -20,7 +20,7 @@ use std::{
     mem::MaybeUninit,
     str::FromStr,
 };
-
+use crate::traits::InsecureDefault;
 use crate::generate_bytes_representation;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{
@@ -59,7 +59,7 @@ macro_rules! define_bls12381 {
 
 /// BLS 12-381 public key.
 #[readonly::make]
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct BLS12381PublicKey {
     pub pubkey: blst::PublicKey,
     pub bytes: OnceCell<[u8; $pk_length]>,
@@ -168,6 +168,15 @@ impl Debug for BLS12381PublicKey {
     }
 }
 
+impl InsecureDefault for BLS12381PublicKey {
+    fn insecure_default() -> Self {
+        BLS12381PublicKey {
+            pubkey: blst::PublicKey::default(),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 serialize_deserialize_with_to_from_bytes!(BLS12381PublicKey, $pk_length);
 
 generate_bytes_representation!(BLS12381PublicKey, {$pk_length}, BLS12381PublicKeyAsBytes);
@@ -190,6 +199,8 @@ impl VerifyingKey for BLS12381PublicKey {
     const LENGTH: usize = $pk_length;
 
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), FastCryptoError> {
+        // verify() below validates the signature and the public key, thus should be safe with
+        // default values.
         let err = signature
             .sig
             .verify(true, msg, $dst_string, &[], &self.pubkey, true);
@@ -200,6 +211,8 @@ impl VerifyingKey for BLS12381PublicKey {
         }
     }
 
+
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail(
         msg: &[u8],
         pks: &[Self],
@@ -224,6 +237,7 @@ impl VerifyingKey for BLS12381PublicKey {
             .map_err(|_| eyre!("Batch verification failed!"))
     }
 
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail_different_msg<'a, M>(
         msgs: &[M],
         pks: &[Self],
@@ -272,6 +286,7 @@ impl VerifyingKey for BLS12381PublicKey {
     }
 }
 
+#[cfg(any(test, feature = "experimental"))]
 fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
     let mut vals = [0u64; 4];
     loop {
@@ -290,6 +305,7 @@ fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
     }
 }
 
+#[cfg(any(test, feature = "experimental"))]
 fn get_one() -> blst_scalar {
     let mut one = blst_scalar::default();
     let mut vals = [0u8; 32];
@@ -506,17 +522,18 @@ impl Display for BLS12381AggregateSignature {
     }
 }
 
-impl Default for BLS12381AggregateSignature {
-    fn default() -> Self {
-        // Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
-        // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
-        let mut infinity: [u8; $sig_length] = [0; $sig_length];
-        infinity[0] = 0xc0;
-
+impl From <BLS12381Signature> for BLS12381AggregateSignature {
+    fn from(sig: BLS12381Signature) -> Self {
         BLS12381AggregateSignature {
-            sig: blst::Signature::from_bytes(&infinity).expect("Should decode infinity signature"),
+            sig: sig.sig,
             bytes: OnceCell::new(),
         }
+    }
+}
+
+impl Default for BLS12381AggregateSignature {
+    fn default() -> Self {
+        BLS12381Signature::default().into()
     }
 }
 
@@ -529,6 +546,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
+        // aggregate() below does not check the signatures at all.
         blst::AggregateSignature::aggregate(
             &signatures
                 .into_iter()
@@ -544,6 +562,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
+        // add_signature() only checks the new signature, and only if it's in the group.
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
         aggr_sig.add_signature(&signature.sig, true).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         self.sig = aggr_sig.to_signature();
@@ -552,6 +571,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     }
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
+        // aggregate() only checks if the signature is in the group.
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], true)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
         self.sig = result;
@@ -564,6 +584,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
+        // fast_aggregate_verify() does not check the public keys, but does check that the signature
+        // is in the group.
         let result = self
             .sig
             .fast_aggregate_verify(
@@ -583,6 +605,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
+        // aggregate_verify() checks both the signatures and the public keys.
         let result = self
             .sig
             .aggregate_verify(
@@ -603,6 +626,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
+        // fast_aggregate_verify() does not check the public keys, but does check that the signature
+        // is in the group.
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }

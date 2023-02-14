@@ -14,6 +14,7 @@ use crate::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
+use crate::traits::InsecureDefault;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 
@@ -550,6 +551,30 @@ fn dont_display_secrets() {
             "<elided secret for BLS12381PrivateKey>"
         );
     });
+}
+
+#[test]
+fn test_default_values() {
+    let valid_kp = keys().pop().unwrap();
+    let valid_sig = valid_kp.sign(b"message");
+    let default_sig = BLS12381Signature::default();
+    let valid_pk = valid_kp.public().clone();
+    let default_pk = BLS12381PublicKey::insecure_default();
+    let valid_agg_sig = BLS12381AggregateSignature::aggregate(&[valid_sig.clone()]).unwrap();
+    let default_agg_sig = BLS12381AggregateSignature::default();
+
+    // Default sig should fail (for both types of keys)
+    assert!(valid_pk.verify(b"message", &default_sig).is_err());
+    assert!(default_pk.verify(b"message", &default_sig).is_err());
+
+    // Verification with default pk should fail.
+    assert!(default_pk.verify(b"message", &valid_sig).is_err());
+
+    // Verifications with one of the default values should fail.
+    assert!(valid_agg_sig.verify(&[valid_pk.clone()], b"message").is_ok());
+    assert!(valid_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
+    assert!(default_agg_sig.verify(&[valid_pk.clone()], b"message").is_err());
+    assert!(default_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
 }
 
 #[test]
