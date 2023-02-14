@@ -67,7 +67,7 @@ pub struct BLS12381PublicKey {
 
 /// BLS 12-381 private key.
 #[readonly::make]
-#[derive(SilentDebug, SilentDisplay, Default)]
+#[derive(SilentDebug, SilentDisplay)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
     pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
