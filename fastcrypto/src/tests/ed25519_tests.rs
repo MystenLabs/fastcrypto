@@ -535,7 +535,6 @@ fn verify_invalid_batch_different_msg() {
     assert!(res.is_err(), "{:?}", res);
 }
 
-
 #[test]
 fn test_default_values() {
     let valid_kp = keys().pop().unwrap();
@@ -554,12 +553,19 @@ fn test_default_values() {
     assert!(default_pk.verify(b"message", &valid_sig).is_err());
 
     // Verifications with one of the default values should fail.
-    assert!(valid_agg_sig.verify(&[valid_pk.clone()], b"message").is_ok());
-    assert!(valid_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
-    assert!(default_agg_sig.verify(&[valid_pk.clone()], b"message").is_err());
-    assert!(default_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
+    assert!(valid_agg_sig
+        .verify(&[valid_pk.clone()], b"message")
+        .is_ok());
+    assert!(valid_agg_sig
+        .verify(&[default_pk.clone()], b"message")
+        .is_err());
+    assert!(default_agg_sig
+        .verify(&[valid_pk.clone()], b"message")
+        .is_err());
+    assert!(default_agg_sig
+        .verify(&[default_pk.clone()], b"message")
+        .is_err());
 }
-
 
 #[test]
 fn test_hkdf_generate_from_ikm() {

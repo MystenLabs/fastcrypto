@@ -14,15 +14,9 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use std::{
-    borrow::Borrow,
-    fmt::{self, Debug, Display},
-    mem::MaybeUninit,
-    str::FromStr,
-};
-use crate::traits::InsecureDefault;
 use crate::generate_bytes_representation;
 use crate::serde_helpers::BytesRepresentation;
+use crate::traits::InsecureDefault;
 use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
@@ -31,6 +25,12 @@ use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
+use std::{
+    borrow::Borrow,
+    fmt::{self, Debug, Display},
+    mem::MaybeUninit,
+    str::FromStr,
+};
 use zeroize::Zeroize;
 
 use crate::traits::{

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::encoding::Encoding;
+use crate::traits::InsecureDefault;
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
@@ -14,7 +15,6 @@ use crate::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
-use crate::traits::InsecureDefault;
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
 
