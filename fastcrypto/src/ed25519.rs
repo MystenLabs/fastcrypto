@@ -20,12 +20,7 @@ use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use serde_bytes::{ByteBuf, Bytes};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, Bytes as SerdeBytes, DeserializeAs, SerializeAs};
 use signature::rand_core::OsRng;
 use std::{
@@ -58,9 +53,6 @@ pub const ED25519_SIGNATURE_LENGTH: usize = 64;
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
-const BASE64_FIELD_NAME: &str = "base64";
-const RAW_FIELD_NAME: &str = "raw";
-
 /// Ed25519 public key.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
@@ -90,6 +82,8 @@ pub struct Ed25519Signature {
     // Helps implementing AsRef<[u8]>.
     pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
 }
+
+serialize_deserialize_with_to_from_bytes!(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
 
 impl PartialEq for Ed25519Signature {
     fn eq(&self, other: &Self) -> bool {
@@ -302,106 +296,6 @@ impl Display for Ed25519Signature {
 impl Default for Ed25519Signature {
     fn default() -> Self {
         Ed25519Signature::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
-    }
-}
-
-// Notes for Serialize and Deserialize implementations of Ed25519Signature:
-// - Since `bytes` field contains serialized `sig` field, it can be used directly for ser/de of
-//   the Ed25519Signature struct.
-// - The `serialize_struct()` function and deserialization visitor add complexity, but they are necessary for
-//   Ed25519Signature ser/de to work with `serde_reflection`.
-//   `serde_reflection` works poorly [with aliases and nameless types](https://docs.rs/serde-reflection/latest/serde_reflection/index.html#unsupported-idioms).
-// - Serialization output and deserialization input support human readable (base64) and non-readable (binary) formats
-//   separately (supported for other schemes since #460). Different struct field names ("base64" vs "raw") are used
-//   to disambiguate the formats.
-// These notes may help if Ed25519Signature needs to change the struct layout, or its ser/de implementation.
-impl Serialize for Ed25519Signature {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let readable = serializer.is_human_readable();
-        let mut state = serializer.serialize_struct("Ed25519Signature", 1)?;
-        if readable {
-            state.serialize_field(BASE64_FIELD_NAME, &Base64::encode(self.as_ref()))?;
-        } else {
-            state.serialize_field(RAW_FIELD_NAME, Bytes::new(self.as_ref()))?;
-        }
-        state.end()
-    }
-}
-
-impl<'de> Deserialize<'de> for Ed25519Signature {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        struct Ed25519SignatureVisitor {
-            readable: bool,
-        }
-
-        impl<'de> Visitor<'de> for Ed25519SignatureVisitor {
-            type Value = Ed25519Signature;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("struct Ed25519Signature")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<Ed25519Signature, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                if self.readable {
-                    let s = seq
-                        .next_element::<String>()?
-                        .ok_or_else(|| de::Error::missing_field(BASE64_FIELD_NAME))?;
-                    Ed25519Signature::decode_base64(&s)
-                        .map_err(|e| de::Error::custom(e.to_string()))
-                } else {
-                    let b = seq
-                        .next_element::<ByteBuf>()?
-                        .ok_or_else(|| de::Error::missing_field(RAW_FIELD_NAME))?;
-                    Ed25519Signature::from_bytes(&b).map_err(|e| de::Error::custom(e.to_string()))
-                }
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<Ed25519Signature, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                if self.readable {
-                    let entry = map
-                        .next_entry::<&str, String>()?
-                        .ok_or_else(|| de::Error::missing_field(BASE64_FIELD_NAME))?;
-                    if entry.0 != BASE64_FIELD_NAME {
-                        return Err(de::Error::unknown_field(entry.0, &[BASE64_FIELD_NAME]));
-                    }
-                    Ed25519Signature::decode_base64(&entry.1)
-                        .map_err(|e| de::Error::custom(e.to_string()))
-                } else {
-                    let entry = map
-                        .next_entry::<&str, &[u8]>()?
-                        .ok_or_else(|| de::Error::missing_field(RAW_FIELD_NAME))?;
-                    if entry.0 != RAW_FIELD_NAME {
-                        return Err(de::Error::unknown_field(entry.0, &[RAW_FIELD_NAME]));
-                    }
-                    Ed25519Signature::from_bytes(entry.1)
-                        .map_err(|e| de::Error::custom(e.to_string()))
-                }
-            }
-        }
-
-        let readable = deserializer.is_human_readable();
-        let fields: &[&str; 1] = if readable {
-            &[BASE64_FIELD_NAME]
-        } else {
-            &[RAW_FIELD_NAME]
-        };
-        deserializer.deserialize_struct(
-            "Ed25519Signature",
-            fields,
-            Ed25519SignatureVisitor { readable },
-        )
     }
 }
 
