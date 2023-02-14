@@ -559,12 +559,8 @@ fn test_default_values() {
     assert!(valid_agg_sig
         .verify(&[default_pk.clone()], b"message")
         .is_err());
-    assert!(default_agg_sig
-        .verify(&[valid_pk], b"message")
-        .is_err());
-    assert!(default_agg_sig
-        .verify(&[default_pk], b"message")
-        .is_err());
+    assert!(default_agg_sig.verify(&[valid_pk], b"message").is_err());
+    assert!(default_agg_sig.verify(&[default_pk], b"message").is_err());
 }
 
 #[test]
