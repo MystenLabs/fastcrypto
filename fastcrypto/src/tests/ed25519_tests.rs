@@ -419,9 +419,14 @@ fn test_add_signatures_to_aggregate() {
     // Test 'add signature'
     let mut sig1 = Ed25519AggregateSignature::default();
     // Test populated aggregate signature
-    keys().into_iter().take(3).for_each(|kp| {
+    keys().into_iter().take(3).enumerate().for_each(|(i, kp)| {
         let sig = kp.sign(message);
         sig1.add_signature(sig).unwrap();
+
+        // Verify that the binary representation is updated for each added signature
+        let reconstructed = Ed25519AggregateSignature::from_bytes(sig1.as_ref()).unwrap();
+        assert!(reconstructed.verify(&pks[..i], message).is_err());
+        assert!(reconstructed.verify(&pks[..i + 1], message).is_ok());
     });
 
     assert!(sig1.verify(&pks, message).is_ok());
