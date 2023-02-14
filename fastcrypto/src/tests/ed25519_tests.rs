@@ -65,10 +65,7 @@ fn test_serde_signatures_human_readable() {
 
     let serialized = serde_json::to_string(&signature).unwrap();
     assert_eq!(
-        format!(
-            r#"{{"base64":"{}"}}"#,
-            Base64::encode(signature.sig.to_bytes())
-        ),
+        format!(r#""{}""#, Base64::encode(signature.sig.to_bytes())),
         serialized
     );
     let deserialized: Ed25519Signature = serde_json::from_str(&serialized).unwrap();
