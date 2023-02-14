@@ -545,21 +545,18 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
-                aggr_sig
-                    .add_signature(&signature.sig, true)
-                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
-                self.sig = aggr_sig.to_signature();
-                Ok(())
-
+        aggr_sig.add_signature(&signature.sig, true).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
+        self.sig = aggr_sig.to_signature();
+        self.bytes.take();
+        Ok(())
     }
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], true)
-                        .map_err(|_| FastCryptoError::GeneralOpaqueError)?
-                        .to_signature();
-         self.sig = result;
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
+        self.sig = result;
+        self.bytes.take();
         Ok(())
-
     }
 
     fn verify(

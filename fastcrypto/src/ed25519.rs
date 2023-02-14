@@ -469,11 +469,13 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         self.sigs.push(signature.sig);
+        self.bytes.take();
         Ok(())
     }
 
     fn add_aggregate(&mut self, mut signature: Self) -> Result<(), FastCryptoError> {
         self.sigs.append(&mut signature.sigs);
+        self.bytes.take();
         Ok(())
     }
 
