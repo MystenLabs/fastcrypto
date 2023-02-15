@@ -270,6 +270,9 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -383,14 +386,17 @@
 }
 
 <span class="kw">impl </span>Secp256r1RecoverableSignature {
-    <span class="doccomment">/// Recover the public key used to create this signature. This assumes the recovery id byte has been set
-    /// and that the message have been hashed using a cryptographic hash function.
+    <span class="doccomment">/// Recover the public key used to create this signature. This assumes the recovery id byte has been set. The hash function `H` is used to hash the message.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    </span><span class="kw">pub fn </span>recover_hashed(<span class="kw-2">&amp;</span><span class="self">self</span>, hashed_msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
+    </span><span class="kw">pub fn </span>recover_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        msg: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
         <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
         </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
-        <span class="kw">let </span>z = Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(hashed_msg));
+        <span class="kw">let </span>z =
+            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
         <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="comment">// Note: This has been added because it does not seem to be done in k256
@@ -535,7 +541,7 @@
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
     </span><span class="kw">fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
-        <span class="self">self</span>.recover_hashed(<span class="kw-2">&amp;</span>Sha256::digest(msg).digest)
+        <span class="self">self</span>.recover_with_hash::&lt;Sha256&gt;(msg)
     }
 }
 

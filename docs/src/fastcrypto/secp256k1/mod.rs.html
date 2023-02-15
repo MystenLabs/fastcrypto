@@ -387,6 +387,13 @@
 <a href="#387" id="387">387</a>
 <a href="#388" id="388">388</a>
 <a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
+<a href="#393" id="393">393</a>
+<a href="#394" id="394">394</a>
+<a href="#395" id="395">395</a>
+<a href="#396" id="396">396</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -406,6 +413,7 @@
 
 </span><span class="kw">pub mod </span>recoverable;
 
+<span class="kw">use </span><span class="kw">crate</span>::hash::{HashFunction, Sha256};
 <span class="kw">use </span><span class="kw">crate</span>::secp256k1::recoverable::Secp256k1RecoverableSignature;
 <span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
 <span class="kw">use crate</span>::{
@@ -419,7 +427,6 @@
 };
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::{Lazy, OnceCell};
-<span class="kw">use </span>rust_secp256k1::hashes::sha256;
 <span class="kw">use </span>rust_secp256k1::{
     constants, ecdsa::Signature <span class="kw">as </span>NonrecoverableSignature, All, Message, PublicKey, Secp256k1,
     SecretKey,
@@ -500,23 +507,23 @@
 
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256k1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="comment">// Sha256 is used by default as digest
-        </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;sha256::Hash&gt;(msg);
-        <span class="self">self</span>.verify_hashed(message.as_ref(), signature)
+        </span><span class="self">self</span>.verify_with_hash::&lt;Sha256&gt;(msg, signature)
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
     }
 }
 
 <span class="kw">impl </span>Secp256k1PublicKey {
-    <span class="doccomment">/// Verify the signature over an already hashed message.
-    </span><span class="kw">pub fn </span>verify_hashed(
+    <span class="doccomment">/// Verify the signature using the given hash function to hash the message.
+    </span><span class="kw">pub fn </span>verify_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        hashed_msg: <span class="kw-2">&amp;</span>[u8],
+        msg: <span class="kw-2">&amp;</span>[u8],
         signature: <span class="kw-2">&amp;</span>Secp256k1Signature,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>message = Message::from_slice(hashed_msg).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+        <span class="comment">// This fails if the output of the hash function is not 32 bytes, but that is ensured by the def of H.
+        </span><span class="kw">let </span>hashed_message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
         signature
             .sig
-            .verify(<span class="kw-2">&amp;</span>message, <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey)
+            .verify(<span class="kw-2">&amp;</span>hashed_message, <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey)
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
     }
 
@@ -742,10 +749,10 @@
     }
 }
 
-<span class="kw">impl </span>Signer&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
-        <span class="comment">// Sha256 is used by default
-        </span><span class="kw">let </span>message = Message::from_hashed_data::&lt;sha256::Hash&gt;(msg);
+<span class="kw">impl </span>Secp256k1KeyPair {
+    <span class="doccomment">/// Create a new signature using the given hash function to hash the message.
+    </span><span class="kw">fn </span>sign_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
+        <span class="kw">let </span>message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         <span class="comment">// Creates a 64-bytes signature of shape [r, s].
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
@@ -753,6 +760,13 @@
             sig: Secp256k1::signing_only().sign_ecdsa(<span class="kw-2">&amp;</span>message, <span class="kw-2">&amp;</span><span class="self">self</span>.secret.privkey),
             bytes: OnceCell::new(),
         }
+    }
+}
+
+<span class="kw">impl </span>Signer&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1KeyPair {
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
+        <span class="comment">// Sha256 is used by default
+        </span><span class="self">self</span>.sign_with_hash::&lt;Sha256&gt;(msg)
     }
 }
 
