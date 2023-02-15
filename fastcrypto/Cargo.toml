@@ -58,6 +58,7 @@ fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 [[bench]]
 name = "crypto"
 harness = false
+required-features = ["experimental"]
 
 [[bench]]
 name = "encoding"

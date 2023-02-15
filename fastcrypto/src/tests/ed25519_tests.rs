@@ -5,7 +5,7 @@
 use super::*;
 use crate::encoding::Encoding;
 use crate::test_helpers::verify_serialization;
-use crate::traits::Signer;
+use crate::traits::{InsecureDefault, Signer};
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
@@ -31,7 +31,7 @@ pub fn keys() -> Vec<Ed25519KeyPair> {
 fn serialize_deserialize() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
-    let default_pk = Ed25519PublicKey::default();
+    let default_pk = Ed25519PublicKey::insecure_default();
     let sk = kp.private();
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);
@@ -533,6 +533,34 @@ fn verify_invalid_batch_different_msg() {
         &inputs.signatures,
     );
     assert!(res.is_err(), "{:?}", res);
+}
+
+#[test]
+fn test_default_values() {
+    let valid_kp = keys().pop().unwrap();
+    let valid_sig = valid_kp.sign(b"message");
+    let default_sig = Ed25519Signature::default();
+    let valid_pk = valid_kp.public().clone();
+    let default_pk = Ed25519PublicKey::insecure_default();
+    let valid_agg_sig = Ed25519AggregateSignature::aggregate(&[valid_sig.clone()]).unwrap();
+    let default_agg_sig = Ed25519AggregateSignature::default();
+
+    // Default sig should fail (for both types of keys)
+    assert!(valid_pk.verify(b"message", &default_sig).is_err());
+    assert!(default_pk.verify(b"message", &default_sig).is_err());
+
+    // Verification with default pk should fail.
+    assert!(default_pk.verify(b"message", &valid_sig).is_err());
+
+    // Verifications with one of the default values should fail.
+    assert!(valid_agg_sig
+        .verify(&[valid_pk.clone()], b"message")
+        .is_ok());
+    assert!(valid_agg_sig
+        .verify(&[default_pk.clone()], b"message")
+        .is_err());
+    assert!(default_agg_sig.verify(&[valid_pk], b"message").is_err());
+    assert!(default_agg_sig.verify(&[default_pk], b"message").is_err());
 }
 
 #[test]

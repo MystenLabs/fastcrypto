@@ -31,7 +31,7 @@ use std::{
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::serde_helpers::to_custom_error;
-use crate::traits::Signer;
+use crate::traits::{InsecureDefault, Signer};
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
@@ -126,6 +126,7 @@ impl VerifyingKey for Ed25519PublicKey {
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail(
         msg: &[u8],
         pks: &[Self],
@@ -151,6 +152,7 @@ impl VerifyingKey for Ed25519PublicKey {
             .map_err(|_| eyre!("Signature verification failed"))
     }
 
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail_different_msg<'a, M>(
         msgs: &[M],
         pks: &[Self],
@@ -194,8 +196,8 @@ impl AsRef<[u8]> for Ed25519PublicKey {
     }
 }
 
-impl Default for Ed25519PublicKey {
-    fn default() -> Self {
+impl InsecureDefault for Ed25519PublicKey {
+    fn insecure_default() -> Self {
         Ed25519PublicKey::from_bytes(&[0u8; 32]).unwrap()
     }
 }

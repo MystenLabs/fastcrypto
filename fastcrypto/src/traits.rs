@@ -113,7 +113,8 @@ pub trait VerifyingKey:
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &public_keys, &signatures).is_ok());
-    /// ``` 
+    /// ```
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
@@ -147,7 +148,8 @@ pub trait VerifyingKey:
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&messages, &public_keys, &signatures).is_ok());
-    /// ``` 
+    /// ```
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where M: Borrow<[u8]> + 'a {
         if sigs.is_empty() {
             return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
@@ -411,6 +413,12 @@ pub trait FromUniformBytes<const LENGTH: usize>: ToFromBytes {
         rng.fill_bytes(&mut bytes);
         Self::from_bytes(&bytes).unwrap()
     }
+}
+
+/// Trait for objects that support an insecure default value that should **only** be used as a
+/// placeholder.
+pub trait InsecureDefault {
+    fn insecure_default() -> Self;
 }
 
 // Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
