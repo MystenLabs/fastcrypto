@@ -44,48 +44,48 @@ fn test_serde() {
 fn test_hex_array_serialize_as() {
     #[serde_as]
     #[derive(Deserialize, Serialize)]
-    struct TestHex(
-        #[serde_as(as = "Hex")]
-        [u8; 32],
-    );
+    struct TestHex(#[serde_as(as = "Hex")] [u8; 32]);
 
     let test = TestHex([1; 32]);
     let hex = serde_json::to_string(&test).unwrap();
-    assert_eq!("\"0x0101010101010101010101010101010101010101010101010101010101010101\"", hex);
+    assert_eq!(
+        "\"0x0101010101010101010101010101010101010101010101010101010101010101\"",
+        hex
+    );
     let result: TestHex = serde_json::from_str(&hex).unwrap();
-    assert_eq!(test.0, result.0)
+    assert_eq!(test.0, result.0);
+    // invalid length should error
+    assert!(serde_json::from_str::<TestHex>(&Hex::encode(&[1; 31])).is_err())
 }
 
 #[test]
 fn test_base64_array_serialize_as() {
     #[serde_as]
     #[derive(Deserialize, Serialize)]
-    struct TestBase64(
-        #[serde_as(as = "Base64")]
-        [u8; 32],
-    );
+    struct TestBase64(#[serde_as(as = "Base64")] [u8; 32]);
 
     let test = TestBase64([1; 32]);
     let base64 = serde_json::to_string(&test).unwrap();
     assert_eq!("\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=\"", base64);
     let result: TestBase64 = serde_json::from_str(&base64).unwrap();
-    assert_eq!(test.0, result.0)
+    assert_eq!(test.0, result.0);
+    // invalid length should error
+    assert!(serde_json::from_str::<TestBase64>(&Base64::encode(&[1; 31])).is_err())
 }
 
 #[test]
 fn test_base58_array_serialize_as() {
     #[serde_as]
     #[derive(Deserialize, Serialize)]
-    struct TestBase58(
-        #[serde_as(as = "Base58")]
-        [u8; 32],
-    );
+    struct TestBase58(#[serde_as(as = "Base58")] [u8; 32]);
 
     let test = TestBase58([1; 32]);
     let base58 = serde_json::to_string(&test).unwrap();
     assert_eq!("\"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi\"", base58);
     let result: TestBase58 = serde_json::from_str(&base58).unwrap();
-    assert_eq!(test.0, result.0)
+    assert_eq!(test.0, result.0);
+    // invalid length should error
+    assert!(serde_json::from_str::<TestBase58>(&Base58::encode(&[1; 31])).is_err())
 }
 
 #[test]
