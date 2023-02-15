@@ -131,6 +131,25 @@ where
     }
 }
 
+impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base64 {
+    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let value:Vec<u8> = Base64::deserialize_as(deserializer)?;
+        if value.len() != N {
+            return Err(Error::custom(eyre!(
+                "invalid array length {}, expecting {}",
+                value.len(),
+                N
+            )));
+        }
+        let mut array = [0u8; N];
+        array.copy_from_slice(&value[..N]);
+        Ok(array)
+    }
+}
+
 impl<'de> DeserializeAs<'de, Vec<u8>> for Hex {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
     where
@@ -226,5 +245,24 @@ where
         S: Serializer,
     {
         Self::encode(value).serialize(serializer)
+    }
+}
+
+impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base58 {
+    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let value:Vec<u8> = Base58::deserialize_as(deserializer)?;
+        if value.len() != N {
+            return Err(Error::custom(eyre!(
+                "invalid array length {}, expecting {}",
+                value.len(),
+                N
+            )));
+        }
+        let mut array = [0u8; N];
+        array.copy_from_slice(&value[..N]);
+        Ok(array)
     }
 }
