@@ -20,12 +20,7 @@ use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
-use serde::{
-    de::{self, MapAccess, SeqAccess, Visitor},
-    ser::SerializeStruct,
-    Deserialize, Deserializer, Serialize, Serializer,
-};
-use serde_bytes::{ByteBuf, Bytes};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, Bytes as SerdeBytes, DeserializeAs, SerializeAs};
 use signature::rand_core::OsRng;
 use std::{

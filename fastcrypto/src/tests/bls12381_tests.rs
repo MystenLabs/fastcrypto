@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::encoding::Encoding;
-use crate::traits::InsecureDefault;
 use crate::test_helpers::verify_serialization;
+use crate::traits::InsecureDefault;
 use crate::traits::Signer;
 use crate::{
     bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
@@ -297,7 +297,7 @@ fn verify_batch_missing_keys_in_batch() {
 fn test_serialize_deserialize_standard_sig() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
-    let default_pk = BLS12381PublicKey::default();
+    let default_pk = BLS12381PublicKey::insecure_default();
     let sk = kp.private();
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);

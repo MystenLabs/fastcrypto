@@ -4,8 +4,8 @@
 
 use super::*;
 use crate::encoding::Encoding;
-use crate::traits::{InsecureDefault, Signer};
 use crate::test_helpers::verify_serialization;
+use crate::traits::{InsecureDefault, Signer};
 use crate::{
     ed25519::{
         Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
@@ -31,7 +31,7 @@ pub fn keys() -> Vec<Ed25519KeyPair> {
 fn serialize_deserialize() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
-    let default_pk = Ed25519PublicKey::default();
+    let default_pk = Ed25519PublicKey::insecure_default();
     let sk = kp.private();
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);
