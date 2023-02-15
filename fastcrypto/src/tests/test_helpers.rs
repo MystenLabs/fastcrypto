@@ -5,6 +5,11 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
 
+/// Check that:
+/// 1. The object can be serialized and deserialized to the same object
+/// 2. Serialization is deterministic
+/// 3. The serialized object is the same as the expected bytes
+/// 4. Deserialization results in a different object if we change 1 byte in the serialized object
 pub fn verify_serialization<T>(obj: &T, expected: &[u8])
 where
     T: Serialize + DeserializeOwned + PartialEq + Debug,
@@ -18,9 +23,9 @@ where
     // Test a failed deserialization
     let mut bytes3 = bytes1;
     bytes3[0] = if bytes3[0] > 100 {
-        bytes3[0] + 1
-    } else {
         bytes3[0] - 1
+    } else {
+        bytes3[0] + 1
     };
     let obj3 = bincode::deserialize::<T>(&bytes3);
     assert!(obj3.is_err() || obj3.ok().unwrap() != *obj);

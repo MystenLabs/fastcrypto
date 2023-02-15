@@ -30,26 +30,49 @@ pub fn keys() -> Vec<Ed25519KeyPair> {
 #[test]
 fn serialize_deserialize() {
     let kp = keys().pop().unwrap();
-
-    let pk = kp.public();
-    verify_serialization(pk, pk.as_bytes());
-    // TODO: why it fails?
-    // let default_pk = Ed25519PublicKey::default();
-    // verify_serialization(&default_pk, default_pk.as_bytes());
-
+    let pk = kp.public().clone();
+    let default_pk = Ed25519PublicKey::default();
     let sk = kp.private();
-    verify_serialization(&sk, sk.as_bytes());
-
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);
-    // TODO: get rid of the length prefix
-    // verify_serialization(&sig, sig.as_bytes());
+    let default_sig = Ed25519Signature::default();
 
-    // TODO: test default sig
+    verify_serialization(&pk, pk.as_bytes());
+    verify_serialization(&default_pk, default_pk.as_bytes());
+    verify_serialization(&sk, sk.as_bytes());
+    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&default_sig, default_sig.as_bytes());
 
     let kp = keys().pop().unwrap();
     verify_serialization(&kp, kp.as_bytes());
-    // aggregate sig
+}
+
+#[test]
+fn test_serialize_deserialize_aggregate_signatures() {
+    // Test empty aggregate signature
+    let sig = Ed25519AggregateSignature::default();
+    let serialized = bincode::serialize(&sig).unwrap();
+    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized.as_ref(), sig.as_ref());
+
+    let message = b"hello, narwhal";
+    // Test populated aggregate signature
+    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    let serialized = bincode::serialize(&sig).unwrap();
+    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized.sigs, sig.sigs);
+
+    // Note that we do not check if the serialized variant equals as_ref() since the serialized
+    // variant begins with a length prefix (of the vector of signatures).
 }
 
 #[test]
@@ -64,13 +87,13 @@ fn test_serialization_vs_test_vector() {
 
     let recovered_sk: Ed25519PrivateKey = bincode::deserialize(&sk).unwrap();
     let recovered_pk: Ed25519PublicKey = bincode::deserialize(&pk).unwrap();
-    // TODO: get rid of the length prefix
-    // let recovered_sig: Ed25519Signature = bincode::deserialize(&sig).unwrap();
+    let recovered_sig: Ed25519Signature = bincode::deserialize(&sig).unwrap();
 
     let kp: Ed25519KeyPair = recovered_sk.into();
     let signature = kp.sign(&m);
     let serialized_signature = bincode::serialize(&signature).unwrap();
     assert_eq!(serialized_signature, sig);
+    assert!(recovered_pk.verify(&m, &recovered_sig).is_ok());
 }
 
 #[test]
@@ -368,31 +391,6 @@ fn verify_batch_missing_keys_in_batch() {
         &[&digest1[..], &digest2[..]]
     )
     .is_err());
-}
-
-#[test]
-fn test_serialize_deserialize_aggregate_signatures() {
-    // Test empty aggregate signature
-    let sig = Ed25519AggregateSignature::default();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
-
-    let message = b"hello, narwhal";
-    // Test populated aggregate signature
-    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .map(|kp| {
-            let sig = kp.sign(message);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-
-    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.sigs, sig.sigs);
 }
 
 #[test]
