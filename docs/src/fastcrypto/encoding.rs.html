@@ -209,6 +209,63 @@
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
 <a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -342,6 +399,25 @@
     }
 }
 
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Base64 {
+    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        <span class="kw">let </span>value: Vec&lt;u8&gt; = Base64::deserialize_as(deserializer)<span class="question-mark">?</span>;
+        <span class="kw">if </span>value.len() != N {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
+                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                value.len(),
+                N
+            )));
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
+        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
+        <span class="prelude-val">Ok</span>(array)
+    }
+}
+
 <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Hex {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
     <span class="kw">where
@@ -349,6 +425,25 @@
     {
         <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
         <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Hex {
+    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        <span class="kw">let </span>value: Vec&lt;u8&gt; = Hex::deserialize_as(deserializer)<span class="question-mark">?</span>;
+        <span class="kw">if </span>value.len() != N {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
+                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                value.len(),
+                N
+            )));
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
+        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
+        <span class="prelude-val">Ok</span>(array)
     }
 }
 
@@ -418,6 +513,25 @@
         </span>S: Serializer,
     {
         <span class="self">Self</span>::encode(value).serialize(serializer)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Base58 {
+    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
+    <span class="kw">where
+        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        <span class="kw">let </span>value: Vec&lt;u8&gt; = Base58::deserialize_as(deserializer)<span class="question-mark">?</span>;
+        <span class="kw">if </span>value.len() != N {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
+                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                value.len(),
+                N
+            )));
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
+        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
+        <span class="prelude-val">Ok</span>(array)
     }
 }
 </code></pre></div>
