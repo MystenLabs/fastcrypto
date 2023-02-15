@@ -17,8 +17,10 @@
 
 pub mod recoverable;
 
+use crate::generate_bytes_representation;
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
+use crate::serde_helpers::BytesRepresentation;
 use crate::traits::Signer;
 use crate::{
     encoding::{Base64, Encoding},
@@ -225,6 +227,11 @@ impl Drop for Secp256k1PrivateKey {
 }
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1Signature, SECP256K1_SIGNATURE_LENGTH);
+generate_bytes_representation!(
+    Secp256k1Signature,
+    SECP256K1_SIGNATURE_LENGTH,
+    Secp256k1SignatureAsBytes
+);
 
 impl ToFromBytes for Secp256k1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
