@@ -141,6 +141,25 @@ impl<'de> DeserializeAs<'de, Vec<u8>> for Hex {
     }
 }
 
+impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Hex {
+    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
+        where
+            D: Deserializer<'de>,
+    {
+        let value:Vec<u8> = Hex::deserialize_as(deserializer)?;
+        if value.len() != N {
+            return Err(Error::custom(eyre!(
+                "invalid array length {}, expecting {}",
+                value.len(),
+                N
+            )));
+        }
+        let mut array = [0u8; N];
+        array.copy_from_slice(&value[..N]);
+        Ok(array)
+    }
+}
+
 impl<T> SerializeAs<T> for Hex
 where
     T: AsRef<[u8]>,
