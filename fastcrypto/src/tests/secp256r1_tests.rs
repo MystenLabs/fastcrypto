@@ -3,6 +3,7 @@ use elliptic_curve::IsHigh;
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
     hash::{HashFunction, Sha256},
@@ -28,30 +29,17 @@ pub fn keys() -> Vec<Secp256r1KeyPair> {
 
 #[test]
 fn serialize_deserialize() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let sk = kp.private();
+    let sig = keys().pop().unwrap().sign(MSG);
 
-    let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<Secp256r1PublicKey>(&bytes).unwrap();
-    assert_eq!(public_key.as_ref(), pk2.as_ref());
+    verify_serialization(&pk, pk.as_bytes());
+    verify_serialization(&sk, sk.as_bytes());
+    verify_serialization(&sig, sig.as_bytes());
 
-    let private_key = kpref.private();
-    let bytes = bincode::serialize(&private_key).unwrap();
-    let privkey = bincode::deserialize::<Secp256r1PrivateKey>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&privkey).unwrap();
-    assert_eq!(bytes, bytes2);
-
-    let signature = keys().pop().unwrap().sign(MSG);
-    let bytes = bincode::serialize(&signature).unwrap();
-    let sig = bincode::deserialize::<Secp256r1Signature>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&sig).unwrap();
-    assert_eq!(bytes, bytes2);
-
-    // test serde_json serialization
-    let serialized = serde_json::to_string(&signature).unwrap();
-    println!("{:?}", serialized);
-    let deserialized: Secp256r1Signature = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized, signature);
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, kp.as_bytes());
 }
 
 #[test]

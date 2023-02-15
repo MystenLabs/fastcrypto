@@ -5,6 +5,7 @@ use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
 };
 
+use crate::test_helpers::verify_serialization;
 use crate::traits::VerifyingKey;
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
@@ -33,30 +34,9 @@ pub fn keys() -> Vec<Secp256r1KeyPair> {
 
 #[test]
 fn serialize_deserialize() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
-
-    let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<Secp256r1PublicKey>(&bytes).unwrap();
-    assert_eq!(public_key.as_ref(), pk2.as_ref());
-
-    let private_key = kpref.private();
-    let bytes = bincode::serialize(&private_key).unwrap();
-    let privkey = bincode::deserialize::<Secp256r1PrivateKey>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&privkey).unwrap();
-    assert_eq!(bytes, bytes2);
-
-    let signature = keys().pop().unwrap().sign_recoverable(MSG);
-    let bytes = bincode::serialize(&signature).unwrap();
-    let sig = bincode::deserialize::<Secp256r1RecoverableSignature>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&sig).unwrap();
-    assert_eq!(bytes, bytes2);
-
-    // test serde_json serialization
-    let serialized = serde_json::to_string(&signature).unwrap();
-    println!("{:?}", serialized);
-    let deserialized: Secp256r1RecoverableSignature = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized, signature);
+    // The other types (pk, sk, keypair) are tested in the nonrecoverable tests.
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+    verify_serialization(&sig, sig.as_bytes());
 }
 
 #[test]
