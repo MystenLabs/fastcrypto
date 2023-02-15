@@ -582,6 +582,8 @@
 <a href="#582" id="582">582</a>
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
+<a href="#585" id="585">585</a>
+<a href="#586" id="586">586</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -615,7 +617,7 @@
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
 <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::to_custom_error;
-<span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
+<span class="kw">use </span><span class="kw">crate</span>::traits::{InsecureDefault, Signer};
 <span class="kw">use crate</span>::{
     encoding::Base64,
     error::FastCryptoError,
@@ -710,7 +712,8 @@
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
     }
 
-    <span class="kw">fn </span>verify_batch_empty_fail(
+    <span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+    </span><span class="kw">fn </span>verify_batch_empty_fail(
         msg: <span class="kw-2">&amp;</span>[u8],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
@@ -735,7 +738,8 @@
             .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
     }
 
-    <span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(
+    <span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(
         msgs: <span class="kw-2">&amp;</span>[M],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
@@ -778,8 +782,8 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>InsecureDefault <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
         Ed25519PublicKey::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">32</span>]).unwrap()
     }
 }

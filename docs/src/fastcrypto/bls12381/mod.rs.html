@@ -691,6 +691,31 @@
 <a href="#691" id="691">691</a>
 <a href="#692" id="692">692</a>
 <a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -707,15 +732,9 @@
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
 
-</span><span class="kw">use </span>std::{
-    borrow::Borrow,
-    fmt::{<span class="self">self</span>, Debug, Display},
-    mem::MaybeUninit,
-    str::FromStr,
-};
-
-<span class="kw">use </span><span class="kw">crate</span>::generate_bytes_representation;
+</span><span class="kw">use </span><span class="kw">crate</span>::generate_bytes_representation;
 <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
+<span class="kw">use </span><span class="kw">crate</span>::traits::InsecureDefault;
 <span class="kw">use crate</span>::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
@@ -724,6 +743,12 @@
 <span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>std::{
+    borrow::Borrow,
+    fmt::{<span class="self">self</span>, Debug, Display},
+    mem::MaybeUninit,
+    str::FromStr,
+};
 <span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span><span class="kw">crate</span>::traits::{
@@ -752,7 +777,7 @@
 
 /// BLS 12-381 public key.
 </span><span class="attr">#[readonly::make]
-#[derive(Default, Clone)]
+#[derive(Clone)]
 </span><span class="kw">pub struct </span>BLS12381PublicKey {
     <span class="kw">pub </span>pubkey: blst::PublicKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$pk_length</span>]&gt;,
@@ -760,7 +785,7 @@
 
 <span class="doccomment">/// BLS 12-381 private key.
 </span><span class="attr">#[readonly::make]
-#[derive(SilentDebug, SilentDisplay, Default)]
+#[derive(SilentDebug, SilentDisplay)]
 </span><span class="kw">pub struct </span>BLS12381PrivateKey {
     <span class="kw">pub </span>privkey: blst::SecretKey,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; BLS_PRIVATE_KEY_LENGTH]&gt;,
@@ -861,6 +886,15 @@
     }
 }
 
+<span class="kw">impl </span>InsecureDefault <span class="kw">for </span>BLS12381PublicKey {
+    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
+        BLS12381PublicKey {
+            pubkey: blst::PublicKey::default(),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 <span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
 
 <span class="macro">generate_bytes_representation!</span>(BLS12381PublicKey, {<span class="macro-nonterminal">$pk_length</span>}, BLS12381PublicKeyAsBytes);
@@ -883,7 +917,9 @@
     <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$pk_length</span>;
 
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>BLS12381Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>err = signature
+        <span class="comment">// verify() below validates the signature and the public key, thus should be safe with
+        // default values.
+        </span><span class="kw">let </span>err = signature
             .sig
             .verify(<span class="bool-val">true</span>, msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey, <span class="bool-val">true</span>);
         <span class="kw">if </span>err == BLST_ERROR::BLST_SUCCESS {
@@ -893,7 +929,9 @@
         }
     }
 
-    <span class="kw">fn </span>verify_batch_empty_fail(
+
+    <span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+    </span><span class="kw">fn </span>verify_batch_empty_fail(
         msg: <span class="kw-2">&amp;</span>[u8],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
@@ -917,7 +955,8 @@
             .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Batch verification failed!&quot;</span>))
     }
 
-    <span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(
+    <span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(
         msgs: <span class="kw-2">&amp;</span>[M],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
@@ -965,7 +1004,8 @@
     }
 }
 
-<span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
     <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
     <span class="kw">loop </span>{
         vals[<span class="number">0</span>] = rng.next_u64();
@@ -983,7 +1023,8 @@
     }
 }
 
-<span class="kw">fn </span>get_one() -&gt; blst_scalar {
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">fn </span>get_one() -&gt; blst_scalar {
     <span class="kw">let </span><span class="kw-2">mut </span>one = blst_scalar::default();
     <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u8</span>; <span class="number">32</span>];
     vals[<span class="number">0</span>] = <span class="number">1</span>;
@@ -1199,17 +1240,18 @@
     }
 }
 
-<span class="kw">impl </span>Default <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
-        // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
-        </span><span class="kw">let </span><span class="kw-2">mut </span>infinity: [u8; <span class="macro-nonterminal">$sig_length</span>] = [<span class="number">0</span>; <span class="macro-nonterminal">$sig_length</span>];
-        infinity[<span class="number">0</span>] = <span class="number">0xc0</span>;
-
+<span class="kw">impl </span>From &lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381AggregateSignature {
+    <span class="kw">fn </span>from(sig: BLS12381Signature) -&gt; <span class="self">Self </span>{
         BLS12381AggregateSignature {
-            sig: blst::Signature::from_bytes(<span class="kw-2">&amp;</span>infinity).expect(<span class="string">&quot;Should decode infinity signature&quot;</span>),
+            sig: sig.sig,
             bytes: OnceCell::new(),
         }
+    }
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>BLS12381AggregateSignature {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        BLS12381Signature::default().into()
     }
 }
 
@@ -1222,7 +1264,8 @@
     </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        blst::AggregateSignature::aggregate(
+        <span class="comment">// aggregate() below does not check the signatures at all.
+        </span>blst::AggregateSignature::aggregate(
             <span class="kw-2">&amp;</span>signatures
                 .into_iter()
                 .map(|x| <span class="kw-2">&amp;</span>x.borrow().sig)
@@ -1237,7 +1280,8 @@
     }
 
     <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(<span class="kw-2">&amp;</span><span class="self">self</span>.sig);
+        <span class="comment">// add_signature() only checks the new signature, and only if it&#39;s in the group.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(<span class="kw-2">&amp;</span><span class="self">self</span>.sig);
         aggr_sig.add_signature(<span class="kw-2">&amp;</span>signature.sig, <span class="bool-val">true</span>).map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>;
         <span class="self">self</span>.sig = aggr_sig.to_signature();
         <span class="self">self</span>.bytes.take();
@@ -1245,7 +1289,8 @@
     }
 
     <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>result = blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.sig, <span class="kw-2">&amp;</span>signature.sig], <span class="bool-val">true</span>)
+        <span class="comment">// aggregate() only checks if the signature is in the group.
+        </span><span class="kw">let </span>result = blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.sig, <span class="kw-2">&amp;</span>signature.sig], <span class="bool-val">true</span>)
             .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>.to_signature();
         <span class="self">self</span>.sig = result;
         <span class="self">self</span>.bytes.take();
@@ -1257,7 +1302,9 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>result = <span class="self">self
+        <span class="comment">// fast_aggregate_verify() does not check the public keys, but does check that the signature
+        // is in the group.
+        </span><span class="kw">let </span>result = <span class="self">self
             </span>.sig
             .fast_aggregate_verify(
                 <span class="bool-val">true</span>,
@@ -1276,7 +1323,8 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span>result = <span class="self">self
+        <span class="comment">// aggregate_verify() checks both the signatures and the public keys.
+        </span><span class="kw">let </span>result = <span class="self">self
             </span>.sig
             .aggregate_verify(
                 <span class="bool-val">true</span>,
@@ -1296,7 +1344,9 @@
         pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
+        <span class="comment">// fast_aggregate_verify() does not check the public keys, but does check that the signature
+        // is in the group.
+        </span><span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
         }
         <span class="kw">let </span><span class="kw-2">mut </span>pk_iter = pks.into_iter();

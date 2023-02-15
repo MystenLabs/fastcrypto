@@ -470,6 +470,14 @@
 <a href="#470" id="470">470</a>
 <a href="#471" id="471">471</a>
 <a href="#472" id="472">472</a>
+<a href="#473" id="473">473</a>
+<a href="#474" id="474">474</a>
+<a href="#475" id="475">475</a>
+<a href="#476" id="476">476</a>
+<a href="#477" id="477">477</a>
+<a href="#478" id="478">478</a>
+<a href="#479" id="479">479</a>
+<a href="#480" id="480">480</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -585,7 +593,8 @@
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &amp;public_keys, &amp;signatures).is_ok());
-    /// ``` 
+    /// ```
+    </span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
     </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
@@ -619,7 +628,8 @@
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&amp;messages, &amp;public_keys, &amp;signatures).is_ok());
-    /// ``` 
+    /// ```
+    </span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
     </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
         <span class="kw">if </span>sigs.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
@@ -883,6 +893,12 @@
         rng.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
         <span class="self">Self</span>::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap()
     }
+}
+
+<span class="doccomment">/// Trait for objects that support an insecure default value that should **only** be used as a
+/// placeholder.
+</span><span class="kw">pub trait </span>InsecureDefault {
+    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self</span>;
 }
 
 <span class="comment">// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
