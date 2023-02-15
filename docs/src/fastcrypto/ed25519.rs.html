@@ -580,6 +580,8 @@
 <a href="#580" id="580">580</a>
 <a href="#581" id="581">581</a>
 <a href="#582" id="582">582</a>
+<a href="#583" id="583">583</a>
+<a href="#584" id="584">584</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -678,7 +680,9 @@
 </span><span class="attr">#[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 </span><span class="kw">pub struct </span>Ed25519AggregateSignature {
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;SingleSignature&gt;&quot;</span>)]
+    <span class="comment">// The serialized form of this field includes a length prefix, whereas the as_ref() does not.
+    // (The length prefix is small compared to the vector of signatures.)
+    </span><span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;SingleSignature&gt;&quot;</span>)]
     </span><span class="kw">pub </span>sigs: Vec&lt;ed25519_consensus::Signature&gt;,
     <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
     </span><span class="attr">#[serde(skip)]
@@ -1163,4 +1167,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (065852def 2023-02-13)" data-search-js="search-abe1d547ad11c273.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (0416b1a6f 2023-02-14)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
