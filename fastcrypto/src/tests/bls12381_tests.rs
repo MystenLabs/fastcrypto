@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use super::*;
 use crate::encoding::Encoding;
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
     bls12381::{BLS_G1_LENGTH, BLS_G2_LENGTH, BLS_PRIVATE_KEY_LENGTH},
@@ -292,15 +293,33 @@ fn verify_batch_missing_keys_in_batch() {
 }
 
 #[test]
-fn test_serialize_deserialize_aggregate_signatures() {
-    // Test empty aggregate signature
-    let sig = BLS12381AggregateSignature::default();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
-
+fn test_serialize_deserialize_standard_sig() {
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let default_pk = BLS12381PublicKey::default();
+    let sk = kp.private();
     let message = b"hello, narwhal";
-    // Test populated aggregate signature
+    let sig = keys().pop().unwrap().sign(message);
+    let default_sig = BLS12381Signature::default();
+
+    verify_serialization(&pk, pk.as_bytes());
+    verify_serialization(&default_pk, default_pk.as_bytes());
+    verify_serialization(&sk, sk.as_bytes());
+    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&default_sig, default_sig.as_bytes());
+
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, kp.as_bytes());
+}
+
+#[test]
+fn test_serialize_deserialize_aggregate_signatures() {
+    // Default aggregated sig
+    let default_sig = BLS12381AggregateSignature::default();
+    verify_serialization(&default_sig, default_sig.as_bytes());
+    assert_eq!(default_sig.as_bytes(), BLS12381Signature::default().as_bytes());
+    // Standard aggregated sig
+    let message = b"hello, narwhal";
     let (_, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
         .into_iter()
         .take(3)
@@ -309,18 +328,11 @@ fn test_serialize_deserialize_aggregate_signatures() {
             (kp.public().clone(), sig)
         })
         .unzip();
-
     let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: BLS12381AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
-
+    verify_serialization(&sig, sig.as_bytes());
+    // BLS12381AggregateSignatureAsBytes
     let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
-    let as_bytes_ser = bincode::serialize(&sig_as_bytes).unwrap();
-    assert_eq!(serialized, as_bytes_ser);
-    let as_bytes_des: BLS12381AggregateSignatureAsBytes = bincode::deserialize(&as_bytes_ser).unwrap();
-    let sig2 = BLS12381AggregateSignature::try_from(&as_bytes_des).unwrap();
-    assert_eq!(sig.sig, sig2.sig);
+    verify_serialization(&sig_as_bytes, sig.as_bytes());
 }
 
 #[test]
@@ -736,16 +748,5 @@ pub mod min_pk {
         let key = BLS12381PublicKey::from_bytes(&key).unwrap();
         let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&sig).unwrap();
         assert!(key.verify(&msg, &sig).is_ok());
-    }
-
-    #[test]
-    fn test_keypair_roundtrdip() {
-        let mut rng = StdRng::from_seed([0; 32]);
-        let kp = BLS12381KeyPair::generate(&mut rng);
-
-        let serialized = bincode::serialize(&kp).unwrap();
-        println!("serialized: {:?}", serialized);
-        println!("serialized len: {:?}", serialized.len());
-        println!("serialized: {:?}", kp.private().as_bytes());
     }
 }

@@ -4,6 +4,7 @@
 
 use super::*;
 use crate::encoding::Encoding;
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
     ed25519::{
@@ -28,33 +29,71 @@ pub fn keys() -> Vec<Ed25519KeyPair> {
 
 #[test]
 fn serialize_deserialize() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
+    let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let default_pk = Ed25519PublicKey::default();
+    let sk = kp.private();
+    let message = b"hello, narwhal";
+    let sig = keys().pop().unwrap().sign(message);
+    let default_sig = Ed25519Signature::default();
 
-    let bytes = bincode::serialize(&public_key).unwrap();
-    let pk2 = bincode::deserialize::<Ed25519PublicKey>(&bytes).unwrap();
-    assert_eq!(*public_key, pk2);
+    verify_serialization(&pk, pk.as_bytes());
+    verify_serialization(&default_pk, default_pk.as_bytes());
+    verify_serialization(&sk, sk.as_bytes());
+    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&default_sig, default_sig.as_bytes());
 
-    let private_key = kpref.private();
-    let bytes = bincode::serialize(&private_key).unwrap();
-
-    // serialize with Ed25519PrivateKey successes
-    let privkey = bincode::deserialize::<Ed25519PrivateKey>(&bytes).unwrap();
-    let bytes2 = bincode::serialize(&privkey).unwrap();
-    assert_eq!(bytes, bytes2);
-
-    // serialize with Ed25519PublicKey fails
-    assert!(bincode::deserialize::<Ed25519PublicKey>(&bytes).is_err());
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, kp.as_bytes());
 }
 
 #[test]
-fn test_serde_signatures_non_human_readable() {
+fn test_serialize_deserialize_aggregate_signatures() {
+    // Test empty aggregate signature
+    let sig = Ed25519AggregateSignature::default();
+    let serialized = bincode::serialize(&sig).unwrap();
+    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized.as_ref(), sig.as_ref());
+
     let message = b"hello, narwhal";
     // Test populated aggregate signature
-    let sig = keys().pop().unwrap().sign(message);
+    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519Signature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, sig);
+    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized.sigs, sig.sigs);
+
+    // Note that we do not check if the serialized variant equals as_ref() since the serialized
+    // variant begins with a length prefix (of the vector of signatures).
+}
+
+#[test]
+fn test_serialization_vs_test_vector() {
+    // Test vector from https://www.rfc-editor.org/rfc/rfc8032#page-24.
+    let sk =
+        hex::decode("9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60").unwrap();
+    let pk =
+        hex::decode("d75a980182b10ab7d54bfed3c964073a0ee172f3daa62325af021a68f707511a").unwrap();
+    let m = hex::decode("").unwrap();
+    let sig = hex::decode("e5564300c360ac729086e2cc806e828a84877f1eb8e5d974d873e065224901555fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b").unwrap();
+
+    let recovered_sk: Ed25519PrivateKey = bincode::deserialize(&sk).unwrap();
+    let recovered_pk: Ed25519PublicKey = bincode::deserialize(&pk).unwrap();
+    let recovered_sig: Ed25519Signature = bincode::deserialize(&sig).unwrap();
+
+    let kp: Ed25519KeyPair = recovered_sk.into();
+    let signature = kp.sign(&m);
+    let serialized_signature = bincode::serialize(&signature).unwrap();
+    assert_eq!(serialized_signature, sig);
+    assert!(recovered_pk.verify(&m, &recovered_sig).is_ok());
 }
 
 #[test]
@@ -352,31 +391,6 @@ fn verify_batch_missing_keys_in_batch() {
         &[&digest1[..], &digest2[..]]
     )
     .is_err());
-}
-
-#[test]
-fn test_serialize_deserialize_aggregate_signatures() {
-    // Test empty aggregate signature
-    let sig = Ed25519AggregateSignature::default();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
-
-    let message = b"hello, narwhal";
-    // Test populated aggregate signature
-    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .map(|kp| {
-            let sig = kp.sign(message);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-
-    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
-    let serialized = bincode::serialize(&sig).unwrap();
-    let deserialized: Ed25519AggregateSignature = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized.sigs, sig.sigs);
 }
 
 #[test]

@@ -96,6 +96,8 @@ impl Eq for Ed25519Signature {}
 #[serde_as]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct Ed25519AggregateSignature {
+    // The serialized form of this field includes a length prefix, whereas the as_ref() does not.
+    // (The length prefix is small compared to the vector of signatures.)
     #[serde_as(as = "Vec<SingleSignature>")]
     pub sigs: Vec<ed25519_consensus::Signature>,
     // Helps implementing AsRef<[u8]>.
