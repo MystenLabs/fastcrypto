@@ -55,7 +55,7 @@ fn test_hex_array_serialize_as() {
     let result: TestHex = serde_json::from_str(&hex).unwrap();
     assert_eq!(test.0, result.0);
     // invalid length should error
-    assert!(serde_json::from_str::<TestHex>(&Hex::encode(&[1; 31])).is_err())
+    assert!(serde_json::from_str::<TestHex>(&Hex::encode([1; 31])).is_err())
 }
 
 #[test]
@@ -70,7 +70,7 @@ fn test_base64_array_serialize_as() {
     let result: TestBase64 = serde_json::from_str(&base64).unwrap();
     assert_eq!(test.0, result.0);
     // invalid length should error
-    assert!(serde_json::from_str::<TestBase64>(&Base64::encode(&[1; 31])).is_err())
+    assert!(serde_json::from_str::<TestBase64>(&Base64::encode([1; 31])).is_err())
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn test_base58_array_serialize_as() {
     let result: TestBase58 = serde_json::from_str(&base58).unwrap();
     assert_eq!(test.0, result.0);
     // invalid length should error
-    assert!(serde_json::from_str::<TestBase58>(&Base58::encode(&[1; 31])).is_err())
+    assert!(serde_json::from_str::<TestBase58>(&Base58::encode([1; 31])).is_err())
 }
 
 #[test]
