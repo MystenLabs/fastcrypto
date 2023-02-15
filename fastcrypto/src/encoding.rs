@@ -25,9 +25,9 @@ use std::fmt::Debug;
 
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
-where
-    E: Debug,
-    D: Deserializer<'de>,
+    where
+        E: Debug,
+        D: Deserializer<'de>,
 {
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
@@ -111,8 +111,8 @@ impl Encoding for Base64 {
 
 impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
@@ -120,12 +120,12 @@ impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
 }
 
 impl<T> SerializeAs<T> for Base64
-where
-    T: AsRef<[u8]>,
+    where
+        T: AsRef<[u8]>,
 {
     fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         Self::encode(value).serialize(serializer)
     }
@@ -136,7 +136,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base64 {
         where
             D: Deserializer<'de>,
     {
-        let value:Vec<u8> = Base64::deserialize_as(deserializer)?;
+        let value: Vec<u8> = Base64::deserialize_as(deserializer)?;
         if value.len() != N {
             return Err(Error::custom(eyre!(
                 "invalid array length {}, expecting {}",
@@ -152,8 +152,8 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base64 {
 
 impl<'de> DeserializeAs<'de, Vec<u8>> for Hex {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
@@ -165,7 +165,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Hex {
         where
             D: Deserializer<'de>,
     {
-        let value:Vec<u8> = Hex::deserialize_as(deserializer)?;
+        let value: Vec<u8> = Hex::deserialize_as(deserializer)?;
         if value.len() != N {
             return Err(Error::custom(eyre!(
                 "invalid array length {}, expecting {}",
@@ -180,12 +180,12 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Hex {
 }
 
 impl<T> SerializeAs<T> for Hex
-where
-    T: AsRef<[u8]>,
+    where
+        T: AsRef<[u8]>,
 {
     fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         encode_with_format(value).serialize(serializer)
     }
@@ -228,8 +228,8 @@ impl Encoding for Base58 {
 
 impl<'de> DeserializeAs<'de, Vec<u8>> for Base58 {
     fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
+        where
+            D: Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
@@ -237,12 +237,12 @@ impl<'de> DeserializeAs<'de, Vec<u8>> for Base58 {
 }
 
 impl<T> SerializeAs<T> for Base58
-where
-    T: AsRef<[u8]>,
+    where
+        T: AsRef<[u8]>,
 {
     fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
+        where
+            S: Serializer,
     {
         Self::encode(value).serialize(serializer)
     }
@@ -253,7 +253,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base58 {
         where
             D: Deserializer<'de>,
     {
-        let value:Vec<u8> = Base58::deserialize_as(deserializer)?;
+        let value: Vec<u8> = Base58::deserialize_as(deserializer)?;
         if value.len() != N {
             return Err(Error::custom(eyre!(
                 "invalid array length {}, expecting {}",
