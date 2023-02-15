@@ -111,14 +111,17 @@ impl Display for Secp256r1RecoverableSignature {
 }
 
 impl Secp256r1RecoverableSignature {
-    /// Recover the public key used to create this signature. This assumes the recovery id byte has been set
-    /// and that the message have been hashed using a cryptographic hash function.
+    /// Recover the public key used to create this signature. This assumes the recovery id byte has been set. The hash function `H` is used to hash the message.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    pub fn recover_hashed(&self, hashed_msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
+    pub fn recover_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
         let (r, s) = self.sig.split_scalars();
-        let z = Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(hashed_msg));
+        let z =
+            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
         // Note: This has been added because it does not seem to be done in k256
@@ -263,7 +266,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
     fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        self.recover_hashed(&Sha256::digest(msg).digest)
+        self.recover_with_hash::<Sha256>(msg)
     }
 }
 

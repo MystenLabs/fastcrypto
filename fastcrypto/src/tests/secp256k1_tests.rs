@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
@@ -119,18 +120,15 @@ fn verify_valid_signature() {
 }
 
 #[test]
-fn verify_valid_signature_against_hashed_msg() {
+fn verify_valid_signature_default_hash() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message. Hashed with sha256 internally.
+    // Sign over raw message.
     let signature = kp.sign(MSG);
 
     // Verify the signature against hashed message.
-    assert!(kp
-        .public()
-        .verify_hashed(Sha256::digest(MSG).as_ref(), &signature)
-        .is_ok());
+    assert!(kp.public().verify(MSG, &signature).is_ok());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
@@ -191,7 +189,7 @@ fn verify_batch_missing_public_keys() {
 }
 
 #[test]
-fn verify_hashed_failed_if_message_unhashed() {
+fn verify_hashed_failed_if_different_hash() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
@@ -199,8 +197,11 @@ fn verify_hashed_failed_if_message_unhashed() {
     let message: &[u8] = &[0u8; 1];
     let signature = kp.sign(message);
 
-    // Verify the signature against unhashed msg fails.
-    assert!(kp.public().verify_hashed(message, &signature).is_err());
+    // Verify the signature using other hash function.
+    assert!(kp
+        .public()
+        .verify_with_hash::<Blake2b256>(message, &signature)
+        .is_err());
 }
 
 #[test]
@@ -249,8 +250,9 @@ fn verify_invalid_batch_different_msg() {
 #[test]
 fn fail_to_verify_if_upper_s() {
     // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
+    // Note that keccak256(msg) = d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6.
     let msg =
-        hex::decode("d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6").unwrap();
+        hex::decode("f854018664697363763582765f82696490736563703235366b312d6b656363616b83697034847f00000189736563703235366b31a103ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap();
     let pk = Secp256k1PublicKey::from_bytes(
         &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
     )
@@ -262,13 +264,15 @@ fn fail_to_verify_if_upper_s() {
         <Secp256k1Signature as ToFromBytes>::from_bytes(&internal_sig.serialize_compact()).unwrap();
 
     // Failed to verify with upper S.
-    assert!(pk.verify_hashed(&msg, &sig).is_err());
+    assert!(pk.verify_with_hash::<Keccak256>(&msg, &sig).is_err());
 
     // Normalize S to be less than N/2.
     internal_sig.normalize_s();
     let normalized_sig =
         <Secp256k1Signature as ToFromBytes>::from_bytes(&internal_sig.serialize_compact()).unwrap();
-    assert!(pk.verify_hashed(&msg, &normalized_sig).is_ok());
+    assert!(pk
+        .verify_with_hash::<Keccak256>(&msg, &normalized_sig)
+        .is_ok());
 }
 
 #[tokio::test]
@@ -392,7 +396,7 @@ fn wycheproof_test() {
             let mut res = TestResult::Invalid;
             let sig = <Secp256k1Signature as ToFromBytes>::from_bytes(&bytes).unwrap();
             if pk
-                .verify_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
+                .verify_with_hash::<Sha256>(test.msg.as_slice(), &sig)
                 .is_ok()
             {
                 res = TestResult::Valid;

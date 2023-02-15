@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use super::*;
+use crate::hash::Blake2b256;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
@@ -71,11 +72,17 @@ fn test_public_key_recovery_error() {
     let message: &[u8] = b"Hello, world!";
     assert!(signature.recover(message).is_err());
 
-    // Verify signature over non-hashed message
+    // Verify signature using different hash function
     let kp = keys().pop().unwrap();
     let signature_2: Secp256k1RecoverableSignature = kp.sign_recoverable(message);
-    assert!(signature_2.recover_hashed(message).is_err());
+    assert_ne!(
+        signature_2
+            .recover_with_hash::<Blake2b256>(message)
+            .unwrap(),
+        kp.name
+    );
 }
+
 #[test]
 fn import_export_secret_key() {
     let kpref = keys().pop().unwrap();
@@ -119,49 +126,31 @@ fn to_from_bytes_signature() {
 }
 
 #[test]
-fn verify_valid_signature() {
+fn verify_valid_signature_with_default_hash() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message, hashed to keccak256.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    let signature = kp.sign(digest.as_ref());
-
-    // Verify the signature.
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
-}
-
-#[test]
-fn verify_valid_signature_against_hashed_msg() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Sign over raw message (hashed to keccak256 internally).
+    // Sign over raw message.
     let message: &[u8] = b"Hello, world!";
     let signature = kp.sign_recoverable(message);
 
     // Verify the signature against hashed message.
-    assert!(kp
-        .public()
-        .verify_recoverable_hashed(Keccak256::digest(message).as_ref(), &signature)
-        .is_ok());
+    assert!(kp.public().verify_recoverable(message, &signature).is_ok());
 }
 
 #[test]
-fn verify_hashed_failed_if_message_unhashed() {
+fn verify_hashed_failed_if_different_hash_function() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message (hashed to keccak256 internally).
+    // Sign over raw message.
     let message: &[u8] = &[0u8; 1];
     let signature = kp.sign_recoverable(message);
 
-    // Verify the signature against unhashed msg fails.
+    // Verify the signature using other hash function fails.
     assert!(kp
         .public()
-        .verify_recoverable_hashed(message, &signature)
+        .verify_recoverable_with_hash::<Blake2b256>(message, &signature)
         .is_err());
 }
 
@@ -211,8 +200,9 @@ fn verify_invalid_batch_different_msg() {
 #[test]
 fn fail_to_verify_if_upper_s() {
     // Test case from https://github.com/fjl/go-ethereum/blob/41c854a60fad2ad9bb732857445624c7214541db/crypto/signature_test.go#L79
+    // Note that keccak256(msg) = d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6.
     let msg =
-        hex::decode("d301ce462d3e639518f482c7f03821fec1e602018630ce621e1e7851c12343a6").unwrap();
+        hex::decode("f854018664697363763582765f82696490736563703235366b312d6b656363616b83697034847f00000189736563703235366b31a103ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap();
     let pk = Secp256k1PublicKey::from_bytes(
         &hex::decode("03ca634cae0d49acb401d8a4c6b6fe8c55b70d115bf400769cc1400f3258cd3138").unwrap(),
     )
@@ -226,7 +216,9 @@ fn fail_to_verify_if_upper_s() {
     let rec_sig = <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).unwrap();
 
     // Failed to verify with upper S.
-    assert!(pk.verify_recoverable_hashed(&msg, &rec_sig).is_err());
+    assert!(pk
+        .verify_recoverable_with_hash::<Keccak256>(&msg, &rec_sig)
+        .is_err());
 
     // Nomralize S to be less than N/2.
     sig.normalize_s();
@@ -238,7 +230,7 @@ fn fail_to_verify_if_upper_s() {
 
     // Verify with normalized lower S.
     assert!(pk
-        .verify_recoverable_hashed(&msg, &normalized_rec_sig)
+        .verify_recoverable_with_hash::<Keccak256>(&msg, &normalized_rec_sig)
         .is_ok());
 }
 
@@ -314,8 +306,8 @@ proptest::proptest! {
         let key_pair_copied_2 = key_pair.copy();
         let key_pair_copied_3 = key_pair.copy();
 
-        let signature: Secp256k1RecoverableSignature = key_pair.sign_recoverable(message);
-        assert!(key_pair.public().verify_recoverable(message, &signature).is_ok());
+        let signature: Secp256k1RecoverableSignature = key_pair.sign_recoverable_with_hash::<Keccak256>(message);
+        assert!(key_pair.public().verify_recoverable_with_hash::<Keccak256>(message, &signature).is_ok());
 
         // construct a signature with r, s, v where v is flipped from the original signature.
         let bytes = ToFromBytes::as_bytes(&signature);
@@ -329,7 +321,7 @@ proptest::proptest! {
         let malleated_signature: Secp256k1RecoverableSignature = Secp256k1RecoverableSignature::from_bytes(&flipped_bytes).unwrap();
 
         // malleable(altered) signature with opposite sign fails to verify
-        assert!(key_pair.public().verify_recoverable(message, &malleated_signature).is_err());
+        assert!(key_pair.public().verify_recoverable_with_hash::<Keccak256>(message, &malleated_signature).is_err());
 
         // use k256 to construct private key with the same bytes and signs the same message
         let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes()).unwrap();
@@ -356,7 +348,7 @@ proptest::proptest! {
 
         // use ffi-implemented keypair to verify sig constructed by k256
         let secp_sig1 = bincode::deserialize::<Secp256k1RecoverableSignature>(signature_1.as_ref()).unwrap();
-        assert!(key_pair_copied_2.public().verify_recoverable(message, &secp_sig1).is_ok());
+        assert!(key_pair_copied_2.public().verify_recoverable_with_hash::<Keccak256>(message, &secp_sig1).is_ok());
 
         // use k256 keypair to verify sig constructed by ffi-implementation
         let typed_sig = k256::ecdsa::recoverable::Signature::try_from(signature.as_ref()).unwrap();
@@ -388,7 +380,7 @@ fn wycheproof_test() {
                 let sig =
                     <Secp256k1RecoverableSignature as ToFromBytes>::from_bytes(&n_bytes).unwrap();
                 if pk
-                    .verify_recoverable_hashed(Sha256::digest(test.msg.as_slice()).as_ref(), &sig)
+                    .verify_recoverable_with_hash::<Sha256>(test.msg.as_slice(), &sig)
                     .is_ok()
                 {
                     res = TestResult::Valid;
@@ -435,17 +427,15 @@ fn test_recoverable_nonrecoverable_conversion() {
     // Get a keypair.
     let kp = keys().pop().unwrap();
 
-    // Sign over raw message, hashed to keccak256.
+    // Sign over raw message.
     let message: &[u8] = b"Hello, world!";
     let signature = kp.sign_recoverable(message);
     assert!(kp.public().verify_recoverable(message, &signature).is_ok());
 
-    // The recoverable tests uses keccak256 to align with the proptest
-    let hashed_message = hash::Keccak256::digest(message).digest;
     let nonrecoverable_signature = Secp256k1Signature::try_from(&signature).unwrap();
     assert!(kp
         .public()
-        .verify_hashed(&hashed_message, &nonrecoverable_signature)
+        .verify(message, &nonrecoverable_signature)
         .is_ok());
 
     let recovered_signature = Secp256k1RecoverableSignature::try_from_nonrecoverable(
