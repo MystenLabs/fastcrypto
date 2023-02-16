@@ -365,7 +365,7 @@ impl FromStr for Secp256k1KeyPair {
 
 impl Secp256k1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
-    pub(crate) fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
         let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         // Creates a 64-bytes signature of shape [r, s].

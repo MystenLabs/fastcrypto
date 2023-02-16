@@ -323,7 +323,7 @@ pub struct Secp256r1KeyPair {
 
 impl Secp256r1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
-    pub(crate) fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         // Hash as FieldBytes
         let z = FieldBytes::<NistP256>::clone_from_slice(H::digest(msg).as_ref());
 
