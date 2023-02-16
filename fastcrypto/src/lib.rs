@@ -8,11 +8,6 @@
     rust_2021_compatibility
 )]
 
-use hash::Digest;
-use rand::thread_rng;
-
-pub use signature::Signature as _;
-
 #[cfg(test)]
 #[path = "tests/signature_tests.rs"]
 pub mod signature_tests;
@@ -82,23 +77,20 @@ pub mod vrf_tests;
 #[path = "tests/test_helpers.rs"]
 pub mod test_helpers;
 
-// Signing traits
 pub mod traits;
-// Key scheme implementations
+
 pub mod aes;
 pub mod bls12381;
 pub mod bulletproofs;
 pub mod ed25519;
+pub mod encoding;
+pub mod error;
 pub mod groups;
 pub mod hash;
 pub mod hmac;
+pub mod private_seed;
 pub mod secp256k1;
 pub mod secp256r1;
-
-// Other tooling
-pub mod encoding;
-pub mod error;
-pub mod private_seed;
 pub mod serde_helpers;
 pub mod signature_service;
 pub mod vrf;
@@ -115,18 +107,3 @@ pub mod vrf;
     debug_assertions
 ))]
 pub mod unsecure;
-
-////////////////////////////////////////////////////////////////
-// Generic Keypair
-////////////////////////////////////////////////////////////////
-
-pub fn generate_production_keypair<K: traits::KeyPair>() -> K {
-    generate_keypair::<K, _>(&mut thread_rng())
-}
-
-pub fn generate_keypair<K: traits::KeyPair, R>(csprng: &mut R) -> K
-where
-    R: traits::AllowedRng,
-{
-    K::generate(csprng)
-}

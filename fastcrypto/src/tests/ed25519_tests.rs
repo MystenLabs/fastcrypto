@@ -37,14 +37,14 @@ fn serialize_deserialize() {
     let sig = keys().pop().unwrap().sign(message);
     let default_sig = Ed25519Signature::default();
 
-    verify_serialization(&pk, pk.as_bytes());
-    verify_serialization(&default_pk, default_pk.as_bytes());
-    verify_serialization(&sk, sk.as_bytes());
-    verify_serialization(&sig, sig.as_bytes());
-    verify_serialization(&default_sig, default_sig.as_bytes());
+    verify_serialization(&pk, Some(pk.as_bytes()));
+    verify_serialization(&default_pk, Some(default_pk.as_bytes()));
+    verify_serialization(&sk, Some(sk.as_bytes()));
+    verify_serialization(&sig, Some(sig.as_bytes()));
+    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
 
     let kp = keys().pop().unwrap();
-    verify_serialization(&kp, kp.as_bytes());
+    verify_serialization(&kp, Some(kp.as_bytes()));
 }
 
 #[test]

@@ -10,14 +10,16 @@ use std::fmt::Debug;
 /// 2. Serialization is deterministic
 /// 3. The serialized object is the same as the expected bytes
 /// 4. Deserialization results in a different object if we change 1 byte in the serialized object
-pub fn verify_serialization<T>(obj: &T, expected: &[u8])
+pub fn verify_serialization<T>(obj: &T, expected: Option<&[u8]>)
 where
     T: Serialize + DeserializeOwned + PartialEq + Debug,
 {
     let bytes1 = bincode::serialize(obj).unwrap();
     let obj2: T = bincode::deserialize(&bytes1).unwrap();
     let bytes2 = bincode::serialize(&obj2).unwrap();
-    assert_eq!(bytes1, *expected);
+    if expected.is_some() {
+        assert_eq!(bytes1, expected.unwrap());
+    }
     assert_eq!(*obj, obj2);
     assert_eq!(bytes1, bytes2);
     // Test a failed deserialization

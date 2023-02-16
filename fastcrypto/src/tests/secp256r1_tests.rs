@@ -34,12 +34,12 @@ fn serialize_deserialize() {
     let sk = kp.private();
     let sig = keys().pop().unwrap().sign(MSG);
 
-    verify_serialization(&pk, pk.as_bytes());
-    verify_serialization(&sk, sk.as_bytes());
-    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&pk, Some(pk.as_bytes()));
+    verify_serialization(&sk, Some(sk.as_bytes()));
+    verify_serialization(&sig, Some(sig.as_bytes()));
 
     let kp = keys().pop().unwrap();
-    verify_serialization(&kp, kp.as_bytes());
+    verify_serialization(&kp, Some(kp.as_bytes()));
 }
 
 #[test]
