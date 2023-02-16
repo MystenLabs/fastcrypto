@@ -269,10 +269,6 @@
 <a href="#269" id="269">269</a>
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -294,9 +290,9 @@
 //! ```
 
 </span><span class="kw">use </span><span class="kw">crate</span>::hash::HashFunction;
-<span class="kw">use </span><span class="kw">crate</span>::hash::Sha256;
 <span class="kw">use </span><span class="kw">crate</span>::secp256r1::{
-    Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, SECP256R1_SIGNATURE_LENTH,
+    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
+    SECP256R1_SIGNATURE_LENTH,
 };
 <span class="kw">use </span><span class="kw">crate</span>::serialize_deserialize_with_to_from_bytes;
 <span class="kw">use </span><span class="kw">crate</span>::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
@@ -389,44 +385,7 @@
     <span class="doccomment">/// Recover the public key used to create this signature. This assumes the recovery id byte has been set. The hash function `H` is used to hash the message.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    </span><span class="kw">pub fn </span>recover_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        msg: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
-        <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-        </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
-        <span class="kw">let </span>z =
-            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
-        <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-
-        <span class="comment">// Note: This has been added because it does not seem to be done in k256
-        </span><span class="kw">let </span>r_bytes = <span class="kw">match </span>v.is_x_reduced() {
-            <span class="bool-val">true </span>=&gt; U256::from(r.as_ref())
-                .wrapping_add(<span class="kw-2">&amp;</span>NistP256::ORDER)
-                .to_be_byte_array(),
-            <span class="bool-val">false </span>=&gt; r.to_bytes(),
-        };
-
-        <span class="kw">let </span>big_r = AffinePoint::decompress(<span class="kw-2">&amp;</span>r_bytes, Choice::from(v.is_y_odd() <span class="kw">as </span>u8));
-
-        <span class="kw">if </span>big_r.is_some().into() {
-            <span class="kw">let </span>big_r = ProjectivePoint::from(big_r.unwrap());
-            <span class="kw">let </span>r_inv = r.invert().unwrap();
-            <span class="kw">let </span>u1 = -(r_inv * z);
-            <span class="kw">let </span>u2 = r_inv * <span class="kw-2">*</span>s;
-            <span class="kw">let </span>pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>,
-                bytes: OnceCell::new(),
-            })
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
-        }
-    }
-
-    <span class="kw">pub fn </span>try_from_nonrecoverable(
+    </span><span class="kw">pub fn </span>try_from_nonrecoverable(
         signature: <span class="kw-2">&amp;</span>Secp256r1Signature,
         pk: <span class="kw-2">&amp;</span>Secp256r1PublicKey,
         message: <span class="kw-2">&amp;</span>[u8],
@@ -468,11 +427,14 @@
     <span class="kw">type </span>PubKey = Secp256r1PublicKey;
     <span class="kw">type </span>Sig = Secp256r1RecoverableSignature;
 
-    <span class="kw">fn </span>sign_recoverable(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256r1RecoverableSignature {
+    <span class="kw">fn </span>sign_recoverable_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        msg: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; Secp256r1RecoverableSignature {
         <span class="comment">// Inspired by Sign.rs in k256@0.11.6
 
         // Hash message
-        </span><span class="kw">let </span>z = FieldBytes::from(Sha256::digest(msg).digest);
+        </span><span class="kw">let </span>z = FieldBytes::from(H::digest(msg).digest);
 
         <span class="comment">// Private key as scalar
         </span><span class="kw">let </span>x = U256::from_be_bytes(<span class="self">self</span>.secret.privkey.as_nonzero_scalar().to_bytes().into());
@@ -535,13 +497,43 @@
 <span class="kw">impl </span>RecoverableSignature <span class="kw">for </span>Secp256r1RecoverableSignature {
     <span class="kw">type </span>PubKey = Secp256r1PublicKey;
     <span class="kw">type </span>Signer = Secp256r1KeyPair;
+    <span class="kw">type </span>DefaultHash = DefaultHash;
 
-    <span class="doccomment">/// Recover the public key used to create this signature. This assumes the recovery id byte has been set.
-    /// Internally, the message is hashed using SHA256 before it is signed.
-    ///
-    /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    </span><span class="kw">fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
-        <span class="self">self</span>.recover_with_hash::&lt;Sha256&gt;(msg)
+    <span class="kw">fn </span>recover_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        msg: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
+        <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+        </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
+        <span class="kw">let </span>z =
+            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
+        <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+
+        <span class="comment">// Note: This has been added because it does not seem to be done in k256
+        </span><span class="kw">let </span>r_bytes = <span class="kw">match </span>v.is_x_reduced() {
+            <span class="bool-val">true </span>=&gt; U256::from(r.as_ref())
+                .wrapping_add(<span class="kw-2">&amp;</span>NistP256::ORDER)
+                .to_be_byte_array(),
+            <span class="bool-val">false </span>=&gt; r.to_bytes(),
+        };
+
+        <span class="kw">let </span>big_r = AffinePoint::decompress(<span class="kw-2">&amp;</span>r_bytes, Choice::from(v.is_y_odd() <span class="kw">as </span>u8));
+
+        <span class="kw">if </span>big_r.is_some().into() {
+            <span class="kw">let </span>big_r = ProjectivePoint::from(big_r.unwrap());
+            <span class="kw">let </span>r_inv = r.invert().unwrap();
+            <span class="kw">let </span>u1 = -(r_inv * z);
+            <span class="kw">let </span>u2 = r_inv * <span class="kw-2">*</span>s;
+            <span class="kw">let </span>pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
+
+            <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
+                pubkey: ExternalPublicKey::from_affine(pk)
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>,
+                bytes: OnceCell::new(),
+            })
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 

@@ -177,42 +177,6 @@
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -232,19 +196,19 @@
 //! assert_eq!(&amp;signature.recover(message).unwrap(), kp.public());
 //! ```
 
-</span><span class="kw">use </span><span class="kw">crate</span>::hash::{HashFunction, Sha256};
-<span class="kw">use </span><span class="kw">crate</span>::secp256k1::{Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
-<span class="kw">use </span><span class="kw">crate</span>::traits::{RecoverableSigner, VerifyRecoverable};
+</span><span class="kw">use </span><span class="kw">crate</span>::hash::HashFunction;
+<span class="kw">use </span><span class="kw">crate</span>::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+<span class="kw">use </span><span class="kw">crate</span>::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 <span class="kw">use crate</span>::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
-    serialize_deserialize_with_to_from_bytes, traits,
+    serialize_deserialize_with_to_from_bytes,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 <span class="kw">use </span>once_cell::sync::{Lazy, OnceCell};
 <span class="kw">use </span>rust_secp256k1::{
     constants,
-    ecdsa::{RecoverableSignature, RecoveryId},
+    ecdsa::{RecoverableSignature <span class="kw">as </span>ExternalRecoverableSignature, RecoveryId},
     All, Message, Secp256k1,
 };
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug, Display};
@@ -258,7 +222,7 @@
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>Secp256k1RecoverableSignature {
-    <span class="kw">pub </span>sig: RecoverableSignature,
+    <span class="kw">pub </span>sig: ExternalRecoverableSignature,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE]&gt;,
 }
 
@@ -276,7 +240,7 @@
         }
         RecoveryId::from_i32(bytes[<span class="number">64</span>] <span class="kw">as </span>i32)
             .and_then(|rec_id| {
-                RecoverableSignature::from_compact(<span class="kw-2">&amp;</span>bytes[..<span class="number">64</span>], rec_id).map(|sig| {
+                ExternalRecoverableSignature::from_compact(<span class="kw-2">&amp;</span>bytes[..<span class="number">64</span>], rec_id).map(|sig| {
                     Secp256k1RecoverableSignature {
                         sig,
                         bytes: OnceCell::new(),
@@ -345,9 +309,15 @@
         }
         <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
     }
+}
+
+<span class="kw">impl </span>RecoverableSignature <span class="kw">for </span>Secp256k1RecoverableSignature {
+    <span class="kw">type </span>PubKey = Secp256k1PublicKey;
+    <span class="kw">type </span>Signer = Secp256k1KeyPair;
+    <span class="kw">type </span>DefaultHash = DefaultHash;
 
     <span class="doccomment">/// Recover public key from signature using the given hash function to hash the message.
-    </span><span class="kw">pub fn </span>recover_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
+    </span><span class="kw">fn </span>recover_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, FastCryptoError&gt; {
@@ -361,32 +331,12 @@
     }
 }
 
-<span class="kw">impl </span>traits::RecoverableSignature <span class="kw">for </span>Secp256k1RecoverableSignature {
+<span class="kw">impl </span>RecoverableSigner <span class="kw">for </span>Secp256k1KeyPair {
     <span class="kw">type </span>PubKey = Secp256k1PublicKey;
-    <span class="kw">type </span>Signer = Secp256k1KeyPair;
-
-    <span class="doccomment">/// Recover public key from signature.
-    </span><span class="kw">fn </span>recover(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256k1PublicKey, FastCryptoError&gt; {
-        <span class="self">self</span>.recover_with_hash::&lt;Sha256&gt;(msg)
-    }
-}
-
-<span class="kw">impl </span>VerifyRecoverable <span class="kw">for </span>Secp256k1PublicKey {
     <span class="kw">type </span>Sig = Secp256k1RecoverableSignature;
 
-    <span class="doccomment">/// Verify a recoverable signature.
-    </span><span class="kw">fn </span>verify_recoverable(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        msg: <span class="kw-2">&amp;</span>[u8],
-        signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="self">self</span>.verify_recoverable_with_hash::&lt;Sha256&gt;(msg, signature)
-    }
-}
-
-<span class="kw">impl </span>Secp256k1KeyPair {
     <span class="doccomment">/// Create a new recoverable signature over the given message. The hash function `H` is used to hash the message.
-    </span><span class="kw">pub fn </span>sign_recoverable_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
+    </span><span class="kw">fn </span>sign_recoverable_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; Secp256k1RecoverableSignature {
@@ -403,30 +353,8 @@
     }
 }
 
-<span class="kw">impl </span>Secp256k1PublicKey {
-    <span class="doccomment">/// Verify a recoverable signature over an already hashed message.
-    </span><span class="kw">pub fn </span>verify_recoverable_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        msg: <span class="kw-2">&amp;</span>[u8],
-        signature: <span class="kw-2">&amp;</span>Secp256k1RecoverableSignature,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
-        </span><span class="kw">let </span>recovered_key = signature.recover_with_hash::&lt;H&gt;(msg)<span class="question-mark">?</span>;
-        <span class="kw">if </span><span class="self">self</span>.as_bytes() != recovered_key.as_bytes() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature);
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="kw">impl </span>RecoverableSigner <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">type </span>PubKey = Secp256k1PublicKey;
+<span class="kw">impl </span>VerifyRecoverable <span class="kw">for </span>Secp256k1PublicKey {
     <span class="kw">type </span>Sig = Secp256k1RecoverableSignature;
-
-    <span class="kw">fn </span>sign_recoverable(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1RecoverableSignature {
-        <span class="self">self</span>.sign_recoverable_with_hash::&lt;Sha256&gt;(msg)
-    }
 }
 </code></pre></div>
 </section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (2d14db321 2023-02-15)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

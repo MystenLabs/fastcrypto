@@ -401,6 +401,11 @@
 <a href="#401" id="401">401</a>
 <a href="#402" id="402">402</a>
 <a href="#403" id="403">403</a>
+<a href="#404" id="404">404</a>
+<a href="#405" id="405">405</a>
+<a href="#406" id="406">406</a>
+<a href="#407" id="407">407</a>
+<a href="#408" id="408">408</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -459,6 +464,11 @@
 
 <span class="doccomment">/// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 </span><span class="kw">pub const </span>SECP256K1_KEYPAIR_LENGTH: usize = constants::SECRET_KEY_SIZE;
+
+<span class="doccomment">/// Default hash function used for signing and verifying messages unless another hash function is
+/// specified using the `with_hash` functions.
+</span><span class="kw">pub type </span>DefaultHash = Sha256;
+
 <span class="doccomment">/// Secp256k1 public key.
 </span><span class="attr">#[readonly::make]
 #[derive(Debug, Clone)]
@@ -516,7 +526,7 @@
 
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Secp256k1Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="comment">// Sha256 is used by default as digest
-        </span><span class="self">self</span>.verify_with_hash::&lt;Sha256&gt;(msg, signature)
+        </span><span class="self">self</span>.verify_with_hash::&lt;DefaultHash&gt;(msg, signature)
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
     }
 }
@@ -765,7 +775,7 @@
 
 <span class="kw">impl </span>Secp256k1KeyPair {
     <span class="doccomment">/// Create a new signature using the given hash function to hash the message.
-    </span><span class="kw">fn </span>sign_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
+    </span><span class="kw">pub fn </span>sign_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
         <span class="kw">let </span>message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         <span class="comment">// Creates a 64-bytes signature of shape [r, s].
@@ -780,7 +790,7 @@
 <span class="kw">impl </span>Signer&lt;Secp256k1Signature&gt; <span class="kw">for </span>Secp256k1KeyPair {
     <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256k1Signature {
         <span class="comment">// Sha256 is used by default
-        </span><span class="self">self</span>.sign_with_hash::&lt;Sha256&gt;(msg)
+        </span><span class="self">self</span>.sign_with_hash::&lt;DefaultHash&gt;(msg)
     }
 }
 
