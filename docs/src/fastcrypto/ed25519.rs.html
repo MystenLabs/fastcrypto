@@ -592,6 +592,15 @@
 <a href="#592" id="592">592</a>
 <a href="#593" id="593">593</a>
 <a href="#594" id="594">594</a>
+<a href="#595" id="595">595</a>
+<a href="#596" id="596">596</a>
+<a href="#597" id="597">597</a>
+<a href="#598" id="598">598</a>
+<a href="#599" id="599">599</a>
+<a href="#600" id="600">600</a>
+<a href="#601" id="601">601</a>
+<a href="#602" id="602">602</a>
+<a href="#603" id="603">603</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -607,8 +616,12 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
+</span><span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
 
-</span><span class="kw">use crate</span>::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
+<span class="kw">use crate</span>::{
+    encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
+    traits,
+};
 <span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
 <span class="kw">use </span>eyre::eyre;
@@ -678,6 +691,11 @@
 }
 
 <span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
+<span class="macro">generate_bytes_representation!</span>(
+    Ed25519Signature,
+    ED25519_SIGNATURE_LENGTH,
+    Ed25519SignatureAsBytes
+);
 
 <span class="kw">impl </span>PartialEq <span class="kw">for </span>Ed25519Signature {
     <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {

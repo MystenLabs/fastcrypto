@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["SECP256R1_KEYPAIR_LENGTH","SECP256R1_PRIVATE_KEY_LENGTH","SECP256R1_PUBLIC_KEY_LENGTH","SECP256R1_SIGNATURE_LENTH"],"mod":["recoverable"],"struct":["Secp256r1KeyPair","Secp256r1PrivateKey","Secp256r1PublicKey","Secp256r1Signature"]};
+window.SIDEBAR_ITEMS = {"constant":["SECP256R1_KEYPAIR_LENGTH","SECP256R1_PRIVATE_KEY_LENGTH","SECP256R1_PUBLIC_KEY_LENGTH","SECP256R1_SIGNATURE_LENTH"],"mod":["recoverable"],"struct":["Secp256r1KeyPair","Secp256r1PrivateKey","Secp256r1PublicKey","Secp256r1Signature"],"type":["Secp256r1SignatureAsBytes"]};
