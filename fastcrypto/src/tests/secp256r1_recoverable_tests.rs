@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::IsHigh;
 use proptest::{prelude::*, strategy::Strategy};
@@ -16,8 +19,7 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes},
 };
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
+
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::test_helpers::verify_serialization;
 use crate::traits::VerifyingKey;

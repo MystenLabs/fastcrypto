@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use elliptic_curve::IsHigh;
 use p256::ecdsa::Signature;
 use proptest::{prelude::*, strategy::Strategy};
@@ -17,8 +20,6 @@ use crate::{
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
 
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
 use super::*;
 
 const MSG: &[u8] = b"Hello, world!";
