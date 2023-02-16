@@ -303,21 +303,21 @@ fn test_serialize_deserialize_standard_sig() {
     let sig = keys().pop().unwrap().sign(message);
     let default_sig = BLS12381Signature::default();
 
-    verify_serialization(&pk, pk.as_bytes());
-    verify_serialization(&default_pk, default_pk.as_bytes());
-    verify_serialization(&sk, sk.as_bytes());
-    verify_serialization(&sig, sig.as_bytes());
-    verify_serialization(&default_sig, default_sig.as_bytes());
+    verify_serialization(&pk, Some(pk.as_bytes()));
+    verify_serialization(&default_pk, Some(default_pk.as_bytes()));
+    verify_serialization(&sk, Some(sk.as_bytes()));
+    verify_serialization(&sig, Some(sig.as_bytes()));
+    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
 
     let kp = keys().pop().unwrap();
-    verify_serialization(&kp, kp.as_bytes());
+    verify_serialization(&kp, Some(kp.as_bytes()));
 }
 
 #[test]
 fn test_serialize_deserialize_aggregate_signatures() {
     // Default aggregated sig
     let default_sig = BLS12381AggregateSignature::default();
-    verify_serialization(&default_sig, default_sig.as_bytes());
+    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
     assert_eq!(default_sig.as_bytes(), BLS12381Signature::default().as_bytes());
     // Standard aggregated sig
     let message = b"hello, narwhal";
@@ -330,10 +330,10 @@ fn test_serialize_deserialize_aggregate_signatures() {
         })
         .unzip();
     let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
-    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&sig, Some(sig.as_bytes()));
     // BLS12381AggregateSignatureAsBytes
     let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
-    verify_serialization(&sig_as_bytes, sig.as_bytes());
+    verify_serialization(&sig_as_bytes, Some(sig.as_bytes()));
 }
 
 #[test]

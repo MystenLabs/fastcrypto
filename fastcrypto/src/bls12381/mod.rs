@@ -99,7 +99,7 @@ serialize_deserialize_with_to_from_bytes!(BLS12381Signature, $sig_length);
 
 /// Aggregation of multiple BLS 12-381 signatures.
 #[readonly::make]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct BLS12381AggregateSignature {
     pub sig: blst::Signature,
     pub bytes: OnceCell<[u8; $sig_length]>,
@@ -652,6 +652,14 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 }
+
+impl PartialEq for BLS12381AggregateSignature {
+    fn eq(&self, other: &Self) -> bool {
+        self.sig == other.sig
+    }
+}
+
+impl Eq for BLS12381AggregateSignature {}
 
 ///
 /// Implement VerifyingKeyBytes.

@@ -3,9 +3,12 @@
 
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::serde_helpers::ToFromByteArray;
+use crate::test_helpers::verify_serialization;
 use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
+
+// TODO: Add regressions tests.
 
 #[test]
 fn test_proof() {
@@ -28,31 +31,24 @@ fn test_proof() {
 #[test]
 fn test_serialize_deserialize() {
     let kp = ECVRFKeyPair::generate(&mut thread_rng());
-
-    let kp_serialized = bincode::serialize(&kp).unwrap();
-    let kp_reconstructed = bincode::deserialize(&kp_serialized).unwrap();
-    assert_eq!(&kp, &kp_reconstructed);
-
-    let pk_serialized = bincode::serialize(&kp.pk).unwrap();
-    let pk_reconstructed = bincode::deserialize(&pk_serialized).unwrap();
-    assert_eq!(&kp.pk, &pk_reconstructed);
-
-    let sk_serialized = bincode::serialize(&kp.sk).unwrap();
-    let sk_reconstructed = bincode::deserialize(&sk_serialized).unwrap();
-    assert_eq!(&kp.sk, &sk_reconstructed);
-
+    let pk = &kp.pk;
+    let sk = &kp.sk;
     let input = b"Hello, world!";
     let (output, proof) = kp.output(input);
-    let proof_serialized = bincode::serialize(&proof).unwrap();
+
+    verify_serialization(&kp, None);
+    verify_serialization(pk, None);
+    verify_serialization(sk, None);
+    verify_serialization(&proof, None);
 
     // A proof consists of a point, a challenge (half length of field elements) and a field element.
+    let proof_serialized = bincode::serialize(&proof).unwrap();
     assert_eq!(
         RistrettoPoint::BYTE_LENGTH
             + RistrettoScalar::BYTE_LENGTH / 2
             + RistrettoScalar::BYTE_LENGTH,
         proof_serialized.len()
     );
-
     let proof_reconstructed: ECVRFProof = bincode::deserialize(&proof_serialized).unwrap();
     assert!(proof_reconstructed
         .verify_output(input, &kp.pk, &output)

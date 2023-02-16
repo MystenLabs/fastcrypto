@@ -6,8 +6,8 @@
 use crate::error::FastCryptoError;
 use crate::hash::ReverseWrapper;
 use crate::{
+    hash::Digest,
     traits::{KeyPair, SigningKey, ToFromBytes},
-    Digest,
 };
 use digest::{
     block_buffer::Eager,

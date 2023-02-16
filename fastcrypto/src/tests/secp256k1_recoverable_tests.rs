@@ -38,7 +38,7 @@ pub fn keys() -> Vec<Secp256k1KeyPair> {
 fn serialize_deserialize() {
     // The other types (pk, sk, keypair) are tested in the nonrecoverable tests.
     let sig = keys().pop().unwrap().sign_recoverable(MSG);
-    verify_serialization(&sig, sig.as_bytes());
+    verify_serialization(&sig, Some(sig.as_bytes()));
 }
 
 #[test]

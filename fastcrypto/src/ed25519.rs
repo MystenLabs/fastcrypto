@@ -94,7 +94,7 @@ impl PartialEq for Ed25519Signature {
 impl Eq for Ed25519Signature {}
 /// Aggregation of multiple Ed25519 signatures.
 #[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Ed25519AggregateSignature {
     // The serialized form of this field includes a length prefix, whereas the as_ref() does not.
     // (The length prefix is small compared to the vector of signatures.)
@@ -349,6 +349,14 @@ impl ToFromBytes for Ed25519AggregateSignature {
         })
     }
 }
+
+impl PartialEq for Ed25519AggregateSignature {
+    fn eq(&self, other: &Self) -> bool {
+        self.sigs == other.sigs
+    }
+}
+
+impl Eq for Ed25519AggregateSignature {}
 
 impl AggregateAuthenticator for Ed25519AggregateSignature {
     type Sig = Ed25519Signature;
