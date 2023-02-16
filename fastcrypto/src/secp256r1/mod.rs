@@ -22,7 +22,6 @@ use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::hazmat::SignPrimitive;
 use ecdsa::signature::hazmat::PrehashVerifier;
-use ecdsa::signature::{Signer as ECDSASigner, Verifier as ECDSAVerifier};
 use elliptic_curve::ops::Reduce;
 use elliptic_curve::FieldBytes;
 use once_cell::sync::OnceCell;
@@ -32,7 +31,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::IsHigh;
-use p256::{NistP256, Scalar};
+use p256::NistP256;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
