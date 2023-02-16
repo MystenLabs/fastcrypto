@@ -584,6 +584,14 @@
 <a href="#584" id="584">584</a>
 <a href="#585" id="585">585</a>
 <a href="#586" id="586">586</a>
+<a href="#587" id="587">587</a>
+<a href="#588" id="588">588</a>
+<a href="#589" id="589">589</a>
+<a href="#590" id="590">590</a>
+<a href="#591" id="591">591</a>
+<a href="#592" id="592">592</a>
+<a href="#593" id="593">593</a>
+<a href="#594" id="594">594</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -680,7 +688,7 @@
 <span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519Signature {}
 <span class="doccomment">/// Aggregation of multiple Ed25519 signatures.
 </span><span class="attr">#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 </span><span class="kw">pub struct </span>Ed25519AggregateSignature {
     <span class="comment">// The serialized form of this field includes a length prefix, whereas the as_ref() does not.
     // (The length prefix is small compared to the vector of signatures.)
@@ -936,6 +944,14 @@
     }
 }
 
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>Ed25519AggregateSignature {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.sigs == other.sigs
+    }
+}
+
+<span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519AggregateSignature {}
+
 <span class="kw">impl </span>AggregateAuthenticator <span class="kw">for </span>Ed25519AggregateSignature {
     <span class="kw">type </span>Sig = Ed25519Signature;
     <span class="kw">type </span>PubKey = Ed25519PublicKey;
@@ -1171,4 +1187,4 @@
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (0416b1a6f 2023-02-14)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (2d14db321 2023-02-15)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

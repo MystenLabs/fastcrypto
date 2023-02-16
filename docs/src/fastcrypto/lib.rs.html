@@ -109,27 +109,6 @@
 <a href="#109" id="109">109</a>
 <a href="#110" id="110">110</a>
 <a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
@@ -140,10 +119,7 @@
     rust_2021_compatibility
 )]
 
-</span><span class="kw">use </span>hash::Digest;
-<span class="kw">use </span>rand::thread_rng;
-
-<span class="kw">pub use </span>signature::Signature <span class="kw">as _</span>;
+</span><span class="kw">pub use </span>signature::Signature <span class="kw">as _</span>;
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;tests/signature_tests.rs&quot;</span>]
@@ -214,23 +190,20 @@
 #[path = <span class="string">&quot;tests/test_helpers.rs&quot;</span>]
 </span><span class="kw">pub mod </span>test_helpers;
 
-<span class="comment">// Signing traits
-</span><span class="kw">pub mod </span>traits;
-<span class="comment">// Key scheme implementations
-</span><span class="kw">pub mod </span>aes;
+<span class="kw">pub mod </span>traits;
+
+<span class="kw">pub mod </span>aes;
 <span class="kw">pub mod </span>bls12381;
 <span class="kw">pub mod </span>bulletproofs;
 <span class="kw">pub mod </span>ed25519;
+<span class="kw">pub mod </span>encoding;
+<span class="kw">pub mod </span>error;
 <span class="kw">pub mod </span>groups;
 <span class="kw">pub mod </span>hash;
 <span class="kw">pub mod </span>hmac;
+<span class="kw">pub mod </span>private_seed;
 <span class="kw">pub mod </span>secp256k1;
 <span class="kw">pub mod </span>secp256r1;
-
-<span class="comment">// Other tooling
-</span><span class="kw">pub mod </span>encoding;
-<span class="kw">pub mod </span>error;
-<span class="kw">pub mod </span>private_seed;
 <span class="kw">pub mod </span>serde_helpers;
 <span class="kw">pub mod </span>signature_service;
 <span class="kw">pub mod </span>vrf;
@@ -247,20 +220,5 @@
     debug_assertions
 ))]
 </span><span class="kw">pub mod </span>unsecure;
-
-<span class="comment">////////////////////////////////////////////////////////////////
-// Generic Keypair
-////////////////////////////////////////////////////////////////
-
-</span><span class="kw">pub fn </span>generate_production_keypair&lt;K: traits::KeyPair&gt;() -&gt; K {
-    generate_keypair::&lt;K, <span class="kw">_</span>&gt;(<span class="kw-2">&amp;mut </span>thread_rng())
-}
-
-<span class="kw">pub fn </span>generate_keypair&lt;K: traits::KeyPair, R&gt;(csprng: <span class="kw-2">&amp;mut </span>R) -&gt; K
-<span class="kw">where
-    </span>R: traits::AllowedRng,
-{
-    K::generate(csprng)
-}
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (0416b1a6f 2023-02-14)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (2d14db321 2023-02-15)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>

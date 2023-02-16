@@ -716,6 +716,14 @@
 <a href="#716" id="716">716</a>
 <a href="#717" id="717">717</a>
 <a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -817,7 +825,7 @@
 
 <span class="doccomment">/// Aggregation of multiple BLS 12-381 signatures.
 </span><span class="attr">#[readonly::make]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone)]
 </span><span class="kw">pub struct </span>BLS12381AggregateSignature {
     <span class="kw">pub </span>sig: blst::Signature,
     <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
@@ -1371,6 +1379,14 @@
     }
 }
 
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381AggregateSignature {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.sig == other.sig
+    }
+}
+
+<span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381AggregateSignature {}
+
 <span class="doccomment">///
 /// Implement VerifyingKeyBytes.
 ///
@@ -1435,4 +1451,4 @@
 <span class="doccomment">/// Module minimizing the size of public keys. See also [min_sig].
 </span><span class="kw">pub mod </span>min_pk;
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (0416b1a6f 2023-02-14)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (2d14db321 2023-02-15)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
