@@ -1,19 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
-use crate::secp256r1::{
-    Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
-};
 
-use crate::test_helpers::verify_serialization;
-use crate::traits::VerifyingKey;
-use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
-use crate::{
-    hash::{HashFunction, Sha256},
-    secp256r1::recoverable::Secp256r1RecoverableSignature,
-    signature_service::SignatureService,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes},
-};
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::IsHigh;
 use proptest::{prelude::*, strategy::Strategy};
@@ -21,6 +8,22 @@ use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
+
+use crate::hash::Blake2b256;
+use crate::secp256r1::{
+    Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
+};
+use crate::{
+    hash::{HashFunction, Sha256},
+    secp256r1::recoverable::Secp256r1RecoverableSignature,
+    signature_service::SignatureService,
+    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes},
+};
+
+use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
+use crate::test_helpers::verify_serialization;
+use crate::traits::VerifyingKey;
+use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -151,6 +154,22 @@ fn verify_invalid_signature() {
     assert!(kp
         .public()
         .verify_recoverable(bad_message, &signature)
+        .is_err());
+}
+
+#[test]
+fn verify_hashed_failed_if_different_hash_function() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message.
+    let message: &[u8] = &[0u8; 1];
+    let signature = kp.sign_recoverable_with_hash::<Sha256>(message);
+
+    // Verify the signature using other hash function fails.
+    assert!(kp
+        .public()
+        .verify_recoverable_with_hash::<Blake2b256>(message, &signature)
         .is_err());
 }
 

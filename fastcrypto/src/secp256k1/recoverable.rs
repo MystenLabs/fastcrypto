@@ -17,19 +17,19 @@
 //! assert_eq!(&signature.recover(message).unwrap(), kp.public());
 //! ```
 
-use crate::hash::{HashFunction, Sha256};
-use crate::secp256k1::{Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
-use crate::traits::{RecoverableSigner, VerifyRecoverable};
+use crate::hash::HashFunction;
+use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
-    serialize_deserialize_with_to_from_bytes, traits,
+    serialize_deserialize_with_to_from_bytes,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
     constants,
-    ecdsa::{RecoverableSignature, RecoveryId},
+    ecdsa::{RecoverableSignature as ExternalRecoverableSignature, RecoveryId},
     All, Message, Secp256k1,
 };
 use std::fmt::{self, Debug, Display};
@@ -43,7 +43,7 @@ pub const SECP256K1_RECOVERABLE_SIGNATURE_SIZE: usize = constants::COMPACT_SIGNA
 #[readonly::make]
 #[derive(Debug, Clone)]
 pub struct Secp256k1RecoverableSignature {
-    pub sig: RecoverableSignature,
+    pub sig: ExternalRecoverableSignature,
     pub bytes: OnceCell<[u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE]>,
 }
 
@@ -61,7 +61,7 @@ impl ToFromBytes for Secp256k1RecoverableSignature {
         }
         RecoveryId::from_i32(bytes[64] as i32)
             .and_then(|rec_id| {
-                RecoverableSignature::from_compact(&bytes[..64], rec_id).map(|sig| {
+                ExternalRecoverableSignature::from_compact(&bytes[..64], rec_id).map(|sig| {
                     Secp256k1RecoverableSignature {
                         sig,
                         bytes: OnceCell::new(),
@@ -130,9 +130,15 @@ impl Secp256k1RecoverableSignature {
         }
         Err(FastCryptoError::InvalidInput)
     }
+}
+
+impl RecoverableSignature for Secp256k1RecoverableSignature {
+    type PubKey = Secp256k1PublicKey;
+    type Signer = Secp256k1KeyPair;
+    type DefaultHash = DefaultHash;
 
     /// Recover public key from signature using the given hash function to hash the message.
-    pub fn recover_with_hash<H: HashFunction<32>>(
+    fn recover_with_hash<H: HashFunction<32>>(
         &self,
         msg: &[u8],
     ) -> Result<Secp256k1PublicKey, FastCryptoError> {
@@ -146,32 +152,12 @@ impl Secp256k1RecoverableSignature {
     }
 }
 
-impl traits::RecoverableSignature for Secp256k1RecoverableSignature {
+impl RecoverableSigner for Secp256k1KeyPair {
     type PubKey = Secp256k1PublicKey;
-    type Signer = Secp256k1KeyPair;
-
-    /// Recover public key from signature.
-    fn recover(&self, msg: &[u8]) -> Result<Secp256k1PublicKey, FastCryptoError> {
-        self.recover_with_hash::<Sha256>(msg)
-    }
-}
-
-impl VerifyRecoverable for Secp256k1PublicKey {
     type Sig = Secp256k1RecoverableSignature;
 
-    /// Verify a recoverable signature.
-    fn verify_recoverable(
-        &self,
-        msg: &[u8],
-        signature: &Secp256k1RecoverableSignature,
-    ) -> Result<(), FastCryptoError> {
-        self.verify_recoverable_with_hash::<Sha256>(msg, signature)
-    }
-}
-
-impl Secp256k1KeyPair {
     /// Create a new recoverable signature over the given message. The hash function `H` is used to hash the message.
-    pub fn sign_recoverable_with_hash<H: HashFunction<32>>(
+    fn sign_recoverable_with_hash<H: HashFunction<32>>(
         &self,
         msg: &[u8],
     ) -> Secp256k1RecoverableSignature {
@@ -188,28 +174,6 @@ impl Secp256k1KeyPair {
     }
 }
 
-impl Secp256k1PublicKey {
-    /// Verify a recoverable signature over an already hashed message.
-    pub fn verify_recoverable_with_hash<H: HashFunction<32>>(
-        &self,
-        msg: &[u8],
-        signature: &Secp256k1RecoverableSignature,
-    ) -> Result<(), FastCryptoError> {
-        // If pubkey recovered from signature matches original pubkey, verifies signature.
-        // To ensure non-malleability of v, signature.verify_ecdsa() is not used since it will verify using only [r, s] without considering v.
-        let recovered_key = signature.recover_with_hash::<H>(msg)?;
-        if self.as_bytes() != recovered_key.as_bytes() {
-            return Err(FastCryptoError::InvalidSignature);
-        }
-        Ok(())
-    }
-}
-
-impl RecoverableSigner for Secp256k1KeyPair {
-    type PubKey = Secp256k1PublicKey;
+impl VerifyRecoverable for Secp256k1PublicKey {
     type Sig = Secp256k1RecoverableSignature;
-
-    fn sign_recoverable(&self, msg: &[u8]) -> Secp256k1RecoverableSignature {
-        self.sign_recoverable_with_hash::<Sha256>(msg)
-    }
 }

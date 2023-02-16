@@ -17,9 +17,12 @@
 //! ```
 
 pub mod recoverable;
+
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
-use ecdsa::signature::{Signer as ECDSASigner, Verifier as ECDSAVerifier};
+use ecdsa::hazmat::SignPrimitive;
+use ecdsa::signature::hazmat::PrehashVerifier;
+use elliptic_curve::FieldBytes;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, SigningKey as ExternalSecretKey,
@@ -36,6 +39,7 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
+use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
 use crate::{
@@ -58,6 +62,10 @@ pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
 
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
+
+/// Default hash function used for signing and verifying messages unless another hash function is
+/// specified using the `with_hash` functions.
+pub type DefaultHash = Sha256;
 
 /// Secp256r1 public key.
 #[readonly::make]
@@ -115,22 +123,29 @@ impl VerifyingKey for Secp256r1PublicKey {
     const LENGTH: usize = SECP256R1_PUBLIC_KEY_LENGTH;
 
     fn verify(&self, msg: &[u8], signature: &Secp256r1Signature) -> Result<(), FastCryptoError> {
-        // We enforce non malleability, eg. that the s value must be low. This is aligned with
-        // the ECDSA implementation in the secp256k1 crate.
+        self.verify_with_hash::<DefaultHash>(msg, signature)
+    }
+}
+
+serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
+
+impl Secp256r1PublicKey {
+    /// Verify the signature using the given hash function to hash the message.
+    pub fn verify_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+        signature: &Secp256r1Signature,
+    ) -> Result<(), FastCryptoError> {
         if signature.sig.s().is_high().into() {
             return Err(FastCryptoError::GeneralError(
                 "The s value of ECDSA signature must be low".to_string(),
             ));
         }
         self.pubkey
-            .verify(msg, &signature.sig)
+            .verify_prehash(H::digest(msg).as_ref(), &signature.sig)
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
-
-serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
-
-impl Secp256r1PublicKey {}
 
 impl AsRef<[u8]> for Secp256r1PublicKey {
     fn as_ref(&self) -> &[u8] {
@@ -306,6 +321,30 @@ pub struct Secp256r1KeyPair {
     pub secret: Secp256r1PrivateKey,
 }
 
+impl Secp256r1KeyPair {
+    /// Create a new signature using the given hash function to hash the message.
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+        // Private key as scalar
+        let x = self.secret.privkey.as_nonzero_scalar();
+
+        // This can only fail due to internal errors, namely if k = 0 or s = 0 during signing which
+        // happens with negligible probability.
+        let sig = x
+            .try_sign_prehashed_rfc6979::<sha2::Sha256>(
+                *FieldBytes::<NistP256>::from_slice(H::digest(msg).as_ref()),
+                &[],
+            )
+            .unwrap()
+            .0;
+
+        let sig_low = sig.normalize_s().unwrap_or(sig);
+        Secp256r1Signature {
+            sig: sig_low,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 /// The bytes form of the keypair always only contain the private key bytes
 impl ToFromBytes for Secp256r1KeyPair {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
@@ -363,12 +402,7 @@ impl FromStr for Secp256r1KeyPair {
 
 impl Signer<Secp256r1Signature> for Secp256r1KeyPair {
     fn sign(&self, msg: &[u8]) -> Secp256r1Signature {
-        let sig: ecdsa::Signature<NistP256> = self.secret.privkey.sign(msg);
-        let sig_low = sig.normalize_s().unwrap_or(sig);
-        Secp256r1Signature {
-            sig: sig_low,
-            bytes: OnceCell::new(),
-        }
+        self.sign_with_hash::<DefaultHash>(msg)
     }
 }
 

@@ -12,6 +12,7 @@ use std::{
     str::FromStr,
 };
 
+use crate::hash::HashFunction;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -223,7 +224,14 @@ pub trait RecoverableSigner {
     type Sig: RecoverableSignature<Signer = Self, PubKey = Self::PubKey>;
 
     /// Sign as a recoverable signature.
-    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig;
+    fn sign_recoverable(&self, msg: &[u8]) -> Self::Sig {
+        self.sign_recoverable_with_hash::<<<Self as RecoverableSigner>::Sig as RecoverableSignature>::DefaultHash>(msg)
+    }
+
+    /// Sign as a recoverable signature using the given hash function.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn sign_recoverable_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Self::Sig;
 }
 
 pub trait VerifyRecoverable: Eq + Sized {
@@ -231,7 +239,19 @@ pub trait VerifyRecoverable: Eq + Sized {
 
     /// Verify a recoverable signature by recovering the public key and compare it to self.
     fn verify_recoverable(&self, msg: &[u8], signature: &Self::Sig) -> Result<(), FastCryptoError> {
-        match signature.recover(msg)? == *self {
+        self.verify_recoverable_with_hash::<<<Self as VerifyRecoverable>::Sig as RecoverableSignature>::DefaultHash>(msg, signature)
+    }
+
+    /// Verify a recoverable signature by recovering the public key and compare it to self.
+    /// The recovery is using the given hash function.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn verify_recoverable_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+        signature: &Self::Sig,
+    ) -> Result<(), FastCryptoError> {
+        match signature.recover_with_hash::<H>(msg)? == *self {
             true => Ok(()),
             false => Err(FastCryptoError::InvalidSignature),
         }
@@ -239,12 +259,23 @@ pub trait VerifyRecoverable: Eq + Sized {
 }
 
 /// Trait impl'd by recoverable signatures
-pub trait RecoverableSignature {
+pub trait RecoverableSignature: Sized {
     type PubKey;
     type Signer: RecoverableSigner<Sig = Self, PubKey = Self::PubKey>;
+    type DefaultHash: HashFunction<32>;
 
     /// Recover the public key from this signature.
-    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError>;
+    fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError> {
+        self.recover_with_hash::<Self::DefaultHash>(msg)
+    }
+
+    /// Recover the public key from this signature. Assuming that the given hash function was used for signing.
+    ///
+    /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
+    fn recover_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Result<Self::PubKey, FastCryptoError>;
 }
 
 /// Trait impl'd by aggregated signatures in asymmetric cryptography.

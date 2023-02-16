@@ -1,7 +1,16 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
+#[cfg(feature = "copy_key")]
+use proptest::arbitrary::Arbitrary;
+use proptest::{prelude::*, strategy::Strategy};
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::{constants, ecdsa::Signature};
+use signature::Signer as ExternalSigner;
+use signature::Verifier as ExternalVerifier;
+use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
+use wycheproof::TestResult;
+
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
@@ -12,15 +21,8 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-#[cfg(feature = "copy_key")]
-use proptest::arbitrary::Arbitrary;
-use proptest::{prelude::*, strategy::Strategy};
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::{constants, ecdsa::Signature};
-use signature::Signer as ExternalSigner;
-use signature::Verifier as ExternalVerifier;
-use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
-use wycheproof::TestResult;
+
+use super::*;
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -195,7 +197,7 @@ fn verify_hashed_failed_if_different_hash() {
 
     // Sign over raw message (hashed to keccak256 internally).
     let message: &[u8] = &[0u8; 1];
-    let signature = kp.sign(message);
+    let signature = kp.sign_with_hash::<Keccak256>(message);
 
     // Verify the signature using other hash function.
     assert!(kp
