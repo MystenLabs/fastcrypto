@@ -8,6 +8,8 @@
     rust_2021_compatibility
 )]
 
+pub use signature::Signature as _;
+
 #[cfg(test)]
 #[path = "tests/signature_tests.rs"]
 pub mod signature_tests;
