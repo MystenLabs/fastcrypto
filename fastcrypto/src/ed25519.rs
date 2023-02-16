@@ -13,8 +13,12 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
+use crate::serde_helpers::BytesRepresentation;
 
-use crate::{encoding::Encoding, serialize_deserialize_with_to_from_bytes, traits};
+use crate::{
+    encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
+    traits,
+};
 use base64ct::Encoding as _;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use eyre::eyre;
@@ -84,6 +88,11 @@ pub struct Ed25519Signature {
 }
 
 serialize_deserialize_with_to_from_bytes!(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
+generate_bytes_representation!(
+    Ed25519Signature,
+    ED25519_SIGNATURE_LENGTH,
+    Ed25519SignatureAsBytes
+);
 
 impl PartialEq for Ed25519Signature {
     fn eq(&self, other: &Self) -> bool {

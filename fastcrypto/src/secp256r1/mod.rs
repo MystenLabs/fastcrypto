@@ -17,8 +17,8 @@
 //! ```
 
 pub mod recoverable;
-
-use crate::serialize_deserialize_with_to_from_bytes;
+use crate::serde_helpers::BytesRepresentation;
+use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::signature::{Signer as ECDSASigner, Verifier as ECDSAVerifier};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
@@ -217,6 +217,11 @@ impl Drop for Secp256r1PrivateKey {
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
+generate_bytes_representation!(
+    Secp256r1Signature,
+    SECP256R1_SIGNATURE_LENTH,
+    Secp256r1SignatureAsBytes
+);
 
 impl ToFromBytes for Secp256r1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
