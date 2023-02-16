@@ -326,14 +326,14 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
-        // Hash as FieldBytes
-        let z = FieldBytes::<NistP256>::clone_from_slice(H::digest(msg).as_ref());
-
         // Private key as scalar
         let x = Scalar::from_be_bytes_reduced(self.secret.privkey.as_nonzero_scalar().to_bytes());
 
         let sig = x
-            .try_sign_prehashed_rfc6979::<sha2::Sha256>(z, &[])
+            .try_sign_prehashed_rfc6979::<sha2::Sha256>(
+                *FieldBytes::<NistP256>::from_slice(H::digest(msg).as_ref()),
+                &[],
+            )
             .unwrap()
             .0;
 
