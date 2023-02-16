@@ -328,6 +328,8 @@ impl Secp256r1KeyPair {
         // Private key as scalar
         let x = self.secret.privkey.as_nonzero_scalar();
 
+        // This can only fail due to internal errors, namely if k = 0 or s = 0 during signing which
+        // happens with negligible probability.
         let sig = x
             .try_sign_prehashed_rfc6979::<sha2::Sha256>(
                 *FieldBytes::<NistP256>::from_slice(H::digest(msg).as_ref()),
