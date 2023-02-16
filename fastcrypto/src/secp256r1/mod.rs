@@ -65,6 +65,8 @@ pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 
+/// Default hash function used for signing and verifying messages unless another hash function is
+/// specified using the `with_hash` functions.
 pub type DefaultHash = Sha256;
 
 /// Secp256r1 public key.
