@@ -1,7 +1,12 @@
 use elliptic_curve::IsHigh;
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-use super::*;
+use p256::ecdsa::Signature;
+use proptest::{prelude::*, strategy::Strategy};
+use rand::{rngs::StdRng, SeedableRng as _};
+use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
+use wycheproof::TestResult;
+
+use crate::hash::{Blake2b256, Keccak256};
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
@@ -11,12 +16,10 @@ use crate::{
     signature_service::SignatureService,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-use p256::ecdsa::Signature;
-use proptest::{prelude::*, strategy::Strategy};
-use rand::{rngs::StdRng, SeedableRng as _};
-use rust_secp256k1::constants::SECRET_KEY_SIZE;
-use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
-use wycheproof::TestResult;
+
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+use super::*;
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -122,6 +125,22 @@ fn verify_valid_signature() {
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+}
+
+#[test]
+fn verify_hashed_failed_if_different_hash() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message (hashed to keccak256 internally).
+    let message: &[u8] = &[0u8; 1];
+    let signature = kp.sign_with_hash::<Keccak256>(message);
+
+    // Verify the signature using other hash function.
+    assert!(kp
+        .public()
+        .verify_with_hash::<Blake2b256>(message, &signature)
+        .is_err());
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256r1PublicKey>, Vec<Secp256r1Signature>) {

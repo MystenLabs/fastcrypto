@@ -56,6 +56,9 @@ pub const SECP256K1_SIGNATURE_LENGTH: usize = constants::COMPACT_SIGNATURE_SIZE;
 
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256K1_KEYPAIR_LENGTH: usize = constants::SECRET_KEY_SIZE;
+
+pub type DefaultHash = Sha256;
+
 /// Secp256k1 public key.
 #[readonly::make]
 #[derive(Debug, Clone)]
@@ -113,7 +116,7 @@ impl VerifyingKey for Secp256k1PublicKey {
 
     fn verify(&self, msg: &[u8], signature: &Secp256k1Signature) -> Result<(), FastCryptoError> {
         // Sha256 is used by default as digest
-        self.verify_with_hash::<Sha256>(msg, signature)
+        self.verify_with_hash::<DefaultHash>(msg, signature)
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
 }
@@ -362,7 +365,7 @@ impl FromStr for Secp256k1KeyPair {
 
 impl Secp256k1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
-    fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
+    pub(crate) fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
         let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         // Creates a 64-bytes signature of shape [r, s].
@@ -377,7 +380,7 @@ impl Secp256k1KeyPair {
 impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
     fn sign(&self, msg: &[u8]) -> Secp256k1Signature {
         // Sha256 is used by default
-        self.sign_with_hash::<Sha256>(msg)
+        self.sign_with_hash::<DefaultHash>(msg)
     }
 }
 

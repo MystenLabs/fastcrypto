@@ -19,9 +19,9 @@
 //! ```
 
 use crate::hash::HashFunction;
-use crate::hash::Sha256;
 use crate::secp256r1::{
-    Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, SECP256R1_SIGNATURE_LENTH,
+    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
+    SECP256R1_SIGNATURE_LENTH,
 };
 use crate::serialize_deserialize_with_to_from_bytes;
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
@@ -114,43 +114,6 @@ impl Secp256r1RecoverableSignature {
     /// Recover the public key used to create this signature. This assumes the recovery id byte has been set. The hash function `H` is used to hash the message.
     ///
     /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    pub fn recover_with_hash<H: HashFunction<32>>(
-        &self,
-        msg: &[u8],
-    ) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-        let (r, s) = self.sig.split_scalars();
-        let z =
-            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
-
-        // Note: This has been added because it does not seem to be done in k256
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
-
-        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            Ok(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralOpaqueError)
-        }
-    }
-
     pub fn try_from_nonrecoverable(
         signature: &Secp256r1Signature,
         pk: &Secp256r1PublicKey,
@@ -193,11 +156,14 @@ impl RecoverableSigner for Secp256r1KeyPair {
     type PubKey = Secp256r1PublicKey;
     type Sig = Secp256r1RecoverableSignature;
 
-    fn sign_recoverable(&self, msg: &[u8]) -> Secp256r1RecoverableSignature {
+    fn sign_recoverable_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Secp256r1RecoverableSignature {
         // Inspired by Sign.rs in k256@0.11.6
 
         // Hash message
-        let z = FieldBytes::from(Sha256::digest(msg).digest);
+        let z = FieldBytes::from(H::digest(msg).digest);
 
         // Private key as scalar
         let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
@@ -260,13 +226,43 @@ fn get_y_coordinate(point: &AffinePoint) -> Scalar {
 impl RecoverableSignature for Secp256r1RecoverableSignature {
     type PubKey = Secp256r1PublicKey;
     type Signer = Secp256r1KeyPair;
+    type DefaultHash = DefaultHash;
 
-    /// Recover the public key used to create this signature. This assumes the recovery id byte has been set.
-    /// Internally, the message is hashed using SHA256 before it is signed.
-    ///
-    /// An [FastCryptoError::GeneralOpaqueError] is returned if no public keys can be recovered.
-    fn recover(&self, msg: &[u8]) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        self.recover_with_hash::<Sha256>(msg)
+    fn recover_with_hash<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> Result<Secp256r1PublicKey, FastCryptoError> {
+        // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+        let (r, s) = self.sig.split_scalars();
+        let z =
+            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
+        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
+
+        // Note: This has been added because it does not seem to be done in k256
+        let r_bytes = match v.is_x_reduced() {
+            true => U256::from(r.as_ref())
+                .wrapping_add(&NistP256::ORDER)
+                .to_be_byte_array(),
+            false => r.to_bytes(),
+        };
+
+        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
+
+        if big_r.is_some().into() {
+            let big_r = ProjectivePoint::from(big_r.unwrap());
+            let r_inv = r.invert().unwrap();
+            let u1 = -(r_inv * z);
+            let u2 = r_inv * *s;
+            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
+
+            Ok(Secp256r1PublicKey {
+                pubkey: ExternalPublicKey::from_affine(pk)
+                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
+                bytes: OnceCell::new(),
+            })
+        } else {
+            Err(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 
