@@ -327,7 +327,7 @@ impl Secp256r1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         // Private key as scalar
-        let x = Scalar::from_be_bytes_reduced(self.secret.privkey.as_nonzero_scalar().to_bytes());
+        let x = self.secret.privkey.as_nonzero_scalar();
 
         let sig = x
             .try_sign_prehashed_rfc6979::<sha2::Sha256>(
