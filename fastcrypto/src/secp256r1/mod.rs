@@ -22,7 +22,6 @@ use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::hazmat::SignPrimitive;
 use ecdsa::signature::hazmat::PrehashVerifier;
-use elliptic_curve::ops::Reduce;
 use elliptic_curve::FieldBytes;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
