@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::random_oracle::RandomOracle;
-use fastcrypto::aes::{Aes256Ctr, AesKey, InitializationVector};
+use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
-use fastcrypto::traits::{AllowedRng, Cipher, ToFromBytes};
+use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::{Deserialize, Serialize};
 use typenum::consts::{U16, U32};
 

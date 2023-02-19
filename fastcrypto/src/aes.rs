@@ -6,7 +6,7 @@
 //! # Example
 //! ```
 //! # use fastcrypto::aes::*;
-//! # use crate::fastcrypto::traits::{Cipher, Generate};
+//! # use crate::fastcrypto::traits::Generate;
 //! use rand::thread_rng;
 //! let plaintext = b"Hello, world!";
 //! let key = AesKey::generate(&mut thread_rng());
@@ -19,9 +19,7 @@
 
 use crate::{
     error::FastCryptoError,
-    traits::{
-        AllowedRng, AuthenticatedCipher, Cipher, EncryptionKey, Generate, Nonce, ToFromBytes,
-    },
+    traits::{AllowedRng, Generate, ToFromBytes},
 };
 use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
@@ -30,11 +28,58 @@ use aes::cipher::{
 use aes_gcm::AeadInPlace;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use typenum::{U16, U24, U32};
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// Trait impl'd by encryption keys in symmetric cryptography
+///
+pub trait EncryptionKey:
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+/// Trait impl'd by nonces and IV's used in symmetric cryptography
+///
+pub trait Nonce:
+    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+{
+}
+
+/// Trait impl'd by symmetric ciphers.
+///
+pub trait Cipher {
+    type IVType: Nonce;
+
+    /// Encrypt `plaintext` using the given IV and return the result.
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8>;
+
+    /// Decrypt `ciphertext` using the given IV and return the result. An error may be returned in
+    /// CBC-mode if the ciphertext is not correctly padded, but in other modes this method always
+    /// return Ok.
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
+}
+
+/// Trait impl'd by symmetric ciphers for authenticated encryption.
+///
+pub trait AuthenticatedCipher {
+    type IVType: Nonce;
+
+    /// Encrypt `plaintext` using the given IV and authentication data and return the result.
+    fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8>;
+
+    /// Decrypt `ciphertext` using the given IV and authentication data and return the result.
+    /// An error is returned if the authentication data does not match the supplied ciphertext.
+    fn decrypt_authenticated(
+        &self,
+        iv: &Self::IVType,
+        aad: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, FastCryptoError>;
+}
 
 /// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
 #[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay)]

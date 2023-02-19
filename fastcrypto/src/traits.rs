@@ -1,8 +1,12 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::{
+    encoding::{Base64, Encoding},
+    error::FastCryptoError,
+    hash::HashFunction,
+};
 use eyre::eyre;
-
 use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
@@ -10,12 +14,6 @@ use std::{
     borrow::Borrow,
     fmt::{Debug, Display},
     str::FromStr,
-};
-
-use crate::hash::HashFunction;
-use crate::{
-    encoding::{Base64, Encoding},
-    error::FastCryptoError,
 };
 
 /// Trait impl'd by concrete types that represent digital cryptographic material
@@ -35,14 +33,11 @@ use crate::{
 /// recommended that "provider" libraries maintain their own internal signature
 /// type and use `From` bounds to provide automatic conversions.
 ///
-// This is essentially a copy of signature::Signature:
-// - we can't implement signature::Signature on Pubkeys / PrivKeys w/o violating the orphan rule,
-// - and we need a trait to base the definition of EncodeDecodeBase64 as an extension trait on.
 pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
-    /// Parse a key from its byte representation
+    /// Parse an object from its byte representation
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError>;
 
-    /// Borrow a byte slice representing the serialized form of this key
+    /// Borrow a byte slice representing the serialized form of this object
     fn as_bytes(&self) -> &[u8] {
         self.as_ref()
     }
@@ -57,7 +52,6 @@ pub trait EncodeDecodeBase64: Sized {
     fn decode_base64(value: &str) -> Result<Self, eyre::Report>;
 }
 
-// The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot.
 impl<T: ToFromBytes> EncodeDecodeBase64 for T {
     fn encode_base64(&self) -> String {
         Base64::encode(self.as_bytes())
@@ -304,13 +298,12 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message: &[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message);
-    ///
     /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message);
     ///
@@ -329,13 +322,12 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message1);
-    ///
     /// let message2: &[u8] = b"Hello, world!!!";
     /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message2);
@@ -356,14 +348,13 @@ pub trait AggregateAuthenticator:
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message1);
     /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&signature1)).unwrap();
-    ///
     /// let message2: &[u8] = b"1234";
     /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message2);
@@ -388,52 +379,6 @@ pub trait AggregateAuthenticator:
 pub trait Generate {
     /// Generate a new random instance using the given RNG.
     fn generate<R: AllowedRng>(rng: &mut R) -> Self;
-}
-
-/// Trait impl'd by encryption keys in symmetric cryptography
-///
-pub trait EncryptionKey:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
-{
-}
-
-/// Trait impl'd by nonces and IV's used in symmetric cryptography
-///
-pub trait Nonce:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
-{
-}
-
-/// Trait impl'd by symmetric ciphers.
-///
-pub trait Cipher {
-    type IVType: Nonce;
-
-    /// Encrypt `plaintext` using the given IV and return the result.
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8>;
-
-    /// Decrypt `ciphertext` using the given IV and return the result. An error may be returned in
-    /// CBC-mode if the ciphertext is not correctly padded, but in other modes this method always
-    /// return Ok.
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError>;
-}
-
-/// Trait impl'd by symmetric ciphers for authenticated encryption.
-///
-pub trait AuthenticatedCipher {
-    type IVType: Nonce;
-
-    /// Encrypt `plaintext` using the given IV and authentication data and return the result.
-    fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8>;
-
-    /// Decrypt `ciphertext` using the given IV and authentication data and return the result.
-    /// An error is returned if the authentication data does not match the supplied ciphertext.
-    fn decrypt_authenticated(
-        &self,
-        iv: &Self::IVType,
-        aad: &[u8],
-        ciphertext: &[u8],
-    ) -> Result<Vec<u8>, FastCryptoError>;
 }
 
 /// Trait impl'd by a keys/secret seeds for generating a secure instance.
@@ -463,49 +408,3 @@ pub trait AllowedRng: CryptoRng + RngCore {}
 impl AllowedRng for StdRng {}
 // thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
 impl AllowedRng for ThreadRng {}
-
-#[cfg(feature = "experimental")]
-pub mod mskr {
-    use crate::traits::ToFromBytes;
-
-    /// Trait impl'd by keys and signatures for signature schemes supporting the MSKR (Multi-Signature with Key Randomization) scheme.
-    pub trait Randomize<
-        PubKey: ToFromBytes,
-        Scalar,
-        H: HashToScalar<Scalar>,
-        const PUBLIC_KEY_LENGTH: usize,
-    >: Sized
-    {
-        /// Randomize this with the given scalar.
-        fn randomize_internal(&self, r: &Scalar) -> Self;
-
-        /// Randomize this deterministically based on the given public keys.
-        fn randomize(&self, pk: &PubKey, pks: &[PubKey]) -> Self {
-            self.randomize_internal(
-                &randomization_scalar::<PubKey, Scalar, H, PUBLIC_KEY_LENGTH>(pk, pks),
-            )
-        }
-    }
-
-    pub trait HashToScalar<Scalar> {
-        fn hash_to_scalar(bytes: &[u8]) -> Scalar;
-    }
-
-    /// Compute as hash of (pk, pks) into a scalar type.
-    pub(crate) fn randomization_scalar<
-        PubKey: ToFromBytes,
-        Scalar,
-        H: HashToScalar<Scalar>,
-        const PUBLIC_KEY_LENGTH: usize,
-    >(
-        pk: &PubKey,
-        pks: &[PubKey],
-    ) -> Scalar {
-        let mut seed: Vec<u8> = Vec::with_capacity(PUBLIC_KEY_LENGTH * (pks.len() + 1));
-        seed.extend_from_slice(pk.as_bytes());
-        for pki in pks {
-            seed.extend_from_slice(pki.as_bytes());
-        }
-        H::hash_to_scalar(seed.as_slice())
-    }
-}
