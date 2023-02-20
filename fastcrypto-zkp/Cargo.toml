@@ -28,7 +28,7 @@ fastcrypto = { path = "../fastcrypto" }
 ark-bls12-377 = "0.3.0"
 ark-bn254 = "0.3.0"
 ark-crypto-primitives = { version = "0.3.0", features = ["r1cs"] }
-ark-r1cs-std = "0.3.1"
+ark-r1cs-std = "0.4.0"
 ark-std = { version = "0.3.0", features = ["parallel"]}
 blake2 = "0.10.6"
 criterion = "0.4.0"
