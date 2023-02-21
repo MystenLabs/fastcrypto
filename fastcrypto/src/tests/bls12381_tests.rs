@@ -297,14 +297,12 @@ fn verify_batch_missing_keys_in_batch() {
 fn test_serialize_deserialize_standard_sig() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
-    // let default_pk = BLS12381PublicKey::insecure_default();
     let sk = kp.private();
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);
     let default_sig = BLS12381Signature::default();
 
     verify_serialization(&pk, Some(pk.as_bytes()));
-    // verify_serialization(&default_pk, Some(default_pk.as_bytes()));
     verify_serialization(&sk, Some(sk.as_bytes()));
     verify_serialization(&sig, Some(sig.as_bytes()));
     verify_serialization(&default_sig, Some(default_sig.as_bytes()));

@@ -155,7 +155,7 @@ impl ToFromBytes for BLS12381PublicKey {
 //
 
 // Needed since the current NW implementation requires default public keys.
-// Note that deserialize this object will fail as we validate it is a valid public key.
+// Note that deserialization of this object will fail as we validate it is a valid public key.
 impl InsecureDefault for BLS12381PublicKey {
     fn insecure_default() -> Self {
         BLS12381PublicKey {
