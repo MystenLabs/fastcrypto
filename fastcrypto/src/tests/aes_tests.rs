@@ -1,12 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::aes::{AuthenticatedCipher, Cipher};
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
         AesKey, GenericByteArray, InitializationVector,
     },
     error::FastCryptoError,
-    traits::{AuthenticatedCipher, Cipher, Generate, ToFromBytes},
+    traits::{Generate, ToFromBytes},
 };
 use core::fmt::Debug;
 use generic_array::ArrayLength;

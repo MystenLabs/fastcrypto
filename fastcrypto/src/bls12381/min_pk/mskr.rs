@@ -15,8 +15,8 @@ use once_cell::sync::OnceCell;
 use crate::bls12381::min_pk::{
     BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
 };
+use crate::bls12381::mskr::{HashToScalar, Randomize};
 use crate::hash::{HashFunction, Sha256};
-use crate::traits::mskr::{HashToScalar, Randomize};
 use crate::traits::VerifyingKey;
 
 pub struct BLS12381Hash {}
@@ -146,8 +146,8 @@ impl Randomize<BLS12381PublicKey, blst_fr, BLS12381Hash, { BLS12381PublicKey::LE
 {
     fn randomize_internal(&self, r: &blst_fr) -> Self {
         BLS12381KeyPair {
-            secret: self.secret.randomize_internal(r),
-            name: self.name.randomize_internal(r),
+            private: self.private.randomize_internal(r),
+            public: self.public.randomize_internal(r),
         }
     }
 }

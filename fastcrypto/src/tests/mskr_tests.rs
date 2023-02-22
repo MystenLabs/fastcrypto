@@ -1,8 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bls12381::mskr::Randomize;
 use crate::bls12381::{min_pk, min_sig};
-use crate::traits::mskr::Randomize;
 use crate::traits::Signer;
 use crate::traits::{AggregateAuthenticator, KeyPair, VerifyingKey};
 use rand::thread_rng;

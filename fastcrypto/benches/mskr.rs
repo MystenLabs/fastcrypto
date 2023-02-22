@@ -10,11 +10,11 @@ mod mskr_benches {
     use criterion::BenchmarkGroup;
     use criterion::BenchmarkId;
     use criterion::Criterion;
+    use fastcrypto::bls12381::mskr::HashToScalar;
+    use fastcrypto::bls12381::mskr::Randomize;
     use fastcrypto::bls12381::{min_pk, min_sig};
     use fastcrypto::hash::HashFunction;
     use fastcrypto::hash::Sha256;
-    use fastcrypto::traits::mskr::HashToScalar;
-    use fastcrypto::traits::mskr::Randomize;
     use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
     use rand::thread_rng;
 
