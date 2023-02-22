@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/traits.rs`."><title>traits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-1def573a4779b29b.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-d59023bfa12059d2.css"><link rel="stylesheet" disabled href="../../static.files/dark-1ca41bb1e10af075.css"><link rel="stylesheet" disabled href="../../static.files/ayu-18b4181a2f3fb862.css"><script src="../../static.files/storage-3891ce972e3a2bf8.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-98a684e84ae5b08b.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/traits.rs`."><title>traits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e5308b57e507db71.css" id="mainThemeStyle"><link rel="stylesheet" id="themeStyle" href="../../static.files/light-d59023bfa12059d2.css"><link rel="stylesheet" disabled href="../../static.files/dark-1ca41bb1e10af075.css"><link rel="stylesheet" disabled href="../../static.files/ayu-18b4181a2f3fb862.css"><script src="../../static.files/storage-3891ce972e3a2bf8.js"></script><script defer src="../../static.files/source-script-ea63cb6500f71309.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-98a684e84ae5b08b.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -408,112 +408,15 @@
 <a href="#408" id="408">408</a>
 <a href="#409" id="409">409</a>
 <a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
-<a href="#488" id="488">488</a>
-<a href="#489" id="489">489</a>
-<a href="#490" id="490">490</a>
-<a href="#491" id="491">491</a>
-<a href="#492" id="492">492</a>
-<a href="#493" id="493">493</a>
-<a href="#494" id="494">494</a>
-<a href="#495" id="495">495</a>
-<a href="#496" id="496">496</a>
-<a href="#497" id="497">497</a>
-<a href="#498" id="498">498</a>
-<a href="#499" id="499">499</a>
-<a href="#500" id="500">500</a>
-<a href="#501" id="501">501</a>
-<a href="#502" id="502">502</a>
-<a href="#503" id="503">503</a>
-<a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-</span><span class="kw">use </span>eyre::eyre;
-
+</span><span class="kw">use crate</span>::{
+    encoding::{Base64, Encoding},
+    error::FastCryptoError,
+    hash::HashFunction,
+};
+<span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>rand::rngs::{StdRng, ThreadRng};
 <span class="kw">use </span>rand::{CryptoRng, RngCore};
 <span class="kw">use </span>serde::{de::DeserializeOwned, Serialize};
@@ -521,12 +424,6 @@
     borrow::Borrow,
     fmt::{Debug, Display},
     str::FromStr,
-};
-
-<span class="kw">use </span><span class="kw">crate</span>::hash::HashFunction;
-<span class="kw">use crate</span>::{
-    encoding::{Base64, Encoding},
-    error::FastCryptoError,
 };
 
 <span class="doccomment">/// Trait impl&#39;d by concrete types that represent digital cryptographic material
@@ -546,14 +443,11 @@
 /// recommended that &quot;provider&quot; libraries maintain their own internal signature
 /// type and use `From` bounds to provide automatic conversions.
 ///
-</span><span class="comment">// This is essentially a copy of signature::Signature:
-// - we can&#39;t implement signature::Signature on Pubkeys / PrivKeys w/o violating the orphan rule,
-// - and we need a trait to base the definition of EncodeDecodeBase64 as an extension trait on.
 </span><span class="kw">pub trait </span>ToFromBytes: AsRef&lt;[u8]&gt; + Debug + Sized {
-    <span class="doccomment">/// Parse a key from its byte representation
+    <span class="doccomment">/// Parse an object from its byte representation
     </span><span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
-    <span class="doccomment">/// Borrow a byte slice representing the serialized form of this key
+    <span class="doccomment">/// Borrow a byte slice representing the serialized form of this object
     </span><span class="kw">fn </span>as_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.as_ref()
     }
@@ -568,8 +462,7 @@
     <span class="kw">fn </span>decode_base64(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, eyre::Report&gt;;
 }
 
-<span class="comment">// The Base64ct is not strictly necessary for (PubKey|Signature), but this simplifies things a lot.
-</span><span class="kw">impl</span>&lt;T: ToFromBytes&gt; EncodeDecodeBase64 <span class="kw">for </span>T {
+<span class="kw">impl</span>&lt;T: ToFromBytes&gt; EncodeDecodeBase64 <span class="kw">for </span>T {
     <span class="kw">fn </span>encode_base64(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
         Base64::encode(<span class="self">self</span>.as_bytes())
     }
@@ -815,13 +708,12 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message);
-    ///
     /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message);
     ///
@@ -840,13 +732,12 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message1);
-    ///
     /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
     /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message2);
@@ -867,14 +758,13 @@
     /// # Example
     /// ```rust
     /// use fastcrypto::ed25519::*;
-    /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
+    /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
     ///
     /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message1);
     /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&amp;signature1)).unwrap();
-    ///
     /// let message2: &amp;[u8] = b&quot;1234&quot;;
     /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message2);
@@ -899,52 +789,6 @@
 </span><span class="kw">pub trait </span>Generate {
     <span class="doccomment">/// Generate a new random instance using the given RNG.
     </span><span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
-}
-
-<span class="doccomment">/// Trait impl&#39;d by encryption keys in symmetric cryptography
-///
-</span><span class="kw">pub trait </span>EncryptionKey:
-    ToFromBytes + <span class="lifetime">&#39;static </span>+ Serialize + DeserializeOwned + Send + Sync + Sized + Generate
-{
-}
-
-<span class="doccomment">/// Trait impl&#39;d by nonces and IV&#39;s used in symmetric cryptography
-///
-</span><span class="kw">pub trait </span>Nonce:
-    ToFromBytes + <span class="lifetime">&#39;static </span>+ Serialize + DeserializeOwned + Send + Sync + Sized + Generate
-{
-}
-
-<span class="doccomment">/// Trait impl&#39;d by symmetric ciphers.
-///
-</span><span class="kw">pub trait </span>Cipher {
-    <span class="kw">type </span>IVType: Nonce;
-
-    <span class="doccomment">/// Encrypt `plaintext` using the given IV and return the result.
-    </span><span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt;;
-
-    <span class="doccomment">/// Decrypt `ciphertext` using the given IV and return the result. An error may be returned in
-    /// CBC-mode if the ciphertext is not correctly padded, but in other modes this method always
-    /// return Ok.
-    </span><span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
-}
-
-<span class="doccomment">/// Trait impl&#39;d by symmetric ciphers for authenticated encryption.
-///
-</span><span class="kw">pub trait </span>AuthenticatedCipher {
-    <span class="kw">type </span>IVType: Nonce;
-
-    <span class="doccomment">/// Encrypt `plaintext` using the given IV and authentication data and return the result.
-    </span><span class="kw">fn </span>encrypt_authenticated(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, aad: <span class="kw-2">&amp;</span>[u8], plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt;;
-
-    <span class="doccomment">/// Decrypt `ciphertext` using the given IV and authentication data and return the result.
-    /// An error is returned if the authentication data does not match the supplied ciphertext.
-    </span><span class="kw">fn </span>decrypt_authenticated(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType,
-        aad: <span class="kw-2">&amp;</span>[u8],
-        ciphertext: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
 }
 
 <span class="doccomment">/// Trait impl&#39;d by a keys/secret seeds for generating a secure instance.
@@ -974,51 +818,5 @@
 </span><span class="kw">impl </span>AllowedRng <span class="kw">for </span>StdRng {}
 <span class="comment">// thread_rng() uses OsRng for the seed, and ChaCha12 as the PRG function.
 </span><span class="kw">impl </span>AllowedRng <span class="kw">for </span>ThreadRng {}
-
-<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
-</span><span class="kw">pub mod </span>mskr {
-    <span class="kw">use </span><span class="kw">crate</span>::traits::ToFromBytes;
-
-    <span class="doccomment">/// Trait impl&#39;d by keys and signatures for signature schemes supporting the MSKR (Multi-Signature with Key Randomization) scheme.
-    </span><span class="kw">pub trait </span>Randomize&lt;
-        PubKey: ToFromBytes,
-        Scalar,
-        H: HashToScalar&lt;Scalar&gt;,
-        <span class="kw">const </span>PUBLIC_KEY_LENGTH: usize,
-    &gt;: Sized
-    {
-        <span class="doccomment">/// Randomize this with the given scalar.
-        </span><span class="kw">fn </span>randomize_internal(<span class="kw-2">&amp;</span><span class="self">self</span>, r: <span class="kw-2">&amp;</span>Scalar) -&gt; <span class="self">Self</span>;
-
-        <span class="doccomment">/// Randomize this deterministically based on the given public keys.
-        </span><span class="kw">fn </span>randomize(<span class="kw-2">&amp;</span><span class="self">self</span>, pk: <span class="kw-2">&amp;</span>PubKey, pks: <span class="kw-2">&amp;</span>[PubKey]) -&gt; <span class="self">Self </span>{
-            <span class="self">self</span>.randomize_internal(
-                <span class="kw-2">&amp;</span>randomization_scalar::&lt;PubKey, Scalar, H, PUBLIC_KEY_LENGTH&gt;(pk, pks),
-            )
-        }
-    }
-
-    <span class="kw">pub trait </span>HashToScalar&lt;Scalar&gt; {
-        <span class="kw">fn </span>hash_to_scalar(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; Scalar;
-    }
-
-    <span class="doccomment">/// Compute as hash of (pk, pks) into a scalar type.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>randomization_scalar&lt;
-        PubKey: ToFromBytes,
-        Scalar,
-        H: HashToScalar&lt;Scalar&gt;,
-        <span class="kw">const </span>PUBLIC_KEY_LENGTH: usize,
-    &gt;(
-        pk: <span class="kw-2">&amp;</span>PubKey,
-        pks: <span class="kw-2">&amp;</span>[PubKey],
-    ) -&gt; Scalar {
-        <span class="kw">let </span><span class="kw-2">mut </span>seed: Vec&lt;u8&gt; = Vec::with_capacity(PUBLIC_KEY_LENGTH * (pks.len() + <span class="number">1</span>));
-        seed.extend_from_slice(pk.as_bytes());
-        <span class="kw">for </span>pki <span class="kw">in </span>pks {
-            seed.extend_from_slice(pki.as_bytes());
-        }
-        H::hash_to_scalar(seed.as_slice())
-    }
-}
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (2d14db321 2023-02-15)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (246eae2fa 2023-02-21)" data-search-js="search-14421e1532aead08.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
