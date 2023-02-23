@@ -18,8 +18,8 @@ use std::{
 };
 
 use crate::traits::{
-    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, Signer, SigningKey,
-    ToFromBytes, VerifyingKey,
+    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, InsecureDefault, KeyPair, Signer,
+    SigningKey, ToFromBytes, VerifyingKey,
 };
 
 use super::hash::Fast256HashUnsecure;
@@ -87,8 +87,8 @@ fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
 /// Implement SigningKey
 ///
 
-impl Default for UnsecurePublicKey {
-    fn default() -> Self {
+impl InsecureDefault for UnsecurePublicKey {
+    fn insecure_default() -> Self {
         Self([0; PUBLIC_KEY_LENGTH])
     }
 }
@@ -163,8 +163,8 @@ impl VerifyingKey for UnsecurePublicKey {
 /// Implement Authenticator
 ///
 
-impl Default for UnsecureSignature {
-    fn default() -> Self {
+impl InsecureDefault for UnsecureSignature {
+    fn insecure_default() -> Self {
         Self([0; SIGNATURE_LENGTH])
     }
 }
@@ -327,8 +327,8 @@ fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
     v.try_into().unwrap()
 }
 
-impl Default for UnsecureAggregateSignature {
-    fn default() -> Self {
+impl InsecureDefault for UnsecureAggregateSignature {
+    fn insecure_default() -> Self {
         Self([0; SIGNATURE_LENGTH])
     }
 }
