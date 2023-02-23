@@ -28,9 +28,7 @@ impl HashFunction<8> for XXH3Unsecure {
 
     fn finalize(self) -> Digest<8> {
         let hash: [u8; 8] = self.instance.finish().to_le_bytes();
-        Digest {
-            digest: hash.into(),
-        }
+        Digest { digest: hash }
     }
 }
 
@@ -54,9 +52,7 @@ impl HashFunction<16> for XXH128Unsecure {
 
     fn finalize(self) -> Digest<16> {
         let hash: [u8; 16] = self.instance.finish_ext().to_be_bytes();
-        Digest {
-            digest: hash.into(),
-        }
+        Digest { digest: hash }
     }
 }
 
@@ -85,6 +81,6 @@ impl HashFunction<32> for Fast256HashUnsecure {
         let mut digest = [0; 32];
         digest[..16].copy_from_slice(&short_digest);
         digest[16..32].copy_from_slice(&short_digest);
-        Digest { digest: digest }
+        Digest { digest }
     }
 }

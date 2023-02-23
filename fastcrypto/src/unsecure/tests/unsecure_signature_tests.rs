@@ -6,15 +6,15 @@ use crate::signature_service::SignatureService;
 use crate::{
     hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
-    traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
+    traits::{
+        AggregateAuthenticator, EncodeDecodeBase64, KeyPair, Signer, ToFromBytes, VerifyingKey,
+    },
     unsecure::signature::{
         UnsecureAggregateSignature, UnsecureKeyPair, UnsecurePrivateKey, UnsecurePublicKey,
         UnsecureSignature,
     },
 };
-use ::signature::Verifier;
 use rand::{rngs::StdRng, SeedableRng as _};
-use signature::Signer;
 
 pub fn keys() -> Vec<UnsecureKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -398,7 +398,7 @@ async fn signature_service() {
     // Request signature from the service.
     let message: &[u8] = b"Hello, world!";
     let digest = Blake2b256::digest(message);
-    let signature = service.request_signature(digest.clone()).await;
+    let signature = service.request_signature(digest).await;
 
     // Verify the signature we received.
     assert!(pk.verify(digest.digest.as_slice(), &signature).is_ok());
