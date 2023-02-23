@@ -16,7 +16,6 @@ use std::{
     iter,
     ops::{AddAssign, Mul, Neg},
 };
-use untrusted::Input;
 
 use crate::{
     conversions::{
@@ -193,16 +192,13 @@ fn test_verify_with_processed_vk() {
     let mut public_inputs_bytes = Vec::new();
     v.serialize(&mut public_inputs_bytes).unwrap();
 
-    let inputs_reader = Input::from(&public_inputs_bytes);
-    let deserialized_public_inputs =
-        BlsFr::deserialize(inputs_reader.as_slice_less_safe()).unwrap();
+    let deserialized_public_inputs = BlsFr::deserialize(public_inputs_bytes.as_slice()).unwrap();
 
     // Roundtrip serde of the proof points bytes.
     let mut proof_points_bytes = Vec::new();
     proof.serialize(&mut proof_points_bytes).unwrap();
-    let proof_reader = Input::from(&proof_points_bytes);
     let deserialized_proof_points =
-        Proof::<Bls12_381>::deserialize(proof_reader.as_slice_less_safe()).unwrap();
+        Proof::<Bls12_381>::deserialize(proof_points_bytes.as_slice()).unwrap();
 
     // Roundtrip serde of the prepared verifying key.
     let serialized = blst_pvk.as_serialized().unwrap();
