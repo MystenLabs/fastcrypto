@@ -103,9 +103,5 @@ pub mod vrf;
 /// away.
 ///
 /// Warning: All schemes in this file are completely unsafe to use in production.
-#[cfg(all(
-    feature = "unsecure_schemes",
-    not(feature = "secure"),
-    debug_assertions
-))]
+#[cfg(feature = "unsecure_schemes")]
 pub mod unsecure;

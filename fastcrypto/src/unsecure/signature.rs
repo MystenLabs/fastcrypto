@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::traits::EncodeDecodeBase64;
 use crate::{
     error::FastCryptoError,
     hash::{Digest, HashFunction},
@@ -12,7 +11,6 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use serde_with::serde_as;
-use signature::{Signature, Signer};
 use std::{
     borrow::Borrow,
     fmt::{self, Display},
@@ -20,7 +18,8 @@ use std::{
 };
 
 use crate::traits::{
-    AggregateAuthenticator, Authenticator, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
+    AggregateAuthenticator, Authenticator, EncodeDecodeBase64, KeyPair, Signer, SigningKey,
+    ToFromBytes, VerifyingKey,
 };
 
 use super::hash::Fast256HashUnsecure;
@@ -40,10 +39,10 @@ const SIGNATURE_LENGTH: usize = 48;
 type DefaultHashFunction = Fast256HashUnsecure;
 
 #[readonly::make]
-#[derive(Debug, Clone, PartialEq, Eq, Ord, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub struct UnsecurePublicKey(pub [u8; PUBLIC_KEY_LENGTH]);
 
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnsecurePrivateKey(pub [u8; PRIVATE_KEY_LENGTH]);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -109,19 +108,13 @@ impl ToFromBytes for UnsecurePublicKey {
     }
 }
 
-impl std::hash::Hash for UnsecurePublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
-    }
-}
-
 impl Display for UnsecurePublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "{}", Base64::encode_string(self.as_ref()))
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey);
+serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey, PUBLIC_KEY_LENGTH);
 
 impl<'a> From<&'a UnsecurePrivateKey> for UnsecurePublicKey {
     fn from(secret: &'a UnsecurePrivateKey) -> Self {
@@ -148,6 +141,7 @@ impl VerifyingKey for UnsecurePublicKey {
         Err(FastCryptoError::InvalidSignature)
     }
 
+    #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail(
         _msg: &[u8],
         pks: &[Self],
@@ -181,12 +175,6 @@ impl AsRef<[u8]> for UnsecureSignature {
     }
 }
 
-impl std::hash::Hash for UnsecureSignature {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.as_ref().hash(state);
-    }
-}
-
 impl ToFromBytes for UnsecureSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let bytes_fixed: [u8; SIGNATURE_LENGTH] = bytes
@@ -208,7 +196,7 @@ impl Authenticator for UnsecureSignature {
     const LENGTH: usize = 0;
 }
 
-serialize_deserialize_with_to_from_bytes!(UnsecureSignature);
+serialize_deserialize_with_to_from_bytes!(UnsecureSignature, SIGNATURE_LENGTH);
 
 ///
 /// Implement SigningKey
@@ -235,7 +223,7 @@ impl SigningKey for UnsecurePrivateKey {
     const LENGTH: usize = PRIVATE_KEY_LENGTH;
 }
 
-serialize_deserialize_with_to_from_bytes!(UnsecurePrivateKey);
+serialize_deserialize_with_to_from_bytes!(UnsecurePrivateKey, PRIVATE_KEY_LENGTH);
 
 ///
 /// Implement KeyPair
@@ -244,11 +232,7 @@ serialize_deserialize_with_to_from_bytes!(UnsecurePrivateKey);
 impl From<UnsecurePrivateKey> for UnsecureKeyPair {
     fn from(secret: UnsecurePrivateKey) -> Self {
         let mut pk_bytes = [0; PUBLIC_KEY_LENGTH];
-        if PRIVATE_KEY_LENGTH >= PUBLIC_KEY_LENGTH {
-            pk_bytes.copy_from_slice(&secret.0[0..PUBLIC_KEY_LENGTH]);
-        } else {
-            pk_bytes[0..PRIVATE_KEY_LENGTH].copy_from_slice(&secret.0);
-        }
+        pk_bytes[0..PRIVATE_KEY_LENGTH].copy_from_slice(&secret.0);
         UnsecureKeyPair {
             name: UnsecurePublicKey(pk_bytes),
             secret,
@@ -299,7 +283,7 @@ impl KeyPair for UnsecureKeyPair {
 }
 
 impl Signer<UnsecureSignature> for UnsecureKeyPair {
-    fn sign(&self, msg: &[u8]) -> Result<UnsecureSignature, FastCryptoError> {
+    fn sign(&self, msg: &[u8]) -> UnsecureSignature {
         // A signature for msg is equal to H(pk || msg)
         sign(self.name.0, msg)
     }
@@ -314,7 +298,7 @@ impl FromStr for UnsecureKeyPair {
     }
 }
 
-serialize_deserialize_with_to_from_bytes!(UnsecureKeyPair);
+serialize_deserialize_with_to_from_bytes!(UnsecureKeyPair, PRIVATE_KEY_LENGTH);
 
 ///
 /// Implement AggregateAuthenticator. Aggregate signatures are implemented as xor's of the individual signatures.
