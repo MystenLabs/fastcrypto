@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::signature_service::SignatureService;
-use crate::traits::InsecureDefault;
 use crate::{
     hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
@@ -257,7 +256,7 @@ fn verify_batch_aggregate_signature() {
 #[test]
 fn test_serialize_deserialize_aggregate_signatures() {
     // Test empty aggregate signature
-    let sig = UnsecureAggregateSignature::insecure_default();
+    let sig = UnsecureAggregateSignature::default();
     let serialized = bincode::serialize(&sig).unwrap();
     let _deserialized: UnsecureAggregateSignature = bincode::deserialize(&serialized).unwrap();
 
@@ -288,7 +287,7 @@ fn test_add_signatures_to_aggregate() {
     let message = b"hello, narwhal";
 
     // Test 'add signature'
-    let mut sig1 = UnsecureAggregateSignature::insecure_default();
+    let mut sig1 = UnsecureAggregateSignature::default();
     // Test populated aggregate signature
     kps.clone().into_iter().for_each(|kp| {
         let sig = kp.sign(message);
@@ -298,7 +297,7 @@ fn test_add_signatures_to_aggregate() {
     assert!(sig1.verify(&pks, message).is_ok());
 
     // Test 'add aggregate signature'
-    let mut sig2 = UnsecureAggregateSignature::insecure_default();
+    let mut sig2 = UnsecureAggregateSignature::default();
 
     let kp = &kps[0];
     let sig = UnsecureAggregateSignature::aggregate(&vec![kp.sign(message)]).unwrap();
@@ -328,7 +327,7 @@ fn test_add_signatures_to_aggregate_different_messages() {
     let messages: Vec<&[u8]> = vec![b"hello", b"world", b"!!!!!"];
 
     // Test 'add signature'
-    let mut sig1 = UnsecureAggregateSignature::insecure_default();
+    let mut sig1 = UnsecureAggregateSignature::default();
     // Test populated aggregate signature
     for (i, kp) in kps.iter().take(3).enumerate() {
         let sig = kp.sign(messages[i]);
@@ -338,7 +337,7 @@ fn test_add_signatures_to_aggregate_different_messages() {
     assert!(sig1.verify_different_msg(&pks, &messages).is_ok());
 
     // Test 'add aggregate signature'
-    let mut sig2 = UnsecureAggregateSignature::insecure_default();
+    let mut sig2 = UnsecureAggregateSignature::default();
 
     let kp = &kps[0];
     let sig = UnsecureAggregateSignature::aggregate(&[kp.sign(messages[0])]).unwrap();
