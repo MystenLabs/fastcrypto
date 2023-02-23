@@ -41,7 +41,7 @@ ecdsa = { version = "0.15.1", features = ["rfc6979"] }
 rfc6979 = "0.3.1"
 blake2 = "0.10.6"
 blake3 = "1.3.3"
-blst = "0.3.10"
+blst = { version = "0.3.10", features = ["no-threads"] }
 digest.workspace = true
 once_cell = "1.17.0"
 readonly = "0.2.3"
@@ -86,7 +86,6 @@ default = ["secure"]
 secure = []
 copy_key = []
 unsecure_schemes = ["dep:twox-hash", "dep:serde-big-array"]
-no-threads-blst = ["blst/no-threads"]
 experimental = []
 
 [dev-dependencies]
