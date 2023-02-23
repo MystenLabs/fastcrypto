@@ -163,8 +163,8 @@ impl VerifyingKey for UnsecurePublicKey {
 /// Implement Authenticator
 ///
 
-impl InsecureDefault for UnsecureSignature {
-    fn insecure_default() -> Self {
+impl Default for UnsecureSignature {
+    fn default() -> Self {
         Self([0; SIGNATURE_LENGTH])
     }
 }
@@ -327,8 +327,8 @@ fn xor<const N: usize>(x: [u8; N], y: [u8; N]) -> [u8; N] {
     v.try_into().unwrap()
 }
 
-impl InsecureDefault for UnsecureAggregateSignature {
-    fn insecure_default() -> Self {
+impl Default for UnsecureAggregateSignature {
+    fn default() -> Self {
         Self([0; SIGNATURE_LENGTH])
     }
 }
