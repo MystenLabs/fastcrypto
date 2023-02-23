@@ -187,7 +187,7 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     };
 
     let mut g1 = blst_p1_affine::default();
-    assert_eq!(
+    debug_assert_eq!(
         unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) },
         BLST_ERROR::BLST_SUCCESS
     );
@@ -257,7 +257,7 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     };
 
     let mut g2 = blst_p2_affine::default();
-    assert_eq!(
+    debug_assert_eq!(
         unsafe { blst_p2_deserialize(&mut g2, tmp2.as_ptr()) },
         BLST_ERROR::BLST_SUCCESS
     );
