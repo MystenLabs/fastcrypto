@@ -363,12 +363,6 @@
 <a href="#363" id="363">363</a>
 <a href="#364" id="364">364</a>
 <a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{iter, ops::Neg, ptr};
@@ -384,7 +378,6 @@
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
-<span class="kw">use </span>untrusted::Input;
 
 <span class="kw">use </span><span class="kw">crate</span>::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
@@ -422,23 +415,18 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1: Vec&lt;G1Affine&gt; = Vec::new();
         <span class="kw">for </span>g1_bytes <span class="kw">in </span>vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
-            <span class="kw">let </span>g1_reader = Input::from(g1_bytes);
-            <span class="kw">let </span>g1 = G1Affine::deserialize(g1_reader.as_slice_less_safe())
-                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+            <span class="kw">let </span>g1 = G1Affine::deserialize(g1_bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
             vk_gamma_abc_g1.push(g1);
         }
-        <span class="kw">let </span>alpha_reader = Input::from(alpha_g1_beta_g2_bytes);
         <span class="kw">let </span>alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
-            <span class="kw-2">&amp;</span>Fq12::deserialize(alpha_reader.as_slice_less_safe())
+            <span class="kw-2">&amp;</span>Fq12::deserialize(alpha_g1_beta_g2_bytes)
                 .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
         );
 
-        <span class="kw">let </span>g2_reader = Input::from(gamma_g2_neg_pc_bytes);
-        <span class="kw">let </span>gamma_g2_neg_pc = G2Affine::deserialize(g2_reader.as_slice_less_safe())
+        <span class="kw">let </span>gamma_g2_neg_pc = G2Affine::deserialize(gamma_g2_neg_pc_bytes)
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>g2_reader_2 = Input::from(delta_g2_neg_pc_bytes);
-        <span class="kw">let </span>delta_g2_neg_pc = G2Affine::deserialize(g2_reader_2.as_slice_less_safe())
+        <span class="kw">let </span>delta_g2_neg_pc = G2Affine::deserialize(delta_g2_neg_pc_bytes)
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(PreparedVerifyingKey {

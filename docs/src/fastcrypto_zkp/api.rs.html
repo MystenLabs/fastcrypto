@@ -47,8 +47,6 @@
 <a href="#47" id="47">47</a>
 <a href="#48" id="48">48</a>
 <a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -56,7 +54,6 @@
 <span class="kw">use </span>ark_groth16::{Proof, VerifyingKey};
 <span class="kw">use </span>ark_serialize::CanonicalDeserialize;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
-<span class="kw">use </span>untrusted::Input;
 
 <span class="kw">use </span><span class="kw">crate</span>::conversions::BlsFr;
 <span class="kw">use </span><span class="kw">crate</span>::verifier::{process_vk_special, verify_with_processed_vk, PreparedVerifyingKey};
@@ -67,7 +64,7 @@
 
 <span class="doccomment">/// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the four components of a prepared verified key (see more at [`crate::verifier::PreparedVerifyingKey`]).
 </span><span class="kw">pub fn </span>prepare_pvk_bytes(vk_bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, FastCryptoError&gt; {
-    <span class="kw">let </span>vk = VerifyingKey::&lt;Bls12_381&gt;::deserialize(Input::from(vk_bytes).as_slice_less_safe())
+    <span class="kw">let </span>vk = VerifyingKey::&lt;Bls12_381&gt;::deserialize(vk_bytes)
         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
     process_vk_special(<span class="kw-2">&amp;</span>vk).as_serialized()
@@ -83,12 +80,11 @@
     proof_public_inputs_as_bytes: <span class="kw-2">&amp;</span>[u8],
     proof_points_as_bytes: <span class="kw-2">&amp;</span>[u8],
 ) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
-    <span class="kw">let </span>x = BlsFr::deserialize(Input::from(proof_public_inputs_as_bytes).as_slice_less_safe())
+    <span class="kw">let </span>x = BlsFr::deserialize(proof_public_inputs_as_bytes)
         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>proof =
-        Proof::&lt;Bls12_381&gt;::deserialize(Input::from(proof_points_as_bytes).as_slice_less_safe())
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+    <span class="kw">let </span>proof = Proof::&lt;Bls12_381&gt;::deserialize(proof_points_as_bytes)
+        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>blst_pvk = PreparedVerifyingKey::deserialize(
         vk_gamma_abc_g1_bytes,
