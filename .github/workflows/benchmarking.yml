@@ -19,7 +19,7 @@ jobs:
       - name: Install criterion
         run: cargo install cargo-criterion
       - name: Run benchmarks
-        run: cd fastcrypto; cargo criterion --message-format=json --no-default-features --features no-threads-blst > ../${{ github.sha }}.json; cd ..
+        run: cd fastcrypto; cargo criterion --message-format=json --no-default-features > ../${{ github.sha }}.json; cd ..
       - name: Deploy latest benchmark report
         uses: peaceiris/actions-gh-pages@bd8c6b06eba6b3d25d72b7a1767993c0aeee42e7 # pin@v3
         with:
