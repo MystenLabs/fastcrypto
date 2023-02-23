@@ -1019,7 +1019,7 @@
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>g1 = blst_p1_affine::default();
-    <span class="macro">assert_eq!</span>(
+    <span class="macro">debug_assert_eq!</span>(
         <span class="kw">unsafe </span>{ blst_p1_deserialize(<span class="kw-2">&amp;mut </span>g1, tmp2.as_ptr()) },
         BLST_ERROR::BLST_SUCCESS
     );
@@ -1089,7 +1089,7 @@
     };
 
     <span class="kw">let </span><span class="kw-2">mut </span>g2 = blst_p2_affine::default();
-    <span class="macro">assert_eq!</span>(
+    <span class="macro">debug_assert_eq!</span>(
         <span class="kw">unsafe </span>{ blst_p2_deserialize(<span class="kw-2">&amp;mut </span>g2, tmp2.as_ptr()) },
         BLST_ERROR::BLST_SUCCESS
     );
