@@ -50,8 +50,7 @@ impl PreparedVerifyingKey {
     ) -> Result<Self, FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
-            let g1 = G1Affine::deserialize(g1_bytes)
-                .map_err(|_| FastCryptoError::InvalidInput)?;
+            let g1 = G1Affine::deserialize(g1_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(

@@ -192,8 +192,7 @@ fn test_verify_with_processed_vk() {
     let mut public_inputs_bytes = Vec::new();
     v.serialize(&mut public_inputs_bytes).unwrap();
 
-    let deserialized_public_inputs =
-        BlsFr::deserialize(public_inputs_bytes.as_slice()).unwrap();
+    let deserialized_public_inputs = BlsFr::deserialize(public_inputs_bytes.as_slice()).unwrap();
 
     // Roundtrip serde of the proof points bytes.
     let mut proof_points_bytes = Vec::new();

@@ -34,9 +34,8 @@ pub fn verify_groth16_in_bytes(
     let x = BlsFr::deserialize(proof_public_inputs_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    let proof =
-        Proof::<Bls12_381>::deserialize(proof_points_as_bytes)
-            .map_err(|_| FastCryptoError::InvalidInput)?;
+    let proof = Proof::<Bls12_381>::deserialize(proof_points_as_bytes)
+        .map_err(|_| FastCryptoError::InvalidInput)?;
 
     let blst_pvk = PreparedVerifyingKey::deserialize(
         vk_gamma_abc_g1_bytes,
