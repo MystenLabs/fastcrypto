@@ -13,7 +13,6 @@ use blst::{
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
 use fastcrypto::error::FastCryptoError;
-use untrusted::Input;
 
 use crate::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
@@ -51,23 +50,19 @@ impl PreparedVerifyingKey {
     ) -> Result<Self, FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
-            let g1_reader = Input::from(g1_bytes);
-            let g1 = G1Affine::deserialize(g1_reader.as_slice_less_safe())
+            let g1 = G1Affine::deserialize(g1_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
-        let alpha_reader = Input::from(alpha_g1_beta_g2_bytes);
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
-            &Fq12::deserialize(alpha_reader.as_slice_less_safe())
+            &Fq12::deserialize(alpha_g1_beta_g2_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
 
-        let g2_reader = Input::from(gamma_g2_neg_pc_bytes);
-        let gamma_g2_neg_pc = G2Affine::deserialize(g2_reader.as_slice_less_safe())
+        let gamma_g2_neg_pc = G2Affine::deserialize(gamma_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let g2_reader_2 = Input::from(delta_g2_neg_pc_bytes);
-        let delta_g2_neg_pc = G2Affine::deserialize(g2_reader_2.as_slice_less_safe())
+        let delta_g2_neg_pc = G2Affine::deserialize(delta_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(PreparedVerifyingKey {
