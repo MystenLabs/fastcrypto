@@ -51,7 +51,7 @@ pub struct UnsecureKeyPair {
     secret: UnsecurePrivateKey,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct UnsecureSignature(pub [u8; SIGNATURE_LENGTH]);
 
 impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for UnsecureSignature {
