@@ -77,6 +77,10 @@ name = "mskr"
 harness = false
 required-features = ["experimental"]
 
+[[bench]]
+name = "serialize"
+harness = false
+
 [features]
 default = ["secure"]
 secure = []
