@@ -24,6 +24,7 @@ use std::fmt;
 
 use crate::encoding::{Base64, Encoding};
 use crate::groups::ristretto255::RistrettoPoint;
+use crate::groups::HashToGroupElement;
 
 /// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_as]
@@ -58,11 +59,7 @@ impl<const DIGEST_LEN: usize> fmt::Debug for Digest<DIGEST_LEN> {
 
 impl<const DIGEST_LEN: usize> fmt::Display for Digest<DIGEST_LEN> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(
-            f,
-            "{}",
-            Base64::encode(self.digest).get(0..DIGEST_LEN).unwrap()
-        )
+        write!(f, "{}", Base64::encode(self.digest))
     }
 }
 
@@ -238,6 +235,15 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     fn union(&mut self, other: &Self);
 
     /// Remove an element from this hash function.
+    // Note that remove is safe even if an item is removed more time than inserted. To see that,
+    // consider the following example: Say that the adversary has two sets of "insert(x)" and
+    // "remove(x)" operations that result in the same hash, or in other words, the sum of each set is
+    // \sum_x m_x H(x) where m_x is #insert(x) - #remove(x)#. Then, one can create two new sets with
+    // the same hash by taking the original sets and adding -m_x H(x) to both, for every item x such
+    // that m_x was negative in any of the original sets. Since we add exactly the same elements to
+    // both sets, the resulting hash will be the same, and since now none of the values m_x of the
+    // new sets are negative, in the the new sets we know that no item was removed more than
+    // inserted.
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data);
 
     /// Remove multiple items from this hash function.
@@ -315,8 +321,7 @@ impl MultisetHash<32> for EllipticCurveMultisetHash {
 impl EllipticCurveMultisetHash {
     /// Hash the given item into a RistrettoPoint to be used by the insert and remove methods.
     fn hash_to_point<Data: AsRef<[u8]>>(item: Data) -> RistrettoPoint {
-        // By default we use Sha512, but this could be made generic if needed.
-        RistrettoPoint::from_uniform_bytes(&Sha512::digest(item).digest)
+        RistrettoPoint::hash_to_group_element(item.as_ref())
     }
 }
 
