@@ -4,11 +4,13 @@
 use elliptic_curve::IsHigh;
 use p256::ecdsa::Signature;
 use proptest::{prelude::*, strategy::Strategy};
+use rand::thread_rng;
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use crate::encoding::{Base64, Encoding};
 use crate::hash::{Blake2b256, Keccak256};
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::test_helpers::verify_serialization;
@@ -126,6 +128,41 @@ fn verify_valid_signature() {
     // Verify the signature.
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
     assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+
+        // example from tg
+        let msg = [2, 122, 172, 194, 198, 228, 109, 173, 209, 183, 22, 184, 200, 134, 195, 240, 254, 78, 205, 143, 34, 86, 91, 124, 187, 209, 182, 69, 54, 226, 236, 81, 41, 129, 140, 48, 228, 46, 111, 2, 235, 65, 189, 201, 108, 133, 240, 156, 119, 250, 46, 19, 249, 159, 119, 79, 196, 152, 56, 169, 81, 99, 56, 146, 198, 3, 191, 143, 93, 87, 227, 104, 133, 0, 153, 18, 79, 30, 83, 232, 142, 228, 9, 158, 163, 199, 96, 128, 195, 213, 10, 97, 89, 183, 201, 72, 246, 35];
+        let sig1 = [122, 172, 194, 198, 228, 109, 173, 209, 183, 22, 184, 200, 134, 195, 240, 254, 78, 205, 143, 34, 86, 91, 124, 187, 209, 182, 69, 54, 226, 236, 81, 41, 129, 140, 48, 228, 46, 111, 2, 235, 65, 189, 201, 108, 133, 240, 156, 119, 250, 46, 19, 249, 159, 119, 79, 196, 152, 56, 169, 81, 99, 56, 146, 198];
+        let pk1 = [3, 191, 143, 93, 87, 227, 104, 133, 0, 153, 18, 79, 30, 83, 232, 142, 228, 9, 158, 163, 199, 96, 128, 195, 213, 10, 97, 89, 183, 201, 72, 246, 35];
+        let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&sig1).unwrap();
+        let pk = Secp256r1PublicKey::from_bytes(&pk1).unwrap();
+        println!("is_high={:?}", sig.sig.s().is_high());
+        println!("sig={:?}", sig.sig);
+        let sig_low = sig.sig.normalize_s();
+        println!("sig low={:?}", sig_low); // this is different from the sig meaning s was prev higher.
+        println!("res={:?}", pk.verify(&msg, &sig));
+
+        // // i cannot reproduce with a bunch of random keys
+        // for _ in 0..100 {
+        //     let kp = Secp256r1KeyPair::generate(&mut thread_rng());
+        //     let sig = kp.sign(&msg);
+        //     println!("is_high={:?}", sig.sig.s().is_high());
+        //     println!("sig={:?}", sig.sig);
+        //     let sig_low = sig.sig.normalize_s();
+        //     println!("sig low={:?}", sig_low); // this is none meaning it is already lower s
+        //     println!("res={:?}", kp.public().verify(&msg, &sig));
+        // }
+
+        let c = "AqPmvgC0d98+QsB9W2TumfztXyyxN3FxiTCBf3Fbd3Mg";
+        let g = Base64::decode(c).unwrap();
+        println!("g={:?}", g.len());
+        // input your privkey here
+        let kp = Secp256r1KeyPair::from(Secp256r1PrivateKey::from_bytes(&g[1..]).unwrap());
+        let sig1 = kp.sign(&msg); // check if sig == sig1 
+        println!("sig={:?}", sig1.sig);
+        sig1.sig.normalize_s();
+        println!("sig={:?}", sig1.sig);
+        println!("sig is here={:?}", sig1.sig.s().is_high()); // this is none meaning it is already lower s
+
 }
 
 #[test]

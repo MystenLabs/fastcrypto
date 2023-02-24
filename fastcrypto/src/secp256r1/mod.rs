@@ -338,6 +338,7 @@ impl Secp256r1KeyPair {
             .0;
 
         let sig_low = sig.normalize_s().unwrap_or(sig);
+        println!("here is high: {:?}", sig_low.s().is_high());
         Secp256r1Signature {
             sig: sig_low,
             bytes: OnceCell::new(),
