@@ -152,4 +152,9 @@ fn test_accumulator() {
     let accumulator4 = EllipticCurveMultisetHash::default();
     assert_ne!(accumulator, accumulator4);
     assert_ne!(accumulator.digest(), accumulator4.digest());
+    // Test regression of default
+    assert_eq!(
+        accumulator4.digest().as_ref(),
+        hex::decode("66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925").unwrap()
+    );
 }
