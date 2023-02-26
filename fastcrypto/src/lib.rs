@@ -76,6 +76,10 @@ pub mod bls12381_group_tests;
 pub mod vrf_tests;
 
 #[cfg(test)]
+#[path = "tests/signature_service_tests.rs"]
+pub mod signature_service_tests;
+
+#[cfg(test)]
 #[path = "tests/test_helpers.rs"]
 pub mod test_helpers;
 

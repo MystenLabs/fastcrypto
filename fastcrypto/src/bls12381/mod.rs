@@ -492,6 +492,7 @@ impl KeyPair for BLS12381KeyPair {
     fn generate<R: AllowedRng>(rng: &mut R) -> Self {
         let mut ikm = [0u8; 32];
         rng.fill_bytes(&mut ikm);
+        // TODO: Consider moving to key gen version 5.
         let privkey = blst::SecretKey::key_gen(&ikm, &[]).expect("ikm length should be higher");
         let pubkey = privkey.sk_to_pk();
         BLS12381KeyPair {
