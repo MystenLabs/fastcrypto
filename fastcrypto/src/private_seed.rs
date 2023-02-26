@@ -30,7 +30,7 @@ impl<const RECOMMENDED_LENGTH: usize, const FIXED_LENGTH_ONLY: bool> ToFromBytes
             return Err(FastCryptoError::InputLengthWrong(RECOMMENDED_LENGTH));
         }
         Ok(Self {
-            bytes: bytes.to_vec(),
+            bytes: bytes.into(),
         })
     }
 

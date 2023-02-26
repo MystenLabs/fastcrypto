@@ -234,16 +234,20 @@ pub trait MultisetHash<const DIGEST_LENGTH: usize>: Eq {
     /// Add all the elements of another hash function into this hash function.
     fn union(&mut self, other: &Self);
 
+    // Note that the "remove" operation is safe even if an item has been removed
+    // more times than it has been inserted. To see why, consider the following
+    // example: Suppose an adversary has performed two sets of "insert(x)" and
+    // "remove(x)" operations resulting in the same hash, i.e., the sum of each set
+    // is \sum_x m_x H(x), where m_x is the difference between the number of times
+    // "x" was inserted and removed.
+    // Then, one can create two new sets with the same hash by taking the original
+    // sets and subtracting m_x H(x) from both sets for every item "x" such that m_x
+    // was negative in any of the original sets. Since we "subtract" (or actually
+    // insert) the same elements from both sets, the resulting hash will remain the
+    // same. Moreover, since none of the values of m_x in the new sets are negative,
+    // we can conclude that no item was removed more times than it was inserted in
+    // the new sets.
     /// Remove an element from this hash function.
-    // Note that remove is safe even if an item is removed more time than inserted. To see that,
-    // consider the following example: Say that the adversary has two sets of "insert(x)" and
-    // "remove(x)" operations that result in the same hash, or in other words, the sum of each set is
-    // \sum_x m_x H(x) where m_x is #insert(x) - #remove(x)#. Then, one can create two new sets with
-    // the same hash by taking the original sets and adding -m_x H(x) to both, for every item x such
-    // that m_x was negative in any of the original sets. Since we add exactly the same elements to
-    // both sets, the resulting hash will be the same, and since now none of the values m_x of the
-    // new sets are negative, in the the new sets we know that no item was removed more than
-    // inserted.
     fn remove<Data: AsRef<[u8]>>(&mut self, item: Data);
 
     /// Remove multiple items from this hash function.

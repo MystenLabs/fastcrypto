@@ -58,6 +58,7 @@ use hkdf::hmac::{Hmac, Mac};
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
+#[cfg(any(test, feature = "experimental"))]
 pub fn hkdf_generate_from_ikm<H, K>(
     ikm: &[u8],  // IKM (32 bytes).
     salt: &[u8], // Salt (can be empty).
@@ -99,12 +100,11 @@ const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 
 /// Type for key in [hmac_sha3_256].
 pub type HmacKey = PrivateSeed<HMAC_KEY_RECOMMENDED_LENGTH, false>;
-/// Type for input keying material in [hkdf_sha3_256].
-pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
 /// [Keyed-Hash Message Authentication Code](https://www.rfc-editor.org/rfc/rfc2104) (HMAC) using SHA3-256.
 pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
-    let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(key.as_bytes()).unwrap();
+    let mut hash = Hmac::<sha3::Sha3_256>::new_from_slice(key.as_bytes())
+        .expect("HMAC can take key of any size");
     hash.update(message);
     let output = hash.finalize();
     Digest {
@@ -112,7 +112,12 @@ pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
     }
 }
 
+/// Type for input keying material in [hkdf_sha3_256].
+#[cfg(any(test, feature = "experimental"))]
+pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
+
 /// [HMAC-based Extract-and-Expand Key Derivation Function](https://tools.ietf.org/html/rfc5869) (HKDF) using SHA3-256.
+#[cfg(any(test, feature = "experimental"))]
 pub fn hkdf_sha3_256(
     ikm: &HkdfIkm,
     salt: &[u8],
