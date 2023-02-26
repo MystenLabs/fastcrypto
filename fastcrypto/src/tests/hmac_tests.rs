@@ -81,7 +81,7 @@ fn test_regression_of_salt_padding() {
 }
 
 #[test]
-fn test_regression_of_hmac() {
+fn test_hmac_regression() {
     let test1 = HmacTestVector {
         key: "0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
         message: "4869205468657265",
@@ -108,7 +108,7 @@ fn test_regression_of_hmac() {
 
 #[test]
 fn test_sanity_hmac_key() {
-    // Empty/short keys are be padded.
+    // Empty/short keys are padded.
     let message = [1u8; 30];
     let r = hmac_sha3_256(&HmacKey::from_bytes(&[]).unwrap(), &message);
     assert_eq!(

@@ -7,6 +7,20 @@ use crate::hash::{
 };
 
 #[test]
+fn test_new_update_finalize() {
+    let data =
+        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
+    let mut hasher = Sha256::new();
+    hasher.update(data);
+    let digest = hasher.finalize();
+    assert_eq!(
+        digest.as_ref(),
+        hex::decode("2196d60feda3cd3787885c10a905e11fae911c32a0eb67fd290ade5df7eab140").unwrap()
+    );
+    println!("{}", digest);
+}
+
+#[test]
 fn test_sha256() {
     let data =
         hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
@@ -15,6 +29,7 @@ fn test_sha256() {
         digest.as_ref(),
         hex::decode("2196d60feda3cd3787885c10a905e11fae911c32a0eb67fd290ade5df7eab140").unwrap()
     );
+    println!("{}", digest);
 }
 
 #[test]
@@ -94,6 +109,12 @@ fn test_accumulator() {
     assert_ne!(check1, accumulator);
     assert_ne!(check1.digest(), accumulator.digest());
 
+    // Test regression
+    assert_eq!(
+        check1.digest().as_ref(),
+        hex::decode("0a8b8511c8c985a4530921933ac82b374ca5230b7e25758c43afe699eb1eec60").unwrap()
+    );
+
     // Hashing the same elements should give the same hash
     let mut accumulator2 = EllipticCurveMultisetHash::default();
     accumulator2.insert_all([b"Hello", b"World"]);
@@ -126,4 +147,14 @@ fn test_accumulator() {
     // Removing all added elements will make the hash equal again
     accumulator2.remove_all([b"!", b"!"]);
     assert_eq!(accumulator, accumulator2);
+
+    // Compare with default
+    let accumulator4 = EllipticCurveMultisetHash::default();
+    assert_ne!(accumulator, accumulator4);
+    assert_ne!(accumulator.digest(), accumulator4.digest());
+    // Test regression of default
+    assert_eq!(
+        accumulator4.digest().as_ref(),
+        hex::decode("66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925").unwrap()
+    );
 }
