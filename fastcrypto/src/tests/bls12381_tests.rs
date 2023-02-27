@@ -10,13 +10,13 @@ use crate::{
     encoding::Base64,
     hash::{HashFunction, Sha256, Sha3_256},
     hmac::hkdf_generate_from_ikm,
-    signature_service::SignatureService,
     traits::{
         AggregateAuthenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes, VerifyingKey,
     },
 };
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
+use std::str::FromStr;
 
 // We use the following macro in order to run all tests for both min_sig and min_pk.
 macro_rules! define_tests { () => {
@@ -26,6 +26,10 @@ pub fn keys() -> Vec<BLS12381KeyPair> {
         .map(|_| BLS12381KeyPair::generate(&mut rng))
         .collect()
 }
+
+//
+// Serialization tests
+//
 
 #[test]
 fn import_export_public_key() {
@@ -69,52 +73,96 @@ fn to_from_bytes_signature() {
 }
 
 #[test]
-fn verify_valid_signature() {
-    // Get a keypair.
+fn test_serialize_deserialize_standard_sig() {
     let kp = keys().pop().unwrap();
+    let pk = kp.public().clone();
+    let sk = kp.private();
+    let message = b"hello, narwhal";
+    let sig = keys().pop().unwrap().sign(message);
+    let default_sig = BLS12381Signature::default();
 
-    // Make signature.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
+    verify_serialization(&pk, Some(pk.as_bytes()));
+    verify_serialization(&sk, Some(sk.as_bytes()));
+    verify_serialization(&sig, Some(sig.as_bytes()));
+    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
 
-    let signature = kp.sign(digest.as_ref());
-
-    // Verify the signature.
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_ok());
+    let kp = keys().pop().unwrap();
+    verify_serialization(&kp, Some(kp.as_bytes()));
+    let kp_b64 = kp.encode_base64();
+    assert_eq!(BLS12381KeyPair::from_str(&kp_b64).unwrap(), kp);
 }
 
 #[test]
-fn verify_invalid_signature() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-
-    // Make signature.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-
-    let signature = kp.sign(digest.as_ref());
-
-    // Verify the signature.
-    let bad_message: &[u8] = b"Bad message!";
-    let digest = Sha256::digest(bad_message);
-
-    assert!(kp.public().verify(digest.as_ref(), &signature).is_err());
+fn test_serialize_deserialize_aggregate_signatures() {
+    // Default aggregated sig
+    let default_sig = BLS12381AggregateSignature::default();
+    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
+    assert_eq!(default_sig.as_bytes(), BLS12381Signature::default().as_bytes());
+    // Standard aggregated sig
+    let message = b"hello, narwhal";
+    let (_, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+    let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
+    verify_serialization(&sig, Some(sig.as_bytes()));
+    // BLS12381AggregateSignatureAsBytes
+    let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
+    verify_serialization(&sig_as_bytes, Some(sig.as_bytes()));
 }
+
+#[test]
+fn test_human_readable_signatures() {
+    let kp = keys().pop().unwrap();
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign(message);
+
+    let serialized = serde_json::to_string(&signature).unwrap();
+    assert_eq!(
+        format!(
+            "\"{}\"",
+            Base64::encode(&signature.sig.to_bytes())
+        ),
+        serialized
+    );
+    let deserialized: BLS12381Signature = serde_json::from_str(&serialized).unwrap();
+    assert_eq!(deserialized, signature);
+}
+
+//
+// Signature verification tests
+//
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) {
     // Make signatures.
     let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
     let (pubkeys, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(digest.as_ref());
+            let sig = kp.sign(message);
             (kp.public().clone(), sig)
         })
         .unzip();
 
-    (digest.to_vec(), pubkeys, signatures)
+    (message.to_vec(), pubkeys, signatures)
+}
+
+#[test]
+fn test_pk_verify() {
+    let kp = keys().pop().unwrap();
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign(message);
+    assert!(kp.public().verify(message, &signature).is_ok());
+
+    // Invalid signatures - different message and an empty message.
+    let other_message: &[u8] = b"Bad message!";
+    assert!(kp.public().verify(other_message, &signature).is_err());
+    assert!(kp.public().verify(&[], &signature).is_err());
 }
 
 #[test]
@@ -160,6 +208,33 @@ fn verify_batch_missing_public_keys() {
     assert!(res.is_err(), "{:?}", res);
 }
 
+#[test]
+fn verify_valid_batch_different_msg() {
+    let inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_ok(), "{:?}", res);
+}
+
+#[test]
+fn verify_invalid_batch_different_msg() {
+    let mut inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
+    inputs.signatures[0] = BLS12381Signature::default();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_err(), "{:?}", res);
+}
+
+//
+// Aggregated signatures and batch verification tests
+//
+
 fn verify_batch_aggregate_signature_inputs() -> (
     Vec<u8>,
     Vec<u8>,
@@ -170,12 +245,11 @@ fn verify_batch_aggregate_signature_inputs() -> (
 ) {
     // Make signatures.
     let message1: &[u8] = b"Hello, world!";
-    let digest1 = Sha256::digest(message1);
     let (pubkeys1, signatures1): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
         .into_iter()
         .take(3)
         .map(|kp| {
-            let sig = kp.sign(digest1.as_ref());
+            let sig = kp.sign(message1);
             (kp.public().clone(), sig)
         })
         .unzip();
@@ -183,20 +257,19 @@ fn verify_batch_aggregate_signature_inputs() -> (
 
     // Make signatures.
     let message2: &[u8] = b"Hello, worl!";
-    let digest2 = Sha256::digest(message2);
     let (pubkeys2, signatures2): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
         .into_iter()
         .take(2)
         .map(|kp| {
-            let sig = kp.sign(digest2.as_ref());
+            let sig = kp.sign(message2);
             (kp.public().clone(), sig)
         })
         .unzip();
 
     let aggregated_signature2 = BLS12381AggregateSignature::aggregate(&signatures2).unwrap();
     (
-        digest1.to_vec(),
-        digest2.to_vec(),
+        message1.to_vec(),
+        message2.to_vec(),
         pubkeys1,
         pubkeys2,
         aggregated_signature1,
@@ -205,20 +278,28 @@ fn verify_batch_aggregate_signature_inputs() -> (
 }
 
 #[test]
-fn verify_batch_aggregate_signature() {
-    let (digest1, digest2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
+fn batch_verify_aggregate_signature() {
+    let (msg1, msg2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
         verify_batch_aggregate_signature_inputs();
 
     assert!(BLS12381AggregateSignature::batch_verify(
         &[&aggregated_signature1, &aggregated_signature2],
         vec![pubkeys1.iter(), pubkeys2.iter()],
-        &[&digest1[..], &digest2[..]]
+        &[&msg1[..], &msg2[..]]
     )
     .is_ok());
+
+    // Test failure when checking with a wrong message.
+    assert!(BLS12381AggregateSignature::batch_verify(
+        &[&aggregated_signature1, &aggregated_signature2],
+        vec![pubkeys1.iter(), pubkeys2.iter()],
+        &[&msg1[..], &msg1[..]]
+    )
+    .is_err());
 }
 
 #[test]
-fn verify_batch_missing_parameters_length_mismatch() {
+fn batch_verify_missing_parameters_length_mismatch() {
     let (digest1, digest2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
         verify_batch_aggregate_signature_inputs();
 
@@ -252,7 +333,7 @@ fn verify_batch_missing_parameters_length_mismatch() {
 }
 
 #[test]
-fn verify_batch_missing_keys_in_batch() {
+fn batch_verify_missing_keys_in_batch() {
     let (digest1, digest2, pubkeys1, pubkeys2, aggregated_signature1, aggregated_signature2) =
         verify_batch_aggregate_signature_inputs();
 
@@ -294,47 +375,6 @@ fn verify_batch_missing_keys_in_batch() {
 }
 
 #[test]
-fn test_serialize_deserialize_standard_sig() {
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-    let sk = kp.private();
-    let message = b"hello, narwhal";
-    let sig = keys().pop().unwrap().sign(message);
-    let default_sig = BLS12381Signature::default();
-
-    verify_serialization(&pk, Some(pk.as_bytes()));
-    verify_serialization(&sk, Some(sk.as_bytes()));
-    verify_serialization(&sig, Some(sig.as_bytes()));
-    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
-
-    let kp = keys().pop().unwrap();
-    verify_serialization(&kp, Some(kp.as_bytes()));
-}
-
-#[test]
-fn test_serialize_deserialize_aggregate_signatures() {
-    // Default aggregated sig
-    let default_sig = BLS12381AggregateSignature::default();
-    verify_serialization(&default_sig, Some(default_sig.as_bytes()));
-    assert_eq!(default_sig.as_bytes(), BLS12381Signature::default().as_bytes());
-    // Standard aggregated sig
-    let message = b"hello, narwhal";
-    let (_, signatures): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
-        .into_iter()
-        .take(3)
-        .map(|kp| {
-            let sig = kp.sign(message);
-            (kp.public().clone(), sig)
-        })
-        .unzip();
-    let sig = BLS12381AggregateSignature::aggregate(&signatures).unwrap();
-    verify_serialization(&sig, Some(sig.as_bytes()));
-    // BLS12381AggregateSignatureAsBytes
-    let sig_as_bytes = BLS12381AggregateSignatureAsBytes::from(&sig);
-    verify_serialization(&sig_as_bytes, Some(sig.as_bytes()));
-}
-
-#[test]
 fn test_add_signatures_to_aggregate() {
     let pks: Vec<BLS12381PublicKey> = keys()
         .into_iter()
@@ -352,13 +392,15 @@ fn test_add_signatures_to_aggregate() {
         let sig = kp.sign(message);
         sig1.add_signature(sig).unwrap();
 
-        // Verify that the binary representation is updated for each added signature
+        // Verify that the binary representation (the OnceCell) is updated for each added signature
         let reconstructed = BLS12381AggregateSignature::from_bytes(sig1.as_ref()).unwrap();
         assert!(reconstructed.verify(&pks[..i], message).is_err());
         assert!(reconstructed.verify(&pks[..i+1], message).is_ok());
     });
 
     assert!(sig1.verify(&pks, message).is_ok());
+    let other_message = b"hello, narwhal2";
+    assert!(sig1.verify(&pks, other_message).is_err());
 
     // Test 'add aggregate signature'
     let mut sig2 = BLS12381AggregateSignature::default();
@@ -380,7 +422,6 @@ fn test_add_signatures_to_aggregate() {
     .unwrap();
 
     sig2.add_aggregate(aggregated_signature).unwrap();
-
     assert!(sig2.verify(&pks, message).is_ok());
 }
 
@@ -402,6 +443,8 @@ fn test_add_signatures_to_aggregate_different_messages() {
     }
 
     assert!(sig1.verify_different_msg(&pks, &messages).is_ok());
+    let other_messages: Vec<&[u8]> = vec![b"hello", b"world!", b"!!!!"];
+    assert!(sig1.verify_different_msg(&pks, &other_messages).is_err());
 
     // Test 'add aggregate signature'
     let mut sig2 = BLS12381AggregateSignature::default();
@@ -426,50 +469,34 @@ fn test_add_signatures_to_aggregate_different_messages() {
     .unwrap();
 
     sig2.add_aggregate(aggregated_signature).unwrap();
-
     assert!(sig2.verify_different_msg(&pks, &messages).is_ok());
 }
 
 #[test]
-fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
-    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
-        &inputs.digests,
-        &inputs.pubkeys,
-        &inputs.signatures,
-    );
-    assert!(res.is_ok(), "{:?}", res);
+fn test_signature_aggregation() {
+    let mut rng = StdRng::from_seed([0; 32]);
+    let msg = b"message";
+
+    // Valid number of signatures
+    for size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192] {
+        let blst_keypairs: Vec<_> = (0..size)
+            .map(|_| BLS12381KeyPair::generate(&mut rng))
+            .collect();
+        let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
+        assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_ok());
+    }
+
+    // Invalid number of signatures
+    let blst_keypairs: Vec<_> = (0..0)
+        .map(|_| BLS12381KeyPair::generate(&mut rng))
+        .collect();
+    let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
+    assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_err());
 }
 
-#[test]
-fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<BLS12381KeyPair>();
-    inputs.signatures[0] = BLS12381Signature::default();
-    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
-        &inputs.digests,
-        &inputs.pubkeys,
-        &inputs.signatures,
-    );
-    assert!(res.is_err(), "{:?}", res);
-}
-
-#[test]
-fn test_human_readable_signatures() {
-    let kp = keys().pop().unwrap();
-    let message: &[u8] = b"Hello, world!";
-    let signature = kp.sign(message);
-
-    let serialized = serde_json::to_string(&signature).unwrap();
-    assert_eq!(
-        format!(
-            "\"{}\"",
-            Base64::encode(&signature.sig.to_bytes())
-        ),
-        serialized
-    );
-    let deserialized: BLS12381Signature = serde_json::from_str(&serialized).unwrap();
-    assert_eq!(deserialized, signature);
-}
+//
+// Other tests
+//
 
 #[test]
 fn test_hkdf_generate_from_ikm() {
@@ -482,24 +509,6 @@ fn test_hkdf_generate_from_ikm() {
     let kp2 = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(seed, salt, &[]).unwrap();
 
     assert_eq!(kp.private().as_bytes(), kp2.private().as_bytes());
-}
-
-#[tokio::test]
-async fn signature_service() {
-    // Get a keypair.
-    let kp = keys().pop().unwrap();
-    let pk = kp.public().clone();
-
-    // Spawn the signature service.
-    let service = SignatureService::new(kp);
-
-    // Request signature from the service.
-    let message: &[u8] = b"Hello, world!";
-    let digest = Sha256::digest(message);
-    let signature = service.request_signature(digest).await;
-
-    // Verify the signature we received.
-    assert!(pk.verify(digest.as_ref(), &signature).is_ok());
 }
 
 // Checks if the private keys zeroed out
@@ -552,7 +561,7 @@ fn dont_display_secrets() {
 }
 
 #[test]
-fn test_default_values() {
+fn test_verify_with_default_values() {
     let valid_kp = keys().pop().unwrap();
     let valid_sig = valid_kp.sign(b"message");
     let default_sig = BLS12381Signature::default();
@@ -575,27 +584,10 @@ fn test_default_values() {
     assert!(default_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
 }
 
-#[test]
-fn test_signature_aggregation() {
-    let mut rng = StdRng::from_seed([0; 32]);
-    let msg = b"message";
+//
+// Proptests
+//
 
-    // Valid number of signatures
-    for size in [1, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192] {
-        let blst_keypairs: Vec<_> = (0..size)
-            .map(|_| BLS12381KeyPair::generate(&mut rng))
-            .collect();
-        let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
-        assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_ok());
-    }
-
-    // Invalid number of signatures
-    let blst_keypairs: Vec<_> = (0..0)
-        .map(|_| BLS12381KeyPair::generate(&mut rng))
-        .collect();
-    let blst_signatures: Vec<_> = blst_keypairs.iter().map(|key| key.sign(msg)).collect();
-    assert!(BLS12381AggregateSignature::aggregate(&blst_signatures).is_err());
-}
 
 // Arbitrary implementations for the proptests
 fn arb_keypair() -> impl Strategy<Value = BLS12381KeyPair> {
@@ -715,7 +707,6 @@ proptest! {
         let iterated_bits = sigs.iter().zip(pks.iter().zip(msgs.iter())).map(|(sig, (pk, msg))| pk.verify(msg, sig)).collect::<Vec<_>>();
         let res_iterated = iterated_bits.iter().all(|b| b.is_ok());
 
-
         assert_eq!(res_aggregated.is_ok(), res_iterated, "Aggregated: {:?}, iterated: {:?}", res_aggregated, iterated_bits);
     }
 
@@ -744,6 +735,25 @@ pub mod min_sig {
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
     define_tests!();
+
+    #[test]
+    fn regression_test() {
+        // Generated from a random secret key and stored here for regression testing.
+        let secret =
+            hex::decode("266f9708fd8d3b462b10cdbf5498076c021eb3acfdd47cb1fef647967fe194fb")
+                .unwrap();
+        let public = hex::decode("8c66dc2c1ea9e53f0985c17b4e7af19912b6d3c40e0c5920a5a12509b4eb3619f5e07ec56ea77f0b30629ba1cc72d75b139460782a5f0e2f89fb4c42b4b8a5fae3d260102220e63d0754e7e1846deefd3988eade4ed37f1385437d19de1a1618").unwrap();
+        let signature = hex::decode("89dff2dc1e9428b9437d50b37f8160eca790110ea2a79b6c88a43a16953466f8e391ff65842b067a1c9441c7c2cebce0").unwrap();
+
+        let sk = BLS12381PrivateKey::from_bytes(&secret).unwrap();
+        let pk = BLS12381PublicKey::from(&sk);
+        let message = b"hello, narwhal";
+        let sig = sk.sign(message);
+
+        assert_eq!(sk.as_bytes(), secret);
+        assert_eq!(pk.as_bytes(), public);
+        assert_eq!(sig.as_bytes(), signature);
+    }
 }
 
 pub mod min_pk {
@@ -753,6 +763,25 @@ pub mod min_pk {
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
     define_tests!();
+
+    #[test]
+    fn regression_test() {
+        // Generated from a random secret key and stored here for regression testing.
+        let secret =
+            hex::decode("266f9708fd8d3b462b10cdbf5498076c021eb3acfdd47cb1fef647967fe194fb")
+                .unwrap();
+        let public = hex::decode("b157f238403a5b980546fd19ca48f79a2613e3e3a91d14ee69908b8816e4c53665370b2fbd0db62cc4aa0e8caeedc9b5").unwrap();
+        let signature = hex::decode("8dec0b9a1a629cc96c57144ee8e7dd5c93acb465286f1214df3b8482c3f16e10db4277ead785f5d5bc77b4e51affd2580dead4d0d21cf20fc5e2b4bec2586c2bd6c73fee76c11f214871f77dada4c578034c3b978f1cccb82bdd78fe5ee67de1").unwrap();
+
+        let sk = BLS12381PrivateKey::from_bytes(&secret).unwrap();
+        let pk = BLS12381PublicKey::from(&sk);
+        let message = b"hello, narwhal";
+        let sig = sk.sign(message);
+
+        assert_eq!(sk.as_bytes(), secret);
+        assert_eq!(pk.as_bytes(), public);
+        assert_eq!(sig.as_bytes(), signature);
+    }
 
     #[test]
     fn test_verify_drand_signature() {
