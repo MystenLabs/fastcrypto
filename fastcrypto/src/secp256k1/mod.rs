@@ -300,7 +300,7 @@ impl From<&Secp256k1RecoverableSignature> for Secp256k1Signature {
 /// Secp256k1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256k1KeyPair {
-    pub name: Secp256k1PublicKey,
+    pub public: Secp256k1PublicKey,
     pub secret: Secp256k1PrivateKey,
 }
 
@@ -325,7 +325,7 @@ impl KeyPair for Secp256k1KeyPair {
     type Sig = Secp256k1Signature;
 
     fn public(&'_ self) -> &'_ Self::PubKey {
-        &self.name
+        &self.public
     }
 
     fn private(self) -> Self::PrivKey {
@@ -335,7 +335,7 @@ impl KeyPair for Secp256k1KeyPair {
     #[cfg(feature = "copy_key")]
     fn copy(&self) -> Self {
         Secp256k1KeyPair {
-            name: self.name.clone(),
+            public: self.public.clone(),
             secret: Secp256k1PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
         }
     }
@@ -344,7 +344,7 @@ impl KeyPair for Secp256k1KeyPair {
         let (privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
         Secp256k1KeyPair {
-            name: Secp256k1PublicKey {
+            public: Secp256k1PublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             },
@@ -388,21 +388,7 @@ impl Signer<Secp256k1Signature> for Secp256k1KeyPair {
 
 impl From<Secp256k1PrivateKey> for Secp256k1KeyPair {
     fn from(secret: Secp256k1PrivateKey) -> Self {
-        let name = Secp256k1PublicKey::from(&secret);
-        Secp256k1KeyPair { name, secret }
-    }
-}
-
-impl zeroize::Zeroize for Secp256k1KeyPair {
-    fn zeroize(&mut self) {
-        self.secret.zeroize()
-    }
-}
-
-impl zeroize::ZeroizeOnDrop for Secp256k1KeyPair {}
-
-impl Drop for Secp256k1KeyPair {
-    fn drop(&mut self) {
-        self.secret.zeroize();
+        let public = Secp256k1PublicKey::from(&secret);
+        Secp256k1KeyPair { public, secret }
     }
 }

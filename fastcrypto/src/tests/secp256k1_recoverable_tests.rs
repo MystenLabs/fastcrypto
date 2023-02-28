@@ -79,7 +79,7 @@ fn test_public_key_recovery_error() {
         signature_2
             .recover_with_hash::<Blake2b256>(message)
             .unwrap(),
-        kp.name
+        kp.public
     );
 }
 
