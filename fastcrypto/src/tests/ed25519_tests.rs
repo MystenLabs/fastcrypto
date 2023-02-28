@@ -772,9 +772,7 @@ fn ed25519_speccheck() {
     for i in 0..12 {
         let msg = hex::decode(msgs[i]).unwrap();
         let pk = Ed25519PublicKey::from_bytes(&hex::decode(pks[i]).unwrap()).unwrap();
-        let sig =
-            <Ed25519Signature as signature::Signature>::from_bytes(&hex::decode(sigs[i]).unwrap())
-                .unwrap();
+        let sig = Ed25519Signature::from_bytes(&hex::decode(sigs[i]).unwrap()).unwrap();
 
         assert_eq!(expected[i], pk.verify(&msg, &sig).is_ok());
     }
