@@ -37,7 +37,7 @@ mod group_benches {
     }
 
     fn scale(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("Scale");
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Scalar To Point Multiplication");
         scale_single::<G1Element, _>("BLS12381-G1", &mut group);
         scale_single::<G2Element, _>("BLS12381-G2", &mut group);
         scale_single::<GTElement, _>("BLS12381-GT", &mut group);
