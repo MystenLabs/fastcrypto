@@ -113,11 +113,9 @@ pub fn hmac_sha3_256(key: &HmacKey, message: &[u8]) -> Digest<32> {
 }
 
 /// Type for input keying material in [hkdf_sha3_256].
-#[cfg(any(test, feature = "experimental"))]
 pub type HkdfIkm = PrivateSeed<HKDF_KEY_RECOMMENDED_LENGTH, false>;
 
 /// [HMAC-based Extract-and-Expand Key Derivation Function](https://tools.ietf.org/html/rfc5869) (HKDF) using SHA3-256.
-#[cfg(any(test, feature = "experimental"))]
 pub fn hkdf_sha3_256(
     ikm: &HkdfIkm,
     salt: &[u8],
