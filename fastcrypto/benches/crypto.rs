@@ -487,7 +487,7 @@ mod signature_benches {
            verify,
            verify_batch_signatures,
            verify_batch_signatures_different_msg,
-           verify_batch_signatures_different_msg_different_keys
+           verify_batch_signatures_different_msg_different_keys,
            aggregate_signatures,
            key_generation,
     }
