@@ -346,7 +346,7 @@ mod signature_benches {
         let mut csprng: ThreadRng = thread_rng();
         for i in 0..size {
             let msg = fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest;
-            result.msgs.push(msg.clone());
+            result.msgs.push(msg);
             let keypairs: Vec<_> = (0..40).map(|_| KP::generate(&mut csprng)).collect();
             result
                 .public_keys
