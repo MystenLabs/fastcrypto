@@ -243,15 +243,8 @@ impl VerifyingKey for BLS12381PublicKey {
                 "Mismatch between number of messages, signatures and public keys provided"
             ));
         }
-        let mut rands: Vec<blst_scalar> = Vec::with_capacity(sigs.len());
 
-        // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
-        rands.push(get_one());
-
-        let mut rng = rand::thread_rng();
-        for _ in 1..sigs.len() {
-            rands.push(get_128bit_scalar(&mut rng));
-        }
+        let rands = get_random_scalars(sigs.len());
 
         let result = blst::Signature::verify_multiple_aggregate_signatures(
             &msgs.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
@@ -259,9 +252,9 @@ impl VerifyingKey for BLS12381PublicKey {
             &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
             false,
             &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
-            true,
+            false,
             &rands,
-            128,
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
         if result == BLST_ERROR::BLST_SUCCESS {
             Ok(())
@@ -271,8 +264,8 @@ impl VerifyingKey for BLS12381PublicKey {
     }
 }
 
-#[cfg(any(test, feature = "experimental"))]
 fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
+    assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH == 128);
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
@@ -290,7 +283,6 @@ fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
     }
 }
 
-#[cfg(any(test, feature = "experimental"))]
 fn get_one() -> blst_scalar {
     let mut one = blst_scalar::default();
     let mut vals = [0u8; 32];
@@ -299,6 +291,15 @@ fn get_one() -> blst_scalar {
         blst_scalar_from_le_bytes(&mut one, vals.as_ptr(), 32);
     }
     one
+}
+
+fn get_random_scalars(n: usize) -> Vec<blst_scalar> {
+    let mut rands: Vec<blst_scalar> = Vec::with_capacity(n);
+    // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
+    rands.push(get_one());
+    let mut rng = rand::thread_rng();
+    (1..n).into_iter().for_each(|_| rands.push(get_128bit_scalar(&mut rng)));
+    rands
 }
 
 //
@@ -669,29 +670,32 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // TODO: Consider using verify_multiple_aggregate_signatures() below.
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }
-        let mut pk_iter = pks.into_iter();
-        for i in 0..signatures.len() {
-            let sig = signatures[i].sig;
-            let result = sig
-                .fast_aggregate_verify(
-                    false,
-                    messages[i],
-                    $dst_string,
-                    &pk_iter
-                        .next()
-                        .unwrap()
-                        .map(|x| &x.pubkey)
-                        .collect::<Vec<_>>()[..],
-                );
-            if result != BLST_ERROR::BLST_SUCCESS {
-                return Err(FastCryptoError::GeneralOpaqueError);
-            }
+
+        let mut agg_pks: Vec<blst::PublicKey> = Vec::with_capacity(signatures.len());
+        for keys in pks {
+            let keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::<Vec<_>>();
+            agg_pks.push(blst::AggregatePublicKey::aggregate(&keys_as_vec, false).unwrap().to_public_key()
+            );
         }
-        Ok(())
+
+        let result = blst::Signature::verify_multiple_aggregate_signatures(
+            &messages,
+            $dst_string,
+            &agg_pks.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
+            false,
+            &signatures.iter().map(|agg_sig| &agg_sig.sig).collect::<Vec<_>>(),
+            false,
+            &get_random_scalars(signatures.len()),
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
+        );
+        if result == BLST_ERROR::BLST_SUCCESS {
+            Ok(())
+        } else {
+            Err(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 
@@ -710,6 +714,8 @@ pub const BLS_G2_LENGTH: usize = 96;
 
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
+
+const BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = 128;
 
 /// Module minimizing the size of signatures.
 pub mod min_sig;
