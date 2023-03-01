@@ -392,20 +392,6 @@
 <a href="#392" id="392">392</a>
 <a href="#393" id="393">393</a>
 <a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -708,7 +694,7 @@
 <span class="doccomment">/// Secp256k1 public/private key pair.
 </span><span class="attr">#[derive(Debug, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Secp256k1KeyPair {
-    <span class="kw">pub </span>name: Secp256k1PublicKey,
+    <span class="kw">pub </span>public: Secp256k1PublicKey,
     <span class="kw">pub </span>secret: Secp256k1PrivateKey,
 }
 
@@ -733,7 +719,7 @@
     <span class="kw">type </span>Sig = Secp256k1Signature;
 
     <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.name
+        <span class="kw-2">&amp;</span><span class="self">self</span>.public
     }
 
     <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
@@ -743,7 +729,7 @@
     <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         Secp256k1KeyPair {
-            name: <span class="self">self</span>.name.clone(),
+            public: <span class="self">self</span>.public.clone(),
             secret: Secp256k1PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap(),
         }
     }
@@ -752,7 +738,7 @@
         <span class="kw">let </span>(privkey, pubkey) = SECP256K1.generate_keypair(rng);
 
         Secp256k1KeyPair {
-            name: Secp256k1PublicKey {
+            public: Secp256k1PublicKey {
                 pubkey,
                 bytes: OnceCell::new(),
             },
@@ -796,23 +782,9 @@
 
 <span class="kw">impl </span>From&lt;Secp256k1PrivateKey&gt; <span class="kw">for </span>Secp256k1KeyPair {
     <span class="kw">fn </span>from(secret: Secp256k1PrivateKey) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>name = Secp256k1PublicKey::from(<span class="kw-2">&amp;</span>secret);
-        Secp256k1KeyPair { name, secret }
-    }
-}
-
-<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.secret.zeroize()
-    }
-}
-
-<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256k1KeyPair {}
-
-<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256k1KeyPair {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.secret.zeroize();
+        <span class="kw">let </span>public = Secp256k1PublicKey::from(<span class="kw-2">&amp;</span>secret);
+        Secp256k1KeyPair { public, secret }
     }
 }
 </code></pre></div>
-</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (7281249a1 2023-02-27)" data-search-js="search-d5a6cd8418084717.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
+</section></main><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.69.0-nightly (31f858d9a 2023-02-28)" data-search-js="search-d5a6cd8418084717.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" ></div></body></html>
