@@ -719,6 +719,12 @@
 <a href="#719" id="719">719</a>
 <a href="#720" id="720">720</a>
 <a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -964,15 +970,8 @@
                 <span class="string">&quot;Mismatch between number of messages, signatures and public keys provided&quot;
             </span>));
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(sigs.len());
 
-        <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
-        </span>rands.push(get_one());
-
-        <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-        <span class="kw">for _ in </span><span class="number">1</span>..sigs.len() {
-            rands.push(get_128bit_scalar(<span class="kw-2">&amp;mut </span>rng));
-        }
+        <span class="kw">let </span>rands = get_random_scalars(sigs.len());
 
         <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
             <span class="kw-2">&amp;</span>msgs.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
@@ -980,9 +979,9 @@
             <span class="kw-2">&amp;</span>pks.iter().map(|pk| <span class="kw-2">&amp;</span>pk.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span>sigs.iter().map(|sig| <span class="kw-2">&amp;</span>sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">true</span>,
+            <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span>rands,
-            <span class="number">128</span>,
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
         <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
             <span class="prelude-val">Ok</span>(())
@@ -992,8 +991,8 @@
     }
 }
 
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
-</span><span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+<span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+    <span class="macro">assert!</span>(BLS_BATCH_RANDOM_SCALAR_LENGTH == <span class="number">128</span>);
     <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
     <span class="kw">loop </span>{
         vals[<span class="number">0</span>] = rng.next_u64();
@@ -1011,8 +1010,7 @@
     }
 }
 
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
-</span><span class="kw">fn </span>get_one() -&gt; blst_scalar {
+<span class="kw">fn </span>get_one() -&gt; blst_scalar {
     <span class="kw">let </span><span class="kw-2">mut </span>one = blst_scalar::default();
     <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u8</span>; <span class="number">32</span>];
     vals[<span class="number">0</span>] = <span class="number">1</span>;
@@ -1020,6 +1018,15 @@
         blst_scalar_from_le_bytes(<span class="kw-2">&amp;mut </span>one, vals.as_ptr(), <span class="number">32</span>);
     }
     one
+}
+
+<span class="kw">fn </span>get_random_scalars(n: usize) -&gt; Vec&lt;blst_scalar&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(n);
+    <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
+    </span>rands.push(get_one());
+    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+    (<span class="number">1</span>..n).into_iter().for_each(|<span class="kw">_</span>| rands.push(get_128bit_scalar(<span class="kw-2">&amp;mut </span>rng)));
+    rands
 }
 
 <span class="comment">//
@@ -1390,29 +1397,32 @@
         pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// TODO: Consider using verify_multiple_aggregate_signatures() below.
-        </span><span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
+        <span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>pk_iter = pks.into_iter();
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..signatures.len() {
-            <span class="kw">let </span>sig = signatures[i].sig;
-            <span class="kw">let </span>result = sig
-                .fast_aggregate_verify(
-                    <span class="bool-val">false</span>,
-                    messages[i],
-                    <span class="macro-nonterminal">$dst_string</span>,
-                    <span class="kw-2">&amp;</span>pk_iter
-                        .next()
-                        .unwrap()
-                        .map(|x| <span class="kw-2">&amp;</span>x.pubkey)
-                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
-                );
-            <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
-            }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>agg_pks: Vec&lt;blst::PublicKey&gt; = Vec::with_capacity(signatures.len());
+        <span class="kw">for </span>keys <span class="kw">in </span>pks {
+            <span class="kw">let </span>keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+            agg_pks.push(blst::AggregatePublicKey::aggregate(<span class="kw-2">&amp;</span>keys_as_vec, <span class="bool-val">false</span>).unwrap().to_public_key()
+            );
         }
-        <span class="prelude-val">Ok</span>(())
+
+        <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
+            <span class="kw-2">&amp;</span>messages,
+            <span class="macro-nonterminal">$dst_string</span>,
+            <span class="kw-2">&amp;</span>agg_pks.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+            <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>signatures.iter().map(|agg_sig| <span class="kw-2">&amp;</span>agg_sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+            <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>get_random_scalars(signatures.len()),
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
+        );
+        <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 
@@ -1431,6 +1441,8 @@
 
 <span class="doccomment">/// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 </span><span class="kw">pub const </span>BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
+
+<span class="kw">const </span>BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = <span class="number">128</span>;
 
 <span class="doccomment">/// Module minimizing the size of signatures.
 </span><span class="kw">pub mod </span>min_sig;
