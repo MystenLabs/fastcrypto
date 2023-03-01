@@ -74,12 +74,14 @@ impl ToFromBytes for Secp256k1RecoverableSignature {
 
 impl AsRef<[u8]> for Secp256k1RecoverableSignature {
     fn as_ref(&self) -> &[u8] {
-        let mut bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
-        let (recovery_id, sig) = self.sig.serialize_compact();
-        bytes[..64].copy_from_slice(&sig);
-        bytes[64] = recovery_id.to_i32() as u8;
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(bytes))
+            .get_or_try_init::<_, eyre::Report>(|| {
+                let mut bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
+                let (recovery_id, sig) = self.sig.serialize_compact();
+                bytes[..64].copy_from_slice(&sig);
+                bytes[64] = recovery_id.to_i32() as u8;
+                Ok(bytes)
+            })
             .expect("OnceCell invariant violated")
     }
 }
@@ -162,7 +164,6 @@ impl RecoverableSigner for Secp256k1KeyPair {
         msg: &[u8],
     ) -> Secp256k1RecoverableSignature {
         let secp = Secp256k1::signing_only();
-
         let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         // Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
