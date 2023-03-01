@@ -19,6 +19,7 @@ mod signature_benches {
         traits::{AggregateAuthenticator, KeyPair, VerifyingKey},
     };
     use rand::{prelude::ThreadRng, thread_rng};
+    use std::borrow::Borrow;
 
     fn sign_single<KP: KeyPair, M: measurement::Measurement>(
         name: &str,
@@ -322,6 +323,87 @@ mod signature_benches {
         }
     }
 
+    struct TestDataBatchedVerificationDifferentMsgsDifferentKeys<
+        KP: KeyPair,
+        AS: AggregateAuthenticator<Sig = KP::Sig>,
+    > {
+        msgs: Vec<[u8; 32]>,
+        public_keys: Vec<Vec<<KP as KeyPair>::PubKey>>,
+        signatures: Vec<AS>,
+    }
+
+    fn generate_test_data_different_msg_different_key<
+        KP: KeyPair,
+        AS: AggregateAuthenticator<Sig = KP::Sig>,
+    >(
+        size: usize,
+    ) -> TestDataBatchedVerificationDifferentMsgsDifferentKeys<KP, AS> {
+        let mut result = TestDataBatchedVerificationDifferentMsgsDifferentKeys {
+            msgs: Vec::new(),
+            public_keys: Vec::new(),
+            signatures: Vec::new(),
+        };
+        let mut csprng: ThreadRng = thread_rng();
+        for i in 0..size {
+            let msg = fastcrypto::hash::Sha256::digest(i.to_string().as_bytes()).digest;
+            result.msgs.push(msg.clone());
+            let keypairs: Vec<_> = (0..40).map(|_| KP::generate(&mut csprng)).collect();
+            result
+                .public_keys
+                .push(keypairs.iter().map(|key| key.public().clone()).collect());
+            let signatures: Vec<_> = keypairs.iter().map(|key| key.sign(&msg)).collect();
+            let sig = AS::aggregate(&signatures).unwrap();
+            result.signatures.push(sig);
+        }
+        result
+    }
+
+    fn verify_batch_signatures_different_msg_different_key<
+        KP: KeyPair,
+        AS: AggregateAuthenticator<Sig = KP::Sig, PubKey = KP::PubKey>,
+        M: measurement::Measurement,
+    >(
+        name: &str,
+        size: usize,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let test_data = generate_test_data_different_msg_different_key::<KP, AS>(size);
+        c.bench_with_input(
+            BenchmarkId::new(name.to_string(), size),
+            &(test_data.msgs, test_data.public_keys, test_data.signatures),
+            |b, (m, pks, sigs)| {
+                let sigs_ref = sigs.iter().map(|m| m.borrow()).collect::<Vec<_>>();
+                let msgs_ref = m.iter().map(|m| m.borrow()).collect::<Vec<_>>();
+                let cloned_pks = pks.clone();
+                b.iter(|| {
+                    let pks_iters = cloned_pks.iter().map(|pk| pk.iter()).collect::<Vec<_>>();
+                    AS::batch_verify(&sigs_ref, pks_iters, &msgs_ref)
+                });
+            },
+        );
+    }
+
+    /// Benchmark batch verification of multiple signatures over different messages and different keys.
+    fn verify_batch_signatures_different_msg_different_keys(c: &mut Criterion) {
+        static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
+
+        let mut group: BenchmarkGroup<_> =
+            c.benchmark_group("Verify batch different messages different keys");
+
+        for size in BATCH_SIZES.iter() {
+            verify_batch_signatures_different_msg_different_key::<
+                bls12381::min_sig::BLS12381KeyPair,
+                bls12381::min_sig::BLS12381AggregateSignature,
+                _,
+            >("BLS12381MinSig_aggregate", *size, &mut group);
+            verify_batch_signatures_different_msg_different_key::<
+                bls12381::min_pk::BLS12381KeyPair,
+                bls12381::min_pk::BLS12381AggregateSignature,
+                _,
+            >("BLS12381MinPk_aggregate", *size, &mut group);
+        }
+    }
+
     fn aggregate_signatures(c: &mut Criterion) {
         static BATCH_SIZES: [usize; 5] = [4, 8, 16, 32, 64];
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Aggregate signatures");
@@ -405,6 +487,7 @@ mod signature_benches {
            verify,
            verify_batch_signatures,
            verify_batch_signatures_different_msg,
+           verify_batch_signatures_different_msg_different_keys
            aggregate_signatures,
            key_generation,
     }
