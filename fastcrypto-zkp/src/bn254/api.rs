@@ -11,8 +11,9 @@ use fastcrypto::error::FastCryptoError;
 #[path = "unit_tests/api_tests.rs"]
 mod api_tests;
 
-/// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
-/// (see more at [`crate::verifier::PreparedVerifyingKey`]), serialized proof public input and serialized proof points.
+/// Verify Groth16 proof using the serialized form of the verifying key (see more at
+/// [`crate::verifier::VerifyingKey::serialize`]), serialized proof public input and serialized
+/// proof points.
 pub fn verify_groth16_in_bytes(
     vk_bytes: &[u8],
     proof_public_inputs_as_bytes: &[u8],
