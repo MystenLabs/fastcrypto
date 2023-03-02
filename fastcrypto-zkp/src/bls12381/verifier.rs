@@ -14,7 +14,7 @@ use blst::{
 };
 use fastcrypto::error::FastCryptoError;
 
-use crate::conversions::{
+use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
     bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
