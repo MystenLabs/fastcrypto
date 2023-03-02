@@ -12,29 +12,10 @@ use std::{
     ops::{AddAssign, Mul, Neg},
 };
 
-use crate::bn254::verifier::{PreparedVerifyingKey, process_vk, verify_with_processed_vk};
 use crate::dummy_circuits::DummyCircuit;
 
 #[test]
-fn test_prepare_vk() {
-    const PUBLIC_SIZE: usize = 128;
-    let rng = &mut ark_std::test_rng();
-    let c = DummyCircuit::<Fr> {
-        a: Some(<Fr>::rand(rng)),
-        b: Some(<Fr>::rand(rng)),
-        num_variables: PUBLIC_SIZE,
-        num_constraints: 65536,
-    };
-
-    let (_pk, vk) = Groth16::<Bn254>::circuit_specific_setup(c, rng).unwrap();
-
-    let ark_pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-    let pvk = process_vk(&vk).unwrap();
-    assert_eq!(ark_pvk.alpha_g1_beta_g2, pvk.0.alpha_g1_beta_g2);
-}
-
-#[test]
-fn test_verify_with_processed_vk() {
+fn test_verify() {
     const PUBLIC_SIZE: usize = 128;
     let rng = &mut ark_std::test_rng();
     let c = DummyCircuit::<Fr> {
@@ -48,6 +29,5 @@ fn test_verify_with_processed_vk() {
     let proof = Groth16::<Bn254>::prove(&pk, c, rng).unwrap();
     let v = c.a.unwrap().mul(c.b.unwrap());
 
-    let pvk: PreparedVerifyingKey = process_vk(&vk).unwrap();
-    assert!(verify_with_processed_vk(&pvk, &[v], &proof).unwrap());
+    assert!(Groth16::<Bn254>::verify(&vk, &[v], &proof).unwrap());
 }
