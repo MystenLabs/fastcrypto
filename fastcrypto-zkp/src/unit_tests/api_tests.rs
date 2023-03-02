@@ -121,14 +121,14 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     let b = Fr::from(456);
 
     let params = {
-        let circuit = Fibonacci::<Fr>::new(42, a, b); // 42 constraints, initial a = b = 1
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
         generate_random_parameters::<Bls12_381, _, _>(circuit, &mut rng).unwrap()
     };
 
     let pvk = process_vk_special(&params.vk);
 
     let proof = {
-        let circuit = Fibonacci::<Fr>::new(42, a, b); // 42 constraints, initial a = b = 1
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
         create_random_proof(circuit, &params, &mut rng).unwrap()
     };
 
@@ -137,6 +137,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
 
     let pvk = pvk.as_serialized().unwrap();
 
+    // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();
     a.serialize(&mut inputs_bytes).unwrap();
     b.serialize(&mut inputs_bytes).unwrap();
@@ -149,6 +150,17 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     proof.c.serialize(&mut proof_bytes).unwrap();
 
     assert!(verify_groth16_in_bytes(
+        &pvk[0],
+        &pvk[1],
+        &pvk[2],
+        &pvk[3],
+        &inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    inputs_bytes[0] += 1;
+    assert!(!verify_groth16_in_bytes(
         &pvk[0],
         &pvk[1],
         &pvk[2],
