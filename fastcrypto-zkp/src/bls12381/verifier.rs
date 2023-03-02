@@ -110,7 +110,7 @@ impl PreparedVerifyingKey {
 ///
 /// ## Example:
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::process_vk_special};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
@@ -315,7 +315,7 @@ fn multipairing_with_processed_vk(
 ///
 /// ## Example
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::{ process_vk_special, verify_with_processed_vk }};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
