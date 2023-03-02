@@ -8,7 +8,7 @@ use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::UniformRand;
 use criterion::{criterion_group, Criterion};
 use criterion::{measurement::Measurement, BenchmarkGroup};
-use fastcrypto_zkp::conversions::{
+use fastcrypto_zkp::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fq2_to_blst_fp2, bls_fq6_to_blst_fp6, bls_fq_to_blst_fp,
     bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine, bls_g2_affine_to_blst_g2_affine,
     blst_fp12_to_bls_fq12, blst_fp2_to_bls_fq2, blst_fp6_to_bls_fq6, blst_fp_to_bls_fq,
