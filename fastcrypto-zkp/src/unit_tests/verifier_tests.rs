@@ -6,7 +6,7 @@ use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bls12::G1Prepared;
 use ark_ec::pairing::Pairing as _;
 use ark_ec::CurveGroup;
-use ark_ff::{One, PrimeField, UniformRand};
+use ark_ff::{One, UniformRand};
 use ark_groth16::{Groth16, PreparedVerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use ark_std::rand::thread_rng;

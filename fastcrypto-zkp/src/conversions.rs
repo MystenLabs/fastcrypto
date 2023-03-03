@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger, BigInteger384, Fp384, One, PrimeField, Zero};
+use ark_ff::{BigInteger384, Fp384, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, Compress, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
@@ -450,10 +450,8 @@ fn obtain_x_coordinate(bytes: &[u8]) -> Option<Fq> {
 pub(crate) mod tests {
     use super::*;
     use ark_bls12_381::Fr as BlsFr;
-    use ark_bn254::{Bn254, Fr};
-    use ark_ec::bn::BnConfig;
     use ark_ec::AffineRepr;
-    use ark_ff::{Field, MontBackend, MontConfig, One, Zero};
+    use ark_ff::Field;
     use blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
         blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,

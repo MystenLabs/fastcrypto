@@ -4,10 +4,10 @@
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ff::ToConstraintField;
 
+use ark_crypto_primitives::prf::{PRFGadget, PRF};
 use ark_crypto_primitives::{
     prf::blake2s::constraints::Blake2sGadget, prf::blake2s::Blake2s as B2SPRF,
 };
-use ark_crypto_primitives::prf::{PRF, PRFGadget};
 use ark_groth16::Groth16;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
@@ -95,13 +95,16 @@ fn main() {
         assert!(cs.is_satisfied().unwrap());
     }
 
-    let params = Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, rng).unwrap();
+    let params =
+        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, rng).unwrap();
 
     // prepare the verification key
     let pvk = process_vk_special(&params.vk);
 
     // prepare a proof (note: there is nothing trustable about the trivial setup involved here)
-    let proof = Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap();
+    let proof =
+        Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
+            .unwrap();
     println!(
         "Generated proof of knowledge of Blake2s preimage of {}",
         hex::encode(circuit.expected_output)
