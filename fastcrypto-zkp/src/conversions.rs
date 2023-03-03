@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger384, Fp384, FromBytes, One, PrimeField, Zero};
-use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
+use ark_ff::{BigInteger384, Fp384, PrimeField, Zero};
+use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, Compress, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
 use blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
@@ -11,7 +11,9 @@ pub use ark_bls12_381::Fr as BlsFr;
 use ark_bls12_381::{Fq, Fq2};
 use ark_bls12_381::{Fq12, G2Affine as BlsG2Affine};
 use ark_bls12_381::{Fq6, G1Affine as BlsG1Affine};
+use ark_ec::AffineRepr;
 
+use ark_serialize::CanonicalDeserialize;
 use blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 use byte_slice_cast::AsByteSlice;
 
@@ -36,7 +38,7 @@ fn u64s_from_bytes(bytes: &[u8; 32]) -> [u64; 4] {
 // Scalar Field conversions
 /// Convert an Arkworks BLS12-381 scalar field element to a blst scalar field element.
 pub fn bls_fr_to_blst_fr(fe: &BlsFr) -> blst_fr {
-    debug_assert_eq!(fe.serialized_size(), SCALAR_SIZE);
+    debug_assert_eq!(fe.serialized_size(Compress::Yes), SCALAR_SIZE);
     let mut bytes = [0u8; SCALAR_SIZE];
     fe.serialize_with_flags(&mut bytes[..], EmptyFlags).unwrap();
 
@@ -75,7 +77,7 @@ pub fn blst_fp_to_bls_fq(f: &blst_fp) -> Fq {
     let mut out = [0u64; 6];
     unsafe { blst_uint64_from_fp(out.as_mut_ptr(), f) };
     let bytes = out.as_byte_slice();
-    <Fq as FromBytes>::read(bytes).unwrap()
+    Fq::deserialize_compressed(bytes).unwrap()
 }
 
 // QFE conversions
@@ -157,7 +159,7 @@ fn blst_g1_affine_infinity() -> blst_p1_affine {
 }
 
 fn bls_g1_affine_infinity() -> BlsG1Affine {
-    BlsG1Affine::new(Fq::zero(), Fq::one(), true)
+    BlsG1Affine::zero()
 }
 
 /// Convert an Arkworks BLS12-381 affine G1 point to a blst affine G1 point.
@@ -216,7 +218,7 @@ pub fn blst_g1_affine_to_bls_g1_affine(pt: &blst_p1_affine) -> BlsG1Affine {
         out[0] &= 0b0001_1111;
         Fp384::from_be_bytes_mod_order(&out[..48])
     };
-    BlsG1Affine::new(x, y, infinity)
+    BlsG1Affine::new(x, y)
 }
 
 fn blst_g2_affine_infinity() -> blst_p2_affine {
@@ -227,7 +229,7 @@ fn blst_g2_affine_infinity() -> blst_p2_affine {
 }
 
 fn bls_g2_affine_infinity() -> BlsG2Affine {
-    BlsG2Affine::new(Fq2::zero(), Fq2::one(), true)
+    BlsG2Affine::zero()
 }
 
 /// Convert an Arkworks BLS12-381 affine G2 point to a blst affine G2 point.
@@ -279,7 +281,7 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
     if infinity {
         bls_g2_affine_infinity()
     } else {
-        BlsG2Affine::new(ptx, pty, infinity)
+        BlsG2Affine::new(ptx, pty)
     }
 }
 
@@ -299,7 +301,7 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
 fn bls_fq_to_zcash_bytes(field: &Fq) -> [u8; G1_COMPRESSED_SIZE] {
     let mut result = [0u8; G1_COMPRESSED_SIZE];
 
-    let rep = field.into_repr();
+    let rep = field.into_bigint();
 
     result[0..8].copy_from_slice(&rep.0[5].to_be_bytes());
     result[8..16].copy_from_slice(&rep.0[4].to_be_bytes());
@@ -321,7 +323,7 @@ fn bls_fq_from_zcash_bytes(bytes: &[u8; G1_COMPRESSED_SIZE]) -> Option<Fq> {
     tmp.0[1] = u64::from_be_bytes(bytes[32..40].try_into().unwrap());
     tmp.0[0] = u64::from_be_bytes(bytes[40..48].try_into().unwrap());
 
-    Fq::from_repr(tmp)
+    Fq::from_bigint(tmp)
 }
 
 struct EncodingFlags {
@@ -366,12 +368,12 @@ pub fn bls_g1_affine_from_zcash_bytes(bytes: &[u8; G1_COMPRESSED_SIZE]) -> Optio
     }
 
     if flags.is_infinity {
-        return Some(BlsG1Affine::default());
+        return Some(BlsG1Affine::zero());
     }
     // Attempt to obtain the x-coordinate.
     let x = obtain_x_coordinate(bytes.as_slice())?;
 
-    BlsG1Affine::get_point_from_x(x, flags.is_lexicographically_largest)
+    BlsG1Affine::get_point_from_x_unchecked(x, flags.is_lexicographically_largest)
 }
 
 /// This serializes an Arkworks G1Affine point into a Zcash point encoding.
@@ -409,7 +411,7 @@ pub fn bls_g2_affine_from_zcash_bytes(bytes: &[u8; G2_COMPRESSED_SIZE]) -> Optio
 
     let x = Fq2::new(xc0, xc1);
 
-    BlsG2Affine::get_point_from_x(x, flags.is_lexicographically_largest)
+    BlsG2Affine::get_point_from_x_unchecked(x, flags.is_lexicographically_largest)
 }
 
 /// This serializes an Arkworks G2Affine point into a Zcash point encoding.
@@ -447,15 +449,16 @@ fn obtain_x_coordinate(bytes: &[u8]) -> Option<Fq> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use ark_bls12_381::{FqParameters, Fr as BlsFr};
-    use ark_ec::{AffineCurve, ProjectiveCurve};
-    use ark_ff::{Field, One, Zero};
+    use ark_bls12_381::Fr as BlsFr;
+    use ark_ec::AffineRepr;
+    use ark_ff::Field;
     use blst::{
         blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
         blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
         blst_p2_affine_compress, blst_p2_to_affine, blst_p2_uncompress,
     };
     use proptest::{collection, prelude::*};
+    use std::ops::Mul;
 
     // Scalar roundtrips.
 
@@ -495,7 +498,7 @@ pub(crate) mod tests {
 
     // Base field roundtrips.
 
-    fn arb_bls_fq() -> impl Strategy<Value = Fp384<FqParameters>> {
+    fn arb_bls_fq() -> impl Strategy<Value = Fq> {
         collection::vec(any::<u8>(), 48..=48)
             .prop_map(|bytes| Fp384::from_random_bytes(&bytes[..]))
             .prop_filter("Valid field elements", Option::is_some)
@@ -629,9 +632,7 @@ pub(crate) mod tests {
     // Affine point roundtrips.
 
     fn bls_g1_affine_infinity() -> BlsG1Affine {
-        let res = BlsG1Affine::zero();
-        debug_assert_eq!(res, BlsG1Affine::new(Fq::zero(), Fq::one(), true));
-        res
+        BlsG1Affine::zero()
     }
 
     pub(crate) fn arb_bls_g1_affine() -> impl Strategy<Value = BlsG1Affine> {
@@ -642,9 +643,9 @@ pub(crate) mod tests {
             99 =>  // slow, but good enough for tests.
             (arb_bls_fr()).prop_map(|s| {
 
-                    BlsG1Affine::prime_subgroup_generator()
-                        .mul(s.into_repr())
-                        .into_affine()
+                    BlsG1Affine::generator()
+                        .mul(s)
+                        .into()
 
             })
         ]
@@ -733,9 +734,7 @@ pub(crate) mod tests {
     }
 
     fn bls_g2_affine_infinity() -> BlsG2Affine {
-        let res = BlsG2Affine::zero();
-        debug_assert_eq!(res, BlsG2Affine::new(Fq2::zero(), Fq2::one(), true));
-        res
+        BlsG2Affine::zero()
     }
 
     fn arb_bls_g2_affine() -> impl Strategy<Value = BlsG2Affine> {
@@ -744,9 +743,7 @@ pub(crate) mod tests {
             if maybe_infinity < 0.1 {
                 bls_g2_affine_infinity()
             } else {
-                BlsG2Affine::prime_subgroup_generator()
-                    .mul(s.into_repr())
-                    .into_affine()
+                BlsG2Affine::generator().mul(s).into()
             }
         })
     }

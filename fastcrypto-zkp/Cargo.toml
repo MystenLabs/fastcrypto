@@ -13,22 +13,23 @@ name = "proving"
 harness = false
 
 [dependencies]
-ark-bls12-381 = "0.3.0"
-ark-ec = { version = "0.3.0", features = ["parallel"]}
-ark-ff = { version = "0.3.0", features = ["asm", "parallel"]}
-ark-groth16 = "0.3.0"
-ark-relations = "0.3.0"
-ark-serialize = "0.3.0"
+ark-bls12-381 = "0.4.0"
+ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
+ark-ec = { version = "0.4.1", features = ["parallel"]}
+ark-ff = { version = "0.4.1", features = ["asm", "parallel"]}
+ark-groth16 = "0.4.0"
+ark-relations = "0.4.0"
+ark-serialize = "0.4.1"
 blst = "0.3.10"
 byte-slice-cast = "1.2.2"
 fastcrypto = { path = "../fastcrypto" }
 
 [dev-dependencies]
-ark-bls12-377 = "0.3.0"
-ark-bn254 = "0.3.0"
-ark-crypto-primitives = { version = "0.3.0", features = ["r1cs"] }
-ark-r1cs-std = "0.3.1"
-ark-std = { version = "0.3.0", features = ["parallel"]}
+ark-bls12-377 = "0.4.0"
+ark-bn254 = "0.4.0"
+ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
+ark-r1cs-std = "0.4.0"
+ark-std = { version = "0.4.0", features = ["parallel"]}
 blake2 = "0.10.6"
 criterion = "0.4.0"
 hex = "0.4.3"

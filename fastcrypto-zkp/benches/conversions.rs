@@ -4,8 +4,8 @@
 use ark_bls12_381::{Fq, Fq2, Fr as BlsFr};
 use ark_bls12_381::{Fq12, G2Affine as BlsG2Affine};
 use ark_bls12_381::{Fq6, G1Affine as BlsG1Affine};
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ff::{PrimeField, UniformRand};
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_ff::UniformRand;
 use criterion::{criterion_group, Criterion};
 use criterion::{measurement::Measurement, BenchmarkGroup};
 use fastcrypto_zkp::conversions::{
@@ -14,6 +14,7 @@ use fastcrypto_zkp::conversions::{
     blst_fp12_to_bls_fq12, blst_fp2_to_bls_fq2, blst_fp6_to_bls_fq6, blst_fp_to_bls_fq,
     blst_fr_to_bls_fr, blst_g1_affine_to_bls_g1_affine, blst_g2_affine_to_bls_g2_affine,
 };
+use std::ops::Mul;
 
 fn convert_from_arkworks<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     let mut rng = ark_std::test_rng();
@@ -43,17 +44,13 @@ fn convert_from_arkworks<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     });
 
     let scalar = BlsFr::rand(&mut rng);
-    let element = BlsG1Affine::prime_subgroup_generator()
-        .mul(scalar.into_repr())
-        .into_affine();
+    let element = BlsG1Affine::generator().mul(scalar).into_affine();
     grp.bench_with_input("G1Affine -> blst_p1_affine", &element, |b, element| {
         b.iter(|| bls_g1_affine_to_blst_g1_affine(element));
     });
 
     let scalar = BlsFr::rand(&mut rng);
-    let element = BlsG2Affine::prime_subgroup_generator()
-        .mul(scalar.into_repr())
-        .into_affine();
+    let element = BlsG2Affine::generator().mul(scalar).into_affine();
     grp.bench_with_input("G2Affine -> blst_p2_affine", &element, |b, element| {
         b.iter(|| bls_g2_affine_to_blst_g2_affine(element));
     });
@@ -92,18 +89,14 @@ fn convert_from_blst<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     });
 
     let scalar = BlsFr::rand(&mut rng);
-    let bls = BlsG1Affine::prime_subgroup_generator()
-        .mul(scalar.into_repr())
-        .into_affine();
+    let bls = BlsG1Affine::generator().mul(scalar).into_affine();
     let element = bls_g1_affine_to_blst_g1_affine(&bls);
     grp.bench_with_input("blst_p1_affine -> G1Affine", &element, |b, element| {
         b.iter(|| blst_g1_affine_to_bls_g1_affine(element));
     });
 
     let scalar = BlsFr::rand(&mut rng);
-    let bls = BlsG2Affine::prime_subgroup_generator()
-        .mul(scalar.into_repr())
-        .into_affine();
+    let bls = BlsG2Affine::generator().mul(scalar).into_affine();
     let element = bls_g2_affine_to_blst_g2_affine(&bls);
     grp.bench_with_input("blst_p2_affine -> G2Affine", &element, |b, element| {
         b.iter(|| blst_g2_affine_to_bls_g2_affine(element));
