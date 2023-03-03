@@ -17,7 +17,7 @@ use ark_serialize::CanonicalDeserialize;
 use blst::{blst_fr, blst_fr_from_uint64, blst_uint64_from_fr};
 use byte_slice_cast::AsByteSlice;
 
-const SCALAR_SIZE: usize = 32;
+pub const SCALAR_SIZE: usize = 32;
 /// G1 affine point compressed size.
 pub const G1_COMPRESSED_SIZE: usize = 48;
 const G2_COMPRESSED_SIZE: usize = 96;

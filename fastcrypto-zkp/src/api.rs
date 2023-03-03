@@ -5,9 +5,8 @@ use ark_bls12_381::Bls12_381;
 use ark_groth16::{Proof, VerifyingKey};
 use ark_serialize::CanonicalDeserialize;
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381::SCALAR_LENGTH;
 
-use crate::conversions::BlsFr;
+use crate::conversions::{BlsFr, SCALAR_SIZE};
 use crate::verifier::{process_vk_special, verify_with_processed_vk, PreparedVerifyingKey};
 
 #[cfg(test)]
@@ -24,7 +23,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
 /// (see more at [`crate::verifier::PreparedVerifyingKey`]), serialized proof public input, which should
-/// be serialized field elements of the scalar field, and serialized proof points.
+/// be concatenated serialized field elements of the scalar field, and serialized proof points.
 pub fn verify_groth16_in_bytes(
     vk_gamma_abc_g1_bytes: &[u8],
     alpha_g1_beta_g2_bytes: &[u8],
@@ -33,11 +32,11 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
+    if proof_public_inputs_as_bytes & SCALAR_SIZE != 0 {
+        return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
+    }
     let mut x = Vec::new();
-    for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_LENGTH) {
-        if chunk.len() != SCALAR_LENGTH {
-            return Err(FastCryptoError::InputLengthWrong(SCALAR_LENGTH));
-        }
+    for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
         x.push(BlsFr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?);
     }
 
