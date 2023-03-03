@@ -23,7 +23,8 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
 /// (see more at [`crate::verifier::PreparedVerifyingKey`]), serialized proof public input, which should
-/// be concatenated serialized field elements of the scalar field, and serialized proof points.
+/// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
+/// bytes each, and serialized proof points.
 pub fn verify_groth16_in_bytes(
     vk_gamma_abc_g1_bytes: &[u8],
     alpha_g1_beta_g2_bytes: &[u8],
