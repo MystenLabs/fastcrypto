@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_ff::{BigInteger384, Fp384, One, PrimeField, Zero};
+use ark_ff::{BigInteger, BigInteger384, Fp384, One, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, Compress, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
 use blst::{blst_fp2, blst_p1_deserialize};
@@ -301,7 +301,7 @@ pub fn blst_g2_affine_to_bls_g2_affine(pt: &blst_p2_affine) -> BlsG2Affine {
 fn bls_fq_to_zcash_bytes(field: &Fq) -> [u8; G1_COMPRESSED_SIZE] {
     let mut result = [0u8; G1_COMPRESSED_SIZE];
 
-    let rep = field.0;
+    let rep = field.into_bigint();
 
     result[0..8].copy_from_slice(&rep.0[5].to_be_bytes());
     result[8..16].copy_from_slice(&rep.0[4].to_be_bytes());
@@ -368,7 +368,7 @@ pub fn bls_g1_affine_from_zcash_bytes(bytes: &[u8; G1_COMPRESSED_SIZE]) -> Optio
     }
 
     if flags.is_infinity {
-        return Some(BlsG1Affine::default());
+        return Some(BlsG1Affine::zero());
     }
     // Attempt to obtain the x-coordinate.
     let x = obtain_x_coordinate(bytes.as_slice())?;
