@@ -113,15 +113,13 @@ impl PreparedVerifyingKey {
 /// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
-/// use ark_groth16::{
-///     generate_random_parameters
-/// };
+/// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
 ///
 /// let mut rng = thread_rng();
 /// let params = {
 ///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
-///     generate_random_parameters::<Bls12_381, _, _>(c, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
 /// };
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
@@ -320,16 +318,14 @@ fn multipairing_with_processed_vk(
 /// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
-/// use ark_groth16::{
-///     create_random_proof, generate_random_parameters
-/// };
+/// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
 ///
 /// let mut rng = thread_rng();
 ///
 /// let params = {
 ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
-///     generate_random_parameters::<Bls12_381, _, _>(circuit, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
 /// };
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
@@ -339,7 +335,7 @@ fn multipairing_with_processed_vk(
 /// let proof = {
 ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
 ///     // Create a proof with our parameters, picking a random witness assignment
-///     create_random_proof(circuit, &params, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
 /// };
 ///
 /// // We provide the public inputs which we know are used in our circuits
