@@ -15,7 +15,7 @@ mod api_tests;
 
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the four components of a prepared verified key (see more at [`crate::verifier::PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
-    let vk = VerifyingKey::<Bls12_381>::deserialize(vk_bytes)
+    let vk = VerifyingKey::<Bls12_381>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
     process_vk_special(&vk).as_serialized()
@@ -31,10 +31,10 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
-    let x = BlsFr::deserialize(proof_public_inputs_as_bytes)
+    let x = BlsFr::deserialize_compressed(proof_public_inputs_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    let proof = Proof::<Bls12_381>::deserialize(proof_points_as_bytes)
+    let proof = Proof::<Bls12_381>::deserialize_compressed(proof_points_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
     let blst_pvk = PreparedVerifyingKey::deserialize(

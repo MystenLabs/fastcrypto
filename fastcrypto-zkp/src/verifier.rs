@@ -50,18 +50,19 @@ impl PreparedVerifyingKey {
     ) -> Result<Self, FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
-            let g1 = G1Affine::deserialize(g1_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+            let g1 = G1Affine::deserialize_compressed(g1_bytes)
+                .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
-            &Fq12::deserialize(alpha_g1_beta_g2_bytes)
+            &Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
 
-        let gamma_g2_neg_pc = G2Affine::deserialize(gamma_g2_neg_pc_bytes)
+        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(gamma_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let delta_g2_neg_pc = G2Affine::deserialize(delta_g2_neg_pc_bytes)
+        let delta_g2_neg_pc = G2Affine::deserialize_compressed(delta_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(PreparedVerifyingKey {
@@ -78,26 +79,26 @@ impl PreparedVerifyingKey {
         let mut vk_gamma = Vec::new();
         for g1 in &self.vk_gamma_abc_g1 {
             let mut g1_bytes = Vec::new();
-            g1.serialize(&mut g1_bytes)
+            g1.serialize_compressed(&mut g1_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma.append(&mut g1_bytes);
         }
         res.push(vk_gamma);
         let mut fq12 = Vec::new();
         blst_fp12_to_bls_fq12(&self.alpha_g1_beta_g2)
-            .serialize(&mut fq12)
+            .serialize_compressed(&mut fq12)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(fq12);
 
         let mut gamma_bytes = Vec::new();
         self.gamma_g2_neg_pc
-            .serialize(&mut gamma_bytes)
+            .serialize_compressed(&mut gamma_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(gamma_bytes);
 
         let mut delta_bytes = Vec::new();
         self.delta_g2_neg_pc
-            .serialize(&mut delta_bytes)
+            .serialize_compressed(&mut delta_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(delta_bytes);
         Ok(res)
