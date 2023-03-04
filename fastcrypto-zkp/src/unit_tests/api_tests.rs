@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::dummy_circuits::DummyCircuit;
-use crate::verifier::process_vk_special;
+use crate::dummy_circuits::{DummyCircuit, Fibonacci};
+use crate::verifier::{process_vk_special, verify_with_processed_vk};
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::Groth16;
@@ -110,4 +110,63 @@ fn test_prepare_pvk_bytes() {
     let mut modified_bytes = vk_bytes.clone();
     modified_bytes.pop();
     assert!(prepare_pvk_bytes(&modified_bytes).is_err());
+}
+
+#[test]
+fn test_verify_groth16_in_bytes_multiple_inputs() {
+    let mut rng = thread_rng();
+
+    let a = Fr::from(123);
+    let b = Fr::from(456);
+
+    let params = {
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
+        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
+    };
+
+    let pvk = process_vk_special(&params.vk);
+
+    let proof = {
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
+        Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
+            .unwrap()
+    };
+
+    let inputs: Vec<_> = [a, b].to_vec();
+    assert!(verify_with_processed_vk(&pvk, &inputs, &proof).unwrap());
+
+    let pvk = pvk.as_serialized().unwrap();
+
+    // This circuit has two public inputs:
+    let mut inputs_bytes = Vec::new();
+    a.serialize_compressed(&mut inputs_bytes).unwrap();
+    b.serialize_compressed(&mut inputs_bytes).unwrap();
+
+    // Proof::write serializes uncompressed and also adds a length to each element, so we serialize
+    // each individual element here to avoid that.
+    let mut proof_bytes = Vec::new();
+    proof.a.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.b.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.c.serialize_compressed(&mut proof_bytes).unwrap();
+
+    assert!(verify_groth16_in_bytes(
+        &pvk[0],
+        &pvk[1],
+        &pvk[2],
+        &pvk[3],
+        &inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    inputs_bytes[0] += 1;
+    assert!(!verify_groth16_in_bytes(
+        &pvk[0],
+        &pvk[1],
+        &pvk[2],
+        &pvk[3],
+        &inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
 }
