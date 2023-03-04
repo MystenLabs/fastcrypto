@@ -29,6 +29,10 @@ fn test_verify_groth16_in_bytes_api() {
     let blst_pvk = process_vk_special(&vk);
 
     let bytes = blst_pvk.as_serialized().unwrap();
+    let vk_gamma_abc_g1_bytes = &bytes[0];
+    let alpha_g1_beta_g2_bytes = &bytes[1];
+    let gamma_g2_neg_pc_bytes = &bytes[2];
+    let delta_g2_neg_pc_bytes = &bytes[3];
 
     let mut proof_inputs_bytes = vec![];
     v.serialize_compressed(&mut proof_inputs_bytes).unwrap();
@@ -38,10 +42,10 @@ fn test_verify_groth16_in_bytes_api() {
 
     // Success case.
     assert!(verify_groth16_in_bytes(
-        &bytes[0],
-        &bytes[1],
-        &bytes[2],
-        &bytes[3],
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
         &proof_inputs_bytes,
         &proof_points_bytes
     )
@@ -52,9 +56,9 @@ fn test_verify_groth16_in_bytes_api() {
     modified_bytes.pop();
     assert!(verify_groth16_in_bytes(
         &modified_bytes,
-        &bytes[1],
-        &bytes[2],
-        &bytes[3],
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
         &proof_inputs_bytes,
         &proof_points_bytes
     )
@@ -64,10 +68,10 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_inputs_bytes = proof_inputs_bytes.clone();
     modified_proof_inputs_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        &modified_bytes,
-        &bytes[1],
-        &bytes[2],
-        &bytes[3],
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
         &modified_proof_inputs_bytes,
         &proof_points_bytes
     )
@@ -77,10 +81,10 @@ fn test_verify_groth16_in_bytes_api() {
     let mut modified_proof_points_bytes = proof_points_bytes.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
-        &modified_bytes,
-        &bytes[1],
-        &bytes[2],
-        &bytes[3],
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
         &proof_inputs_bytes,
         &modified_proof_points_bytes
     )
