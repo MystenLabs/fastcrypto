@@ -14,7 +14,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 proc-macro = true
 
 [dependencies]
-syn = { version = "1.0.107", features = ["derive"] }
+syn = { version = "1.0.109", features = ["derive"] }
 proc-macro2 = "1.0.51"
 quote = "1.0.23"
 convert_case = "0.6.0"
