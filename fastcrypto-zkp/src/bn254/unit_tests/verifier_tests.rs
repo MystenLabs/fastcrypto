@@ -1,23 +1,18 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use ark_bn254::{Bn254, Fr};
-use ark_crypto_primitives::SNARK;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, UniformRand};
-use ark_groth16::{Groth16, Proof};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use proptest::{collection, prelude::*};
-use std::{
-    iter,
-    ops::{AddAssign, Mul, Neg},
-};
+use ark_crypto_primitives::snark::SNARK;
+use ark_ff::UniformRand;
+use ark_groth16::Groth16;
+use ark_std::rand::thread_rng;
+use std::ops::Mul;
 
 use crate::dummy_circuits::DummyCircuit;
 
 #[test]
 fn test_verify() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut ark_std::test_rng();
+    let rng = &mut thread_rng();
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),

@@ -1,19 +1,136 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use std::{iter, ops::Neg, ptr};
+use std::ops::Neg;
 
-use ark_bn254::{Bn254, Fr, G1Affine, G2Affine, Fq12};
-use ark_crypto_primitives::snark::SNARK;
+use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
 use ark_ec::bn::G2Prepared;
-use ark_groth16::{Groth16, PreparedVerifyingKey as ArkPreparedVerifyingKey, Proof, VerifyingKey};
-use ark_relations::r1cs::SynthesisError;
+use ark_ec::pairing::Pairing;
+use ark_ec::{AffineRepr, CurveGroup};
+use ark_groth16::{PreparedVerifyingKey as ArkPreparedVerifyingKey, VerifyingKey};
 
+use crate::bn254::api::SCALAR_SIZE;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError;
 
 #[cfg(test)]
 #[path = "unit_tests/verifier_tests.rs"]
 mod verifier_tests;
 
-#[derive(Debug)]
-pub struct PreparedVerifyingKey(ArkPreparedVerifyingKey<Bn254>);
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PreparedVerifyingKey {
+    /// The element vk.gamma_abc_g1,
+    /// aka the `[gamma^{-1} * (beta * a_i + alpha * b_i + c_i) * G]`, where i spans the public inputs
+    pub vk_gamma_abc_g1: Vec<G1Affine>,
+    /// The element `e(alpha * G, beta * H)` in `E::GT`.
+    pub alpha_g1_beta_g2: Fq12,
+    /// The element `- gamma * H` in `E::G2`, for use in pairings.
+    pub gamma_g2_neg_pc: G2Affine,
+    /// The element `- delta * H` in `E::G2`, for use in pairings.
+    pub delta_g2_neg_pc: G2Affine,
+}
+
+impl PreparedVerifyingKey {
+    /// Serialize the prepared verifying key to its vectors form.
+    pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
+        let mut res = Vec::new();
+        let mut vk_gamma = Vec::new();
+        for g1 in &self.vk_gamma_abc_g1 {
+            let mut g1_bytes = Vec::new();
+            g1.serialize_compressed(&mut g1_bytes)
+                .map_err(|_| FastCryptoError::InvalidInput)?;
+            vk_gamma.append(&mut g1_bytes);
+        }
+        res.push(vk_gamma);
+        let mut fq12 = Vec::new();
+        self.alpha_g1_beta_g2
+            .serialize_compressed(&mut fq12)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(fq12);
+
+        let mut gamma_bytes = Vec::new();
+        self.gamma_g2_neg_pc
+            .serialize_compressed(&mut gamma_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(gamma_bytes);
+
+        let mut delta_bytes = Vec::new();
+        self.delta_g2_neg_pc
+            .serialize_compressed(&mut delta_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+        res.push(delta_bytes);
+        Ok(res)
+    }
+
+    /// Deserialize the prepared verifying key from the serialized fields of vk_gamma_abc_g1,
+    /// alpha_g1_beta_g2, gamma_g2_neg_pc, delta_g2_neg_pc
+    pub fn deserialize(
+        vk_gamma_abc_g1_bytes: &[u8],
+        alpha_g1_beta_g2_bytes: &[u8],
+        gamma_g2_neg_pc_bytes: &[u8],
+        delta_g2_neg_pc_bytes: &[u8],
+    ) -> Result<Self, FastCryptoError> {
+        let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
+        for g1_bytes in vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
+            let g1 = G1Affine::deserialize_compressed(g1_bytes)
+                .map_err(|_| FastCryptoError::InvalidInput)?;
+            vk_gamma_abc_g1.push(g1);
+        }
+
+        let alpha_g1_beta_g2 = Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(gamma_g2_neg_pc_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        let delta_g2_neg_pc = G2Affine::deserialize_compressed(delta_g2_neg_pc_bytes)
+            .map_err(|_| FastCryptoError::InvalidInput)?;
+
+        Ok(PreparedVerifyingKey {
+            vk_gamma_abc_g1,
+            alpha_g1_beta_g2,
+            gamma_g2_neg_pc,
+            delta_g2_neg_pc,
+        })
+    }
+
+    /// Returns a [`ark_groth16::data_structures::PreparedVerifyingKey`] corresponding to this for
+    /// usage in the arkworks api.
+    pub(crate) fn as_arkworks_pvk(&self) -> ArkPreparedVerifyingKey<Bn254> {
+        let mut ark_pvk = ArkPreparedVerifyingKey::default();
+        ark_pvk.vk.gamma_abc_g1 = self.vk_gamma_abc_g1.clone();
+        ark_pvk.alpha_g1_beta_g2 = self.alpha_g1_beta_g2;
+        ark_pvk.gamma_g2_neg_pc = G2Prepared::from(&self.gamma_g2_neg_pc);
+        ark_pvk.delta_g2_neg_pc = G2Prepared::from(&self.delta_g2_neg_pc);
+        ark_pvk
+    }
+}
+
+/// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
+/// [`ark_groth16::PreparedVerifyingKey::process_vk`].
+///
+/// ## Example:
+/// ```
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bn254::verifier::process_vk_special};
+/// use ark_bn254::{Bn254, Fr};
+/// use ark_ff::One;
+/// use ark_groth16::Groth16;
+/// use ark_std::rand::thread_rng;
+///
+/// let mut rng = thread_rng();
+/// let params = {
+///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
+///     Groth16::<Bn254>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
+/// };
+///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&params.vk);
+/// ```
+pub fn process_vk_special(vk: &VerifyingKey<Bn254>) -> PreparedVerifyingKey {
+    PreparedVerifyingKey {
+        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
+        alpha_g1_beta_g2: Bn254::pairing(vk.alpha_g1, vk.beta_g2).0,
+        gamma_g2_neg_pc: vk.gamma_g2.into_group().neg().into_affine(),
+        delta_g2_neg_pc: vk.delta_g2.into_group().neg().into_affine(),
+    }
+}

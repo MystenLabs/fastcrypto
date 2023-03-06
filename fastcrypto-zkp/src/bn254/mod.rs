@@ -7,3 +7,5 @@
 
 /// API that takes in serialized inputs
 pub mod api;
+
+pub mod verifier;
