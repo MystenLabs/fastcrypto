@@ -5,7 +5,6 @@ use std::ops::Neg;
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
 use ark_ec::bn::G2Prepared;
 use ark_ec::pairing::Pairing;
-use ark_ec::{AffineRepr, CurveGroup};
 use ark_groth16::{PreparedVerifyingKey as ArkPreparedVerifyingKey, VerifyingKey};
 
 use crate::bn254::api::SCALAR_SIZE;
