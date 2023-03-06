@@ -100,6 +100,8 @@ impl PreparedVerifyingKey {
     /// Returns a [`ark_groth16::data_structures::PreparedVerifyingKey`] corresponding to this for
     /// usage in the arkworks api.
     pub(crate) fn as_arkworks_pvk(&self) -> ArkPreparedVerifyingKey<Bn254> {
+        // Note that not all the members are set here, but we set enough to be able to run
+        // Groth16::<Bn254>::verify_with_processed_vk.
         let mut ark_pvk = ArkPreparedVerifyingKey::default();
         ark_pvk.vk.gamma_abc_g1 = self.vk_gamma_abc_g1.clone();
         ark_pvk.alpha_g1_beta_g2 = self.alpha_g1_beta_g2;
@@ -134,7 +136,7 @@ pub fn process_vk_special(vk: &VerifyingKey<Bn254>) -> PreparedVerifyingKey {
     PreparedVerifyingKey {
         vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
         alpha_g1_beta_g2: Bn254::pairing(vk.alpha_g1, vk.beta_g2).0,
-        gamma_g2_neg_pc: vk.gamma_g2.into_group().neg().into_affine(),
-        delta_g2_neg_pc: vk.delta_g2.into_group().neg().into_affine(),
+        gamma_g2_neg_pc: vk.gamma_g2.neg(),
+        delta_g2_neg_pc: vk.delta_g2.neg(),
     }
 }
