@@ -54,5 +54,5 @@ pub fn verify_groth16_in_bytes(
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
     Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof)
-        .map_err(|_| FastCryptoError::GeneralOpaqueError)
+        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
