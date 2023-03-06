@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+use crate::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use crate::verifier::{process_vk_special, verify_with_processed_vk};
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::Groth16;

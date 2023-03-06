@@ -19,7 +19,8 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
-    let vk = VerifyingKey::deserialize_compressed(vk_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+    let vk = VerifyingKey::deserialize_compressed(vk_bytes)
+        .map_err(|_| FastCryptoError::InvalidInput)?;
 
     let mut x = Vec::new();
     for chunk in proof_public_inputs_as_bytes.chunks(32) {

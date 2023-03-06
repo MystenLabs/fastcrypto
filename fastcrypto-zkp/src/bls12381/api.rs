@@ -7,7 +7,9 @@ use ark_serialize::CanonicalDeserialize;
 use fastcrypto::error::FastCryptoError;
 
 use crate::bls12381::conversions::{BlsFr, SCALAR_SIZE};
-use crate::bls12381::verifier::{process_vk_special, verify_with_processed_vk, PreparedVerifyingKey};
+use crate::bls12381::verifier::{
+    process_vk_special, verify_with_processed_vk, PreparedVerifyingKey,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
