@@ -345,8 +345,6 @@ fn multipairing_with_processed_vk(
 /// // Verify the proof
 /// let r = verify_with_processed_vk(&pvk, &inputs, &proof).unwrap();
 /// ```
-// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
-// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],

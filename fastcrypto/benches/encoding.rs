@@ -46,7 +46,6 @@ mod encoding_benches {
         },
     ];
 
-    // TODO: please add bech32 and base58check.
     // Hex encoding bench.
     fn hex_encoding(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Hex encoding");
@@ -91,7 +90,6 @@ mod encoding_benches {
         }
     }
 
-    // TODO: please add bech32 and base58check.
     // Hex decoding bench.
     fn hex_decoding(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Hex decoding");
