@@ -16,6 +16,10 @@ use fastcrypto::error::FastCryptoError;
 #[path = "unit_tests/verifier_tests.rs"]
 mod verifier_tests;
 
+/// This is a helper function to store a pre-processed version of the verifying key.
+/// This is roughly homologous to [`ark_groth16::data_structures::PreparedVerifyingKey`].
+/// Note that contrary to Arkworks, we don't store a "prepared" version of the gamma_g2_neg_pc,
+/// delta_g2_neg_pc fields because they are very large and unpractical to use in the binary api.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreparedVerifyingKey {
     /// The element vk.gamma_abc_g1,

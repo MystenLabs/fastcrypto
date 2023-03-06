@@ -8,4 +8,5 @@
 /// API that takes in serialized inputs
 pub mod api;
 
+/// Groth16 SNARK verifier
 pub mod verifier;
