@@ -245,8 +245,6 @@
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
 <a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -413,12 +411,11 @@
         blinding: [u8; <span class="number">32</span>],
         bits: usize,
         domain: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(PedersenCommitment, <span class="self">Self</span>), signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(PedersenCommitment, <span class="self">Self</span>), FastCryptoError&gt; {
         <span class="comment">// Although this is also checked in the bulletproofs library, we check again
         // to avoid unexpected behaviour in the case of library updates
         </span><span class="kw">if </span>!(bits == <span class="number">8 </span>|| bits == <span class="number">16 </span>|| bits == <span class="number">32 </span>|| bits == <span class="number">64</span>) {
-            <span class="comment">// TODO: Add a better error
-            </span><span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
 
         <span class="kw">let </span>pc_gens = PedersenGens::default();
@@ -457,12 +454,11 @@
         commitment: <span class="kw-2">&amp;</span>PedersenCommitment,
         bits: usize,
         domain: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), signature::Error&gt; {
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="comment">// Although this is also checked in the bulletproofs library, we check again
         // to avoid unexpected behaviour in the case of library updates
         </span><span class="kw">if </span>!(bits == <span class="number">8 </span>|| bits == <span class="number">16 </span>|| bits == <span class="number">32 </span>|| bits == <span class="number">64</span>) {
-            <span class="comment">// TODO: Add a better error
-            </span><span class="kw">return </span><span class="prelude-val">Err</span>(signature::Error::new());
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
 
         <span class="kw">let </span>pc_gens = PedersenGens::default();
@@ -477,7 +473,7 @@
                 <span class="kw-2">&amp;</span>CompressedRistretto::from_slice(commitment.as_bytes()),
                 bits,
             )
-            .map_err(|<span class="kw">_</span>| signature::Error::new())
+            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Failed to verify proof&quot;</span>.to_string()))
     }
 }
 
