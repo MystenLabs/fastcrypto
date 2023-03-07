@@ -725,6 +725,7 @@
 <a href="#725" id="725">725</a>
 <a href="#726" id="726">726</a>
 <a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -912,11 +913,11 @@
     <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$pk_length</span>;
 
     <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>BLS12381Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// verify() does not validate the signature or public key since we already do that during
+        <span class="comment">// verify() only validates the signature since the public key is verified during
         // deserialization.
         </span><span class="kw">let </span>err = signature
             .sig
-            .verify(<span class="bool-val">false</span>, msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey, <span class="bool-val">false</span>);
+            .verify(<span class="bool-val">true</span>, msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey, <span class="bool-val">false</span>);
         <span class="kw">if </span>err == BLST_ERROR::BLST_SUCCESS {
             <span class="prelude-val">Ok</span>(())
         } <span class="kw">else </span>{
@@ -1125,8 +1126,9 @@
 
 <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381Signature {
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// sig_validate(x, false) checks that signature is in the right group (but allows inf).
-        </span><span class="kw">let </span>sig = blst::Signature::sig_validate(bytes, <span class="bool-val">false</span>).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+        <span class="comment">// from_bytes() does not check if the signature is in the right group. We check it when
+        // verifying the signature.
+        </span><span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -1318,7 +1320,7 @@
     <span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// aggregate() below does not validate signatures (we do that on deserialization).
+        <span class="comment">// aggregate() below does not validate signatures.
         </span>blst::AggregateSignature::aggregate(
             <span class="kw-2">&amp;</span>signatures
                 .into_iter()
@@ -1335,7 +1337,7 @@
 
     <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(<span class="kw-2">&amp;</span><span class="self">self</span>.sig);
-        <span class="comment">// add_signature() does not validate the new signature as this is done during deserialization.
+        <span class="comment">// add_signature() does not validate the new signature.
         </span>aggr_sig.add_signature(<span class="kw-2">&amp;</span>signature.sig, <span class="bool-val">false</span>).map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>;
         <span class="self">self</span>.sig = aggr_sig.to_signature();
         <span class="self">self</span>.bytes.take();
@@ -1343,7 +1345,7 @@
     }
 
     <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// aggregate() does not validate the new signature as this is done during deserialization.
+        <span class="comment">// aggregate() does not validate the new signature.
         </span><span class="kw">let </span>result = blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.sig, <span class="kw-2">&amp;</span>signature.sig], <span class="bool-val">false</span>)
             .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>.to_signature();
         <span class="self">self</span>.sig = result;
@@ -1356,11 +1358,11 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         message: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// No need to validate signatures or public keys as we do that on deserialization.
+        <span class="comment">// Validate signatures but not public keys as we do that on deserialization.
         </span><span class="kw">let </span>result = <span class="self">self
             </span>.sig
             .fast_aggregate_verify(
-                <span class="bool-val">false</span>,
+                <span class="bool-val">true</span>,
                 message,
                 <span class="macro-nonterminal">$dst_string</span>,
                 <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
@@ -1376,11 +1378,11 @@
         pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// aggregate_verify() does not validate keys or signatures.
+        <span class="comment">// Validate signatures but not public keys as we do that on deserialization.
         </span><span class="kw">let </span>result = <span class="self">self
             </span>.sig
             .aggregate_verify(
-                <span class="bool-val">false</span>,
+                <span class="bool-val">true</span>,
                 messages,
                 <span class="macro-nonterminal">$dst_string</span>,
                 <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
@@ -1414,7 +1416,7 @@
             <span class="kw-2">&amp;</span>agg_pks.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span>signatures.iter().map(|agg_sig| <span class="kw-2">&amp;</span>agg_sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">false</span>,
+            <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>get_random_scalars(signatures.len()),
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
