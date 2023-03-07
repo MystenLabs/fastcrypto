@@ -185,11 +185,11 @@ impl VerifyingKey for BLS12381PublicKey {
     const LENGTH: usize = $pk_length;
 
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), FastCryptoError> {
-        // verify() does not validate the signature or public key since we already do that during
+        // verify() only validates the signature since the public key is verified during
         // deserialization.
         let err = signature
             .sig
-            .verify(false, msg, $dst_string, &[], &self.pubkey, false);
+            .verify(true, msg, $dst_string, &[], &self.pubkey, false);
         if err == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
@@ -398,8 +398,9 @@ impl AsRef<[u8]> for BLS12381Signature {
 
 impl ToFromBytes for BLS12381Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // sig_validate(x, false) checks that signature is in the right group (but allows inf).
-        let sig = blst::Signature::sig_validate(bytes, false).map_err(|_| FastCryptoError::InvalidInput)?;
+        // from_bytes() does not check if the signature is in the right group. We check it when
+        // verifying the signature.
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -591,7 +592,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        // aggregate() below does not validate signatures (we do that on deserialization).
+        // aggregate() below does not validate signatures.
         blst::AggregateSignature::aggregate(
             &signatures
                 .into_iter()
@@ -608,7 +609,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
-        // add_signature() does not validate the new signature as this is done during deserialization.
+        // add_signature() does not validate the new signature.
         aggr_sig.add_signature(&signature.sig, false).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         self.sig = aggr_sig.to_signature();
         self.bytes.take();
@@ -616,7 +617,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     }
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
-        // aggregate() does not validate the new signature as this is done during deserialization.
+        // aggregate() does not validate the new signature.
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], false)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
         self.sig = result;
@@ -629,11 +630,11 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        // No need to validate signatures or public keys as we do that on deserialization.
+        // Validate signatures but not public keys as we do that on deserialization.
         let result = self
             .sig
             .fast_aggregate_verify(
-                false,
+                true,
                 message,
                 $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
@@ -649,11 +650,11 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // aggregate_verify() does not validate keys or signatures.
+        // Validate signatures but not public keys as we do that on deserialization.
         let result = self
             .sig
             .aggregate_verify(
-                false,
+                true,
                 messages,
                 $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
@@ -687,7 +688,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             &agg_pks.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
             false,
             &signatures.iter().map(|agg_sig| &agg_sig.sig).collect::<Vec<_>>(),
-            false,
+            true,
             &get_random_scalars(signatures.len()),
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
