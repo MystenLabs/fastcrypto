@@ -682,25 +682,34 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }
-        let mut pk_iter = pks.into_iter();
-        for i in 0..signatures.len() {
-            let sig = signatures[i].sig;
-            let result = sig
-                .fast_aggregate_verify(
-                    true,
-                    messages[i],
-                    $dst_string,
-                    &pk_iter
-                        .next()
-                        .unwrap()
-                        .map(|x| &x.pubkey)
-                        .collect::<Vec<_>>()[..],
-                );
-            if result != BLST_ERROR::BLST_SUCCESS {
-                return Err(FastCryptoError::GeneralOpaqueError);
-            }
+
+        if signatures.is_empty() {
+            // verify_multiple_aggregate_signatures fails on empty input, but we accept here.
+            return Ok(())
         }
-        Ok(())
+
+        let mut agg_pks: Vec<blst::PublicKey> = Vec::with_capacity(signatures.len());
+        for keys in pks {
+             let keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::<Vec<_>>();
+             agg_pks.push(blst::AggregatePublicKey::aggregate(&keys_as_vec, false).unwrap().to_public_key()
+             );
+         }
+
+        let result = blst::Signature::verify_multiple_aggregate_signatures(
+            &messages,
+            $dst_string,
+            &agg_pks.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
+            false,
+            &signatures.iter().map(|agg_sig| &agg_sig.sig).collect::<Vec<_>>(),
+            false,
+            &get_random_scalars(signatures.len()),
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
+        );
+        if result == BLST_ERROR::BLST_SUCCESS {
+            Ok(())
+        } else {
+            Err(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 
