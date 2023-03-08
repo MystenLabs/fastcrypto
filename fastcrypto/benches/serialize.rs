@@ -90,7 +90,7 @@ mod serialization_benches {
         let keypair = KP::generate(&mut csprng);
         let serialized = bincode::serialize(&keypair.public()).unwrap();
         c.bench_function(&(name.to_string()), move |b| {
-            b.iter(|| bincode::deserialize::<KP::Sig>(&serialized))
+            b.iter(|| bincode::deserialize::<KP::PubKey>(&serialized))
         });
     }
 
@@ -112,17 +112,17 @@ mod serialization_benches {
 
     fn deserialize_public_key(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Deserialize public key");
-        deserialize_public_key_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
+        // deserialize_public_key_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
         deserialize_public_key_single::<bls12381::min_sig::BLS12381KeyPair, _>(
             "BLS12381MinSig",
             &mut group,
         );
-        deserialize_public_key_single::<bls12381::min_pk::BLS12381KeyPair, _>(
-            "BLS12381MinPk",
-            &mut group,
-        );
-        deserialize_public_key_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
-        deserialize_public_key_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        // deserialize_public_key_single::<bls12381::min_pk::BLS12381KeyPair, _>(
+        //     "BLS12381MinPk",
+        //     &mut group,
+        // );
+        // deserialize_public_key_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
+        // deserialize_public_key_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
     }
 
     fn deserialize_bls_signature_non_compact<M: measurement::Measurement>(
@@ -151,10 +151,10 @@ mod serialization_benches {
         name = serialization_benches;
         config = Criterion::default().sample_size(100);
         targets =
-           deserialize_signature,
+           // deserialize_signature,
            deserialize_public_key,
-           serialize_signature,
-           serialize_public_key,
+           // serialize_signature,
+           // serialize_public_key,
     }
 }
 
