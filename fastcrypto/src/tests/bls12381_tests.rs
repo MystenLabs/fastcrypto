@@ -76,6 +76,7 @@ fn to_from_bytes_signature() {
 fn test_serialize_deserialize_standard_sig() {
     let kp = keys().pop().unwrap();
     let pk = kp.public().clone();
+    pk.validate().unwrap(); // just a sanity check
     let sk = kp.private();
     let message = b"hello, narwhal";
     let sig = keys().pop().unwrap().sign(message);

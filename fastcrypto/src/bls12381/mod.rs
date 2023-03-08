@@ -140,9 +140,9 @@ impl AsRef<[u8]> for BLS12381PublicKey {
 
 impl ToFromBytes for BLS12381PublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // key_validate() validates the public key.
+        // key_validate() does NOT validate the public key. Please use validate() where needed.
         let pubkey =
-            blst::PublicKey::key_validate(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+            blst::PublicKey::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -155,7 +155,7 @@ impl ToFromBytes for BLS12381PublicKey {
 //
 
 // Needed since the current NW implementation requires default public keys.
-// Note that deserialization of this object will fail as we validate it is a valid public key.
+// Note that deserialization of this object will fail if we validate it is a valid public key.
 impl InsecureDefault for BLS12381PublicKey {
     fn insecure_default() -> Self {
         BLS12381PublicKey {
@@ -179,14 +179,21 @@ impl<'a> From<&'a BLS12381PrivateKey> for BLS12381PublicKey {
     }
 }
 
+// TODO: Once NW does not need to ser/deser public keys in many places we should call validate
+// during deserialization and get rid of this function.
+impl BLS12381PublicKey {
+    pub fn validate(&self) -> Result<(), FastCryptoError> {
+        self.pubkey.validate().map_err(|_e| FastCryptoError::InvalidInput)
+    }
+}
+
 impl VerifyingKey for BLS12381PublicKey {
     type PrivKey = BLS12381PrivateKey;
     type Sig = BLS12381Signature;
     const LENGTH: usize = $pk_length;
 
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), FastCryptoError> {
-        // verify() only validates the signature since the public key is verified during
-        // deserialization.
+        // verify() only validates the signature. Please use pk that was validated.
         let err = signature
             .sig
             .verify(true, msg, $dst_string, &[], &self.pubkey, false);
@@ -398,7 +405,7 @@ impl AsRef<[u8]> for BLS12381Signature {
 
 impl ToFromBytes for BLS12381Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // from_bytes() does not check if the signature is in the right group. We check it when
+        // from_bytes() does NOT check if the signature is in the right group. We check that when
         // verifying the signature.
         let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381Signature {
@@ -575,8 +582,8 @@ generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length}, BLS123
 
 impl ToFromBytes for BLS12381AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // sig_validate(x, false) checks that the signature is in the right group but allows inf.
-        let sig = blst::Signature::sig_validate(bytes, false).map_err(|_| FastCryptoError::InvalidInput)?;
+        // from_bytes does NOT validate the signature. We do that in verify.
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
             sig,
             bytes: OnceCell::new(),
@@ -604,13 +611,13 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             sig: sig.to_signature(),
             bytes: OnceCell::new(),
         })
-        .map_err(|_| FastCryptoError::GeneralOpaqueError)
+        .map_err(|_| FastCryptoError::InvalidInput)
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
         // add_signature() does not validate the new signature.
-        aggr_sig.add_signature(&signature.sig, false).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
+        aggr_sig.add_signature(&signature.sig, false).map_err(|_| FastCryptoError::InvalidInput)?;
         self.sig = aggr_sig.to_signature();
         self.bytes.take();
         Ok(())
@@ -619,7 +626,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
         // aggregate() does not validate the new signature.
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], false)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
+            .map_err(|_| FastCryptoError::InvalidInput)?.to_signature();
         self.sig = result;
         self.bytes.take();
         Ok(())
@@ -630,7 +637,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        // Validate signatures but not public keys as we do that on deserialization.
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = self
             .sig
             .fast_aggregate_verify(
@@ -650,7 +657,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // Validate signatures but not public keys as we do that on deserialization.
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = self
             .sig
             .aggregate_verify(
@@ -682,6 +689,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             );
         }
 
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = blst::Signature::verify_multiple_aggregate_signatures(
             &messages,
             $dst_string,
