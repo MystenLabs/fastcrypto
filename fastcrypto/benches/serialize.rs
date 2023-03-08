@@ -117,12 +117,12 @@ mod serialization_benches {
             "BLS12381MinSig",
             &mut group,
         );
-        // deserialize_public_key_single::<bls12381::min_pk::BLS12381KeyPair, _>(
-        //     "BLS12381MinPk",
-        //     &mut group,
-        // );
-        // deserialize_public_key_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
-        // deserialize_public_key_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
+        deserialize_public_key_single::<bls12381::min_pk::BLS12381KeyPair, _>(
+            "BLS12381MinPk",
+            &mut group,
+        );
+        deserialize_public_key_single::<Secp256k1KeyPair, _>("Secp256k1", &mut group);
+        deserialize_public_key_single::<Secp256r1KeyPair, _>("Secp256r1", &mut group);
     }
 
     fn deserialize_bls_signature_non_compact<M: measurement::Measurement>(
@@ -151,10 +151,10 @@ mod serialization_benches {
         name = serialization_benches;
         config = Criterion::default().sample_size(100);
         targets =
-           // deserialize_signature,
+           deserialize_signature,
            deserialize_public_key,
-           // serialize_signature,
-           // serialize_public_key,
+           serialize_signature,
+           serialize_public_key,
     }
 }
 
