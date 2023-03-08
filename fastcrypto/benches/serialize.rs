@@ -112,7 +112,7 @@ mod serialization_benches {
 
     fn deserialize_public_key(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Deserialize public key");
-        // deserialize_public_key_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
+        deserialize_public_key_single::<Ed25519KeyPair, _>("Ed25519", &mut group);
         deserialize_public_key_single::<bls12381::min_sig::BLS12381KeyPair, _>(
             "BLS12381MinSig",
             &mut group,
