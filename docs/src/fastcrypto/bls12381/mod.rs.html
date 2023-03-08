@@ -730,6 +730,15 @@
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -991,7 +1000,7 @@
             <span class="kw-2">&amp;</span>pks.iter().map(|pk| <span class="kw-2">&amp;</span>pk.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
             <span class="bool-val">false</span>,
             <span class="kw-2">&amp;</span>sigs.iter().map(|sig| <span class="kw-2">&amp;</span>sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">false</span>,
+            <span class="bool-val">true</span>,
             <span class="kw-2">&amp;</span>rands,
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
@@ -1414,25 +1423,34 @@
         </span><span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>pk_iter = pks.into_iter();
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..signatures.len() {
-            <span class="kw">let </span>sig = signatures[i].sig;
-            <span class="kw">let </span>result = sig
-                .fast_aggregate_verify(
-                    <span class="bool-val">true</span>,
-                    messages[i],
-                    <span class="macro-nonterminal">$dst_string</span>,
-                    <span class="kw-2">&amp;</span>pk_iter
-                        .next()
-                        .unwrap()
-                        .map(|x| <span class="kw-2">&amp;</span>x.pubkey)
-                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
-                );
-            <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
-            }
+
+        <span class="kw">if </span>signatures.is_empty() {
+            <span class="comment">// verify_multiple_aggregate_signatures fails on empty input, but we accept here.
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(())
         }
-        <span class="prelude-val">Ok</span>(())
+
+        <span class="kw">let </span><span class="kw-2">mut </span>agg_pks: Vec&lt;blst::PublicKey&gt; = Vec::with_capacity(signatures.len());
+        <span class="kw">for </span>keys <span class="kw">in </span>pks {
+             <span class="kw">let </span>keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+             agg_pks.push(blst::AggregatePublicKey::aggregate(<span class="kw-2">&amp;</span>keys_as_vec, <span class="bool-val">false</span>).unwrap().to_public_key()
+             );
+         }
+
+        <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
+            <span class="kw-2">&amp;</span>messages,
+            <span class="macro-nonterminal">$dst_string</span>,
+            <span class="kw-2">&amp;</span>agg_pks.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+            <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>signatures.iter().map(|agg_sig| <span class="kw-2">&amp;</span>agg_sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+            <span class="bool-val">false</span>,
+            <span class="kw-2">&amp;</span>get_random_scalars(signatures.len()),
+            BLS_BATCH_RANDOM_SCALAR_LENGTH,
+        );
+        <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+        }
     }
 }
 
