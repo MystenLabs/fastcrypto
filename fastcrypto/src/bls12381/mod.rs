@@ -259,7 +259,7 @@ impl VerifyingKey for BLS12381PublicKey {
             &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
             false,
             &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
-            false,
+            true,
             &rands,
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
