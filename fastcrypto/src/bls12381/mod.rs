@@ -140,9 +140,9 @@ impl AsRef<[u8]> for BLS12381PublicKey {
 
 impl ToFromBytes for BLS12381PublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // key_validate() validates the public key.
+        // key_validate() does not validate the public key. Please use validate() where needed.
         let pubkey =
-            blst::PublicKey::key_validate(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+            blst::PublicKey::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -176,6 +176,14 @@ impl<'a> From<&'a BLS12381PrivateKey> for BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
         }
+    }
+}
+
+// TODO: Once NW does not need to ser/deser public keys in many places we should call validate
+// during deserialization and get rid of this function.
+impl BLS12381PublicKey {
+    pub fn validate(&self) -> Result<(), FastCryptoError> {
+        self.pubkey.validate().map_err(|_e| FastCryptoError::InvalidInput)
     }
 }
 
