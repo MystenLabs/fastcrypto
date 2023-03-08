@@ -583,7 +583,7 @@ generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length}, BLS123
 impl ToFromBytes for BLS12381AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         // from_bytes does NOT validate the signature. We do that in verify.
-        let sig = blst::Signature::from_bytes(bytes, false).map_err(|_| FastCryptoError::InvalidInput)?;
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
             sig,
             bytes: OnceCell::new(),
