@@ -34,7 +34,7 @@ mod hash_benches {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Hash");
 
         for size in INPUT_SIZES.iter() {
-            let input = vec![0u8; *size];
+            let input: Vec<u8> = (0..*size).map(|_| rand::random::<u8>()).collect();
             hash_single::<Sha256, 32, _>("Sha256", &input, &mut group);
             hash_single::<Sha3_256, 32, _>("Sha3_256", &input, &mut group);
             hash_single::<Blake2b256, 32, _>("Blake2b256", &input, &mut group);
