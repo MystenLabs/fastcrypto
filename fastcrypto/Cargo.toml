@@ -81,6 +81,10 @@ required-features = ["experimental"]
 name = "serialize"
 harness = false
 
+[[bench]]
+name = "hash"
+harness = false
+
 [features]
 default = []
 copy_key = []
