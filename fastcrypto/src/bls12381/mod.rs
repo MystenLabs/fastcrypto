@@ -24,6 +24,7 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
+#[cfg(feature = "experimental")]
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
