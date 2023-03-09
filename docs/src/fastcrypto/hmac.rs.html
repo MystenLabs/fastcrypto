@@ -133,23 +133,27 @@
 <a href="#133" id="133">133</a>
 <a href="#134" id="134">134</a>
 <a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="doccomment">//! Implementations of [HMAC](https://www.rfc-editor.org/rfc/rfc2104) and [HKDF](https://tools.ietf.org/html/rfc5869).
 
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
-<span class="kw">use </span><span class="kw">crate</span>::hash::ReverseWrapper;
-<span class="kw">use crate</span>::{
-    hash::Digest,
-    traits::{KeyPair, SigningKey, ToFromBytes},
-};
-<span class="kw">use </span>digest::{
+<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::hash::ReverseWrapper;
+<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
+</span><span class="kw">use </span><span class="kw">crate</span>::traits::{KeyPair, SigningKey};
+<span class="kw">use crate</span>::{hash::Digest, traits::ToFromBytes};
+<span class="kw">use </span>digest::OutputSizeUser;
+<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
+</span><span class="kw">use </span>digest::{
     block_buffer::Eager,
     consts::U256,
     core_api::{BlockSizeUser, BufferKindUser, CoreProxy, FixedOutputCore, UpdateCore},
     typenum::{IsLess, Le, NonZero},
-    HashMarker, OutputSizeUser,
+    HashMarker,
 };
 
 <span class="kw">use </span><span class="kw">crate</span>::private_seed::PrivateSeed;

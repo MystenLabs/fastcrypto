@@ -601,6 +601,7 @@
 <a href="#601" id="601">601</a>
 <a href="#602" id="602">602</a>
 <a href="#603" id="603">603</a>
+<a href="#604" id="604">604</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -624,7 +625,8 @@
 };
 <span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
 <span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
-<span class="kw">use </span>eyre::eyre;
+<span class="attr">#[cfg(feature = <span class="string">&quot;experimental&quot;</span>)]
+</span><span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
