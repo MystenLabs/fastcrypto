@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["SCALAR_SIZE"],"fn":["prepare_pvk_bytes","verify_groth16_in_bytes"]};
