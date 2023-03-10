@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
+use crate::bls12381::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Projective};
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bls12::G1Prepared;
@@ -21,16 +21,16 @@ use std::{
 };
 
 use crate::{
-    conversions::{
+    bls12381::conversions::{
         bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
         bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12,
         tests::{arb_bls_fr, arb_bls_g1_affine, arb_blst_g1_affine, arb_blst_g2_affine},
     },
-    dummy_circuits::DummyCircuit,
-    verifier::{
+    bls12381::verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
         verify_with_processed_vk, Proof, VerifyingKey, BLST_FR_ONE,
     },
+    dummy_circuits::DummyCircuit,
 };
 
 #[test]

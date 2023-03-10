@@ -6,8 +6,10 @@ use ark_groth16::{Proof, VerifyingKey};
 use ark_serialize::CanonicalDeserialize;
 use fastcrypto::error::FastCryptoError;
 
-use crate::conversions::{BlsFr, SCALAR_SIZE};
-use crate::verifier::{process_vk_special, verify_with_processed_vk, PreparedVerifyingKey};
+use crate::bls12381::conversions::{BlsFr, SCALAR_SIZE};
+use crate::bls12381::verifier::{
+    process_vk_special, verify_with_processed_vk, PreparedVerifyingKey,
+};
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
@@ -51,5 +53,6 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     )?;
 
-    verify_with_processed_vk(&blst_pvk, &x, &proof).map_err(|_| FastCryptoError::GeneralOpaqueError)
+    verify_with_processed_vk(&blst_pvk, &x, &proof)
+        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

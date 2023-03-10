@@ -14,6 +14,7 @@ harness = false
 
 [dependencies]
 ark-bls12-381 = "0.4.0"
+ark-bn254 = "0.4.0"
 ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
 ark-ec = { version = "0.4.1", features = ["parallel"]}
 ark-ff = { version = "0.4.1", features = ["asm", "parallel"]}

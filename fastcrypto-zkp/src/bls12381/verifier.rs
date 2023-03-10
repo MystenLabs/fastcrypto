@@ -14,7 +14,7 @@ use blst::{
 };
 use fastcrypto::error::FastCryptoError;
 
-use crate::conversions::{
+use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
     bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
@@ -24,9 +24,10 @@ use crate::conversions::{
 mod verifier_tests;
 
 /// This is a helper function to store a pre-processed version of the verifying key.
-/// This is roughly homologous to [`ark_groth16::PreparedVerifyingKey`].
+/// This is roughly homologous to [`ark_groth16::data_structures::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don't store a "prepared" version of the gamma_g2_neg_pc,
-/// delta_g2_neg_pc fields, because we can't use them with blst's pairing engine.
+/// delta_g2_neg_pc fields, because we can't use them with blst's pairing engine and also because
+/// they are very large and unpractical to use in the binary api.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreparedVerifyingKey {
     /// The element vk.gamma_abc_g1,
@@ -110,7 +111,7 @@ impl PreparedVerifyingKey {
 ///
 /// ## Example:
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::process_vk_special};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
@@ -315,7 +316,7 @@ fn multipairing_with_processed_vk(
 ///
 /// ## Example
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::{ process_vk_special, verify_with_processed_vk }};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;

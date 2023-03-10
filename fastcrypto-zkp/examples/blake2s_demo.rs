@@ -16,7 +16,7 @@ use blake2::{digest::Digest, Blake2s256};
 
 use ark_r1cs_std::prelude::*;
 use ark_std::rand::thread_rng;
-use fastcrypto_zkp::verifier::{process_vk_special, verify_with_processed_vk};
+use fastcrypto_zkp::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
 
 #[derive(Clone, Copy, Debug)]
 struct Blake2sCircuit {
