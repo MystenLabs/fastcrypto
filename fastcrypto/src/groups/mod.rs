@@ -7,7 +7,9 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
+#[cfg(any(test, feature = "experimental"))]
 pub mod bls12381;
+
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive cyclic group.

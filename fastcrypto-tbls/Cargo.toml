@@ -9,7 +9,7 @@ description = "Threshold BLS and DKG protocols"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-fastcrypto = { path = "../fastcrypto" }
+fastcrypto = { path = "../fastcrypto", features = ["experimental"]}
 fastcrypto-derive = { path = "../fastcrypto-derive" }
 
 zeroize.workspace = true
@@ -26,3 +26,8 @@ criterion = "0.4.0"
 [[bench]]
 name = "polynomial"
 harness = false
+required-features = ["experimental"]
+
+[features]
+default = []
+experimental = []

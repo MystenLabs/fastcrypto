@@ -85,8 +85,10 @@ pub mod test_helpers;
 
 pub mod traits;
 
+#[cfg(any(test, feature = "experimental"))]
 pub mod aes;
 pub mod bls12381;
+#[cfg(any(test, feature = "experimental"))]
 pub mod bulletproofs;
 pub mod ed25519;
 pub mod encoding;
