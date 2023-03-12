@@ -22,6 +22,10 @@ where
     }
     assert_eq!(*obj, obj2);
     assert_eq!(bytes1, bytes2);
+    // Test that bincode and bcs produce the same results (to make sure we can safely switch if
+    // needed).
+    assert_eq!(bytes1, bcs::to_bytes(obj).unwrap());
+    assert_eq!(obj2, bcs::from_bytes::<T>(&bytes1).unwrap());
     // Test a failed deserialization
     let mut bytes3 = bytes1;
     bytes3[0] = if bytes3[0] > 100 {

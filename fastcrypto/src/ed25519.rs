@@ -21,7 +21,7 @@ use crate::{
 };
 use base64ct::Encoding as _;
 use ed25519_consensus::{batch, VerificationKeyBytes};
-#[cfg(feature = "experimental")]
+#[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;

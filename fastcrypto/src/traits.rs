@@ -6,7 +6,7 @@ use crate::{
     error::FastCryptoError,
     hash::HashFunction,
 };
-#[cfg(feature = "experimental")]
+#[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
 use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};

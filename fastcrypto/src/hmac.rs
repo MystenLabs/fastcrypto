@@ -4,13 +4,13 @@
 //! Implementations of [HMAC](https://www.rfc-editor.org/rfc/rfc2104) and [HKDF](https://tools.ietf.org/html/rfc5869).
 
 use crate::error::FastCryptoError;
-#[cfg(feature = "experimental")]
+#[cfg(any(test, feature = "experimental"))]
 use crate::hash::ReverseWrapper;
-#[cfg(feature = "experimental")]
+#[cfg(any(test, feature = "experimental"))]
 use crate::traits::{KeyPair, SigningKey};
 use crate::{hash::Digest, traits::ToFromBytes};
 use digest::OutputSizeUser;
-#[cfg(feature = "experimental")]
+#[cfg(any(test, feature = "experimental"))]
 use digest::{
     block_buffer::Eager,
     consts::U256,
