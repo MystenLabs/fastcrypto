@@ -71,7 +71,7 @@ pub struct Secp256k1PublicKey {
 
 /// Secp256k1 private key.
 #[readonly::make]
-#[derive(SilentDebug, SilentDisplay, PartialEq, Eq)]
+#[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
     pub bytes: OnceCell<[u8; SECP256K1_PRIVATE_KEY_LENGTH]>,
@@ -203,6 +203,14 @@ impl ToFromBytes for Secp256k1PrivateKey {
         }
     }
 }
+
+impl PartialEq for Secp256k1PrivateKey {
+    fn eq(&self, other: &Self) -> bool {
+        self.privkey == other.privkey
+    }
+}
+
+impl Eq for Secp256k1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey, SECP256K1_PRIVATE_KEY_LENGTH);
 
