@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"struct":["Poly"],"type":["Eval","PrivatePoly","PublicPoly"]};

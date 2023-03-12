@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["DST_G1"],"struct":["BLS12381AggregateSignature","BLS12381KeyPair","BLS12381PrivateKey","BLS12381PublicKey","BLS12381Signature"],"type":["BLS12381AggregateSignatureAsBytes","BLS12381PublicKeyAsBytes"]};
+window.SIDEBAR_ITEMS = {"constant":["DST_G1"],"mod":["mskr"],"struct":["BLS12381AggregateSignature","BLS12381KeyPair","BLS12381PrivateKey","BLS12381PublicKey","BLS12381Signature"],"type":["BLS12381AggregateSignatureAsBytes","BLS12381PublicKeyAsBytes"]};

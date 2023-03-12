@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["hkdf_sha3_256","hmac_sha3_256"],"type":["HkdfIkm","HmacKey"]};
+window.SIDEBAR_ITEMS = {"fn":["hkdf_generate_from_ikm","hkdf_sha3_256","hmac_sha3_256"],"type":["HkdfIkm","HmacKey"]};

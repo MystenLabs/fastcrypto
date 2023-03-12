@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"enum":["Complaint"],"struct":["DkgOutput","EncryptedShare","FirstMessage","Party","PkiNode","SecondMessage"],"type":["Nodes","SharesMap"]};

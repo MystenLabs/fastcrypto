@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["generate_full_key_pair","generate_public_keys","generate_share_and_public_keys"]};
