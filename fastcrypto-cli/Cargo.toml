@@ -9,7 +9,7 @@ description = "Command line tools for cryptographic functions"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-clap = { version = "4.1.4", features = ["derive"] }
+clap = { version = "4.1.8", features = ["derive"] }
 fastcrypto = { path = "../fastcrypto" }
 hex = "0.4.3"
 bincode.workspace = true
