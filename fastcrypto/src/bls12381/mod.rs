@@ -273,11 +273,13 @@ impl VerifyingKey for BLS12381PublicKey {
 }
 
 fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
-    assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH == 128);
+    debug_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
         vals[1] = rng.next_u64();
+
+        // Check this ^^
 
         // Reject zero as it is used for multiplication.
         if vals[0] | vals[1] != 0 {
@@ -301,6 +303,7 @@ fn get_one() -> blst_scalar {
     one
 }
 
+// Always generates 128bit numbers though not all the bits must be used.
 fn get_random_scalars(n: usize) -> Vec<blst_scalar> {
     let mut rands: Vec<blst_scalar> = Vec::with_capacity(n);
     // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
@@ -730,7 +733,9 @@ pub const BLS_G2_LENGTH: usize = 96;
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 
-const BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = 128;
+/// The statistical probability (in bits) that a batch of signatures which includes invalid
+/// signatures will pass batch_verify.
+const BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = 96;
 
 /// Module minimizing the size of signatures.
 pub mod min_sig;
