@@ -273,11 +273,13 @@ impl VerifyingKey for BLS12381PublicKey {
 }
 
 fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
-    assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
+    debug_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
         vals[1] = rng.next_u64();
+
+        // Check this ^^
 
         // Reject zero as it is used for multiplication.
         if vals[0] | vals[1] != 0 {
