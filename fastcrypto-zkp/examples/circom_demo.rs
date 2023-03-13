@@ -1,5 +1,3 @@
-/* Examples copied from https://github.com/gakonst/ark-circom */
-
 use std::{fs::File, collections::HashMap};
 
 use ark_circom::{CircomConfig, CircomBuilder, read_zkey, WitnessCalculator, CircomReduction};
@@ -10,19 +8,21 @@ use ark_groth16::{generate_random_parameters, create_proof_with_reduction_and_ma
                   create_random_proof, prepare_verifying_key, verify_proof};
 
 use ark_std::rand::thread_rng;
+use num_bigint::BigInt;
 
-fn verify_proof_with_zkey_with_r1cs() {
+type CircomInput = HashMap<String, Vec<num_bigint::BigInt>>;
+
+fn verify_proof_with_r1cs(inputs: CircomInput, wasm_path: &str, r1cs_path: &str) {
     // Load the WASM and R1CS for witness and proof generation
-    let cfg = CircomConfig::<Bn254>::new(
-        "./circom-inputs/mycircuit.wasm",
-        "./circom-inputs/mycircuit.r1cs",
-    ).unwrap();
+    let cfg = CircomConfig::<Bn254>::new(wasm_path, r1cs_path).unwrap();
 
     // Insert our public inputs as key value pairs
     let mut builder = CircomBuilder::new(cfg);
-    builder.push_input("a", 3);
-    builder.push_input("b", 11);
-
+    for (k, v) in inputs {
+        for e in v {
+            builder.push_input(&k, e);
+        }
+    }
     // Create an empty instance for setting it up
     let circom = builder.setup();
 
@@ -42,20 +42,13 @@ fn verify_proof_with_zkey_with_r1cs() {
     let pvk = prepare_verifying_key(&params.vk);
     let verified = verify_proof(&pvk, &proof, &inputs).unwrap();
     assert!(verified);
-    println!("circom_test pass");
 }
 
-fn verify_proof_with_zkey_without_r1cs() {
-    let mut file = File::open("./circom-inputs/test.zkey").unwrap();
+fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
+    let mut file = File::open(zkey_path).unwrap();
     let (params, matrices) = read_zkey(&mut file).unwrap();
 
-    let mut wtns = WitnessCalculator::new("./circom-inputs/mycircuit.wasm").unwrap();
-    let mut inputs: HashMap<String, Vec<num_bigint::BigInt>> = HashMap::new();
-    let values = inputs.entry("a".to_string()).or_insert_with(Vec::new);
-    values.push(3.into());
-
-    let values = inputs.entry("b".to_string()).or_insert_with(Vec::new);
-    values.push(11.into());
+    let mut wtns = WitnessCalculator::new(wasm_path).unwrap();
 
     let mut rng = thread_rng();
     use ark_std::UniformRand;
@@ -85,10 +78,110 @@ fn verify_proof_with_zkey_without_r1cs() {
     let verified = verify_proof(&pvk, &proof, inputs).unwrap();
 
     assert!(verified);
-    println!("verify_proof_with_zkey_without_r1cs pass");
 }
 
 fn main() {
-    verify_proof_with_zkey_with_r1cs();
-    verify_proof_with_zkey_without_r1cs();
+    /* mycircuit example copied from https://github.com/gakonst/ark-circom */
+    verify_proof_with_r1cs(
+        HashMap::from([
+            ("a".to_string(), vec![BigInt::from(3)]),
+            ("b".to_string(), vec![BigInt::from(11)])
+        ]),
+        "./circom-inputs/mycircuit.wasm",
+        "./circom-inputs/mycircuit.r1cs"
+    );
+    println!("mycircuit with r1cs pass");
+
+    verify_proof_without_r1cs(
+        HashMap::from([
+            ("a".to_string(), vec![BigInt::from(3)]),
+            ("b".to_string(), vec![BigInt::from(11)])
+        ]),
+        "./circom-inputs/mycircuit.zkey",
+        "./circom-inputs/mycircuit.wasm"
+    );
+    println!("mycircuit without r1cs pass");
+
+    verify_proof_with_r1cs(
+        load_rsa_test_vector(), 
+        "./circom-inputs/rsa_sha2.wasm",
+        "./circom-inputs/rsa_sha2.r1cs",
+    );
+    println!("rsa_sha2 with r1cs pass");
+
+    // Commented because the size of zkey is too big for git
+    // verify_proof_without_r1cs( 
+    //     load_rsa_test_vector(),
+    //     "./circom-inputs/rsa_sha2.zkey",
+    //     "./circom-inputs/rsa_sha2.wasm"
+    // );
+    // println!("rsa_sha2 without r1cs pass");
 }
+
+fn load_rsa_test_vector() -> CircomInput {
+    let signature: Vec<u64> = vec![
+        7147802607275642658,  15577333482908311137,
+        8554497539651460520,  15249273760168451356,
+        1393273989552256398,  11089958655944049941,
+        10591456032172199765, 2335342757249459473,
+        8336025561765630537,  13252172616878338760,
+        13109326872360562939, 2686885245518713997,
+        6608491802980430994,  5012529043457126898,
+        2078657532217325110,  13306300692890002264,
+        8614172926201479194,  1689676805099170611,
+        10290691072982548167, 16506492336183114561,
+        4668385444190909190,  13247702821337111779,
+        6886943854419847658,  14109186297157297529,
+        11449592486888529612, 16188111621787678559,
+        6901191095508160857,  16000985115930218414,
+        2699559607621511871,  3043401216957656029,
+        3972823842668936434,  14433539567680664197
+      ];
+
+    let modulus: Vec<u64> = vec![
+        13201601703605019737, 3105180630311405376,
+        10674213731329952926, 8859932086429166954,
+        2985985604654853372,  5812576696360944702,
+        14466253622234018068, 3413627959992405717,
+        12543592204804631736, 2112540841378563073,
+        13836879701439409726, 2467055072135046797,
+        2789289658861274560,  11183457292512218428,
+        1678790129368918285,  12604776924702623354,
+        1023186928398738075,  13874604535702843790,
+        9170383777734919534,  10172142195946120636,
+        8232821389595270653,  17527791760659271675,
+        18239557468616943896, 7284179943295855990,
+        331408201522522826,   9180229766078227923,
+        1000842694280619245,  12729605491450933452,
+        5235217269677597244,  15345138813548740705,
+        8884864492787055437,  14783373753312293031
+      ];
+
+    let base_message: Vec<u64> = vec![
+        10787603150316114092, 13213410277675934618,
+        11919946204020583925, 17678436471734420583,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0,
+        0,                    0
+      ];
+
+
+
+    return HashMap::from([
+        ("signature".to_string(), signature.into_iter().map(|x| BigInt::from(x)).collect()),
+        ("modulus".to_string(), modulus.into_iter().map(|x| BigInt::from(x)).collect()),
+        ("base_message".to_string(), base_message.into_iter().map(|x| BigInt::from(x)).collect())
+    ]);
+}
+
