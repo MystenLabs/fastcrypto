@@ -174,7 +174,7 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 
 // schemars is used for guiding JsonSchema to create a schema with type Base64 and no wrapping
 // type.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, JsonSchema, Hash)]
 #[serde(transparent)]
 pub struct BytesRepresentation<const N: usize>(#[schemars(with = "Base64")] pub [u8; N]);
 
