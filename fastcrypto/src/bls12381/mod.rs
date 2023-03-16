@@ -24,6 +24,7 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
+#[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
@@ -140,9 +141,9 @@ impl AsRef<[u8]> for BLS12381PublicKey {
 
 impl ToFromBytes for BLS12381PublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // key_validate() validates the public key.
+        // key_validate() does NOT validate the public key. Please use validate() where needed.
         let pubkey =
-            blst::PublicKey::key_validate(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+            blst::PublicKey::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381PublicKey {
             pubkey,
             bytes: OnceCell::new(),
@@ -155,7 +156,7 @@ impl ToFromBytes for BLS12381PublicKey {
 //
 
 // Needed since the current NW implementation requires default public keys.
-// Note that deserialization of this object will fail as we validate it is a valid public key.
+// Note that deserialization of this object will fail if we validate it is a valid public key.
 impl InsecureDefault for BLS12381PublicKey {
     fn insecure_default() -> Self {
         BLS12381PublicKey {
@@ -179,17 +180,24 @@ impl<'a> From<&'a BLS12381PrivateKey> for BLS12381PublicKey {
     }
 }
 
+// TODO: Once NW does not need to ser/deser public keys in many places we should call validate
+// during deserialization and get rid of this function.
+impl BLS12381PublicKey {
+    pub fn validate(&self) -> Result<(), FastCryptoError> {
+        self.pubkey.validate().map_err(|_e| FastCryptoError::InvalidInput)
+    }
+}
+
 impl VerifyingKey for BLS12381PublicKey {
     type PrivKey = BLS12381PrivateKey;
     type Sig = BLS12381Signature;
     const LENGTH: usize = $pk_length;
 
     fn verify(&self, msg: &[u8], signature: &BLS12381Signature) -> Result<(), FastCryptoError> {
-        // verify() does not validate the signature or public key since we already do that during
-        // deserialization.
+        // verify() only validates the signature. Please use pk that was validated.
         let err = signature
             .sig
-            .verify(false, msg, $dst_string, &[], &self.pubkey, false);
+            .verify(true, msg, $dst_string, &[], &self.pubkey, false);
         if err == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
@@ -252,7 +260,7 @@ impl VerifyingKey for BLS12381PublicKey {
             &pks.iter().map(|pk| &pk.pubkey).collect::<Vec<_>>(),
             false,
             &sigs.iter().map(|sig| &sig.sig).collect::<Vec<_>>(),
-            false,
+            true,
             &rands,
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
@@ -265,11 +273,13 @@ impl VerifyingKey for BLS12381PublicKey {
 }
 
 fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
-    assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH == 128);
+    debug_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
         vals[1] = rng.next_u64();
+
+        // Check this ^^
 
         // Reject zero as it is used for multiplication.
         if vals[0] | vals[1] != 0 {
@@ -293,6 +303,7 @@ fn get_one() -> blst_scalar {
     one
 }
 
+// Always generates 128bit numbers though not all the bits must be used.
 fn get_random_scalars(n: usize) -> Vec<blst_scalar> {
     let mut rands: Vec<blst_scalar> = Vec::with_capacity(n);
     // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
@@ -398,8 +409,9 @@ impl AsRef<[u8]> for BLS12381Signature {
 
 impl ToFromBytes for BLS12381Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // sig_validate(x, false) checks that signature is in the right group (but allows inf).
-        let sig = blst::Signature::sig_validate(bytes, false).map_err(|_| FastCryptoError::InvalidInput)?;
+        // from_bytes() does NOT check if the signature is in the right group. We check that when
+        // verifying the signature.
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381Signature {
             sig,
             bytes: OnceCell::new(),
@@ -574,8 +586,8 @@ generate_bytes_representation!(BLS12381AggregateSignature, {$sig_length}, BLS123
 
 impl ToFromBytes for BLS12381AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        // sig_validate(x, false) checks that the signature is in the right group but allows inf.
-        let sig = blst::Signature::sig_validate(bytes, false).map_err(|_| FastCryptoError::InvalidInput)?;
+        // from_bytes does NOT validate the signature. We do that in verify.
+        let sig = blst::Signature::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         Ok(BLS12381AggregateSignature {
             sig,
             bytes: OnceCell::new(),
@@ -591,7 +603,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     fn aggregate<'a, K: Borrow<Self::Sig> + 'a, I: IntoIterator<Item = &'a K>>(
         signatures: I,
     ) -> Result<Self, FastCryptoError> {
-        // aggregate() below does not validate signatures (we do that on deserialization).
+        // aggregate() below does not validate signatures.
         blst::AggregateSignature::aggregate(
             &signatures
                 .into_iter()
@@ -603,22 +615,22 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             sig: sig.to_signature(),
             bytes: OnceCell::new(),
         })
-        .map_err(|_| FastCryptoError::GeneralOpaqueError)
+        .map_err(|_| FastCryptoError::InvalidInput)
     }
 
     fn add_signature(&mut self, signature: Self::Sig) -> Result<(), FastCryptoError> {
         let mut aggr_sig = blst::AggregateSignature::from_signature(&self.sig);
-        // add_signature() does not validate the new signature as this is done during deserialization.
-        aggr_sig.add_signature(&signature.sig, false).map_err(|_| FastCryptoError::GeneralOpaqueError)?;
+        // add_signature() does not validate the new signature.
+        aggr_sig.add_signature(&signature.sig, false).map_err(|_| FastCryptoError::InvalidInput)?;
         self.sig = aggr_sig.to_signature();
         self.bytes.take();
         Ok(())
     }
 
     fn add_aggregate(&mut self, signature: Self) -> Result<(), FastCryptoError> {
-        // aggregate() does not validate the new signature as this is done during deserialization.
+        // aggregate() does not validate the new signature.
         let result = blst::AggregateSignature::aggregate(&[&self.sig, &signature.sig], false)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)?.to_signature();
+            .map_err(|_| FastCryptoError::InvalidInput)?.to_signature();
         self.sig = result;
         self.bytes.take();
         Ok(())
@@ -629,11 +641,11 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         message: &[u8],
     ) -> Result<(), FastCryptoError> {
-        // No need to validate signatures or public keys as we do that on deserialization.
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = self
             .sig
             .fast_aggregate_verify(
-                false,
+                true,
                 message,
                 $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
@@ -649,11 +661,11 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: &[<Self::Sig as Authenticator>::PubKey],
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // aggregate_verify() does not validate keys or signatures.
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = self
             .sig
             .aggregate_verify(
-                false,
+                true,
                 messages,
                 $dst_string,
                 &pks.iter().map(|x| &x.pubkey).collect::<Vec<_>>()[..],
@@ -670,16 +682,22 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
+        // TODO: Consider using verify_multiple_aggregate_signatures() below.
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }
 
+        if signatures.is_empty() {
+            // verify_multiple_aggregate_signatures fails on empty input, but we accept here.
+            return Ok(())
+        }
+
         let mut agg_pks: Vec<blst::PublicKey> = Vec::with_capacity(signatures.len());
         for keys in pks {
-            let keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::<Vec<_>>();
-            agg_pks.push(blst::AggregatePublicKey::aggregate(&keys_as_vec, false).unwrap().to_public_key()
-            );
-        }
+             let keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::<Vec<_>>();
+             agg_pks.push(blst::AggregatePublicKey::aggregate(&keys_as_vec, false).unwrap().to_public_key()
+             );
+         }
 
         let result = blst::Signature::verify_multiple_aggregate_signatures(
             &messages,
@@ -715,7 +733,9 @@ pub const BLS_G2_LENGTH: usize = 96;
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 
-const BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = 128;
+/// The statistical probability (in bits) that a batch of signatures which includes invalid
+/// signatures will pass batch_verify.
+const BLS_BATCH_RANDOM_SCALAR_LENGTH: usize = 96;
 
 /// Module minimizing the size of signatures.
 pub mod min_sig;

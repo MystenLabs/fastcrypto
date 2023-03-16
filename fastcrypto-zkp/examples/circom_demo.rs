@@ -3,9 +3,8 @@ use std::{fs::File, collections::HashMap};
 use ark_circom::{CircomConfig, CircomBuilder, read_zkey, WitnessCalculator, CircomReduction};
 
 use ark_bn254::Bn254;
-
-use ark_groth16::{generate_random_parameters, create_proof_with_reduction_and_matrices, 
-                  create_random_proof, prepare_verifying_key, verify_proof};
+use ark_groth16::Groth16;
+use ark_crypto_primitives::snark::SNARK;
 
 use ark_std::rand::thread_rng;
 use num_bigint::BigInt;
@@ -28,7 +27,7 @@ fn verify_proof_with_r1cs(inputs: CircomInput, wasm_path: &str, r1cs_path: &str)
 
     // Run a trusted setup
     let mut rng = thread_rng();
-    let params = generate_random_parameters::<Bn254, _, _>(circom, &mut rng).unwrap();
+    let params = Groth16::<Bn254>::generate_random_parameters_with_reduction(circom, &mut rng).unwrap();
 
     // Get the populated instance of the circuit with the witness
     let circom = builder.build().unwrap();
@@ -36,11 +35,11 @@ fn verify_proof_with_r1cs(inputs: CircomInput, wasm_path: &str, r1cs_path: &str)
     let inputs = circom.get_public_inputs().unwrap();
 
     // Generate the proof
-    let proof = create_random_proof(circom, &params, &mut rng).unwrap();
+    let proof = Groth16::<Bn254>::prove(&params, circom, &mut rng).unwrap();
 
     // Check that the proof is valid
-    let pvk = prepare_verifying_key(&params.vk);
-    let verified = verify_proof(&pvk, &proof, &inputs).unwrap();
+    let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
+    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &inputs).unwrap();
     assert!(verified);
 }
 
@@ -62,7 +61,7 @@ fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &s
     let full_assignment = wtns
         .calculate_witness_element::<Bn254, _>(inputs, false)
         .unwrap();
-    let proof = create_proof_with_reduction_and_matrices::<_, CircomReduction>(
+    let proof = Groth16::<Bn254, CircomReduction>::create_proof_with_reduction_and_matrices(
         &params,
         r,
         s,
@@ -73,9 +72,9 @@ fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &s
     )
     .unwrap();
 
-    let pvk = prepare_verifying_key(&params.vk);
+    let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
     let inputs = &full_assignment[1..num_inputs];
-    let verified = verify_proof(&pvk, &proof, inputs).unwrap();
+    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, inputs).unwrap();
 
     assert!(verified);
 }
@@ -87,8 +86,8 @@ fn main() {
             ("a".to_string(), vec![BigInt::from(3)]),
             ("b".to_string(), vec![BigInt::from(11)])
         ]),
-        "./circom-inputs/mycircuit.wasm",
-        "./circom-inputs/mycircuit.r1cs"
+        "./examples/circom-inputs/mycircuit.wasm",
+        "./examples/circom-inputs/mycircuit.r1cs"
     );
     println!("mycircuit with r1cs pass");
 
@@ -97,15 +96,15 @@ fn main() {
             ("a".to_string(), vec![BigInt::from(3)]),
             ("b".to_string(), vec![BigInt::from(11)])
         ]),
-        "./circom-inputs/mycircuit.zkey",
-        "./circom-inputs/mycircuit.wasm"
+        "./examples/circom-inputs/mycircuit.zkey",
+        "./examples/circom-inputs/mycircuit.wasm"
     );
     println!("mycircuit without r1cs pass");
 
     verify_proof_with_r1cs(
         load_rsa_test_vector(), 
-        "./circom-inputs/rsa_sha2.wasm",
-        "./circom-inputs/rsa_sha2.r1cs",
+        "./examples/circom-inputs/rsa_sha2.wasm",
+        "./examples/circom-inputs/rsa_sha2.r1cs",
     );
     println!("rsa_sha2 with r1cs pass");
 

@@ -164,12 +164,11 @@ impl BulletproofsRangeProof {
         blinding: [u8; 32],
         bits: usize,
         domain: &'static [u8],
-    ) -> Result<(PedersenCommitment, Self), signature::Error> {
+    ) -> Result<(PedersenCommitment, Self), FastCryptoError> {
         // Although this is also checked in the bulletproofs library, we check again
         // to avoid unexpected behaviour in the case of library updates
         if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
-            // TODO: Add a better error
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let pc_gens = PedersenGens::default();
@@ -208,12 +207,11 @@ impl BulletproofsRangeProof {
         commitment: &PedersenCommitment,
         bits: usize,
         domain: &'static [u8],
-    ) -> Result<(), signature::Error> {
+    ) -> Result<(), FastCryptoError> {
         // Although this is also checked in the bulletproofs library, we check again
         // to avoid unexpected behaviour in the case of library updates
         if !(bits == 8 || bits == 16 || bits == 32 || bits == 64) {
-            // TODO: Add a better error
-            return Err(signature::Error::new());
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let pc_gens = PedersenGens::default();
@@ -228,7 +226,7 @@ impl BulletproofsRangeProof {
                 &CompressedRistretto::from_slice(commitment.as_bytes()),
                 bits,
             )
-            .map_err(|_| signature::Error::new())
+            .map_err(|_| FastCryptoError::GeneralError("Failed to verify proof".to_string()))
     }
 }
 

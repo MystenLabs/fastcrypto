@@ -1,12 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
-use ark_bls12_381::{Bls12_381, Fq12, Fr};
-use ark_crypto_primitives::SNARK;
-use ark_ec::{AffineCurve, PairingEngine, ProjectiveCurve};
-use ark_ff::{One, PrimeField, UniformRand};
+use crate::bls12381::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
+use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Projective};
+use ark_crypto_primitives::snark::SNARK;
+use ark_ec::bls12::G1Prepared;
+use ark_ec::pairing::Pairing as _;
+use ark_ec::CurveGroup;
+use ark_ff::{One, UniformRand};
 use ark_groth16::{Groth16, PreparedVerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_std::rand::thread_rng;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_mul, blst_fr, blst_miller_loop, blst_p1, blst_p1_affine,
     blst_p1_affine_is_inf, blst_p1_to_affine, blst_p2_affine_is_inf, Pairing,
@@ -18,16 +21,16 @@ use std::{
 };
 
 use crate::{
-    conversions::{
+    bls12381::conversions::{
         bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
         bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12,
         tests::{arb_bls_fr, arb_bls_g1_affine, arb_blst_g1_affine, arb_blst_g2_affine},
     },
-    dummy_circuits::DummyCircuit,
-    verifier::{
+    bls12381::verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
         verify_with_processed_vk, Proof, VerifyingKey, BLST_FR_ONE,
     },
+    dummy_circuits::DummyCircuit,
 };
 
 #[test]
@@ -66,21 +69,25 @@ fn ark_multipairing_with_prepared_vk(
     proof: &Proof<Bls12_381>,
     public_inputs: &[Fr],
 ) -> Fq12 {
-    let mut g_ic = pvk.vk.gamma_abc_g1[0].into_projective();
+    let mut g_ic = G1Projective::from(pvk.vk.gamma_abc_g1[0]);
     for (i, b) in public_inputs.iter().zip(pvk.vk.gamma_abc_g1.iter().skip(1)) {
-        g_ic.add_assign(&b.mul(i.into_repr()));
+        g_ic.add_assign(&b.mul(i));
     }
 
-    let qap = Bls12_381::miller_loop(
+    let qap = Bls12_381::multi_miller_loop(
         [
-            (proof.a.into(), proof.b.into()),
-            (g_ic.into_affine().into(), pvk.gamma_g2_neg_pc.clone()),
-            (proof.c.into(), pvk.delta_g2_neg_pc.clone()),
-        ]
-        .iter(),
+            G1Prepared::from(proof.a),
+            G1Prepared::from(g_ic),
+            G1Prepared::from(proof.c),
+        ],
+        [
+            proof.b.into(),
+            pvk.gamma_g2_neg_pc.clone(),
+            pvk.delta_g2_neg_pc.clone(),
+        ],
     );
 
-    Bls12_381::final_exponentiation(&qap).unwrap()
+    Bls12_381::final_exponentiation(qap).unwrap().0
 }
 
 const LEN: usize = 10;
@@ -124,7 +131,7 @@ proptest! {
 #[test]
 fn test_prepare_vk() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut ark_std::test_rng();
+    let rng = &mut thread_rng();
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),
@@ -159,9 +166,9 @@ proptest! {
         let mut blst_res_affine = blst_p1_affine::default();
         unsafe { blst_p1_to_affine(&mut blst_res_affine, &blst_res) };
 
-        let mut g_ic = a_s[0].into_projective();
+        let mut g_ic = G1Projective::from(a_s[0]);
         for (i, b) in frs.iter().zip(a_s.iter().skip(1)) {
-            g_ic.add_assign(&b.mul(i.into_repr()));
+            g_ic.add_assign(&b.mul(i));
         }
 
         // TODO: convert this so we can make a projective comparison
@@ -173,7 +180,7 @@ proptest! {
 #[test]
 fn test_verify_with_processed_vk() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut ark_std::test_rng();
+    let rng = &mut thread_rng();
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),
@@ -190,15 +197,16 @@ fn test_verify_with_processed_vk() {
 
     // Roundtrip serde of the proof public input bytes.
     let mut public_inputs_bytes = Vec::new();
-    v.serialize(&mut public_inputs_bytes).unwrap();
+    v.serialize_compressed(&mut public_inputs_bytes).unwrap();
 
-    let deserialized_public_inputs = BlsFr::deserialize(public_inputs_bytes.as_slice()).unwrap();
+    let deserialized_public_inputs =
+        BlsFr::deserialize_compressed(public_inputs_bytes.as_slice()).unwrap();
 
     // Roundtrip serde of the proof points bytes.
     let mut proof_points_bytes = Vec::new();
-    proof.serialize(&mut proof_points_bytes).unwrap();
+    proof.serialize_compressed(&mut proof_points_bytes).unwrap();
     let deserialized_proof_points =
-        Proof::<Bls12_381>::deserialize(proof_points_bytes.as_slice()).unwrap();
+        Proof::<Bls12_381>::deserialize_compressed(proof_points_bytes.as_slice()).unwrap();
 
     // Roundtrip serde of the prepared verifying key.
     let serialized = blst_pvk.as_serialized().unwrap();
@@ -221,7 +229,7 @@ fn test_verify_with_processed_vk() {
 #[test]
 fn test_multipairing_with_processed_vk() {
     const PUBLIC_SIZE: usize = 128;
-    let rng = &mut ark_std::test_rng();
+    let rng = &mut thread_rng();
     let c = DummyCircuit::<Fr> {
         a: Some(<Fr>::rand(rng)),
         b: Some(<Fr>::rand(rng)),

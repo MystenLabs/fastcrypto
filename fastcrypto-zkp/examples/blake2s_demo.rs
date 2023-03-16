@@ -3,18 +3,20 @@
 
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ff::ToConstraintField;
-use ark_groth16::{create_random_proof, generate_random_parameters};
 
+use ark_crypto_primitives::prf::{PRFGadget, PRF};
 use ark_crypto_primitives::{
-    prf::blake2s::constraints::Blake2sGadget, prf::blake2s::Blake2s as B2SPRF, PRFGadget, PRF,
+    prf::blake2s::constraints::Blake2sGadget, prf::blake2s::Blake2s as B2SPRF,
 };
+use ark_groth16::Groth16;
 use ark_relations::r1cs::{
     ConstraintSynthesizer, ConstraintSystem, ConstraintSystemRef, SynthesisError,
 };
 use blake2::{digest::Digest, Blake2s256};
 
 use ark_r1cs_std::prelude::*;
-use fastcrypto_zkp::verifier::{process_vk_special, verify_with_processed_vk};
+use ark_std::rand::thread_rng;
+use fastcrypto_zkp::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
 
 #[derive(Clone, Copy, Debug)]
 struct Blake2sCircuit {
@@ -81,7 +83,7 @@ impl ConstraintSynthesizer<Fr> for Blake2sCircuit {
 }
 
 fn main() {
-    let mut rng = &mut ark_std::test_rng();
+    let mut rng = &mut thread_rng();
 
     let circuit = Blake2sCircuit::new();
     // Sanity-check
@@ -93,13 +95,16 @@ fn main() {
         assert!(cs.is_satisfied().unwrap());
     }
 
-    let params = generate_random_parameters::<Bls12_381, _, _>(circuit, &mut rng).unwrap();
+    let params =
+        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, rng).unwrap();
 
     // prepare the verification key
     let pvk = process_vk_special(&params.vk);
 
     // prepare a proof (note: there is nothing trustable about the trivial setup involved here)
-    let proof = create_random_proof(circuit, &params, &mut rng).unwrap();
+    let proof =
+        Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
+            .unwrap();
     println!(
         "Generated proof of knowledge of Blake2s preimage of {}",
         hex::encode(circuit.expected_output)

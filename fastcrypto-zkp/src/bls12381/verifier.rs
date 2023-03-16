@@ -14,7 +14,7 @@ use blst::{
 };
 use fastcrypto::error::FastCryptoError;
 
-use crate::conversions::{
+use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
     bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
@@ -24,9 +24,10 @@ use crate::conversions::{
 mod verifier_tests;
 
 /// This is a helper function to store a pre-processed version of the verifying key.
-/// This is roughly homologous to [`ark_groth16::PreparedVerifyingKey`].
+/// This is roughly homologous to [`ark_groth16::data_structures::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don't store a "prepared" version of the gamma_g2_neg_pc,
-/// delta_g2_neg_pc fields, because we can't use them with blst's pairing engine.
+/// delta_g2_neg_pc fields, because we can't use them with blst's pairing engine and also because
+/// they are very large and unpractical to use in the binary api.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreparedVerifyingKey {
     /// The element vk.gamma_abc_g1,
@@ -50,18 +51,19 @@ impl PreparedVerifyingKey {
     ) -> Result<Self, FastCryptoError> {
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
-            let g1 = G1Affine::deserialize(g1_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+            let g1 = G1Affine::deserialize_compressed(g1_bytes)
+                .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
-            &Fq12::deserialize(alpha_g1_beta_g2_bytes)
+            &Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
 
-        let gamma_g2_neg_pc = G2Affine::deserialize(gamma_g2_neg_pc_bytes)
+        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(gamma_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let delta_g2_neg_pc = G2Affine::deserialize(delta_g2_neg_pc_bytes)
+        let delta_g2_neg_pc = G2Affine::deserialize_compressed(delta_g2_neg_pc_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(PreparedVerifyingKey {
@@ -78,26 +80,26 @@ impl PreparedVerifyingKey {
         let mut vk_gamma = Vec::new();
         for g1 in &self.vk_gamma_abc_g1 {
             let mut g1_bytes = Vec::new();
-            g1.serialize(&mut g1_bytes)
+            g1.serialize_compressed(&mut g1_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma.append(&mut g1_bytes);
         }
         res.push(vk_gamma);
         let mut fq12 = Vec::new();
         blst_fp12_to_bls_fq12(&self.alpha_g1_beta_g2)
-            .serialize(&mut fq12)
+            .serialize_compressed(&mut fq12)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(fq12);
 
         let mut gamma_bytes = Vec::new();
         self.gamma_g2_neg_pc
-            .serialize(&mut gamma_bytes)
+            .serialize_compressed(&mut gamma_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(gamma_bytes);
 
         let mut delta_bytes = Vec::new();
         self.delta_g2_neg_pc
-            .serialize(&mut delta_bytes)
+            .serialize_compressed(&mut delta_bytes)
             .map_err(|_| FastCryptoError::InvalidInput)?;
         res.push(delta_bytes);
         Ok(res)
@@ -109,18 +111,16 @@ impl PreparedVerifyingKey {
 ///
 /// ## Example:
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::process_vk_special};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::process_vk_special};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
-/// use ark_groth16::{
-///     generate_random_parameters
-/// };
+/// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
 ///
 /// let mut rng = thread_rng();
 /// let params = {
 ///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
-///     generate_random_parameters::<Bls12_381, _, _>(c, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
 /// };
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
@@ -316,19 +316,17 @@ fn multipairing_with_processed_vk(
 ///
 /// ## Example
 /// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, verifier::{ process_vk_special, verify_with_processed_vk }};
+/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::{ process_vk_special, verify_with_processed_vk }};
 /// use ark_bls12_381::{Bls12_381, Fr};
 /// use ark_ff::One;
-/// use ark_groth16::{
-///     create_random_proof, generate_random_parameters
-/// };
+/// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
 ///
 /// let mut rng = thread_rng();
 ///
 /// let params = {
 ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
-///     generate_random_parameters::<Bls12_381, _, _>(circuit, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
 /// };
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
@@ -338,7 +336,7 @@ fn multipairing_with_processed_vk(
 /// let proof = {
 ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
 ///     // Create a proof with our parameters, picking a random witness assignment
-///     create_random_proof(circuit, &params, &mut rng).unwrap()
+///     Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
 /// };
 ///
 /// // We provide the public inputs which we know are used in our circuits
@@ -348,8 +346,6 @@ fn multipairing_with_processed_vk(
 /// // Verify the proof
 /// let r = verify_with_processed_vk(&pvk, &inputs, &proof).unwrap();
 /// ```
-// TODO: due to arkworks incompatibilities in BLS12-381 point (de) serialization, we should probably implement a custom (de)serialization
-// for those formats, see https://github.com/arkworks-rs/algebra/issues/257
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],

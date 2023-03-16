@@ -9,8 +9,8 @@ description = "Command line tools for cryptographic functions"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-clap = { version = "4.1.4", features = ["derive"] }
-fastcrypto = { path = "../fastcrypto" }
+clap = { version = "4.1.8", features = ["derive"] }
+fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
 hex = "0.4.3"
 bincode.workspace = true
 rand.workspace = true
@@ -19,3 +19,11 @@ exitcode = "1.1.2"
 [[bin]]
 name = "ecvrf-cli"
 path = "src/ecvrf.rs"
+
+[[bin]]
+name = "encode-cli"
+path = "src/encode_cli.rs"
+
+[[bin]]
+name = "sigs-cli"
+path = "src/sigs_cli.rs"

@@ -4,10 +4,11 @@ use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_bn254::{Bn254, Fr as Bn254Fr};
 
-use ark_crypto_primitives::SNARK;
-use ark_ec::PairingEngine;
+use ark_crypto_primitives::snark::SNARK;
+use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
+use ark_std::rand::thread_rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
@@ -18,13 +19,13 @@ use std::ops::Mul;
 #[path = "./conversions.rs"]
 mod conversions;
 
-fn bench_prove<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
+fn bench_prove<F: PrimeField, E: Pairing<ScalarField = F>, M: Measurement>(
     grp: &mut BenchmarkGroup<M>,
 ) {
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut ark_std::test_rng();
+        let rng = &mut thread_rng();
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
@@ -44,13 +45,13 @@ fn bench_prove<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
     }
 }
 
-fn bench_verify<F: PrimeField, E: PairingEngine<Fr = F>, M: Measurement>(
+fn bench_verify<F: PrimeField, E: Pairing<ScalarField = F>, M: Measurement>(
     grp: &mut BenchmarkGroup<M>,
 ) {
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut ark_std::test_rng();
+        let rng = &mut thread_rng();
         let c = DummyCircuit::<F> {
             a: Some(<F>::rand(rng)),
             b: Some(<F>::rand(rng)),
@@ -93,7 +94,7 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
     for size in CONSTRAINTS.iter() {
-        let rng = &mut ark_std::test_rng();
+        let rng = &mut thread_rng();
         let c = DummyCircuit::<BlsFr> {
             a: Some(<BlsFr>::rand(rng)),
             b: Some(<BlsFr>::rand(rng)),
@@ -109,17 +110,18 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
-                b.iter(|| fastcrypto_zkp::verifier::process_vk_special(vk));
+                b.iter(|| fastcrypto_zkp::bls12381::verifier::process_vk_special(vk));
             },
         );
-        let pvk = fastcrypto_zkp::verifier::process_vk_special(&vk);
+        let pvk = fastcrypto_zkp::bls12381::verifier::process_vk_special(&vk);
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
                 b.iter(|| {
-                    fastcrypto_zkp::verifier::verify_with_processed_vk(pvk, &[*v], &proof).unwrap()
+                    fastcrypto_zkp::bls12381::verifier::verify_with_processed_vk(pvk, &[*v], &proof)
+                        .unwrap()
                 });
             },
         );

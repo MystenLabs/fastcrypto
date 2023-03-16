@@ -90,7 +90,7 @@ mod serialization_benches {
         let keypair = KP::generate(&mut csprng);
         let serialized = bincode::serialize(&keypair.public()).unwrap();
         c.bench_function(&(name.to_string()), move |b| {
-            b.iter(|| bincode::deserialize::<KP::Sig>(&serialized))
+            b.iter(|| bincode::deserialize::<KP::PubKey>(&serialized))
         });
     }
 

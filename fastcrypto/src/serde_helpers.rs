@@ -9,7 +9,8 @@ use serde::{
     Deserialize, Serialize,
 };
 use serde_with::serde_as;
-use std::fmt::Debug;
+use std::fmt;
+use std::fmt::{Debug, Display};
 
 use crate::error::FastCryptoError;
 use crate::{
@@ -173,7 +174,7 @@ macro_rules! serialize_deserialize_with_to_from_bytes {
 
 // schemars is used for guiding JsonSchema to create a schema with type Base64 and no wrapping
 // type.
-#[derive(Clone, Debug, PartialEq, Eq, JsonSchema)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, JsonSchema)]
 #[serde(transparent)]
 pub struct BytesRepresentation<const N: usize>(#[schemars(with = "Base64")] pub [u8; N]);
 
@@ -257,6 +258,12 @@ impl<'de, const N: usize> Deserialize<'de> for BytesRepresentation<N> {
             }
         };
         Ok(Self(bytes))
+    }
+}
+
+impl<const N: usize> Display for BytesRepresentation<N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode(self.0))
     }
 }
 
