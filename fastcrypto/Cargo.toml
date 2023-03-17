@@ -36,8 +36,8 @@ generic-array = { version = "0.14.6", features = ["serde"] }
 typenum.workspace = true
 auto_ops = "0.3.0"
 derive_more = "0.99.16"
-p256 = { version = "0.12.0", features = ["ecdsa", "arithmetic"] }
-ecdsa = { version = "0.15.1", features = ["rfc6979"] }
+p256 = { path = "../../elliptic-curves/p256", features = ["ecdsa", "arithmetic"] }
+ecdsa = { path = "../../signatures/ecdsa", features = ["rfc6979", "verifying"] }
 rfc6979 = "0.3.1"
 blake2 = "0.10.6"
 blake3 = "1.3.3"

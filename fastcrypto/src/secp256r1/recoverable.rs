@@ -32,10 +32,8 @@ use crate::{
 };
 use ecdsa::elliptic_curve::bigint::Encoding as OtherEncoding;
 use ecdsa::elliptic_curve::subtle::Choice;
-use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
-use p256::ecdsa::Signature as ExternalSignature;
-use p256::ecdsa::VerifyingKey as ExternalPublicKey;
+use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
@@ -43,6 +41,9 @@ use p256::elliptic_curve::IsHigh;
 use p256::elliptic_curve::{Curve, DecompressPoint};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
 use std::fmt::{self, Debug, Display};
+use ecdsa::elliptic_curve::scalar::IsHigh;
+use ecdsa::RecoveryId;
+use eyre::ContextCompat;
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
 
@@ -161,56 +162,17 @@ impl RecoverableSigner for Secp256r1KeyPair {
         &self,
         msg: &[u8],
     ) -> Secp256r1RecoverableSignature {
-        // Inspired by Sign.rs in k256@0.11.6
-
-        // Hash message
-        let z = FieldBytes::from(H::digest(msg).digest);
-
-        // Private key as scalar
-        let x = U256::from_be_bytes(self.secret.privkey.as_nonzero_scalar().to_bytes().into());
-
-        // Generate k deterministically according to RFC6979
-        let k = Scalar::from_uint_reduced(*rfc6979::generate_k::<sha2::Sha256, U256>(
-            &x,
-            &NistP256::ORDER,
-            &z,
-            &[],
-        ));
-
-        // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0 which is
-        // negligible because k is computed as a HMAC according to RFC6979.
-        let k_inv = k.invert().unwrap();
-
-        // Compute 𝑹 = 𝑘×𝑮
-        let big_r = ProjectivePoint::GENERATOR * k;
-
-        // Lift x- and y-coordinate of 𝑹 (element of base field).
-        let (r, y) = get_coordinates(&big_r);
-
-        // Compute 𝒔 as a signature over 𝒓 and 𝒛.
-        let x = Scalar::from_uint_reduced(x);
-        let z = Scalar::from_be_bytes_reduced(z);
-        let s = k_inv * (z + (r * x));
-
-        // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
-        let sig = ExternalSignature::from_scalars(r, s).unwrap();
-
-        // Compute recovery id and normalize signature
-        let is_r_odd = y.is_odd();
-        let is_s_high = sig.s().is_high();
-        let is_y_odd = is_r_odd ^ is_s_high;
-        let sig_low = sig.normalize_s().unwrap_or(sig);
-        let recovery_id = RecoveryId::new(is_y_odd.into(), false);
-
+        let (sig, recovery_id) = self.secret.privkey.sign_prehash_recoverable(H::digest(msg).as_ref()).unwrap();
+        let normalized_signature = sig.normalize_s().unwrap_or(sig);
         Secp256r1RecoverableSignature {
-            sig: sig_low,
+            sig: normalized_signature,
             bytes: OnceCell::new(),
             recovery_id: recovery_id.to_byte(),
         }
     }
 }
 
-/// Get the y-coordinate from a given affine point.
+/// Get the x and y-coordinate from a given affine point.
 fn get_coordinates(point: &ProjectivePoint) -> (Scalar, Scalar) {
     let encoded_point = point.to_encoded_point(false);
 
@@ -233,37 +195,12 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         &self,
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
-        // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
-        let (r, s) = self.sig.split_scalars();
-        let z = Scalar::from_be_bytes_reduced(*FieldBytes::from_slice(H::digest(msg).as_ref()));
-        let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
+        let vk = VerifyingKey::recover_from_prehash(H::digest(msg).as_ref(), &self.sig, self.recovery_id.try_into().unwrap()).map_err(|_| FastCryptoError::InvalidSignature)?;
 
-        // Note: This has been added because it does not seem to be done in k256
-        let r_bytes = match v.is_x_reduced() {
-            true => U256::from(r.as_ref())
-                .wrapping_add(&NistP256::ORDER)
-                .to_be_byte_array(),
-            false => r.to_bytes(),
-        };
-
-        let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
-
-            Ok(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralOpaqueError)
-        }
+        Ok(Secp256r1PublicKey {
+            pubkey: vk,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
