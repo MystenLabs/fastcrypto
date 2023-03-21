@@ -136,7 +136,13 @@ impl Secp256r1PublicKey {
         msg: &[u8],
         signature: &Secp256r1Signature,
     ) -> Result<(), FastCryptoError> {
-        if signature.sig.s().is_high().into() {
+        println!("before-{:?}", signature.sig);
+        let mut res = signature.sig.normalize_s().unwrap();
+        println!("res-{:?}", res);
+        // res = res.normalize_s().unwrap();
+
+        println!("after-{:?}", signature.sig);
+        if res.s().is_high().into() {
             return Err(FastCryptoError::GeneralError(
                 "The s value of ECDSA signature must be low".to_string(),
             ));
