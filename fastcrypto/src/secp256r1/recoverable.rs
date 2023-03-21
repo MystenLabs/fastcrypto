@@ -40,9 +40,8 @@ use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::IsHigh;
-use p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint};
+use p256::elliptic_curve::{Curve, DecompressPoint};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -183,11 +182,10 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let k_inv = k.invert().unwrap();
 
         // Compute 𝑹 = 𝑘×𝑮
-        let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
+        let big_r = ProjectivePoint::GENERATOR * k;
 
-        // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
-        // integer, then reduce it into an element of the scalar field
-        let r = Scalar::from_be_bytes_reduced(big_r.x());
+        // Lift x- and y-coordinate of 𝑹 (element of base field).
+        let (r, y) = get_coordinates(&big_r);
 
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
         let x = Scalar::from_uint_reduced(x);
@@ -196,9 +194,6 @@ impl RecoverableSigner for Secp256r1KeyPair {
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let sig = ExternalSignature::from_scalars(r, s).unwrap();
-
-        // Note: This line is introduced here because big_r.y is a private field.
-        let y: Scalar = get_y_coordinate(&big_r);
 
         // Compute recovery id and normalize signature
         let is_r_odd = y.is_odd();
@@ -216,13 +211,17 @@ impl RecoverableSigner for Secp256r1KeyPair {
 }
 
 /// Get the y-coordinate from a given affine point.
-fn get_y_coordinate(point: &AffinePoint) -> Scalar {
+fn get_coordinates(point: &ProjectivePoint) -> (Scalar, Scalar) {
     let encoded_point = point.to_encoded_point(false);
 
     // The encoded point is in uncompressed form, so we can safely get the y-coordinate here
+    let x = encoded_point.x().unwrap();
     let y = encoded_point.y().unwrap();
 
-    Scalar::from_be_bytes_reduced(*y)
+    (
+        Scalar::from_be_bytes_reduced(*x),
+        Scalar::from_be_bytes_reduced(*y),
+    )
 }
 
 impl RecoverableSignature for Secp256r1RecoverableSignature {
@@ -236,8 +235,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
         let (r, s) = self.sig.split_scalars();
-        let z =
-            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
+        let z = Scalar::from_be_bytes_reduced(*FieldBytes::from_slice(H::digest(msg).as_ref()));
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
         // Note: This has been added because it does not seem to be done in k256
@@ -255,6 +253,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
             let r_inv = r.invert().unwrap();
             let u1 = -(r_inv * z);
             let u2 = r_inv * *s;
+
             let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
 
             Ok(Secp256r1PublicKey {
