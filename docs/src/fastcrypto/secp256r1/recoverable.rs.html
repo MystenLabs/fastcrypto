@@ -270,7 +270,6 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -313,9 +312,8 @@
 <span class="kw">use </span>p256::elliptic_curve::ops::Reduce;
 <span class="kw">use </span>p256::elliptic_curve::sec1::ToEncodedPoint;
 <span class="kw">use </span>p256::elliptic_curve::IsHigh;
-<span class="kw">use </span>p256::elliptic_curve::{AffineXCoordinate, Curve, DecompressPoint};
+<span class="kw">use </span>p256::elliptic_curve::{Curve, DecompressPoint};
 <span class="kw">use </span>p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-<span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug, Display};
 
 <span class="kw">pub const </span>SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + <span class="number">1</span>;
@@ -456,11 +454,10 @@
         </span><span class="kw">let </span>k_inv = k.invert().unwrap();
 
         <span class="comment">// Compute 𝑹 = 𝑘×𝑮
-        </span><span class="kw">let </span>big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
+        </span><span class="kw">let </span>big_r = ProjectivePoint::GENERATOR * k;
 
-        <span class="comment">// Lift x-coordinate of 𝑹 (element of base field) into a serialized big
-        // integer, then reduce it into an element of the scalar field
-        </span><span class="kw">let </span>r = Scalar::from_be_bytes_reduced(big_r.x());
+        <span class="comment">// Lift x- and y-coordinate of 𝑹 (element of base field).
+        </span><span class="kw">let </span>(r, y) = get_coordinates(<span class="kw-2">&amp;</span>big_r);
 
         <span class="comment">// Compute 𝒔 as a signature over 𝒓 and 𝒛.
         </span><span class="kw">let </span>x = Scalar::from_uint_reduced(x);
@@ -469,9 +466,6 @@
 
         <span class="comment">// This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         </span><span class="kw">let </span>sig = ExternalSignature::from_scalars(r, s).unwrap();
-
-        <span class="comment">// Note: This line is introduced here because big_r.y is a private field.
-        </span><span class="kw">let </span>y: Scalar = get_y_coordinate(<span class="kw-2">&amp;</span>big_r);
 
         <span class="comment">// Compute recovery id and normalize signature
         </span><span class="kw">let </span>is_r_odd = y.is_odd();
@@ -489,13 +483,17 @@
 }
 
 <span class="doccomment">/// Get the y-coordinate from a given affine point.
-</span><span class="kw">fn </span>get_y_coordinate(point: <span class="kw-2">&amp;</span>AffinePoint) -&gt; Scalar {
+</span><span class="kw">fn </span>get_coordinates(point: <span class="kw-2">&amp;</span>ProjectivePoint) -&gt; (Scalar, Scalar) {
     <span class="kw">let </span>encoded_point = point.to_encoded_point(<span class="bool-val">false</span>);
 
     <span class="comment">// The encoded point is in uncompressed form, so we can safely get the y-coordinate here
-    </span><span class="kw">let </span>y = encoded_point.y().unwrap();
+    </span><span class="kw">let </span>x = encoded_point.x().unwrap();
+    <span class="kw">let </span>y = encoded_point.y().unwrap();
 
-    Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>y)
+    (
+        Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>x),
+        Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>y),
+    )
 }
 
 <span class="kw">impl </span>RecoverableSignature <span class="kw">for </span>Secp256r1RecoverableSignature {
@@ -509,8 +507,7 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
         <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
         </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
-        <span class="kw">let </span>z =
-            Scalar::from_be_bytes_reduced(FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
+        <span class="kw">let </span>z = Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>FieldBytes::from_slice(H::digest(msg).as_ref()));
         <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="comment">// Note: This has been added because it does not seem to be done in k256
@@ -528,6 +525,7 @@
             <span class="kw">let </span>r_inv = r.invert().unwrap();
             <span class="kw">let </span>u1 = -(r_inv * z);
             <span class="kw">let </span>u2 = r_inv * <span class="kw-2">*</span>s;
+
             <span class="kw">let </span>pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
 
             <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
