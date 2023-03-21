@@ -705,7 +705,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
             &agg_pks.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
             false,
             &signatures.iter().map(|agg_sig| &agg_sig.sig).collect::<Vec<_>>(),
-            false,
+            true,
             &get_random_scalars(signatures.len()),
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
