@@ -682,7 +682,6 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         pks: Vec<impl Iterator<Item = &'a Self::PubKey>>,
         messages: &[&[u8]],
     ) -> Result<(), FastCryptoError> {
-        // TODO: Consider using verify_multiple_aggregate_signatures() below.
         if signatures.len() != pks.len() || signatures.len() != messages.len() {
             return Err(FastCryptoError::InputLengthWrong(signatures.len()));
         }
@@ -699,13 +698,14 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
              );
          }
 
+        // Validate signatures but not public keys which the user must validate before calling this.
         let result = blst::Signature::verify_multiple_aggregate_signatures(
             &messages,
             $dst_string,
             &agg_pks.iter().map(|m| m.borrow()).collect::<Vec<_>>(),
             false,
             &signatures.iter().map(|agg_sig| &agg_sig.sig).collect::<Vec<_>>(),
-            false,
+            true,
             &get_random_scalars(signatures.len()),
             BLS_BATCH_RANDOM_SCALAR_LENGTH,
         );
