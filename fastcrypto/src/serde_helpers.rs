@@ -267,6 +267,13 @@ impl<const N: usize> Display for BytesRepresentation<N> {
     }
 }
 
+// This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.
+impl Default for crate::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
+    fn default() -> Self {
+        (&crate::bls12381::min_sig::BLS12381AggregateSignature::default()).into()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
