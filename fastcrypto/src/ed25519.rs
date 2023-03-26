@@ -442,6 +442,7 @@ impl PartialEq for Ed25519AggregateSignature {
 
 impl Eq for Ed25519AggregateSignature {}
 
+// Ed25519AggregateSignature is experimental and here we disable it by default.
 #[cfg(any(test, feature = "experimental"))]
 impl AggregateAuthenticator for Ed25519AggregateSignature {
     type Sig = Ed25519Signature;
