@@ -97,7 +97,11 @@ fn to_from_bytes_signature() {
     let signature = kpref.sign(MSG);
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    // check for failure
+    let mut sig_bytes = signature.as_ref().to_vec();
+    sig_bytes.pop();
+    assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
 }
 
 #[test]
