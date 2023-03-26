@@ -272,17 +272,18 @@ impl VerifyingKey for BLS12381PublicKey {
     }
 }
 
-fn get_128bit_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
-    debug_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
+fn get_random_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
+    static_assertions::const_assert!(64 <= BLS_BATCH_RANDOM_SCALAR_LENGTH);
+    static_assertions::const_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
+
     let mut vals = [0u64; 4];
     loop {
         vals[0] = rng.next_u64();
         vals[1] = rng.next_u64();
 
-        // Check this ^^
-
         // Reject zero as it is used for multiplication.
-        if vals[0] | vals[1] != 0 {
+        let vals1_lsb = vals[1] & ((1 << (BLS_BATCH_RANDOM_SCALAR_LENGTH - 64)) - 1);
+        if vals[0] | vals1_lsb != 0 {
             break;
         }
     }
@@ -309,7 +310,7 @@ fn get_random_scalars(n: usize) -> Vec<blst_scalar> {
     // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
     rands.push(get_one());
     let mut rng = rand::thread_rng();
-    (1..n).into_iter().for_each(|_| rands.push(get_128bit_scalar(&mut rng)));
+    (1..n).into_iter().for_each(|_| rands.push(get_random_scalar(&mut rng)));
     rands
 }
 
