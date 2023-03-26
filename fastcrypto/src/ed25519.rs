@@ -13,13 +13,22 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
-use crate::serde_helpers::BytesRepresentation;
-
+use crate::serde_helpers::{to_custom_error, BytesRepresentation};
+use crate::traits::{InsecureDefault, Signer};
+use crate::{
+    encoding::Base64,
+    error::FastCryptoError,
+    traits::{
+        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
+        ToFromBytes, VerifyingKey,
+    },
+};
 use crate::{
     encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
     traits,
 };
 use base64ct::Encoding as _;
+use derive_more::AsRef;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 #[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
@@ -35,17 +44,6 @@ use std::{
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::serde_helpers::to_custom_error;
-use crate::traits::{InsecureDefault, Signer};
-use crate::{
-    encoding::Base64,
-    error::FastCryptoError,
-    traits::{
-        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
-        ToFromBytes, VerifyingKey,
-    },
-};
-
 /// The length of a private key in bytes.
 pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
 
@@ -59,18 +57,46 @@ pub const ED25519_SIGNATURE_LENGTH: usize = 64;
 pub const ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 /// Ed25519 public key.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, AsRef)]
+#[as_ref(forward)]
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 /// Ed25519 private key.
-#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
+#[derive(SilentDebug, SilentDisplay, AsRef, Zeroize, ZeroizeOnDrop)]
+#[as_ref(forward)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 
+/// Ed25519 key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Ed25519KeyPair {
-    name: Ed25519PublicKey,
-    secret: Ed25519PrivateKey,
+    public: Ed25519PublicKey,
+    private: Ed25519PrivateKey,
 }
+
+/// Ed25519 signature.
+#[derive(Debug, Clone)]
+pub struct Ed25519Signature {
+    pub sig: ed25519_consensus::Signature,
+    // Helps implementing AsRef<[u8]>.
+    pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
+}
+
+/// Aggregation of multiple Ed25519 signatures.
+#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Ed25519AggregateSignature {
+    // The serialized form of this field includes a length prefix, whereas the as_ref() does not.
+    // (The length prefix is small compared to the vector of signatures.)
+    #[serde_as(as = "Vec<SingleSignature>")]
+    pub sigs: Vec<ed25519_consensus::Signature>,
+    // Helps implementing AsRef<[u8]>.
+    #[serde(skip)]
+    pub bytes: OnceCell<Vec<u8>>,
+}
+
+//
+// Implementation of [Ed25519PrivateKey].
+//
 
 impl PartialEq for Ed25519PrivateKey {
     fn eq(&self, other: &Self) -> bool {
@@ -80,13 +106,108 @@ impl PartialEq for Ed25519PrivateKey {
 
 impl Eq for Ed25519PrivateKey {}
 
-/// Ed25519 signature.
-#[derive(Debug, Clone)]
-pub struct Ed25519Signature {
-    pub sig: ed25519_consensus::Signature,
-    // Helps implementing AsRef<[u8]>.
-    pub bytes: OnceCell<[u8; ED25519_SIGNATURE_LENGTH]>,
+impl SigningKey for Ed25519PrivateKey {
+    type PubKey = Ed25519PublicKey;
+    type Sig = Ed25519Signature;
+    const LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 }
+
+impl ToFromBytes for Ed25519PrivateKey {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ed25519_consensus::SigningKey::try_from(bytes)
+            .map(Ed25519PrivateKey)
+            .map_err(|_| FastCryptoError::InvalidInput)
+    }
+}
+
+serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
+
+//
+// Implementation of [Ed25519KeyPair].
+//
+
+impl From<Ed25519PrivateKey> for Ed25519KeyPair {
+    fn from(private: Ed25519PrivateKey) -> Self {
+        let public = Ed25519PublicKey::from(&private);
+        Ed25519KeyPair { public, private }
+    }
+}
+
+/// The bytes form of the keypair always only contain the private key bytes
+impl ToFromBytes for Ed25519KeyPair {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        Ed25519PrivateKey::from_bytes(bytes).map(|private| private.into())
+    }
+}
+
+impl AsRef<[u8]> for Ed25519KeyPair {
+    fn as_ref(&self) -> &[u8] {
+        self.private.as_ref()
+    }
+}
+
+serialize_deserialize_with_to_from_bytes!(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
+
+impl KeyPair for Ed25519KeyPair {
+    type PubKey = Ed25519PublicKey;
+    type PrivKey = Ed25519PrivateKey;
+    type Sig = Ed25519Signature;
+
+    fn public(&'_ self) -> &'_ Self::PubKey {
+        &self.public
+    }
+
+    fn private(self) -> Self::PrivKey {
+        Ed25519PrivateKey::from_bytes(self.private.as_ref()).unwrap()
+    }
+
+    #[cfg(feature = "copy_key")]
+    fn copy(&self) -> Self {
+        Self {
+            public: Ed25519PublicKey::from_bytes(self.public.as_ref()).unwrap(),
+            private: Ed25519PrivateKey::from_bytes(self.private.as_ref()).unwrap(),
+        }
+    }
+
+    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
+        let kp = ed25519_consensus::SigningKey::new(rng);
+        Ed25519KeyPair {
+            public: Ed25519PublicKey(kp.verification_key()),
+            private: Ed25519PrivateKey(kp),
+        }
+    }
+}
+
+impl FromStr for Ed25519KeyPair {
+    type Err = eyre::Report;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
+        Ok(kp)
+    }
+}
+
+impl From<ed25519_consensus::SigningKey> for Ed25519KeyPair {
+    fn from(kp: ed25519_consensus::SigningKey) -> Self {
+        Ed25519KeyPair {
+            public: Ed25519PublicKey(kp.verification_key()),
+            private: Ed25519PrivateKey(kp),
+        }
+    }
+}
+
+impl Signer<Ed25519Signature> for Ed25519KeyPair {
+    fn sign(&self, msg: &[u8]) -> Ed25519Signature {
+        Ed25519Signature {
+            sig: self.private.0.sign(msg),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+//
+// Implementation of [Ed25519Signature].
+//
 
 serialize_deserialize_with_to_from_bytes!(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
 generate_bytes_representation!(
@@ -102,27 +223,101 @@ impl PartialEq for Ed25519Signature {
 }
 
 impl Eq for Ed25519Signature {}
-/// Aggregation of multiple Ed25519 signatures.
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct Ed25519AggregateSignature {
-    // The serialized form of this field includes a length prefix, whereas the as_ref() does not.
-    // (The length prefix is small compared to the vector of signatures.)
-    #[serde_as(as = "Vec<SingleSignature>")]
-    pub sigs: Vec<ed25519_consensus::Signature>,
-    // Helps implementing AsRef<[u8]>.
-    #[serde(skip)]
-    pub bytes: OnceCell<Vec<u8>>,
-}
-///
-/// Implement VerifyingKey
-///
 
-impl<'a> From<&'a Ed25519PrivateKey> for Ed25519PublicKey {
-    fn from(secret: &'a Ed25519PrivateKey) -> Self {
-        Ed25519PublicKey(secret.0.verification_key())
+impl Authenticator for Ed25519Signature {
+    type PubKey = Ed25519PublicKey;
+    type PrivKey = Ed25519PrivateKey;
+    const LENGTH: usize = ED25519_SIGNATURE_LENGTH;
+}
+
+impl ToFromBytes for Ed25519Signature {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ed25519_consensus::Signature::try_from(bytes)
+            .map(|sig| Ed25519Signature {
+                sig,
+                bytes: OnceCell::new(),
+            })
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
+impl AsRef<[u8]> for Ed25519Signature {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes
+            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
+            .expect("OnceCell invariant violated")
+    }
+}
+
+impl Display for Ed25519Signature {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode(self.as_ref()))
+    }
+}
+
+// todo
+impl Default for Ed25519Signature {
+    fn default() -> Self {
+        Ed25519Signature::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
+    }
+}
+
+//
+// Implementation of [Ed25519PublicKey].
+//
+
+impl<'a> From<&'a Ed25519PrivateKey> for Ed25519PublicKey {
+    fn from(private: &'a Ed25519PrivateKey) -> Self {
+        Ed25519PublicKey(private.0.verification_key())
+    }
+}
+
+impl ToFromBytes for Ed25519PublicKey {
+    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ed25519_consensus::VerificationKey::try_from(bytes)
+            .map(Ed25519PublicKey)
+            .map_err(|_| FastCryptoError::InvalidInput)
+    }
+}
+
+impl InsecureDefault for Ed25519PublicKey {
+    fn insecure_default() -> Self {
+        Ed25519PublicKey::from_bytes(&[0u8; 32]).unwrap()
+    }
+}
+
+impl Display for Ed25519PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode(self.0.as_bytes()))
+    }
+}
+
+impl Debug for Ed25519PublicKey {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", Base64::encode(self.as_ref()))
+    }
+}
+
+#[allow(clippy::derive_hash_xor_eq)] // ed25519_consensus's PartialEq is compatible
+impl std::hash::Hash for Ed25519PublicKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.as_bytes().hash(state);
+    }
+}
+
+impl PartialOrd for Ed25519PublicKey {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.as_bytes().partial_cmp(other.0.as_bytes())
+    }
+}
+
+impl Ord for Ed25519PublicKey {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.as_bytes().cmp(other.0.as_bytes())
+    }
+}
+
+serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
 
 impl VerifyingKey for Ed25519PublicKey {
     type PrivKey = Ed25519PrivateKey;
@@ -192,130 +387,9 @@ impl VerifyingKey for Ed25519PublicKey {
     }
 }
 
-impl ToFromBytes for Ed25519PublicKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ed25519_consensus::VerificationKey::try_from(bytes)
-            .map(Ed25519PublicKey)
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
-}
-
-impl AsRef<[u8]> for Ed25519PublicKey {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl InsecureDefault for Ed25519PublicKey {
-    fn insecure_default() -> Self {
-        Ed25519PublicKey::from_bytes(&[0u8; 32]).unwrap()
-    }
-}
-
-impl Display for Ed25519PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.0.as_bytes()))
-    }
-}
-
-impl Debug for Ed25519PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-/// Missing in ed25519_consensus
-#[allow(clippy::derive_hash_xor_eq)] // ed25519_consensus's PartialEq is compatible
-impl std::hash::Hash for Ed25519PublicKey {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.0.as_bytes().hash(state);
-    }
-}
-
-impl PartialOrd for Ed25519PublicKey {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.as_bytes().partial_cmp(other.0.as_bytes())
-    }
-}
-
-impl Ord for Ed25519PublicKey {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.as_bytes().cmp(other.0.as_bytes())
-    }
-}
-
-serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
-
-///
-/// Implement SigningKey
-///
-
-impl SigningKey for Ed25519PrivateKey {
-    type PubKey = Ed25519PublicKey;
-    type Sig = Ed25519Signature;
-    const LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
-}
-
-impl ToFromBytes for Ed25519PrivateKey {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ed25519_consensus::SigningKey::try_from(bytes)
-            .map(Ed25519PrivateKey)
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
-}
-
-serialize_deserialize_with_to_from_bytes!(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
-
-///
-/// Implement Authenticator
-///
-
-impl Authenticator for Ed25519Signature {
-    type PubKey = Ed25519PublicKey;
-    type PrivKey = Ed25519PrivateKey;
-    const LENGTH: usize = ED25519_SIGNATURE_LENGTH;
-}
-
-impl AsRef<[u8]> for Ed25519PrivateKey {
-    fn as_ref(&self) -> &[u8] {
-        self.0.as_ref()
-    }
-}
-
-impl ToFromBytes for Ed25519Signature {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ed25519_consensus::Signature::try_from(bytes)
-            .map(|sig| Ed25519Signature {
-                sig,
-                bytes: OnceCell::new(),
-            })
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
-}
-
-impl AsRef<[u8]> for Ed25519Signature {
-    fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
-            .expect("OnceCell invariant violated")
-    }
-}
-
-impl Display for Ed25519Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
-
-impl Default for Ed25519Signature {
-    fn default() -> Self {
-        Ed25519Signature::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
-    }
-}
-
-///
-/// Implement AggregateAuthenticator
-///
+//
+// Implementation of [Ed25519AggregateSignature].
+//
 
 impl Display for Ed25519AggregateSignature {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -368,6 +442,7 @@ impl PartialEq for Ed25519AggregateSignature {
 
 impl Eq for Ed25519AggregateSignature {}
 
+#[cfg(any(test, feature = "experimental"))]
 impl AggregateAuthenticator for Ed25519AggregateSignature {
     type Sig = Ed25519Signature;
     type PubKey = Ed25519PublicKey;
@@ -462,110 +537,9 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
     }
 }
 
-///
-/// Implement KeyPair
-///
-
-impl From<Ed25519PrivateKey> for Ed25519KeyPair {
-    fn from(secret: Ed25519PrivateKey) -> Self {
-        let name = Ed25519PublicKey::from(&secret);
-        Ed25519KeyPair { name, secret }
-    }
-}
-
-/// The bytes form of the keypair always only contain the private key bytes
-impl ToFromBytes for Ed25519KeyPair {
-    fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        Ed25519PrivateKey::from_bytes(bytes).map(|secret| secret.into())
-    }
-}
-
-impl AsRef<[u8]> for Ed25519KeyPair {
-    fn as_ref(&self) -> &[u8] {
-        self.secret.as_ref()
-    }
-}
-
-serialize_deserialize_with_to_from_bytes!(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
-
-impl KeyPair for Ed25519KeyPair {
-    type PubKey = Ed25519PublicKey;
-    type PrivKey = Ed25519PrivateKey;
-    type Sig = Ed25519Signature;
-
-    fn public(&'_ self) -> &'_ Self::PubKey {
-        &self.name
-    }
-
-    fn private(self) -> Self::PrivKey {
-        Ed25519PrivateKey::from_bytes(self.secret.as_ref()).unwrap()
-    }
-
-    #[cfg(feature = "copy_key")]
-    fn copy(&self) -> Self {
-        Self {
-            name: Ed25519PublicKey::from_bytes(self.name.as_ref()).unwrap(),
-            secret: Ed25519PrivateKey::from_bytes(self.secret.as_ref()).unwrap(),
-        }
-    }
-
-    fn generate<R: AllowedRng>(rng: &mut R) -> Self {
-        let kp = ed25519_consensus::SigningKey::new(rng);
-        Ed25519KeyPair {
-            name: Ed25519PublicKey(kp.verification_key()),
-            secret: Ed25519PrivateKey(kp),
-        }
-    }
-}
-
-impl FromStr for Ed25519KeyPair {
-    type Err = eyre::Report;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
-        Ok(kp)
-    }
-}
-
-impl From<ed25519_consensus::SigningKey> for Ed25519KeyPair {
-    fn from(kp: ed25519_consensus::SigningKey) -> Self {
-        Ed25519KeyPair {
-            name: Ed25519PublicKey(kp.verification_key()),
-            secret: Ed25519PrivateKey(kp),
-        }
-    }
-}
-
-impl Signer<Ed25519Signature> for Ed25519KeyPair {
-    fn sign(&self, msg: &[u8]) -> Ed25519Signature {
-        Ed25519Signature {
-            sig: self.secret.0.sign(msg),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-///
-/// Implement VerifyingKeyBytes
-///
-
-impl zeroize::Zeroize for Ed25519KeyPair {
-    fn zeroize(&mut self) {
-        self.secret.0.zeroize()
-    }
-}
-
-impl zeroize::ZeroizeOnDrop for Ed25519KeyPair {}
-
-impl Drop for Ed25519KeyPair {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-///
-/// Serde for a single signature of Ed25519AggregateSignature
-///
+//
+// Serde for a single signature of [Ed25519AggregateSignature]
+//
 
 pub struct SingleSignature;
 
