@@ -19,8 +19,8 @@ use crate::{
     encoding::Base64,
     error::FastCryptoError,
     traits::{
-        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
-        ToFromBytes, VerifyingKey,
+        AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
+        VerifyingKey,
     },
 };
 use crate::{
@@ -29,20 +29,27 @@ use crate::{
 };
 use base64ct::Encoding as _;
 use derive_more::AsRef;
-use ed25519_consensus::{batch, VerificationKeyBytes};
-#[cfg(any(test, feature = "experimental"))]
-use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_with::{serde_as, Bytes as SerdeBytes, DeserializeAs, SerializeAs};
-use signature::rand_core::OsRng;
+
 use std::{
-    borrow::Borrow,
     fmt::{self, Debug, Display},
     str::FromStr,
 };
 use zeroize::{Zeroize, ZeroizeOnDrop};
+
+#[cfg(any(test, feature = "experimental"))]
+use crate::traits::AggregateAuthenticator;
+#[cfg(any(test, feature = "experimental"))]
+use ed25519_consensus::{batch, VerificationKeyBytes};
+#[cfg(any(test, feature = "experimental"))]
+use eyre::eyre;
+#[cfg(any(test, feature = "experimental"))]
+use signature::rand_core::OsRng;
+#[cfg(any(test, feature = "experimental"))]
+use std::borrow::Borrow;
 
 /// The length of a private key in bytes.
 pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
@@ -255,7 +262,6 @@ impl Display for Ed25519Signature {
     }
 }
 
-// todo
 impl Default for Ed25519Signature {
     fn default() -> Self {
         Ed25519Signature::from_bytes(&[1u8; ED25519_SIGNATURE_LENGTH]).unwrap()
