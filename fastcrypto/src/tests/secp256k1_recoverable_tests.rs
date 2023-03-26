@@ -1,19 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
 use crate::hash::Blake2b256;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
 };
 use crate::test_helpers::verify_serialization;
 use crate::traits::{RecoverableSignature, RecoverableSigner, Signer, VerifyRecoverable};
-use crate::{
-    hash::{HashFunction, Keccak256, Sha256},
-    secp256k1::recoverable::Secp256k1RecoverableSignature,
-    signature_service::SignatureService,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-};
+use crate::{hash::{HashFunction, Keccak256, Sha256}, secp256k1::recoverable::Secp256k1RecoverableSignature, signature_service::SignatureService, test_helpers, traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
@@ -180,7 +174,7 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -191,7 +185,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     inputs.signatures.swap(0, 1);
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

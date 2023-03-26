@@ -2,21 +2,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
 use crate::encoding::Encoding;
 use crate::test_helpers::verify_serialization;
 use crate::traits::{InsecureDefault, Signer};
-use crate::{
-    ed25519::{
-        Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey,
-        Ed25519Signature, ED25519_PRIVATE_KEY_LENGTH,
-    },
-    encoding::Base64,
-    hash::{HashFunction, Sha256, Sha3_256},
-    hmac::hkdf_generate_from_ikm,
-    signature_service::SignatureService,
-    traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-};
+use crate::{ed25519::{
+    ED25519_PRIVATE_KEY_LENGTH, Ed25519AggregateSignature, Ed25519KeyPair, Ed25519PrivateKey,
+    Ed25519PublicKey, Ed25519Signature,
+}, encoding::Base64, hash::{HashFunction, Sha256, Sha3_256}, hmac::hkdf_generate_from_ikm, signature_service::SignatureService, test_helpers, traits::{AggregateAuthenticator, EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
 use rand::{rngs::StdRng, SeedableRng as _};
@@ -514,7 +506,7 @@ fn test_add_signatures_to_aggregate_different_messages() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Ed25519KeyPair>();
     let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -525,7 +517,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Ed25519KeyPair>();
     inputs.signatures[0] = Ed25519Signature::default();
     let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

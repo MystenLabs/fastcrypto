@@ -14,15 +14,7 @@ use wycheproof::TestResult;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
-use crate::{
-    encoding::{Encoding, Hex},
-    hash::{HashFunction, Sha256},
-    secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
-    signature_service::SignatureService,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-};
-
-use super::*;
+use crate::{encoding::{Encoding, Hex}, hash::{HashFunction, Sha256}, secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature}, signature_service::SignatureService, test_helpers, traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -232,7 +224,7 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -243,7 +235,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     inputs.signatures.swap(0, 1);
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

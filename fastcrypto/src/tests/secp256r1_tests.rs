@@ -13,14 +13,7 @@ use crate::hash::{Blake2b256, Keccak256};
 use crate::secp256r1::recoverable::SECP256R1_RECOVERABLE_SIGNATURE_LENGTH;
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
-use crate::{
-    hash::{HashFunction, Sha256},
-    secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
-    signature_service::SignatureService,
-    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
-};
-
-use super::*;
+use crate::{hash::{HashFunction, Sha256}, secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature}, signature_service::SignatureService, test_helpers, traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -230,7 +223,7 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -241,7 +234,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
     inputs.signatures.swap(0, 1);
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

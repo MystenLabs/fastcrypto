@@ -11,10 +11,6 @@
 pub use signature::Signature as _;
 
 #[cfg(test)]
-#[path = "tests/signature_tests.rs"]
-pub mod signature_tests;
-
-#[cfg(test)]
 #[path = "tests/ed25519_tests.rs"]
 pub mod ed25519_tests;
 
