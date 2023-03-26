@@ -7,7 +7,13 @@ use crate::secp256k1::{
 };
 use crate::test_helpers::verify_serialization;
 use crate::traits::{RecoverableSignature, RecoverableSigner, Signer, VerifyRecoverable};
-use crate::{hash::{HashFunction, Keccak256, Sha256}, secp256k1::recoverable::Secp256k1RecoverableSignature, signature_service::SignatureService, test_helpers, traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
+use crate::{
+    hash::{HashFunction, Keccak256, Sha256},
+    secp256k1::recoverable::Secp256k1RecoverableSignature,
+    signature_service::SignatureService,
+    test_helpers,
+    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
+};
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::encoding::Encoding;
-use crate::test_helpers::{verify_serialization, signature_test_inputs_different_msg};
+use crate::test_helpers::{signature_test_inputs_different_msg, verify_serialization};
 use crate::traits::InsecureDefault;
 use crate::traits::Signer;
 use crate::{

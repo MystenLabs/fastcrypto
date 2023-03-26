@@ -1,13 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::hash::{HashFunction, Sha256};
+use crate::traits::KeyPair;
+use aes::cipher::crypto_common::rand_core::SeedableRng;
+use rand::prelude::StdRng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
-use rand::prelude::StdRng;
-use aes::cipher::crypto_common::rand_core::SeedableRng;
-use crate::hash::{HashFunction, Sha256};
-use crate::traits::KeyPair;
 
 /// Check that:
 /// 1. The object can be serialized and deserialized to the same object

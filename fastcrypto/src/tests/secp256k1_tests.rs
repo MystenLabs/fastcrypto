@@ -14,7 +14,14 @@ use wycheproof::TestResult;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
-use crate::{encoding::{Encoding, Hex}, hash::{HashFunction, Sha256}, secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature}, signature_service::SignatureService, test_helpers, traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey}};
+use crate::{
+    encoding::{Encoding, Hex},
+    hash::{HashFunction, Sha256},
+    secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
+    signature_service::SignatureService,
+    test_helpers,
+    traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
+};
 
 const MSG: &[u8] = b"Hello, world!";
 
