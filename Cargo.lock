@@ -1455,6 +1455,7 @@ dependencies = [
  "sha2 0.10.6",
  "sha3 0.10.6",
  "signature 1.6.4",
+ "static_assertions",
  "thiserror",
  "tokio",
  "twox-hash",

@@ -11,6 +11,7 @@ use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use super::*;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
@@ -19,10 +20,9 @@ use crate::{
     hash::{HashFunction, Sha256},
     secp256k1::{Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature},
     signature_service::SignatureService,
+    test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-
-use super::*;
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -97,7 +97,11 @@ fn to_from_bytes_signature() {
     let signature = kpref.sign(MSG);
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256k1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    // check for failure
+    let mut sig_bytes = signature.as_ref().to_vec();
+    sig_bytes.pop();
+    assert!(<Secp256k1Signature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
 }
 
 #[test]
@@ -228,7 +232,7 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -239,7 +243,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256k1KeyPair>();
     inputs.signatures.swap(0, 1);
     let res = Secp256k1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,

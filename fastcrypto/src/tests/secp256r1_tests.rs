@@ -17,10 +17,9 @@ use crate::{
     hash::{HashFunction, Sha256},
     secp256r1::{Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature},
     signature_service::SignatureService,
+    test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
-
-use super::*;
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -109,7 +108,11 @@ fn to_from_bytes_signature() {
     let signature = kpref.sign(b"Hello, world!");
     let sig_bytes = signature.as_ref();
     let rebuilt_sig = <Secp256r1Signature as ToFromBytes>::from_bytes(sig_bytes).unwrap();
-    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref())
+    assert_eq!(rebuilt_sig.as_ref(), signature.as_ref());
+    // check for failure
+    let mut sig_bytes = signature.as_ref().to_vec();
+    sig_bytes.pop();
+    assert!(<Secp256r1Signature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
 }
 
 #[test]
@@ -226,7 +229,7 @@ fn verify_invalid_signature() {
 
 #[test]
 fn verify_valid_batch_different_msg() {
-    let inputs = signature_tests::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    let inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
@@ -237,7 +240,7 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
-    let mut inputs = signature_tests::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
+    let mut inputs = test_helpers::signature_test_inputs_different_msg::<Secp256r1KeyPair>();
     inputs.signatures.swap(0, 1);
     let res = Secp256r1PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
