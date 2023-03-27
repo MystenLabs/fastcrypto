@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use ark_bls12_381::{Bls12_381, Fr};
-use ark_ff::ToConstraintField;
+pub use ark_ff::ToConstraintField;
 
 use ark_crypto_primitives::prf::{PRFGadget, PRF};
 use ark_crypto_primitives::{
