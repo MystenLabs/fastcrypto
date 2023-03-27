@@ -745,6 +745,8 @@
 <a href="#745" id="745">745</a>
 <a href="#746" id="746">746</a>
 <a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -1019,17 +1021,19 @@
     }
 }
 
-<span class="kw">fn </span>get_128bit_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
-    <span class="macro">debug_assert!</span>(BLS_BATCH_RANDOM_SCALAR_LENGTH &lt;= <span class="number">128</span>);
+<span class="kw">fn </span>get_random_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+    <span class="macro">static_assertions::const_assert!</span>(
+        <span class="number">64 </span>&lt;= BLS_BATCH_RANDOM_SCALAR_LENGTH &amp;&amp; BLS_BATCH_RANDOM_SCALAR_LENGTH &lt;= <span class="number">128
+    </span>);
+
     <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
     <span class="kw">loop </span>{
         vals[<span class="number">0</span>] = rng.next_u64();
         vals[<span class="number">1</span>] = rng.next_u64();
 
-        <span class="comment">// Check this ^^
-
-        // Reject zero as it is used for multiplication.
-        </span><span class="kw">if </span>vals[<span class="number">0</span>] | vals[<span class="number">1</span>] != <span class="number">0 </span>{
+        <span class="comment">// Reject zero as it is used for multiplication.
+        </span><span class="kw">let </span>vals1_lsb = vals[<span class="number">1</span>] &amp; ((<span class="number">1 </span>&lt;&lt; (BLS_BATCH_RANDOM_SCALAR_LENGTH - <span class="number">64</span>)) - <span class="number">1</span>);
+        <span class="kw">if </span>vals[<span class="number">0</span>] | vals1_lsb != <span class="number">0 </span>{
             <span class="kw">break</span>;
         }
     }
@@ -1056,7 +1060,7 @@
     <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
     </span>rands.push(get_one());
     <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-    (<span class="number">1</span>..n).into_iter().for_each(|<span class="kw">_</span>| rands.push(get_128bit_scalar(<span class="kw-2">&amp;mut </span>rng)));
+    (<span class="number">1</span>..n).into_iter().for_each(|<span class="kw">_</span>| rands.push(get_random_scalar(<span class="kw-2">&amp;mut </span>rng)));
     rands
 }
 

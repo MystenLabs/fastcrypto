@@ -583,25 +583,6 @@
 <a href="#583" id="583">583</a>
 <a href="#584" id="584">584</a>
 <a href="#585" id="585">585</a>
-<a href="#586" id="586">586</a>
-<a href="#587" id="587">587</a>
-<a href="#588" id="588">588</a>
-<a href="#589" id="589">589</a>
-<a href="#590" id="590">590</a>
-<a href="#591" id="591">591</a>
-<a href="#592" id="592">592</a>
-<a href="#593" id="593">593</a>
-<a href="#594" id="594">594</a>
-<a href="#595" id="595">595</a>
-<a href="#596" id="596">596</a>
-<a href="#597" id="597">597</a>
-<a href="#598" id="598">598</a>
-<a href="#599" id="599">599</a>
-<a href="#600" id="600">600</a>
-<a href="#601" id="601">601</a>
-<a href="#602" id="602">602</a>
-<a href="#603" id="603">603</a>
-<a href="#604" id="604">604</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -617,38 +598,43 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
-</span><span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
-
-<span class="kw">use crate</span>::{
-    encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
-    traits,
-};
-<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
-<span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
-</span><span class="kw">use </span>eyre::eyre;
-<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
-<span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
-<span class="kw">use </span>serde_with::{serde_as, Bytes <span class="kw">as </span>SerdeBytes, DeserializeAs, SerializeAs};
-<span class="kw">use </span>signature::rand_core::OsRng;
-<span class="kw">use </span>std::{
-    borrow::Borrow,
-    fmt::{<span class="self">self</span>, Debug, Display},
-    str::FromStr,
-};
-<span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
-
-<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::to_custom_error;
+</span><span class="kw">use </span><span class="kw">crate</span>::serde_helpers::{to_custom_error, BytesRepresentation};
 <span class="kw">use </span><span class="kw">crate</span>::traits::{InsecureDefault, Signer};
 <span class="kw">use crate</span>::{
     encoding::Base64,
     error::FastCryptoError,
     traits::{
-        AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey,
-        ToFromBytes, VerifyingKey,
+        AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
+        VerifyingKey,
     },
 };
+<span class="kw">use crate</span>::{
+    encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
+    traits,
+};
+<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
+<span class="kw">use </span>derive_more::AsRef;
+<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>serde_with::{serde_as, Bytes <span class="kw">as </span>SerdeBytes, DeserializeAs, SerializeAs};
+
+<span class="kw">use </span>std::{
+    fmt::{<span class="self">self</span>, Debug, Display},
+    str::FromStr,
+};
+<span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
+
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::traits::AggregateAuthenticator;
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">use </span>eyre::eyre;
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">use </span>signature::rand_core::OsRng;
+<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">use </span>std::borrow::Borrow;
 
 <span class="doccomment">/// The length of a private key in bytes.
 </span><span class="kw">pub const </span>ED25519_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
@@ -663,26 +649,21 @@
 </span><span class="kw">pub const </span>ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 
 <span class="doccomment">/// Ed25519 public key.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq)]
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, AsRef)]
+#[as_ref(forward)]
 </span><span class="kw">pub struct </span>Ed25519PublicKey(<span class="kw">pub </span>ed25519_consensus::VerificationKey);
 
 <span class="doccomment">/// Ed25519 private key.
-</span><span class="attr">#[derive(SilentDebug, SilentDisplay, Zeroize, ZeroizeOnDrop)]
+</span><span class="attr">#[derive(SilentDebug, SilentDisplay, AsRef, Zeroize, ZeroizeOnDrop)]
+#[as_ref(forward)]
 </span><span class="kw">pub struct </span>Ed25519PrivateKey(<span class="kw">pub </span>ed25519_consensus::SigningKey);
 
-<span class="attr">#[derive(Debug, PartialEq, Eq)]
+<span class="doccomment">/// Ed25519 key pair.
+</span><span class="attr">#[derive(Debug, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Ed25519KeyPair {
-    name: Ed25519PublicKey,
-    secret: Ed25519PrivateKey,
+    public: Ed25519PublicKey,
+    private: Ed25519PrivateKey,
 }
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>Ed25519PrivateKey {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.as_ref() == other.as_ref()
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519PrivateKey {}
 
 <span class="doccomment">/// Ed25519 signature.
 </span><span class="attr">#[derive(Debug, Clone)]
@@ -692,7 +673,135 @@
     </span><span class="kw">pub </span>bytes: OnceCell&lt;[u8; ED25519_SIGNATURE_LENGTH]&gt;,
 }
 
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
+<span class="doccomment">/// Aggregation of multiple Ed25519 signatures.
+</span><span class="attr">#[serde_as]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+</span><span class="kw">pub struct </span>Ed25519AggregateSignature {
+    <span class="comment">// The serialized form of this field includes a length prefix, whereas the as_ref() does not.
+    // (The length prefix is small compared to the vector of signatures.)
+    </span><span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;SingleSignature&gt;&quot;</span>)]
+    </span><span class="kw">pub </span>sigs: Vec&lt;ed25519_consensus::Signature&gt;,
+    <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
+    </span><span class="attr">#[serde(skip)]
+    </span><span class="kw">pub </span>bytes: OnceCell&lt;Vec&lt;u8&gt;&gt;,
+}
+
+<span class="comment">//
+// Implementation of [Ed25519PrivateKey].
+//
+
+</span><span class="kw">impl </span>PartialEq <span class="kw">for </span>Ed25519PrivateKey {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="self">self</span>.as_ref() == other.as_ref()
+    }
+}
+
+<span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519PrivateKey {}
+
+<span class="kw">impl </span>SigningKey <span class="kw">for </span>Ed25519PrivateKey {
+    <span class="kw">type </span>PubKey = Ed25519PublicKey;
+    <span class="kw">type </span>Sig = Ed25519Signature;
+    <span class="kw">const </span>LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
+}
+
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519PrivateKey {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        ed25519_consensus::SigningKey::try_from(bytes)
+            .map(Ed25519PrivateKey)
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+    }
+}
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
+
+<span class="comment">//
+// Implementation of [Ed25519KeyPair].
+//
+
+</span><span class="kw">impl </span>From&lt;Ed25519PrivateKey&gt; <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">fn </span>from(private: Ed25519PrivateKey) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>public = Ed25519PublicKey::from(<span class="kw-2">&amp;</span>private);
+        Ed25519KeyPair { public, private }
+    }
+}
+
+<span class="doccomment">/// The bytes form of the keypair always only contain the private key bytes
+</span><span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        Ed25519PrivateKey::from_bytes(bytes).map(|private| private.into())
+    }
+}
+
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.private.as_ref()
+    }
+}
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
+
+<span class="kw">impl </span>KeyPair <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">type </span>PubKey = Ed25519PublicKey;
+    <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
+    <span class="kw">type </span>Sig = Ed25519Signature;
+
+    <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.public
+    }
+
+    <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
+        Ed25519PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap()
+    }
+
+    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            public: Ed25519PublicKey::from_bytes(<span class="self">self</span>.public.as_ref()).unwrap(),
+            private: Ed25519PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap(),
+        }
+    }
+
+    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>kp = ed25519_consensus::SigningKey::new(rng);
+        Ed25519KeyPair {
+            public: Ed25519PublicKey(kp.verification_key()),
+            private: Ed25519PrivateKey(kp),
+        }
+    }
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= eyre::Report;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">let </span>kp = <span class="self">Self</span>::decode_base64(s).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">&quot;{}&quot;</span>, e.to_string()))<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(kp)
+    }
+}
+
+<span class="kw">impl </span>From&lt;ed25519_consensus::SigningKey&gt; <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">fn </span>from(kp: ed25519_consensus::SigningKey) -&gt; <span class="self">Self </span>{
+        Ed25519KeyPair {
+            public: Ed25519PublicKey(kp.verification_key()),
+            private: Ed25519PrivateKey(kp),
+        }
+    }
+}
+
+<span class="kw">impl </span>Signer&lt;Ed25519Signature&gt; <span class="kw">for </span>Ed25519KeyPair {
+    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Ed25519Signature {
+        Ed25519Signature {
+            sig: <span class="self">self</span>.private.<span class="number">0</span>.sign(msg),
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
+<span class="comment">//
+// Implementation of [Ed25519Signature].
+//
+
+</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519Signature, ED25519_SIGNATURE_LENGTH);
 <span class="macro">generate_bytes_representation!</span>(
     Ed25519Signature,
     ED25519_SIGNATURE_LENGTH,
@@ -706,27 +815,100 @@
 }
 
 <span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519Signature {}
-<span class="doccomment">/// Aggregation of multiple Ed25519 signatures.
-</span><span class="attr">#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-</span><span class="kw">pub struct </span>Ed25519AggregateSignature {
-    <span class="comment">// The serialized form of this field includes a length prefix, whereas the as_ref() does not.
-    // (The length prefix is small compared to the vector of signatures.)
-    </span><span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;Vec&lt;SingleSignature&gt;&quot;</span>)]
-    </span><span class="kw">pub </span>sigs: Vec&lt;ed25519_consensus::Signature&gt;,
-    <span class="comment">// Helps implementing AsRef&lt;[u8]&gt;.
-    </span><span class="attr">#[serde(skip)]
-    </span><span class="kw">pub </span>bytes: OnceCell&lt;Vec&lt;u8&gt;&gt;,
-}
-<span class="doccomment">///
-/// Implement VerifyingKey
-///
 
-</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ed25519PrivateKey&gt; <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ed25519PrivateKey) -&gt; <span class="self">Self </span>{
-        Ed25519PublicKey(secret.<span class="number">0</span>.verification_key())
+<span class="kw">impl </span>Authenticator <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">type </span>PubKey = Ed25519PublicKey;
+    <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
+    <span class="kw">const </span>LENGTH: usize = ED25519_SIGNATURE_LENGTH;
+}
+
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        ed25519_consensus::Signature::try_from(bytes)
+            .map(|sig| Ed25519Signature {
+                sig,
+                bytes: OnceCell::new(),
+            })
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
+
+<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+        <span class="self">self</span>.bytes
+            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.sig.to_bytes()))
+            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
+    }
+}
+
+<span class="kw">impl </span>Display <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
+    }
+}
+
+<span class="kw">impl </span>Default <span class="kw">for </span>Ed25519Signature {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        Ed25519Signature::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; ED25519_SIGNATURE_LENGTH]).unwrap()
+    }
+}
+
+<span class="comment">//
+// Implementation of [Ed25519PublicKey].
+//
+
+</span><span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ed25519PrivateKey&gt; <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>from(private: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Ed25519PrivateKey) -&gt; <span class="self">Self </span>{
+        Ed25519PublicKey(private.<span class="number">0</span>.verification_key())
+    }
+}
+
+<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        ed25519_consensus::VerificationKey::try_from(bytes)
+            .map(Ed25519PublicKey)
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+    }
+}
+
+<span class="kw">impl </span>InsecureDefault <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
+        Ed25519PublicKey::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">32</span>]).unwrap()
+    }
+}
+
+<span class="kw">impl </span>Display <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.<span class="number">0</span>.as_bytes()))
+    }
+}
+
+<span class="kw">impl </span>Debug <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
+    }
+}
+
+<span class="attr">#[allow(clippy::derive_hash_xor_eq)] </span><span class="comment">// ed25519_consensus&#39;s PartialEq is compatible
+</span><span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+        <span class="self">self</span>.<span class="number">0</span>.as_bytes().hash(state);
+    }
+}
+
+<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
+        <span class="self">self</span>.<span class="number">0</span>.as_bytes().partial_cmp(other.<span class="number">0</span>.as_bytes())
+    }
+}
+
+<span class="kw">impl </span>Ord <span class="kw">for </span>Ed25519PublicKey {
+    <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
+        <span class="self">self</span>.<span class="number">0</span>.as_bytes().cmp(other.<span class="number">0</span>.as_bytes())
+    }
+}
+
+<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
 
 <span class="kw">impl </span>VerifyingKey <span class="kw">for </span>Ed25519PublicKey {
     <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
@@ -796,130 +978,9 @@
     }
 }
 
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        ed25519_consensus::VerificationKey::try_from(bytes)
-            .map(Ed25519PublicKey)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.<span class="number">0</span>.as_ref()
-    }
-}
-
-<span class="kw">impl </span>InsecureDefault <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
-        Ed25519PublicKey::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">0u8</span>; <span class="number">32</span>]).unwrap()
-    }
-}
-
-<span class="kw">impl </span>Display <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.<span class="number">0</span>.as_bytes()))
-    }
-}
-
-<span class="kw">impl </span>Debug <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
-    }
-}
-
-<span class="doccomment">/// Missing in ed25519_consensus
-</span><span class="attr">#[allow(clippy::derive_hash_xor_eq)] </span><span class="comment">// ed25519_consensus&#39;s PartialEq is compatible
-</span><span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
-        <span class="self">self</span>.<span class="number">0</span>.as_bytes().hash(state);
-    }
-}
-
-<span class="kw">impl </span>PartialOrd <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.as_bytes().partial_cmp(other.<span class="number">0</span>.as_bytes())
-    }
-}
-
-<span class="kw">impl </span>Ord <span class="kw">for </span>Ed25519PublicKey {
-    <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
-        <span class="self">self</span>.<span class="number">0</span>.as_bytes().cmp(other.<span class="number">0</span>.as_bytes())
-    }
-}
-
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
-
-<span class="doccomment">///
-/// Implement SigningKey
-///
-
-</span><span class="kw">impl </span>SigningKey <span class="kw">for </span>Ed25519PrivateKey {
-    <span class="kw">type </span>PubKey = Ed25519PublicKey;
-    <span class="kw">type </span>Sig = Ed25519Signature;
-    <span class="kw">const </span>LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519PrivateKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        ed25519_consensus::SigningKey::try_from(bytes)
-            .map(Ed25519PrivateKey)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
-    }
-}
-
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519PrivateKey, ED25519_PRIVATE_KEY_LENGTH);
-
-<span class="doccomment">///
-/// Implement Authenticator
-///
-
-</span><span class="kw">impl </span>Authenticator <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">type </span>PubKey = Ed25519PublicKey;
-    <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
-    <span class="kw">const </span>LENGTH: usize = ED25519_SIGNATURE_LENGTH;
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519PrivateKey {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.<span class="number">0</span>.as_ref()
-    }
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        ed25519_consensus::Signature::try_from(bytes)
-            .map(|sig| Ed25519Signature {
-                sig,
-                bytes: OnceCell::new(),
-            })
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.sig.to_bytes()))
-            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
-    }
-}
-
-<span class="kw">impl </span>Display <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.as_ref()))
-    }
-}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>Ed25519Signature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        Ed25519Signature::from_bytes(<span class="kw-2">&amp;</span>[<span class="number">1u8</span>; ED25519_SIGNATURE_LENGTH]).unwrap()
-    }
-}
-
-<span class="doccomment">///
-/// Implement AggregateAuthenticator
-///
+<span class="comment">//
+// Implementation of [Ed25519AggregateSignature].
+//
 
 </span><span class="kw">impl </span>Display <span class="kw">for </span>Ed25519AggregateSignature {
     <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
@@ -972,7 +1033,9 @@
 
 <span class="kw">impl </span>Eq <span class="kw">for </span>Ed25519AggregateSignature {}
 
-<span class="kw">impl </span>AggregateAuthenticator <span class="kw">for </span>Ed25519AggregateSignature {
+<span class="comment">// Ed25519AggregateSignature is experimental and here we disable it by default.
+</span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="kw">impl </span>AggregateAuthenticator <span class="kw">for </span>Ed25519AggregateSignature {
     <span class="kw">type </span>Sig = Ed25519Signature;
     <span class="kw">type </span>PubKey = Ed25519PublicKey;
     <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
@@ -1066,110 +1129,9 @@
     }
 }
 
-<span class="doccomment">///
-/// Implement KeyPair
-///
-
-</span><span class="kw">impl </span>From&lt;Ed25519PrivateKey&gt; <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>from(secret: Ed25519PrivateKey) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>name = Ed25519PublicKey::from(<span class="kw-2">&amp;</span>secret);
-        Ed25519KeyPair { name, secret }
-    }
-}
-
-<span class="doccomment">/// The bytes form of the keypair always only contain the private key bytes
-</span><span class="kw">impl </span>ToFromBytes <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        Ed25519PrivateKey::from_bytes(bytes).map(|secret| secret.into())
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.secret.as_ref()
-    }
-}
-
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Ed25519KeyPair, ED25519_KEYPAIR_LENGTH);
-
-<span class="kw">impl </span>KeyPair <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">type </span>PubKey = Ed25519PublicKey;
-    <span class="kw">type </span>PrivKey = Ed25519PrivateKey;
-    <span class="kw">type </span>Sig = Ed25519Signature;
-
-    <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.name
-    }
-
-    <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
-        Ed25519PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap()
-    }
-
-    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
-    </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            name: Ed25519PublicKey::from_bytes(<span class="self">self</span>.name.as_ref()).unwrap(),
-            secret: Ed25519PrivateKey::from_bytes(<span class="self">self</span>.secret.as_ref()).unwrap(),
-        }
-    }
-
-    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>kp = ed25519_consensus::SigningKey::new(rng);
-        Ed25519KeyPair {
-            name: Ed25519PublicKey(kp.verification_key()),
-            secret: Ed25519PrivateKey(kp),
-        }
-    }
-}
-
-<span class="kw">impl </span>FromStr <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= eyre::Report;
-
-    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-        <span class="kw">let </span>kp = <span class="self">Self</span>::decode_base64(s).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">&quot;{}&quot;</span>, e.to_string()))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(kp)
-    }
-}
-
-<span class="kw">impl </span>From&lt;ed25519_consensus::SigningKey&gt; <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>from(kp: ed25519_consensus::SigningKey) -&gt; <span class="self">Self </span>{
-        Ed25519KeyPair {
-            name: Ed25519PublicKey(kp.verification_key()),
-            secret: Ed25519PrivateKey(kp),
-        }
-    }
-}
-
-<span class="kw">impl </span>Signer&lt;Ed25519Signature&gt; <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Ed25519Signature {
-        Ed25519Signature {
-            sig: <span class="self">self</span>.secret.<span class="number">0</span>.sign(msg),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-<span class="doccomment">///
-/// Implement VerifyingKeyBytes
-///
-
-</span><span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.secret.<span class="number">0</span>.zeroize()
-    }
-}
-
-<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Ed25519KeyPair {}
-
-<span class="kw">impl </span>Drop <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.zeroize();
-    }
-}
-
-<span class="doccomment">///
-/// Serde for a single signature of Ed25519AggregateSignature
-///
+<span class="comment">//
+// Serde for a single signature of [Ed25519AggregateSignature]
+//
 
 </span><span class="kw">pub struct </span>SingleSignature;
 
