@@ -273,8 +273,9 @@ impl VerifyingKey for BLS12381PublicKey {
 }
 
 fn get_random_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
-    static_assertions::const_assert!(64 <= BLS_BATCH_RANDOM_SCALAR_LENGTH);
-    static_assertions::const_assert!(BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128);
+    static_assertions::const_assert!(
+        64 <= BLS_BATCH_RANDOM_SCALAR_LENGTH && BLS_BATCH_RANDOM_SCALAR_LENGTH <= 128
+    );
 
     let mut vals = [0u64; 4];
     loop {
