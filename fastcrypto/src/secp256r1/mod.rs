@@ -331,6 +331,7 @@ impl Secp256r1KeyPair {
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         // Private key as scalar
 
+        // sign_prehash generates the nonce according to rfc6979.
         let sig: Signature = self
             .secret
             .privkey
