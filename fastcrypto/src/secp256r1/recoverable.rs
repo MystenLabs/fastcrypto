@@ -18,7 +18,6 @@
 //! assert_eq!(kp.public(), &signature.recover(message).unwrap());
 //! ```
 
-use std::borrow::Borrow;
 use crate::hash::HashFunction;
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
