@@ -18,7 +18,6 @@
 //! assert_eq!(kp.public(), &signature.recover(message).unwrap());
 //! ```
 
-use std::borrow::Borrow;
 use crate::hash::HashFunction;
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
@@ -42,6 +41,7 @@ use p256::elliptic_curve::point::{AffineCoordinates, DecompressPoint};
 use p256::elliptic_curve::sec1::ToEncodedPoint;
 use p256::elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
+use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
