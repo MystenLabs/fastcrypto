@@ -18,6 +18,7 @@
 //! assert_eq!(kp.public(), &signature.recover(message).unwrap());
 //! ```
 
+use std::borrow::Borrow;
 use crate::hash::HashFunction;
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
@@ -213,6 +214,16 @@ impl RecoverableSigner for Secp256r1KeyPair {
             recovery_id: recovery_id.to_byte(),
         }
     }
+}
+
+/// Get the y-coordinate from a given affine point.
+fn get_y_coordinate(point: &AffinePoint) -> Scalar {
+    let encoded_point = point.to_encoded_point(false);
+
+    // The encoded point is in uncompressed form, so we can safely get the y-coordinate here
+    let y = encoded_point.y().unwrap();
+
+    Scalar::reduce_bytes(y)
 }
 
 impl RecoverableSignature for Secp256r1RecoverableSignature {
