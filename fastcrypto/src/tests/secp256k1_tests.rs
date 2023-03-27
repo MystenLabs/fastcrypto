@@ -11,6 +11,7 @@ use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use super::*;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
