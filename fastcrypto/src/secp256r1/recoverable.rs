@@ -31,10 +31,8 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use ecdsa::elliptic_curve::scalar::IsHigh;
-use ecdsa::elliptic_curve::scalar::IsHigh;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
-use eyre::ContextCompat;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
 use p256::elliptic_curve::bigint::ArrayEncoding;
@@ -211,7 +209,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let recovery_id = RecoveryId::new(is_y_odd.into(), false);
 
         Secp256r1RecoverableSignature {
-            sig: normalized_signature,
+            sig: sig_low,
             bytes: OnceCell::new(),
             recovery_id: recovery_id.to_byte(),
         }
