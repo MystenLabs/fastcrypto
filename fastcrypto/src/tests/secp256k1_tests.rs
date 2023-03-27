@@ -1,13 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use k256::ecdsa::signature::Signature as ExternalSignature;
+use k256::ecdsa::signature::Signer as ExternalSigner;
+use k256::ecdsa::signature::Verifier as ExternalVerifier;
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
-use signature::Signer as ExternalSigner;
-use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 

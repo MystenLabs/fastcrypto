@@ -1294,6 +1294,8 @@ dependencies = [
 [[package]]
 name = "ecdsa"
 version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1b0a1222f8072619e8a6b667a854020a03d363738303203c09468b3424a420a"
 dependencies = [
  "der 0.7.1",
  "elliptic-curve 0.13.2",
@@ -1486,7 +1488,7 @@ dependencies = [
  "radix64",
  "rand",
  "readonly",
- "rfc6979 0.3.1",
+ "rfc6979 0.4.0",
  "rust-base58",
  "rustc-hex",
  "schemars",
@@ -1499,7 +1501,7 @@ dependencies = [
  "serde_with",
  "sha2 0.10.6",
  "sha3 0.10.6",
- "signature 1.6.4",
+ "signature 2.0.0",
  "static_assertions",
  "thiserror",
  "tokio",
@@ -2209,6 +2211,8 @@ checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
 [[package]]
 name = "p256"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7270da3e5caa82afd3deb054cc237905853813aea3859544bc082c3fe55b8d47"
 dependencies = [
  "ecdsa 0.16.1",
  "elliptic-curve 0.13.2",
@@ -2297,6 +2301,8 @@ checksum = "5b40af805b3121feab8a3c29f04d8ad262fa8e0561883e7653e024ae4479e6de"
 [[package]]
 name = "primeorder"
 version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7613fdcc0831c10060fa69833ea8fa2caa94b6456f51e25356a885b530a2e3d0"
 dependencies = [
  "elliptic-curve 0.13.2",
 ]
@@ -2548,6 +2554,8 @@ dependencies = [
 [[package]]
 name = "rfc6979"
 version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8dd2a808d456c4a54e300a23e9f5a67e122c3024119acbfd73e3bf664491cb2"
 dependencies = [
  "hmac",
  "subtle",

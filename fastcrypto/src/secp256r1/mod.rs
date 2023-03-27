@@ -21,16 +21,17 @@ pub mod recoverable;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
-use elliptic_curve::FieldBytes;
 use once_cell::sync::OnceCell;
-use p256::ecdsa::{Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey, VerifyingKey as ExternalPublicKey};
+use p256::ecdsa::{
+    Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
+    VerifyingKey as ExternalPublicKey,
+};
 use p256::elliptic_curve::group::GroupEncoding;
-use p256::NistP256;
+use p256::elliptic_curve::scalar::IsHigh;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
-use p256::elliptic_curve::scalar::IsHigh;
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -330,9 +331,10 @@ impl Secp256r1KeyPair {
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         // Private key as scalar
 
-        let sig: Signature = self.secret.privkey.sign_prehash(
-                H::digest(msg).as_ref()
-            )
+        let sig: Signature = self
+            .secret
+            .privkey
+            .sign_prehash(H::digest(msg).as_ref())
             .unwrap();
 
         let sig_low = sig.normalize_s().unwrap_or(sig);
