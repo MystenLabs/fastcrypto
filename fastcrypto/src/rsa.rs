@@ -7,7 +7,6 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1v15::Signature as ExternalSignature;
-use rsa::pkcs8::DecodePublicKey;
 use rsa::RsaPublicKey as ExternalPublicKey;
 use rsa::{Pkcs1v15Sign, PublicKey};
 
@@ -18,25 +17,10 @@ pub struct RSAPublicKey(pub ExternalPublicKey);
 pub struct RSASignature(pub ExternalSignature);
 
 impl RSAPublicKey {
-    /// Parse an `RSAPublicKey` from a ASN.1 DER (Distinguished Encoding Rules) encoding.
+    /// Parse an `RSAPublicKey` from a ASN.1 DER (Distinguished Encoding Rules) encoding according to PKCS #1.
     pub fn from_der(der: &[u8]) -> FastCryptoResult<Self> {
-        // First try to parse the public key using PKCS#8 format and if this fails, try PKCS#1 format
         Ok(RSAPublicKey(
-            rsa::RsaPublicKey::from_public_key_der(der)
-                .or_else(|_| rsa::RsaPublicKey::from_pkcs1_der(der))
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        ))
-    }
-
-    /// Parse an `RSAPublicKey` from a PEM (Privacy-Enhanced Mail) encoding. Both PKCS#1 and PKCS#8
-    /// formats are supported.
-    pub fn from_pem(pem: &str) -> FastCryptoResult<Self> {
-        // First try to parse the public key using PKCS#8 format and if this fails, try PKCS#1 format
-        let pem = pem.trim();
-        Ok(RSAPublicKey(
-            rsa::RsaPublicKey::from_public_key_pem(pem)
-                .or_else(|_| rsa::RsaPublicKey::from_pkcs1_pem(pem))
-                .map_err(|_| FastCryptoError::InvalidInput)?,
+            rsa::RsaPublicKey::from_pkcs1_der(der).map_err(|_| FastCryptoError::InvalidInput)?,
         ))
     }
 
@@ -75,8 +59,8 @@ mod test {
     #[test]
     fn jwt_test() {
         // Test vector generated with https://dinochiesa.github.io/jwt/ and signed with RS256.
-        let pk_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5NXGDXfb1FDuWgAxQPVH\no+DPUkFl8rCjfj0nvQ++iubfMsMpP3UYu229GwYepOtKOpa4JA6uYGVibXql5ldh\nVZKG4LrGO8TL3S5C2qqac1CQbhwyG+DuyKBj1Fe5C7L/TWKmTep3eKEpolhXuaxN\nHR6R5TsxTb90RFToVRX/20rl8tHz/szWyPzmnLIOqae7UCVPFxenb3O7xa8SvSrV\nrPs2Eej3eEgOYORshP3HC6OQ8GV7ouJuM6VXPdRhb8BEWG/sTKmkr9qvrtoh2PpB\nlnEezat+7tbddPdI6LB4z4CIQzYkTu7OFZY5RV064c3skMmkEht3/Qrb7+MQsEWY\nlwIDAQAB\n-----END PUBLIC KEY-----";
-        let pk = RSAPublicKey::from_pem(pk_pem).unwrap();
+        let pk_der = &hex::decode("3082010a0282010100e4d5c60d77dbd450ee5a003140f547a3e0cf524165f2b0a37e3d27bd0fbe8ae6df32c3293f7518bb6dbd1b061ea4eb4a3a96b8240eae6065626d7aa5e65761559286e0bac63bc4cbdd2e42daaa9a7350906e1c321be0eec8a063d457b90bb2ff4d62a64dea7778a129a25857b9ac4d1d1e91e53b314dbf744454e85515ffdb4ae5f2d1f3feccd6c8fce69cb20ea9a7bb50254f1717a76f73bbc5af12bd2ad5acfb3611e8f778480e60e46c84fdc70ba390f0657ba2e26e33a5573dd4616fc044586fec4ca9a4afdaafaeda21d8fa4196711ecdab7eeed6dd74f748e8b078cf80884336244eeece159639455d3ae1cdec90c9a4121b77fd0adbefe310b04598970203010001").unwrap();
+        let pk = RSAPublicKey::from_der(pk_der).unwrap();
 
         let msg = b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJEaW5vQ2hpZXNhLmdpdGh1Yi5pbyIsInN1YiI6ImlkcmlzIiwiYXVkIjoiZXZhbmRlciIsImlhdCI6MTY3OTk5MzM5NywiZXhwIjoxNjc5OTkzOTk3LCJhbHBoYSI6NjgyfQ";
         let digest = Sha256::digest(msg).digest;
@@ -87,9 +71,6 @@ mod test {
 
         assert!(pk.verify_prehash(&digest, &signature).is_ok());
         assert!(pk.verify(msg, &signature).is_ok());
-
-        let pk_from_der = RSAPublicKey::from_der(&hex::decode("3082010a0282010100e4d5c60d77dbd450ee5a003140f547a3e0cf524165f2b0a37e3d27bd0fbe8ae6df32c3293f7518bb6dbd1b061ea4eb4a3a96b8240eae6065626d7aa5e65761559286e0bac63bc4cbdd2e42daaa9a7350906e1c321be0eec8a063d457b90bb2ff4d62a64dea7778a129a25857b9ac4d1d1e91e53b314dbf744454e85515ffdb4ae5f2d1f3feccd6c8fce69cb20ea9a7bb50254f1717a76f73bbc5af12bd2ad5acfb3611e8f778480e60e46c84fdc70ba390f0657ba2e26e33a5573dd4616fc044586fec4ca9a4afdaafaeda21d8fa4196711ecdab7eeed6dd74f748e8b078cf80884336244eeece159639455d3ae1cdec90c9a4121b77fd0adbefe310b04598970203010001").unwrap()).unwrap();
-        assert!(pk_from_der.verify_prehash(&digest, &signature).is_ok());
 
         let mut other_digest = digest;
         other_digest[0] += 1;
