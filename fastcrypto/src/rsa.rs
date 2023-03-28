@@ -58,6 +58,7 @@ impl RSAPublicKey {
 }
 
 impl RSASignature {
+    /// Parse signature from binary representation according to https://datatracker.ietf.org/doc/html/rfc8017#section-8.2.
     pub fn from_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         Ok(Self(
             ExternalSignature::try_from(bytes).map_err(|_| FastCryptoError::InvalidInput)?,
@@ -77,12 +78,28 @@ mod test {
         let pk_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5NXGDXfb1FDuWgAxQPVH\no+DPUkFl8rCjfj0nvQ++iubfMsMpP3UYu229GwYepOtKOpa4JA6uYGVibXql5ldh\nVZKG4LrGO8TL3S5C2qqac1CQbhwyG+DuyKBj1Fe5C7L/TWKmTep3eKEpolhXuaxN\nHR6R5TsxTb90RFToVRX/20rl8tHz/szWyPzmnLIOqae7UCVPFxenb3O7xa8SvSrV\nrPs2Eej3eEgOYORshP3HC6OQ8GV7ouJuM6VXPdRhb8BEWG/sTKmkr9qvrtoh2PpB\nlnEezat+7tbddPdI6LB4z4CIQzYkTu7OFZY5RV064c3skMmkEht3/Qrb7+MQsEWY\nlwIDAQAB\n-----END PUBLIC KEY-----";
         let pk = RSAPublicKey::from_pem(pk_pem).unwrap();
 
-        let digest = Sha256::digest(b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJEaW5vQ2hpZXNhLmdpdGh1Yi5pbyIsInN1YiI6ImlkcmlzIiwiYXVkIjoiZXZhbmRlciIsImlhdCI6MTY3OTk5MzM5NywiZXhwIjoxNjc5OTkzOTk3LCJhbHBoYSI6NjgyfQ").digest;
+        let msg = b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJEaW5vQ2hpZXNhLmdpdGh1Yi5pbyIsInN1YiI6ImlkcmlzIiwiYXVkIjoiZXZhbmRlciIsImlhdCI6MTY3OTk5MzM5NywiZXhwIjoxNjc5OTkzOTk3LCJhbHBoYSI6NjgyfQ";
+        let digest = Sha256::digest(msg).digest;
 
         let signature = "ae2yui9qVdRCEQWq76WoAuXWqb5sE-iZgYu1VP0z7mDY6jMBu-SddKz9Uh-yDzBo9erjJdd4PhadsIUY_mml1hmAbvcGo-IMayw6M-SOKDfMI73sw0U-twzH3DHW9pB2PNUNV3T67mFVL60eOmw7KwotpdQewQwJ_34xEOm5g2UjkFDsFzDydnFmxMMm8PCEjg8DGRhKAfzdtUV00B4KzESSKhwu8oRzEU7D6mbvco7I1TIl3IOKT9JK8y_775_W9Flk6lMildTOe08upqnJeT3dgnKgYKbFyN9IgW_pr7Htu-prtVPXqlfhWxFtqmAZxnKaOXo14oeWWvX05E-wLw";
         let signature_bytes = Base64UrlUnpadded::decode_vec(signature).unwrap();
         let signature = RSASignature::from_bytes(&signature_bytes).unwrap();
 
         assert!(pk.verify_prehash(&digest, &signature).is_ok());
+        assert!(pk.verify(msg, &signature).is_ok());
+
+        let mut other_digest = digest;
+        other_digest[0] += 1;
+        assert!(pk.verify_prehash(&other_digest, &signature).is_err());
+
+        let mut other_msg = *msg;
+        other_msg[0] += 1;
+        assert!(pk.verify(&other_msg, &signature).is_err());
+
+        let mut other_signature_bytes = signature_bytes;
+        other_signature_bytes[7] += 1;
+        let other_signature = RSASignature::from_bytes(&other_signature_bytes).unwrap();
+        assert!(pk.verify_prehash(&other_digest, &signature).is_err());
+        assert!(pk.verify(msg, &other_signature).is_err());
     }
 }
