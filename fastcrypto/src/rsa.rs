@@ -73,13 +73,13 @@ mod test {
 
     #[test]
     fn jwt_test() {
-        // Test vector generated with https://dinochiesa.github.io/jwt/ and signed according to RS256.
+        // Test vector generated with https://dinochiesa.github.io/jwt/ and signed with RS256.
         let pk_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5NXGDXfb1FDuWgAxQPVH\no+DPUkFl8rCjfj0nvQ++iubfMsMpP3UYu229GwYepOtKOpa4JA6uYGVibXql5ldh\nVZKG4LrGO8TL3S5C2qqac1CQbhwyG+DuyKBj1Fe5C7L/TWKmTep3eKEpolhXuaxN\nHR6R5TsxTb90RFToVRX/20rl8tHz/szWyPzmnLIOqae7UCVPFxenb3O7xa8SvSrV\nrPs2Eej3eEgOYORshP3HC6OQ8GV7ouJuM6VXPdRhb8BEWG/sTKmkr9qvrtoh2PpB\nlnEezat+7tbddPdI6LB4z4CIQzYkTu7OFZY5RV064c3skMmkEht3/Qrb7+MQsEWY\nlwIDAQAB\n-----END PUBLIC KEY-----";
         let pk = RSAPublicKey::from_pem(pk_pem).unwrap();
 
-        let digest = Sha256::digest(b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJodHRwczovL3d3dy5mYWNlYm9vay5jb20iLCJhdWQiOiIxMjQxNTU5MzY2NzU1MjE0Iiwic3ViIjoiNzA4NTYyNjExMDA5NTI1IiwiaWF0IjoxNjc5OTMyMDE0LCJleHAiOjE2Nzk5MzU2MTQsImp0aSI6IlRLdnouZGJlYzdjYTMxOTQyYTVkMmU1NmJkMGRiZmI4MjRiMTcxODVlMGYzMGIyMGYyNTczZGU1ZDQ4ZmM5ZjU4M2U0MyIsIm5vbmNlIjoidGVzdCIsImdpdmVuX25hbWUiOiJKb3kiLCJmYW1pbHlfbmFtZSI6IldhbmciLCJuYW1lIjoiSm95IFdhbmciLCJwaWN0dXJlIjoiaHR0cHM6Ly9wbGF0Zm9ybS1sb29rYXNpZGUuZmJzYnguY29tL3BsYXRmb3JtL3Byb2ZpbGVwaWMvP2FzaWQ9NzA4NTYyNjExMDA5NTI1JmhlaWdodD0xMDAmd2lkdGg9MTAwJmV4dD0xNjgyNTI0MDE1Jmhhc2g9QWVTMENxblhPMmNhT3g4WDhRZyJ9").digest;
+        let digest = Sha256::digest(b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJEaW5vQ2hpZXNhLmdpdGh1Yi5pbyIsInN1YiI6ImlkcmlzIiwiYXVkIjoiZXZhbmRlciIsImlhdCI6MTY3OTk5MzM5NywiZXhwIjoxNjc5OTkzOTk3LCJhbHBoYSI6NjgyfQ").digest;
 
-        let signature = "Z65bdJv-sFO9mNe4i1Tv0fa74rEtSIh3ZzJ29JtojgpA_d40JfE_NVJliYvoZdfqPX85a8NAG-ujKWWzrtv8l3K33r-T0WuUvosai99Y7TrMZt3WtT9pLwoO4s8KPSr9jXjTD94YFhizdKtyHFvaJRVjyUWFTvsQgZP9kyiSPh-7R_CStVan2u0scZRosZeOlZT4dI5xXnt3AFH-vFfaWiZEEunKljIkqvdrtt3x-HLFnjSvKGFi1Ct4LBObdjbNGJULYjQ0-N7yuQevaiYEpSFW1NBfa3p52vMj9XMADhg4wrV7Nuvk7CqERLeL-M8L_KmUGnRXOmMUL-6KTC8Rtw";
+        let signature = "ae2yui9qVdRCEQWq76WoAuXWqb5sE-iZgYu1VP0z7mDY6jMBu-SddKz9Uh-yDzBo9erjJdd4PhadsIUY_mml1hmAbvcGo-IMayw6M-SOKDfMI73sw0U-twzH3DHW9pB2PNUNV3T67mFVL60eOmw7KwotpdQewQwJ_34xEOm5g2UjkFDsFzDydnFmxMMm8PCEjg8DGRhKAfzdtUV00B4KzESSKhwu8oRzEU7D6mbvco7I1TIl3IOKT9JK8y_775_W9Flk6lMildTOe08upqnJeT3dgnKgYKbFyN9IgW_pr7Htu-prtVPXqlfhWxFtqmAZxnKaOXo14oeWWvX05E-wLw";
         let signature_bytes = Base64UrlUnpadded::decode_vec(signature).unwrap();
         let signature = RSASignature::from_bytes(&signature_bytes).unwrap();
 
