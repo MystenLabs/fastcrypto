@@ -88,6 +88,9 @@ mod test {
         assert!(pk.verify_prehash(&digest, &signature).is_ok());
         assert!(pk.verify(msg, &signature).is_ok());
 
+        let pk_from_der = RSAPublicKey::from_der(&hex::decode("3082010a0282010100e4d5c60d77dbd450ee5a003140f547a3e0cf524165f2b0a37e3d27bd0fbe8ae6df32c3293f7518bb6dbd1b061ea4eb4a3a96b8240eae6065626d7aa5e65761559286e0bac63bc4cbdd2e42daaa9a7350906e1c321be0eec8a063d457b90bb2ff4d62a64dea7778a129a25857b9ac4d1d1e91e53b314dbf744454e85515ffdb4ae5f2d1f3feccd6c8fce69cb20ea9a7bb50254f1717a76f73bbc5af12bd2ad5acfb3611e8f778480e60e46c84fdc70ba390f0657ba2e26e33a5573dd4616fc044586fec4ca9a4afdaafaeda21d8fa4196711ecdab7eeed6dd74f748e8b078cf80884336244eeece159639455d3ae1cdec90c9a4121b77fd0adbefe310b04598970203010001").unwrap()).unwrap();
+        assert!(pk_from_der.verify_prehash(&digest, &signature).is_ok());
+
         let mut other_digest = digest;
         other_digest[0] += 1;
         assert!(pk.verify_prehash(&other_digest, &signature).is_err());
