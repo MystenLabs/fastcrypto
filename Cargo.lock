@@ -1472,7 +1472,7 @@ dependencies = [
  "digest 0.10.6",
  "ecdsa 0.16.1",
  "ed25519-consensus",
- "elliptic-curve 0.12.3",
+ "elliptic-curve 0.13.2",
  "eyre",
  "fastcrypto-derive",
  "faster-hex",
