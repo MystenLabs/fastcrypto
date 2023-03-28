@@ -20,17 +20,14 @@ pub mod recoverable;
 
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
-use ecdsa::hazmat::SignPrimitive;
-use ecdsa::signature::hazmat::PrehashVerifier;
-use elliptic_curve::FieldBytes;
+use ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
-    Signature as ExternalSignature, SigningKey as ExternalSecretKey,
+    Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
     VerifyingKey as ExternalPublicKey,
 };
 use p256::elliptic_curve::group::GroupEncoding;
-use p256::elliptic_curve::IsHigh;
-use p256::NistP256;
+use p256::elliptic_curve::scalar::IsHigh;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
@@ -333,17 +330,13 @@ impl Secp256r1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         // Private key as scalar
-        let x = self.secret.privkey.as_nonzero_scalar();
 
-        // This can only fail due to internal errors, namely if k = 0 or s = 0 during signing which
-        // happens with negligible probability.
-        let sig = x
-            .try_sign_prehashed_rfc6979::<sha2::Sha256>(
-                *FieldBytes::<NistP256>::from_slice(H::digest(msg).as_ref()),
-                &[],
-            )
-            .unwrap()
-            .0;
+        // sign_prehash generates the nonce according to rfc6979.
+        let sig: Signature = self
+            .secret
+            .privkey
+            .sign_prehash(H::digest(msg).as_ref())
+            .unwrap();
 
         let sig_low = sig.normalize_s().unwrap_or(sig);
         Secp256r1Signature {

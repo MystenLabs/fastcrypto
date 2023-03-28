@@ -8,8 +8,6 @@
     rust_2021_compatibility
 )]
 
-pub use signature::Signature as _;
-
 #[cfg(test)]
 #[path = "tests/ed25519_tests.rs"]
 pub mod ed25519_tests;

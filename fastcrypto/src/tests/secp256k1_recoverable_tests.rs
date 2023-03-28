@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use super::*;
 use crate::hash::Blake2b256;
 use crate::secp256k1::{
     Secp256k1KeyPair, Secp256k1PrivateKey, Secp256k1PublicKey, Secp256k1Signature,
@@ -15,13 +14,14 @@ use crate::{
     test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+use k256::ecdsa::signature::Signature as ExternalSignature;
+use k256::ecdsa::signature::Signer as ExternalSigner;
+use k256::ecdsa::signature::Verifier as ExternalVerifier;
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
-use signature::Signer as ExternalSigner;
-use signature::Verifier as ExternalVerifier;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
