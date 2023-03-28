@@ -379,7 +379,7 @@
             </span><span class="kw">let </span><span class="kw-2">mut </span>expanded_message =
                 elliptic_curve::hash2curve::ExpandMsgXmd::&lt;sha2::Sha512&gt;::expand_message(
                     <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.compress(), alpha_string],
-                    DST,
+                    <span class="kw-2">&amp;</span>[DST],
                     H::OUTPUT_SIZE,
                 )
                 .unwrap();
