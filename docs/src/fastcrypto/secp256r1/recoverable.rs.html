@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/recoverable.rs`."><title>recoverable.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (db0cbc48d 2023-03-26)" data-search-js="search-0db6af764fd5e08b.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-9ade54abd4bd73c8.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/recoverable.rs`."><title>recoverable.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (2036fdd24 2023-03-27)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-9ade54abd4bd73c8.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -270,6 +270,7 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -302,18 +303,18 @@
     error::FastCryptoError,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-<span class="kw">use </span>ecdsa::elliptic_curve::bigint::Encoding <span class="kw">as </span>OtherEncoding;
+<span class="kw">use </span>ecdsa::elliptic_curve::scalar::IsHigh;
 <span class="kw">use </span>ecdsa::elliptic_curve::subtle::Choice;
 <span class="kw">use </span>ecdsa::RecoveryId;
 <span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>p256::ecdsa::Signature <span class="kw">as </span>ExternalSignature;
-<span class="kw">use </span>p256::ecdsa::VerifyingKey <span class="kw">as </span>ExternalPublicKey;
+<span class="kw">use </span>p256::ecdsa::{Signature <span class="kw">as </span>ExternalSignature, VerifyingKey};
 <span class="kw">use </span>p256::elliptic_curve::bigint::ArrayEncoding;
 <span class="kw">use </span>p256::elliptic_curve::ops::Reduce;
+<span class="kw">use </span>p256::elliptic_curve::point::{AffineCoordinates, DecompressPoint};
 <span class="kw">use </span>p256::elliptic_curve::sec1::ToEncodedPoint;
-<span class="kw">use </span>p256::elliptic_curve::IsHigh;
-<span class="kw">use </span>p256::elliptic_curve::{Curve, DecompressPoint};
+<span class="kw">use </span>p256::elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 <span class="kw">use </span>p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
+<span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug, Display};
 
 <span class="kw">pub const </span>SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + <span class="number">1</span>;
@@ -433,39 +434,45 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; Secp256r1RecoverableSignature {
-        <span class="comment">// Inspired by Sign.rs in k256@0.11.6
+        <span class="comment">// Inspired by Sign.rs in k256@0.11.6.
+        // TODO: Use sign_prehash_recoverable when a new version of the signatures crate where https://github.com/RustCrypto/signatures/pull/680 is included.
 
         // Hash message
         </span><span class="kw">let </span>z = FieldBytes::from(H::digest(msg).digest);
 
         <span class="comment">// Private key as scalar
-        </span><span class="kw">let </span>x = U256::from_be_bytes(<span class="self">self</span>.secret.privkey.as_nonzero_scalar().to_bytes().into());
+        </span><span class="kw">let </span>x = <span class="self">self</span>.secret.privkey.as_nonzero_scalar().to_bytes();
 
         <span class="comment">// Generate k deterministically according to RFC6979
-        </span><span class="kw">let </span>k = Scalar::from_uint_reduced(<span class="kw-2">*</span>rfc6979::generate_k::&lt;sha2::Sha256, U256&gt;(
+        </span><span class="kw">let </span>k = Scalar::from_repr(rfc6979::generate_k::&lt;sha2::Sha256, <span class="kw">_</span>&gt;(
             <span class="kw-2">&amp;</span>x,
-            <span class="kw-2">&amp;</span>NistP256::ORDER,
+            <span class="kw-2">&amp;</span>NistP256::ORDER.encode_field_bytes(),
             <span class="kw-2">&amp;</span>z,
             <span class="kw-2">&amp;</span>[],
-        ));
+        ))
+        .unwrap();
 
         <span class="comment">// Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0 which is
         // negligible because k is computed as a HMAC according to RFC6979.
         </span><span class="kw">let </span>k_inv = k.invert().unwrap();
 
         <span class="comment">// Compute 𝑹 = 𝑘×𝑮
-        </span><span class="kw">let </span>big_r = ProjectivePoint::GENERATOR * k;
+        </span><span class="kw">let </span>big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
 
-        <span class="comment">// Lift x- and y-coordinate of 𝑹 (element of base field).
-        </span><span class="kw">let </span>(r, y) = get_coordinates(<span class="kw-2">&amp;</span>big_r);
+        <span class="comment">// Lift x-coordinate of 𝑹 (element of base field) into a serialized big
+        // integer, then reduce it into an element of the scalar field
+        </span><span class="kw">let </span>r = Scalar::reduce_bytes(<span class="kw-2">&amp;</span>big_r.x());
 
         <span class="comment">// Compute 𝒔 as a signature over 𝒓 and 𝒛.
-        </span><span class="kw">let </span>x = Scalar::from_uint_reduced(x);
-        <span class="kw">let </span>z = Scalar::from_be_bytes_reduced(z);
+        </span><span class="kw">let </span>x = Scalar::reduce_bytes(<span class="kw-2">&amp;</span>x);
+        <span class="kw">let </span>z = Scalar::reduce_bytes(<span class="kw-2">&amp;</span>z);
         <span class="kw">let </span>s = k_inv * (z + (r * x));
 
         <span class="comment">// This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         </span><span class="kw">let </span>sig = ExternalSignature::from_scalars(r, s).unwrap();
+
+        <span class="comment">// Note: This line is introduced here because big_r.y is a private field.
+        </span><span class="kw">let </span>y: Scalar = get_y_coordinate(<span class="kw-2">&amp;</span>big_r);
 
         <span class="comment">// Compute recovery id and normalize signature
         </span><span class="kw">let </span>is_r_odd = y.is_odd();
@@ -483,17 +490,13 @@
 }
 
 <span class="doccomment">/// Get the y-coordinate from a given affine point.
-</span><span class="kw">fn </span>get_coordinates(point: <span class="kw-2">&amp;</span>ProjectivePoint) -&gt; (Scalar, Scalar) {
+</span><span class="kw">fn </span>get_y_coordinate(point: <span class="kw-2">&amp;</span>AffinePoint) -&gt; Scalar {
     <span class="kw">let </span>encoded_point = point.to_encoded_point(<span class="bool-val">false</span>);
 
     <span class="comment">// The encoded point is in uncompressed form, so we can safely get the y-coordinate here
-    </span><span class="kw">let </span>x = encoded_point.x().unwrap();
-    <span class="kw">let </span>y = encoded_point.y().unwrap();
+    </span><span class="kw">let </span>y = encoded_point.y().unwrap();
 
-    (
-        Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>x),
-        Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>y),
-    )
+    Scalar::reduce_bytes(y)
 }
 
 <span class="kw">impl </span>RecoverableSignature <span class="kw">for </span>Secp256r1RecoverableSignature {
@@ -505,9 +508,9 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
-        <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate except for a few additions.
+        <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
         </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
-        <span class="kw">let </span>z = Scalar::from_be_bytes_reduced(<span class="kw-2">*</span>FieldBytes::from_slice(H::digest(msg).as_ref()));
+        <span class="kw">let </span>z = Scalar::reduce_bytes(<span class="kw-2">&amp;</span>FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
         <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="comment">// Note: This has been added because it does not seem to be done in k256
@@ -525,11 +528,10 @@
             <span class="kw">let </span>r_inv = r.invert().unwrap();
             <span class="kw">let </span>u1 = -(r_inv * z);
             <span class="kw">let </span>u2 = r_inv * <span class="kw-2">*</span>s;
-
             <span class="kw">let </span>pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
 
             <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
-                pubkey: ExternalPublicKey::from_affine(pk)
+                pubkey: VerifyingKey::from_affine(pk)
                     .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>,
                 bytes: OnceCell::new(),
             })
