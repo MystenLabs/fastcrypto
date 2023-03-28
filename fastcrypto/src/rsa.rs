@@ -7,7 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1v15::Signature as ExternalSignature;
-use rsa::pkcs8::{DecodePublicKey, EncodePublicKey};
+use rsa::pkcs8::DecodePublicKey;
 use rsa::RsaPublicKey as ExternalPublicKey;
 use rsa::{Pkcs1v15Sign, PublicKey};
 
@@ -77,12 +77,12 @@ mod test {
         let pk_pem = "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA5NXGDXfb1FDuWgAxQPVH\no+DPUkFl8rCjfj0nvQ++iubfMsMpP3UYu229GwYepOtKOpa4JA6uYGVibXql5ldh\nVZKG4LrGO8TL3S5C2qqac1CQbhwyG+DuyKBj1Fe5C7L/TWKmTep3eKEpolhXuaxN\nHR6R5TsxTb90RFToVRX/20rl8tHz/szWyPzmnLIOqae7UCVPFxenb3O7xa8SvSrV\nrPs2Eej3eEgOYORshP3HC6OQ8GV7ouJuM6VXPdRhb8BEWG/sTKmkr9qvrtoh2PpB\nlnEezat+7tbddPdI6LB4z4CIQzYkTu7OFZY5RV064c3skMmkEht3/Qrb7+MQsEWY\nlwIDAQAB\n-----END PUBLIC KEY-----";
         let pk = RSAPublicKey::from_pem(pk_pem).unwrap();
 
-        let header_and_payload = b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJodHRwczovL3d3dy5mYWNlYm9vay5jb20iLCJhdWQiOiIxMjQxNTU5MzY2NzU1MjE0Iiwic3ViIjoiNzA4NTYyNjExMDA5NTI1IiwiaWF0IjoxNjc5OTMyMDE0LCJleHAiOjE2Nzk5MzU2MTQsImp0aSI6IlRLdnouZGJlYzdjYTMxOTQyYTVkMmU1NmJkMGRiZmI4MjRiMTcxODVlMGYzMGIyMGYyNTczZGU1ZDQ4ZmM5ZjU4M2U0MyIsIm5vbmNlIjoidGVzdCIsImdpdmVuX25hbWUiOiJKb3kiLCJmYW1pbHlfbmFtZSI6IldhbmciLCJuYW1lIjoiSm95IFdhbmciLCJwaWN0dXJlIjoiaHR0cHM6Ly9wbGF0Zm9ybS1sb29rYXNpZGUuZmJzYnguY29tL3BsYXRmb3JtL3Byb2ZpbGVwaWMvP2FzaWQ9NzA4NTYyNjExMDA5NTI1JmhlaWdodD0xMDAmd2lkdGg9MTAwJmV4dD0xNjgyNTI0MDE1Jmhhc2g9QWVTMENxblhPMmNhT3g4WDhRZyJ9";
+        let digest = Sha256::digest(b"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJodHRwczovL3d3dy5mYWNlYm9vay5jb20iLCJhdWQiOiIxMjQxNTU5MzY2NzU1MjE0Iiwic3ViIjoiNzA4NTYyNjExMDA5NTI1IiwiaWF0IjoxNjc5OTMyMDE0LCJleHAiOjE2Nzk5MzU2MTQsImp0aSI6IlRLdnouZGJlYzdjYTMxOTQyYTVkMmU1NmJkMGRiZmI4MjRiMTcxODVlMGYzMGIyMGYyNTczZGU1ZDQ4ZmM5ZjU4M2U0MyIsIm5vbmNlIjoidGVzdCIsImdpdmVuX25hbWUiOiJKb3kiLCJmYW1pbHlfbmFtZSI6IldhbmciLCJuYW1lIjoiSm95IFdhbmciLCJwaWN0dXJlIjoiaHR0cHM6Ly9wbGF0Zm9ybS1sb29rYXNpZGUuZmJzYnguY29tL3BsYXRmb3JtL3Byb2ZpbGVwaWMvP2FzaWQ9NzA4NTYyNjExMDA5NTI1JmhlaWdodD0xMDAmd2lkdGg9MTAwJmV4dD0xNjgyNTI0MDE1Jmhhc2g9QWVTMENxblhPMmNhT3g4WDhRZyJ9").digest;
 
         let signature = "Z65bdJv-sFO9mNe4i1Tv0fa74rEtSIh3ZzJ29JtojgpA_d40JfE_NVJliYvoZdfqPX85a8NAG-ujKWWzrtv8l3K33r-T0WuUvosai99Y7TrMZt3WtT9pLwoO4s8KPSr9jXjTD94YFhizdKtyHFvaJRVjyUWFTvsQgZP9kyiSPh-7R_CStVan2u0scZRosZeOlZT4dI5xXnt3AFH-vFfaWiZEEunKljIkqvdrtt3x-HLFnjSvKGFi1Ct4LBObdjbNGJULYjQ0-N7yuQevaiYEpSFW1NBfa3p52vMj9XMADhg4wrV7Nuvk7CqERLeL-M8L_KmUGnRXOmMUL-6KTC8Rtw";
         let signature_bytes = Base64UrlUnpadded::decode_vec(signature).unwrap();
         let signature = RSASignature::from_bytes(&signature_bytes).unwrap();
 
-        assert!(pk.verify(header_and_payload, &signature).is_ok());
+        assert!(pk.verify_prehash(&digest, &signature).is_ok());
     }
 }
