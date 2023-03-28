@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of RSASSA-PKCS1-v1_5.
+//! Implementation of a verifier following RSASSA-PKCS1-v1_5 using SHA-256 (see https://datatracker.ietf.org/doc/rfc3447/).
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
