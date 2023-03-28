@@ -70,9 +70,6 @@ mod test {
     use crate::hash::{HashFunction, Sha256};
     use crate::rsa::{RSAPublicKey, RSASignature};
     use base64ct::{Base64UrlUnpadded, Encoding};
-    //use wycheproof::rsa_pkcs1_verify::TestName::Rsa2048Sha256;
-    //use wycheproof::rsa_pkcs1_verify::TestSet;
-    //use wycheproof::TestResult;
 
     #[test]
     fn jwt_test() {
@@ -88,34 +85,4 @@ mod test {
 
         assert!(pk.verify(header_and_payload, &signature).is_ok());
     }
-
-    // TODO: This currently fails at a test case with a short signature. Need to investigate why.
-    // #[test]
-    // fn wycheproof_test() {
-    //     let test_set = TestSet::load(Rsa2048Sha256).unwrap();
-    //     for test_group in test_set.test_groups {
-    //         let pk = RSAPublicKey::from_der(&test_group.der).unwrap();
-    //         for test in test_group.tests {
-    //             let mut res = TestResult::Invalid;
-    //             let sig = RSASignature::from_bytes(&test.sig).unwrap();
-    //             if pk
-    //                 .verify_prehash(&Sha256::digest(&test.msg).digest, &sig)
-    //                 .is_ok()
-    //             {
-    //                 res = TestResult::Valid;
-    //             }
-    //
-    //             if map_result(test.result) != res {
-    //                 panic!("{}", test.comment);
-    //             }
-    //         }
-    //     }
-    // }
-    //
-    // fn map_result(t: TestResult) -> TestResult {
-    //     match t {
-    //         TestResult::Valid => TestResult::Valid,
-    //         _ => TestResult::Invalid, // Treat Acceptable as Invalid
-    //     }
-    // }
 }
