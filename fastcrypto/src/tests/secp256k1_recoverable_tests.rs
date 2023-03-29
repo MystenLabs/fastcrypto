@@ -14,8 +14,12 @@ use crate::{
     test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signature as ExternalSignature;
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signer as ExternalSigner;
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Verifier as ExternalVerifier;
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
