@@ -1,8 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signature as ExternalSignature;
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signer as ExternalSigner;
+#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Verifier as ExternalVerifier;
 #[cfg(feature = "copy_key")]
 use proptest::arbitrary::Arbitrary;
