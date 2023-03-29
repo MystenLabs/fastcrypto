@@ -91,6 +91,7 @@ pub mod groups;
 pub mod hash;
 pub mod hmac;
 pub mod private_seed;
+pub mod rsa;
 pub mod secp256k1;
 pub mod secp256r1;
 pub mod serde_helpers;
