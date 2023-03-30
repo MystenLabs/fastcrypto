@@ -56,11 +56,34 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
 </pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
-<span class="kw">use </span>ark_bn254::{Bn254, Fr};
+<span class="kw">pub use </span>ark_bn254::{Bn254, Fr <span class="kw">as </span>Bn254Fr};
 <span class="kw">use </span>ark_crypto_primitives::snark::SNARK;
 <span class="kw">use </span>ark_groth16::{Groth16, Proof, VerifyingKey};
 <span class="kw">use </span>ark_serialize::CanonicalDeserialize;
@@ -69,6 +92,8 @@
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;unit_tests/api_tests.rs&quot;</span>]
 </span><span class="kw">mod </span>api_tests;
+
+<span class="kw">pub use </span>ark_ff::ToConstraintField;
 
 <span class="doccomment">/// Size of scalars in the BN254 construction.
 </span><span class="kw">pub const </span>SCALAR_SIZE: usize = <span class="number">32</span>;
@@ -98,9 +123,30 @@
     }
     <span class="kw">let </span><span class="kw-2">mut </span>x = Vec::new();
     <span class="kw">for </span>chunk <span class="kw">in </span>proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(Fr::deserialize_compressed(chunk).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>);
+        x.push(Bn254Fr::deserialize_compressed(chunk).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>);
     }
 
+    verify_groth16(
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
+        <span class="kw-2">&amp;</span>x,
+        proof_points_as_bytes,
+    )
+}
+
+<span class="doccomment">/// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
+/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of proof public inputs and
+/// serialized proof points.
+</span><span class="kw">pub fn </span>verify_groth16(
+    vk_gamma_abc_g1_bytes: <span class="kw-2">&amp;</span>[u8],
+    alpha_g1_beta_g2_bytes: <span class="kw-2">&amp;</span>[u8],
+    gamma_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
+    delta_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
+    proof_public_inputs: <span class="kw-2">&amp;</span>[Bn254Fr],
+    proof_points_as_bytes: <span class="kw-2">&amp;</span>[u8],
+) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
     <span class="kw">let </span>pvk = PreparedVerifyingKey::deserialize(
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
@@ -111,7 +157,7 @@
     <span class="kw">let </span>proof = Proof::&lt;Bn254&gt;::deserialize_compressed(proof_points_as_bytes)
         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(<span class="kw-2">&amp;</span>pvk.as_arkworks_pvk(), <span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>proof)
+    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(<span class="kw-2">&amp;</span>pvk.as_arkworks_pvk(), proof_public_inputs, <span class="kw-2">&amp;</span>proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
 </code></pre></div></section></main></body></html>
