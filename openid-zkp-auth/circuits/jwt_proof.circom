@@ -114,6 +114,7 @@ template JwtProof(inCount) {
         // InN1YiI6 => 496e4e3159694936
         [73, 110, 78, 49, 89, 105, 73, 54] // Appears at 0
     ];
+    var subClaimExpOffsets[3] = [0, 2, 0];
 
     // ,"sub":"117912735658541336646",
     var subValue[3][subValueLength] = [
@@ -129,48 +130,26 @@ template JwtProof(inCount) {
     ];
 
     component subEQCheck[inCount][3];
-    component b64OffsetCheck[inCount][2];
+    component b64OffsetCheck[inCount][3];
 
     // Check 2a. Cost: O(subKeyLength * inCount)
     var accumulate[3] = [0, 0, 0];
-    var subValueOffset;
-    for (var i = 0; i < inCount - subKeyLength - subValueLength; i++) { // TODO: Extend it to enable these checks only in [payloadB64Offset, payloadB64Offset + payloadLength]
-        // Check if LCJzdWIi is at 0 b64offset
-        b64OffsetCheck[i][0] = IsEqual();
-        b64OffsetCheck[i][0].in[0] <== b64offsets[i];
-        b64OffsetCheck[i][0].in[1] <== 0;
+    var subValueOffset = 0;
+    for (var i = 0; i < inCount - subKeyLength - subValueLength; i++) {
+        // TODO: Extend it to enable these checks only in [payloadB64Offset, payloadB64Offset + payloadLength]
+        for (var k = 0; k < 3; k++) { // looking for subClaim[k] if subClaimExpOffsets[k] == b64offsets[i]
+            b64OffsetCheck[i][k] = IsEqual();
+            b64OffsetCheck[i][k].in[0] <== b64offsets[i];
+            b64OffsetCheck[i][k].in[1] <== subClaimExpOffsets[k];
 
-        subEQCheck[i][0] = isEqualIfEnabled(subKeyLength);
-        subEQCheck[i][0].enabled <== b64OffsetCheck[i][0].out;
+            subEQCheck[i][k] = isEqualIfEnabled(subKeyLength);
+            subEQCheck[i][k].enabled <== b64OffsetCheck[i][k].out;
 
-        for (var j = 0; j < subKeyLength; j++) {
-            var idx = i + j;
-            subEQCheck[i][0].in[0][j] <== content[idx];
-            subEQCheck[i][0].in[1][j] <== subClaim[0][j];
-        }
-
-        // Check if wic3ViIj is at 2 b64offset
-        b64OffsetCheck[i][1] = IsEqual();
-        b64OffsetCheck[i][1].in[0] <== b64offsets[i];
-        b64OffsetCheck[i][1].in[1] <== 2;
-
-        subEQCheck[i][1] = isEqualIfEnabled(subKeyLength);
-        subEQCheck[i][1].enabled <== b64OffsetCheck[i][1].out;
-
-        for (var j = 0; j < subKeyLength; j++) {
-            var idx = i + j;
-            subEQCheck[i][1].in[0][j] <== content[idx];
-            subEQCheck[i][1].in[1][j] <== subClaim[1][j];
-        }
-
-        // Check if InN1YiI6 is at 0 b64offset
-        subEQCheck[i][2] = isEqualIfEnabled(subKeyLength);
-        subEQCheck[i][2].enabled <== b64OffsetCheck[i][0].out; // reuse
-
-        for (var j = 0; j < subKeyLength; j++) {
-            var idx = i + j;
-            subEQCheck[i][2].in[0][j] <== content[idx];
-            subEQCheck[i][2].in[1][j] <== subClaim[2][j];
+            for (var j = 0; j < subKeyLength; j++) {
+                var idx = i + j;
+                subEQCheck[i][k].in[0][j] <== content[idx];
+                subEQCheck[i][k].in[1][j] <== subClaim[k][j];
+            }
         }
 
         subValueOffset += (i + subKeyLength) * (subEQCheck[i][0].out + subEQCheck[i][1].out + subEQCheck[i][2].out);
@@ -183,7 +162,7 @@ template JwtProof(inCount) {
 
     accumulate[0] + accumulate[1] + accumulate[2] === 1; // Adding at most 3*inCount bits, so no concern of wrapping around
 
-    // Check 2b
+    // Check 2b. Implicit check for expected offsets as it appears right after "sub".
     component subExtractor = SliceFixed(inCount, subValueLength);
     for (var i = 0; i < inCount; i++) {
         subExtractor.in[i] <== content[i];
