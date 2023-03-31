@@ -19,7 +19,7 @@ JWT Proof
     - inCount:          Number of content inputs of inWidth size
 
     Inputs:
-    - content[inCount]:     Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding
+    - content[inCount]:     Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
     - tBlock:               At which 512-bit block to select output hash
     - payloadB64Offset[2]:  An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
     - mask[inCount]:        A binary mask over X, i.e., mask[i] = 0 or 1
@@ -116,7 +116,7 @@ template JwtProof(inCount) {
     ];
     var subClaimExpOffsets[3] = [0, 2, 0];
 
-    // ,"sub":"117912735658541336646",
+    // ',"sub":"117912735658541336646",'
     var subValue[3][subValueLength] = [
         // LCJzdWIi OiIxMTc5MTI3MzU2NTg1NDEzMzY2NDYi
         [79, 105,  73, 120, 77,  84, 99,  53, 77,  84,  73,  51, 77, 122, 85, 50,

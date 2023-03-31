@@ -101,6 +101,12 @@ function getAllBase64Variants(string) {
     return [offset0, offset1, offset2];
 }
 
+function writeInputsToFile(inputs, file_name = "inputs.json") {
+    // write inputs to file
+    const fs = require('fs');
+    fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
+}
+
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
@@ -114,5 +120,6 @@ module.exports = {
     getWitnessMap: getWitnessMap,
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
-    getAllBase64Variants: getAllBase64Variants
+    getAllBase64Variants: getAllBase64Variants,
+    writeInputsToFile: writeInputsToFile
 }
