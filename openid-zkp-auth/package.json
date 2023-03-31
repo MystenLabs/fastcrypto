@@ -1,0 +1,24 @@
+{
+  "name": "openid-zkp-auth",
+  "version": "1.0.0",
+  "description": "Verify OIDC JWT with SNARKs",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha --max-old-space-size=16000 -t 10000s"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "bigint-buffer": "^1.1.5",
+    "circomlib": "^2.0.5",
+    "node-rsa": "^1.1.1",
+    "snarkjs": "^0.6.10",
+    "temp": "^0.9.4"
+  },
+  "devDependencies": {
+    "circom_tester": "^0.0.19",
+    "jose": "^4.3.7",
+    "mocha": "^10.2.0",
+    "node-jose": "^2.0.0"
+  }
+}
