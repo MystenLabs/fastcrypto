@@ -54,6 +54,7 @@ bincode.workspace = true
 elliptic-curve = {version = "0.13.2", features = ["hash2curve"]}
 rsa = {version = "0.8.2", features = ["sha2"] }
 static_assertions = "1.1.0"
+openssl = { version = "0.10", features = ["vendored"] }
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 

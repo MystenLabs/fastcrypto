@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use openssl::ec::EcGroup;
+use openssl::nid::Nid;
 #[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signature as ExternalSignature;
 #[cfg(feature = "copy_key")]
@@ -15,6 +17,7 @@ use rust_secp256k1::{constants, ecdsa::Signature};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use crate::encoding::Base64;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
@@ -26,6 +29,14 @@ use crate::{
     test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+
+
+use super::*;
+use openssl::pkey::{PKey, Public};
+use openssl::x509::X509;
+use std::fs::File;
+use std::io::{self, Read};
+use std::path::Path;
 
 const MSG: &[u8] = b"Hello, world!";
 
@@ -456,3 +467,23 @@ proptest! {
         assert_eq!(kp.public(), deserialized.public());
     }
 }
+
+#[test]
+fn pem_key() {
+        // Open the PEM-encoded public key file
+        let mut file = File::open(Path::new("/Users/joy/mysten/fastcrypto/fastcrypto/src/tests/my_pk.pem")).unwrap();
+        let mut pem_bytes = Vec::new();
+        file.read_to_end(&mut pem_bytes).unwrap();
+        let group = EcGroup::from_curve_name(Nid::SECP256K1).unwrap();
+        
+        // Parse the PEM-encoded public key and extract the raw bytes
+        let pkey = PKey::public_key_from_pem(&pem_bytes).unwrap();
+        let d = pkey.ec_key().unwrap().public_key().to_bytes(&group,
+            openssl::ec::PointConversionForm::COMPRESSED,
+            &mut openssl::bn::BigNumContext::new().unwrap(),);
+        let mut arr = Vec::new();
+        arr.extend_from_slice(&[01]);
+        arr.extend_from_slice(&d.unwrap());
+        println!("pk=={:?}",  Base64::encode(arr));
+        // println!("len=={:?}",  d.unwrap().len());
+    }
