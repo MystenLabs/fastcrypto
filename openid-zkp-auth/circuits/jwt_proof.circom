@@ -19,10 +19,10 @@ JWT Proof
     - inCount:          Number of content inputs of inWidth size
 
     Inputs:
-    - content[inCount]: Segments of JWT as inWidth bit chunks
-    - tBlock:           At which 512-bit block to select output hash
-    - payloadB64Offset[2]: An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0.
-    - mask[inCount]:    Binary mask of JWT segments
+    - content[inCount]:     Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding
+    - tBlock:               At which 512-bit block to select output hash
+    - payloadB64Offset[2]:  An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
+    - mask[inCount]:        A binary mask over X, i.e., mask[i] = 0 or 1
     
     Outputs:
     - hash:             SHA256 hash output truncated to hashWidth bits
@@ -31,33 +31,34 @@ JWT Proof
 template JwtProof(inCount) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
+
     // Segments must divide evenly into 512 bit blocks
-    assert((inCount * inWidth) % 512 == 0);
-    assert(inWidth <= 512);
-    assert(512 % inWidth == 0);
-    
     var inBits = inCount * inWidth;
-    
+    assert(inBits % 512 == 0);
+
     // The number of content segments, times the bit width of each is the bit length of the content.
     // The content is decomposed to 512-bit blocks for SHA-256
-    var nBlocks = (inCount * inWidth) / 512;
+    var nBlocks = inBits / 512;
     
     // How many segments are in each block
+    assert(inWidth <= 512);
+    assert(512 % inWidth == 0);
     var nSegments = 512 / inWidth;
-    
-    // JWT header + JWT payload + SHA-2 padding
+
     signal input content[inCount];
-    signal input tBlock;    
+    signal input tBlock;
     signal output hash[256];
     
-    /** #1) SHA-256 **/
+    /**
+        #1) SHA-256 (30k * nBlocks constraints)
+    **/
     component sha256 = Sha256_unsafe(nBlocks);
     component sha256_blocks[nBlocks][nSegments];
     
     // For each 512-bit block going into SHA-256
-    for(var b = 0; b < nBlocks; b++) {
+    for (var b = 0; b < nBlocks; b++) {
         // For each segment going into that block
-        for(var s = 0; s < nSegments; s++) {
+        for (var s = 0; s < nSegments; s++) {
             // The index from the content is offset by the block we're composing times the number of segments per block,
             // s is then the segment offset within the block.
             var payloadIndex = (b * nSegments) + s;
@@ -69,13 +70,12 @@ template JwtProof(inCount) {
             // The bit index going into the current SHA-256 block is offset by the segment number times the bit width
             // of each content segment. sOffset + i is then the bit offset within the block (0-511).
             var sOffset = s * inWidth;
-            for(var i = 0; i < inWidth; i++) {
+            for (var i = 0; i < inWidth; i++) {
                 sha256.in[b][sOffset + i] <== sha256_blocks[b][s].out[i];
             }
         }
     }
     sha256.tBlock <== tBlock;
-    // TODO: Add a check to verify that everything after tBlock is zero.
 
     for (var i = 0; i < 256; i++) {
         hash[i] <== sha256.out[i];
@@ -131,7 +131,7 @@ template JwtProof(inCount) {
     component subEQCheck[inCount][3];
     component b64OffsetCheck[inCount][2];
 
-    // Check 2a begins. Cost: O(subKeyLength * inCount)
+    // Check 2a. Cost: O(subKeyLength * inCount)
     var accumulate[3] = [0, 0, 0];
     var subValueOffset;
     for (var i = 0; i < inCount - subKeyLength - subValueLength; i++) { // TODO: Extend it to enable these checks only in [payloadB64Offset, payloadB64Offset + payloadLength]
@@ -183,7 +183,7 @@ template JwtProof(inCount) {
 
     accumulate[0] + accumulate[1] + accumulate[2] === 1; // Adding at most 3*inCount bits, so no concern of wrapping around
 
-    // Check 2b begins.
+    // Check 2b
     component subExtractor = SliceFixed(inCount, subValueLength);
     for (var i = 0; i < inCount; i++) {
         subExtractor.in[i] <== content[i];
@@ -203,5 +203,26 @@ template JwtProof(inCount) {
     for(var i = 0; i < inCount; i++) {
         mask[i] * (1 - mask[i]) === 0; // Ensure mask is binary
         out[i] <== content[i] * mask[i];
+    }
+
+    /**
+        #4) Sanctity checks
+            4a) Verify that content[i] for all blocks >= tBlock is zero.
+    **/
+    component gte[nBlocks];
+    { // 4a
+        // Generate a bit vector of size nBlocks, where the bit corresponding to tBlock is raised
+        for (var b = 0; b < nBlocks; b++) {
+            gte[b] = GreaterEqThan(log2(nBlocks));
+            gte[b].in[0] <== b;
+            gte[b].in[1] <== tBlock;
+        }
+
+        for (var b = 0; b < nBlocks; b++) {
+            for (var s = 0; s < nSegments; s++) {
+                var payloadIndex = (b * nSegments) + s;
+                gte[b].out * content[payloadIndex] === 0;
+            }
+        }
     }
 }
