@@ -4,6 +4,20 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/gates.circom";
 include "../node_modules/circomlib/circuits/mux2.circom";
 
+// Returns math.ceil(log2(a)). Assumes a > 0.
+function log2(a) {
+    if (a == 1) {
+        return 0;
+    }
+    var n = 1;
+    var r = 0;
+    while (n < a) {
+        n *= 2;
+        r++;
+    }
+    return r;
+}
+
 template Num2BitsLE(n) {
     signal input in;
     signal output out[n];
@@ -80,6 +94,7 @@ template ExpandInitialOffsets() {
 
 // This circuit returns the sum of the inputs.
 // n must be greater than 0.
+// Cost: No constraints.
 template CalculateTotal(n) {
     signal input nums[n];
     signal output sum;
@@ -87,7 +102,7 @@ template CalculateTotal(n) {
     signal sums[n];
     sums[0] <== nums[0];
 
-    for (var i=1; i < n; i++) {
+    for (var i = 1; i < n; i++) {
         sums[i] <== sums[i - 1] + nums[i];
     }
 

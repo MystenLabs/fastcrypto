@@ -14,11 +14,13 @@ SHA256 Unsafe
 
     Construction Parameters:
     - nBlocks: Maximum number of 512-bit blocks for payload input
+    
     Inputs:
     - in:     An array of blocks exactly nBlocks in length, each block containing an array of exactly 512 bits.
               Padding of the input according to RFC4634 Section 4.1 is left to the caller.
               Blocks following tBlock must be supplied, and *should* contain all zeroes
     - tBlock: An integer corresponding to the terminating block of the input, which contains the message padding
+    
     Outputs:
     - out:    An array of 256 bits corresponding to the SHA256 output as of the terminating block
 */
@@ -39,10 +41,8 @@ template Sha256_unsafe(nBlocks) {
 
     component sha256compression[nBlocks];
 
-    for(var i=0; i < nBlocks; i++) {
-
+    for(var i = 0; i < nBlocks; i++) {
         sha256compression[i] = Sha256compression();
-
         if (i==0) {
             for(var k = 0; k < 32; k++) {
                 sha256compression[i].hin[0*32+k] <== ha0.out[k];
@@ -75,25 +75,25 @@ template Sha256_unsafe(nBlocks) {
     // Collapse the hashing result at the terminating data block
     // A modified Quin Selector allows us to select the block based on the tBlock signal
     component calcTotal[256];
-    component eqs[256][nBlocks];
+    component eqs[nBlocks];
+
+    // Generate a bit vector of size nBlocks, where the bit corresponding to tBlock is raised
+    for (var i = 0; i < nBlocks; i++) {
+        eqs[i] = IsEqual();
+        eqs[i].in[0] <== i;
+        eqs[i].in[1] <== tBlock - 1;
+    }
 
     // For each bit of the output
     for(var k = 0; k < 256; k++) {
         calcTotal[k] = CalculateTotal(nBlocks);
-        
+
         // For each possible block
         for (var i = 0; i < nBlocks; i++) {
-            // Determine if the given block index is equal to the terminating data block index
-            eqs[k][i] = IsEqual();
-            eqs[k][i].in[0] <== i;
-            eqs[k][i].in[1] <== tBlock - 1;
-
-            // eqs[k][i].out is 1 if the index matches. As such, at most one input to calcTotal is not 0.
+            // eqs[i].out is 1 if the index matches. As such, at most one input to calcTotal is not 0.
             // The bit corresponding to the terminating data block will be raised
-            calcTotal[k].nums[i] <== eqs[k][i].out * sha256compression[i].out[k];
+            calcTotal[k].nums[i] <== eqs[i].out * sha256compression[i].out[k];
         }
-        
         out[k] <== calcTotal[k].sum;
     }
-
 }
