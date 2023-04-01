@@ -70,6 +70,8 @@ pub mod ecvrf {
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
+    use curve25519_dalek_ng::ristretto::VartimeRistrettoPrecomputation;
+    use curve25519_dalek_ng::traits::VartimePrecomputedMultiscalarMul;
     use elliptic_curve::hash2curve::{ExpandMsg, Expander};
     use once_cell::sync::Lazy;
     use serde::{Deserialize, Serialize};
@@ -91,6 +93,7 @@ pub mod ecvrf {
     pub struct ECVRFPublicKey {
         point: RistrettoPoint,
         compressed: [u8; 32],
+        challenge_cache: VartimeRistrettoPrecomputation,
     }
 
     mod repr {
@@ -138,6 +141,10 @@ pub mod ecvrf {
             Self {
                 compressed: point.compress(),
                 point,
+                challenge_cache: VartimeRistrettoPrecomputation::new([
+                    RistrettoPoint::generator().0,
+                    point.0,
+                ]),
             }
         }
 
@@ -298,10 +305,11 @@ pub mod ecvrf {
             let h = public_key.ecvrf_encode_to_curve(alpha_string);
 
             let challenge = RistrettoScalar::from(&self.c);
-            let u = RistrettoPoint::vartime_multiscalar_mul(
-                [self.s, -challenge],
-                [RistrettoPoint::generator(), public_key.point],
-            )?;
+            let u = RistrettoPoint(
+                public_key
+                    .challenge_cache
+                    .vartime_multiscalar_mul([self.s.0, -challenge.0]),
+            );
             let v = RistrettoPoint::vartime_multiscalar_mul([self.s, -challenge], [h, self.gamma])?;
 
             let c_prime = ecvrf_challenge_generation(&public_key, [&h, &self.gamma, &u, &v]);

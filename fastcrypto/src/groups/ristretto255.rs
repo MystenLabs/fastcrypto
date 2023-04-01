@@ -28,7 +28,7 @@ const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
 
 /// Represents a point in the Ristretto group for Curve25519.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
-pub struct RistrettoPoint(ExternalRistrettoPoint);
+pub struct RistrettoPoint(pub ExternalRistrettoPoint);
 
 impl RistrettoPoint {
     /// Construct a RistrettoPoint from the given data using an Ristretto-flavoured Elligator 2 map.
@@ -153,7 +153,7 @@ serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
-pub struct RistrettoScalar(ExternalRistrettoScalar);
+pub struct RistrettoScalar(pub ExternalRistrettoScalar);
 
 impl RistrettoScalar {
     /// The order of the base point.
