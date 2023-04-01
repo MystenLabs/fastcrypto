@@ -106,3 +106,7 @@ radix64 = "0.6.2"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
 bcs.workspace = true
+
+
+[profile.bench]
+debug = true
