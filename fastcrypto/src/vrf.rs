@@ -113,7 +113,7 @@ pub mod ecvrf {
 
             let mut bytes = [0u8; H::OUTPUT_SIZE];
             expanded_message.fill_bytes(&mut bytes);
-            RistrettoPoint::map_to_point::<H>(&bytes)
+            RistrettoPoint::from_uniform_bytes(&bytes)
         }
 
         /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5
