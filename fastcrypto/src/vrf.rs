@@ -244,11 +244,11 @@ pub mod ecvrf {
             let h = public_key.ecvrf_encode_to_curve(alpha_string);
 
             let challenge = RistrettoScalar::from(&self.c);
-            let u = RistrettoPoint::multiscalar_mul(
+            let u = RistrettoPoint::vartime_multiscalar_mul(
                 [self.s, -challenge],
                 [RistrettoPoint::generator(), public_key.0],
             )?;
-            let v = RistrettoPoint::multiscalar_mul([self.s, -challenge], [h, self.gamma])?;
+            let v = RistrettoPoint::vartime_multiscalar_mul([self.s, -challenge], [h, self.gamma])?;
 
             let c_prime = ecvrf_challenge_generation([&public_key.0, &h, &self.gamma, &u, &v]);
 
