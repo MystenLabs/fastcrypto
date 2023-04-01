@@ -71,6 +71,7 @@ pub mod ecvrf {
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
     use elliptic_curve::hash2curve::{ExpandMsg, Expander};
+    use once_cell::sync::Lazy;
     use serde::{Deserialize, Serialize};
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
@@ -154,9 +155,14 @@ pub mod ecvrf {
 
     /// Generate challenge from five points. See section 5.4.3. of draft-irtf-cfrg-vrf-15.
     fn ecvrf_challenge_generation(points: [&RistrettoPoint; 5]) -> Challenge {
-        let mut hash = H::default();
-        hash.update(SUITE_STRING);
-        hash.update([0x02]); //challenge_generation_domain_separator_front
+        static INITIAL_STATE: Lazy<H> = Lazy::new(|| {
+            let mut hash = H::default();
+            hash.update(SUITE_STRING);
+            hash.update([0x02]); //challenge_generation_domain_separator_front
+            hash
+        });
+
+        let mut hash = INITIAL_STATE.clone();
         points.into_iter().for_each(|p| hash.update(p.compress()));
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();

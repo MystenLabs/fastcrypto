@@ -115,7 +115,7 @@ pub trait Hash<const DIGEST_LEN: usize> {
 }
 
 /// This wraps a [digest::Digest] as a [HashFunction].
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
 
 /// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
