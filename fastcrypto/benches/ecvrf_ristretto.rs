@@ -10,7 +10,7 @@ mod ecvrf_ristretto_benches {
     use fastcrypto::vrf::VRFKeyPair;
     use fastcrypto::vrf::VRFProof;
     use rand::rngs::ThreadRng;
-    use rand::thread_rng;
+    use rand::{rngs::StdRng, thread_rng, SeedableRng};
 
     fn keygen(c: &mut Criterion) {
         let mut csprng: ThreadRng = thread_rng();
@@ -28,7 +28,8 @@ mod ecvrf_ristretto_benches {
     }
 
     fn verify(c: &mut Criterion) {
-        let kp = ECVRFKeyPair::generate(&mut thread_rng());
+        let mut rng = StdRng::seed_from_u64(1337);
+        let kp = ECVRFKeyPair::generate(&mut rng);
         let input = b"Hello, world!";
         let proof = kp.prove(input);
         c.bench_function("ECVRF Ristretto verification", move |b| {
