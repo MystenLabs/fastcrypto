@@ -57,8 +57,10 @@ impl RistrettoPoint {
     pub fn multiscalar_mul<I, J>(scalars: I, points: J) -> Result<Self, FastCryptoError>
     where
         I: IntoIterator,
+        I::IntoIter: ExactSizeIterator,
         I::Item: Into<RistrettoScalar>,
         J: IntoIterator<Item = Self>,
+        J::IntoIter: ExactSizeIterator,
     {
         let scalars_iter = scalars.into_iter();
         let points_iter = points.into_iter();
