@@ -66,7 +66,7 @@ pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::{GroupElement, Scalar};
-    use crate::hash::{HashFunction, Sha512};
+    use crate::hash::{HashFunction, ReverseWrapper, Sha512};
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
@@ -104,13 +104,12 @@ pub mod ecvrf {
             // and error if the len_in_bytes and output size of the hash function is out of bounds
             // (https://github.com/mikelodder7/hash2field/blob/cdf56a2b722aeae25b8019945afe4cccec132f25/src/expand_msg_xmd.rs#L21),
             // so we can safely unwrap since they are constants here.
-            let mut expanded_message =
-                elliptic_curve::hash2curve::ExpandMsgXmd::<sha2::Sha512>::expand_message(
-                    &[&self.0.compress(), alpha_string],
-                    DST,
-                    H::OUTPUT_SIZE,
-                )
-                .unwrap();
+            let mut expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::<
+                <H as ReverseWrapper>::Variant,
+            >::expand_message(
+                &[&self.0.compress(), alpha_string], DST, H::OUTPUT_SIZE
+            )
+            .unwrap();
 
             let mut bytes = [0u8; H::OUTPUT_SIZE];
             expanded_message.fill_bytes(&mut bytes);
@@ -134,11 +133,11 @@ pub mod ecvrf {
     impl ECVRFPrivateKey {
         /// Generate scalar/nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         fn ecvrf_nonce_generation(&self, h_string: &[u8]) -> RistrettoScalar {
-            let hashed_sk_string = Sha512::digest(self.0.to_byte_array());
+            let hashed_sk_string = H::digest(self.0.to_byte_array());
             let mut truncated_hashed_sk_string = [0u8; 32];
             truncated_hashed_sk_string.copy_from_slice(&hashed_sk_string.digest[32..64]);
 
-            let mut hash_function = Sha512::default();
+            let mut hash_function = H::default();
             hash_function.update(truncated_hashed_sk_string);
             hash_function.update(h_string);
             let k_string = hash_function.finalize();
