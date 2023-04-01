@@ -88,14 +88,59 @@ pub mod ecvrf {
     /// Domain separation tag used in ecvrf_encode_to_curve (see also draft-irtf-cfrg-hash-to-curve-16)
     const DST: &[u8; 49] = b"ECVRF_ristretto255_XMD:SHA-512_R255MAP_RO_sui_vrf";
 
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
-    pub struct ECVRFPublicKey(RistrettoPoint);
+    pub struct ECVRFPublicKey {
+        point: RistrettoPoint,
+        compressed: [u8; 32],
+    }
+
+    mod repr {
+        use super::ECVRFPublicKey;
+        use crate::groups::ristretto255::RistrettoPoint;
+        use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+        #[derive(Serialize, Deserialize)]
+        struct ECVRFPublicKeyRepr(RistrettoPoint);
+
+        impl Serialize for ECVRFPublicKey {
+            fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                let repr = ECVRFPublicKeyRepr(self.point.clone());
+                repr.serialize(serializer)
+            }
+        }
+        impl<'de> Deserialize<'de> for ECVRFPublicKey {
+            fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                let repr = ECVRFPublicKeyRepr::deserialize(deserializer)?;
+                Ok(ECVRFPublicKey::new(repr.0))
+            }
+        }
+    }
+
+    impl std::fmt::Debug for ECVRFPublicKey {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_tuple("ECVRFPublicKey").field(&self.point).finish()
+        }
+    }
+
+    impl PartialEq for ECVRFPublicKey {
+        fn eq(&self, other: &Self) -> bool {
+            self.point == other.point
+        }
+    }
+
+    impl Eq for ECVRFPublicKey {}
 
     impl VRFPublicKey for ECVRFPublicKey {
         type PrivateKey = ECVRFPrivateKey;
     }
 
     impl ECVRFPublicKey {
+        fn new(point: RistrettoPoint) -> Self {
+            Self {
+                compressed: point.compress(),
+                point,
+            }
+        }
+
         /// Encode the given binary string as curve point. See section 5.4.1.2 of draft-irtf-cfrg-vrf-15.
         fn ecvrf_encode_to_curve(&self, alpha_string: &[u8]) -> RistrettoPoint {
             // This follows section 5.4.1.2 of draft-irtf-cfrg-vrf-15 for the ristretto255 group using
@@ -108,7 +153,9 @@ pub mod ecvrf {
             let mut expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::<
                 <H as ReverseWrapper>::Variant,
             >::expand_message(
-                &[&self.0.compress(), alpha_string], DST, H::OUTPUT_SIZE
+                &[&self.point.compress(), alpha_string],
+                DST,
+                H::OUTPUT_SIZE,
             )
             .unwrap();
 
@@ -120,7 +167,7 @@ pub mod ecvrf {
         /// Implements ECVRF_validate_key which checks the validity of a public key. See section 5.4.5
         /// of draft-irtf-cfrg-vrf-15.
         fn valid(&self) -> bool {
-            self.0 != RistrettoPoint::zero()
+            self.point != RistrettoPoint::zero()
         }
     }
 
@@ -154,7 +201,10 @@ pub mod ecvrf {
     }
 
     /// Generate challenge from five points. See section 5.4.3. of draft-irtf-cfrg-vrf-15.
-    fn ecvrf_challenge_generation(points: [&RistrettoPoint; 5]) -> Challenge {
+    fn ecvrf_challenge_generation(
+        public_key: &ECVRFPublicKey,
+        points: [&RistrettoPoint; 4],
+    ) -> Challenge {
         static INITIAL_STATE: Lazy<H> = Lazy::new(|| {
             let mut hash = H::default();
             hash.update(SUITE_STRING);
@@ -163,6 +213,7 @@ pub mod ecvrf {
         });
 
         let mut hash = INITIAL_STATE.clone();
+        hash.update(&public_key.compressed);
         points.into_iter().for_each(|p| hash.update(p.compress()));
         hash.update([0x00]); //challenge_generation_domain_separator_back
         let digest = hash.finalize();
@@ -203,13 +254,10 @@ pub mod ecvrf {
             let gamma = h * self.sk.0;
             let k = self.sk.ecvrf_nonce_generation(&h_string);
 
-            let c = ecvrf_challenge_generation([
-                &self.pk.0,
-                &h,
-                &gamma,
-                &(RistrettoPoint::generator() * k),
-                &(h * k),
-            ]);
+            let c = ecvrf_challenge_generation(
+                &self.pk,
+                [&h, &gamma, &(RistrettoPoint::generator() * k), &(h * k)],
+            );
             let s = k + RistrettoScalar::from(&c) * self.sk.0;
 
             ECVRFProof { gamma, c, s }
@@ -220,7 +268,7 @@ pub mod ecvrf {
         fn from(sk: ECVRFPrivateKey) -> Self {
             let p = RistrettoPoint::generator() * sk.0;
             ECVRFKeyPair {
-                pk: ECVRFPublicKey(p),
+                pk: ECVRFPublicKey::new(p),
                 sk,
             }
         }
@@ -252,11 +300,11 @@ pub mod ecvrf {
             let challenge = RistrettoScalar::from(&self.c);
             let u = RistrettoPoint::vartime_multiscalar_mul(
                 [self.s, -challenge],
-                [RistrettoPoint::generator(), public_key.0],
+                [RistrettoPoint::generator(), public_key.point],
             )?;
             let v = RistrettoPoint::vartime_multiscalar_mul([self.s, -challenge], [h, self.gamma])?;
 
-            let c_prime = ecvrf_challenge_generation([&public_key.0, &h, &self.gamma, &u, &v]);
+            let c_prime = ecvrf_challenge_generation(&public_key, [&h, &self.gamma, &u, &v]);
 
             if c_prime != self.c {
                 return Err(FastCryptoError::GeneralOpaqueError);
