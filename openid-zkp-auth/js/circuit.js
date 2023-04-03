@@ -76,9 +76,30 @@ function genClaimProofInputs(input, nCount, claimField, claimLength = undefined,
   return inputs;
 }
 
+function genNonceInputs(inputs) {
+  const crypto = require("crypto");
+  const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
+  const max_epoch = 100;
+  const randomness = BigInt("0x" + crypto.randomBytes(31).toString('hex'));
+
+  const eph_public_key_0 = eph_public_key % 2n**128n;
+  const eph_public_key_1 = eph_public_key / 2n**128n;
+
+  return Object.assign({}, inputs,
+    { 
+      "ephPubKey": [eph_public_key_0, eph_public_key_1], 
+      "maxEpoch": max_epoch,
+      "randomness": randomness
+    });
+}
+
 function genJwtProofInputs(input, nCount, fields, nWidth = 16, inParam = "content") {
+  // set SHA-2 inputs
   var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
   inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
+
+  // set nonce-related inputs
+  inputs = genNonceInputs(inputs);
 
   var payloadOffset = input.split('.')[0].length + 1;
   var offset = (4 - (payloadOffset % 4)) % 4;

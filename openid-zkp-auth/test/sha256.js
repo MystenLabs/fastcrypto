@@ -9,6 +9,8 @@ const circuit = require("../js/circuit");
 const utils = require("../js/utils");
 const test = require("../js/test");
 
+// TODO: Add tests for SHA2_wrapper
+
 describe("Unsafe SHA256", () => {
     const nBlocks = 20;
     const hexBytesToBlock = 512/8/2;
@@ -58,5 +60,3 @@ describe("Unsafe SHA256", () => {
         assert.equal(hash2, hash);
     });
 });
-
-

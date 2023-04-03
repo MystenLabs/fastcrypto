@@ -90,18 +90,24 @@ describe("JWT Proof", () => {
         const hash = crypto.createHash("sha256").update(input).digest("hex");
         
         var inputs = circuit.genJwtProofInputs(input, inCount, ["iss", "azp"], inWidth);
+        const nonceExpected = await utils.calculateNonce(inputs);
+
         const witness = await cir.calculateWitness(inputs, true);
         
         const hash2 = utils.getWitnessBuffer(witness, cir.symbols, "main.hash", varSize=hashWidth).toString("hex");
+        assert.equal(hash2, hash);
+
         const masked = utils.getWitnessBuffer(witness, cir.symbols, "main.out", varSize=inWidth).toString();
         const claims = masked.split(/\x00+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
         console.log("claims", claims);
         
-        assert.equal(hash2, hash);
         // assert.equal(claims.length, 2, "Incorrect number of claims");
         // assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");
         // assert.include(claims[1], '"azp":"407408718192.apps.googleusercontent.com"', "Does not contain azp claim");
         // assert.include(claims[2], '"iat":1679674145', "Does not contain nonce claim");
+
+        const nonceActual = utils.getWitnessValue(witness, cir.symbols, "main.nonce");
+        assert.equal(nonceActual, nonceExpected);
         
         const pubkey = await jose.importJWK(jwk);
         assert.isTrue(crypto.createVerify('RSA-SHA256').update(input).verify(pubkey, Buffer.from(signature, 'base64')), "Signature does not correspond to hash");

@@ -17,6 +17,7 @@
   },
   "devDependencies": {
     "circom_tester": "^0.0.19",
+    "circomlibjs": "^0.1.7",
     "jose": "^4.3.7",
     "mocha": "^10.2.0",
     "node-jose": "^2.0.0"
