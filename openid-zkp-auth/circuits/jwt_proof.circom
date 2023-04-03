@@ -21,13 +21,14 @@ JWT Proof
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
-    - lastBlock:                   At which 512-bit block to select output hash
+    - lastBlock:                At which 512-bit block to select output hash
     - payloadB64Offset[2]:      An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
-    - randomness:               A random number used to keep the sensitive parts of the JWT hidden as we reveal the hash
+    - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
 
     Public Inputs:
-    - pub_key_and_max_epoch[2]: The ephemeral public key and the max epoch for which the key is valid (256 + 32 bits)
+    - ephPubKey[2]:             The ephemeral public key split into two 128-bit values
+    - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
     - hash:                     SHA256 hash output (256 bits)
     - out[inCount]:             Masked content
 
@@ -47,7 +48,10 @@ template JwtProof(inCount, hashWidth) {
         #1) SHA-256 (30k * nBlocks constraints)
     **/
     signal input lastBlock;
-    assert(256 % hashWidth == 0);
+    // Note: In theory, we could've packed 253 bits into an output value, but 
+    //       that'd still require at least 2 values. Instead, the below impl
+    //       packs the 256 bits evenly, e.g., say among 2 values with 128 bits each. 
+    assert(256 % hashWidth == 0); 
     var hashCount = 256 \ hashWidth;
     signal output hash[hashCount];
 
@@ -61,6 +65,13 @@ template JwtProof(inCount, hashWidth) {
         sha256.hash[i] ==> hash[i];
     }
 
+    /** 
+        #2) sub claim checks 
+            2a) Ensures "sub" only appears once (~40k constraints)
+            2b) checks the userID (~40k constraints)
+        
+        Check 2a can be omitted if we can assume that "sub" only appears once.
+    **/
     signal input payloadB64Offset[2]; // payloadB64Offset[0] is the MSB
     component X = ExpandInitialOffsets();
     X.in[0] <== payloadB64Offset[0];
@@ -75,13 +86,6 @@ template JwtProof(inCount, hashWidth) {
         }
     }
 
-    /** 
-        #2) sub claim checks 
-            2a) Ensures "sub" only appears once (~40k constraints)
-            2b) checks the userID (~40k constraints)
-        
-        Check 2a can be omitted if we can assume that "sub" only appears once.
-    **/
     var subKeyLength = 8;
     var subValueLength = 32;
 
@@ -167,24 +171,19 @@ template JwtProof(inCount, hashWidth) {
     var outWidth = 253;
     var outCount = (inBits \ outWidth) + 1;
 
-
     /**
-        #5) nonce == Hash(eph_public_key, max_epoch, r)
-
-        256 bits for ephemeral public key.
-        32 bits for max_epoch.
-        253 bits for randomness.
+        #4) nonce == Hash(ephPubKey, maxEpoch, r)
     **/
-    signal input eph_pub_key[2];
-    signal input max_epoch;
+    signal input ephPubKey[2];
+    signal input maxEpoch;
     signal input randomness;
 
     signal output nonce;
 
     component nhash = Poseidon(4);
-    nhash.inputs[0] <== eph_pub_key[0];
-    nhash.inputs[1] <== eph_pub_key[1];
-    nhash.inputs[2] <== max_epoch;
+    nhash.inputs[0] <== ephPubKey[0];
+    nhash.inputs[1] <== ephPubKey[1];
+    nhash.inputs[2] <== maxEpoch;
     nhash.inputs[3] <== randomness;
     nonce <== nhash.out;
 }

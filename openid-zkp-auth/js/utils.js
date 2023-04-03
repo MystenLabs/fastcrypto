@@ -107,6 +107,17 @@ function writeInputsToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
+async function calculateNonce(inputs) {
+    const buildPoseidon = require("circomlibjs").buildPoseidon;
+    poseidon = await buildPoseidon();
+    return poseidon.F.toObject(poseidon([
+        inputs["ephPubKey"][0], 
+        inputs["ephPubKey"][1], 
+        inputs["maxEpoch"],
+        inputs["randomness"]
+    ]));
+}
+
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
@@ -121,5 +132,6 @@ module.exports = {
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
     getAllBase64Variants: getAllBase64Variants,
-    writeInputsToFile: writeInputsToFile
+    writeInputsToFile: writeInputsToFile,
+    calculateNonce: calculateNonce
 }
