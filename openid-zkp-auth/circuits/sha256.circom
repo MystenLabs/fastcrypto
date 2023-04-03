@@ -9,24 +9,24 @@ include "misc.circom";
 SHA256 Unsafe
     Calculates the SHA256 hash of the input, using a signal to select the output round corresponding to the number of
     non-empty input blocks. This implementation is referred to as "unsafe", as it relies upon the caller to ensure that
-    the input is padded correctly, and to ensure that the tBlock input corresponds to the actual terminating data block.
+    the input is padded correctly, and to ensure that the lastBlock input corresponds to the actual terminating data block.
     Crafted inputs could result in Length Extension Attacks.
 
     Construction Parameters:
     - nBlocks: Maximum number of 512-bit blocks for payload input
     
     Inputs:
-    - in:     An array of blocks exactly nBlocks in length, each block containing an array of exactly 512 bits.
-              Padding of the input according to RFC4634 Section 4.1 is left to the caller.
-              Blocks following tBlock must be supplied, and *should* contain all zeroes
-    - tBlock: An integer corresponding to the terminating block of the input, which contains the message padding
+    - in:       An array of blocks exactly nBlocks in length, each block containing an array of exactly 512 bits.
+                Padding of the input according to RFC4634 Section 4.1 is left to the caller.
+                Blocks following lastBlock must be supplied, and *should* contain all zeroes
+    - lastBlock: An integer corresponding to the terminating block of the input, which contains the message padding
     
     Outputs:
     - out:    An array of 256 bits corresponding to the SHA256 output as of the terminating block
 */
 template Sha256_unsafe(nBlocks) {
     signal input in[nBlocks][512];
-    signal input tBlock;
+    signal input lastBlock;
     
     signal output out[256];
 
@@ -73,15 +73,15 @@ template Sha256_unsafe(nBlocks) {
     }
     
     // Collapse the hashing result at the terminating data block
-    // A modified Quin Selector allows us to select the block based on the tBlock signal
+    // A modified Quin Selector allows us to select the block based on the lastBlock signal
     component calcTotal[256];
     component eqs[nBlocks];
 
-    // Generate a bit vector of size nBlocks, where the bit corresponding to tBlock is raised
+    // Generate a bit vector of size nBlocks, where the bit corresponding to lastBlock is raised
     for (var i = 0; i < nBlocks; i++) {
         eqs[i] = IsEqual();
         eqs[i].in[0] <== i;
-        eqs[i].in[1] <== tBlock - 1;
+        eqs[i].in[1] <== lastBlock - 1;
     }
 
     // For each bit of the output
@@ -95,5 +95,76 @@ template Sha256_unsafe(nBlocks) {
             calcTotal[k].nums[i] <== eqs[i].out * sha256compression[i].out[k];
         }
         out[k] <== calcTotal[k].sum;
+    }
+}
+
+template Sha2_wrapper(inWidth, inCount, outWidth, outCount) {
+    signal input in[inCount];
+    signal input lastBlock;
+
+    signal output hash[outCount];
+
+    // The number of content segments, times the bit width of each is the bit length of the content.
+    // The content is decomposed to 512-bit blocks for SHA-256
+    var nBlocks = (inWidth * inCount) / 512;
+    
+    component sha256 = Sha256_unsafe(nBlocks);
+
+    // How many segments are in each block
+    assert(inWidth <= 512);
+    assert(512 % inWidth == 0);
+    var nSegments = 512 / inWidth;
+    component sha256_blocks[nBlocks][nSegments];
+
+    // For each 512-bit block going into SHA-256
+    for (var b = 0; b < nBlocks; b++) {
+        // For each segment going into that block
+        for (var s = 0; s < nSegments; s++) {
+            // The index from the content is offset by the block we're composing times the number of segments per block,
+            // s is then the segment offset within the block.
+            var payloadIndex = (b * nSegments) + s;
+            
+            // Decompose each segment into an array of individual bits
+            sha256_blocks[b][s] = Num2BitsLE(inWidth);
+            sha256_blocks[b][s].in <== in[payloadIndex];
+            
+            // The bit index going into the current SHA-256 block is offset by the segment number times the bit width
+            // of each content segment. sOffset + i is then the bit offset within the block (0-511).
+            var sOffset = s * inWidth;
+            for (var i = 0; i < inWidth; i++) {
+                sha256.in[b][sOffset + i] <== sha256_blocks[b][s].out[i];
+            }
+        }
+    }
+    sha256.lastBlock <== lastBlock;
+
+    /**
+        Pack the output of the SHA-256 hash into a vector of size outCount where each element has outWidth bits.
+    **/
+    component hash_packer[outCount];
+    for (var i = 0; i < outCount; i++) {
+        hash_packer[i] = Bits2NumLE(outWidth);
+        for (var j = 0; j < outWidth; j++) {
+            hash_packer[i].in[j] <== sha256.out[i * outWidth + j];
+        }
+        hash_packer[i].out ==> hash[i];
+    }
+
+    /**
+        Verify that content[i] for all blocks >= lastBlock is zero.
+    **/
+    // Generate a bit vector of size nBlocks, where the bit corresponding to lastBlock is raised
+    component gte[nBlocks];
+    for (var b = 0; b < nBlocks; b++) {
+        gte[b] = GreaterEqThan(log2(nBlocks));
+        gte[b].in[0] <== b;
+        gte[b].in[1] <== lastBlock;
+    }
+
+    for (var b = 0; b < nBlocks; b++) {
+        for (var s = 0; s < nSegments; s++) {
+            var payloadIndex = (b * nSegments) + s;
+            gte[b].out * in[payloadIndex] === 0;
+        }
     }
 }

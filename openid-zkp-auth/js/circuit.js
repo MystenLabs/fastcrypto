@@ -51,7 +51,7 @@ function genJwtMask(input, fields) {
 
 function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
     var segments = utils.arrayChunk(padMessage(utils.buffer2BitArray(Buffer.from(input))), nWidth);
-    const tBlock = segments.length / (512 / nWidth);
+    const lastBlock = segments.length / (512 / nWidth);
     
     if(segments.length < nCount) {
         segments = segments.concat(Array(nCount-segments.length).fill(Array(nWidth).fill(0)));
@@ -61,7 +61,7 @@ function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
         throw new Error('Padded message exceeds maximum blocks supported by circuit');
     }
     
-    return { [inParam]: segments, "tBlock": tBlock }; 
+    return { [inParam]: segments, "lastBlock": lastBlock }; 
 }
 
 function genClaimProofInputs(input, nCount, claimField, claimLength = undefined, nWidth = 16, inParam = "content") {

@@ -2,6 +2,7 @@ pragma circom 2.0.0;
 
 include "sha256.circom";
 include "misc.circom";
+include "../node_modules/circomlib/circuits/poseidon.circom";
 
 // There are broadly two implementation strategies (we take the first as it minimizes ZK comp): 
 // 1) Input the Base64 encoded JWT, which can be directly input to SHA-2, but 
@@ -18,17 +19,21 @@ JWT Proof
     Construction Parameters:
     - inCount:          Number of content inputs of inWidth size
 
-    Inputs:
-    - content[inCount]:     Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
-    - tBlock:               At which 512-bit block to select output hash
-    - payloadB64Offset[2]:  An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
-    - mask[inCount]:        A binary mask over X, i.e., mask[i] = 0 or 1
-    
-    Outputs:
-    - hash:             SHA256 hash output truncated to hashWidth bits
-    - out[inCount]:     Masked content
+    Private Inputs:
+    - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
+    - lastBlock:                   At which 512-bit block to select output hash
+    - payloadB64Offset[2]:      An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
+    - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
+    - randomness:               A random number used to keep the sensitive parts of the JWT hidden as we reveal the hash
+
+    Public Inputs:
+    - pub_key_and_max_epoch[2]: The ephemeral public key and the max epoch for which the key is valid (256 + 32 bits)
+    - hash:                     SHA256 hash output (256 bits)
+    - out[inCount]:             Masked content
+
+    With inCount = 64 * 7, a total of 448*8 + 256 + 256 + 32 = 4128 bits of public inputs. 4128 / 253 = 17 pub inputs.
 */
-template JwtProof(inCount) {
+template JwtProof(inCount, hashWidth) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
 
@@ -36,49 +41,24 @@ template JwtProof(inCount) {
     var inBits = inCount * inWidth;
     assert(inBits % 512 == 0);
 
-    // The number of content segments, times the bit width of each is the bit length of the content.
-    // The content is decomposed to 512-bit blocks for SHA-256
-    var nBlocks = inBits / 512;
-    
-    // How many segments are in each block
-    assert(inWidth <= 512);
-    assert(512 % inWidth == 0);
-    var nSegments = 512 / inWidth;
-
     signal input content[inCount];
-    signal input tBlock;
-    signal output hash[256];
     
     /**
         #1) SHA-256 (30k * nBlocks constraints)
     **/
-    component sha256 = Sha256_unsafe(nBlocks);
-    component sha256_blocks[nBlocks][nSegments];
-    
-    // For each 512-bit block going into SHA-256
-    for (var b = 0; b < nBlocks; b++) {
-        // For each segment going into that block
-        for (var s = 0; s < nSegments; s++) {
-            // The index from the content is offset by the block we're composing times the number of segments per block,
-            // s is then the segment offset within the block.
-            var payloadIndex = (b * nSegments) + s;
-            
-            // Decompose each segment into an array of individual bits
-            sha256_blocks[b][s] = Num2BitsLE(inWidth);
-            sha256_blocks[b][s].in <== content[payloadIndex];
-            
-            // The bit index going into the current SHA-256 block is offset by the segment number times the bit width
-            // of each content segment. sOffset + i is then the bit offset within the block (0-511).
-            var sOffset = s * inWidth;
-            for (var i = 0; i < inWidth; i++) {
-                sha256.in[b][sOffset + i] <== sha256_blocks[b][s].out[i];
-            }
-        }
-    }
-    sha256.tBlock <== tBlock;
+    signal input lastBlock;
+    assert(256 % hashWidth == 0);
+    var hashCount = 256 \ hashWidth;
+    signal output hash[hashCount];
 
-    for (var i = 0; i < 256; i++) {
-        hash[i] <== sha256.out[i];
+    component sha256 = Sha2_wrapper(inWidth, inCount, hashWidth, hashCount);
+    for (var i = 0; i < inCount; i++) {
+        sha256.in[i] <== content[i];
+    }
+    sha256.lastBlock <== lastBlock;
+
+    for (var i = 0; i < hashCount; i++) {
+        sha256.hash[i] ==> hash[i];
     }
 
     signal input payloadB64Offset[2]; // payloadB64Offset[0] is the MSB
@@ -184,24 +164,27 @@ template JwtProof(inCount) {
         out[i] <== content[i] * mask[i];
     }
 
-    /**
-        #4) Sanctity checks
-            4a) Verify that content[i] for all blocks >= tBlock is zero.
-    **/
-    component gte[nBlocks];
-    { // 4a
-        // Generate a bit vector of size nBlocks, where the bit corresponding to tBlock is raised
-        for (var b = 0; b < nBlocks; b++) {
-            gte[b] = GreaterEqThan(log2(nBlocks));
-            gte[b].in[0] <== b;
-            gte[b].in[1] <== tBlock;
-        }
+    var outWidth = 253;
+    var outCount = (inBits \ outWidth) + 1;
 
-        for (var b = 0; b < nBlocks; b++) {
-            for (var s = 0; s < nSegments; s++) {
-                var payloadIndex = (b * nSegments) + s;
-                gte[b].out * content[payloadIndex] === 0;
-            }
-        }
-    }
+
+    /**
+        #5) nonce == Hash(eph_public_key, max_epoch, r)
+
+        256 bits for ephemeral public key.
+        32 bits for max_epoch.
+        253 bits for randomness.
+    **/
+    signal input eph_pub_key[2];
+    signal input max_epoch;
+    signal input randomness;
+
+    signal output nonce;
+
+    component nhash = Poseidon(4);
+    nhash.inputs[0] <== eph_pub_key[0];
+    nhash.inputs[1] <== eph_pub_key[1];
+    nhash.inputs[2] <== max_epoch;
+    nhash.inputs[3] <== randomness;
+    nonce <== nhash.out;
 }
