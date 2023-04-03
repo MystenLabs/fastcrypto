@@ -98,10 +98,12 @@ template Sha256_unsafe(nBlocks) {
     }
 }
 
-template Sha2_wrapper(inWidth, inCount, outWidth, outCount) {
+template Sha2_wrapper(inWidth, inCount) {
     signal input in[inCount];
     signal input lastBlock;
 
+    var outWidth = 128;
+    var outCount = 2;
     signal output hash[outCount];
 
     // The number of content segments, times the bit width of each is the bit length of the content.

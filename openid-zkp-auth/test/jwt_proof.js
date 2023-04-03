@@ -84,7 +84,7 @@ describe("JWT Proof", () => {
     // });
     
     it("Extract from Base64 JSON", async () => {
-        const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount, hashWidth]);
+        const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount]);
         await cir.loadSymbols();
 
         const hash = crypto.createHash("sha256").update(input).digest("hex");
