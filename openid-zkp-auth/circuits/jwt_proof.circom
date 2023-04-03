@@ -29,12 +29,12 @@ JWT Proof
     Public Inputs:
     - ephPubKey[2]:             The ephemeral public key split into two 128-bit values
     - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
-    - hash:                     SHA256 hash output (256 bits)
+    - hash[2]:                  SHA256 hash output split into two 128-bit values
     - out[inCount]:             Masked content
 
     With inCount = 64 * 7, a total of 448*8 + 256 + 256 + 32 = 4128 bits of public inputs. 4128 / 253 = 17 pub inputs.
 */
-template JwtProof(inCount, hashWidth) {
+template JwtProof(inCount) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
 
@@ -50,12 +50,11 @@ template JwtProof(inCount, hashWidth) {
     signal input lastBlock;
     // Note: In theory, we could've packed 253 bits into an output value, but 
     //       that'd still require at least 2 values. Instead, the below impl
-    //       packs the 256 bits evenly, e.g., say among 2 values with 128 bits each. 
-    assert(256 % hashWidth == 0); 
-    var hashCount = 256 \ hashWidth;
+    //       packs the 256 bits into 2 values of 128 bits each. 
+    var hashCount = 2;
     signal output hash[hashCount];
 
-    component sha256 = Sha2_wrapper(inWidth, inCount, hashWidth, hashCount);
+    component sha256 = Sha2_wrapper(inWidth, inCount);
     for (var i = 0; i < inCount; i++) {
         sha256.in[i] <== content[i];
     }
