@@ -133,3 +133,51 @@ template SliceFixed(inSize, outSize) {
         out[i] <== selector[i].sum;
     }
 }
+
+// TODO: Tests to be added.
+/**
+Packer: Packs a list of numbers into a list of numbers of a different size.
+*/
+template Packer(inWidth, inCount, outWidth, outCount) {
+    signal input in[inCount];
+    signal output out[outCount];
+
+    var inBits = inCount * inWidth;
+    var myOutCount = inBits \ outWidth;
+    if (inBits % outWidth != 0) {
+        myOutCount++;
+    }
+    assert(myOutCount == outCount);
+
+    component expander[inCount];
+    for (var i = 0; i < inCount; i++) {
+        expander[i] = Num2BitsLE(inWidth);
+        expander[i].in <== in[i];
+    }
+
+    component compressor[outCount];
+    for (var i = 0; i < outCount; i++) {
+        compressor[i] = Bits2NumLE(outWidth);
+    }
+
+    for(var i = 0; i < inBits; i++) {
+        var oB = i % outWidth;
+        var o = (i - oB) \ outWidth;
+
+        var mB = i % inWidth;
+        var m = (i - mB) \ inWidth;
+
+        compressor[o].in[oB] <== expander[m].out[mB];
+    }
+
+    if (inBits % outWidth != 0) {
+        var outExtra = inBits % outWidth;
+        for(var i = outExtra; i < outWidth; i++) {
+            compressor[outCount - 1].in[i] <== 0;
+        }
+    }
+
+    for(var i = 0; i < outCount; i++) {
+        out[i] <== compressor[i].out;
+    }
+}

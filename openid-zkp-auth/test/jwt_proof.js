@@ -14,6 +14,7 @@ const test = require("../js/test");
 describe("JWT Proof", () => {
     const inCount = 448; // 64 * 7. For context, google_jwt size is 413, facebook_jwt: 673.
     const inWidth = 8;
+    const outWidth = 253;
     const hashWidth = 128;
 
     const facebook_jwt = 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjE0ZWJjMDRlNmFjM2QzZTk2MDMxZDJjY2QzODZmY2E5NWRkZjMyZGQifQ.eyJpc3MiOiJodHRwczpcL1wvd3d3LmZhY2Vib29rLmNvbSIsImF1ZCI6IjEyNDE1NTkzNjY3NTUyMTQiLCJzdWIiOiI3MDg1NjI2MTEwMDk1MjUiLCJpYXQiOjE2Nzk5MzIwMTQsImV4cCI6MTY3OTkzNTYxNCwianRpIjoiVEt2ei5kYmVjN2NhMzE5NDJhNWQyZTU2YmQwZGJmYjgyNGIxNzE4NWUwZjMwYjIwZjI1NzNkZTVkNDhmYzlmNTgzZTQzIiwibm9uY2UiOiJ0ZXN0IiwiZ2l2ZW5fbmFtZSI6IkpveSIsImZhbWlseV9uYW1lIjoiV2FuZyIsIm5hbWUiOiJKb3kgV2FuZyIsInBpY3R1cmUiOiJodHRwczpcL1wvcGxhdGZvcm0tbG9va2FzaWRlLmZic2J4LmNvbVwvcGxhdGZvcm1cL3Byb2ZpbGVwaWNcLz9hc2lkPTcwODU2MjYxMTAwOTUyNSZoZWlnaHQ9MTAwJndpZHRoPTEwMCZleHQ9MTY4MjUyNDAxNSZoYXNoPUFlUzBDcW5YTzJjYU94OFg4UWcifQ.ZCJrb_Fsu_cvMy-mCrRrRxSptL-3WhBW7DxasYYaDWGeFcADQKkPW4PW9MZNYrqq00hDqOgUkCJ_brq9Qf1mV2LOfHFmGHUSVwciCFH8f_7KH-Uu1TuPQbduBHgPqXiFkFxxEmz3o25mDO7VjgipRlsez4-XjUYJkSMCYRGkpmRFJPIDtz97dhCLbW16Kb59m8_7Lf4Uz2unDubHnwXeuIPxSmX2wr1WQxiFemFhgvnULZx4PvFnb72eHk9pFlywHrm-bA7qJWnajkrXEDNKAALV2uolgJDlPrlpZLiSW65fT2V3IBZSAsFeq4pCsuxr6eON9KIa8-4TFBy8xL4EZg'
@@ -97,7 +98,7 @@ describe("JWT Proof", () => {
         const hash2 = utils.getWitnessBuffer(witness, cir.symbols, "main.hash", varSize=hashWidth).toString("hex");
         assert.equal(hash2, hash);
 
-        const masked = utils.getWitnessBuffer(witness, cir.symbols, "main.out", varSize=inWidth).toString();
+        const masked = utils.getWitnessBuffer(witness, cir.symbols, "main.out", varSize=outWidth).toString();
         const claims = masked.split(/\x00+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
         console.log("claims", claims);
         

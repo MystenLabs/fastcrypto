@@ -5,7 +5,7 @@ include "../node_modules/circomlib/circuits/sha256/sha256compression.circom";
 include "../node_modules/circomlib/circuits/comparators.circom";
 include "misc.circom";
 
-/*
+/**
 SHA256 Unsafe
     Calculates the SHA256 hash of the input, using a signal to select the output round corresponding to the number of
     non-empty input blocks. This implementation is referred to as "unsafe", as it relies upon the caller to ensure that
@@ -98,7 +98,31 @@ template Sha256_unsafe(nBlocks) {
     }
 }
 
+// TODO: Tests to be added.
+/**
+SHA2_Wrapper
+
+    Calculates the SHA2 hash of an arbitrarily shaped input using SHA256_unsafe internally.
+    Additionally, it also packs the output and checks that everything after lastBlock is indeed 0.
+
+    Construction Parameters:
+    - inWidth:      Width of each input segment in bits
+    - inCount:      Number of input segments
+
+    Inputs:
+    - in:           An array of segments exactly inCount in length, each segment containing an array of exactly inWidth bits.
+                    Padding of the input according to RFC4634 Section 4.1 is left to the caller.
+    - lastBlock:    An integer corresponding to the terminating block of the input, which contains the message padding.
+
+    Outputs:
+    - hash:         An array of size 2 corresponding to the SHA256 output as of the terminating block split into two.
+                    The first element contains the first 128 bits of the hash, and the second element contains the last 128 bits.
+*/
 template Sha2_wrapper(inWidth, inCount) {
+    // Segments must divide evenly into 512 bit blocks
+    var inBits = inCount * inWidth;
+    assert(inBits % 512 == 0);
+
     signal input in[inCount];
     signal input lastBlock;
 
@@ -106,10 +130,8 @@ template Sha2_wrapper(inWidth, inCount) {
     var outCount = 2;
     signal output hash[outCount];
 
-    // The number of content segments, times the bit width of each is the bit length of the content.
     // The content is decomposed to 512-bit blocks for SHA-256
     var nBlocks = (inWidth * inCount) / 512;
-    
     component sha256 = Sha256_unsafe(nBlocks);
 
     // How many segments are in each block

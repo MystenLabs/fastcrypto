@@ -4,14 +4,7 @@ include "sha256.circom";
 include "misc.circom";
 include "../node_modules/circomlib/circuits/poseidon.circom";
 
-// There are broadly two implementation strategies (we take the first as it minimizes ZK comp): 
-// 1) Input the Base64 encoded JWT, which can be directly input to SHA-2, but 
-//    the mask is imperfect. In particular, some bits of the neighboring character 
-//    might be output depending on the location.
-// 2) Or input the decoded JWT as input which will make the mask perfect,
-//    but wed have to convert it into Base64 before hashing.
-
-/*
+/**
 JWT Proof
     Takes message content segmented into inWidth chunks and calculates a SHA256 hash, for which an RSA signature is known,
     as well as masking the content to obscure private fields.
@@ -29,21 +22,15 @@ JWT Proof
     Public Inputs:
     - ephPubKey[2]:             The ephemeral public key split into two 128-bit values
     - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
+    - nonce:                    H(ephPubKey, maxEpoch, randomness)
     - hash[2]:                  SHA256 hash output split into two 128-bit values
-    - out[inCount]:             Masked content
-
-    With inCount = 64 * 7, a total of 448*8 + 256 + 256 + 32 = 4128 bits of public inputs. 4128 / 253 = 17 pub inputs.
+    - out[outCount]:            Masked content packed into 253-bit chunks. outCount = ceil(inCount * inWidth / 253).
 */
 template JwtProof(inCount) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
-
-    // Segments must divide evenly into 512 bit blocks
-    var inBits = inCount * inWidth;
-    assert(inBits % 512 == 0);
-
     signal input content[inCount];
-    
+
     /**
         #1) SHA-256 (30k * nBlocks constraints)
     **/
@@ -160,15 +147,29 @@ template JwtProof(inCount) {
         Cost: (1k constraints) (2*inCount) 
     **/
     signal input mask[inCount];
-    signal output out[inCount];
+    signal masked[inCount];
 
     for(var i = 0; i < inCount; i++) {
         mask[i] * (1 - mask[i]) === 0; // Ensure mask is binary
-        out[i] <== content[i] * mask[i];
+        masked[i] <== content[i] * mask[i];
     }
 
     var outWidth = 253;
-    var outCount = (inBits \ outWidth) + 1;
+    var inBits = inCount * inWidth;
+    var outCount = inBits \ outWidth;
+    if (inBits % outWidth != 0) {
+        outCount++;
+    }
+
+    component outPacker = Packer(inWidth, inCount, outWidth, outCount);
+    for (var i = 0; i < inCount; i++) {
+        outPacker.in[i] <== masked[i];
+    }
+
+    signal output out[outCount];
+    for (var i = 0; i < outCount; i++) {
+        out[i] <== outPacker.out[i];
+    }
 
     /**
         #4) nonce == Hash(ephPubKey, maxEpoch, r)
