@@ -48,9 +48,3 @@ pub enum FastCryptoError {
     #[error("General cryptographic error")]
     GeneralOpaqueError,
 }
-
-impl From<signature::Error> for FastCryptoError {
-    fn from(_: signature::Error) -> Self {
-        FastCryptoError::InvalidSignature
-    }
-}
