@@ -107,15 +107,49 @@ function writeInputsToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
-async function calculateNonce(inputs) {
-    const buildPoseidon = require("circomlibjs").buildPoseidon;
-    poseidon = await buildPoseidon();
+function calculateNonce(inputs, poseidon) {
     return poseidon.F.toObject(poseidon([
         inputs["ephPubKey"][0], 
         inputs["ephPubKey"][1], 
         inputs["maxEpoch"],
         inputs["randomness"]
     ]));
+}
+
+function calculateMaskedHash(masked_content, poseidon, outWidth) {
+    const bits = buffer2BitArray(Buffer.from(masked_content));
+    const extra_bits = (bits.length % outWidth == 0) ? 0 : outWidth - (bits.length % outWidth);
+    const bits_padded = bits.concat(Array(extra_bits).fill(0));
+    if (bits_padded.length % outWidth != 0) throw new Error("Invalid logic");
+
+    const packed = arrayChunk(bits_padded, outWidth).map(chunk => BigInt("0b" + chunk.join('')));
+    return poseidon.F.toObject(poseidon(packed));
+}
+
+/**
+ * @param {Array} input 
+ * @param {Array} mask 
+ * @returns A string of characters where the masked characters are replaced with '='
+ */
+function applyMask(input, mask) {
+    if (input.length != mask.length) {
+        throw new Error("Input and mask must be of the same length");
+    }
+    return input.map((charCode, index) => (mask[index] == 1) ? String.fromCharCode(Number(charCode)) : '=').join('');
+}
+
+function getPayloadOffset(input) {
+    const payloadStartIndex = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
+    const b64offset = (4 - (payloadStartIndex % 4)) % 4;
+    if (b64offset == 2) {
+        throw new Error("Invalid input");
+    }
+    return b64offset;
+}
+
+function fromBase64WithOffset(input, offset) {
+    var extraPrefix = '='.repeat(offset);
+    return Buffer.from(extraPrefix + input, 'base64').toString('utf8');
 }
 
 module.exports = {
@@ -133,5 +167,9 @@ module.exports = {
     getWitnessBuffer: getWitnessBuffer,
     getAllBase64Variants: getAllBase64Variants,
     writeInputsToFile: writeInputsToFile,
-    calculateNonce: calculateNonce
+    calculateNonce: calculateNonce,
+    applyMask: applyMask,
+    getPayloadOffset: getPayloadOffset,
+    fromBase64WithOffset: fromBase64WithOffset,
+    calculateMaskedHash: calculateMaskedHash
 }

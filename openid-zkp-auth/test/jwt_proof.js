@@ -45,61 +45,28 @@ describe("JWT Proof", () => {
         // console.log(subKVinB64Options);
     });
 
-    // it("JWT masking edge cases", async() => {
-    //     var header = '{"kid":abc}';
-    //     var payload = '{"iss":123,"azp":456,"iat":789,"exp":101112}';
-    //     var encoded_jwt = utils.trimEndByChar(Buffer.from(header).toString('base64'), '=') + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64'), '=');
-
-    //     var [mask, startOffsets] = circuit.genJwtMask(encoded_jwt, ["exp"]);
-    //     var consecutiveClaims = ["iss"];
-    //     const circuitOutputClaims = encoded_jwt.split('').map((c, i) => mask[i] == 1 ? c : ' ').join('').split(/\s+/).filter(e => e !== '');
-        
-    //     assert.equal(circuitOutputClaims.length, consecutiveClaims.length);
-
-    //     console.log(circuitOutputClaims, startOffsets);
-
-    //     // Each element corresponds to a non-consecutive claim
-    //     var claims = [];
-    //     for (const [i, c] of circuitOutputClaims.entries()) {
-    //         claims.push(Buffer.from('0'.repeat(startOffsets[i]) + c, 'base64').toString().slice(startOffsets[i]));
-    //     }
-    //     console.log(claims, "claims");
-    //     assert.equal(claims.length, 1);
-
-    //     assert.equal(claims[0], '"azp":456,', "Does not contain azp claim");
-    // });
-    
-    // it("JWT masking", async() => {
-    //     const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount]);
-    //     await cir.loadSymbols();
-
-    //     const mask = circuit.genJwtMask(input, ["iss", "azp", "iat", "exp"]);
-        
-    //     const claims = input.split('').map((c, i) => mask[i] == 1 ? c : ' ').join('').split(/\s+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
-    //     console.log(input.split('').map((c, i) => mask[i] == 1 ? c : ' ').join('').split(/\s+/).filter(e => e !== ''));
-
-    //     assert.equal(claims.length, 2, "Incorrect number of claims");
-    //     assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");
-    //     assert.include(claims[1], '"iat":1679674145', "Does not contain iat claim");
-    //     assert.include(claims[2], '"exp":1679677745', "Does not contain exp claim");
-    // });
-    
     it("Extract from Base64 JSON", async () => {
-        const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount]);
-        await cir.loadSymbols();
-
+        const buildPoseidon = require("circomlibjs").buildPoseidon;
+        poseidon = await buildPoseidon();
+    
         const hash = crypto.createHash("sha256").update(input).digest("hex");
         
-        var inputs = circuit.genJwtProofInputs(input, inCount, ["iss", "azp"], inWidth);
-        const nonceExpected = await utils.calculateNonce(inputs);
+        var inputs = circuit.genJwtProofInputs(input, inCount, ["iss", "aud"], inWidth);
+        const nonceExpected = utils.calculateNonce(inputs, poseidon);
+        const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
+        const maskedHashExpected = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
 
+        const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount]);
+        await cir.loadSymbols();
         const witness = await cir.calculateWitness(inputs, true);
         
         const hash2 = utils.getWitnessBuffer(witness, cir.symbols, "main.hash", varSize=hashWidth).toString("hex");
         assert.equal(hash2, hash);
 
-        const masked = utils.getWitnessBuffer(witness, cir.symbols, "main.out", varSize=outWidth).toString();
-        const claims = masked.split(/\x00+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
+        const maskedHash = utils.getWitnessValue(witness, cir.symbols, "main.out");
+        assert.equal(maskedHash, maskedHashExpected);
+
+        const claims = maskedContent.split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
         console.log("claims", claims);
         
         // assert.equal(claims.length, 2, "Incorrect number of claims");
