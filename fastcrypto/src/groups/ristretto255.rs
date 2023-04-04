@@ -191,9 +191,9 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
     fn from_byte_array(
         bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
     ) -> Result<Self, FastCryptoError> {
-        Ok(RistrettoScalar(
-            ExternalRistrettoScalar::from_bytes_mod_order(*bytes),
-        ))
+        let canonical_scalar = ExternalRistrettoScalar::from_canonical_bytes(*bytes)
+            .ok_or(FastCryptoError::InvalidInput)?;
+        Ok(RistrettoScalar(canonical_scalar))
     }
 
     fn to_byte_array(&self) -> [u8; RISTRETTO_SCALAR_BYTE_LENGTH] {
