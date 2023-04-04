@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const utils = require('./utils');
 const {toBigIntBE} = require('bigint-buffer');
 
@@ -77,7 +78,6 @@ function genClaimProofInputs(input, nCount, claimField, claimLength = undefined,
 }
 
 function genNonceInputs() {
-  const crypto = require("crypto");
   const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
   const max_epoch = 100;
   const randomness = BigInt("0x" + crypto.randomBytes(31).toString('hex'));
@@ -92,26 +92,34 @@ function genNonceInputs() {
   };
 }
 
-function genJwtProofInputs(input, nCount, fields, nWidth = 16, inParam = "content") {
+async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 253, inParam = "content") {
   // set SHA-2 inputs
   var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
   inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
 
-  // set nonce-related inputs
-  nonceInputs = genNonceInputs();
-  inputs = Object.assign({}, inputs, nonceInputs);
+  // init poseidon
+  const buildPoseidon = require("circomlibjs").buildPoseidon;
+  poseidon = await buildPoseidon();
 
-  // get offset
+  // set nonce-related inputs
+  inputs = Object.assign({}, inputs, genNonceInputs());
+  inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
+
+  // set offset
   const offset = utils.getPayloadOffset(input);
+  inputs["payloadB64Offset"] = [offset % 2, Math.floor(offset / 2)];
   
-  inputs = Object.assign({},
-    inputs,
-    { 
-      "mask": genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0)),
-      "payloadB64Offset": [offset % 2, Math.floor(offset / 2)]
-    }
-  );
-  
+  // set mask 
+  inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0));
+
+  // set hash
+  const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
+  inputs["hash"] = [hash / 2n**128n, hash % 2n**128n];
+
+  // set hash of the masked content
+  const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
+  inputs["out"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
+
   return inputs;
 }
 

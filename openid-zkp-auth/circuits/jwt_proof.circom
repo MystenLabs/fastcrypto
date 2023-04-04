@@ -39,7 +39,7 @@ template JwtProof(inCount) {
     //       that'd still require at least 2 values. Instead, the below impl
     //       packs the 256 bits into 2 values of 128 bits each. 
     var hashCount = 2;
-    signal output hash[hashCount];
+    signal input hash[hashCount];
 
     component sha256 = Sha2_wrapper(inWidth, inCount);
     for (var i = 0; i < inCount; i++) {
@@ -48,7 +48,7 @@ template JwtProof(inCount) {
     sha256.lastBlock <== lastBlock;
 
     for (var i = 0; i < hashCount; i++) {
-        sha256.hash[i] ==> hash[i];
+        sha256.hash[i] === hash[i];
     }
 
     /** 
@@ -149,6 +149,7 @@ template JwtProof(inCount) {
     **/
     signal input mask[inCount];
     signal masked[inCount];
+    signal input out;
 
     for(var i = 0; i < inCount; i++) {
         // Ensure mask is binary
@@ -169,12 +170,11 @@ template JwtProof(inCount) {
         outPacker.in[i] <== masked[i];
     }
 
-    signal output out;
     component outHasher = Poseidon(outCount);
     for (var i = 0; i < outCount; i++) {
         outHasher.inputs[i] <== outPacker.out[i];
     }
-    out <== outHasher.out;
+    out === outHasher.out;
 
     /**
         #4) nonce == Hash(ephPubKey, maxEpoch, r)
@@ -182,13 +182,12 @@ template JwtProof(inCount) {
     signal input ephPubKey[2];
     signal input maxEpoch;
     signal input randomness;
-
-    signal output nonce;
+    signal input nonce;
 
     component nhash = Poseidon(4);
     nhash.inputs[0] <== ephPubKey[0];
     nhash.inputs[1] <== ephPubKey[1];
     nhash.inputs[2] <== maxEpoch;
     nhash.inputs[3] <== randomness;
-    nonce <== nhash.out;
+    nonce === nhash.out;
 }

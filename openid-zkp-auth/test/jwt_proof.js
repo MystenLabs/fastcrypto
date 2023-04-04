@@ -46,26 +46,18 @@ describe("JWT Proof", () => {
     });
 
     it("Extract from Base64 JSON", async () => {
-        const buildPoseidon = require("circomlibjs").buildPoseidon;
-        poseidon = await buildPoseidon();
-    
-        const hash = crypto.createHash("sha256").update(input).digest("hex");
-        
-        var inputs = circuit.genJwtProofInputs(input, inCount, ["iss", "aud"], inWidth);
-        const nonceExpected = utils.calculateNonce(inputs, poseidon);
+        var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud"], inWidth, outWidth);
+
+        const cir = await test.genMain(
+            path.join(__dirname, "..", "circuits", "jwt_proof.circom"),
+            "JwtProof",
+            [inCount]
+        );
+
+        const w = await cir.calculateWitness(inputs, true);
+        await cir.checkConstraints(w);
+
         const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-        const maskedHashExpected = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
-
-        const cir = await test.genMain(path.join(__dirname, "..", "circuits", "jwt_proof.circom"), "JwtProof", [inCount]);
-        await cir.loadSymbols();
-        const witness = await cir.calculateWitness(inputs, true);
-        
-        const hash2 = utils.getWitnessBuffer(witness, cir.symbols, "main.hash", varSize=hashWidth).toString("hex");
-        assert.equal(hash2, hash);
-
-        const maskedHash = utils.getWitnessValue(witness, cir.symbols, "main.out");
-        assert.equal(maskedHash, maskedHashExpected);
-
         const claims = maskedContent.split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
         console.log("claims", claims);
         
@@ -73,9 +65,6 @@ describe("JWT Proof", () => {
         // assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");
         // assert.include(claims[1], '"azp":"407408718192.apps.googleusercontent.com"', "Does not contain azp claim");
         // assert.include(claims[2], '"iat":1679674145', "Does not contain nonce claim");
-
-        const nonceActual = utils.getWitnessValue(witness, cir.symbols, "main.nonce");
-        assert.equal(nonceActual, nonceExpected);
         
         const pubkey = await jose.importJWK(jwk);
         assert.isTrue(crypto.createVerify('RSA-SHA256').update(input).verify(pubkey, Buffer.from(signature, 'base64')), "Signature does not correspond to hash");
