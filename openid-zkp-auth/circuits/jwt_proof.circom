@@ -24,7 +24,7 @@ JWT Proof
     - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
     - nonce:                    H(ephPubKey, maxEpoch, randomness)
     - hash[2]:                  SHA256 hash output split into two 128-bit values
-    - out[outCount]:            Masked content packed into 253-bit chunks. outCount = ceil(inCount * inWidth / 253).
+    - out:                      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
 */
 template JwtProof(inCount) {
     // Input is Base64 characters encoded as ASCII
@@ -58,6 +58,7 @@ template JwtProof(inCount) {
         
         Check 2a can be omitted if we can assume that "sub" only appears once.
     **/
+    // TODO: Check that payloadB64Offset is never 2
     signal input payloadB64Offset[2]; // payloadB64Offset[0] is the MSB
     component X = ExpandInitialOffsets();
     X.in[0] <== payloadB64Offset[0];
@@ -150,8 +151,10 @@ template JwtProof(inCount) {
     signal masked[inCount];
 
     for(var i = 0; i < inCount; i++) {
-        mask[i] * (1 - mask[i]) === 0; // Ensure mask is binary
-        masked[i] <== content[i] * mask[i];
+        // Ensure mask is binary
+        mask[i] * (1 - mask[i]) === 0;
+        // If mask is 0, then replace with '=' (ASCII 61) to avoid conflicts with base64 characters
+        masked[i] <== content[i] * mask[i] + (1 - mask[i]) * 61;
     }
 
     var outWidth = 253;
@@ -166,10 +169,12 @@ template JwtProof(inCount) {
         outPacker.in[i] <== masked[i];
     }
 
-    signal output out[outCount];
+    signal output out;
+    component outHasher = Poseidon(outCount);
     for (var i = 0; i < outCount; i++) {
-        out[i] <== outPacker.out[i];
+        outHasher.inputs[i] <== outPacker.out[i];
     }
+    out <== outHasher.out;
 
     /**
         #4) nonce == Hash(ephPubKey, maxEpoch, r)
