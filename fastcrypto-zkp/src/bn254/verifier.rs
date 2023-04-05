@@ -3,11 +3,13 @@
 use std::ops::Neg;
 
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
+use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bn::G2Prepared;
 use ark_ec::pairing::Pairing;
-use ark_groth16::{PreparedVerifyingKey as ArkPreparedVerifyingKey, VerifyingKey};
+use ark_groth16::{Groth16, PreparedVerifyingKey as ArkPreparedVerifyingKey};
 
-use crate::bn254::api::SCALAR_SIZE;
+use crate::bn254::api::{Bn254Fr, SCALAR_SIZE};
+use crate::bn254::{FieldElement, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
 
@@ -125,6 +127,7 @@ impl PreparedVerifyingKey {
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
+/// use fastcrypto_zkp::bn254::VerifyingKey;
 ///
 /// let mut rng = thread_rng();
 /// let params = {
@@ -134,13 +137,26 @@ impl PreparedVerifyingKey {
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
 /// // once per circuit.
-/// let pvk = process_vk_special(&params.vk);
+/// let pvk = process_vk_special(&VerifyingKey::from(params.vk));
 /// ```
-pub fn process_vk_special(vk: &VerifyingKey<Bn254>) -> PreparedVerifyingKey {
+pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
     PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
-        alpha_g1_beta_g2: Bn254::pairing(vk.alpha_g1, vk.beta_g2).0,
-        gamma_g2_neg_pc: vk.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.delta_g2.neg(),
+        vk_gamma_abc_g1: vk.0.gamma_abc_g1.clone(),
+        alpha_g1_beta_g2: Bn254::pairing(vk.0.alpha_g1, vk.0.beta_g2).0,
+        gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
+        delta_g2_neg_pc: vk.0.delta_g2.neg(),
     }
+}
+
+/// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
+/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of proof public inputs and
+/// serialized proof points.
+pub fn verify_with_processed_vk(
+    pvk: &PreparedVerifyingKey,
+    public_inputs: &Vec<FieldElement>,
+    proof: &Proof,
+) -> Result<bool, FastCryptoError> {
+    let x: Vec<Bn254Fr> = public_inputs.into_iter().map(|x| x.0).collect();
+    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof.0)
+        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

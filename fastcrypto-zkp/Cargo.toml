@@ -24,6 +24,7 @@ ark-serialize = "0.4.1"
 blst = "0.3.10"
 byte-slice-cast = "1.2.2"
 fastcrypto = { path = "../fastcrypto" }
+derive_more = "0.99.16"
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
