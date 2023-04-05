@@ -11,20 +11,15 @@ use fastcrypto::error::FastCryptoError;
 #[path = "unit_tests/api_tests.rs"]
 mod api_tests;
 
-use crate::bn254::{FieldElement, Proof, VerifyingKey};
-pub use ark_ff::ToConstraintField;
-
 /// Size of scalars in the BN254 construction.
 pub const SCALAR_SIZE: usize = 32;
 
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`crate::bn254::verifier::PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
-    let vk = VerifyingKey::from(
-        ark_groth16::VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
-            .map_err(|_| FastCryptoError::InvalidInput)?,
-    );
-    process_vk_special(&vk).as_serialized()
+    let vk = ark_groth16::VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    process_vk_special(&vk.into()).as_serialized()
 }
 
 /// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
@@ -44,9 +39,11 @@ pub fn verify_groth16_in_bytes(
     }
     let mut x = Vec::new();
     for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(FieldElement::from(
-            Bn254Fr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?,
-        ));
+        x.push(
+            Bn254Fr::deserialize_compressed(chunk)
+                .map_err(|_| FastCryptoError::InvalidInput)?
+                .into(),
+        );
     }
 
     let pvk = PreparedVerifyingKey::deserialize(
