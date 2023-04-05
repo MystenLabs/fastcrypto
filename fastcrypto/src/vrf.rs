@@ -107,7 +107,9 @@ pub mod ecvrf {
             let mut expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::<
                 <H as ReverseWrapper>::Variant,
             >::expand_message(
-                &[&self.0.compress(), alpha_string], &[DST], H::OUTPUT_SIZE
+                &[&self.0.compress(), alpha_string],
+                &[DST],
+                H::OUTPUT_SIZE,
             )
             .unwrap();
 
