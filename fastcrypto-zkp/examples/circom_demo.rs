@@ -12,15 +12,24 @@ use ark_groth16::Groth16;
 use ark_std::rand::thread_rng;
 use num_bigint::BigInt;
 
-type CircomInput = HashMap<String, Vec<num_bigint::BigInt>>;
+use fastcrypto_zkp::circom::{read_proof, read_public_inputs, read_vkey};
 
-fn verify_proof_with_r1cs(inputs: CircomInput, wasm_path: &str, r1cs_path: &str) {
+#[derive(PartialEq)]
+enum IntegrationOption {
+    Setup,
+    Prove,
+    Verify,
+}
+
+type CircomInput = HashMap<String, Vec<BigInt>>;
+
+fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &str) {
     // Load the WASM and R1CS for witness and proof generation
     let cfg = CircomConfig::<Bn254>::new(wasm_path, r1cs_path).unwrap();
 
     // Insert our public inputs as key value pairs
     let mut builder = CircomBuilder::new(cfg);
-    for (k, v) in inputs {
+    for (k, v) in all_inputs {
         for e in v {
             builder.push_input(&k, e);
         }
@@ -36,18 +45,18 @@ fn verify_proof_with_r1cs(inputs: CircomInput, wasm_path: &str, r1cs_path: &str)
     // Get the populated instance of the circuit with the witness
     let circom = builder.build().unwrap();
 
-    let inputs = circom.get_public_inputs().unwrap();
+    let public_inputs = circom.get_public_inputs().unwrap();
 
     // Generate the proof
     let proof = Groth16::<Bn254>::prove(&params, circom, &mut rng).unwrap();
 
     // Check that the proof is valid
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
-    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &inputs).unwrap();
+    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
     assert!(verified);
 }
 
-fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
+fn prove_and_verify(all_inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
     let mut file = File::open(zkey_path).unwrap();
     let (params, matrices) = read_zkey(&mut file).unwrap();
 
@@ -63,7 +72,7 @@ fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &s
     let s = ark_bn254::Fr::rand(rng);
 
     let full_assignment = wtns
-        .calculate_witness_element::<Bn254, _>(inputs, false)
+        .calculate_witness_element::<Bn254, _>(all_inputs, false)
         .unwrap();
     let proof = Groth16::<Bn254, CircomReduction>::create_proof_with_reduction_and_matrices(
         &params,
@@ -77,48 +86,54 @@ fn verify_proof_without_r1cs(inputs: CircomInput, zkey_path: &str, wasm_path: &s
     .unwrap();
 
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
-    let inputs = &full_assignment[1..num_inputs];
-    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, inputs).unwrap();
+    let public_inputs = &full_assignment[1..num_inputs];
+    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, public_inputs).unwrap();
+    assert!(verified);
+}
 
+fn verify(vkey_path: &str, proof_path: &str, public_inputs_path: &str) {
+    let vk = read_vkey(vkey_path);
+    let pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
+
+    let proof = read_proof(proof_path);
+
+    let public_inputs = read_public_inputs(public_inputs_path);
+
+    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
     assert!(verified);
 }
 
 fn main() {
-    /* mycircuit example copied from https://github.com/gakonst/ark-circom */
-    verify_proof_with_r1cs(
-        HashMap::from([
-            ("a".to_string(), vec![BigInt::from(3)]),
-            ("b".to_string(), vec![BigInt::from(11)]),
-        ]),
-        "./examples/circom-inputs/mycircuit.wasm",
-        "./examples/circom-inputs/mycircuit.r1cs",
-    );
-    println!("mycircuit with r1cs pass");
+    verify_mycircuit(IntegrationOption::Setup);
+    verify_mycircuit(IntegrationOption::Prove);
 
-    verify_proof_without_r1cs(
-        HashMap::from([
-            ("a".to_string(), vec![BigInt::from(3)]),
-            ("b".to_string(), vec![BigInt::from(11)]),
-        ]),
-        "./examples/circom-inputs/mycircuit.zkey",
-        "./examples/circom-inputs/mycircuit.wasm",
-    );
-    println!("mycircuit without r1cs pass");
+    verify_zkopenid(IntegrationOption::Verify);
 
-    verify_proof_with_r1cs(
-        load_rsa_test_vector(),
-        "./examples/circom-inputs/rsa_sha2.wasm",
-        "./examples/circom-inputs/rsa_sha2.r1cs",
-    );
-    println!("rsa_sha2 with r1cs pass");
+    verify_rsa(IntegrationOption::Setup);
+}
 
-    // Commented because the size of zkey is too big for git
-    // verify_proof_without_r1cs(
-    //     load_rsa_test_vector(),
-    //     "./circom-inputs/rsa_sha2.zkey",
-    //     "./circom-inputs/rsa_sha2.wasm"
-    // );
-    // println!("rsa_sha2 without r1cs pass");
+// This example is copied from https://github.com/gakonst/ark-circom
+fn verify_mycircuit(option: IntegrationOption) {
+    let inputs = HashMap::from([
+        ("a".to_string(), vec![BigInt::from(3)]),
+        ("b".to_string(), vec![BigInt::from(11)]),
+    ]);
+    let r1cs_path = "./examples/circom-inputs/mycircuit.r1cs";
+    let zkey_path = "./examples/circom-inputs/mycircuit.zkey";
+    let wasm_path = "./examples/circom-inputs/mycircuit.wasm";
+    match option {
+        IntegrationOption::Setup => {
+            setup_prove_and_verify(inputs, wasm_path, r1cs_path);
+            println!("Mycircuit: setup_prove_and_verify pass")
+        }
+        IntegrationOption::Prove => {
+            prove_and_verify(inputs, zkey_path, wasm_path);
+            println!("Mycircuit: prove_and_verify pass")
+        }
+        IntegrationOption::Verify => {
+            println!("Mycircuit: verify not implemented");
+        }
+    }
 }
 
 fn load_rsa_test_vector() -> CircomInput {
@@ -241,4 +256,127 @@ fn load_rsa_test_vector() -> CircomInput {
             base_message.into_iter().map(BigInt::from).collect(),
         ),
     ])
+}
+
+fn verify_rsa(option: IntegrationOption) {
+    let inputs = load_rsa_test_vector();
+    let r1cs_path = "./examples/circom-inputs/rsa_sha2.r1cs";
+    let wasm_path = "./examples/circom-inputs/rsa_sha2.wasm";
+    let preamble = "RSA_SHA2";
+    match option {
+        IntegrationOption::Setup => {
+            setup_prove_and_verify(inputs, wasm_path, r1cs_path);
+            println!("{}: setup_prove_and_verify pass", preamble);
+        }
+        IntegrationOption::Prove => {
+            println!(
+                "{}: prove_and_verify not implemented as zkey is too big",
+                preamble
+            );
+        }
+        IntegrationOption::Verify => {
+            println!("{}: verify not implemented", preamble);
+        }
+    }
+}
+
+#[allow(non_snake_case)]
+#[derive(serde::Deserialize)]
+struct OpenIDInputs {
+    content: Vec<String>,
+    lastBlock: u64,
+    mask: Vec<u64>,
+    payloadB64Offset: Vec<u64>,
+    nonce: String,
+    ephPubKey: [String; 2],
+    randomness: String,
+    maxEpoch: u64,
+    hash: [String; 2],
+    out: String,
+}
+
+fn load_zkopenid_test_vector(path: &str) -> CircomInput {
+    let file = File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let inputs: OpenIDInputs = serde_json::from_reader(reader).unwrap();
+    let mut inputs_map = HashMap::new();
+    inputs_map.insert(
+        "content".to_string(),
+        inputs
+            .content
+            .iter()
+            .map(|s| s.parse::<BigInt>().unwrap())
+            .collect(),
+    );
+    inputs_map.insert(
+        "lastBlock".to_string(),
+        vec![BigInt::from(inputs.lastBlock)],
+    );
+    inputs_map.insert(
+        "mask".to_string(),
+        inputs.mask.iter().map(|s| BigInt::from(*s)).collect(),
+    );
+    inputs_map.insert(
+        "payloadB64Offset".to_string(),
+        inputs
+            .payloadB64Offset
+            .iter()
+            .map(|s| BigInt::from(*s))
+            .collect(),
+    );
+    inputs_map.insert(
+        "nonce".to_string(),
+        vec![inputs.nonce.parse::<BigInt>().unwrap()],
+    );
+    inputs_map.insert(
+        "ephPubKey".to_string(),
+        inputs
+            .ephPubKey
+            .iter()
+            .map(|s| s.parse::<BigInt>().unwrap())
+            .collect(),
+    );
+    inputs_map.insert(
+        "randomness".to_string(),
+        vec![inputs.randomness.parse::<BigInt>().unwrap()],
+    );
+    inputs_map.insert("maxEpoch".to_string(), vec![BigInt::from(inputs.maxEpoch)]);
+    inputs_map.insert(
+        "hash".to_string(),
+        inputs
+            .hash
+            .iter()
+            .map(|s| s.parse::<BigInt>().unwrap())
+            .collect(),
+    );
+    inputs_map.insert(
+        "out".to_string(),
+        vec![inputs.out.parse::<BigInt>().unwrap()],
+    );
+    println!("Loaded inputs: {:?}", inputs_map);
+    inputs_map
+}
+
+fn verify_zkopenid(option: IntegrationOption) {
+    match option {
+        IntegrationOption::Setup => {
+            setup_prove_and_verify(
+                load_zkopenid_test_vector("../openid-zkp-auth/proving/inputs.json"),
+                "../openid-zkp-auth/google/google_js/google.wasm",
+                "../openid-zkp-auth/google/google.r1cs",
+            );
+            println!("ZKOpenID: setup_prove_and_verify pass");
+        }
+        IntegrationOption::Prove => {
+            println!("ZKOpenID: Not implemented because the size of zkey is too big for git");
+        }
+        IntegrationOption::Verify => {
+            verify(
+                "../openid-zkp-auth/google/google.vkey",
+                "../openid-zkp-auth/google/google.proof",
+                "../openid-zkp-auth/google/public.json",
+            );
+            println!("ZKOpenID: verify pass");
+        }
+    }
 }
