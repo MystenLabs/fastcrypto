@@ -137,7 +137,7 @@ impl PreparedVerifyingKey {
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
 /// // once per circuit.
-/// let pvk = process_vk_special(&VerifyingKey::from(params.vk));
+/// let pvk = process_vk_special(&params.vk.into());
 /// ```
 pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
     PreparedVerifyingKey {
