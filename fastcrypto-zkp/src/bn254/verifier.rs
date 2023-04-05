@@ -148,9 +148,9 @@ pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
     }
 }
 
-/// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
-/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of proof public inputs and
-/// serialized proof points.
+/// Verify Groth16 proof using the prepared verifying key (see more at
+/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and
+/// the proof.
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     public_inputs: &[FieldElement],
