@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::bls12381::verifier::{ArkProof, BlsFr, PreparedVerifyingKey as CustomPVK};
+use crate::bls12381::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Projective};
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bls12::G1Prepared;
@@ -66,7 +66,7 @@ fn ark_process_vk(vk: &ark_groth16::VerifyingKey<Bls12_381>) -> PreparedVerifyin
 // See [`test_multipairing_with_processed_vk`]
 fn ark_multipairing_with_prepared_vk(
     pvk: &PreparedVerifyingKey<Bls12_381>,
-    proof: &ArkProof<Bls12_381>,
+    proof: &ark_groth16::Proof<Bls12_381>,
     public_inputs: &[Fr],
 ) -> Fq12 {
     let mut g_ic = G1Projective::from(pvk.vk.gamma_abc_g1[0]);
@@ -189,7 +189,7 @@ fn test_verify_with_processed_vk() {
     };
 
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-    let proof = Proof(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
+    let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap().into();
     let v = c.a.unwrap().mul(c.b.unwrap());
 
     let blst_pvk = process_vk_special(&vk.into());
