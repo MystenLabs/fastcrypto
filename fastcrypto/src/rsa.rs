@@ -5,6 +5,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
+pub use base64ct::{Base64UrlUnpadded, Encoding};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1v15::Signature as ExternalSignature;
 use rsa::{BigUint, RsaPublicKey as ExternalPublicKey};
