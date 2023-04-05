@@ -131,7 +131,7 @@ impl PreparedVerifyingKey {
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
 /// // once per circuit.
-/// let pvk = process_vk_special(&params.vk);
+/// let pvk = process_vk_special(&params.vk.into());
 /// ```
 pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
     let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.0.alpha_g1);
@@ -336,22 +336,22 @@ fn multipairing_with_processed_vk(
 ///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
 /// };
 ///
-/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
-/// // once per circuit.
-/// let pvk = process_vk_special(&params.vk);
-///
 /// let proof = {
 ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
 ///     // Create a proof with our parameters, picking a random witness assignment
 ///     Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
 /// };
 ///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&params.vk.into());
+///
 /// // We provide the public inputs which we know are used in our circuits
 /// // this must be the same as the inputs used in the proof right above.
-/// let inputs: Vec<_> = [FieldElement(Fr::one()); 2].to_vec();
+/// let inputs: Vec<FieldElement> = [Fr::one().into(); 2].to_vec();
 ///
 /// // Verify the proof
-/// let r = verify_with_processed_vk(&pvk, &inputs, &proof).unwrap();
+/// let r = verify_with_processed_vk(&pvk, &inputs, &proof.into()).unwrap();
 /// ```
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,

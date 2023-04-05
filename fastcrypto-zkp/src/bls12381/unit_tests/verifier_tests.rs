@@ -20,7 +20,6 @@ use std::{
     ops::{AddAssign, Mul, Neg},
 };
 
-use crate::bls12381::{FieldElement, VerifyingKey};
 use crate::{
     bls12381::conversions::{
         bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
@@ -193,15 +192,16 @@ fn test_verify_with_processed_vk() {
     let proof = Proof(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
     let v = c.a.unwrap().mul(c.b.unwrap());
 
-    let blst_pvk = process_vk_special(&VerifyingKey(vk));
-    assert!(verify_with_processed_vk(&blst_pvk, &[FieldElement::from(v)], &proof).unwrap());
+    let blst_pvk = process_vk_special(&vk.into());
+    assert!(verify_with_processed_vk(&blst_pvk, &[v.into()], &proof).unwrap());
 
     // Roundtrip serde of the proof public input bytes.
     let mut public_inputs_bytes = Vec::new();
     v.serialize_compressed(&mut public_inputs_bytes).unwrap();
 
-    let deserialized_public_inputs =
-        FieldElement(BlsFr::deserialize_compressed(public_inputs_bytes.as_slice()).unwrap());
+    let deserialized_public_inputs = BlsFr::deserialize_compressed(public_inputs_bytes.as_slice())
+        .unwrap()
+        .into();
 
     // Roundtrip serde of the proof points bytes.
     let mut proof_points_bytes = Vec::new();
@@ -209,10 +209,10 @@ fn test_verify_with_processed_vk() {
         .0
         .serialize_compressed(&mut proof_points_bytes)
         .unwrap();
-    let deserialized_proof_points = Proof(
+    let deserialized_proof_points =
         ark_groth16::Proof::<Bls12_381>::deserialize_compressed(proof_points_bytes.as_slice())
-            .unwrap(),
-    );
+            .unwrap()
+            .into();
 
     // Roundtrip serde of the prepared verifying key.
     let serialized = blst_pvk.as_serialized().unwrap();
@@ -248,7 +248,7 @@ fn test_multipairing_with_processed_vk() {
     let v = c.a.unwrap().mul(c.b.unwrap());
 
     let ark_pvk = Groth16::<Bls12_381>::process_vk(&vk).unwrap();
-    let blst_pvk = process_vk_special(&VerifyingKey(vk));
+    let blst_pvk = process_vk_special(&vk.into());
 
     let ark_fe = ark_multipairing_with_prepared_vk(&ark_pvk, &proof, &[v]);
     let blst_fe = multipairing_with_processed_vk(&blst_pvk, &[v], &proof);
