@@ -16,7 +16,9 @@ use blake2::{digest::Digest, Blake2s256};
 
 use ark_r1cs_std::prelude::*;
 use ark_std::rand::thread_rng;
+use fastcrypto_zkp::bls12381::conversions::BlsFr;
 use fastcrypto_zkp::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
+use fastcrypto_zkp::bls12381::{FieldElement, Proof};
 
 #[derive(Clone, Copy, Debug)]
 struct Blake2sCircuit {
@@ -98,22 +100,25 @@ fn main() {
     let params =
         Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, rng).unwrap();
 
-    // prepare the verification key
-    let pvk = process_vk_special(&params.vk);
-
     // prepare a proof (note: there is nothing trustable about the trivial setup involved here)
-    let proof =
+    let proof = Proof::from(
         Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
-            .unwrap();
+            .unwrap(),
+    );
+
     println!(
         "Generated proof of knowledge of Blake2s preimage of {}",
         hex::encode(circuit.expected_output)
     );
 
+    // prepare the verification key
+    let pvk = process_vk_special(&params.vk.into());
+
     // provide the public inputs (the hash target) for verification
-    let inputs: Vec<Fr> = [&circuit.blake2_seed[..], &circuit.expected_output[..]]
+    let inputs: Vec<FieldElement> = [&circuit.blake2_seed[..], &circuit.expected_output[..]]
         .iter()
-        .flat_map(|x| x.to_field_elements().unwrap())
+        .flat_map::<Vec<BlsFr>, _>(|x| x.to_field_elements().unwrap())
+        .map(FieldElement::from)
         .collect();
 
     // Verify the proof

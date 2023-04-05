@@ -153,10 +153,10 @@ pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
 /// serialized proof points.
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
-    public_inputs: &Vec<FieldElement>,
+    public_inputs: &[FieldElement],
     proof: &Proof,
 ) -> Result<bool, FastCryptoError> {
-    let x: Vec<Bn254Fr> = public_inputs.into_iter().map(|x| x.0).collect();
+    let x: Vec<Bn254Fr> = public_inputs.iter().map(|x| x.0).collect();
     Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof.0)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

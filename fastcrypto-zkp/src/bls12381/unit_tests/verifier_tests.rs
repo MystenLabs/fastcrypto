@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::bls12381::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
+use crate::bls12381::verifier::{ArkProof, BlsFr, PreparedVerifyingKey as CustomPVK};
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Projective};
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bls12::G1Prepared;
@@ -20,6 +20,7 @@ use std::{
     ops::{AddAssign, Mul, Neg},
 };
 
+use crate::bls12381::{FieldElement, VerifyingKey};
 use crate::{
     bls12381::conversions::{
         bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
@@ -28,7 +29,7 @@ use crate::{
     },
     bls12381::verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
-        verify_with_processed_vk, Proof, VerifyingKey, BLST_FR_ONE,
+        verify_with_processed_vk, Proof, BLST_FR_ONE,
     },
     dummy_circuits::DummyCircuit,
 };
@@ -42,7 +43,7 @@ fn fr_one_test() {
 
 // This emulates the process_vk function of the arkworks verifier, but using blst to compute the term
 // alpha_g1_beta_g2. See [`test_prepare_vk`].
-fn ark_process_vk(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey<Bls12_381> {
+fn ark_process_vk(vk: &ark_groth16::VerifyingKey<Bls12_381>) -> PreparedVerifyingKey<Bls12_381> {
     let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.alpha_g1);
     let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.beta_g2);
     let blst_alpha_g1_beta_g2 = {
@@ -66,7 +67,7 @@ fn ark_process_vk(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey<Bls12_38
 // See [`test_multipairing_with_processed_vk`]
 fn ark_multipairing_with_prepared_vk(
     pvk: &PreparedVerifyingKey<Bls12_381>,
-    proof: &Proof<Bls12_381>,
+    proof: &ArkProof<Bls12_381>,
     public_inputs: &[Fr],
 ) -> Fq12 {
     let mut g_ic = G1Projective::from(pvk.vk.gamma_abc_g1[0]);
@@ -189,24 +190,29 @@ fn test_verify_with_processed_vk() {
     };
 
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-    let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
+    let proof = Proof(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
     let v = c.a.unwrap().mul(c.b.unwrap());
 
-    let blst_pvk = process_vk_special(&vk);
-    assert!(verify_with_processed_vk(&blst_pvk, &[v], &proof).unwrap());
+    let blst_pvk = process_vk_special(&VerifyingKey(vk));
+    assert!(verify_with_processed_vk(&blst_pvk, &[FieldElement::from(v)], &proof).unwrap());
 
     // Roundtrip serde of the proof public input bytes.
     let mut public_inputs_bytes = Vec::new();
     v.serialize_compressed(&mut public_inputs_bytes).unwrap();
 
     let deserialized_public_inputs =
-        BlsFr::deserialize_compressed(public_inputs_bytes.as_slice()).unwrap();
+        FieldElement(BlsFr::deserialize_compressed(public_inputs_bytes.as_slice()).unwrap());
 
     // Roundtrip serde of the proof points bytes.
     let mut proof_points_bytes = Vec::new();
-    proof.serialize_compressed(&mut proof_points_bytes).unwrap();
-    let deserialized_proof_points =
-        Proof::<Bls12_381>::deserialize_compressed(proof_points_bytes.as_slice()).unwrap();
+    proof
+        .0
+        .serialize_compressed(&mut proof_points_bytes)
+        .unwrap();
+    let deserialized_proof_points = Proof(
+        ark_groth16::Proof::<Bls12_381>::deserialize_compressed(proof_points_bytes.as_slice())
+            .unwrap(),
+    );
 
     // Roundtrip serde of the prepared verifying key.
     let serialized = blst_pvk.as_serialized().unwrap();
@@ -242,7 +248,7 @@ fn test_multipairing_with_processed_vk() {
     let v = c.a.unwrap().mul(c.b.unwrap());
 
     let ark_pvk = Groth16::<Bls12_381>::process_vk(&vk).unwrap();
-    let blst_pvk = process_vk_special(&vk);
+    let blst_pvk = process_vk_special(&VerifyingKey(vk));
 
     let ark_fe = ark_multipairing_with_prepared_vk(&ark_pvk, &proof, &[v]);
     let blst_fe = multipairing_with_processed_vk(&blst_pvk, &[v], &proof);

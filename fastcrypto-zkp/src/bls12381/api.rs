@@ -10,6 +10,7 @@ use crate::bls12381::conversions::{BlsFr, SCALAR_SIZE};
 use crate::bls12381::verifier::{
     process_vk_special, verify_with_processed_vk, PreparedVerifyingKey,
 };
+use crate::bls12381::FieldElement;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
@@ -20,7 +21,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
     let vk = VerifyingKey::<Bls12_381>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    process_vk_special(&vk).as_serialized()
+    process_vk_special(&vk.into()).as_serialized()
 }
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
@@ -40,7 +41,9 @@ pub fn verify_groth16_in_bytes(
     }
     let mut x = Vec::new();
     for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(BlsFr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?);
+        x.push(FieldElement(
+            BlsFr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?,
+        ));
     }
 
     let proof = Proof::<Bls12_381>::deserialize_compressed(proof_points_as_bytes)
@@ -53,6 +56,6 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     )?;
 
-    verify_with_processed_vk(&blst_pvk, &x, &proof)
+    verify_with_processed_vk(&blst_pvk, &x, &proof.into())
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

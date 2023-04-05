@@ -3,7 +3,7 @@
 use std::{iter, ops::Neg, ptr};
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
-use ark_groth16::{Proof, VerifyingKey};
+use ark_groth16::Proof as ArkProof;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
@@ -17,6 +17,7 @@ use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
     bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
+use crate::bls12381::{FieldElement, Proof, VerifyingKey};
 
 #[cfg(test)]
 #[path = "unit_tests/verifier_tests.rs"]
@@ -132,9 +133,9 @@ impl PreparedVerifyingKey {
 /// // once per circuit.
 /// let pvk = process_vk_special(&params.vk);
 /// ```
-pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey {
-    let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.alpha_g1);
-    let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.beta_g2);
+pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
+    let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.0.alpha_g1);
+    let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.0.beta_g2);
     let blst_alpha_g1_beta_g2 = {
         let mut tmp = blst_fp12::default();
         unsafe { blst_miller_loop(&mut tmp, &g2_beta, &g1_alpha) };
@@ -144,10 +145,10 @@ pub fn process_vk_special(vk: &VerifyingKey<Bls12_381>) -> PreparedVerifyingKey 
         out
     };
     PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
+        vk_gamma_abc_g1: vk.0.gamma_abc_g1.clone(),
         alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
-        gamma_g2_neg_pc: vk.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.delta_g2.neg(),
+        gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
+        delta_g2_neg_pc: vk.0.delta_g2.neg(),
     }
 }
 
@@ -283,7 +284,7 @@ pub(crate) const BLST_FR_ONE: blst_fr = blst_fr {
 fn multipairing_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],
-    proof: &Proof<Bls12_381>,
+    proof: &ArkProof<Bls12_381>,
 ) -> blst_fp12 {
     // Linear combination: note that the arkworks interface assumes the 1st scalar is an implicit 1
     let pts: Vec<blst_p1_affine> = pvk
@@ -326,6 +327,7 @@ fn multipairing_with_processed_vk(
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
+/// use fastcrypto_zkp::bls12381::FieldElement;
 ///
 /// let mut rng = thread_rng();
 ///
@@ -346,21 +348,22 @@ fn multipairing_with_processed_vk(
 ///
 /// // We provide the public inputs which we know are used in our circuits
 /// // this must be the same as the inputs used in the proof right above.
-/// let inputs: Vec<_> = [Fr::one(); 2].to_vec();
+/// let inputs: Vec<_> = [FieldElement(Fr::one()); 2].to_vec();
 ///
 /// // Verify the proof
 /// let r = verify_with_processed_vk(&pvk, &inputs, &proof).unwrap();
 /// ```
 pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
-    x: &[BlsFr],
-    proof: &Proof<Bls12_381>,
+    x: &[FieldElement],
+    proof: &Proof,
 ) -> Result<bool, FastCryptoError> {
     // Note the "+1" : this API implies the first scalar coefficient is 1 and not sent
     if (x.len() + 1) != pvk.vk_gamma_abc_g1.len() {
         return Err(FastCryptoError::InvalidInput);
     }
+    let x: Vec<BlsFr> = x.iter().map(|x| x.0).collect();
 
-    let res = multipairing_with_processed_vk(pvk, x, proof);
+    let res = multipairing_with_processed_vk(pvk, &x, &proof.0);
     Ok(res == pvk.alpha_g1_beta_g2)
 }
