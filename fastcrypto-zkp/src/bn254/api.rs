@@ -56,10 +56,9 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     )?;
 
-    let proof = Proof::from(
-        ArkProof::deserialize_compressed(proof_points_as_bytes)
-            .map_err(|_| FastCryptoError::InvalidInput)?,
-    );
+    let proof = ArkProof::deserialize_compressed(proof_points_as_bytes)
+        .map_err(|_| FastCryptoError::InvalidInput)?
+        .into();
 
     verify_with_processed_vk(&pvk, &x, &proof)
 }
