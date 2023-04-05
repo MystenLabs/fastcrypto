@@ -1576,6 +1576,8 @@ dependencies = [
  "hex",
  "num-bigint",
  "proptest",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
