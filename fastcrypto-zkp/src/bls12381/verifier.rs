@@ -4,7 +4,6 @@ use std::{iter, ops::Neg, ptr};
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
 use ark_groth16::{Proof, VerifyingKey};
-use ark_relations::r1cs::SynthesisError;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
@@ -49,12 +48,16 @@ impl PreparedVerifyingKey {
         gamma_g2_neg_pc_bytes: &[u8],
         delta_g2_neg_pc_bytes: &[u8],
     ) -> Result<Self, FastCryptoError> {
+        if vk_gamma_abc_g1_bytes.len() % G1_COMPRESSED_SIZE != 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
             let g1 = G1Affine::deserialize_compressed(g1_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?;
             vk_gamma_abc_g1.push(g1);
         }
+
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
             &Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
                 .map_err(|_| FastCryptoError::InvalidInput)?,
@@ -77,6 +80,7 @@ impl PreparedVerifyingKey {
     /// Serialize the prepared verifying key to its vectors form.
     pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
         let mut res = Vec::new();
+
         let mut vk_gamma = Vec::new();
         for g1 in &self.vk_gamma_abc_g1 {
             let mut g1_bytes = Vec::new();
@@ -85,6 +89,7 @@ impl PreparedVerifyingKey {
             vk_gamma.append(&mut g1_bytes);
         }
         res.push(vk_gamma);
+
         let mut fq12 = Vec::new();
         blst_fp12_to_bls_fq12(&self.alpha_g1_beta_g2)
             .serialize_compressed(&mut fq12)
@@ -350,10 +355,10 @@ pub fn verify_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],
     proof: &Proof<Bls12_381>,
-) -> Result<bool, SynthesisError> {
+) -> Result<bool, FastCryptoError> {
     // Note the "+1" : this API implies the first scalar coefficient is 1 and not sent
     if (x.len() + 1) != pvk.vk_gamma_abc_g1.len() {
-        return Err(SynthesisError::MalformedVerifyingKey);
+        return Err(FastCryptoError::InvalidInput);
     }
 
     let res = multipairing_with_processed_vk(pvk, x, proof);

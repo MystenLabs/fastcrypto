@@ -36,6 +36,7 @@ impl PreparedVerifyingKey {
     /// Serialize the prepared verifying key to its vectors form.
     pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
         let mut res = Vec::new();
+
         let mut vk_gamma = Vec::new();
         for g1 in &self.vk_gamma_abc_g1 {
             let mut g1_bytes = Vec::new();
@@ -44,6 +45,7 @@ impl PreparedVerifyingKey {
             vk_gamma.append(&mut g1_bytes);
         }
         res.push(vk_gamma);
+
         let mut fq12 = Vec::new();
         self.alpha_g1_beta_g2
             .serialize_compressed(&mut fq12)
@@ -72,6 +74,9 @@ impl PreparedVerifyingKey {
         gamma_g2_neg_pc_bytes: &[u8],
         delta_g2_neg_pc_bytes: &[u8],
     ) -> Result<Self, FastCryptoError> {
+        if vk_gamma_abc_g1_bytes.len() % SCALAR_SIZE != 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
             let g1 = G1Affine::deserialize_compressed(g1_bytes)
