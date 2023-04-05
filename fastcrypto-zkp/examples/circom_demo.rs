@@ -358,25 +358,31 @@ fn load_zkopenid_test_vector(path: &str) -> CircomInput {
 }
 
 fn verify_zkopenid(option: IntegrationOption) {
+    let r1cs_path = "../openid-zkp-auth/google/google.r1cs";
+    let wasm_path = "../openid-zkp-auth/google/google_js/google.wasm";
+    let all_inputs_path = "../openid-zkp-auth/proving/inputs.json";
+    let public_inputs_path = "../openid-zkp-auth/google/public.json";
+    let proof_path = "../openid-zkp-auth/google/google.proof";
+    let verification_key_path = "../openid-zkp-auth/google/google.vkey";
+    let preamble = "ZKOpenID";
     match option {
         IntegrationOption::Setup => {
             setup_prove_and_verify(
-                load_zkopenid_test_vector("../openid-zkp-auth/proving/inputs.json"),
-                "../openid-zkp-auth/google/google_js/google.wasm",
-                "../openid-zkp-auth/google/google.r1cs",
+                load_zkopenid_test_vector(all_inputs_path),
+                wasm_path,
+                r1cs_path,
             );
-            println!("ZKOpenID: setup_prove_and_verify pass");
+            println!("{}: setup_prove_and_verify pass", preamble);
         }
         IntegrationOption::Prove => {
-            println!("ZKOpenID: Not implemented because the size of zkey is too big for git");
+            println!(
+                "{}: Not implemented because the size of zkey is too big for git",
+                preamble
+            );
         }
         IntegrationOption::Verify => {
-            verify(
-                "../openid-zkp-auth/google/google.vkey",
-                "../openid-zkp-auth/google/google.proof",
-                "../openid-zkp-auth/google/public.json",
-            );
-            println!("ZKOpenID: verify pass");
+            verify(verification_key_path, proof_path, public_inputs_path);
+            println!("{}: verify pass", preamble);
         }
     }
 }

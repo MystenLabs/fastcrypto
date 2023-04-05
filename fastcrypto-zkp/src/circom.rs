@@ -68,8 +68,6 @@ pub fn read_vkey(path: &str) -> VerifyingKey<Bn254> {
         vk_gamma_abc_g1.push(g1);
     }
 
-    println!("Read verification key from: {}", path);
-
     VerifyingKey {
         alpha_g1: vk_alpha_1,
         beta_g2: vk_beta_2,
@@ -102,8 +100,6 @@ pub fn read_proof(path: &str) -> Proof<Bn254> {
     let b = g2_affine_from_str_projective(proof.pi_b);
     let c = g1_affine_from_str_projective(proof.pi_c);
 
-    println!("Read proof from: {}", path);
-
     Proof { a, b, c }
 }
 
@@ -119,8 +115,6 @@ pub fn read_public_inputs(path: &str) -> Vec<Fr> {
         .iter()
         .map(|x| Fr::from_str(x).unwrap())
         .collect();
-
-    println!("Read public inputs from: {}", path);
 
     arkworks_public_inputs
 }

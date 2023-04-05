@@ -7,12 +7,14 @@ use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
-use ark_groth16::{Groth16, VerifyingKey};
+use ark_groth16::{Groth16, Proof, VerifyingKey};
+use ark_serialize::CanonicalSerialize;
 use ark_std::rand::thread_rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
+use fastcrypto_zkp::circom::{read_proof, read_public_inputs, read_vkey};
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use std::ops::Mul;
 
@@ -412,6 +414,69 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     }
 }
 
+fn bench_verify_zkopenid<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
+    let verification_key_path = "../openid-zkp-auth/google/google.vkey";
+    let vk: VerifyingKey<Bn254> = read_vkey(verification_key_path);
+    let pvk = fastcrypto_zkp::bn254::verifier::process_vk_special(&vk);
+
+    let bytes = pvk.as_serialized().unwrap();
+
+    let vk_gamma_abc_g1_bytes = &bytes[0];
+    let alpha_g1_beta_g2_bytes = &bytes[1];
+    let gamma_g2_neg_pc_bytes = &bytes[2];
+    let delta_g2_neg_pc_bytes = &bytes[3];
+
+    let proof_path = "../openid-zkp-auth/google/google.proof";
+    let proof: Proof<Bn254> = read_proof(proof_path);
+
+    let mut proof_bytes = Vec::new();
+    proof.a.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.b.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.c.serialize_compressed(&mut proof_bytes).unwrap();
+
+    let public_inputs_path = "../openid-zkp-auth/google/public.json";
+    let public_inputs: Vec<Bn254Fr> = read_public_inputs(public_inputs_path);
+
+    let mut public_inputs_bytes = Vec::new();
+    for input in public_inputs {
+        input
+            .serialize_compressed(&mut public_inputs_bytes)
+            .unwrap();
+    }
+
+    grp.bench_with_input(
+        BenchmarkId::new("BN254-based Groth16 verify zkopenid proof", ""),
+        &(
+            vk_gamma_abc_g1_bytes,
+            alpha_g1_beta_g2_bytes,
+            gamma_g2_neg_pc_bytes,
+            delta_g2_neg_pc_bytes,
+            proof_bytes,
+            public_inputs_bytes,
+        ),
+        |b,
+         (
+            vk_gamma_abc_g1_bytes,
+            alpha_g1_beta_g2_bytes,
+            gamma_g2_neg_pc_bytes,
+            delta_g2_neg_pc_bytes,
+            proof_bytes,
+            public_inputs_bytes,
+        )| {
+            b.iter(|| {
+                fastcrypto_zkp::bn254::api::verify_groth16_in_bytes(
+                    vk_gamma_abc_g1_bytes,
+                    alpha_g1_beta_g2_bytes,
+                    gamma_g2_neg_pc_bytes,
+                    delta_g2_neg_pc_bytes,
+                    proof_bytes,
+                    public_inputs_bytes,
+                )
+            });
+        },
+    );
+}
+
 fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     static CONSTRAINTS: [usize; 5] = [8, 9, 10, 11, 12];
 
@@ -489,6 +554,12 @@ fn verify(c: &mut Criterion) {
 
     let mut group: BenchmarkGroup<_> = c.benchmark_group("Elusiv Circuit Verification");
     bench_verify_elusiv_circuit::<_>(&mut group);
+    group.finish();
+
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("ZKOpenID Circuit Verification");
+    group.sampling_mode(SamplingMode::Flat);
+    group.sample_size(10);
+    bench_verify_zkopenid::<_>(&mut group);
     group.finish();
 }
 
