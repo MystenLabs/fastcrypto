@@ -3,7 +3,6 @@
 use std::{iter, ops::Neg, ptr};
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
-use ark_groth16::Proof as ArkProof;
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
@@ -284,7 +283,7 @@ pub(crate) const BLST_FR_ONE: blst_fr = blst_fr {
 fn multipairing_with_processed_vk(
     pvk: &PreparedVerifyingKey,
     x: &[BlsFr],
-    proof: &ArkProof<Bls12_381>,
+    proof: &ark_groth16::Proof<Bls12_381>,
 ) -> blst_fp12 {
     // Linear combination: note that the arkworks interface assumes the 1st scalar is an implicit 1
     let pts: Vec<blst_p1_affine> = pvk

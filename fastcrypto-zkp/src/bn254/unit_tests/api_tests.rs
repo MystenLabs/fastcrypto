@@ -409,7 +409,7 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
         ],
     );
 
-    let vk = VerifyingKey(ark_groth16::VerifyingKey {
+    let vk = ark_groth16::VerifyingKey {
         alpha_g1: utils::G1Affine_from_str_projective((
             "8057073471822347335074195152835286348058235024870127707965681971765888348219",
             "14493022634743109860560137600871299171677470588934003383462482807829968516757",
@@ -528,7 +528,8 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
         .into_iter()
         .map(|s| utils::G1Affine_from_str_projective((s[0], s[1], s[2])))
         .collect(),
-    });
+    }
+    .into();
 
     let pvk = process_vk_special(&vk);
 

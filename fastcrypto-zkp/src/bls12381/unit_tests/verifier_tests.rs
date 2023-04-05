@@ -28,7 +28,7 @@ use crate::{
     },
     bls12381::verifier::{
         g1_linear_combination, multipairing_with_processed_vk, process_vk_special,
-        verify_with_processed_vk, Proof, BLST_FR_ONE,
+        verify_with_processed_vk, BLST_FR_ONE,
     },
     dummy_circuits::DummyCircuit,
 };
