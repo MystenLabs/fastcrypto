@@ -115,11 +115,13 @@ pub fn serialize_proof_from_file(proof_path: &str) -> Vec<u8> {
 }
 
 /// Read in a json file of the public inputs and serialize it to bytes
-pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<u8> {
-    let res = read_public_inputs(public_inputs_path);
-    let mut inputs_bytes = Vec::new();
-    for input in res {
-        input.serialize_compressed(&mut inputs_bytes).unwrap();
+pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<Vec<u8>> {
+    let inputs = read_public_inputs(public_inputs_path);
+    let mut res = Vec::new();
+    for input in inputs {
+        let mut input_bytes = Vec::new();
+        input.serialize_compressed(&mut input_bytes).unwrap();
+        res.push(input_bytes);
     }
-    inputs_bytes
+    res
 }
