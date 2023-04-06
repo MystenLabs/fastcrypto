@@ -1,12 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{bn254::verifier::{process_vk_special, PreparedVerifyingKey}, circom::{read_vkey, read_proof, read_public_inputs}};
+use crate::{
+    bn254::verifier::{process_vk_special, PreparedVerifyingKey},
+    circom::{read_proof, read_public_inputs, read_vkey},
+};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fastcrypto::{error::FastCryptoError, encoding::{Hex, Encoding}};
+use fastcrypto::error::FastCryptoError;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
@@ -63,42 +66,37 @@ pub fn verify_groth16_in_bytes(
 pub fn serialize_verifying_key_from_file(vkey_path: &str) -> Vec<Vec<u8>> {
     let vk = read_vkey(vkey_path);
     let pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-    
+
     let mut vk_gamma_abc_g1_bytes = Vec::new();
-    pvk.vk.gamma_abc_g1.serialize_compressed(&mut vk_gamma_abc_g1_bytes).unwrap();
+    pvk.vk
+        .gamma_abc_g1
+        .serialize_compressed(&mut vk_gamma_abc_g1_bytes)
+        .unwrap();
     let mut alpha_g1_beta_g2_bytes = Vec::new();
-    pvk.alpha_g1_beta_g2.serialize_compressed(&mut alpha_g1_beta_g2_bytes).unwrap();
+    pvk.alpha_g1_beta_g2
+        .serialize_compressed(&mut alpha_g1_beta_g2_bytes)
+        .unwrap();
 
     let mut gamma_g2_neg_pc_bytes = Vec::new();
-    pvk.gamma_g2_neg_pc.serialize_compressed(&mut gamma_g2_neg_pc_bytes).unwrap();
+    pvk.gamma_g2_neg_pc
+        .serialize_compressed(&mut gamma_g2_neg_pc_bytes)
+        .unwrap();
 
     let mut delta_g2_neg_pc_bytes = Vec::new();
-    pvk.delta_g2_neg_pc.serialize_compressed(&mut delta_g2_neg_pc_bytes).unwrap();
+    pvk.delta_g2_neg_pc
+        .serialize_compressed(&mut delta_g2_neg_pc_bytes)
+        .unwrap();
 
-    return vec![vk_gamma_abc_g1_bytes, alpha_g1_beta_g2_bytes, gamma_g2_neg_pc_bytes, delta_g2_neg_pc_bytes];
+    vec![
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
+    ]
 }
 
-/// Verify the proof
-pub fn verify_groth16_fp(vkey_path: &str, proof_path: &str, public_inputs_path: &str) -> Result<bool, FastCryptoError> {
-    let vk = read_vkey(vkey_path);
-    let pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-    
-    let mut vk_gamma_abc_g1_bytes = Vec::new();
-    pvk.vk.gamma_abc_g1.serialize_compressed(&mut vk_gamma_abc_g1_bytes).unwrap();
-    let mut alpha_g1_beta_g2_bytes = Vec::new();
-    pvk.alpha_g1_beta_g2.serialize_compressed(&mut alpha_g1_beta_g2_bytes).unwrap();
-
-    let mut gamma_g2_neg_pc_bytes = Vec::new();
-    pvk.gamma_g2_neg_pc.serialize_compressed(&mut gamma_g2_neg_pc_bytes).unwrap();
-
-    let mut delta_g2_neg_pc_bytes = Vec::new();
-    pvk.delta_g2_neg_pc.serialize_compressed(&mut delta_g2_neg_pc_bytes).unwrap();
-    
-    println!("vk_gamma_abc_g1_bytes: {:?}", Hex::encode(vk_gamma_abc_g1_bytes));
-    println!("alpha_g1_beta_g2_bytes: {:?}", Hex::encode(alpha_g1_beta_g2_bytes));
-    println!("gamma_g2_neg_pc_bytes: {:?}", Hex::encode(gamma_g2_neg_pc_bytes));
-    println!("delta_g2_neg_pc_bytes: {:?}", Hex::encode(delta_g2_neg_pc_bytes));
-
+/// Read in a json file of the proof and serialize it to bytes
+pub fn serialize_proof_from_file(proof_path: &str) -> Vec<u8> {
     let proof = read_proof(proof_path);
     let mut proof_points_bytes = Vec::new();
     proof
@@ -113,8 +111,15 @@ pub fn verify_groth16_fp(vkey_path: &str, proof_path: &str, public_inputs_path: 
         .c
         .serialize_compressed(&mut proof_points_bytes)
         .unwrap();
-    println!("proof_points_bytes: {:?}", Hex::encode(proof_points_bytes));
-    let public_inputs = read_public_inputs(public_inputs_path);
-    public_inputs.iter().for_each(|x| println!("public_inputs: {:?}", x));
-    Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+    proof_points_bytes
+}
+
+/// Read in a json file of the public inputs and serialize it to bytes
+pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<u8> {
+    let res = read_public_inputs(public_inputs_path);
+    let mut inputs_bytes = Vec::new();
+    for input in res {
+        input.serialize_compressed(&mut inputs_bytes).unwrap();
+    }
+    inputs_bytes
 }
