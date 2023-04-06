@@ -46,7 +46,7 @@ function genJwtMask(input, fields) {
     }
   }
   
-  return Array(header.length + 1).fill(0).concat(payloadMask);
+  return Array(header.length + 1).fill(1).concat(payloadMask);
   // return [Array(header.length + 1).fill(0).concat(payloadMask), startOffsets];
 }
 
@@ -78,9 +78,10 @@ function genClaimProofInputs(input, nCount, claimField, claimLength = undefined,
 }
 
 function genNonceInputs() {
-  const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
-  const max_epoch = 100;
-  const randomness = BigInt("0x" + crypto.randomBytes(31).toString('hex'));
+  const eph_public_key = 0x0d7dab358c8dadaa4efa0049a75b07436555b10a368219bb680f70571349d775n; 
+  // const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
+  const max_epoch = 10000;
+  const randomness = 50683480294434968413708503290439057629605340925620961559740848568164438166n;
 
   const eph_public_key_0 = eph_public_key % 2n**128n;
   const eph_public_key_1 = eph_public_key / 2n**128n;
@@ -106,8 +107,8 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
   inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
 
   // set offset
-  const offset = utils.getPayloadOffset(input);
-  inputs["payloadB64Offset"] = [offset % 2, Math.floor(offset / 2)];
+  // const offset = utils.getPayloadOffset(input);
+  inputs["payloadIndex"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
   
   // set mask 
   inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0));
@@ -118,6 +119,7 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
 
   // set hash of the masked content
   const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
+  console.log("maskedContent", maskedContent);
   inputs["out"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
 
   return inputs;

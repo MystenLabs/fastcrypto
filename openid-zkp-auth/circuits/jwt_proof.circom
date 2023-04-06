@@ -2,7 +2,6 @@ pragma circom 2.0.0;
 
 include "sha256.circom";
 include "misc.circom";
-include "../node_modules/circomlib/circuits/poseidon.circom";
 
 /**
 JWT Proof
@@ -15,11 +14,11 @@ JWT Proof
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
     - lastBlock:                At which 512-bit block to select output hash
-    - payloadB64Offset[2]:      An offset in the range [0, 3] that when incremented (mod 4) ensures that payload starts at 0
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
 
     Public Inputs:
+    - payloadIndex:             The index of the payload in the content
     - ephPubKey[2]:             The ephemeral public key split into two 128-bit values
     - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
     - nonce:                    H(ephPubKey, maxEpoch, randomness)
@@ -58,20 +57,9 @@ template JwtProof(inCount) {
         
         Check 2a can be omitted if we can assume that "sub" only appears once.
     **/
-    // TODO: Check that payloadB64Offset is never 2
-    signal input payloadB64Offset[2]; // payloadB64Offset[0] is the MSB
-    component X = ExpandInitialOffsets();
-    X.in[0] <== payloadB64Offset[0];
-    X.in[1] <== payloadB64Offset[1];
-
-    signal b64offsets[inCount];
-    for (var i = 0; i < inCount; i++) { // TODO: Check that offsets[payloadOffset] is 0
-        if (i < 4) {
-            b64offsets[i] <== X.out[i];
-        } else {
-            b64offsets[i] <== b64offsets[i % 4];
-        }
-    }
+    signal input payloadIndex;
+    component X = computePayloadOffsets(inCount);
+    X.index <== payloadIndex;
 
     var subKeyLength = 8;
     var subValueLength = 32;
@@ -110,7 +98,7 @@ template JwtProof(inCount) {
         // TODO: Extend it to enable these checks only in [payloadB64Offset, payloadB64Offset + payloadLength]
         for (var k = 0; k < 3; k++) { // looking for subClaim[k] if subClaimExpOffsets[k] == b64offsets[i]
             b64OffsetCheck[i][k] = IsEqual();
-            b64OffsetCheck[i][k].in[0] <== b64offsets[i];
+            b64OffsetCheck[i][k].in[0] <== X.b64offsets[i];
             b64OffsetCheck[i][k].in[1] <== subClaimExpOffsets[k];
 
             subEQCheck[i][k] = isEqualIfEnabled(subKeyLength);
@@ -170,9 +158,9 @@ template JwtProof(inCount) {
         outPacker.in[i] <== masked[i];
     }
 
-    component outHasher = Poseidon(outCount);
+    component outHasher = Hasher(outCount);
     for (var i = 0; i < outCount; i++) {
-        outHasher.inputs[i] <== outPacker.out[i];
+        outHasher.in[i] <== outPacker.out[i];
     }
     out === outHasher.out;
 

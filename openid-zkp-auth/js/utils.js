@@ -123,7 +123,20 @@ function calculateMaskedHash(masked_content, poseidon, outWidth) {
     if (bits_padded.length % outWidth != 0) throw new Error("Invalid logic");
 
     const packed = arrayChunk(bits_padded, outWidth).map(chunk => BigInt("0b" + chunk.join('')));
-    return poseidon.F.toObject(poseidon(packed));
+    console.log(packed.length);
+    return poseidonHash(packed, poseidon);
+}
+
+function poseidonHash(inputs, poseidon) {
+    if (inputs.length < 1) {
+        return poseidon.F.toObject(poseidon([inputs]))
+    } else if (inputs.length <= 16) {
+        return poseidon.F.toObject(poseidon(inputs))
+    } else if (inputs.length <= 32) {
+        const hash1 = poseidon(inputs.slice(0, 16));
+        const hash2 = poseidon(inputs.slice(16));
+        return poseidon.F.toObject(poseidon([hash1, hash2]));
+    }
 }
 
 /**
@@ -136,15 +149,6 @@ function applyMask(input, mask) {
         throw new Error("Input and mask must be of the same length");
     }
     return input.map((charCode, index) => (mask[index] == 1) ? String.fromCharCode(Number(charCode)) : '=').join('');
-}
-
-function getPayloadOffset(input) {
-    const payloadStartIndex = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-    const b64offset = (4 - (payloadStartIndex % 4)) % 4;
-    if (b64offset == 2) {
-        throw new Error("Invalid input");
-    }
-    return b64offset;
 }
 
 function fromBase64WithOffset(input, offset) {
@@ -169,7 +173,6 @@ module.exports = {
     writeInputsToFile: writeInputsToFile,
     calculateNonce: calculateNonce,
     applyMask: applyMask,
-    getPayloadOffset: getPayloadOffset,
     fromBase64WithOffset: fromBase64WithOffset,
     calculateMaskedHash: calculateMaskedHash
 }
