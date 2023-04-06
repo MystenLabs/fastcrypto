@@ -10,9 +10,8 @@ use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::Groth16;
 
 use ark_std::rand::thread_rng;
+use fastcrypto_zkp::bn254::api::verify_groth16_fp;
 use num_bigint::BigInt;
-
-use fastcrypto_zkp::circom::{read_proof, read_public_inputs, read_vkey};
 
 #[derive(PartialEq)]
 enum IntegrationOption {
@@ -88,18 +87,6 @@ fn prove_and_verify(all_inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
     let public_inputs = &full_assignment[1..num_inputs];
     let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, public_inputs).unwrap();
-    assert!(verified);
-}
-
-fn verify(vkey_path: &str, proof_path: &str, public_inputs_path: &str) {
-    let vk = read_vkey(vkey_path);
-    let pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-
-    let proof = read_proof(proof_path);
-
-    let public_inputs = read_public_inputs(public_inputs_path);
-
-    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
     assert!(verified);
 }
 
@@ -358,31 +345,22 @@ fn load_zkopenid_test_vector(path: &str) -> CircomInput {
 }
 
 fn verify_zkopenid(option: IntegrationOption) {
-    let r1cs_path = "../openid-zkp-auth/google/google.r1cs";
-    let wasm_path = "../openid-zkp-auth/google/google_js/google.wasm";
-    let all_inputs_path = "../openid-zkp-auth/proving/inputs.json";
-    let public_inputs_path = "../openid-zkp-auth/google/public.json";
-    let proof_path = "../openid-zkp-auth/google/google.proof";
-    let verification_key_path = "../openid-zkp-auth/google/google.vkey";
-    let preamble = "ZKOpenID";
     match option {
         IntegrationOption::Setup => {
             setup_prove_and_verify(
-                load_zkopenid_test_vector(all_inputs_path),
-                wasm_path,
-                r1cs_path,
+                load_zkopenid_test_vector("../openid-zkp-auth/proving/inputs.json"),
+                "../openid-zkp-auth/google/google_js/google.wasm",
+                "../openid-zkp-auth/google/google.r1cs",
             );
-            println!("{}: setup_prove_and_verify pass", preamble);
+            println!("ZKOpenID: setup_prove_and_verify pass");
         }
         IntegrationOption::Prove => {
-            println!(
-                "{}: Not implemented because the size of zkey is too big for git",
-                preamble
-            );
+            println!("ZKOpenID: Not implemented because the size of zkey is too big for git");
         }
         IntegrationOption::Verify => {
-            verify(verification_key_path, proof_path, public_inputs_path);
-            println!("{}: verify pass", preamble);
+            let res = verify_groth16_fp("../openid-zkp-auth/google/google.vkey", "../openid-zkp-auth/google/google.proof", "../openid-zkp-auth/google/public.json");
+            assert!(res.is_ok());
+            println!("verify pass");
         }
     }
 }
