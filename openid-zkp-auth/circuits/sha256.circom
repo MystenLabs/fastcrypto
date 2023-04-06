@@ -149,7 +149,7 @@ template Sha2_wrapper(inWidth, inCount) {
             var payloadIndex = (b * nSegments) + s;
             
             // Decompose each segment into an array of individual bits
-            sha256_blocks[b][s] = Num2BitsLE(inWidth);
+            sha256_blocks[b][s] = Num2BitsBE(inWidth);
             sha256_blocks[b][s].in <== in[payloadIndex];
             
             // The bit index going into the current SHA-256 block is offset by the segment number times the bit width
@@ -167,7 +167,7 @@ template Sha2_wrapper(inWidth, inCount) {
     **/
     component hash_packer[outCount];
     for (var i = 0; i < outCount; i++) {
-        hash_packer[i] = Bits2NumLE(outWidth);
+        hash_packer[i] = Bits2NumBE(outWidth);
         for (var j = 0; j < outWidth; j++) {
             hash_packer[i].in[j] <== sha256.out[i * outWidth + j];
         }

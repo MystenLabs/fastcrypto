@@ -18,7 +18,7 @@ function log2(a) {
     return r;
 }
 
-template Num2BitsLE(n) {
+template Num2BitsBE(n) {
     signal input in;
     signal output out[n];
     var lc1 = 0;
@@ -35,8 +35,7 @@ template Num2BitsLE(n) {
     lc1 === in;
 }
 
-
-template Bits2NumLE(n) {
+template Bits2NumBE(n) {
     signal input in[n];
     signal output out;
     var lc1=0;
@@ -151,13 +150,13 @@ template Packer(inWidth, inCount, outWidth, outCount) {
 
     component expander[inCount];
     for (var i = 0; i < inCount; i++) {
-        expander[i] = Num2BitsLE(inWidth);
+        expander[i] = Num2BitsBE(inWidth);
         expander[i].in <== in[i];
     }
 
     component compressor[outCount];
     for (var i = 0; i < outCount; i++) {
-        compressor[i] = Bits2NumLE(outWidth);
+        compressor[i] = Bits2NumBE(outWidth);
     }
 
     for(var i = 0; i < inBits; i++) {
