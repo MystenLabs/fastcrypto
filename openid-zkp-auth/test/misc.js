@@ -87,7 +87,7 @@ describe("Bits2NumBE", () => {
 
 describe("Miscellaneous checks", () => {
     it("Fixed circuit extracts correct value", async () => {
-        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "SliceFixed", [6, 2]);
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), "sliceFixed", [6, 2]);
         await cir_fixed.loadSymbols();
         input = [1,2,3,4,5,6];
         

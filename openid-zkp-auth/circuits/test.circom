@@ -1,6 +1,7 @@
 pragma circom 2.0.0;
 
 include "misc.circom";
+include "strings.circom";
 include "sha256.circom";
 
 template Dummy() {

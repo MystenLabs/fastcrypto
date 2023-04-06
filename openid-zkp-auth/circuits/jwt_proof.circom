@@ -2,6 +2,7 @@ pragma circom 2.0.0;
 
 include "sha256.circom";
 include "misc.circom";
+include "strings.circom";
 
 /**
 JWT Proof
@@ -88,47 +89,23 @@ template JwtProof(inCount) {
          79,  68, 85,  48, 77,  84,  77, 122, 78, 106, 89,  48, 78, 105,  73, 115]
     ];
 
-    component subEQCheck[inCount][3];
-    component b64OffsetCheck[inCount][3];
-
-    // Check 2a. Cost: O(subKeyLength * inCount)
-    var accumulate[3] = [0, 0, 0];
-    var subValueOffset = 0;
-    for (var i = 0; i < inCount - subKeyLength - subValueLength; i++) {
-        // TODO: Extend it to enable these checks only in [payloadB64Offset, payloadB64Offset + payloadLength]
-        for (var k = 0; k < 3; k++) { // looking for subClaim[k] if subClaimExpOffsets[k] == b64offsets[i]
-            b64OffsetCheck[i][k] = IsEqual();
-            b64OffsetCheck[i][k].in[0] <== X.b64offsets[i];
-            b64OffsetCheck[i][k].in[1] <== subClaimExpOffsets[k];
-
-            subEQCheck[i][k] = isEqualIfEnabled(subKeyLength);
-            subEQCheck[i][k].enabled <== b64OffsetCheck[i][k].out;
-
-            for (var j = 0; j < subKeyLength; j++) {
-                var idx = i + j;
-                subEQCheck[i][k].in[0][j] <== content[idx];
-                subEQCheck[i][k].in[1][j] <== subClaim[k][j];
-            }
-        }
-
-        subValueOffset += (i + subKeyLength) * (subEQCheck[i][0].out + subEQCheck[i][1].out + subEQCheck[i][2].out);
-
-        accumulate[0] += subEQCheck[i][0].out;
-        accumulate[1] += subEQCheck[i][1].out;
-        accumulate[2] += subEQCheck[i][2].out;
-        // log(i, b64offsets[i], accumulate[0], accumulate[1], accumulate[2]);
+    // Check 2a.
+    component findSub = findAllB64String(subClaim, subKeyLength, subClaimExpOffsets, inCount);
+    for (var i = 0; i < inCount; i++) {
+        findSub.string[i] <== content[i];
+        findSub.b64offsets[i] <== X.b64offsets[i];
     }
 
-    accumulate[0] + accumulate[1] + accumulate[2] === 1; // Adding at most 3*inCount bits, so no concern of wrapping around
-
     // Check 2b. Implicit check for expected offsets as it appears right after "sub".
-    component subExtractor = SliceFixed(inCount, subValueLength);
+    component subExtractor = sliceFixed(inCount, subValueLength);
     for (var i = 0; i < inCount; i++) {
         subExtractor.in[i] <== content[i];
     }
-    subExtractor.offset <== subValueOffset;
+    subExtractor.offset <== findSub.index + subKeyLength;
     for (var i = 0; i < subValueLength; i++) {
-        subExtractor.out[i] === subValue[0][i] * accumulate[0] + subValue[1][i] * accumulate[1] + subValue[2][i] * accumulate[2];
+        subExtractor.out[i] === subValue[0][i] * findSub.out[0]
+                                + subValue[1][i] * findSub.out[1] 
+                                + subValue[2][i] * findSub.out[2];
     }
 
     /** 
