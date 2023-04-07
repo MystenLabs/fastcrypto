@@ -49,6 +49,27 @@ pub fn verify_groth16_in_bytes(
         x.push(Bn254Fr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?);
     }
 
+    verify_groth16(
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
+        &x,
+        proof_points_as_bytes,
+    )
+}
+
+/// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
+/// [`crate::bn254::verifier::PreparedVerifyingKey`]), serialized proof public input and serialized
+/// proof points.
+pub fn verify_groth16(
+    vk_gamma_abc_g1_bytes: &[u8],
+    alpha_g1_beta_g2_bytes: &[u8],
+    gamma_g2_neg_pc_bytes: &[u8],
+    delta_g2_neg_pc_bytes: &[u8],
+    proof_public_inputs: &[Bn254Fr],
+    proof_points_as_bytes: &[u8],
+) -> Result<bool, FastCryptoError> {
     let pvk = PreparedVerifyingKey::deserialize(
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
@@ -59,7 +80,7 @@ pub fn verify_groth16_in_bytes(
     let proof = Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof)
+    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), proof_public_inputs, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
 
@@ -116,11 +137,7 @@ pub fn serialize_proof_from_file(proof_path: &str) -> Vec<u8> {
 }
 
 /// Read in a json file of the public inputs and serialize it to bytes
-pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<Vec<u8>> {
+pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<Bn254Fr> {
     let inputs = read_public_inputs(public_inputs_path);
-    let mut res = Vec::new();
-    for input in inputs {
-        res.push(input.0.to_bytes_be());
-    }
-    res
+    inputs.iter().map(|x| Bn254Fr::from(*x)).collect()
 }
