@@ -79,15 +79,19 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
   inputs["jwt_sha2_hash"] = [hash / 2n**128n, hash % 2n**128n];
 
   // set mask 
-  inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0));
+  inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(1));
 
   // init poseidon
   const buildPoseidon = require("circomlibjs").buildPoseidon;
   poseidon = await buildPoseidon();
-    
+
   // set hash of the masked content
-  const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-  inputs["masked_content_hash"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
+  inputs["masked_content_hash"] = utils.calculateMaskedHash(
+    inputs["content"],
+    inputs["mask"],
+    poseidon,
+    outWidth
+  );
 
   // set nonce-related inputs
   inputs = Object.assign({}, inputs, genNonceInputs());

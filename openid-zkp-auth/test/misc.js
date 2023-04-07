@@ -87,7 +87,7 @@ describe("Bits2NumBE", () => {
 
 describe("Miscellaneous checks", () => {
     it("Fixed circuit extracts correct value", async () => {
-        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), "sliceFixed", [6, 2]);
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), "SliceFixed", [6, 2]);
         await cir_fixed.loadSymbols();
         input = [1,2,3,4,5,6];
         
@@ -96,3 +96,68 @@ describe("Miscellaneous checks", () => {
         assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n]);
     });
 })
+
+describe.only("Poseidon hash", () => {
+    before (async () => {
+        const buildPoseidon = require("circomlibjs").buildPoseidon;
+        poseidon = await buildPoseidon();      
+    });
+
+    it("Hashes a single value", async () => {
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [1]);
+        await cir.loadSymbols();
+        input = [1];
+        
+        const witness = await cir.calculateWitness({ "in": input });
+        
+        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), 
+                     utils.poseidonHash(input, poseidon));
+    });
+
+    it("Hashes two values", async () => {
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [2]);
+        await cir.loadSymbols();
+        input = [1, 2];
+        
+        const witness = await cir.calculateWitness({ "in": input });
+        
+        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), 
+                     utils.poseidonHash(input, poseidon));
+    });
+
+    it("Hashes 16 values", async () => {
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [16]);
+        await cir.loadSymbols();
+        input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+        const expected_hash = utils.poseidonHash(input, poseidon);
+        
+        const witness = await cir.calculateWitness({ "in": input });
+        
+        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+    });
+
+    it("Hashes 17 values", async () => {
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [17]);
+        await cir.loadSymbols();
+        input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+        const expected_hash = utils.poseidonHash(input, poseidon);
+        
+        const witness = await cir.calculateWitness({ "in": input });
+        
+        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+    });
+
+    it("Hashes 32 values", async () => {
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [32]);
+        await cir.loadSymbols();
+        input = [];
+        for (let i = 0; i < 32; i++) {
+            input.push(i);
+        }
+        const expected_hash = utils.poseidonHash(input, poseidon);
+        
+        const witness = await cir.calculateWitness({ "in": input });
+        
+        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+    });
+});

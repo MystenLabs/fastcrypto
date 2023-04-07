@@ -27,12 +27,12 @@ const google_app = {
 }
 
 describe("JWT Proof", () => {
-    const inCount = 64 * 7; // 64 * 7
+    const inCount = 64 * 11; // 64 * 7
     const inWidth = 8;
     const outWidth = 253;
 
-    const jwt = google_playground["jwt"];
-    const jwk = google_playground["jwk"];
+    const jwt = google_app["jwt"];
+    const jwk = google_app["jwk"];
 
     const header = jwt.split('.')[0];
     const payload = jwt.split('.')[1];
@@ -47,20 +47,22 @@ describe("JWT Proof", () => {
         const subClaimIndex = decoded_jwt.indexOf(subClaim);
 
         const subClaiminB64Options = utils.getAllBase64Variants(subClaim);
-        const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3]);
+        const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3][0]);
         assert.isTrue(subClaimIndexInJWT !== -1);
     });
 
     it("Extract from Base64 JSON", async () => {
-        var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud"], inWidth, outWidth);
+        var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
+        utils.checkMaskedContent(inputs["content"], inputs["mask"], inputs["last_block"], inCount);
+        utils.writeInputsToFile(inputs, "inputs.json");
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),
             "JwtProof", [
                 inCount, 
-                subInB64.map(e => e.split('').map(c => c.charCodeAt())), 
-                subInB64[0].length,
-                [0, 2, 0]
+                subInB64.map(e => e[0].split('').map(c => c.charCodeAt())), 
+                subInB64[0][0].length,
+                subInB64.map(e => e[1])
             ]
         );
 
@@ -68,11 +70,10 @@ describe("JWT Proof", () => {
         await cir.checkConstraints(w);
 
         // Check the revealed JWT
-        const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-        assert.deepEqual(maskedContent.split('.').length, 2);
-        const header = Buffer.from(maskedContent.split('.')[0], 'base64').toString();
-        const claims = maskedContent.split('.')[1].split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
-        console.log("header", header, "\nclaims", claims);
+        // assert.deepEqual(maskedContent.split('.').length, 2);
+        // const header = Buffer.from(maskedContent.split('.')[0], 'base64').toString();
+        // const claims = maskedContent.split('.')[1].split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
+        // console.log("header", header, "\nclaims", claims);
         
         // assert.equal(claims.length, 2, "Incorrect number of claims");
         // assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");

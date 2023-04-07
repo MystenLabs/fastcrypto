@@ -4,7 +4,7 @@ const fs = require("fs");
 
 const circom_wasm = require("circom_tester").wasm;
 
-async function genMain(template_file, template_name, params = [], tester = circom_wasm) {
+async function genMain(template_file, template_name, params = [], file_name) {
     temp.track();
     
     const temp_circuit = await temp.open({prefix: template_name, suffix: ".circom"});
@@ -18,6 +18,10 @@ include "${include_path}";
 
 component main = ${template_name}(${params_string});
     `);
+
+    if (file_name !== undefined) {
+      fs.copyFileSync(temp_circuit.path, file_name);
+    }
     
     return circom_wasm(temp_circuit.path);
 }

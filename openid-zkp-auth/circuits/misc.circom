@@ -137,13 +137,13 @@ template Hasher(nInputs) {
     signal output out;
 
     component pos1, pos2, pos3;
-    if (nInputs < 16) {
+    if (nInputs <= 16) {
         pos1 = Poseidon(nInputs);
         for (var i = 0; i < nInputs; i++) {
             pos1.inputs[i] <== in[i];
         }
         out <== pos1.out;
-    } else if (nInputs < 32) {
+    } else if (nInputs <= 32) {
         pos1 = Poseidon(16);
         pos2 = Poseidon(nInputs - 16);
 
@@ -159,6 +159,8 @@ template Hasher(nInputs) {
         pos3.inputs[1] <== pos2.out;
 
         out <== pos3.out;
+    } else { // Yet to be implemented
+        1 === 0;
     }
 }
 

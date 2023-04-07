@@ -1,3 +1,5 @@
+const PADDING_CHAR = '=';
+
 function arrayChunk(array, chunk_size) {
     return Array(Math.ceil(array.length / chunk_size)).fill().map((_, index) => index * chunk_size).map(begin => array.slice(begin, begin + chunk_size));
 }
@@ -10,7 +12,9 @@ function trimEndByChar(string, character) {
 
 function getJSONFieldLength(input, field) {
     const json_input = JSON.parse(input);
-    const fieldNameLength = input.match(new RegExp(`"${field}"\\:\\s*`))[0].length;
+    const matching_fields = input.match(new RegExp(`"${field}"\\:\\s*`));
+    if (matching_fields == undefined) throw new Error("Field " + field + " not found in JSON");
+    const fieldNameLength = matching_fields[0].length;
     const fieldValueLength = JSON.stringify(json_input[field]).length;
     
     return fieldNameLength + fieldValueLength;
@@ -45,7 +49,7 @@ function getBase64JSONSlice(input, field) {
 function findB64IndexOf(payload, claim) {
     const full_string = getExtendedClaim(payload, claim);
 
-    const all_variants = getAllBase64Variants(full_string);
+    const all_variants = getAllBase64Variants(full_string).map(e => e[0]);
 
     for (var i = 0; i < all_variants.length; i++) {
         const index = payload.indexOf(all_variants[i]);
@@ -110,24 +114,36 @@ function getExtendedClaim(payload, claim) {
 
 function getAllBase64Variants(string) {
     var offset0, offset1, offset2, expected_len;
+    var expected_offset0, expected_offset1, expected_offset2;
     if (string.length % 3 == 0) {
         offset0 = Buffer.from(string).toString('base64').slice(1, -1);
+        expected_offset0 = 1;
         offset1 = Buffer.from('0' + string).toString('base64').slice(2, -4);
+        expected_offset1 = 2;
         offset2 = Buffer.from('00' + string).toString('base64').slice(4, -2);
+        expected_offset2 = 0;
         expected_len = ((string.length / 3) * 4) - 2;
     } else if (string.length % 3 == 1) {
         offset0 = Buffer.from(string).toString('base64').slice(0, -4);
+        expected_offset0 = 0;
         offset1 = Buffer.from('0' + string).toString('base64').slice(2, -2);
+        expected_offset1 = 2;
         offset2 = Buffer.from('00' + string).toString('base64').slice(4);
+        expected_offset2 = 0;
         expected_len = (((string.length - 1) / 3) * 4);
     } else { //  (string.length % 3 == 2)
         offset0 = Buffer.from(string).toString('base64').slice(0, -2);
+        expected_offset0 = 0;
         offset1 = Buffer.from('0' + string).toString('base64').slice(2);
+        expected_offset1 = 2;
         offset2 = Buffer.from('00' + string).toString('base64').slice(3, -3);
+        expected_offset2 = 3;
         expected_len = (((string.length - 2) / 3) * 4) + 2;
     }
     if (offset0.length != expected_len || offset1.length != expected_len || offset2.length != expected_len) throw new Error("Something went wrong");
-    return [offset0, offset1, offset2];
+    return [[offset0, expected_offset0],
+            [offset1, expected_offset1],
+            [offset2, expected_offset2]];
 }
 
 function writeInputsToFile(inputs, file_name = "inputs.json") {
@@ -145,8 +161,10 @@ function calculateNonce(inputs, poseidon) {
     ]));
 }
 
-function calculateMaskedHash(masked_content, poseidon, outWidth) {
-    const bits = buffer2BitArray(Buffer.from(masked_content));
+function calculateMaskedHash(content, mask, poseidon, outWidth) {
+    const masked_content = applyMask(content, mask);
+    const bits = bigIntArray2Bits(masked_content, 8);
+
     const extra_bits = (bits.length % outWidth == 0) ? 0 : outWidth - (bits.length % outWidth);
     const bits_padded = bits.concat(Array(extra_bits).fill(0));
     if (bits_padded.length % outWidth != 0) throw new Error("Invalid logic");
@@ -161,10 +179,11 @@ function poseidonHash(inputs, poseidon) {
     } else if (inputs.length <= 16) {
         return poseidon.F.toObject(poseidon(inputs))
     } else if (inputs.length <= 32) {
-        throw new Error("Yet to implement multiple rounds of poseidon");
         const hash1 = poseidon(inputs.slice(0, 16));
         const hash2 = poseidon(inputs.slice(16));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
+    } else {
+        throw new Error("Yet to implement multiple rounds of poseidon");
     }
 }
 
@@ -177,12 +196,63 @@ function applyMask(input, mask) {
     if (input.length != mask.length) {
         throw new Error("Input and mask must be of the same length");
     }
-    return input.map((charCode, index) => (mask[index] == 1) ? String.fromCharCode(Number(charCode)) : '=').join('');
+    return input.map((charCode, index) => (mask[index] == 1) 
+                ? charCode
+                : PADDING_CHAR.charCodeAt()
+            );
 }
 
 function fromBase64WithOffset(input, offset) {
     var extraPrefix = '='.repeat(offset);
     return Buffer.from(extraPrefix + input, 'base64').toString('utf8');
+}
+
+function checkMaskedContent(content, mask, last_block, expected_length) {
+    var masked_content = applyMask(content, mask);
+
+    if (masked_content.length != expected_length) throw new Error("Invalid length");
+    if (last_block * 64 > masked_content.length) throw new Error("Invalid last block");
+
+    masked_content = masked_content.map(e => Number(e)); // convert BigInt to Number
+
+    // Process any extra padding
+    extra_padding = masked_content.slice(last_block * 64);
+    console.log("Length of extra padding:", extra_padding.length);
+    if (extra_padding != '') {
+        if (extra_padding.some(e => e != 0)) throw new Error("Invalid extra padding");
+        masked_content = masked_content.slice(0, last_block * 64);
+    }
+
+    // Process header
+    const header_length = masked_content.indexOf('.'.charCodeAt());
+    if (header_length == -1) throw new Error("Invalid header length");
+
+    const encodedHeader = masked_content.slice(0, header_length).map(e => String.fromCharCode(e)).join('');
+    const header = Buffer.from(encodedHeader, 'base64').toString('utf8');
+    console.log("header", header);
+    // ...JSON Parse header...
+
+    // Process SHA-2 padding
+    const payload_and_sha2pad = masked_content.slice(header_length + 1);
+    const header_and_payload_len_in_bits = Number('0x' + payload_and_sha2pad.slice(-8).map(e => e.toString(16)).join(''));
+    if (header_and_payload_len_in_bits % 8 != 0) throw new Error("Invalid header_and_payload_len_in_bits");
+    const header_and_payload_len = header_and_payload_len_in_bits / 8;
+
+    const payload_len = header_and_payload_len - header_length - 1;
+    const payload = payload_and_sha2pad.slice(0, payload_len);
+    const sha2pad = payload_and_sha2pad.slice(payload_len);
+
+    if (sha2pad[0] != 128) throw new Error("Invalid sha2pad start byte");
+    if (sha2pad.slice(1, -8).some(e => e != 0)) throw new Error("Invalid sha2pad");
+
+    // Process payload
+    const encodedPayload = payload.map(e => String.fromCharCode(e)).join('');
+    console.log("encoded payload", encodedPayload);
+    const claims = encodedPayload.split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
+    console.log("claims", claims);
+    // ...JSON Parse claims...
+
+    // TODO: Careful decoding to be implemented once proper masking is done
 }
 
 module.exports = {
@@ -201,9 +271,10 @@ module.exports = {
     getAllBase64Variants: getAllBase64Variants,
     writeInputsToFile: writeInputsToFile,
     calculateNonce: calculateNonce,
-    applyMask: applyMask,
     fromBase64WithOffset: fromBase64WithOffset,
     calculateMaskedHash: calculateMaskedHash,
     findB64IndexOf: findB64IndexOf,
     getExtendedClaim: getExtendedClaim,
+    checkMaskedContent: checkMaskedContent,
+    poseidonHash: poseidonHash,
 }

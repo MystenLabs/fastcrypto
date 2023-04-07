@@ -366,7 +366,7 @@ fn verify_zkopenid(option: IntegrationOption) {
                 "../openid-zkp-auth/google/google.proof",
                 "../openid-zkp-auth/google/public.json",
             );
-            println!("verify pass");
+            println!("ZKOpenID: verify pass");
         }
     }
 }
