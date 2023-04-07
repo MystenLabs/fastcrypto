@@ -3,7 +3,8 @@ pragma circom 2.0.0;
 include "jwt_proof.circom";
 
 component main {
-    public [hash, out, payloadIndex, ephPubKey, maxEpoch, nonce]
+    public [jwt_sha2_hash, masked_content_hash, payload_index, 
+            eph_public_key, max_epoch, nonce]
 } = JwtProof(
     448,
     [ // ',"sub":"117912735658541336646",'

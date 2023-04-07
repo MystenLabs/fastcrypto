@@ -15,22 +15,6 @@ function padMessage(bits) {
     return bits;
 }
 
-function genClaimParams(input, claimField, claimLength, nWidth) {
-  const claimPattern = new RegExp(`"${claimField}"\\:\\s*"`);
-  const claimOffset = Math.floor(input.search(claimPattern) / (nWidth / 8));
-  
-  var inputs = { "claimOffset": claimOffset };
-  
-  if(claimLength !== undefined) {
-    inputs = Object.assign({},
-      inputs,
-      { "claimLength": claimLength }
-    );
-  }
-  
-  return inputs;
-}
-
 function genJwtMask(input, fields) {
   const [header, payload] = input.split('.');
   
@@ -62,19 +46,7 @@ function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
         throw new Error('Padded message exceeds maximum blocks supported by circuit');
     }
     
-    return { [inParam]: segments, "lastBlock": lastBlock }; 
-}
-
-function genClaimProofInputs(input, nCount, claimField, claimLength = undefined, nWidth = 16, inParam = "content") {
-  var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
-  inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
-  
-  inputs = Object.assign({},
-    inputs,
-    genClaimParams(input, claimField, claimLength, nWidth)
-  );
-  
-  return inputs;
+    return { [inParam]: segments, "last_block": lastBlock }; 
 }
 
 function genNonceInputs() {
@@ -87,8 +59,8 @@ function genNonceInputs() {
   const eph_public_key_1 = eph_public_key / 2n**128n;
 
   return {
-    "ephPubKey": [eph_public_key_0, eph_public_key_1],
-    "maxEpoch": max_epoch,
+    "eph_public_key": [eph_public_key_0, eph_public_key_1],
+    "max_epoch": max_epoch,
     "randomness": randomness
   };
 }
@@ -98,37 +70,35 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
   var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
   inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
 
-  // init poseidon
-  const buildPoseidon = require("circomlibjs").buildPoseidon;
-  poseidon = await buildPoseidon();
-
-  // set nonce-related inputs
-  inputs = Object.assign({}, inputs, genNonceInputs());
-  inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
-
   // set indices
-  inputs["payloadIndex"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-  inputs["subClaimIndex"] = utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payloadIndex"];
+  inputs["payload_index"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
+  inputs["sub_claim_index"] = utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_index"];
+
+  // set hash
+  const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
+  inputs["jwt_sha2_hash"] = [hash / 2n**128n, hash % 2n**128n];
 
   // set mask 
   inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0));
 
-  // set hash
-  const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
-  inputs["hash"] = [hash / 2n**128n, hash % 2n**128n];
-
+  // init poseidon
+  const buildPoseidon = require("circomlibjs").buildPoseidon;
+  poseidon = await buildPoseidon();
+    
   // set hash of the masked content
   const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-  inputs["out"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
+  inputs["masked_content_hash"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
+
+  // set nonce-related inputs
+  inputs = Object.assign({}, inputs, genNonceInputs());
+  inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
 
   return inputs;
 }
 
 module.exports = {
     padMessage: padMessage,
-    genClaimParams: genClaimParams,
     genJwtMask: genJwtMask,
     genSha256Inputs: genSha256Inputs,
-    genClaimProofInputs: genClaimProofInputs,
     genJwtProofInputs: genJwtProofInputs,
 }

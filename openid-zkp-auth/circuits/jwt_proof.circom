@@ -14,17 +14,18 @@ JWT Proof
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
-    - lastBlock:                At which 512-bit block to select output hash
+    - last_block:               At which 512-bit block to select output hash
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
+    - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
 
     Public Inputs:
-    - payloadIndex:             The index of the payload in the content
-    - ephPubKey[2]:             The ephemeral public key split into two 128-bit values
-    - maxEpoch:                 The maximum epoch for which the ephPubKey is valid
-    - nonce:                    H(ephPubKey, maxEpoch, randomness)
-    - hash[2]:                  SHA256 hash output split into two 128-bit values
-    - out:                      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
+    - jwt_sha2_hash[2]:         SHA256 hash output split into two 128-bit values
+    - masked_content_hash:      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
+    - payload_index:            The index of the payload in the content
+    - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
+    - max_epoch:                The maximum epoch for which the eph_public_key is valid
+    - nonce:                    H(eph_public_key, max_epoch, randomness)
 */
 template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII
@@ -34,29 +35,29 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     /**
         #1) SHA-256 (30k * nBlocks constraints)
     **/
-    signal input lastBlock;
+    signal input last_block;
     // Note: In theory, we could've packed 253 bits into an output value, but 
     //       that'd still require at least 2 values. Instead, the below impl
     //       packs the 256 bits into 2 values of 128 bits each. 
     var hashCount = 2;
-    signal input hash[hashCount];
+    signal input jwt_sha2_hash[hashCount];
 
     component sha256 = Sha2_wrapper(inWidth, inCount);
     for (var i = 0; i < inCount; i++) {
         sha256.in[i] <== content[i];
     }
-    sha256.lastBlock <== lastBlock;
+    sha256.last_block <== last_block;
 
     for (var i = 0; i < hashCount; i++) {
-        sha256.hash[i] === hash[i];
+        sha256.hash[i] === jwt_sha2_hash[i];
     }
 
     /** 
-        #2) Checks that the substring `,"sub":UserID,` appears at subClaimIndex 
+        #2) Checks that the substring `,"sub":UserID,` appears at sub_claim_index 
         Cost: ~40k constraints
     **/
-    signal input payloadIndex;
-    signal input subClaimIndex;
+    signal input payload_index;
+    signal input sub_claim_index;
     component subChecker = CheckIfB64StringExists(
         subValue,
         subValueLength,
@@ -67,8 +68,8 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     for (var i = 0; i < inCount; i++) {
         subChecker.string[i] <== content[i];
     }
-    subChecker.substrIndex <== subClaimIndex;
-    subChecker.startIndex <== payloadIndex;
+    subChecker.substrIndex <== sub_claim_index;
+    subChecker.startIndex <== payload_index;
 
     /** 
         #3) Masking 
@@ -76,7 +77,7 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     **/
     signal input mask[inCount];
     signal masked[inCount];
-    signal input out;
+    signal input masked_content_hash;
 
     for(var i = 0; i < inCount; i++) {
         // Ensure mask is binary
@@ -101,20 +102,20 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     for (var i = 0; i < outCount; i++) {
         outHasher.in[i] <== outPacker.out[i];
     }
-    out === outHasher.out;
+    masked_content_hash === outHasher.out;
 
     /**
-        #4) nonce == Hash(ephPubKey, maxEpoch, r)
+        #4) nonce == Hash(eph_public_key, max_epoch, r)
     **/
-    signal input ephPubKey[2];
-    signal input maxEpoch;
+    signal input eph_public_key[2];
+    signal input max_epoch;
     signal input randomness;
     signal input nonce;
 
     component nhash = Poseidon(4);
-    nhash.inputs[0] <== ephPubKey[0];
-    nhash.inputs[1] <== ephPubKey[1];
-    nhash.inputs[2] <== maxEpoch;
+    nhash.inputs[0] <== eph_public_key[0];
+    nhash.inputs[1] <== eph_public_key[1];
+    nhash.inputs[2] <== max_epoch;
     nhash.inputs[3] <== randomness;
     nonce === nhash.out;
 }

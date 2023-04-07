@@ -138,9 +138,9 @@ function writeInputsToFile(inputs, file_name = "inputs.json") {
 
 function calculateNonce(inputs, poseidon) {
     return poseidon.F.toObject(poseidon([
-        inputs["ephPubKey"][0], 
-        inputs["ephPubKey"][1], 
-        inputs["maxEpoch"],
+        inputs["eph_public_key"][0], 
+        inputs["eph_public_key"][1], 
+        inputs["max_epoch"],
         inputs["randomness"]
     ]));
 }
@@ -161,7 +161,7 @@ function poseidonHash(inputs, poseidon) {
     } else if (inputs.length <= 16) {
         return poseidon.F.toObject(poseidon(inputs))
     } else if (inputs.length <= 32) {
-        console.log("NOTE: Using 2 rounds of poseidon");
+        throw new Error("Yet to implement multiple rounds of poseidon");
         const hash1 = poseidon(inputs.slice(0, 16));
         const hash2 = poseidon(inputs.slice(16));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
