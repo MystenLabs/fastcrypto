@@ -42,6 +42,23 @@ function getBase64JSONSlice(input, field) {
     // return [start, end >= input.length ? input.length - 1 : end - 1, startOffset];
 }
 
+function findB64IndexOf(payload, claim) {
+    const full_string = getExtendedClaim(payload, claim);
+
+    const all_variants = getAllBase64Variants(full_string);
+
+    for (var i = 0; i < all_variants.length; i++) {
+        const index = payload.indexOf(all_variants[i]);
+        if (index != -1) {
+            return index;
+        }
+    }
+
+    console.log(full_string);
+    console.log(all_variants);
+    throw new Error("Claim not found");
+}
+
 function buffer2BitArray(b) {
     return [].concat(...Array.from(b.entries()).map(([index, byte]) => byte.toString(2).padStart(8, '0').split('').map(bit => bit == '1' ? 1 : 0) ))
 }
@@ -77,6 +94,18 @@ function getWitnessBuffer(witness, symbols, arrName, varSize=1) {
     } else {
         return bigIntArray2Buffer(witnessArray, varSize);
     }
+}
+
+// Assuming that the claim isn't the first or last, we look for an extended string of the form `,"claim":"value",`
+function getExtendedClaim(payload, claim) {
+    const decoded = Buffer.from(payload, 'base64').toString();
+    const json_input = JSON.parse(decoded);
+    const extended_string = `,"${claim}":"` + json_input[claim] + '",';
+    if (decoded.indexOf(extended_string) == -1) {
+        console.log(decoded, extended_string);
+        throw new Error(extended_string, "is not in", decoded);
+    }
+    return extended_string;
 }
 
 function getAllBase64Variants(string) {
@@ -123,7 +152,6 @@ function calculateMaskedHash(masked_content, poseidon, outWidth) {
     if (bits_padded.length % outWidth != 0) throw new Error("Invalid logic");
 
     const packed = arrayChunk(bits_padded, outWidth).map(chunk => BigInt("0b" + chunk.join('')));
-    console.log(packed.length);
     return poseidonHash(packed, poseidon);
 }
 
@@ -133,6 +161,7 @@ function poseidonHash(inputs, poseidon) {
     } else if (inputs.length <= 16) {
         return poseidon.F.toObject(poseidon(inputs))
     } else if (inputs.length <= 32) {
+        console.log("NOTE: Using 2 rounds of poseidon");
         const hash1 = poseidon(inputs.slice(0, 16));
         const hash2 = poseidon(inputs.slice(16));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
@@ -174,5 +203,7 @@ module.exports = {
     calculateNonce: calculateNonce,
     applyMask: applyMask,
     fromBase64WithOffset: fromBase64WithOffset,
-    calculateMaskedHash: calculateMaskedHash
+    calculateMaskedHash: calculateMaskedHash,
+    findB64IndexOf: findB64IndexOf,
+    getExtendedClaim: getExtendedClaim,
 }

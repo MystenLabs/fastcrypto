@@ -26,7 +26,7 @@ JWT Proof
     - hash[2]:                  SHA256 hash output split into two 128-bit values
     - out:                      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
 */
-template JwtProof(inCount) {
+template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
     signal input content[inCount];
@@ -52,65 +52,27 @@ template JwtProof(inCount) {
     }
 
     /** 
-        #2) sub claim checks 
-            2a) Ensures "sub" only appears once (~40k constraints)
-            2b) checks the userID (~40k constraints)
-        
-        Check 2a can be omitted if we can assume that "sub" only appears once.
+        #2) Checks that the substring `,"sub":UserID,` appears at subClaimIndex 
+        Cost: ~40k constraints
     **/
     signal input payloadIndex;
-    component X = computePayloadOffsets(inCount);
-    X.index <== payloadIndex;
+    signal input subClaimIndex;
+    component subChecker = CheckIfB64StringExists(
+        subValue,
+        subValueLength,
+        subOffsets,
+        inCount
+    );
 
-    var subKeyLength = 8;
-    var subValueLength = 32;
-
-    // ',"sub":'
-    var subClaim[3][subKeyLength] = [
-        // LCJzdWIi => 4c434a7a64574969 => 0x4c, 0x43, 0x4a, 0x7a, 0x64, 0x57, 0x49, 0x69 => (decimal) 76, 67, 74, 122, 100, 87, 73, 105
-        [76, 67, 74, 122, 100, 87, 73, 105], // Appears at 0
-        // wic3ViIj => 7769633a53756249
-        [119, 105, 99, 51, 86, 105, 73, 106], // Appears at 2
-        // InN1YiI6 => 496e4e3159694936
-        [73, 110, 78, 49, 89, 105, 73, 54] // Appears at 0
-    ];
-    var subClaimExpOffsets[3] = [0, 2, 0];
-
-    // ',"sub":"117912735658541336646",'
-    var subValue[3][subValueLength] = [
-        // LCJzdWIi OiIxMTc5MTI3MzU2NTg1NDEzMzY2NDYi
-        [79, 105,  73, 120, 77,  84, 99,  53, 77,  84,  73,  51, 77, 122, 85, 50,
-         78,  84, 103,  49, 78,  68, 69, 122, 77, 122,  89,  50, 78,  68, 89, 105],
-        // wic3ViIj oiMTE3OTEyNzM1NjU4NTQxMzM2NjQ2Ii
-        [111, 105, 77,  84, 69,  51, 79,  84, 69, 121, 78, 122, 77,  49, 78, 106,
-         85,  52, 78,  84, 81, 120, 77, 122, 77,  50, 78, 106, 81,  50, 73, 105],
-        // InN1YiI6 IjExNzkxMjczNTY1ODU0MTMzNjY0NiIs
-        [73, 106, 69, 120, 78, 122, 107, 120, 77, 106, 99, 122, 78,  84,  89,  49, 
-         79,  68, 85,  48, 77,  84,  77, 122, 78, 106, 89,  48, 78, 105,  73, 115]
-    ];
-
-    // Check 2a.
-    component findSub = findAllB64String(subClaim, subKeyLength, subClaimExpOffsets, inCount);
     for (var i = 0; i < inCount; i++) {
-        findSub.string[i] <== content[i];
-        findSub.b64offsets[i] <== X.b64offsets[i];
+        subChecker.string[i] <== content[i];
     }
-
-    // Check 2b. Implicit check for expected offsets as it appears right after "sub".
-    component subExtractor = sliceFixed(inCount, subValueLength);
-    for (var i = 0; i < inCount; i++) {
-        subExtractor.in[i] <== content[i];
-    }
-    subExtractor.offset <== findSub.index + subKeyLength;
-    for (var i = 0; i < subValueLength; i++) {
-        subExtractor.out[i] === subValue[0][i] * findSub.out[0]
-                                + subValue[1][i] * findSub.out[1] 
-                                + subValue[2][i] * findSub.out[2];
-    }
+    subChecker.substrIndex <== subClaimIndex;
+    subChecker.startIndex <== payloadIndex;
 
     /** 
         #3) Masking 
-        Cost: (1k constraints) (2*inCount) 
+        Cost: 1k constraints (2*inCount) 
     **/
     signal input mask[inCount];
     signal masked[inCount];

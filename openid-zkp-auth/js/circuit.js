@@ -106,10 +106,10 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
   inputs = Object.assign({}, inputs, genNonceInputs());
   inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
 
-  // set offset
-  // const offset = utils.getPayloadOffset(input);
+  // set indices
   inputs["payloadIndex"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-  
+  inputs["subClaimIndex"] = utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payloadIndex"];
+
   // set mask 
   inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(0));
 
@@ -119,7 +119,6 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 
 
   // set hash of the masked content
   const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-  console.log("maskedContent", maskedContent);
   inputs["out"] = utils.calculateMaskedHash(maskedContent, poseidon, outWidth);
 
   return inputs;

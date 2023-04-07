@@ -91,7 +91,7 @@ describe("Miscellaneous checks", () => {
         await cir_fixed.loadSymbols();
         input = [1,2,3,4,5,6];
         
-        const witness = await cir_fixed.calculateWitness({ "in": input, "offset": 1 });
+        const witness = await cir_fixed.calculateWitness({ "in": input, "index": 1 });
         
         assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n]);
     });
