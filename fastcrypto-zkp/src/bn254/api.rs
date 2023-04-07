@@ -7,6 +7,7 @@ use crate::{
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
+use ark_ff::BigInteger;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
@@ -119,9 +120,7 @@ pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<Vec<u8
     let inputs = read_public_inputs(public_inputs_path);
     let mut res = Vec::new();
     for input in inputs {
-        let mut input_bytes = Vec::new();
-        input.serialize_compressed(&mut input_bytes).unwrap();
-        res.push(input_bytes);
+        res.push(input.0.to_bytes_be());
     }
     res
 }
