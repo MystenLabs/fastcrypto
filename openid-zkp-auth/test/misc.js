@@ -97,7 +97,89 @@ describe("Miscellaneous checks", () => {
     });
 })
 
-describe.only("Poseidon hash", () => {
+describe("Packer checks", () => {
+    it("Checking Packer Case 0: input and output should be same", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 4, 4]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out, [1, 2, 3, 4]);
+    });
+
+    it("Checking Packer Case 1: Output width is multiple of input width", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 8, 2]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out[0], 18);
+        assert.deepEqual(out[1], 52);
+    });
+
+    it("Checking Packer Case 2: Output width is not a multiple of input width", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 6, 3]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out[0], 4);
+        assert.deepEqual(out[1], 35);
+        assert.deepEqual(out[2], 16)
+    });
+
+    it("Checking Packer Case 3: Edge case - just one input", async () => {  
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [1, 1, 6, 1]);
+        await cir_fixed.loadSymbols();
+        input = [1];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out[0], 32);
+    });
+
+    it("Checking Packer Case 4: Edge case - just one output", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 16, 1]);
+        await cir_fixed.loadSymbols();
+        input = [1, 2, 3, 4];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out[0], 4660);
+    });
+
+    // it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
+    //     { 
+    //         try {
+    //             cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 16, 2]);
+    //             await cir_fixed.loadSymbols();
+    //             input = [7,1,8,2];
+    //             const witness = await cir_fixed.calculateWitness({ "in": input });
+    //             await cir_fixed.checkConstraints(witness);
+    //             assert.fail();
+    //         } catch (error) {
+    //             console.log(error);
+    //         }
+    //     }
+    // });
+
+    it("Checking Packer Case 6: Another test of correct padding", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 7, 3]);
+        await cir_fixed.loadSymbols();
+        input = [7,1,8,2];
+        const witness = await cir_fixed.calculateWitness({ "in": input });
+        
+        const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
+        assert.deepEqual(out[0], 56);
+        assert.deepEqual(out[1], 96);
+        assert.deepEqual(out[2], 64);
+    });
+});
+
+describe("Poseidon hash", () => {
     before (async () => {
         const buildPoseidon = require("circomlibjs").buildPoseidon;
         poseidon = await buildPoseidon();      
