@@ -270,16 +270,19 @@ fn verify_rsa(option: IntegrationOption) {
 #[allow(non_snake_case)]
 #[derive(serde::Deserialize)]
 struct OpenIDInputs {
+    // private inputs
     content: Vec<String>,
-    lastBlock: u64,
+    last_block: u64,
     mask: Vec<u64>,
-    payloadB64Offset: Vec<u64>,
-    nonce: String,
-    ephPubKey: [String; 2],
     randomness: String,
-    maxEpoch: u64,
-    hash: [String; 2],
-    out: String,
+    sub_claim_index: u64,
+    // public inputs
+    jwt_sha2_hash: [String; 2],
+    masked_content_hash: String,
+    payload_index: u64,
+    eph_public_key: [String; 2],
+    max_epoch: u64,
+    nonce: String,
 }
 
 fn load_zkopenid_test_vector(path: &str) -> CircomInput {
@@ -296,29 +299,21 @@ fn load_zkopenid_test_vector(path: &str) -> CircomInput {
             .collect(),
     );
     inputs_map.insert(
-        "lastBlock".to_string(),
-        vec![BigInt::from(inputs.lastBlock)],
+        "last_block".to_string(),
+        vec![BigInt::from(inputs.last_block)],
     );
     inputs_map.insert(
         "mask".to_string(),
         inputs.mask.iter().map(|s| BigInt::from(*s)).collect(),
     );
     inputs_map.insert(
-        "payloadB64Offset".to_string(),
-        inputs
-            .payloadB64Offset
-            .iter()
-            .map(|s| BigInt::from(*s))
-            .collect(),
-    );
-    inputs_map.insert(
         "nonce".to_string(),
         vec![inputs.nonce.parse::<BigInt>().unwrap()],
     );
     inputs_map.insert(
-        "ephPubKey".to_string(),
+        "eph_public_key".to_string(),
         inputs
-            .ephPubKey
+            .eph_public_key
             .iter()
             .map(|s| s.parse::<BigInt>().unwrap())
             .collect(),
@@ -327,18 +322,26 @@ fn load_zkopenid_test_vector(path: &str) -> CircomInput {
         "randomness".to_string(),
         vec![inputs.randomness.parse::<BigInt>().unwrap()],
     );
-    inputs_map.insert("maxEpoch".to_string(), vec![BigInt::from(inputs.maxEpoch)]);
+    inputs_map.insert("max_epoch".to_string(), vec![BigInt::from(inputs.max_epoch)]);
     inputs_map.insert(
-        "hash".to_string(),
+        "jwt_sha2_hash".to_string(),
         inputs
-            .hash
+            .jwt_sha2_hash
             .iter()
             .map(|s| s.parse::<BigInt>().unwrap())
             .collect(),
     );
     inputs_map.insert(
-        "out".to_string(),
-        vec![inputs.out.parse::<BigInt>().unwrap()],
+        "masked_content_hash".to_string(),
+        vec![inputs.masked_content_hash.parse::<BigInt>().unwrap()],
+    );
+    inputs_map.insert(
+        "payload_index".to_string(),
+        vec![BigInt::from(inputs.payload_index)],
+    );
+    inputs_map.insert(
+        "sub_claim_index".to_string(),
+        vec![BigInt::from(inputs.sub_claim_index)],
     );
     println!("Loaded inputs: {:?}", inputs_map);
     inputs_map
@@ -363,7 +366,7 @@ fn verify_zkopenid(option: IntegrationOption) {
                 "../openid-zkp-auth/google/google.proof",
                 "../openid-zkp-auth/google/public.json",
             );
-            println!("verify pass");
+            println!("ZKOpenID: verify pass");
         }
     }
 }

@@ -50,7 +50,7 @@ template Bits2NumBE(n) {
     lc1 ==> out;
 }
 
-template isEqualIfEnabled(n) {
+template IsEqualIfEnabled(n) {
     signal input in[2][n];
     signal input enabled;
     signal output out;
@@ -82,31 +82,6 @@ template CalculateTotal(n) {
     }
 
     sum <== sums[n - 1];
-}
-
-// Returns in[offset:offset+outSize]
-// Cost: O(inSize * outSize)
-template SliceFixed(inSize, outSize) {
-    signal input in[inSize];
-    signal input offset;
-    
-    signal output out[outSize];
-    
-    component selector[outSize];
-    component eqs[inSize][outSize];
-    for(var i = 0; i < outSize; i++) {
-        selector[i] = CalculateTotal(inSize);
-        
-        for(var j = 0; j < inSize; j++) {
-            eqs[j][i] = IsEqual();
-            eqs[j][i].in[0] <== j;
-            eqs[j][i].in[1] <== offset + i;
-            
-            selector[i].nums[j] <== eqs[j][i].out * in[j];
-        }
-
-        out[i] <== selector[i].sum;
-    }
 }
 
 // TODO: Tests to be added.
@@ -162,13 +137,13 @@ template Hasher(nInputs) {
     signal output out;
 
     component pos1, pos2, pos3;
-    if (nInputs < 16) {
+    if (nInputs <= 16) {
         pos1 = Poseidon(nInputs);
         for (var i = 0; i < nInputs; i++) {
             pos1.inputs[i] <== in[i];
         }
         out <== pos1.out;
-    } else if (nInputs < 32) {
+    } else if (nInputs <= 32) {
         pos1 = Poseidon(16);
         pos2 = Poseidon(nInputs - 16);
 
@@ -184,29 +159,18 @@ template Hasher(nInputs) {
         pos3.inputs[1] <== pos2.out;
 
         out <== pos3.out;
+    } else { // Yet to be implemented
+        1 === 0;
     }
 }
 
-// l => (4 - (l % 4)) % 4
-template offsetCalculator() {
-    signal input in;
-    signal output out;
-
-    component r1 = remainderMod4();
-    r1.in <== in;
-
-    component r2 = remainderMod4();
-    r2.in <== 4 - r1.out;
-
-    out <== r2.out;
-}
-
-template remainderMod4() {
+template RemainderMod4() {
     signal input in;
     signal output out;
 
     out <-- in % 4;
     signal q <-- in \ 4;
+    // TODO: Check if q is in range.
 
     4 * q + out === in;
 
@@ -214,39 +178,4 @@ template remainderMod4() {
     tmp1 <== (out - 3) * (out - 2);
     tmp2 <== tmp1 * (out - 1);
     tmp2 * out === 0;
-}
-
-/**
-Computes offsets relative to the start of the payload.
-
-Construction Params:
-    inCount: Number of signals to compute offsets for
-
-Inputs:
-    index: Payload start index
-
-Outputs:
-    out[i] = (4 - (index % 4)) % 4 if i = 0
-           = (out[i-1] + 1) % 4 otherwise
-
-Note that this ensures that out[index] will be 0.
-**/
-template computePayloadOffsets(inCount) {
-    signal input index;
-    signal output b64offsets[inCount];
-
-    component offsetCalc = offsetCalculator();
-    offsetCalc.in <== index;
-    b64offsets[0] <== offsetCalc.out;
-
-    component rems[4];
-    for (var i = 1; i < 4; i++) {
-        rems[i] = remainderMod4();
-        rems[i].in <== b64offsets[i - 1] + 1;
-        b64offsets[i] <== rems[i].out;
-    }
-
-    for (var i = 4; i < inCount; i++) {
-        b64offsets[i] <== b64offsets[i % 4];
-    }
 }

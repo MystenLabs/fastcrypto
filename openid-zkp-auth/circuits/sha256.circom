@@ -9,7 +9,7 @@ include "misc.circom";
 SHA256 Unsafe
     Calculates the SHA256 hash of the input, using a signal to select the output round corresponding to the number of
     non-empty input blocks. This implementation is referred to as "unsafe", as it relies upon the caller to ensure that
-    the input is padded correctly, and to ensure that the lastBlock input corresponds to the actual terminating data block.
+    the input is padded correctly, and to ensure that the last_block input corresponds to the actual terminating data block.
     Crafted inputs could result in Length Extension Attacks.
 
     Construction Parameters:
@@ -18,15 +18,15 @@ SHA256 Unsafe
     Inputs:
     - in:       An array of blocks exactly nBlocks in length, each block containing an array of exactly 512 bits.
                 Padding of the input according to RFC4634 Section 4.1 is left to the caller.
-                Blocks following lastBlock must be supplied, and *should* contain all zeroes
-    - lastBlock: An integer corresponding to the terminating block of the input, which contains the message padding
+                Blocks following last_block must be supplied, and *should* contain all zeroes
+    - last_block: An integer corresponding to the terminating block of the input, which contains the message padding
     
     Outputs:
     - out:    An array of 256 bits corresponding to the SHA256 output as of the terminating block
 */
 template Sha256_unsafe(nBlocks) {
     signal input in[nBlocks][512];
-    signal input lastBlock;
+    signal input last_block;
     
     signal output out[256];
 
@@ -73,15 +73,15 @@ template Sha256_unsafe(nBlocks) {
     }
     
     // Collapse the hashing result at the terminating data block
-    // A modified Quin Selector allows us to select the block based on the lastBlock signal
+    // A modified Quin Selector allows us to select the block based on the last_block signal
     component calcTotal[256];
     component eqs[nBlocks];
 
-    // Generate a bit vector of size nBlocks, where the bit corresponding to lastBlock is raised
+    // Generate a bit vector of size nBlocks, where the bit corresponding to last_block is raised
     for (var i = 0; i < nBlocks; i++) {
         eqs[i] = IsEqual();
         eqs[i].in[0] <== i;
-        eqs[i].in[1] <== lastBlock - 1;
+        eqs[i].in[1] <== last_block - 1;
     }
 
     // For each bit of the output
@@ -103,7 +103,7 @@ template Sha256_unsafe(nBlocks) {
 SHA2_Wrapper
 
     Calculates the SHA2 hash of an arbitrarily shaped input using SHA256_unsafe internally.
-    Additionally, it also packs the output and checks that everything after lastBlock is indeed 0.
+    Additionally, it also packs the output and checks that everything after last_block is indeed 0.
 
     Construction Parameters:
     - inWidth:      Width of each input segment in bits
@@ -112,7 +112,7 @@ SHA2_Wrapper
     Inputs:
     - in:           An array of segments exactly inCount in length, each segment containing an array of exactly inWidth bits.
                     Padding of the input according to RFC4634 Section 4.1 is left to the caller.
-    - lastBlock:    An integer corresponding to the terminating block of the input, which contains the message padding.
+    - last_block:    An integer corresponding to the terminating block of the input, which contains the message padding.
 
     Outputs:
     - hash:         An array of size 2 corresponding to the SHA256 output as of the terminating block split into two.
@@ -124,7 +124,7 @@ template Sha2_wrapper(inWidth, inCount) {
     assert(inBits % 512 == 0);
 
     signal input in[inCount];
-    signal input lastBlock;
+    signal input last_block;
 
     var outWidth = 128;
     var outCount = 2;
@@ -160,7 +160,7 @@ template Sha2_wrapper(inWidth, inCount) {
             }
         }
     }
-    sha256.lastBlock <== lastBlock;
+    sha256.last_block <== last_block;
 
     /**
         Pack the output of the SHA-256 hash into a vector of size outCount where each element has outWidth bits.
@@ -175,14 +175,14 @@ template Sha2_wrapper(inWidth, inCount) {
     }
 
     /**
-        Verify that content[i] for all blocks >= lastBlock is zero.
+        Verify that content[i] for all blocks >= last_block is zero.
     **/
-    // Generate a bit vector of size nBlocks, where the bit corresponding to lastBlock is raised
+    // Generate a bit vector of size nBlocks, where the bit corresponding to last_block is raised
     component gte[nBlocks];
     for (var b = 0; b < nBlocks; b++) {
         gte[b] = GreaterEqThan(log2(nBlocks));
         gte[b].in[0] <== b;
-        gte[b].in[1] <== lastBlock;
+        gte[b].in[1] <== last_block;
     }
 
     for (var b = 0; b < nBlocks; b++) {

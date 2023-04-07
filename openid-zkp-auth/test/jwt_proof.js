@@ -3,9 +3,6 @@ const path = require("path");
 const assert = chai.assert;
 const crypto = require("crypto");
 const jose = require("jose");
-const {toBigIntBE} = require('bigint-buffer');
-
-const tester = require("circom_tester").wasm;
 
 const circuit = require("../js/circuit");
 const utils = require("../js/utils");
@@ -30,58 +27,64 @@ const google_app = {
 }
 
 describe("JWT Proof", () => {
-    const inCount = 64 * 7; // 64 * 7
+    const inCount = 64 * 11; // 64 * 7
     const inWidth = 8;
     const outWidth = 253;
-    const hashWidth = 128;
 
-    const jwt = google_playground["jwt"];
-    const input = jwt.split('.').slice(0,2).join('.');
+    const jwt = google_app["jwt"];
+    const jwk = google_app["jwk"];
+
+    const header = jwt.split('.')[0];
+    const payload = jwt.split('.')[1];
+    const input = header + '.' + payload;
     const signature = jwt.split('.')[2];
-    const jwk = google_playground["jwk"];
-    const subClaim = ',"sub":';
+
+    const subClaim = utils.getExtendedClaim(payload, "sub");
+    const subInB64 = utils.getAllBase64Variants(subClaim);
     
     it("sub claim finding", () => {
-        const decoded_jwt = Buffer.from(jwt.split('.')[1], 'base64').toString();
+        const decoded_jwt = Buffer.from(payload, 'base64').toString();
         const subClaimIndex = decoded_jwt.indexOf(subClaim);
 
         const subClaiminB64Options = utils.getAllBase64Variants(subClaim);
-        const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3]);
+        const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3][0]);
         assert.isTrue(subClaimIndexInJWT !== -1);
-
-        // debug info
-        // console.log("subClaimIndexInJWT:", subClaimIndexInJWT);
-        // console.log(subClaimIndex % 3, subClaiminB64Options[subClaimIndex % 3]);
-
-        // const subValue = subClaim + '"117912735658541336646",';
-        // const subKVinB64Options = utils.getAllBase64Variants(subValue);
-        // console.log(subKVinB64Options);
     });
 
     it("Extract from Base64 JSON", async () => {
-        var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud"], inWidth, outWidth);
+        var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
+        utils.checkMaskedContent(inputs["content"], inputs["mask"], inputs["last_block"], inCount);
+        utils.writeInputsToFile(inputs, "inputs.json");
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),
-            "JwtProof",
-            [inCount]
+            "JwtProof", [
+                inCount, 
+                subInB64.map(e => e[0].split('').map(c => c.charCodeAt())), 
+                subInB64[0][0].length,
+                subInB64.map(e => e[1])
+            ]
         );
 
         const w = await cir.calculateWitness(inputs, true);
         await cir.checkConstraints(w);
 
-        const maskedContent = utils.applyMask(inputs["content"], inputs["mask"]);
-        assert.deepEqual(maskedContent.split('.').length, 2);
-        const header = Buffer.from(maskedContent.split('.')[0], 'base64').toString();
-        const claims = maskedContent.split('.')[1].split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
-        console.log("header", header, "\nclaims", claims);
+        // Check the revealed JWT
+        // assert.deepEqual(maskedContent.split('.').length, 2);
+        // const header = Buffer.from(maskedContent.split('.')[0], 'base64').toString();
+        // const claims = maskedContent.split('.')[1].split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
+        // console.log("header", header, "\nclaims", claims);
         
         // assert.equal(claims.length, 2, "Incorrect number of claims");
         // assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");
         // assert.include(claims[1], '"azp":"407408718192.apps.googleusercontent.com"', "Does not contain azp claim");
         // assert.include(claims[2], '"iat":1679674145', "Does not contain nonce claim");
-        
+
+        // Check signature
         const pubkey = await jose.importJWK(jwk);
-        assert.isTrue(crypto.createVerify('RSA-SHA256').update(input).verify(pubkey, Buffer.from(signature, 'base64')), "Signature does not correspond to hash");
+        assert.isTrue(crypto.createVerify('RSA-SHA256')
+                            .update(input)
+                            .verify(pubkey, Buffer.from(signature, 'base64')),
+                            "Signature does not correspond to hash");
     });
 });
