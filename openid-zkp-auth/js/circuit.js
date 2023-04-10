@@ -55,8 +55,8 @@ function genNonceInputs() {
   const max_epoch = 10000;
   const randomness = 50683480294434968413708503290439057629605340925620961559740848568164438166n;
 
-  const eph_public_key_0 = eph_public_key % 2n**128n;
-  const eph_public_key_1 = eph_public_key / 2n**128n;
+  const eph_public_key_0 = eph_public_key / 2n**128n;
+  const eph_public_key_1 = eph_public_key % 2n**128n;
 
   return {
     "eph_public_key": [eph_public_key_0, eph_public_key_1],
