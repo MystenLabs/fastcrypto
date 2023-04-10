@@ -36,7 +36,7 @@ describe("JWT Proof", () => {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
         const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
         utils.checkMaskedContent(masked_content, inputs["last_block"], inCount);
-        // utils.writeInputsToFile(inputs, "inputs.json");
+        // utils.writeJSONToFile(inputs, "inputs.json");
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),

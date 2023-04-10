@@ -9,6 +9,7 @@ const utils = require("../js/utils");
 const WASM_FILE_PATH = "./google/google_js/google.wasm";
 const ZKEY_FILE_PATH = "./google/google.zkey";
 const VKEY_FILE_PATH = "./google/google.vkey";
+const PROOF_FILE_PATH = "./google/zkopenid_proof.json";
 
 const MAX_JWT_LENGTH = 64*11;
 
@@ -61,19 +62,19 @@ const zkOpenIDProve = async (jwt, jwk) => {
     return { 
         "zkproof": proof, 
         "public_inputs": publicSignals,
-        "auxilary_inputs": auxilary_inputs
+        "auxiliary_inputs": auxilary_inputs
     }
 };
 
 // Not a full implementation: only implements some of the checks. For a full implementation, see the Authenticator code in Rust. 
 const zkOpenIDVerify = async (proof) => {
-    const { zkproof, public_inputs, auxilary_inputs } = proof;
+    const { zkproof, public_inputs, auxiliary_inputs: auxiliary_inputs } = proof; 
 
     // Verify ZKP
     console.log("Verifying ZKP...");
     await groth16Verify(zkproof, public_inputs, VKEY_FILE_PATH);
 
-    const { jwt_signature, masked_content } = auxilary_inputs;
+    const { jwt_signature, masked_content } = auxiliary_inputs;
 
     // Extract last_block from public_inputs
     const last_block = 11;
@@ -112,6 +113,7 @@ if (require.main === module) {
 
             // Print the output to the console
             console.log("Proof:", proof);
+            utils.writeJSONToFile(proof, PROOF_FILE_PATH);
 
             console.log("--------------------");
 

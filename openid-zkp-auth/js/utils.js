@@ -146,8 +146,7 @@ function getAllBase64Variants(string) {
             [offset2, expected_offset2]];
 }
 
-function writeInputsToFile(inputs, file_name = "inputs.json") {
-    // write inputs to file
+function writeJSONToFile(inputs, file_name = "inputs.json") {
     const fs = require('fs');
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
@@ -197,7 +196,7 @@ function applyMask(input, mask) {
         throw new Error("Input and mask must be of the same length");
     }
     return input.map((charCode, index) => (mask[index] == 1) 
-                ? charCode
+                ? Number(charCode)
                 : PADDING_CHAR.charCodeAt()
             );
 }
@@ -210,8 +209,6 @@ function fromBase64WithOffset(input, offset) {
 function checkMaskedContent(masked_content, last_block, expected_length) {
     if (masked_content.length != expected_length) throw new Error("Invalid length");
     if (last_block * 64 > masked_content.length) throw new Error("Invalid last block");
-
-    masked_content = masked_content.map(e => Number(e)); // convert BigInt to Number
 
     // Process any extra padding
     extra_padding = masked_content.slice(last_block * 64);
@@ -267,7 +264,7 @@ module.exports = {
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
     getAllBase64Variants: getAllBase64Variants,
-    writeInputsToFile: writeInputsToFile,
+    writeJSONToFile: writeJSONToFile,
     calculateNonce: calculateNonce,
     fromBase64WithOffset: fromBase64WithOffset,
     calculateMaskedHash: calculateMaskedHash,
