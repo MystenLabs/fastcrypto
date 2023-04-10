@@ -207,9 +207,7 @@ function fromBase64WithOffset(input, offset) {
     return Buffer.from(extraPrefix + input, 'base64').toString('utf8');
 }
 
-function checkMaskedContent(content, mask, last_block, expected_length) {
-    var masked_content = applyMask(content, mask);
-
+function checkMaskedContent(masked_content, last_block, expected_length) {
     if (masked_content.length != expected_length) throw new Error("Invalid length");
     if (last_block * 64 > masked_content.length) throw new Error("Invalid last block");
 
@@ -275,6 +273,7 @@ module.exports = {
     calculateMaskedHash: calculateMaskedHash,
     findB64IndexOf: findB64IndexOf,
     getExtendedClaim: getExtendedClaim,
+    applyMask: applyMask,
     checkMaskedContent: checkMaskedContent,
     poseidonHash: poseidonHash,
 }

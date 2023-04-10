@@ -7,37 +7,18 @@ const jose = require("jose");
 const circuit = require("../js/circuit");
 const utils = require("../js/utils");
 const test = require("../js/test");
-
-const google_playground = {
-    jwt: 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ijk4NmVlOWEzYjc1MjBiNDk0ZGY1NGZlMzJlM2U1YzRjYTY4NWM4OWQiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI0MDc0MDg3MTgxOTIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI0MDc0MDg3MTgxOTIuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTc5MTI3MzU2NTg1NDEzMzY2NDYiLCJhdF9oYXNoIjoicm9aYm11cUVXdmNHSThDR2N1SnJmUSIsImlhdCI6MTY3OTY3NDE0NSwiZXhwIjoxNjc5Njc3NzQ1fQ.G8cciXefORmYvdwrfVAO6DjDy7DUWe6NxyanGg4w7EQBu8Ab7PJAeXhU7HL5w_LtTgiLA3Ew07RRzuNuaFITvs_m9lIolxHOl0BZSyGIGlI9BRiBFQQK2OZ2b8xetWz3B1mezcwlrrQMgbLQI0puuaA6917h_3MjIgZu_bQkjQH3Lwl3kkZWp0W-PRuK20KAQneNFB9ehTvSeRkImIr5QlZU6LMb7M3rI_-gP6ePRryAN9UCGBASzNEYLaQz-eMIdYFw-WmqkesTX1IDLQT0n44BhG9-9mWIA6kNRSBo9FV89VGKvYION9PTDds1vsf5h3smBQZjourR2H5pLJ_MUA',
-    jwk: {
-        "e": "AQAB",
-        "kty": "RSA",
-        "n": "onb-s1Mvbpti06Sp-ZsHH5eeJxdvMhRgfmx5zK7cVlcAajI_0rKu8ylU2CkfgPlMe9-8W5ayozm1h2yx2ToS7P7qoR1sMINXbKxobu8xy9zOBuFAr3WvEoor6lo0Qp747_4bN1sVU6GBEBEXLjb8vHN-o_yoBv8NSB_yP7XbEaS3U5MJ4V2s5o7LziIIRP9PtzF0m3kWm7DuyEzGvCaW8s9bOiMd3eZyXXyfKjlBB727eBXgwqcV-PttECRw6JCLO-11__lmqfKIj5CBw18Pb4ZrNwBa-XrGXfHSSAJXFkR4LR7Bj24sWzlOcKXN2Ew4h3WDJfxtN_StNSYoagyaFQ"
-    }
-}
-
-const google_app = {
-    jwt: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImFjZGEzNjBmYjM2Y2QxNWZmODNhZjgzZTE3M2Y0N2ZmYzM2ZDExMWMiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTA0NjM0NTIxNjczMDM1OTgzODMiLCJub25jZSI6IjIyNzI1NTA4MTA4NDE5ODUwMTgxMzkxMjY5MzEwNDExOTI5MjcxOTA1NjgwODQwODIzOTk0NzM5NDMyMzkwODAzMDUyODE5NTczMzAiLCJpYXQiOjE2ODA4MTE4MDIsImV4cCI6MTY4MDgxNTQwMiwianRpIjoiN2U5ZTczY2YyOGI5YTRjZTc0NDE2MTE1YzI5MjYwOWNhYzg2NzBkMCJ9.dOlPIrRRPTVHvDADaCuA8t8njwU_tVKiSIQXpsOSqMmg3Mtm_35ixEDNuwCHr5TA_rE8_ETBqSwYxTbIcLhYg8FsnPk02BRA9kMiLXbMAY5dCqUDoIjp6zFBH2fEe-Zqubj7JJb2I0CMm4d8cJaA_a-GoaFT9jIbta5BPstc8LTKMbLie-7Sm1EA3wDZXc2QutxNWzCN8Bkr1HqVIHiJlpTJARFie9VqZ883CM_C_gcpGP7GXS7rQqom-byXvnR1dFsXKR-mzQh-_j3Ksuvrh59Tw61tx-brdXab2cp-N_vpx7bvcNeCRDSfHU4yC0h9upV69VmJ-mgBj_Tm1G18pQ",
-    jwk: {
-        "e": "AQAB",
-        "kty": "RSA",
-        "n": "r54td3hTv87IwUNhdc-bYLIny4tBVcasvdSd7lbJILg58C4DJ0RJPczXd_rlfzzYGvgpt3Okf_anJd5aah196P3bqwVDdelcDYAhuajBzn40QjOBPefvdD5zSo18i7OtG7nhAhRSEGe6Pjzpck3wAogqYcDgkF1BzTsRB-DkxprsYhp5pmL5RnX-6EYP5t2m9jJ-_oP9v1yvZkT5UPb2IwOk5GDllRPbvp-aJW_RM18ITU3qIbkwSTs1gJGFWO7jwnxT0QBaFD8a8aev1tmR50ehK-Sz2ORtvuWBxbzTqXXL39qgNJaYwZyW-2040vvuZnaGribcxT83t3cJlQdMxw"
-    }
-}
+const GOOGLE = require("../js/testvectors").google_extension;
 
 describe("JWT Proof", () => {
-    const inCount = 64 * 11; // 64 * 7
+    const inCount = 64 * 11; // This is the maximum length of a JWT
     const inWidth = 8;
     const outWidth = 253;
 
-    const jwt = google_app["jwt"];
-    const jwk = google_app["jwk"];
+    const jwt = GOOGLE["jwt"];
+    const jwk = GOOGLE["jwk"];
 
-    const header = jwt.split('.')[0];
-    const payload = jwt.split('.')[1];
+    const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
-    const signature = jwt.split('.')[2];
 
     const subClaim = utils.getExtendedClaim(payload, "sub");
     const subInB64 = utils.getAllBase64Variants(subClaim);
@@ -53,8 +34,9 @@ describe("JWT Proof", () => {
 
     it("Extract from Base64 JSON", async () => {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
-        utils.checkMaskedContent(inputs["content"], inputs["mask"], inputs["last_block"], inCount);
-        utils.writeInputsToFile(inputs, "inputs.json");
+        const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
+        utils.checkMaskedContent(masked_content, inputs["last_block"], inCount);
+        // utils.writeInputsToFile(inputs, "inputs.json");
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),

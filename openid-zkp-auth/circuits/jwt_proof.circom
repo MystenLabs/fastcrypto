@@ -14,7 +14,6 @@ JWT Proof
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
-    - last_block:               At which 512-bit block to select output hash
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
     - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
@@ -26,6 +25,7 @@ JWT Proof
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
     - nonce:                    H(eph_public_key, max_epoch, randomness)
+    - last_block:               At which 512-bit block to select output hash
 */
 template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII

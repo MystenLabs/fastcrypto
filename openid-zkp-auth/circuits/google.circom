@@ -4,7 +4,7 @@ include "jwt_proof.circom";
 
 component main {
     public [jwt_sha2_hash, masked_content_hash, payload_index, 
-            eph_public_key, max_epoch, nonce]
+            eph_public_key, max_epoch, nonce, last_block]
 } = JwtProof(
     704,
     [

@@ -65,7 +65,7 @@ function genNonceInputs() {
   };
 }
 
-async function genJwtProofInputs(input, nCount, fields, nWidth = 16, outWidth = 253, inParam = "content") {
+async function genJwtProofInputs(input, nCount, fields, nWidth = 8, outWidth = 253, inParam = "content") {
   // set SHA-2 inputs
   var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
   inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
