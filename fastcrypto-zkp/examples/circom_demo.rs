@@ -322,7 +322,10 @@ fn load_zkopenid_test_vector(path: &str) -> CircomInput {
         "randomness".to_string(),
         vec![inputs.randomness.parse::<BigInt>().unwrap()],
     );
-    inputs_map.insert("max_epoch".to_string(), vec![BigInt::from(inputs.max_epoch)]);
+    inputs_map.insert(
+        "max_epoch".to_string(),
+        vec![BigInt::from(inputs.max_epoch)],
+    );
     inputs_map.insert(
         "jwt_sha2_hash".to_string(),
         inputs
