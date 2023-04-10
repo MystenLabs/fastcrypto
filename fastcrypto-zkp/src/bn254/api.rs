@@ -7,7 +7,6 @@ use crate::{
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
-use ark_ff::BigInteger;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
@@ -79,6 +78,7 @@ pub fn verify_groth16(
 
     let proof = Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
+    println!("!!proof: {:?}", proof);
 
     Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), proof_public_inputs, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
@@ -87,34 +87,8 @@ pub fn verify_groth16(
 /// Read in a json file of the verifying key and serialize it to bytes
 pub fn serialize_verifying_key_from_file(vkey_path: &str) -> Vec<Vec<u8>> {
     let vk = read_vkey(vkey_path);
-    let pvk = Groth16::<Bn254>::process_vk(&vk).unwrap();
-
-    let mut vk_gamma_abc_g1_bytes = Vec::new();
-    pvk.vk
-        .gamma_abc_g1
-        .serialize_compressed(&mut vk_gamma_abc_g1_bytes)
-        .unwrap();
-    let mut alpha_g1_beta_g2_bytes = Vec::new();
-    pvk.alpha_g1_beta_g2
-        .serialize_compressed(&mut alpha_g1_beta_g2_bytes)
-        .unwrap();
-
-    let mut gamma_g2_neg_pc_bytes = Vec::new();
-    pvk.gamma_g2_neg_pc
-        .serialize_compressed(&mut gamma_g2_neg_pc_bytes)
-        .unwrap();
-
-    let mut delta_g2_neg_pc_bytes = Vec::new();
-    pvk.delta_g2_neg_pc
-        .serialize_compressed(&mut delta_g2_neg_pc_bytes)
-        .unwrap();
-
-    vec![
-        vk_gamma_abc_g1_bytes,
-        alpha_g1_beta_g2_bytes,
-        gamma_g2_neg_pc_bytes,
-        delta_g2_neg_pc_bytes,
-    ]
+    let pvk = process_vk_special(&vk);
+    pvk.as_serialized().unwrap()
 }
 
 /// Read in a json file of the proof and serialize it to bytes
@@ -138,6 +112,5 @@ pub fn serialize_proof_from_file(proof_path: &str) -> Vec<u8> {
 
 /// Read in a json file of the public inputs and serialize it to bytes
 pub fn serialize_public_inputs_from_file(public_inputs_path: &str) -> Vec<Bn254Fr> {
-    let inputs = read_public_inputs(public_inputs_path);
-    inputs.iter().map(|x| Bn254Fr::from(*x)).collect()
+    read_public_inputs(public_inputs_path)
 }
