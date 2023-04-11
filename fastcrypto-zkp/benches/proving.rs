@@ -7,13 +7,14 @@ use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
-use ark_groth16::{Groth16, VerifyingKey};
+use ark_groth16::Groth16;
 use ark_std::rand::thread_rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
+use fastcrypto_zkp::{bls12381, bn254};
 use std::ops::Mul;
 
 #[path = "./conversions.rs"]
@@ -237,7 +238,7 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         ),
     ];
 
-    let vk: VerifyingKey<Bn254> = ark_groth16::VerifyingKey {
+    let vk: bn254::VerifyingKey = ark_groth16::VerifyingKey {
         alpha_g1: utils::G1Affine_from_str_projective((
             "8057073471822347335074195152835286348058235024870127707965681971765888348219",
             "14493022634743109860560137600871299171677470588934003383462482807829968516757",
@@ -356,7 +357,8 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         .into_iter()
         .map(|s| utils::G1Affine_from_str_projective((s[0], s[1], s[2])))
         .collect(),
-    };
+    }
+    .into();
 
     grp.bench_with_input(
         BenchmarkId::new(
@@ -424,9 +426,11 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             num_constraints: (1 << *size),
         };
 
-        let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-        let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
+        let (pk, ark_vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
+        let proof = bls12381::Proof::from(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
         let v = c.a.unwrap().mul(c.b.unwrap());
+
+        let vk = ark_vk.into();
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
@@ -442,8 +446,12 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             &(pvk, v),
             |b, (pvk, v)| {
                 b.iter(|| {
-                    fastcrypto_zkp::bls12381::verifier::verify_with_processed_vk(pvk, &[*v], &proof)
-                        .unwrap()
+                    fastcrypto_zkp::bls12381::verifier::verify_with_processed_vk(
+                        pvk,
+                        &[(*v).into()],
+                        &proof,
+                    )
+                    .unwrap()
                 });
             },
         );
