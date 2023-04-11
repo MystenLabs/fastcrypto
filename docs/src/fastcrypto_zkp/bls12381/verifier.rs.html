@@ -359,13 +359,18 @@
 <a href="#359" id="359">359</a>
 <a href="#360" id="360">360</a>
 <a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::{iter, ops::Neg, ptr};
 
 <span class="kw">use </span>ark_bls12_381::{Bls12_381, Fq12, Fr <span class="kw">as </span>BlsFr, G1Affine, G2Affine};
-<span class="kw">use </span>ark_groth16::{Proof, VerifyingKey};
-<span class="kw">use </span>ark_relations::r1cs::SynthesisError;
 
 <span class="kw">use </span>ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 <span class="kw">use </span>blst::{
@@ -379,6 +384,7 @@
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
     bls_g2_affine_to_blst_g2_affine, blst_fp12_to_bls_fq12, G1_COMPRESSED_SIZE,
 };
+<span class="kw">use </span><span class="kw">crate</span>::bls12381::{FieldElement, Proof, VerifyingKey};
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;unit_tests/verifier_tests.rs&quot;</span>]
@@ -410,12 +416,16 @@
         gamma_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
         delta_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>vk_gamma_abc_g1_bytes.len() % G1_COMPRESSED_SIZE != <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
         <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1: Vec&lt;G1Affine&gt; = Vec::new();
         <span class="kw">for </span>g1_bytes <span class="kw">in </span>vk_gamma_abc_g1_bytes.chunks(G1_COMPRESSED_SIZE) {
             <span class="kw">let </span>g1 = G1Affine::deserialize_compressed(g1_bytes)
                 .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
             vk_gamma_abc_g1.push(g1);
         }
+
         <span class="kw">let </span>alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
             <span class="kw-2">&amp;</span>Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
                 .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
@@ -438,6 +448,7 @@
     <span class="doccomment">/// Serialize the prepared verifying key to its vectors form.
     </span><span class="kw">pub fn </span>as_serialized(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>res = Vec::new();
+
         <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma = Vec::new();
         <span class="kw">for </span>g1 <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.vk_gamma_abc_g1 {
             <span class="kw">let </span><span class="kw-2">mut </span>g1_bytes = Vec::new();
@@ -446,6 +457,7 @@
             vk_gamma.append(<span class="kw-2">&amp;mut </span>g1_bytes);
         }
         res.push(vk_gamma);
+
         <span class="kw">let </span><span class="kw-2">mut </span>fq12 = Vec::new();
         blst_fp12_to_bls_fq12(<span class="kw-2">&amp;</span><span class="self">self</span>.alpha_g1_beta_g2)
             .serialize_compressed(<span class="kw-2">&amp;mut </span>fq12)
@@ -486,11 +498,11 @@
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
 /// // once per circuit.
-/// let pvk = process_vk_special(&amp;params.vk);
+/// let pvk = process_vk_special(&amp;params.vk.into());
 /// ```
-</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey&lt;Bls12_381&gt;) -&gt; PreparedVerifyingKey {
-    <span class="kw">let </span>g1_alpha = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>vk.alpha_g1);
-    <span class="kw">let </span>g2_beta = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>vk.beta_g2);
+</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey) -&gt; PreparedVerifyingKey {
+    <span class="kw">let </span>g1_alpha = bls_g1_affine_to_blst_g1_affine(<span class="kw-2">&amp;</span>vk.<span class="number">0</span>.alpha_g1);
+    <span class="kw">let </span>g2_beta = bls_g2_affine_to_blst_g2_affine(<span class="kw-2">&amp;</span>vk.<span class="number">0</span>.beta_g2);
     <span class="kw">let </span>blst_alpha_g1_beta_g2 = {
         <span class="kw">let </span><span class="kw-2">mut </span>tmp = blst_fp12::default();
         <span class="kw">unsafe </span>{ blst_miller_loop(<span class="kw-2">&amp;mut </span>tmp, <span class="kw-2">&amp;</span>g2_beta, <span class="kw-2">&amp;</span>g1_alpha) };
@@ -500,10 +512,10 @@
         out
     };
     PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
+        vk_gamma_abc_g1: vk.<span class="number">0</span>.gamma_abc_g1.clone(),
         alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
-        gamma_g2_neg_pc: vk.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.delta_g2.neg(),
+        gamma_g2_neg_pc: vk.<span class="number">0</span>.gamma_g2.neg(),
+        delta_g2_neg_pc: vk.<span class="number">0</span>.delta_g2.neg(),
     }
 }
 
@@ -639,7 +651,7 @@
 </span><span class="kw">fn </span>multipairing_with_processed_vk(
     pvk: <span class="kw-2">&amp;</span>PreparedVerifyingKey,
     x: <span class="kw-2">&amp;</span>[BlsFr],
-    proof: <span class="kw-2">&amp;</span>Proof&lt;Bls12_381&gt;,
+    proof: <span class="kw-2">&amp;</span>ark_groth16::Proof&lt;Bls12_381&gt;,
 ) -&gt; blst_fp12 {
     <span class="comment">// Linear combination: note that the arkworks interface assumes the 1st scalar is an implicit 1
     </span><span class="kw">let </span>pts: Vec&lt;blst_p1_affine&gt; = pvk
@@ -682,6 +694,7 @@
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
+/// use fastcrypto_zkp::bls12381::FieldElement;
 ///
 /// let mut rng = thread_rng();
 ///
@@ -690,34 +703,35 @@
 ///     Groth16::&lt;Bls12_381&gt;::generate_random_parameters_with_reduction(circuit, &amp;mut rng).unwrap()
 /// };
 ///
-/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
-/// // once per circuit.
-/// let pvk = process_vk_special(&amp;params.vk);
-///
 /// let proof = {
 ///     let circuit = Fibonacci::&lt;Fr&gt;::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
 ///     // Create a proof with our parameters, picking a random witness assignment
 ///     Groth16::&lt;Bls12_381&gt;::create_random_proof_with_reduction(circuit, &amp;params, &amp;mut rng).unwrap()
 /// };
 ///
+/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+/// // once per circuit.
+/// let pvk = process_vk_special(&amp;params.vk.into());
+///
 /// // We provide the public inputs which we know are used in our circuits
 /// // this must be the same as the inputs used in the proof right above.
-/// let inputs: Vec&lt;_&gt; = [Fr::one(); 2].to_vec();
+/// let inputs: Vec&lt;FieldElement&gt; = [Fr::one().into(); 2].to_vec();
 ///
 /// // Verify the proof
-/// let r = verify_with_processed_vk(&amp;pvk, &amp;inputs, &amp;proof).unwrap();
+/// let r = verify_with_processed_vk(&amp;pvk, &amp;inputs, &amp;proof.into()).unwrap();
 /// ```
 </span><span class="kw">pub fn </span>verify_with_processed_vk(
     pvk: <span class="kw-2">&amp;</span>PreparedVerifyingKey,
-    x: <span class="kw-2">&amp;</span>[BlsFr],
-    proof: <span class="kw-2">&amp;</span>Proof&lt;Bls12_381&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;bool, SynthesisError&gt; {
+    x: <span class="kw-2">&amp;</span>[FieldElement],
+    proof: <span class="kw-2">&amp;</span>Proof,
+) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
     <span class="comment">// Note the &quot;+1&quot; : this API implies the first scalar coefficient is 1 and not sent
     </span><span class="kw">if </span>(x.len() + <span class="number">1</span>) != pvk.vk_gamma_abc_g1.len() {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(SynthesisError::MalformedVerifyingKey);
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
     }
+    <span class="kw">let </span>x: Vec&lt;BlsFr&gt; = x.iter().map(|x| x.<span class="number">0</span>).collect();
 
-    <span class="kw">let </span>res = multipairing_with_processed_vk(pvk, x, proof);
+    <span class="kw">let </span>res = multipairing_with_processed_vk(pvk, <span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>proof.<span class="number">0</span>);
     <span class="prelude-val">Ok</span>(res == pvk.alpha_g1_beta_g2)
 }
 </code></pre></div></section></main></body></html>

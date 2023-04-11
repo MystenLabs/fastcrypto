@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["SCALAR_SIZE"],"fn":["prepare_pvk_bytes","verify_groth16","verify_groth16_in_bytes"],"trait":["ToConstraintField"],"type":["Bn254","Bn254Fr"]};
+window.SIDEBAR_ITEMS = {"constant":["SCALAR_SIZE"],"fn":["prepare_pvk_bytes","verify_groth16_in_bytes"],"type":["Bn254","Bn254Fr"]};

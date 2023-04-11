@@ -139,16 +139,39 @@
 <a href="#139" id="139">139</a>
 <a href="#140" id="140">140</a>
 <a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="kw">use </span>std::ops::Neg;
 
 <span class="kw">use </span>ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
+<span class="kw">use </span>ark_crypto_primitives::snark::SNARK;
 <span class="kw">use </span>ark_ec::bn::G2Prepared;
 <span class="kw">use </span>ark_ec::pairing::Pairing;
-<span class="kw">use </span>ark_groth16::{PreparedVerifyingKey <span class="kw">as </span>ArkPreparedVerifyingKey, VerifyingKey};
+<span class="kw">use </span>ark_groth16::{Groth16, PreparedVerifyingKey <span class="kw">as </span>ArkPreparedVerifyingKey};
 
-<span class="kw">use </span><span class="kw">crate</span>::bn254::api::SCALAR_SIZE;
+<span class="kw">use </span><span class="kw">crate</span>::bn254::api::{Bn254Fr, SCALAR_SIZE};
+<span class="kw">use </span><span class="kw">crate</span>::bn254::{FieldElement, Proof, VerifyingKey};
 <span class="kw">use </span>ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
 
@@ -177,6 +200,7 @@
     <span class="doccomment">/// Serialize the prepared verifying key to its vectors form.
     </span><span class="kw">pub fn </span>as_serialized(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Vec&lt;u8&gt;&gt;, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>res = Vec::new();
+
         <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma = Vec::new();
         <span class="kw">for </span>g1 <span class="kw">in </span><span class="kw-2">&amp;</span><span class="self">self</span>.vk_gamma_abc_g1 {
             <span class="kw">let </span><span class="kw-2">mut </span>g1_bytes = Vec::new();
@@ -185,6 +209,7 @@
             vk_gamma.append(<span class="kw-2">&amp;mut </span>g1_bytes);
         }
         res.push(vk_gamma);
+
         <span class="kw">let </span><span class="kw-2">mut </span>fq12 = Vec::new();
         <span class="self">self</span>.alpha_g1_beta_g2
             .serialize_compressed(<span class="kw-2">&amp;mut </span>fq12)
@@ -213,6 +238,9 @@
         gamma_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
         delta_g2_neg_pc_bytes: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>vk_gamma_abc_g1_bytes.len() % SCALAR_SIZE != <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
         <span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1: Vec&lt;G1Affine&gt; = Vec::new();
         <span class="kw">for </span>g1_bytes <span class="kw">in </span>vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
             <span class="kw">let </span>g1 = G1Affine::deserialize_compressed(g1_bytes)
@@ -261,6 +289,7 @@
 /// use ark_ff::One;
 /// use ark_groth16::Groth16;
 /// use ark_std::rand::thread_rng;
+/// use fastcrypto_zkp::bn254::VerifyingKey;
 ///
 /// let mut rng = thread_rng();
 /// let params = {
@@ -270,14 +299,27 @@
 ///
 /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
 /// // once per circuit.
-/// let pvk = process_vk_special(&amp;params.vk);
+/// let pvk = process_vk_special(&amp;params.vk.into());
 /// ```
-</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey&lt;Bn254&gt;) -&gt; PreparedVerifyingKey {
+</span><span class="kw">pub fn </span>process_vk_special(vk: <span class="kw-2">&amp;</span>VerifyingKey) -&gt; PreparedVerifyingKey {
     PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
-        alpha_g1_beta_g2: Bn254::pairing(vk.alpha_g1, vk.beta_g2).<span class="number">0</span>,
-        gamma_g2_neg_pc: vk.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.delta_g2.neg(),
+        vk_gamma_abc_g1: vk.<span class="number">0</span>.gamma_abc_g1.clone(),
+        alpha_g1_beta_g2: Bn254::pairing(vk.<span class="number">0</span>.alpha_g1, vk.<span class="number">0</span>.beta_g2).<span class="number">0</span>,
+        gamma_g2_neg_pc: vk.<span class="number">0</span>.gamma_g2.neg(),
+        delta_g2_neg_pc: vk.<span class="number">0</span>.delta_g2.neg(),
     }
+}
+
+<span class="doccomment">/// Verify Groth16 proof using the prepared verifying key (see more at
+/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and
+/// the proof.
+</span><span class="kw">pub fn </span>verify_with_processed_vk(
+    pvk: <span class="kw-2">&amp;</span>PreparedVerifyingKey,
+    public_inputs: <span class="kw-2">&amp;</span>[FieldElement],
+    proof: <span class="kw-2">&amp;</span>Proof,
+) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
+    <span class="kw">let </span>x: Vec&lt;Bn254Fr&gt; = public_inputs.iter().map(|x| x.<span class="number">0</span>).collect();
+    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(<span class="kw-2">&amp;</span>pvk.as_arkworks_pvk(), <span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>proof.<span class="number">0</span>)
+        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
 </code></pre></div></section></main></body></html>

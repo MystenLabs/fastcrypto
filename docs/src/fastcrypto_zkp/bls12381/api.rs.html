@@ -56,6 +56,11 @@
 <a href="#56" id="56">56</a>
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -78,7 +83,7 @@
     <span class="kw">let </span>vk = VerifyingKey::&lt;Bls12_381&gt;::deserialize_compressed(vk_bytes)
         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    process_vk_special(<span class="kw-2">&amp;</span>vk).as_serialized()
+    process_vk_special(<span class="kw-2">&amp;</span>vk.into()).as_serialized()
 }
 
 <span class="doccomment">/// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
@@ -98,11 +103,16 @@
     }
     <span class="kw">let </span><span class="kw-2">mut </span>x = Vec::new();
     <span class="kw">for </span>chunk <span class="kw">in </span>proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(BlsFr::deserialize_compressed(chunk).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>);
+        x.push(
+            BlsFr::deserialize_compressed(chunk)
+                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?
+                </span>.into(),
+        );
     }
 
     <span class="kw">let </span>proof = Proof::&lt;Bls12_381&gt;::deserialize_compressed(proof_points_as_bytes)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?
+        </span>.into();
 
     <span class="kw">let </span>blst_pvk = PreparedVerifyingKey::deserialize(
         vk_gamma_abc_g1_bytes,

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["api","conversions","verifier"]};
+window.SIDEBAR_ITEMS = {"mod":["api","conversions","verifier"],"struct":["FieldElement","Proof","VerifyingKey"]};

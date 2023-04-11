@@ -10,6 +10,20 @@
 <a href="#10" id="10">10</a>
 <a href="#11" id="11">11</a>
 <a href="#12" id="12">12</a>
+<a href="#13" id="13">13</a>
+<a href="#14" id="14">14</a>
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 </span><span class="attr">#![warn(missing_docs, unreachable_pub)]
@@ -17,9 +31,23 @@
 
 </span><span class="doccomment">//! Groth16 verifier over the BN254 elliptic curve construction.
 
-/// API that takes in serialized inputs
+</span><span class="kw">use </span>derive_more::From;
+
+<span class="doccomment">/// API that takes in serialized inputs
 </span><span class="kw">pub mod </span>api;
 
 <span class="doccomment">/// Groth16 SNARK verifier
 </span><span class="kw">pub mod </span>verifier;
+
+<span class="doccomment">/// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
+</span><span class="attr">#[derive(Debug, From)]
+</span><span class="kw">pub struct </span>FieldElement(<span class="kw">pub</span>(<span class="kw">crate</span>) api::Bn254Fr);
+
+<span class="doccomment">/// A Groth16 proof in the BN254 construction. Thin wrapper around `ark_groth16::Proof::&lt;ark_bn254::Bn254&gt;`.
+</span><span class="attr">#[derive(Debug, From)]
+</span><span class="kw">pub struct </span>Proof(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_groth16::Proof&lt;ark_bn254::Bn254&gt;);
+
+<span class="doccomment">/// A Groth16 verifying key in the BN254 construction. Thin wrapper around `ark_groth16::VerifyingKey::&lt;ark_bn254::Bn254&gt;`.
+</span><span class="attr">#[derive(Debug, From)]
+</span><span class="kw">pub struct </span>VerifyingKey(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_groth16::VerifyingKey&lt;ark_bn254::Bn254&gt;);
 </code></pre></div></section></main></body></html>
