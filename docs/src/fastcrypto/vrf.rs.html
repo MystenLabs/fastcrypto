@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/vrf.rs`."><title>vrf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-fbd14db5c88ed452.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (3a8a131e9 2023-04-02)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-f0c5c39777a9a2f6.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../static.files/storage-d4a1a279bad1a0c0.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-8e6affb8c73a5ff1.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/vrf.rs`."><title>vrf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-63a85fc7cf22dee2.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.70.0-nightly (88fb1b922 2023-04-10)" data-search-js="search-bc5a112813b5d712.js" data-settings-js="settings-298e1ea74db45b39.js" data-settings-css="settings-0bcba95ff279c1db.css" data-theme-light-css="light-db279b6232be9c13.css" data-theme-dark-css="dark-cf923f49f397b216.css" data-theme-ayu-css="ayu-be46fdc453a55015.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/source-script-1b95b7cca98b26e5.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-1159a395118aa44e.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-db279b6232be9c13.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-cf923f49f397b216.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -270,7 +270,8 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
-</pre><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<a href="#273" id="273">273</a>
+</pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
@@ -338,7 +339,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
     <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     <span class="kw">use </span><span class="kw">crate</span>::groups::{GroupElement, Scalar};
-    <span class="kw">use </span><span class="kw">crate</span>::hash::{HashFunction, Sha512};
+    <span class="kw">use </span><span class="kw">crate</span>::hash::{HashFunction, ReverseWrapper, Sha512};
     <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
     <span class="kw">use </span><span class="kw">crate</span>::traits::AllowedRng;
     <span class="kw">use </span><span class="kw">crate</span>::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
@@ -376,13 +377,14 @@
             // and error if the len_in_bytes and output size of the hash function is out of bounds
             // (https://github.com/mikelodder7/hash2field/blob/cdf56a2b722aeae25b8019945afe4cccec132f25/src/expand_msg_xmd.rs#L21),
             // so we can safely unwrap since they are constants here.
-            </span><span class="kw">let </span><span class="kw-2">mut </span>expanded_message =
-                elliptic_curve::hash2curve::ExpandMsgXmd::&lt;sha2::Sha512&gt;::expand_message(
-                    <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.compress(), alpha_string],
-                    <span class="kw-2">&amp;</span>[DST],
-                    H::OUTPUT_SIZE,
-                )
-                .unwrap();
+            </span><span class="kw">let </span><span class="kw-2">mut </span>expanded_message = elliptic_curve::hash2curve::ExpandMsgXmd::&lt;
+                &lt;H <span class="kw">as </span>ReverseWrapper&gt;::Variant,
+            &gt;::expand_message(
+                <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.compress(), alpha_string],
+                <span class="kw-2">&amp;</span>[DST],
+                H::OUTPUT_SIZE,
+            )
+            .unwrap();
 
             <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; H::OUTPUT_SIZE];
             expanded_message.fill_bytes(<span class="kw-2">&amp;mut </span>bytes);
@@ -406,11 +408,11 @@
     <span class="kw">impl </span>ECVRFPrivateKey {
         <span class="doccomment">/// Generate scalar/nonce from binary string. See section 5.4.2.2. of draft-irtf-cfrg-vrf-15.
         </span><span class="kw">fn </span>ecvrf_nonce_generation(<span class="kw-2">&amp;</span><span class="self">self</span>, h_string: <span class="kw-2">&amp;</span>[u8]) -&gt; RistrettoScalar {
-            <span class="kw">let </span>hashed_sk_string = Sha512::digest(<span class="self">self</span>.<span class="number">0</span>.to_byte_array());
+            <span class="kw">let </span>hashed_sk_string = H::digest(<span class="self">self</span>.<span class="number">0</span>.to_byte_array());
             <span class="kw">let </span><span class="kw-2">mut </span>truncated_hashed_sk_string = [<span class="number">0u8</span>; <span class="number">32</span>];
             truncated_hashed_sk_string.copy_from_slice(<span class="kw-2">&amp;</span>hashed_sk_string.digest[<span class="number">32</span>..<span class="number">64</span>]);
 
-            <span class="kw">let </span><span class="kw-2">mut </span>hash_function = Sha512::default();
+            <span class="kw">let </span><span class="kw-2">mut </span>hash_function = H::default();
             hash_function.update(truncated_hashed_sk_string);
             hash_function.update(h_string);
             <span class="kw">let </span>k_string = hash_function.finalize();
