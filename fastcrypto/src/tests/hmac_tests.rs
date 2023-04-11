@@ -256,7 +256,7 @@ fn hmac_wycheproof_test() {
         for test in test_group.tests {
             let d = hmac_sha3_256(&HmacKey::from_bytes(&test.key).unwrap(), &test.msg);
             assert_eq!(
-                d.to_vec()[0..test_group.tag_size / 8] == test.tag,
+                d.to_vec()[0..test_group.tag_size / 8] == test.tag.to_vec(),
                 test.result == TestResult::Valid
             );
         }

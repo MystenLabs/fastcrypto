@@ -13,6 +13,7 @@ use core::fmt::Debug;
 use generic_array::ArrayLength;
 use rand::{rngs::StdRng, SeedableRng};
 use typenum::consts::{U0, U1, U12, U128, U15, U16, U2, U20, U24, U257, U32, U4, U6, U64, U8};
+use typenum::U10;
 use wycheproof::aead::Test;
 
 #[test]
@@ -117,22 +118,21 @@ fn single_wycheproof_test<
     test: &Test,
     cipher: C,
 ) -> Result<(), FastCryptoError> {
-    let iv = InitializationVector::from_bytes(test.nonce.as_slice()).unwrap();
+    let iv = InitializationVector::from_bytes(test.nonce.as_slice()).expect("Failed to parse IV");
 
     let ciphertext = cipher.encrypt_authenticated(&iv, &test.aad, &test.pt);
 
-    // Verify that the cipher text is
-    if test.ct != ciphertext[..test.pt.len()] {
+    if test.ct.to_vec() != ciphertext[..test.pt.len()] {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
 
-    if test.tag != ciphertext[test.pt.len()..] {
+    if test.tag.to_vec() != ciphertext[test.pt.len()..] {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
 
     let plaintext = cipher.decrypt_authenticated(&iv, &test.aad, &ciphertext)?;
 
-    if test.pt != plaintext {
+    if test.pt.to_vec() != plaintext {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
     Ok(())
@@ -156,6 +156,7 @@ fn wycheproof_test() {
                 (128, 32) => single_wycheproof_test_128::<U4>(&test),
                 (128, 48) => single_wycheproof_test_128::<U6>(&test),
                 (128, 64) => single_wycheproof_test_128::<U8>(&test),
+                (128, 80) => single_wycheproof_test_128::<U10>(&test),
                 (128, 96) => single_wycheproof_test_128::<U12>(&test),
                 (128, 120) => single_wycheproof_test_128::<U15>(&test),
                 (128, 128) => single_wycheproof_test_128::<U16>(&test),
@@ -171,6 +172,7 @@ fn wycheproof_test() {
                 (256, 32) => single_wycheproof_test_256::<U4>(&test),
                 (256, 48) => single_wycheproof_test_256::<U6>(&test),
                 (256, 64) => single_wycheproof_test_256::<U8>(&test),
+                (256, 80) => single_wycheproof_test_256::<U10>(&test),
                 (256, 96) => single_wycheproof_test_256::<U12>(&test),
                 (256, 120) => single_wycheproof_test_256::<U15>(&test),
                 (256, 128) => single_wycheproof_test_256::<U16>(&test),
@@ -180,7 +182,7 @@ fn wycheproof_test() {
                 (256, 1024) => single_wycheproof_test_256::<U128>(&test),
                 (256, 2056) => single_wycheproof_test_256::<U257>(&test),
 
-                (_, _) => panic!(), // Unhandled error
+                (_, _) => panic!(), // Unhandled case
             };
 
             // Test returns Ok if successful and Err if it fails
