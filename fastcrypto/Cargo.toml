@@ -100,7 +100,7 @@ k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.1.0"
 serde_json = "1.0.93"
 serde-reflection = "0.3.6"
-wycheproof = "0.4.0"
+wycheproof = "0.5.0"
 faster-hex = "0.6.1"
 rustc-hex = "2.1.0"
 base64 = "0.21.0"
