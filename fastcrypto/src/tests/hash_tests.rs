@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Base64, Encoding};
 use crate::hash::{
     Blake2b256, Blake3, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash,
     Sha256, Sha3_256, Sha3_512, Sha512,
@@ -207,6 +208,12 @@ fn test_accumulator() {
         accumulator4.digest().as_ref(),
         hex::decode("66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925").unwrap()
     );
+}
+
+#[test]
+fn test_digest_debug() {
+    let digest = Sha256::digest(b"Hello World");
+    assert_eq!(format!("{:?}", digest), Base64::encode(digest.as_ref()));
 }
 
 #[test]

@@ -28,7 +28,7 @@ use crate::groups::HashToGroupElement;
 
 /// Represents a digest of `DIGEST_LEN` bytes.
 #[serde_as]
-#[derive(Hash, Debug, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
+#[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 pub struct Digest<const DIGEST_LEN: usize> {
     #[serde_as(as = "[_; DIGEST_LEN]")]
     pub digest: [u8; DIGEST_LEN],
@@ -48,6 +48,12 @@ impl<const DIGEST_LEN: usize> Digest<DIGEST_LEN> {
     /// The size of this digest in bytes.
     pub fn size(&self) -> usize {
         DIGEST_LEN
+    }
+}
+
+impl<const DIGEST_LEN: usize> fmt::Debug for Digest<DIGEST_LEN> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "{}", Base64::encode(self.digest))
     }
 }
 
