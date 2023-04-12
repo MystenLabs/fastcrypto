@@ -137,21 +137,21 @@ template Hasher(nInputs) {
     signal output out;
 
     component pos1, pos2, pos3;
-    if (nInputs <= 16) {
+    if (nInputs <= 15) {
         pos1 = Poseidon(nInputs);
         for (var i = 0; i < nInputs; i++) {
             pos1.inputs[i] <== in[i];
         }
         out <== pos1.out;
-    } else if (nInputs <= 32) {
-        pos1 = Poseidon(16);
-        pos2 = Poseidon(nInputs - 16);
+    } else if (nInputs <= 30) {
+        pos1 = Poseidon(15);
+        pos2 = Poseidon(nInputs - 15);
 
-        for (var i = 0; i < 16; i++) {
+        for (var i = 0; i < 15; i++) {
             pos1.inputs[i] <== in[i];
         }
-        for (var i = 16; i < nInputs; i++) {
-            pos2.inputs[i - 16] <== in[i];
+        for (var i = 15; i < nInputs; i++) {
+            pos2.inputs[i - 15] <== in[i];
         }
 
         pos3 = Poseidon(2);

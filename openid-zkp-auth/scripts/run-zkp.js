@@ -85,17 +85,21 @@ const zkOpenIDVerify = async (proof) => {
 // Check if the script was called directly
 if (require.main === module) {
     // Read the input string from the command line arguments
-    const jwt = process.argv[2];
+    var jwt = process.argv[2];
 
-    if (!jwt) {
-        console.error("Please provide a string as input.");
-        process.exit(1);
+    if (!jwt) { // this is an optional argument (for now)
+        console.log("Using the default JWT..");
+        jwt = GOOGLE["jwt"];
     }
 
     const publicKeyPath = process.argv[3];
-    var jwk = GOOGLE["jwk"];
+    var jwk;
 
-    if (publicKeyPath) { // this is an optional argument
+    if (!publicKeyPath) {
+        console.log("Using the default JWK..");
+        jwk = GOOGLE["jwk"];
+    }
+    else { // this is an optional argument
         // Read the JWK from the file
         fs.readFile(publicKeyPath, "utf8", (err, jwkJson) => {
             if (err) {

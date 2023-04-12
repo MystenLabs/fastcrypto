@@ -175,11 +175,11 @@ function calculateMaskedHash(content, mask, poseidon, outWidth) {
 function poseidonHash(inputs, poseidon) {
     if (inputs.length < 1) {
         return poseidon.F.toObject(poseidon([inputs]))
-    } else if (inputs.length <= 16) {
+    } else if (inputs.length <= 15) {
         return poseidon.F.toObject(poseidon(inputs))
-    } else if (inputs.length <= 32) {
-        const hash1 = poseidon(inputs.slice(0, 16));
-        const hash2 = poseidon(inputs.slice(16));
+    } else if (inputs.length <= 30) {
+        const hash1 = poseidon(inputs.slice(0, 15));
+        const hash2 = poseidon(inputs.slice(15));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
     } else {
         throw new Error("Yet to implement multiple rounds of poseidon");
