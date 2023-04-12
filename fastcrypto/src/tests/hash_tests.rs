@@ -2,9 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::hash::{
-    Blake2b256, Blake3, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,
-    Sha3_256, Sha3_512, Sha512,
+    Blake2b256, Blake3, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash,
+    Sha256, Sha3_256, Sha3_512, Sha512,
 };
+use std::io::Write;
 
 #[test]
 fn test_new_update_finalize() {
@@ -29,7 +30,56 @@ fn test_sha256() {
         digest.as_ref(),
         hex::decode("2196d60feda3cd3787885c10a905e11fae911c32a0eb67fd290ade5df7eab140").unwrap()
     );
-    println!("{}", digest);
+}
+
+#[test]
+fn test_digest_as_array() {
+    let data =
+        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
+    let digest = Sha256::digest(data);
+    let expected: [u8; 32] =
+        hex::decode("2196d60feda3cd3787885c10a905e11fae911c32a0eb67fd290ade5df7eab140")
+            .unwrap()
+            .try_into()
+            .unwrap();
+    let digest_as_array: [u8; 32] = digest.into();
+    assert_eq!(digest_as_array, expected);
+
+    let digest_from_array = Digest::new(expected);
+    assert_eq!(digest_from_array, digest);
+}
+
+#[test]
+fn test_digest_iterator() {
+    let data = [b"00", b"01", b"02"];
+    let digest = Sha256::digest_iterator(data.into_iter());
+    let expected = Sha256::digest(b"000102");
+    assert_eq!(digest, expected);
+
+    let reverse_digest = Sha256::digest_iterator(data.iter().rev());
+    assert_ne!(reverse_digest, digest);
+
+    let expected = Sha256::digest("020100".as_bytes());
+    assert_eq!(reverse_digest, expected);
+}
+
+#[test]
+fn test_hash_function_write_trait() {
+    let mut hash_function = Sha256::new();
+    let mut written_amount = 0;
+    written_amount += hash_function.write(b"00").unwrap();
+    written_amount += hash_function.write(b"01").unwrap();
+    written_amount += hash_function.write(b"02").unwrap();
+    assert_eq!(written_amount, 6);
+
+    hash_function.flush().expect("Should not fail");
+    let digest = hash_function.finalize();
+
+    let expected: [u8; 32] = Sha256::digest("000102".as_bytes()).into();
+    assert_eq!(digest.as_ref(), &expected);
+
+    let other_digest = Sha256::digest("020100".as_bytes());
+    assert_ne!(other_digest, digest);
 }
 
 #[test]
