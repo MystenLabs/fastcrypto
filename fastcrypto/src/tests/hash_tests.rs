@@ -211,8 +211,8 @@ fn test_accumulator() {
 
 #[test]
 fn test_accumulator_debug() {
-    let mut accumulator = EllipticCurveMultisetHash::default();
-    accumulator.insert(b"Hello");
-    accumulator.insert(b"World");
-    assert_eq!(format!("{:?}", accumulator), "Accumulator");
+    assert_eq!(
+        format!("{:?}", EllipticCurveMultisetHash::default()),
+        "Accumulator"
+    );
 }
