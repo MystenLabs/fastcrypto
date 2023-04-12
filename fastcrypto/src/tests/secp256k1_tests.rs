@@ -12,10 +12,15 @@ use proptest::arbitrary::Arbitrary;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::{constants, ecdsa::Signature};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 use wycheproof::ecdsa::{TestName::EcdsaSecp256k1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use crate::encoding::Base64;
 use crate::hash::{Blake2b256, Keccak256};
+use crate::secp256k1::Secp256k1SignatureAsBytes;
 use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::{
@@ -53,13 +58,47 @@ fn serialize_deserialize() {
 }
 
 #[test]
+fn bytes_representation() {
+    // TODO: Make generic (like verify_serialization) if needed elsewhere
+    let sig = keys().pop().unwrap().sign(MSG);
+    let bytes = Secp256k1SignatureAsBytes::from(&sig);
+    let recovered = Secp256k1Signature::try_from(&bytes).unwrap();
+    assert_eq!(recovered, sig);
+}
+
+#[test]
 fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
     let export = public_key.encode_base64();
     let import = Secp256k1PublicKey::decode_base64(&export);
     assert!(import.is_ok());
-    assert_eq!(import.unwrap().as_ref(), public_key.as_ref());
+    assert_eq!(import.unwrap(), *public_key);
+}
+
+#[test]
+fn hash_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+
+    let mut hasher = DefaultHasher::new();
+    public_key.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    public_key.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+    assert_eq!(
+        public_key.to_string(),
+        Base64::encode(public_key.as_bytes())
+    );
 }
 
 #[test]
@@ -92,6 +131,14 @@ fn serialize_private_key_only_for_keypair() {
         let serialized_sk = bincode::serialize(&sk).unwrap();
         assert_eq!(serialized_sk, serialized_kp);
     });
+}
+
+#[test]
+fn key_pair_from_string_roundtrip() {
+    let kp = keys().pop().unwrap();
+    let kp_str = Base64::encode(kp.as_ref());
+    let recovered = Secp256k1KeyPair::from_str(&kp_str).unwrap();
+    assert_eq!(kp, recovered);
 }
 
 #[test]
@@ -138,6 +185,26 @@ fn verify_valid_signature_default_hash() {
 
     // Verify the signature against hashed message.
     assert!(kp.public().verify(MSG, &signature).is_ok());
+}
+
+#[test]
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign(MSG);
+
+    let mut hasher = DefaultHasher::new();
+    sig.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    sig.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign(MSG);
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
 }
 
 fn signature_test_inputs() -> (Vec<u8>, Vec<Secp256k1PublicKey>, Vec<Secp256k1Signature>) {
