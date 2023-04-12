@@ -208,3 +208,11 @@ fn test_accumulator() {
         hex::decode("66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925").unwrap()
     );
 }
+
+#[test]
+fn test_accumulator_debug() {
+    let mut accumulator = EllipticCurveMultisetHash::default();
+    accumulator.insert(b"Hello");
+    accumulator.insert(b"World");
+    assert_eq!(format!("{:?}", accumulator), "Accumulator");
+}
