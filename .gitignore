@@ -10,3 +10,6 @@ fastcrypto-derive/Cargo.lock
 
 # JS
 node_modules/
+openid-zkp-auth/google/google.zkey
+openid-zkp-auth/google/google.r1cs
+openid-zkp-auth/google/powersOfTau28_hez_final_19.ptau

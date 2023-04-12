@@ -27,6 +27,7 @@ fastcrypto = { path = "../fastcrypto" }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.93"
 light-poseidon = "0.0.4"
+num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
@@ -39,4 +40,3 @@ blake2 = "0.10.6"
 criterion = "0.4.0"
 hex = "0.4.3"
 proptest = "1.1.0"
-num-bigint = { version = "0.4", default-features = false, features = ["rand"] }

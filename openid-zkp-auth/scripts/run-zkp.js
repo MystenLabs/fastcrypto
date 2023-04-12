@@ -9,7 +9,9 @@ const utils = require("../js/utils");
 const WASM_FILE_PATH = "./google/google_js/google.wasm";
 const ZKEY_FILE_PATH = "./google/google.zkey";
 const VKEY_FILE_PATH = "./google/google.vkey";
-const PROOF_FILE_PATH = "./google/zkopenid_proof.json";
+const PROOF_FILE_PATH = "./google/google.proof";
+const AUX_INPUTS_FILE_PATH = "./google/aux.json";
+const PUBLIC_INPUTS_FILE_PATH = "./google/public.json";
 
 const MAX_JWT_LENGTH = 64*11;
 
@@ -58,6 +60,9 @@ const zkOpenIDProve = async (jwt, jwk) => {
     // Generate ZKP
     console.log("Generating ZKP...");
     const { proof, publicSignals } = await groth16Prove(inputs, WASM_FILE_PATH, ZKEY_FILE_PATH);
+    utils.writeJSONToFile(proof, PROOF_FILE_PATH);
+    utils.writeJSONToFile(publicSignals, PUBLIC_INPUTS_FILE_PATH);
+    utils.writeJSONToFile(auxilary_inputs, AUX_INPUTS_FILE_PATH);
 
     return { 
         "zkproof": proof, 
@@ -116,8 +121,6 @@ if (require.main === module) {
             const proof = await zkOpenIDProve(jwt, jwk);
 
             // Print the output to the console
-            console.log("Proof:", proof);
-            utils.writeJSONToFile(proof, PROOF_FILE_PATH);
 
             console.log("--------------------");
 

@@ -8,14 +8,13 @@ use crate::{
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
+pub use ark_ff::ToConstraintField;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
 mod api_tests;
-
-pub use ark_ff::ToConstraintField;
 
 /// Size of scalars in the BN254 construction.
 pub const SCALAR_SIZE: usize = 32;
