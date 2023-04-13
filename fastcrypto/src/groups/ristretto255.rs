@@ -137,6 +137,11 @@ impl RistrettoScalar {
     pub fn from_bytes_mod_order_wide(bytes: &[u8; 64]) -> Self {
         RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(bytes))
     }
+
+    /// Construct a [RistrettoScalar] by reducing a 32-byte little-endian integer modulo the group order.
+    pub fn from_bytes_mod_order(bytes: &[u8; 32]) -> Self {
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order(*bytes))
+    }
 }
 
 impl From<u64> for RistrettoScalar {
@@ -192,7 +197,8 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
         bytes: &[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
     ) -> Result<Self, FastCryptoError> {
         Ok(RistrettoScalar(
-            ExternalRistrettoScalar::from_bytes_mod_order(*bytes),
+            ExternalRistrettoScalar::from_canonical_bytes(*bytes)
+                .ok_or(FastCryptoError::InvalidInput)?,
         ))
     }
 
