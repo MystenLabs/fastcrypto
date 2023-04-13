@@ -198,7 +198,7 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
     ) -> Result<Self, FastCryptoError> {
         Ok(RistrettoScalar(
             ExternalRistrettoScalar::from_canonical_bytes(*bytes)
-                .ok_or_else(FastCryptoError::InvalidInput)?,
+                .ok_or_else(|| FastCryptoError::InvalidInput)?,
         ))
     }
 
