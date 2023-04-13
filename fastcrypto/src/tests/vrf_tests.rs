@@ -1,14 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Encoding, Hex};
 use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
-use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof};
+use crate::vrf::ecvrf::{ECVRFKeyPair, ECVRFProof, ECVRFPublicKey};
 use crate::vrf::{VRFKeyPair, VRFProof};
 use rand::thread_rng;
-
-// TODO: Add regressions tests.
 
 #[test]
 fn test_proof() {
@@ -53,4 +52,40 @@ fn test_serialize_deserialize() {
     assert!(proof_reconstructed
         .verify_output(input, &kp.pk, &output)
         .is_ok());
+}
+
+#[test]
+fn test_ecvrf_verify() {
+    let output: [u8; 64] = Hex::decode("4fad431c7402fa1d4a7652e975aeb9a2b746540eca0b1b1e59c8d19c14a7701918a8249136e355455b8bc73851f7fc62c84f2e39f685b281e681043970026ed8").unwrap().try_into().unwrap();
+
+    let alpha_string = b"Hello, world!";
+
+    let public_key_bytes =
+        Hex::decode("1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e").unwrap();
+    let public_key = bcs::from_bytes::<ECVRFPublicKey>(&public_key_bytes).unwrap();
+
+    let proof_bytes = Hex::decode("d8ad2eafb4f2eaf317447726e541359f26dfce248431fe09984fdc73144abb6ceb006c57a29a742eae5a81dd04239870769e310a81046cbbaff8b0bd27a6d6affee167ebba50549b58ffdf9aa192f506").unwrap();
+    let proof = bcs::from_bytes::<ECVRFProof>(&proof_bytes).unwrap();
+
+    assert!(proof
+        .verify_output(alpha_string, &public_key, &output)
+        .is_ok());
+}
+
+#[test]
+fn test_ecvrf_invalid() {
+    let output = b"invalid hash, invalid hash, invalid hash, invalid hash, invalid ";
+
+    let alpha_string = b"Hello, world!";
+
+    let public_key_bytes =
+        Hex::decode("1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e").unwrap();
+    let public_key = bcs::from_bytes::<ECVRFPublicKey>(&public_key_bytes).unwrap();
+
+    let proof_bytes = Hex::decode("d8ad2eafb4f2eaf317447726e541359f26dfce248431fe09984fdc73144abb6ceb006c57a29a742eae5a81dd04239870769e310a81046cbbaff8b0bd27a6d6affee167ebba50549b58ffdf9aa192f506").unwrap();
+    let proof = bcs::from_bytes::<ECVRFProof>(&proof_bytes).unwrap();
+
+    assert!(proof
+        .verify_output(alpha_string, &public_key, output)
+        .is_err());
 }
