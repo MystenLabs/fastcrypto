@@ -1,13 +1,7 @@
 const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
-const crypto = require("crypto");
-const jose = require("jose");
-const {toBigIntBE} = require('bigint-buffer');
 
-const tester = require("circom_tester").wasm;
-
-const circuit = require("../js/circuit");
 const utils = require("../js/utils");
 const test = require("../js/test");
 
@@ -84,18 +78,6 @@ describe("Bits2NumBE", () => {
         assert.equal(out, 255n);
     });
 });
-
-describe("Miscellaneous checks", () => {
-    it("Fixed circuit extracts correct value", async () => {
-        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), "SliceFixed", [6, 2]);
-        await cir_fixed.loadSymbols();
-        input = [1,2,3,4,5,6];
-        
-        const witness = await cir_fixed.calculateWitness({ "in": input, "index": 1 });
-        
-        assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n]);
-    });
-})
 
 describe("Packer checks", () => {
     it("Checking Packer Case 0: input and output should be same", async () => {
@@ -179,67 +161,26 @@ describe("Packer checks", () => {
     });
 });
 
-describe("Poseidon hash", () => {
-    before (async () => {
-        const buildPoseidon = require("circomlibjs").buildPoseidon;
-        poseidon = await buildPoseidon();      
-    });
-
-    it("Hashes a single value", async () => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [1]);
-        await cir.loadSymbols();
-        input = [1];
-        
-        const witness = await cir.calculateWitness({ "in": input });
-        
-        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), 
-                     utils.poseidonHash(input, poseidon));
-    });
-
-    it("Hashes two values", async () => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [2]);
-        await cir.loadSymbols();
-        input = [1, 2];
-        
-        const witness = await cir.calculateWitness({ "in": input });
-        
-        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), 
-                     utils.poseidonHash(input, poseidon));
-    });
-
-    it("Hashes 15 values", async () => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [15]);
-        await cir.loadSymbols();
-        input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
-        const expected_hash = utils.poseidonHash(input, poseidon);
-        
-        const witness = await cir.calculateWitness({ "in": input });
-        
-        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
-    });
-
-    it("Hashes 16 values", async () => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [16]);
-        await cir.loadSymbols();
-        input = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        const expected_hash = utils.poseidonHash(input, poseidon);
-        
-        const witness = await cir.calculateWitness({ "in": input });
-        
-        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
-    });
-
-    it("Hashes 30 values", async () => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Hasher", [30]);
-        await cir.loadSymbols();
-        input = [];
-        for (let i = 0; i < 30; i++) {
-            input.push(i);
+describe("RemainderMod4 checks", () => {
+    it("Positive + Negative cases", async () => {
+        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "RemainderMod4", [3]);
+        await cir_fixed.loadSymbols();
+        inputs = [1,2,3,4,5,6,7];
+        for (let i = 0; i < inputs.length; i++) { // Should pass
+            const witness = await cir_fixed.calculateWitness({ "in": inputs[i] });
+            await cir_fixed.checkConstraints(witness);
+            const out = utils.getWitnessValue(witness, cir_fixed.symbols, "main.out");
+            assert.deepEqual(out, BigInt(inputs[i] % 4));
         }
-        const expected_hash = utils.poseidonHash(input, poseidon);
-        
-        const witness = await cir.calculateWitness({ "in": input });
-        
-        assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
-    });
-});
+
+        try {
+            const witness = await cir_fixed.calculateWitness({ "in": 8 });
+            await cir_fixed.checkConstraints(witness);
+            assert.fail();
+        } 
+        catch (_) {
+            // console.log("Caught error!");
+            // console.log(error);
+        }
+    })
+})

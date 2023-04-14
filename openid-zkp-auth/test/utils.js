@@ -56,7 +56,7 @@ describe("Circuit Utilities", () => {
         const input0 = 'saab';
         const extendedInput0 = '"' + input0 + '"';
         assert.isTrue(extendedInput0.length % 3 === 0);
-        const variants = utils.getAllBase64Variants(extendedInput0);
+        const variants = utils.getAllBase64Variants(extendedInput0).map(v => v[0]);
 
         assert.deepEqual(Buffer.from('0' + variants[0] + '0', 'base64').toString().slice(1, -1), input0);
         assert.deepEqual(Buffer.from('00' + variants[1], 'base64').toString().slice(2), input0);
@@ -67,7 +67,7 @@ describe("Circuit Utilities", () => {
             const extendedInput = '"' + input + '"';
             assert.isTrue(extendedInput.length % 3 === 2);
 
-            const variants = utils.getAllBase64Variants(extendedInput);
+            const variants = utils.getAllBase64Variants(extendedInput).map(v => v[0]);
 
             assert.deepEqual(Buffer.from(variants[0] + '00', 'base64').toString().slice(1, -2), input);
             assert.deepEqual(Buffer.from('00' + variants[1], 'base64').toString().slice(2, -1), input);
@@ -80,7 +80,7 @@ describe("Circuit Utilities", () => {
         const extendedInput = ',' + input + ':';
         assert.isTrue(extendedInput.length % 3 === 1);
 
-        const variants = utils.getAllBase64Variants(extendedInput);
+        const variants = utils.getAllBase64Variants(extendedInput).map(v => v[0]);
 
         assert.deepEqual(Buffer.from(variants[0], 'base64').toString().slice(1), input);
         assert.deepEqual(Buffer.from('00' + variants[1] + '00', 'base64').toString().slice(2, -2), input);

@@ -3,6 +3,7 @@ pragma circom 2.0.0;
 include "sha256.circom";
 include "misc.circom";
 include "strings.circom";
+include "zkhasher.circom";
 
 /**
 JWT Proof

@@ -112,6 +112,14 @@ function getExtendedClaim(payload, claim) {
     return extended_string;
 }
 
+/**
+ * Takes an ASCII string as input and outputs the three possible Base64 variants in which it can appear in a JWT.
+ * 
+ * @param {*} string The ASCII string
+ * @returns arr[3][2] 
+ *      If i is the index at which "string" appears in the decoded JWT, then b64string = arr[i%3][0] will be a substring of the JWT.
+ *      And let j be the index at which b64string appears in the JWT, then arr[i%3][1] = j%4.
+ */
 function getAllBase64Variants(string) {
     var offset0, offset1, offset2, expected_len;
     var expected_offset0, expected_offset1, expected_offset2;

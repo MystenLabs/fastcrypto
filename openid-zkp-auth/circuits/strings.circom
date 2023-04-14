@@ -53,7 +53,7 @@ template CheckIfB64StringExists(substr, substrLen, substrExpOffsets, inCount) {
     }
     extractor.index <== substrIndex;
 
-    component O = RemainderMod4();
+    component O = RemainderMod4(log2(inCount));
     O.in <== substrIndex - startIndex; // TODO: Do we need to check if subStrIndex > startIndex?
 
     component eq[3];
