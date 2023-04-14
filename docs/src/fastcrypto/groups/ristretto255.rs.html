@@ -202,6 +202,12 @@
 <a href="#202" id="202">202</a>
 <a href="#203" id="203">203</a>
 <a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -341,6 +347,11 @@
     </span><span class="kw">pub fn </span>from_bytes_mod_order_wide(bytes: <span class="kw-2">&amp;</span>[u8; <span class="number">64</span>]) -&gt; <span class="self">Self </span>{
         RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order_wide(bytes))
     }
+
+    <span class="doccomment">/// Construct a [RistrettoScalar] by reducing a 32-byte little-endian integer modulo the group order.
+    </span><span class="kw">pub fn </span>from_bytes_mod_order(bytes: <span class="kw-2">&amp;</span>[u8; <span class="number">32</span>]) -&gt; <span class="self">Self </span>{
+        RistrettoScalar(ExternalRistrettoScalar::from_bytes_mod_order(<span class="kw-2">*</span>bytes))
+    }
 }
 
 <span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>RistrettoScalar {
@@ -396,7 +407,8 @@
         bytes: <span class="kw-2">&amp;</span>[u8; RISTRETTO_SCALAR_BYTE_LENGTH],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="prelude-val">Ok</span>(RistrettoScalar(
-            ExternalRistrettoScalar::from_bytes_mod_order(<span class="kw-2">*</span>bytes),
+            ExternalRistrettoScalar::from_canonical_bytes(<span class="kw-2">*</span>bytes)
+                .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
         ))
     }
 

@@ -270,7 +270,6 @@
 <a href="#270" id="270">270</a>
 <a href="#271" id="271">271</a>
 <a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -449,8 +448,7 @@
         <span class="kw">fn </span>from(c: <span class="kw-2">&amp;</span>Challenge) -&gt; <span class="self">Self </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>scalar = [<span class="number">0u8</span>; <span class="number">32</span>];
             scalar[..C_LEN].copy_from_slice(<span class="kw-2">&amp;</span>c.<span class="number">0</span>);
-            <span class="comment">// This will call curve25519_dalek_ng::scalar::Scalar::from_bytes_mod_order which cannot fail so it is safe to unwrap.
-            </span>RistrettoScalar::from_byte_array(<span class="kw-2">&amp;</span>scalar).unwrap()
+            RistrettoScalar::from_bytes_mod_order(<span class="kw-2">&amp;</span>scalar)
         }
     }
 
