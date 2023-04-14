@@ -12,16 +12,16 @@ template SliceFixed(inSize, outSize) {
     signal output out[outSize];
     
     component selector[outSize];
-    component eqs[inSize][outSize];
+    signal eqs[inSize][outSize];
     for(var i = 0; i < outSize; i++) {
         selector[i] = CalculateTotal(inSize);
         
         for(var j = 0; j < inSize; j++) {
-            eqs[j][i] = IsEqual();
-            eqs[j][i].in[0] <== j;
-            eqs[j][i].in[1] <== index + i;
-            
-            selector[i].nums[j] <== eqs[j][i].out * in[j];
+            eqs[j][i] <== IsEqual()([
+                j, 
+                index + i
+            ]);
+            selector[i].nums[j] <== eqs[j][i] * in[j];
         }
 
         out[i] <== selector[i].sum;
@@ -47,31 +47,26 @@ template CheckIfB64StringExists(substr, substrLen, substrExpOffsets, inCount) {
     signal input startIndex;
     signal input substrIndex;
 
-    component extractor = SliceFixed(inCount, substrLen);
-    for (var i = 0; i < inCount; i++) {
-        extractor.in[i] <== string[i];
-    }
-    extractor.index <== substrIndex;
+    signal extracted[substrLen] <== SliceFixed(inCount, substrLen)(string, substrIndex);
 
-    component O = RemainderMod4(log2(inCount));
-    O.in <== substrIndex - startIndex; // TODO: Do we need to check if subStrIndex > startIndex?
+    signal remainder <== RemainderMod4(log2(inCount))(substrIndex - startIndex);
+    // TODO: Do we need to check if subStrIndex > startIndex?
 
-    component eq[3];
-    component I[3];
+    signal eq[3];
+    signal isCheckEnabled[3];
     for (var i = 0; i < 3; i++) {
-        I[i] = IsEqual();
-        I[i].in[0] <== O.out;
-        I[i].in[1] <== substrExpOffsets[i];
+        isCheckEnabled[i] <== IsEqual()([
+            remainder,
+            substrExpOffsets[i]
+        ]);
 
-        eq[i] = IsEqualIfEnabled(substrLen);
-        for (var j = 0; j < substrLen; j++) {
-            eq[i].in[0][j] <== extractor.out[j];
-            eq[i].in[1][j] <== substr[i][j];
-        }
-        eq[i].enabled <== I[i].out;
+        eq[i] <== IsEqualIfEnabled(substrLen)([
+            extracted,
+            substr[i]
+        ], isCheckEnabled[i]);
     }
 
-    eq[0].out + eq[1].out + eq[2].out === 1;
+    eq[0] + eq[1] + eq[2] === 1;
 }
 
 // l => (4 - (l % 4)) % 4

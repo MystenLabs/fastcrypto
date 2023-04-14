@@ -43,14 +43,13 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     var hashCount = 2;
     signal input jwt_sha2_hash[hashCount];
 
-    component sha256 = Sha2_wrapper(inWidth, inCount);
-    for (var i = 0; i < inCount; i++) {
-        sha256.in[i] <== content[i];
-    }
-    sha256.last_block <== last_block;
+    signal sha2_actual[hashCount] <== Sha2_wrapper(inWidth, inCount)(
+        content, 
+        last_block
+    );
 
     for (var i = 0; i < hashCount; i++) {
-        sha256.hash[i] === jwt_sha2_hash[i];
+        sha2_actual[i] === jwt_sha2_hash[i];
     }
 
     /** 
@@ -59,18 +58,16 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     **/
     signal input payload_index;
     signal input sub_claim_index;
-    component subChecker = CheckIfB64StringExists(
+    CheckIfB64StringExists(
         subValue,
         subValueLength,
         subOffsets,
         inCount
+    )(
+        string <== content,
+        substrIndex <== sub_claim_index,
+        startIndex <== payload_index
     );
-
-    for (var i = 0; i < inCount; i++) {
-        subChecker.string[i] <== content[i];
-    }
-    subChecker.substrIndex <== sub_claim_index;
-    subChecker.startIndex <== payload_index;
 
     /** 
         #3) Masking 
@@ -94,16 +91,9 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
         outCount++;
     }
 
-    component outPacker = Packer(inWidth, inCount, outWidth, outCount);
-    for (var i = 0; i < inCount; i++) {
-        outPacker.in[i] <== masked[i];
-    }
-
-    component outHasher = Hasher(outCount);
-    for (var i = 0; i < outCount; i++) {
-        outHasher.in[i] <== outPacker.out[i];
-    }
-    masked_content_hash === outHasher.out;
+    signal packed[outCount] <== Packer(inWidth, inCount, outWidth, outCount)(masked);
+    signal mch_actual <== Hasher(outCount)(packed);
+    masked_content_hash === mch_actual;
 
     /**
         #4) nonce == Hash(eph_public_key, max_epoch, r)
@@ -113,10 +103,11 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     signal input randomness;
     signal input nonce;
 
-    component nhash = Poseidon(4);
-    nhash.inputs[0] <== eph_public_key[0];
-    nhash.inputs[1] <== eph_public_key[1];
-    nhash.inputs[2] <== max_epoch;
-    nhash.inputs[3] <== randomness;
-    nonce === nhash.out;
+    signal nonce_actual <== Poseidon(4)([
+        eph_public_key[0], 
+        eph_public_key[1], 
+        max_epoch, 
+        randomness
+    ]);
+    nonce === nonce_actual;
 }

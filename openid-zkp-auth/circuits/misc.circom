@@ -54,13 +54,10 @@ template IsEqualIfEnabled(n) {
     signal input enabled;
     signal output out;
 
-    component isz[n];
     component and = MultiAND(n);
 
     for (var i = 0; i < n; i++) {
-        isz[i] = IsZero();
-        isz[i].in <== in[0][i] - in[1][i];
-        and.in[i] <== isz[i].out;
+        and.in[i] <== IsZero()(in[0][i] - in[1][i]);
     }
     
     out <== and.out * enabled;
