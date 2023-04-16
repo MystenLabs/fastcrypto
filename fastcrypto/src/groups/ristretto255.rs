@@ -16,7 +16,7 @@ use curve25519_dalek_ng::constants::{BASEPOINT_ORDER, RISTRETTO_BASEPOINT_POINT}
 use curve25519_dalek_ng::ristretto::CompressedRistretto as ExternalCompressedRistrettoPoint;
 use curve25519_dalek_ng::ristretto::RistrettoPoint as ExternalRistrettoPoint;
 use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
-use curve25519_dalek_ng::traits::{Identity, MultiscalarMul};
+use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
@@ -67,10 +67,12 @@ impl RistrettoPoint {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        Ok(RistrettoPoint(ExternalRistrettoPoint::multiscalar_mul(
-            scalars_iter.map(|s| s.into().0),
-            points_iter.map(|g| g.0),
-        )))
+        Ok(RistrettoPoint(
+            ExternalRistrettoPoint::vartime_multiscalar_mul(
+                scalars_iter.map(|s| s.into().0),
+                points_iter.map(|g| g.0),
+            ),
+        ))
     }
 }
 
