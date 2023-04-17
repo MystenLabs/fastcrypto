@@ -6,13 +6,16 @@ const jose = require("jose");
 
 const circuit = require("../js/circuit");
 const utils = require("../js/utils");
+const b64utils = require("../js/b64utils");
 const test = require("../js/test");
 const GOOGLE = require("../js/testvectors").google_extension;
+const verifier = require("../js/verify").checkMaskedContent;
+
+const inWidth = "../js/constants".inWidth;
+const outWidth = "../js/constants".outWidth;
 
 describe("JWT Proof", () => {
     const inCount = 64 * 11; // This is the maximum length of a JWT
-    const inWidth = 8;
-    const outWidth = 253;
 
     const jwt = GOOGLE["jwt"];
     const jwk = GOOGLE["jwk"];
@@ -20,14 +23,14 @@ describe("JWT Proof", () => {
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
-    const subClaim = utils.getExtendedClaim(payload, "sub");
-    const subInB64 = utils.getAllBase64Variants(subClaim);
+    const subClaim = utils.getExtendedClaimString(payload, "sub");
+    const subInB64 = b64utils.getAllBase64Variants(subClaim);
     
     it("sub claim finding", () => {
         const decoded_jwt = Buffer.from(payload, 'base64').toString();
         const subClaimIndex = decoded_jwt.indexOf(subClaim);
 
-        const subClaiminB64Options = utils.getAllBase64Variants(subClaim);
+        const subClaiminB64Options = b64utils.getAllBase64Variants(subClaim);
         const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3][0]);
         assert.isTrue(subClaimIndexInJWT !== -1);
     });
@@ -35,7 +38,7 @@ describe("JWT Proof", () => {
     it("Extract from Base64 JSON", async () => {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
         const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
-        utils.checkMaskedContent(masked_content, inputs["last_block"], inCount);
+        verifier(masked_content, inputs["last_block"], inCount);
         // utils.writeJSONToFile(inputs, "inputs.json");
 
         const cir = await test.genMain(

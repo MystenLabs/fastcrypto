@@ -1,0 +1,1 @@
+// gen-circuit.js: Generates a circuit (circom file) based on the user's JWT

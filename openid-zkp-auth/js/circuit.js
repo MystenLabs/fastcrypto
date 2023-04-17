@@ -1,5 +1,6 @@
 const crypto = require("crypto");
 const utils = require('./utils');
+const b64utils = require('./b64utils');
 const {toBigIntBE} = require('bigint-buffer');
 
 // https://datatracker.ietf.org/doc/html/rfc4634#section-4.1
@@ -19,11 +20,8 @@ function genJwtMask(input, fields) {
   const [header, payload] = input.split('.');
   
   var payloadMask = Array(payload.length).fill(0);
-  // var startOffsets = [];
   for(const field of fields) {
-    var [start, end] = utils.getBase64JSONSlice(payload, field);
-    // var [start, end, startOffset] = utils.getBase64JSONSlice(payload, field);
-    // startOffsets.push(startOffset);
+    var [start, end] = b64utils.getBase64JSONSlice(payload, field);
     
     for(var i = start; i <= end; i++) {
       payloadMask[i] = 1;
@@ -72,7 +70,7 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 8, outWidth = 2
 
   // set indices
   inputs["payload_index"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-  inputs["sub_claim_index"] = utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_index"];
+  inputs["sub_claim_index"] = b64utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_index"];
 
   // set hash
   const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));

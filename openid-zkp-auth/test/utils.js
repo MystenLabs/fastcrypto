@@ -50,9 +50,11 @@ describe("Circuit Utilities", () => {
         assert.equal(1, padded.slice(-100, -99)); // Padding begins with 1
         assert.equal(bits.length, parseInt(padded.slice(-64).join(''), 2));
     });
+});
 
+describe("Base64 related", () => {
     // TODO: Improve tests.
-    it("String matching, len(substr) % 3 == 0", () => {
+    it("getAllBase64Variants, len(substr) % 3 == 0", () => {
         const input0 = 'saab';
         const extendedInput0 = '"' + input0 + '"';
         assert.isTrue(extendedInput0.length % 3 === 0);
@@ -75,7 +77,7 @@ describe("Circuit Utilities", () => {
         }
     })
 
-    it("String matching, len(substr) % 3 == 1", () => {
+    it("getAllBase64Variants, len(substr) % 3 == 1", () => {
         const input = '"sub"';
         const extendedInput = ',' + input + ':';
         assert.isTrue(extendedInput.length % 3 === 1);
@@ -111,4 +113,8 @@ describe("Circuit Utilities", () => {
             assert.isTrue(encoded.includes(variants[idx % 3]));
         }
     });
+
+    it("decodeMaskedB64", () => {
+        
+    })
 });

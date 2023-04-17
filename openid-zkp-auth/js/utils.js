@@ -1,66 +1,12 @@
-const PADDING_CHAR = '=';
-
 function arrayChunk(array, chunk_size) {
-    return Array(Math.ceil(array.length / chunk_size)).fill().map((_, index) => index * chunk_size).map(begin => array.slice(begin, begin + chunk_size));
+    return Array(Math.ceil(array.length / chunk_size)).fill().map((_, index) => index * chunk_size).
+                map(begin => array.slice(begin, begin + chunk_size));
 }
 
 function trimEndByChar(string, character) {
   const arr = Array.from(string);
   const last = arr.reverse().findIndex(char => char !== character);
   return string.substring(0, string.length - last);
-}
-
-function getJSONFieldLength(input, field) {
-    const json_input = JSON.parse(input);
-    const matching_fields = input.match(new RegExp(`"${field}"\\:\\s*`));
-    if (matching_fields == undefined) throw new Error("Field " + field + " not found in JSON");
-    const fieldNameLength = matching_fields[0].length;
-    const fieldValueLength = JSON.stringify(json_input[field]).length;
-    
-    return fieldNameLength + fieldValueLength;
-}
-
-function getBase64JSONSlice(input, field) {
-    const decoded = Buffer.from(input, 'base64').toString();
-    const fieldStart = decoded.indexOf(`"${field}"`);
-    const lead = trimEndByChar(Buffer.from(decoded.slice(0, fieldStart)).toString('base64'), '=');
-    const fieldLength = getJSONFieldLength(decoded, field);
-    const target = trimEndByChar(Buffer.from(decoded.slice(fieldStart, fieldStart + fieldLength)).toString('base64'), '=');
-    
-    const start = Math.floor(lead.length / 4) * 4;
-    const end = Math.ceil(((lead.length + target.length) - 1) / 4) * 4;
-
-    // var start = lead.length;
-    // var startOffset = 0;
-    // if (lead.length % 4 !== 0) {
-    //     if (lead.length % 4 == 1) throw new Error("Invalid base64 string");
-    //     start--; // one more base64 char needs to be revealed
-    //     if (lead.length % 4 == 2) { // '==' to be added for proper padding 
-    //         startOffset = 1;
-    //     } else { // (lead.length % 4 == 3) '=' needs to be added for proper padding
-    //         startOffset = 2; // two base64 chars need to be added at the start
-    //     }
-    // }
-    
-    return [start, end >= input.length ? input.length - 1 : end - 1];
-    // return [start, end >= input.length ? input.length - 1 : end - 1, startOffset];
-}
-
-function findB64IndexOf(payload, claim) {
-    const full_string = getExtendedClaim(payload, claim);
-
-    const all_variants = getAllBase64Variants(full_string).map(e => e[0]);
-
-    for (var i = 0; i < all_variants.length; i++) {
-        const index = payload.indexOf(all_variants[i]);
-        if (index != -1) {
-            return index;
-        }
-    }
-
-    console.log(full_string);
-    console.log(all_variants);
-    throw new Error("Claim not found");
 }
 
 function buffer2BitArray(b) {
@@ -100,72 +46,18 @@ function getWitnessBuffer(witness, symbols, arrName, varSize=1) {
     }
 }
 
-// Assuming that the claim isn't the first or last, we look for an extended string of the form `,"claim":"value",`
-function getExtendedClaim(payload, claim) {
-    const decoded = Buffer.from(payload, 'base64').toString();
-    const json_input = JSON.parse(decoded);
-    const extended_string = `,"${claim}":"` + json_input[claim] + '",';
-    if (decoded.indexOf(extended_string) == -1) {
-        console.log(decoded, extended_string);
-        throw new Error(extended_string, "is not in", decoded);
-    }
-    return extended_string;
-}
-
-/**
- * Takes an ASCII string as input and outputs the three possible Base64 variants in which it can appear in a JWT.
- * 
- * @param {*} string The ASCII string
- * @returns arr[3][2] 
- *      If i is the index at which "string" appears in the decoded JWT, then b64string = arr[i%3][0] will be a substring of the JWT.
- *      And let j be the index at which b64string appears in the JWT, then arr[i%3][1] = j%4.
- */
-function getAllBase64Variants(string) {
-    var offset0, offset1, offset2, expected_len;
-    var expected_offset0, expected_offset1, expected_offset2;
-    if (string.length % 3 == 0) {
-        offset0 = Buffer.from(string).toString('base64').slice(1, -1);
-        expected_offset0 = 1;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2, -4);
-        expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(4, -2);
-        expected_offset2 = 0;
-        expected_len = ((string.length / 3) * 4) - 2;
-    } else if (string.length % 3 == 1) {
-        offset0 = Buffer.from(string).toString('base64').slice(0, -4);
-        expected_offset0 = 0;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2, -2);
-        expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(4);
-        expected_offset2 = 0;
-        expected_len = (((string.length - 1) / 3) * 4);
-    } else { //  (string.length % 3 == 2)
-        offset0 = Buffer.from(string).toString('base64').slice(0, -2);
-        expected_offset0 = 0;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2);
-        expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(3, -3);
-        expected_offset2 = 3;
-        expected_len = (((string.length - 2) / 3) * 4) + 2;
-    }
-    if (offset0.length != expected_len || offset1.length != expected_len || offset2.length != expected_len) throw new Error("Something went wrong");
-    return [[offset0, expected_offset0],
-            [offset1, expected_offset1],
-            [offset2, expected_offset2]];
-}
-
 function writeJSONToFile(inputs, file_name = "inputs.json") {
     const fs = require('fs');
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
 function calculateNonce(inputs, poseidon) {
-    return poseidon.F.toObject(poseidon([
+    return poseidonHash([
         inputs["eph_public_key"][0], 
         inputs["eph_public_key"][1], 
         inputs["max_epoch"],
         inputs["randomness"]
-    ]));
+    ], poseidon);
 }
 
 function calculateMaskedHash(content, mask, poseidon, outWidth) {
@@ -195,9 +87,9 @@ function poseidonHash(inputs, poseidon) {
 }
 
 /**
- * @param {Array} input 
- * @param {Array} mask 
- * @returns A string of characters where the masked characters are replaced with '='
+ * @param {Array} input: vector of bytes
+ * @param {Array} mask: vector of 0s and 1s 
+ * @returns A vector of characters where the masked characters are replaced with '='
  */
 function applyMask(input, mask) {
     if (input.length != mask.length) {
@@ -205,64 +97,36 @@ function applyMask(input, mask) {
     }
     return input.map((charCode, index) => (mask[index] == 1) 
                 ? Number(charCode)
-                : PADDING_CHAR.charCodeAt()
+                : require('./constants').maskValue
             );
 }
 
-function fromBase64WithOffset(input, offset) {
-    var extraPrefix = '='.repeat(offset);
-    return Buffer.from(extraPrefix + input, 'base64').toString('utf8');
+// Returns a claim as it appears in the decoded JWT
+function getClaimString(payload, claim) {
+    const json_input = JSON.parse(payload);
+    const field_value = JSON.stringify(json_input[claim]);
+    const kv_pair = `"${claim}":${field_value}`;
+
+    if (payload.indexOf(kv_pair) == -1) 
+        throw new Error("Field " + kv_pair + " not found in JWT");
+
+    return kv_pair;
 }
 
-function checkMaskedContent(masked_content, last_block, expected_length) {
-    if (masked_content.length != expected_length) throw new Error("Invalid length");
-    if (last_block * 64 > masked_content.length) throw new Error("Invalid last block");
-
-    // Process any extra padding
-    extra_padding = masked_content.slice(last_block * 64);
-    console.log("Length of extra padding:", extra_padding.length);
-    if (extra_padding != '') {
-        if (extra_padding.some(e => e != 0)) throw new Error("Invalid extra padding");
-        masked_content = masked_content.slice(0, last_block * 64);
+// Assuming that the claim isn't the first or last, we look for an extended string of the form `,"claim":"value",`
+function getExtendedClaimString(b64payload, claim) {
+    const decoded = Buffer.from(b64payload, 'base64').toString();
+    const kv_pair = getClaimString(decoded, claim);
+    const extended_kv_pair = ',' + kv_pair + ',';
+    if (decoded.indexOf(extended_kv_pair) == -1) {
+        throw new Error(extended_kv_pair, "is not in", decoded);
     }
-
-    // Process header
-    const header_length = masked_content.indexOf('.'.charCodeAt());
-    if (header_length == -1) throw new Error("Invalid header length");
-
-    const encodedHeader = masked_content.slice(0, header_length).map(e => String.fromCharCode(e)).join('');
-    const header = Buffer.from(encodedHeader, 'base64').toString('utf8');
-    console.log("header", header);
-    // ...JSON Parse header...
-
-    // Process SHA-2 padding
-    const payload_and_sha2pad = masked_content.slice(header_length + 1);
-    const header_and_payload_len_in_bits = Number('0x' + payload_and_sha2pad.slice(-8).map(e => e.toString(16)).join(''));
-    if (header_and_payload_len_in_bits % 8 != 0) throw new Error("Invalid header_and_payload_len_in_bits");
-    const header_and_payload_len = header_and_payload_len_in_bits / 8;
-
-    const payload_len = header_and_payload_len - header_length - 1;
-    const payload = payload_and_sha2pad.slice(0, payload_len);
-    const sha2pad = payload_and_sha2pad.slice(payload_len);
-
-    if (sha2pad[0] != 128) throw new Error("Invalid sha2pad start byte");
-    if (sha2pad.slice(1, -8).some(e => e != 0)) throw new Error("Invalid sha2pad");
-
-    // Process payload
-    const encodedPayload = payload.map(e => String.fromCharCode(e)).join('');
-    console.log("encoded payload", encodedPayload);
-    const claims = encodedPayload.split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
-    console.log("claims", claims);
-    // ...JSON Parse claims...
-
-    // TODO: Careful decoding to be implemented once proper masking is done
+    return extended_kv_pair;
 }
 
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
-    getJSONFieldLength: getJSONFieldLength,
-    getBase64JSONSlice: getBase64JSONSlice,
     buffer2BitArray: buffer2BitArray,
     bitArray2Buffer: bitArray2Buffer,
     bigIntArray2Bits: bigIntArray2Bits,
@@ -271,14 +135,12 @@ module.exports = {
     getWitnessMap: getWitnessMap,
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
-    getAllBase64Variants: getAllBase64Variants,
     writeJSONToFile: writeJSONToFile,
-    calculateNonce: calculateNonce,
-    fromBase64WithOffset: fromBase64WithOffset,
-    calculateMaskedHash: calculateMaskedHash,
-    findB64IndexOf: findB64IndexOf,
-    getExtendedClaim: getExtendedClaim,
+    getClaimString: getClaimString,
+    getExtendedClaimString: getExtendedClaimString,
     applyMask: applyMask,
-    checkMaskedContent: checkMaskedContent,
-    poseidonHash: poseidonHash,
+    // hashing
+    calculateNonce: calculateNonce,
+    calculateMaskedHash: calculateMaskedHash,
+    poseidonHash: poseidonHash
 }

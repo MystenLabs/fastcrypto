@@ -1,7 +1,7 @@
 const fs = require("fs");
 const snarkjs = require("snarkjs");
 
-const jwtverifier = require('../js/jwtverifier');
+const jwtverifier = require('../js/verify').verifyJwt;
 const GOOGLE = require("../js/testvectors").google_extension;
 const circuit = require("../js/circuit");
 const utils = require("../js/utils");
