@@ -70,7 +70,11 @@ fn bytes_representation() {
 fn public_key_ordering() {
     let pk1 = keys().pop().unwrap().public().clone();
     let pk2 = keys().pop().unwrap().public().clone();
-    assert_eq!(pk1.as_bytes() < pk2.as_bytes(), pk1 < pk2);
+    assert_eq!(pk1.as_bytes().cmp(pk2.as_bytes()), pk1.cmp(&pk2));
+    assert_eq!(
+        pk1.as_bytes().cmp(pk2.as_bytes()),
+        pk1.partial_cmp(&pk2).unwrap()
+    );
 }
 
 #[test]
