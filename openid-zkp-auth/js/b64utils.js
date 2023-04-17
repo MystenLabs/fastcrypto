@@ -38,13 +38,16 @@ function findB64IndexOf(payload, claim) {
     throw new Error("Claim not found");
 }
 
-// Decode a Base64 string that has been partially masked.
+// Decode a Base64 string with some initial portions masked.
 function decodeMaskedB64(input, offset) {
     if (offset > 3 || offset < 0) throw new Error("Invalid offset");
 
     var extraPrefix = '0'.repeat(offset);
     const decoded = Buffer.from(extraPrefix + input, 'base64').toString('utf8');
-    return decoded.slice(offset); // Omits first character in some cases
+    return decoded.slice(offset);
+    // Remove all characters corresponding to the added prefix before sending. 
+    // Due to the nature of Base64 encoding, the above action will also remove the first character of the decoded string in some cases.
+    // If the mask was set using getAllBase64Variants, then this action will never omit an important character.
 }
 
 /**

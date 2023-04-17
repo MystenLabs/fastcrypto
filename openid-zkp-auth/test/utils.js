@@ -114,7 +114,16 @@ describe("Base64 related", () => {
         }
     });
 
-    it("decodeMaskedB64", () => {
-        
+    const decodeMaskedB64 = require("../js/b64utils").decodeMaskedB64;
+    it.only("decodeMaskedB64", () => {
+        const b64str = "eyJraWQiOmFiY30";
+        // decoded = {"kid":abc}
+        const decoded = Buffer.from(b64str, 'base64').toString('utf8');
+        console.log(decoded);
+
+        assert.deepEqual(decodeMaskedB64(b64str, 0), decoded);
+        assert.deepEqual(decodeMaskedB64(b64str.slice(1), 1), decoded.slice(1)); // omit 1 char
+        assert.deepEqual(decodeMaskedB64(b64str.slice(2), 2), decoded.slice(2)); // omit 2 chars
+        assert.deepEqual(decodeMaskedB64(b64str.slice(3), 3), decoded.slice(3)); // omit 3 chars
     })
 });
