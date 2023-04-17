@@ -103,6 +103,20 @@ fn serialize_private_key_only_for_keypair() {
 }
 
 #[test]
+fn private_key_from_bytes() {
+    let kp = keys().pop().unwrap();
+    let sk = kp.private();
+    let sk_bytes = sk.as_ref();
+    let rebuilt_sk = <Secp256r1PrivateKey as ToFromBytes>::from_bytes(sk_bytes).unwrap();
+    assert_eq!(rebuilt_sk, sk);
+
+    // check for failure
+    let mut sk_bytes = sk.as_ref().to_vec();
+    sk_bytes.pop();
+    assert!(<Secp256r1PrivateKey as ToFromBytes>::from_bytes(&sk_bytes).is_err());
+}
+
+#[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");

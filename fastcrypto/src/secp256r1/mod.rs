@@ -197,7 +197,9 @@ impl ToFromBytes for Secp256r1PrivateKey {
             Ok(privkey) => Ok(Secp256r1PrivateKey {
                 privkey,
                 bytes: OnceCell::with_value(
-                    <[u8; SECP256R1_PRIVATE_KEY_LENGTH]>::try_from(bytes).unwrap(),
+                    <[u8; SECP256R1_PRIVATE_KEY_LENGTH]>::try_from(bytes).map_err(|_| {
+                        FastCryptoError::InputLengthWrong(SECP256R1_PRIVATE_KEY_LENGTH)
+                    })?,
                 ),
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
