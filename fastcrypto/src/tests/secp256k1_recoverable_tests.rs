@@ -51,21 +51,20 @@ fn serialize_deserialize() {
 
 #[test]
 fn fmt_signature() {
-    let sig = keys().pop().unwrap().sign(MSG);
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
     assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
 }
 
 #[test]
-fn hash_public_key() {
-    let kpref = keys().pop().unwrap();
-    let public_key = kpref.public();
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
 
     let mut hasher = DefaultHasher::new();
-    public_key.hash(&mut hasher);
+    sig.hash(&mut hasher);
     let digest = hasher.finish();
 
     let mut other_hasher = DefaultHasher::new();
-    public_key.as_bytes().hash(&mut other_hasher);
+    sig.as_bytes().hash(&mut other_hasher);
     let expected = other_hasher.finish();
     assert_eq!(expected, digest);
 }
