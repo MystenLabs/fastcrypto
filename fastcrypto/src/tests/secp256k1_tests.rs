@@ -67,6 +67,13 @@ fn bytes_representation() {
 }
 
 #[test]
+fn public_key_ordering() {
+    let pk1 = keys().pop().unwrap().public().clone();
+    let pk2 = keys().pop().unwrap().public().clone();
+    assert_eq!(pk1.as_bytes() < pk2.as_bytes(), pk1 < pk2);
+}
+
+#[test]
 fn import_export_public_key() {
     let kpref = keys().pop().unwrap();
     let public_key = kpref.public();
