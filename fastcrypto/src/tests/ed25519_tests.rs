@@ -20,6 +20,9 @@ use crate::{
 use proptest::prelude::*;
 use proptest::strategy::Strategy;
 use rand::{rngs::StdRng, SeedableRng as _};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 use wycheproof::{eddsa::TestSet, TestResult};
 
 pub fn keys() -> Vec<Ed25519KeyPair> {
@@ -109,6 +112,14 @@ fn test_serde_signatures_human_readable() {
     );
     let deserialized: Ed25519Signature = serde_json::from_str(&serialized).unwrap();
     assert_eq!(deserialized.as_ref(), signature.as_ref());
+}
+
+#[test]
+fn key_pair_from_string_roundtrip() {
+    let kp = keys().pop().unwrap();
+    let kp_str = Base64::encode(kp.as_ref());
+    let recovered = Ed25519KeyPair::from_str(&kp_str).unwrap();
+    assert_eq!(kp, recovered);
 }
 
 #[test]
@@ -415,7 +426,7 @@ fn test_to_from_bytes_aggregate_signatures() {
     let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
     let serialized = sig.as_bytes();
     let deserialized = Ed25519AggregateSignature::from_bytes(serialized).unwrap();
-    assert_eq!(deserialized.as_ref(), sig.as_ref());
+    assert_eq!(deserialized, sig);
 }
 
 #[test]
@@ -510,6 +521,9 @@ fn test_add_signatures_to_aggregate_different_messages() {
     sig2.add_aggregate(aggregated_signature).unwrap();
 
     assert!(sig2.verify_different_msg(&pks, &messages).is_ok());
+
+    // Mismatch in number of pks and messages
+    assert!(sig2.verify_different_msg(&pks, &messages[0..1]).is_err());
 }
 
 #[test]
@@ -526,12 +540,26 @@ fn verify_valid_batch_different_msg() {
 #[test]
 fn verify_invalid_batch_different_msg() {
     let mut inputs = test_helpers::signature_test_inputs_different_msg::<Ed25519KeyPair>();
+
+    // Mismatch between number of messages, signatures and public keys provided
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests,
+        &inputs.pubkeys,
+        &inputs.signatures[0..1],
+    );
+    assert!(res.is_err(), "{:?}", res);
+
+    // One signature invalid
     inputs.signatures[0] = Ed25519Signature::default();
     let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
         &inputs.pubkeys,
         &inputs.signatures,
     );
+    assert!(res.is_err(), "{:?}", res);
+
+    // No signatures provided
+    let res = Ed25519PublicKey::verify_batch_empty_fail_different_msg::<&[u8]>(&[], &[], &[]);
     assert!(res.is_err(), "{:?}", res);
 }
 
@@ -583,6 +611,99 @@ fn test_copy_key_pair() {
 
     assert_eq!(kp.public().0.as_bytes(), kp_copied.public().0.as_bytes());
     assert_eq!(kp.private().0.as_bytes(), kp_copied.private().0.as_bytes());
+}
+
+#[test]
+fn keypair_from_signing_key() {
+    // Create two equal keypairs.
+    let kp1 = keys().pop().unwrap();
+    let kp2 = keys().pop().unwrap();
+    assert_eq!(kp1, kp2);
+
+    let signing_key = kp1.private().0.clone();
+    let restored_kp = Ed25519KeyPair::from(signing_key);
+    assert_eq!(kp2, restored_kp);
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign(b"Hello, world!");
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
+#[test]
+fn fmt_aggregate_signature() {
+    // Test empty aggregate signature
+    let sig = Ed25519AggregateSignature::default();
+    assert_eq!(sig.to_string(), "[]");
+
+    let message = b"hello, narwhal";
+    // Test populated aggregate signature
+    let (_, signatures): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
+        .into_iter()
+        .take(3)
+        .map(|kp| {
+            let sig = kp.sign(message);
+            (kp.public().clone(), sig)
+        })
+        .unzip();
+
+    let sig = Ed25519AggregateSignature::aggregate(&signatures).unwrap();
+    assert_eq!(
+        sig.to_string(),
+        format!(
+            "[\"{}\", \"{}\", \"{}\"]",
+            Base64::encode(signatures[0].as_bytes()),
+            Base64::encode(signatures[1].as_bytes()),
+            Base64::encode(signatures[2].as_bytes())
+        )
+    );
+}
+
+#[test]
+fn hash_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+
+    let mut hasher = DefaultHasher::new();
+    public_key.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    public_key.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
+}
+
+#[test]
+fn fmt_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+    assert_eq!(
+        public_key.to_string(),
+        Base64::encode(public_key.as_bytes())
+    );
+}
+
+#[test]
+fn debug_public_key() {
+    let kpref = keys().pop().unwrap();
+    let public_key = kpref.public();
+    assert_eq!(
+        format!("{:?}", public_key),
+        Base64::encode(public_key.as_bytes())
+    );
+}
+
+#[test]
+fn public_key_ordering() {
+    let pk1 = keys().pop().unwrap().public().clone();
+    let pk2 = keys().pop().unwrap().public().clone();
+    assert_eq!(pk1.as_bytes().cmp(pk2.as_bytes()), pk1.cmp(&pk2));
+    assert_eq!(
+        pk1.as_bytes().cmp(pk2.as_bytes()),
+        pk1.partial_cmp(&pk2).unwrap()
+    );
 }
 
 #[tokio::test]
