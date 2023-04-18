@@ -19,19 +19,17 @@ JWT Proof
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
     - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
 
-    Public Inputs:
-    - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
-                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks)
-
-    Auxilary Inputs (Verification outside of the circuit):
-    - jwt_sha2_hash[2]:         SHA256 hash output split into two 128-bit values
-    - masked_content_hash:      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
+    Private inputs (revealed outside the circuit):
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
-    - nonce:                    H(eph_public_key, max_epoch, randomness)
     - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
+
+    Public Inputs:
+    - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
+                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks)
+
 */
 template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII

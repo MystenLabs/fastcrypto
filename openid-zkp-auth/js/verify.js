@@ -20,8 +20,26 @@ const verifyJwt = (token, jwkPublicKey) => {
     }
 };
 
+// A partial implementation of the on-chain proof verification logic. Only checks the masked_content.
+const verifyOpenIDProof = (public_inputs, auxiliary_inputs, MAX_JWT_LENGTH) => {
+    checkMaskedContent(
+        auxiliary_inputs["masked_content"],
+        auxiliary_inputs["num_sha2_blocks"],
+        auxiliary_inputs["payload_start_index"],
+        auxiliary_inputs["payload_len"],
+        MAX_JWT_LENGTH
+    );
+}
+    
+
 // TODO: Add checks related to payload_len
-const checkMaskedContent = (masked_content, num_sha2_blocks, expected_length) => {
+const checkMaskedContent = (
+    masked_content, 
+    num_sha2_blocks,
+    expected_payload_start_index,
+    expected_payload_len,
+    expected_length
+) => {
     if (masked_content.length != expected_length) throw new Error("Invalid length");
     if (num_sha2_blocks * 64 > masked_content.length) throw new Error("Invalid last block");
 
@@ -35,7 +53,7 @@ const checkMaskedContent = (masked_content, num_sha2_blocks, expected_length) =>
 
     // Process header
     const header_length = masked_content.indexOf('.'.charCodeAt());
-    if (header_length == -1) throw new Error("Invalid header length");
+    if (header_length == -1 || header_length != expected_payload_start_index - 1) throw new Error("Invalid header length");
 
     const encodedHeader = masked_content.slice(0, header_length).map(e => String.fromCharCode(e)).join('');
     const header = Buffer.from(encodedHeader, 'base64').toString('utf8');
@@ -48,7 +66,9 @@ const checkMaskedContent = (masked_content, num_sha2_blocks, expected_length) =>
     if (header_and_payload_len_in_bits % 8 != 0) throw new Error("Invalid header_and_payload_len_in_bits");
     const header_and_payload_len = header_and_payload_len_in_bits / 8;
 
-    const payload_len = header_and_payload_len - header_length - 1;
+    const payload_len = header_and_payload_len - expected_payload_start_index;
+    if (payload_len != expected_payload_len) throw new Error("Invalid payload length");
+
     const payload = payload_and_sha2pad.slice(0, payload_len);
     const sha2pad = payload_and_sha2pad.slice(payload_len);
 
@@ -78,6 +98,7 @@ const extractClaims = (maskedPayload) => {
 
 module.exports = {
   verifyJwt, 
+  verifyOpenIDProof,
   checkMaskedContent, 
   extractClaims
 };

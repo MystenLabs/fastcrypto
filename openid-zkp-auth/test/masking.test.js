@@ -15,9 +15,9 @@ function getAllClaims(jwt) {
     return Object.keys(json);
 }
 
-function maskTesting(jwt, claimsToHide, print=false) {
-    if (print) console.log("Hide:", claimsToHide);
-    var mask = circuit.genJwtMask(jwt, claimsToHide);
+function maskTesting(jwt, claimsToReveal, print=false) {
+    console.log("Reveal:", claimsToReveal);
+    var mask = circuit.genJwtMask(jwt, claimsToReveal);
     if (print) console.log(mask.join(''));
 
     var masked_jwt = utils.applyMask(new Uint8Array(Buffer.from(jwt)) , mask);
@@ -39,7 +39,7 @@ function maskTesting(jwt, claimsToHide, print=false) {
 
     // We just check that each full claim string is present (somewhere) in the masked JWT. In practice, these would need to parsed out.
     // Note that some claims might not be at the start of an extracted_claim, e.g., if consecutive claims are being revealed.
-    for (const claim of claimsToHide) {
+    for (const claim of claimsToReveal) {
         const claim_string = utils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64').toString(), claim);
         if (!extracted_claims.some(e => e.includes(claim_string))) {
             console.log("Can't find claim", claim, "in", extracted_claims);
@@ -57,6 +57,7 @@ function maskTesting(jwt, claimsToHide, print=false) {
     }
 
     // Last character of each extracted_claim must be ??
+    console.log(extracted_claims);
     return extracted_claims;
 }
 
@@ -77,7 +78,7 @@ describe("Masking with dummy JWTs", () => {
         return jwt;
     }
 
-    it(("#1"), () => {
+    it.only(("#1"), () => {
         header = '{"kid":abc}';
         payload = '{"iss":123,"azp":"gogle","iat":7890,"exp":101112}';
 

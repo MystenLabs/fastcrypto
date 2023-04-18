@@ -37,7 +37,7 @@ describe("JWT Proof", () => {
 
     it("Extract from Base64 JSON", async () => {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
-        // utils.writeJSONToFile(inputs, "inputs.json");
+        utils.writeJSONToFile(inputs, "inputs.json");
 
         const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
         checkMaskedContent(masked_content, inputs["num_sha2_blocks"], inCount);
