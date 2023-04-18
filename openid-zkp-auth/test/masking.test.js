@@ -44,6 +44,16 @@ function maskTesting(jwt, claimsToHide, print=false) {
         }
     }
     if (print) console.log('\n');
+
+    // First character of each extracted_claim must be either '{' or ',' or '"'
+    for (const claim of extracted_claims) {
+        if (!['{', ',', '"'].includes(claim[0])) {
+            console.log("Invalid claim", claim);
+            throw new Error("Invalid claim");
+        }
+    }
+
+    // Last character of each extracted_claim must be ??
     return extracted_claims;
 }
 
@@ -78,10 +88,29 @@ describe("Masking with dummy JWTs", () => {
             maskTesting(jwt, subset);
         }
     });
+
+    it(("#2"), () => {
+        header = '{"kid":abc}';
+        payload = '{"iss":1234,"azp":"gogle","iat":7890,"exp":101112}';
+        jwt = constructJWT(header, payload);
+        const claims = getAllClaims(jwt);
+        for (const subset of subsets(claims)) {
+            maskTesting(jwt, subset);
+        }
+    });
+
+    it(("#3"), () => {
+        header = '{"kid":abc}';
+        payload = '{"iss":12345,"azp":"gogle","iat":7890,"exp":101112}';
+        jwt = constructJWT(header, payload);
+        const claims = getAllClaims(jwt);
+        for (const subset of subsets(claims)) {
+            maskTesting(jwt, subset);
+        }
+    });
 })
 
 describe("Masking with real JWTs", () => {
-
     it("Google", () => {
         const jwt = GOOGLE1.split('.').slice(0,2).join('.');
         const claims = getAllClaims(jwt);

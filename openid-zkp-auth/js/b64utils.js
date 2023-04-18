@@ -1,5 +1,6 @@
 const utils = require('./utils.js');
 
+// TODO: Write tests
 function getBase64JSONSlice(input, field) {
     const decoded = Buffer.from(input, 'base64').toString();
     const kv_pair = utils.getClaimString(decoded, field);
@@ -7,6 +8,7 @@ function getBase64JSONSlice(input, field) {
 
     // take one char more on both sides
     const kv_pair_expanded = decoded.slice(fieldStart - 1, fieldStart + kv_pair.length + 1); 
+    // console.log(kv_pair_expanded);
     const b64Variants = getAllBase64Variants(kv_pair_expanded);
     const x = (fieldStart - 1) % 3;
 
