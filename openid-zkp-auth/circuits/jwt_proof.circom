@@ -51,7 +51,7 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
 
     /** 
         #2) Checks that the substring `,"sub":UserID,` appears at sub_claim_index 
-        Cost: ~40k constraints
+        Cost: (subValueLength + 1) * inCount constraints
     **/
     signal input payload_start_index;
     signal input sub_claim_index;
