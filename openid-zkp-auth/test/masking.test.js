@@ -7,15 +7,22 @@ const verify = require("../js/verify");
 
 const GOOGLE1 = require("../js/testvectors").google_extension.jwt;
 const GOOGLE2 = require("../js/testvectors").google_playground.jwt;
+const FB = require("../js/testvectors").facebook.jwt;
 
-function maskTesting(jwt, claimsToHide) {
-    console.log("Hide:", claimsToHide);
+function getAllClaims(jwt) {
+    const payload = Buffer.from(jwt.split('.')[1], 'base64').toString();
+    const json = JSON.parse(payload);
+    return Object.keys(json);
+}
+
+function maskTesting(jwt, claimsToHide, print=false) {
+    if (print) console.log("Hide:", claimsToHide);
     var mask = circuit.genJwtMask(jwt, claimsToHide);
-    console.log(mask.join(''));
+    if (print) console.log(mask.join(''));
 
     var masked_jwt = utils.applyMask(new Uint8Array(Buffer.from(jwt)) , mask);
     masked_jwt = Buffer.from(masked_jwt).toString();
-    console.log(masked_jwt);
+    if (print) console.log(masked_jwt);
 
     const header_length = masked_jwt.indexOf('.');
     if (header_length == -1) throw new Error("Invalid header length");
@@ -36,7 +43,7 @@ function maskTesting(jwt, claimsToHide) {
             throw new Error("Claim not found in masked JWT");
         }
     }
-    console.log('\n');
+    if (print) console.log('\n');
     return extracted_claims;
 }
 
@@ -60,14 +67,13 @@ describe("Masking with dummy JWTs", () => {
     it(("#1"), () => {
         header = '{"kid":abc}';
         payload = '{"iss":123,"azp":"gogle","iat":7890,"exp":101112}';
-        console.log(header + '.' + payload);
 
         // Create a JWT
         jwt = constructJWT(header, payload);
-        console.log(jwt);
 
         // Test for all possible subsets of claims
-        const claims = ["iss", "azp", "iat", "exp"];
+        const claims = getAllClaims(jwt);
+        assert.deepEqual(claims.sort(), ["iss", "azp", "iat", "exp"].sort());
         for (const subset of subsets(claims)) {
             maskTesting(jwt, subset);
         }
@@ -77,12 +83,32 @@ describe("Masking with dummy JWTs", () => {
 describe("Masking with real JWTs", () => {
 
     it("Google", () => {
-        const input = GOOGLE1.split('.').slice(0,2).join('.');
-        maskTesting(input, ["iss", "iat", "exp", "aud"]);
+        const jwt = GOOGLE1.split('.').slice(0,2).join('.');
+        const claims = getAllClaims(jwt);
+        assert.deepEqual(claims.sort(), [
+            'iss',   'azp',
+            'aud',   'sub',
+            'nonce', 'iat',
+            'exp',   'jti'
+          ].sort());
+        for (const subset of subsets(claims)) {
+            maskTesting(jwt, subset);
+        }
     });
 
-    it.only("Google again", () => {
-        const input = GOOGLE2.split('.').slice(0,2).join('.');
-        maskTesting(input, ["iss", "iat", "exp", "aud"]);
-    })
+    it("Google again", () => {
+        const jwt = GOOGLE2.split('.').slice(0,2).join('.');
+        const claims = getAllClaims(jwt);
+        for (const subset of subsets(claims)) {
+            maskTesting(jwt, subset);
+        }
+    });
+
+    it("Facebook", () => {
+        const jwt = FB.split('.').slice(0,2).join('.');
+        const claims = getAllClaims(jwt);
+        for (const subset of subsets(claims)) {
+            maskTesting(jwt, subset);
+        }
+    });
 });
