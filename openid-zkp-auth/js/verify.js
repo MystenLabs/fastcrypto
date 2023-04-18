@@ -20,16 +20,17 @@ const verifyJwt = (token, jwkPublicKey) => {
     }
 };
 
-const checkMaskedContent = (masked_content, last_block, expected_length) => {
+// TODO: Add checks related to payload_len
+const checkMaskedContent = (masked_content, num_sha2_blocks, expected_length) => {
     if (masked_content.length != expected_length) throw new Error("Invalid length");
-    if (last_block * 64 > masked_content.length) throw new Error("Invalid last block");
+    if (num_sha2_blocks * 64 > masked_content.length) throw new Error("Invalid last block");
 
     // Process any extra padding
-    extra_padding = masked_content.slice(last_block * 64);
+    extra_padding = masked_content.slice(num_sha2_blocks * 64);
     console.log("Length of extra padding:", extra_padding.length);
     if (extra_padding != '') {
         if (extra_padding.some(e => e != 0)) throw new Error("Invalid extra padding");
-        masked_content = masked_content.slice(0, last_block * 64);
+        masked_content = masked_content.slice(0, num_sha2_blocks * 64);
     }
 
     // Process header

@@ -17,7 +17,7 @@ describe("Unsafe SHA256", () => {
     var cir;
     
     before(async() => {
-        cir = await test.genMain(path.join(__dirname, "..", "circuits", "sha256.circom"), "Sha256_unsafe", [20]);
+        cir = await test.genMain(path.join(__dirname, "..", "circuits", "sha256.circom"), "Sha256_unsafe", [nBlocks]);
         await cir.loadSymbols();
     });
 

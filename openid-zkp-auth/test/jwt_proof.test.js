@@ -9,7 +9,7 @@ const utils = require("../js/utils");
 const b64utils = require("../js/b64utils");
 const test = require("../js/test");
 const GOOGLE = require("../js/testvectors").google_extension;
-const verifier = require("../js/verify").checkMaskedContent;
+const checkMaskedContent = require("../js/verify").checkMaskedContent;
 
 const inWidth = "../js/constants".inWidth;
 const outWidth = "../js/constants".outWidth;
@@ -37,9 +37,10 @@ describe("JWT Proof", () => {
 
     it("Extract from Base64 JSON", async () => {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
-        const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
-        verifier(masked_content, inputs["last_block"], inCount);
         // utils.writeJSONToFile(inputs, "inputs.json");
+
+        const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
+        checkMaskedContent(masked_content, inputs["num_sha2_blocks"], inCount);
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),
@@ -53,17 +54,6 @@ describe("JWT Proof", () => {
 
         const w = await cir.calculateWitness(inputs, true);
         await cir.checkConstraints(w);
-
-        // Check the revealed JWT
-        // assert.deepEqual(maskedContent.split('.').length, 2);
-        // const header = Buffer.from(maskedContent.split('.')[0], 'base64').toString();
-        // const claims = maskedContent.split('.')[1].split(/=+/).filter(e => e !== '').map(e => Buffer.from(e, 'base64').toString());
-        // console.log("header", header, "\nclaims", claims);
-        
-        // assert.equal(claims.length, 2, "Incorrect number of claims");
-        // assert.include(claims[0], '"iss":"https://accounts.google.com"', "Does not contain iss claim");
-        // assert.include(claims[1], '"azp":"407408718192.apps.googleusercontent.com"', "Does not contain azp claim");
-        // assert.include(claims[2], '"iat":1679674145', "Does not contain nonce claim");
 
         // Check signature
         const pubkey = await jose.importJWK(jwk);

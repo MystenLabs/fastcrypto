@@ -3,8 +3,7 @@ pragma circom 2.0.0;
 include "jwt_proof.circom";
 
 component main {
-    public [jwt_sha2_hash, masked_content_hash, payload_index, 
-            eph_public_key, max_epoch, nonce, last_block]
+    public [all_inputs_hash]
 } = JwtProof(
     704,
     [

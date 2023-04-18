@@ -20,13 +20,18 @@ JWT Proof
     - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
 
     Public Inputs:
+    - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
+                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks)
+
+    Auxilary Inputs (Verification outside of the circuit):
     - jwt_sha2_hash[2]:         SHA256 hash output split into two 128-bit values
     - masked_content_hash:      H(content & masked). The masked content is first packed into 253-bit chunks before hashing.
-    - payload_index:            The index of the payload in the content
+    - payload_start_index:      The index of the payload in the content
+    - payload_len:              The length of the payload
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
     - nonce:                    H(eph_public_key, max_epoch, randomness)
-    - last_block:               At which 512-bit block to select output hash
+    - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
 */
 template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII
@@ -36,27 +41,21 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     /**
         #1) SHA-256 (30k * nBlocks constraints)
     **/
-    signal input last_block;
+    signal input num_sha2_blocks;
     // Note: In theory, we could've packed 253 bits into an output value, but 
     //       that'd still require at least 2 values. Instead, the below impl
     //       packs the 256 bits into 2 values of 128 bits each. 
     var hashCount = 2;
-    signal input jwt_sha2_hash[hashCount];
-
-    signal sha2_actual[hashCount] <== Sha2_wrapper(inWidth, inCount)(
+    signal jwt_sha2_hash[hashCount] <== Sha2_wrapper(inWidth, inCount)(
         content, 
-        last_block
+        num_sha2_blocks
     );
-
-    for (var i = 0; i < hashCount; i++) {
-        sha2_actual[i] === jwt_sha2_hash[i];
-    }
 
     /** 
         #2) Checks that the substring `,"sub":UserID,` appears at sub_claim_index 
         Cost: ~40k constraints
     **/
-    signal input payload_index;
+    signal input payload_start_index;
     signal input sub_claim_index;
     CheckIfB64StringExists(
         subValue,
@@ -66,7 +65,7 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     )(
         string <== content,
         substrIndex <== sub_claim_index,
-        startIndex <== payload_index
+        startIndex <== payload_start_index
     );
 
     /** 
@@ -75,7 +74,6 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     **/
     signal input mask[inCount];
     signal masked[inCount];
-    signal input masked_content_hash;
 
     for(var i = 0; i < inCount; i++) {
         // Ensure mask is binary
@@ -92,8 +90,7 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     }
 
     signal packed[outCount] <== Packer(inWidth, inCount, outWidth, outCount)(masked);
-    signal mch_actual <== Hasher(outCount)(packed);
-    masked_content_hash === mch_actual;
+    signal masked_content_hash <== Hasher(outCount)(packed);
 
     /**
         #4) nonce == Hash(eph_public_key, max_epoch, r)
@@ -101,13 +98,47 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     signal input eph_public_key[2];
     signal input max_epoch;
     signal input randomness;
-    signal input nonce;
 
-    signal nonce_actual <== Poseidon(4)([
+    signal nonce <== Poseidon(4)([
         eph_public_key[0], 
         eph_public_key[1], 
         max_epoch, 
         randomness
     ]);
-    nonce === nonce_actual;
+
+    /**
+        #5) Misc checks: 
+            - Ensure mask[i] == 1 for all i >= payload_start_index + payload_len
+    **/
+    signal input payload_len; // TODO: Ensure all characters after JWT length are revealed
+    signal payload_len_actual <== payload_start_index + payload_len;
+
+    signal pleq[inCount]; // set pleq[i] = 0 if i < payload_len_actual, 1 otherwise
+    for (var i = 0; i < inCount; i++) {
+        var tmp = IsEqual()([i, payload_len_actual]);
+        if (i == 0) {
+            pleq[i] <== tmp;
+        } else {
+            pleq[i] <== tmp + A[i-1];
+        }
+        pleq[i] * (1 - mask[i]) === 0; // if A[i] == 1, then mask[i] == 1
+    }
+
+    /**
+        #6) Hash all public inputs
+    **/
+    signal input all_inputs_hash;
+    signal all_inputs_hash_actual <== Poseidon(10)([
+        jwt_sha2_hash[0],
+        jwt_sha2_hash[1],
+        masked_content_hash,
+        payload_start_index,
+        payload_len,
+        eph_public_key[0],
+        eph_public_key[1],
+        max_epoch,
+        nonce,
+        num_sha2_blocks
+    ]);
+    all_inputs_hash === all_inputs_hash_actual;
 }

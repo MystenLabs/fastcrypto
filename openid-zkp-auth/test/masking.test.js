@@ -36,6 +36,9 @@ function maskTesting(jwt, claimsToHide, print=false) {
 
     const encoded_payload = masked_jwt.slice(header_length + 1);
     const extracted_claims = verify.extractClaims(encoded_payload);
+
+    // We just check that each full claim string is present (somewhere) in the masked JWT. In practice, these would need to parsed out.
+    // Note that some claims might not be at the start of an extracted_claim, e.g., if consecutive claims are being revealed.
     for (const claim of claimsToHide) {
         const claim_string = utils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64').toString(), claim);
         if (!extracted_claims.some(e => e.includes(claim_string))) {

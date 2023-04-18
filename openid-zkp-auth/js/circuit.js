@@ -34,7 +34,7 @@ function genJwtMask(input, fields) {
 
 function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
     var segments = utils.arrayChunk(padMessage(utils.buffer2BitArray(Buffer.from(input))), nWidth);
-    const lastBlock = segments.length / (512 / nWidth);
+    const num_sha2_blocks = segments.length / (512 / nWidth);
     
     if(segments.length < nCount) {
         segments = segments.concat(Array(nCount-segments.length).fill(Array(nWidth).fill(0)));
@@ -44,7 +44,7 @@ function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
         throw new Error('Padded message exceeds maximum blocks supported by circuit');
     }
     
-    return { [inParam]: segments, "last_block": lastBlock }; 
+    return { [inParam]: segments, "num_sha2_blocks": num_sha2_blocks }; 
 }
 
 function genNonceInputs() {
@@ -64,38 +64,57 @@ function genNonceInputs() {
 }
 
 async function genJwtProofInputs(input, nCount, fields, nWidth = 8, outWidth = 253, inParam = "content") {
-  // set SHA-2 inputs
-  var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
-  inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
+    // set SHA-2 inputs
+    var inputs = genSha256Inputs(input, nCount, nWidth, inParam);
+    inputs[inParam] = inputs[inParam].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
 
-  // set indices
-  inputs["payload_index"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-  inputs["sub_claim_index"] = b64utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_index"];
+    // set indices
+    inputs["payload_start_index"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
+    inputs["sub_claim_index"] = b64utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_start_index"];
+    inputs["payload_len"] = input.split('.')[1].length;
 
-  // set hash
-  const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
-  inputs["jwt_sha2_hash"] = [hash / 2n**128n, hash % 2n**128n];
+    // set hash
+    const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
+    const jwt_sha2_hash = [hash / 2n**128n, hash % 2n**128n];
 
-  // set mask 
-  inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(1));
+    // set mask 
+    inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(1));
 
-  // init poseidon
-  const buildPoseidon = require("circomlibjs").buildPoseidon;
-  poseidon = await buildPoseidon();
+    // init poseidon
+    const buildPoseidon = require("circomlibjs").buildPoseidon;
+    poseidon = await buildPoseidon();
 
-  // set hash of the masked content
-  inputs["masked_content_hash"] = utils.calculateMaskedHash(
-    inputs["content"],
-    inputs["mask"],
-    poseidon,
-    outWidth
-  );
+    // set hash of the masked content
+    const masked_content_hash = utils.calculateMaskedHash(
+        inputs["content"],
+        inputs["mask"],
+        poseidon,
+        outWidth
+    );
 
-  // set nonce-related inputs
-  inputs = Object.assign({}, inputs, genNonceInputs());
-  inputs["nonce"] = utils.calculateNonce(inputs, poseidon);
+    // set nonce-related inputs
+    inputs = Object.assign({}, inputs, genNonceInputs());
+    const nonce = utils.poseidonHash([
+        inputs["eph_public_key"][0], 
+        inputs["eph_public_key"][1], 
+        inputs["max_epoch"], 
+        inputs["randomness"]
+    ], poseidon);
 
-  return inputs;
+    inputs["all_inputs_hash"] = utils.poseidonHash([
+        jwt_sha2_hash[0],
+        jwt_sha2_hash[1],
+        masked_content_hash,
+        inputs["payload_start_index"],
+        inputs["payload_len"],
+        inputs["eph_public_key"][0], 
+        inputs["eph_public_key"][1], 
+        inputs["max_epoch"],
+        nonce,
+        inputs["num_sha2_blocks"]
+    ], poseidon);
+
+    return inputs;
 }
 
 module.exports = {

@@ -51,15 +51,6 @@ function writeJSONToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
-function calculateNonce(inputs, poseidon) {
-    return poseidonHash([
-        inputs["eph_public_key"][0], 
-        inputs["eph_public_key"][1], 
-        inputs["max_epoch"],
-        inputs["randomness"]
-    ], poseidon);
-}
-
 function calculateMaskedHash(content, mask, poseidon, outWidth) {
     const masked_content = applyMask(content, mask);
     const bits = bigIntArray2Bits(masked_content, 8);
@@ -140,7 +131,6 @@ module.exports = {
     getExtendedClaimString: getExtendedClaimString,
     applyMask: applyMask,
     // hashing
-    calculateNonce: calculateNonce,
     calculateMaskedHash: calculateMaskedHash,
     poseidonHash: poseidonHash
 }
