@@ -119,7 +119,7 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
         if (i == 0) {
             pleq[i] <== tmp;
         } else {
-            pleq[i] <== tmp + A[i-1];
+            pleq[i] <== tmp + pleq[i-1];
         }
         pleq[i] * (1 - mask[i]) === 0; // if A[i] == 1, then mask[i] == 1
     }
