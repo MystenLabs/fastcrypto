@@ -40,7 +40,13 @@ describe("JWT Proof", () => {
         utils.writeJSONToFile(inputs, "inputs.json");
 
         const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
-        checkMaskedContent(masked_content, inputs["num_sha2_blocks"], inCount);
+        checkMaskedContent(
+            masked_content,
+            inputs["num_sha2_blocks"],
+            inputs["payload_start_index"],
+            inputs["payload_len"],
+            inCount
+        );
 
         const cir = await test.genMain(
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),

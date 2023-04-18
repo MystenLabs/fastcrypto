@@ -1,30 +1,28 @@
 pragma circom 2.0.0;
 
 include "../node_modules/circomlib/circuits/comparators.circom";
+include "../node_modules/circomlib/circuits/multiplexer.circom";
 include "misc.circom";
 
 // Returns in[index:index+outSize]
-// Cost: O(inSize * outSize)
+// Cost: inSize + outSize * inSize
 template SliceFixed(inSize, outSize) {
     signal input in[inSize];
     signal input index;
-    
     signal output out[outSize];
     
-    component selector[outSize];
-    signal eqs[inSize][outSize];
+    // eqs[i] = 1 if i = index, 0 otherwise
+    signal eqs[inSize] <== OneBitVector(inSize)(index);
     for(var i = 0; i < outSize; i++) {
-        selector[i] = CalculateTotal(inSize);
-        
-        for(var j = 0; j < inSize; j++) {
-            eqs[j][i] <== IsEqual()([
-                j, 
-                index + i
-            ]);
-            selector[i].nums[j] <== eqs[j][i] * in[j];
+        var arr[inSize];
+        for (var j = 0; j < inSize; j++) {
+            if (j < i) {
+                arr[j] = 0;
+            } else {
+                arr[j] = eqs[j - i];
+            }
         }
-
-        out[i] <== selector[i].sum;
+        out[i] <== EscalarProduct(inSize)(arr, in);
     }
 }
 

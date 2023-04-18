@@ -108,18 +108,13 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
         #5) Misc checks: 
             - Ensure mask[i] == 1 for all i >= payload_start_index + payload_len
     **/
-    signal input payload_len; // TODO: Ensure all characters after JWT length are revealed
+    signal input payload_len;
     signal payload_len_actual <== payload_start_index + payload_len;
 
-    signal pleq[inCount]; // set pleq[i] = 0 if i < payload_len_actual, 1 otherwise
+    // set pllt[i] = 1 if i >= payload_len_actual, 0 otherwise
+    signal plgt[inCount] <== GTBitVector(inCount)(payload_len_actual);
     for (var i = 0; i < inCount; i++) {
-        var tmp = IsEqual()([i, payload_len_actual]);
-        if (i == 0) {
-            pleq[i] <== tmp;
-        } else {
-            pleq[i] <== tmp + pleq[i-1];
-        }
-        pleq[i] * (1 - mask[i]) === 0; // if A[i] == 1, then mask[i] == 1
+        plgt[i] * (1 - mask[i]) === 0; // if pllt[i] == 1, then mask[i] == 1
     }
 
     /**

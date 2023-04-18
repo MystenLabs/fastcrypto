@@ -30,7 +30,6 @@ const verifyOpenIDProof = (public_inputs, auxiliary_inputs, MAX_JWT_LENGTH) => {
         MAX_JWT_LENGTH
     );
 }
-    
 
 // TODO: Add checks related to payload_len
 const checkMaskedContent = (

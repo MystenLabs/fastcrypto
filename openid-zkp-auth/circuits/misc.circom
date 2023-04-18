@@ -3,6 +3,7 @@ pragma circom 2.0.0;
 include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/gates.circom";
 include "../node_modules/circomlib/circuits/mux2.circom";
+include "../node_modules/circomlib/circuits/multiplexer.circom";
 
 // Returns math.ceil(log2(a)). Assumes a > 0.
 function log2(a) {
@@ -67,14 +68,36 @@ template CalculateTotal(n) {
     signal input nums[n];
     signal output sum;
 
-    signal sums[n];
-    sums[0] <== nums[0];
-
-    for (var i = 1; i < n; i++) {
-        sums[i] <== sums[i - 1] + nums[i];
+    var lc;
+    for (var i = 0; i < n; i++) {
+        lc += nums[i];
     }
+    sum <== lc;
+}
 
-    sum <== sums[n - 1];
+// out[i] = 1 if i = index, 0 otherwise
+template OneBitVector(n) {
+    signal input index;
+    signal output out[n];
+
+    component X = Decoder(n);
+    X.inp <== index;
+
+    X.success === 1;
+    out <== X.out;
+}
+
+// out[i] = 1 if i >= index, 0 otherwise
+template GTBitVector(n) {
+    signal input index;
+    signal output out[n];
+
+    signal eq[n] <== OneBitVector(n)(index);
+
+    out[0] <== eq[0];
+    for (var i = 1; i < n; i++) {
+        out[i] <== eq[i] + out[i - 1];
+    }
 }
 
 /**
