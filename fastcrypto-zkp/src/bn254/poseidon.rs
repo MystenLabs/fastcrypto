@@ -37,7 +37,7 @@ pub fn calculate_merklized_hash(bytes: &[u8]) -> String {
     let mut poseidon1 = PoseidonWrapper::new(15);
     let hash1 = poseidon1.hash(&bigints[0..15]);
 
-    let mut poseidon2 = PoseidonWrapper::new(23 - 15);
+    let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15);
     let hash2 = poseidon2.hash(&bigints[15..]);
 
     let mut poseidon3 = PoseidonWrapper::new(2);
@@ -46,7 +46,8 @@ pub fn calculate_merklized_hash(bytes: &[u8]) -> String {
     hash_final.to_string()
 }
 
-fn bytearray_to_bits(bytearray: &[u8]) -> Vec<bool> {
+/// Convert a bytearray to a bitarray.
+pub fn bytearray_to_bits(bytearray: &[u8]) -> Vec<bool> {
     bytearray
         .iter()
         .flat_map(|&byte| (0..8).rev().map(move |i| (byte >> i) & 1 == 1))
@@ -120,5 +121,11 @@ mod test {
             calculate_merklized_hash(masked_content),
             "913176389931280990736922944363568337161535184534237191455121139930502488757"
         )
+    }
+
+    #[test]
+    fn tess() {
+        let mut poseidon1 = PoseidonWrapper::new(9);
+
     }
 }
