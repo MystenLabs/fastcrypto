@@ -16,7 +16,7 @@ function getAllClaims(jwt) {
 }
 
 function maskTesting(jwt, claimsToReveal, print=false) {
-    console.log("Reveal:", claimsToReveal);
+    if (print) console.log("Reveal:", claimsToReveal);
     var mask = circuit.genJwtMask(jwt, claimsToReveal);
     if (print) console.log(mask.join(''));
 
@@ -57,7 +57,7 @@ function maskTesting(jwt, claimsToReveal, print=false) {
     }
 
     // Last character of each extracted_claim must be ??
-    console.log(extracted_claims);
+    if (print) console.log(extracted_claims);
     return extracted_claims;
 }
 
@@ -70,7 +70,7 @@ function subsets(array) {
     );
 }
 
-describe("Masking with dummy JWTs", () => {
+describe("Masking with dummy JWTs", function() {
     // Creates a JWT-like string from a header and payload
     const constructJWT = (header, payload) => {
         jwt = utils.trimEndByChar(Buffer.from(header).toString('base64'), '=') 
@@ -78,7 +78,7 @@ describe("Masking with dummy JWTs", () => {
         return jwt;
     }
 
-    it.only(("#1"), () => {
+    it(("#1"), function() {
         header = '{"kid":abc}';
         payload = '{"iss":123,"azp":"gogle","iat":7890,"exp":101112}';
 
@@ -93,7 +93,7 @@ describe("Masking with dummy JWTs", () => {
         }
     });
 
-    it(("#2"), () => {
+    it(("#2"), function() {
         header = '{"kid":abc}';
         payload = '{"iss":1234,"azp":"gogle","iat":7890,"exp":101112}';
         jwt = constructJWT(header, payload);
@@ -103,7 +103,7 @@ describe("Masking with dummy JWTs", () => {
         }
     });
 
-    it(("#3"), () => {
+    it(("#3"), function() {
         header = '{"kid":abc}';
         payload = '{"iss":12345,"azp":"gogle","iat":7890,"exp":101112}';
         jwt = constructJWT(header, payload);
@@ -114,8 +114,8 @@ describe("Masking with dummy JWTs", () => {
     });
 })
 
-describe("Masking with real JWTs", () => {
-    it("Google", () => {
+describe("Masking with real JWTs", function() {
+    it("Google", function() {
         const jwt = GOOGLE1.split('.').slice(0,2).join('.');
         const claims = getAllClaims(jwt);
         assert.deepEqual(claims.sort(), [
@@ -129,7 +129,7 @@ describe("Masking with real JWTs", () => {
         }
     });
 
-    it("Google again", () => {
+    it("Google again", function() {
         const jwt = GOOGLE2.split('.').slice(0,2).join('.');
         const claims = getAllClaims(jwt);
         for (const subset of subsets(claims)) {
@@ -137,7 +137,7 @@ describe("Masking with real JWTs", () => {
         }
     });
 
-    it("Facebook", () => {
+    it("Facebook", function() {
         const jwt = FB.split('.').slice(0,2).join('.');
         const claims = getAllClaims(jwt);
         for (const subset of subsets(claims)) {

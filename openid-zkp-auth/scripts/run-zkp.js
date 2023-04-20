@@ -33,7 +33,7 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
     if (res === true) {
         console.log("Verification OK");
     } else {
-        console.error("Invalid Proof");
+        throw new Error("Invalid Proof");
     }
 }
 

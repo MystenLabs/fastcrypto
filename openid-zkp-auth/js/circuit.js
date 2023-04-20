@@ -21,7 +21,7 @@ function genJwtMask(input, fields) {
   
   var payloadMask = Array(payload.length).fill(0);
   for(const field of fields) {
-    var [start, end] = b64utils.getBase64JSONSlice(payload, field);
+    var [start, end] = b64utils.indicesOfB64(payload, field);
     
     for(var i = start; i <= end; i++) {
       payloadMask[i] = 1;
@@ -70,8 +70,9 @@ async function genJwtProofInputs(input, nCount, fields, nWidth = 8, outWidth = 2
 
     // set indices
     inputs["payload_start_index"] = input.split('.')[0].length + 1; // 4x+1, 4x, 4x-1
-    inputs["sub_claim_index"] = b64utils.findB64IndexOf(input.split('.')[1], "sub") + inputs["payload_start_index"];
-    inputs["payload_len"] = input.split('.')[1].length;
+    const payload = input.split('.')[1];
+    inputs["sub_claim_index"] = b64utils.indicesOfB64(payload, "sub")[0] + inputs["payload_start_index"];
+    inputs["payload_len"] = payload.length;
 
     // set hash
     const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));

@@ -51,6 +51,14 @@ function writeJSONToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
+function removeDuplicates(twod_array) {
+    return twod_array.filter((item, index) => {
+        return index === twod_array.findIndex((subItem) => {
+            return subItem.every((value, i) => value === item[i]);
+        });
+    });
+}
+
 function calculateMaskedHash(content, mask, poseidon, outWidth) {
     const masked_content = applyMask(content, mask);
     const bits = bigIntArray2Bits(masked_content, 8);
@@ -93,26 +101,15 @@ function applyMask(input, mask) {
 }
 
 // Returns a claim as it appears in the decoded JWT
-function getClaimString(payload, claim) {
-    const json_input = JSON.parse(payload);
+function getClaimString(decoded_payload, claim) {
+    const json_input = JSON.parse(decoded_payload);
     const field_value = JSON.stringify(json_input[claim]);
     const kv_pair = `"${claim}":${field_value}`;
 
-    if (payload.indexOf(kv_pair) == -1) 
+    if (decoded_payload.indexOf(kv_pair) == -1) 
         throw new Error("Field " + kv_pair + " not found in JWT");
 
     return kv_pair;
-}
-
-// Assuming that the claim isn't the first or last, we look for an extended string of the form `,"claim":"value",`
-function getExtendedClaimString(b64payload, claim) {
-    const decoded = Buffer.from(b64payload, 'base64').toString();
-    const kv_pair = getClaimString(decoded, claim);
-    const extended_kv_pair = ',' + kv_pair + ',';
-    if (decoded.indexOf(extended_kv_pair) == -1) {
-        throw new Error(extended_kv_pair, "is not in", decoded);
-    }
-    return extended_kv_pair;
 }
 
 module.exports = {
@@ -128,8 +125,8 @@ module.exports = {
     getWitnessBuffer: getWitnessBuffer,
     writeJSONToFile: writeJSONToFile,
     getClaimString: getClaimString,
-    getExtendedClaimString: getExtendedClaimString,
     applyMask: applyMask,
+    removeDuplicates: removeDuplicates,
     // hashing
     calculateMaskedHash: calculateMaskedHash,
     poseidonHash: poseidonHash

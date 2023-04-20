@@ -14,7 +14,7 @@ const checkMaskedContent = require("../js/verify").checkMaskedContent;
 const inWidth = "../js/constants".inWidth;
 const outWidth = "../js/constants".outWidth;
 
-describe("JWT Proof", () => {
+describe("JWT Proof", function() {
     const inCount = 64 * 11; // This is the maximum length of a JWT
 
     const jwt = GOOGLE["jwt"];
@@ -22,20 +22,12 @@ describe("JWT Proof", () => {
 
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
+    const decoded_payload = Buffer.from(payload, 'base64').toString();
 
-    const subClaim = utils.getExtendedClaimString(payload, "sub");
-    const subInB64 = b64utils.getAllBase64Variants(subClaim);
+    const sub_claim = utils.getClaimString(decoded_payload, "sub");
+    const sub_in_b64 = utils.removeDuplicates(b64utils.getAllExtendedBase64Variants(sub_claim));
     
-    it("sub claim finding", () => {
-        const decoded_jwt = Buffer.from(payload, 'base64').toString();
-        const subClaimIndex = decoded_jwt.indexOf(subClaim);
-
-        const subClaiminB64Options = b64utils.getAllBase64Variants(subClaim);
-        const subClaimIndexInJWT = jwt.indexOf(subClaiminB64Options[subClaimIndex % 3][0]);
-        assert.isTrue(subClaimIndexInJWT !== -1);
-    });
-
-    it("Extract from Base64 JSON", async () => {
+    it("Google", async function() {
         var inputs = await circuit.genJwtProofInputs(input, inCount, ["iss", "aud", "nonce"], inWidth, outWidth);
         utils.writeJSONToFile(inputs, "inputs.json");
 
@@ -52,9 +44,10 @@ describe("JWT Proof", () => {
             path.join(__dirname, "..", "circuits", "jwt_proof.circom"),
             "JwtProof", [
                 inCount, 
-                subInB64.map(e => e[0].split('').map(c => c.charCodeAt())), 
-                subInB64[0][0].length,
-                subInB64.map(e => e[1])
+                sub_in_b64.map(e => e[0].split('').map(c => c.charCodeAt())),
+                sub_in_b64.length, 
+                sub_in_b64[0][0].length,
+                sub_in_b64.map(e => e[1])
             ]
         );
 

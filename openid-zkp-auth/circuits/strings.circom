@@ -4,25 +4,25 @@ include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/multiplexer.circom";
 include "misc.circom";
 
-// Returns in[index:index+outSize]
-// Cost: inSize + outSize * inSize
-template SliceFixed(inSize, outSize) {
-    signal input in[inSize];
+// Returns in[index:index+outstrLen]
+// Cost: instrLen + outstrLen * instrLen
+template SliceFixed(instrLen, outstrLen) {
+    signal input in[instrLen];
     signal input index;
-    signal output out[outSize];
+    signal output out[outstrLen];
     
     // eqs[i] = 1 if i = index, 0 otherwise
-    signal eqs[inSize] <== OneBitVector(inSize)(index);
-    for(var i = 0; i < outSize; i++) {
-        var arr[inSize];
-        for (var j = 0; j < inSize; j++) {
+    signal eqs[instrLen] <== OneBitVector(instrLen)(index);
+    for(var i = 0; i < outstrLen; i++) {
+        var arr[instrLen];
+        for (var j = 0; j < instrLen; j++) {
             if (j < i) {
                 arr[j] = 0;
             } else {
                 arr[j] = eqs[j - i];
             }
         }
-        out[i] <== EscalarProduct(inSize)(arr, in);
+        out[i] <== EscalarProduct(instrLen)(arr, in);
     }
 }
 
@@ -30,29 +30,31 @@ template SliceFixed(inSize, outSize) {
 Checks if a Base64-encoded substring exists in a Base64-encoded string.
 
 Construction Parameters:
-    substr[3][substrLen]:        The three Base64 representations of the substring to search for
-    substrLen:                   The length of the substring
-    substrExpOffsets[3]:         The expected offsets of the substrings in the Base64 representation
-    inCount:                     The length of the input string
+    substrArr[numSubstrs][substrLen]:     An array of Base64 representations of the substring to search for
+    numSubstrs:                        The number of substrings
+    substrLen:                         The length of the substring
+    substrExpOffsets[3]:               The expected offsets of the substrings in the Base64 representation
+    strLen:                              The length of the input string
 
 Input:
-    string[inCount]:             The string to search in
+    string[strLen]:             The string to search in
     startIndex:                  The index of the first character of the payload
     substrIndex:                 The index of the first character of the substring to check
 */
-template CheckIfB64StringExists(substr, substrLen, substrExpOffsets, inCount) {
-    signal input string[inCount];
+template CheckIfB64StringExists(substrArr, numSubstrs, substrLen, substrExpOffsets, strLen) {
+    signal input string[strLen];
     signal input startIndex;
     signal input substrIndex;
 
-    signal extracted[substrLen] <== SliceFixed(inCount, substrLen)(string, substrIndex);
+    signal extracted[substrLen] <== SliceFixed(strLen, substrLen)(string, substrIndex);
 
-    signal remainder <== RemainderMod4(log2(inCount))(substrIndex - startIndex);
+    signal remainder <== RemainderMod4(log2(strLen))(substrIndex - startIndex);
     // TODO: Do we need to check if subStrIndex > startIndex?
 
-    signal eq[3];
-    signal isCheckEnabled[3];
-    for (var i = 0; i < 3; i++) {
+    signal eq[numSubstrs];
+    signal isCheckEnabled[numSubstrs];
+    var sum = 0;
+    for (var i = 0; i < numSubstrs; i++) {
         isCheckEnabled[i] <== IsEqual()([
             remainder,
             substrExpOffsets[i]
@@ -60,11 +62,13 @@ template CheckIfB64StringExists(substr, substrLen, substrExpOffsets, inCount) {
 
         eq[i] <== IsEqualIfEnabled(substrLen)([
             extracted,
-            substr[i]
+            substrArr[i]
         ], isCheckEnabled[i]);
+
+        sum += eq[i];
     }
 
-    eq[0] + eq[1] + eq[2] === 1;
+    sum === 1;
 }
 
 // l => (4 - (l % 4)) % 4
@@ -85,7 +89,7 @@ template CheckIfB64StringExists(substr, substrLen, substrExpOffsets, inCount) {
 Computes offsets relative to the start of the payload.
 
 Construction Params:
-    inCount: Number of signals to compute offsets for
+    strLen: Number of signals to compute offsets for
 
 Inputs:
     index: Payload start index
@@ -96,9 +100,9 @@ Outputs:
 
 Note that this ensures that out[index] will be 0.
 **/
-// template computePayloadOffsets(inCount) {
+// template computePayloadOffsets(strLen) {
 //     signal input index;
-//     signal output b64offsets[inCount];
+//     signal output b64offsets[strLen];
 
 //     component offsetCalc = offsetCalculator();
 //     offsetCalc.in <== index;
@@ -111,40 +115,40 @@ Note that this ensures that out[index] will be 0.
 //         b64offsets[i] <== rems[i].out;
 //     }
 
-//     for (var i = 4; i < inCount; i++) {
+//     for (var i = 4; i < strLen; i++) {
 //         b64offsets[i] <== b64offsets[i % 4];
 //     }
 // }
 
 /**
-Find all substrings in a string. Cost: O(substrLen * inCount)
+Find all substrings in a string. Cost: O(substrLen * strLen)
 
 Construction Parameters:
-    substr[3][substrLen]:        The three Base64 representations of the substring to search for
+    substrArr[3][substrLen]:        The three Base64 representations of the substring to search for
     substrLen:                   The length of the substring
     substrExpOffsets[3]:         The expected offsets of the substrings in the Base64 representation
-    inCount:                     The length of the input string
+    strLen:                     The length of the input string
 
 Input:
-    string[inCount]:             The string to search in
-    b64offsets[inCount]:         The offsets of the Base64 representation of the string
+    string[strLen]:             The string to search in
+    b64offsets[strLen]:         The offsets of the Base64 representation of the string
 
 Output:
-    out[3]:                      out[i] is 1 if substr[i] is found in the string
+    out[3]:                      out[i] is 1 if substrArr[i] is found in the string
     index:                       The index of the first character of the first substring found
 **/
-// template findAllB64String(substr, substrLen, substrExpOffsets, inCount) {
-//     signal input string[inCount];
-//     signal input b64offsets[inCount];
+// template findAllB64String(substrArr, substrLen, substrExpOffsets, strLen) {
+//     signal input string[strLen];
+//     signal input b64offsets[strLen];
 //     signal output out[3];
 //     signal output index;
 
-//     component subEQCheck[inCount][3];
-//     component b64OffsetCheck[inCount][3];
+//     component subEQCheck[strLen][3];
+//     component b64OffsetCheck[strLen][3];
 
 //     var accumulate[3] = [0, 0, 0];
 //     var offset = 0;
-//     for (var i = 0; i < inCount - substrLen; i++) {
+//     for (var i = 0; i < strLen - substrLen; i++) {
 //         // TODO: Extend it to enable these checks only in [payloadIndex, payloadIndex + payloadLength]
 //         for (var k = 0; k < 3; k++) { // looking for subClaim[k] if substrExpOffsets[k] == b64offsets[i]
 //             b64OffsetCheck[i][k] = IsEqual();
@@ -157,7 +161,7 @@ Output:
 //             for (var j = 0; j < substrLen; j++) {
 //                 var idx = i + j;
 //                 subEQCheck[i][k].in[0][j] <== string[idx];
-//                 subEQCheck[i][k].in[1][j] <== substr[k][j];
+//                 subEQCheck[i][k].in[1][j] <== substrArr[k][j];
 //             }
 //         }
 
@@ -169,7 +173,7 @@ Output:
 //         // log(i, b64offsets[i], accumulate[0], accumulate[1], accumulate[2]);
 //     }
 
-//     accumulate[0] + accumulate[1] + accumulate[2] === 1; // Adding at most 3*inCount bits, so no concern of wrapping around
+//     accumulate[0] + accumulate[1] + accumulate[2] === 1; // Adding at most 3*strLen bits, so no concern of wrapping around
 
 //     out[0] <== accumulate[0];
 //     out[1] <== accumulate[1];

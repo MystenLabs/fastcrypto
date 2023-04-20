@@ -31,7 +31,7 @@ JWT Proof
                                   eph_public_key[2] || max_epoch || nonce || num_sha2_blocks)
 
 */
-template JwtProof(inCount, subValue, subValueLength, subOffsets) {
+template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
     signal input content[inCount];
@@ -56,7 +56,8 @@ template JwtProof(inCount, subValue, subValueLength, subOffsets) {
     signal input payload_start_index;
     signal input sub_claim_index;
     CheckIfB64StringExists(
-        subValue,
+        subValueArr,
+        numSubValues,
         subValueLength,
         subOffsets,
         inCount
