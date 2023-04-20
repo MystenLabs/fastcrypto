@@ -57,10 +57,26 @@ fn execute(cmd: Command) -> Result<(), std::io::Error> {
 mod tests {
 
     use assert_cmd::Command;
+    use lazy_static::lazy_static;
+    use std::path::PathBuf;
+
+    // Cache the binary to avoid building it for every test. See https://docs.rs/assert_cmd/2.0.11/assert_cmd/cargo/index.html.
+    lazy_static! {
+        static ref BINARY: PathBuf = {
+            escargot::CargoBuild::new()
+                .bin("encode-cli")
+                .current_release()
+                .current_target()
+                .run()
+                .unwrap()
+                .path()
+                .to_path_buf()
+        };
+    }
 
     #[test]
     fn test_base64_to_hex() {
-        let mut cmd = Command::cargo_bin("encode-cli").unwrap();
+        let mut cmd = Command::new(BINARY.as_path());
 
         let base64 = "SGVsbG8gV29ybGQh";
         let hex = "48656c6c6f20576f726c6421";
@@ -77,7 +93,7 @@ mod tests {
 
     #[test]
     fn test_hex_to_base64() {
-        let mut cmd = Command::cargo_bin("encode-cli").unwrap();
+        let mut cmd = Command::new(BINARY.as_path());
 
         let base64 = "SGVsbG8gV29ybGQh";
         let hex = "48656c6c6f20576f726c6421";
