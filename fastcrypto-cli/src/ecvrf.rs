@@ -139,3 +139,116 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{execute, Command, ProveArguments, VerifyArguments};
+    use regex::Regex;
+
+    #[test]
+    fn test_keygen() {
+        let result = execute(Command::Keygen).unwrap();
+        let expected =
+            Regex::new(r"Secret key: ([0-9a-fA-F]{64})\nPublic key: ([0-9a-fA-F]{64})").unwrap();
+        assert!(expected.is_match(&result));
+    }
+
+    #[test]
+    fn test_prove() {
+        let input = "01020304";
+        let secret_key = "b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf571055550f";
+        let result = execute(Command::Prove(ProveArguments {
+            input: input.to_string(),
+            secret_key: secret_key.to_string(),
+        }))
+        .unwrap();
+        let expected = "Proof:  2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f\nOutput: 84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00c";
+        assert_eq!(expected, result);
+
+        let invalid_input = "InvalidInput";
+        assert!(execute(Command::Prove(ProveArguments {
+            input: invalid_input.to_string(),
+            secret_key: secret_key.to_string(),
+        }))
+        .is_err());
+
+        let invalid_secret_key = "b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf57105555";
+        assert!(execute(Command::Prove(ProveArguments {
+            input: input.to_string(),
+            secret_key: invalid_secret_key.to_string(),
+        }))
+        .is_err());
+    }
+
+    #[test]
+    fn test_verify() {
+        let input = "01020304";
+        let public_key = "42250302396453b168c42d5b91e162b848b1b4f90f37818cb4798944095de557";
+        let proof = "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f";
+        let output = "84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00c";
+        let result = execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: public_key.to_string(),
+            proof: proof.to_string(),
+            output: output.to_string(),
+        }))
+        .unwrap();
+        let expected = "Proof verified correctly!";
+        assert_eq!(expected, result);
+
+        let invalid_input = "InvalidInput";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: invalid_input.to_string(),
+            public_key: public_key.to_string(),
+            proof: proof.to_string(),
+            output: output.to_string(),
+        }))
+        .is_err());
+
+        let invalid_public_key = "42250302396453b168c42d5b91e162b848b1b4f90f37818cb4798944095de5";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: invalid_public_key.to_string(),
+            proof: proof.to_string(),
+            output: output.to_string(),
+        }))
+        .is_err());
+
+        let incorrect_proof = "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0e";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: public_key.to_string(),
+            proof: incorrect_proof.to_string(),
+            output: output.to_string(),
+        }))
+        .is_err());
+
+        let invalid_proof = "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: public_key.to_string(),
+            proof: invalid_proof.to_string(),
+            output: output.to_string(),
+        }))
+        .is_err());
+
+        let invalid_output = "84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: public_key.to_string(),
+            proof: proof.to_string(),
+            output: invalid_output.to_string(),
+        }))
+        .is_err());
+
+        let incorrect_output = "84588b918a6c9f5b8b74e56a305bb1c2d44e73f68457e991a1dc8defd51672c36b07a2fa95b9f1e701d0152b35d373ab8c48468f0de4bb5abfe84504319fd00d";
+        assert!(execute(Command::Verify(VerifyArguments {
+            input: input.to_string(),
+            public_key: public_key.to_string(),
+            proof: proof.to_string(),
+            output: incorrect_output.to_string(),
+        }))
+        .is_err());
+    }
+}
