@@ -5,7 +5,7 @@ use assert_cmd::Command;
 use regex::Regex;
 
 #[test]
-fn test_keygen() {
+fn integration_test_ecvrf_keygen() {
     let result = Command::cargo_bin("ecvrf-cli").unwrap().arg("keygen").ok();
     assert!(result.is_ok());
 
@@ -16,7 +16,7 @@ fn test_keygen() {
 }
 
 #[test]
-fn test_prove() {
+fn integration_test_ecvrf_prove() {
     let input = "01020304";
     let secret_key = "b057530c45b7b0f4b96f9b21b011072b2a513f45dd9537ad796acf571055550f";
     let result = Command::cargo_bin("ecvrf-cli")
@@ -35,7 +35,7 @@ fn test_prove() {
 }
 
 #[test]
-fn test_verify() {
+fn integration_test_ecvrf_verify() {
     let input = "01020304";
     let public_key = "42250302396453b168c42d5b91e162b848b1b4f90f37818cb4798944095de557";
     let proof = "2640d12c11a372c726348d60ec74ac80320960ba541fb3e66af0a21590c0a75bf5ccf408d5070c5de77f87c733512f575b4a03511d0031dc2e78ab1582fbbef919b52732c8cb1f44b27ad1d1293dec0f";
@@ -61,7 +61,7 @@ fn test_verify() {
 }
 
 #[test]
-fn test_e2e() {
+fn integration_test_ecvrf_e2e() {
     // Keygen
     let result = Command::cargo_bin("ecvrf-cli").unwrap().arg("keygen").ok();
     assert!(result.is_ok());
