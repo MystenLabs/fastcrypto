@@ -7,10 +7,10 @@ use crate::{
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_crypto_primitives::snark::SNARK;
+pub use ark_ff::ToConstraintField;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
-pub use ark_ff::ToConstraintField;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
