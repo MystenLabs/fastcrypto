@@ -55,56 +55,37 @@ fn execute(cmd: Command) -> Result<(), std::io::Error> {
 
 #[cfg(test)]
 mod tests {
+    use crate::{execute, Arg, Command};
 
-    use assert_cmd::Command;
-    use lazy_static::lazy_static;
-    use std::path::PathBuf;
+    #[test]
+    fn test_encode_base64_to_hex() {
+        // The correctness of the output is tested in the integration tests in fastcrypto-cli/tests/encode_cli.rs.
+        let base64 = "SGVsbG8gV29ybGQh";
+        assert!(execute(Command::Base64ToHex(Arg {
+            value: base64.to_string(),
+        }))
+        .is_ok());
 
-    // Cache the binary to avoid building it for every test. See https://docs.rs/assert_cmd/2.0.11/assert_cmd/cargo/index.html.
-    lazy_static! {
-        static ref BINARY: PathBuf = {
-            escargot::CargoBuild::new()
-                .bin("encode-cli")
-                .current_release()
-                .current_target()
-                .run()
-                .unwrap()
-                .path()
-                .to_path_buf()
-        };
+        let invalid_base64 = "SGVsbG8gV29ybGQ";
+        assert!(execute(Command::Base64ToHex(Arg {
+            value: invalid_base64.to_string(),
+        }))
+        .is_err());
     }
 
     #[test]
-    fn test_base64_to_hex() {
-        let mut cmd = Command::new(BINARY.as_path());
-
-        let base64 = "SGVsbG8gV29ybGQh";
+    fn test_encode_hex_to_base64() {
+        // The correctness of the output is tested in the integration tests in fastcrypto-cli/tests/encode_cli.rs.
         let hex = "48656c6c6f20576f726c6421";
-        let bytes = vec![72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33];
+        assert!(execute(Command::HexToBase64(Arg {
+            value: hex.to_string(),
+        }))
+        .is_ok());
 
-        let result = cmd.arg("base64-to-hex").arg("--value").arg(base64).ok();
-        assert!(result.is_ok());
-        let output = String::from_utf8(result.unwrap().stdout).unwrap();
-        assert_eq!(
-            format!("Decoded bytes: {:?}\nHex: {:?}\n", bytes, hex),
-            output
-        );
-    }
-
-    #[test]
-    fn test_hex_to_base64() {
-        let mut cmd = Command::new(BINARY.as_path());
-
-        let base64 = "SGVsbG8gV29ybGQh";
-        let hex = "48656c6c6f20576f726c6421";
-        let bytes = vec![72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 33];
-
-        let result = cmd.arg("hex-to-base64").arg("--value").arg(hex).ok();
-        assert!(result.is_ok());
-        let output = String::from_utf8(result.unwrap().stdout).unwrap();
-        assert_eq!(
-            format!("Decoded bytes: {:?}\nBase64: {:?}\n", bytes, base64),
-            output
-        );
+        let invalid_hex = "48656c6c6f20576f726c642";
+        assert!(execute(Command::HexToBase64(Arg {
+            value: invalid_hex.to_string(),
+        }))
+        .is_err());
     }
 }
