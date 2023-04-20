@@ -1482,18 +1482,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "escargot"
-version = "0.5.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5584ba17d7ab26a8a7284f13e5bd196294dd2f2d79773cff29b9e9edef601a6"
-dependencies = [
- "log",
- "once_cell",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "exitcode"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1587,11 +1575,9 @@ dependencies = [
  "assert_cmd",
  "bincode",
  "clap 4.1.8",
- "escargot",
  "exitcode",
  "fastcrypto",
  "hex",
- "lazy_static",
  "rand",
  "regex",
 ]
