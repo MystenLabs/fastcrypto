@@ -4,9 +4,9 @@ function arrayChunk(array, chunk_size) {
 }
 
 function trimEndByChar(string, character) {
-  const arr = Array.from(string);
-  const last = arr.reverse().findIndex(char => char !== character);
-  return string.substring(0, string.length - last);
+    const arr = Array.from(string);
+    const last = arr.reverse().findIndex(char => char !== character);
+    return string.substring(0, string.length - last);
 }
 
 function buffer2BitArray(b) {
@@ -72,7 +72,7 @@ function calculateMaskedHash(content, mask, poseidon, outWidth) {
 }
 
 function poseidonHash(inputs, poseidon) {
-    if (inputs.length < 1) {
+    if (inputs.length == 1) {
         return poseidon.F.toObject(poseidon([inputs]))
     } else if (inputs.length <= 15) {
         return poseidon.F.toObject(poseidon(inputs))
@@ -81,7 +81,7 @@ function poseidonHash(inputs, poseidon) {
         const hash2 = poseidon(inputs.slice(15));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
     } else {
-        throw new Error("Yet to implement multiple rounds of poseidon");
+        throw new Error("Unable to hash", inputs, ": Yet to implement");
     }
 }
 
@@ -103,13 +103,39 @@ function applyMask(input, mask) {
 // Returns a claim as it appears in the decoded JWT
 function getClaimString(decoded_payload, claim) {
     const json_input = JSON.parse(decoded_payload);
-    const field_value = JSON.stringify(json_input[claim]);
-    const kv_pair = `"${claim}":${field_value}`;
 
-    if (decoded_payload.indexOf(kv_pair) == -1) 
-        throw new Error("Field " + kv_pair + " not found in JWT");
+    if (!json_input.hasOwnProperty(claim)) {
+        throw new Error("Field " + claim + " not found in JWT");
+    }
 
-    return kv_pair;
+    const start = decoded_payload.indexOf(`"${claim}"`);
+
+    if (start === -1) {
+      throw new Error("Field " + claim + " not found in JWT");
+    }
+
+    var end = decoded_payload.indexOf(',', start);
+    if (end === -1) {
+        end = decoded_payload.lastIndexOf('}');
+    }
+
+    const claim_string = decoded_payload.substring(start, end);
+    // Additional checks
+    {
+        const field_value = JSON.stringify(json_input[claim]);
+        const kv_pair = `"${claim}":${field_value}`;
+
+        // Facebook is escaping the '/' in the URL
+        const escaped_field_value = field_value.replace(/([/])/g, '\\$1');
+        const escaped_kv_pair = `"${claim}":${escaped_field_value}`;
+
+        if (kv_pair !== claim_string && 
+                escaped_kv_pair !== claim_string) {
+            throw new Error("Fields " + kv_pair + "or" + escaped_kv_pair + " not found in JWT");
+        }
+    }
+    
+    return claim_string;
 }
 
 module.exports = {

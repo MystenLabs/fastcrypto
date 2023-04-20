@@ -13,31 +13,32 @@ function getAllBase64Variants(string) {
     var offset0, offset1, offset2, expected_len;
     var expected_offset0, expected_offset1, expected_offset2;
     if (string.length % 3 == 0) {
-        offset0 = Buffer.from(string).toString('base64').slice(1, -1);
+        offset0 = Buffer.from(string).toString('base64url').slice(1, -1);
         expected_offset0 = 1;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2, -4);
+        offset1 = Buffer.from('0' + string).toString('base64url').slice(2, -2);
         expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(4, -2);
+        offset2 = Buffer.from('00' + string).toString('base64url').slice(4, -1);
         expected_offset2 = 0;
         expected_len = ((string.length / 3) * 4) - 2;
     } else if (string.length % 3 == 1) {
-        offset0 = Buffer.from(string).toString('base64').slice(0, -4);
+        offset0 = Buffer.from(string).toString('base64url').slice(0, -2);
         expected_offset0 = 0;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2, -2);
+        offset1 = Buffer.from('0' + string).toString('base64url').slice(2, -1);
         expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(4);
+        offset2 = Buffer.from('00' + string).toString('base64url').slice(4);
         expected_offset2 = 0;
         expected_len = (((string.length - 1) / 3) * 4);
     } else { //  (string.length % 3 == 2)
-        offset0 = Buffer.from(string).toString('base64').slice(0, -2);
+        offset0 = Buffer.from(string).toString('base64url').slice(0, -1);
         expected_offset0 = 0;
-        offset1 = Buffer.from('0' + string).toString('base64').slice(2);
+        offset1 = Buffer.from('0' + string).toString('base64url').slice(2);
         expected_offset1 = 2;
-        offset2 = Buffer.from('00' + string).toString('base64').slice(3, -3);
+        offset2 = Buffer.from('00' + string).toString('base64url').slice(3, -1);
         expected_offset2 = 3;
         expected_len = (((string.length - 2) / 3) * 4) + 2;
     }
-    if (offset0.length != expected_len || offset1.length != expected_len || offset2.length != expected_len) throw new Error("Something went wrong");
+    if (offset0.length != expected_len || offset1.length != expected_len || offset2.length != expected_len) 
+        throw new Error("Something went wrong:" + string.length % 3 + " " + offset0.length + " " + offset1.length + " " + offset2.length + " " + expected_len);
     return [[offset0, expected_offset0],
             [offset1, expected_offset1],
             [offset2, expected_offset2]];
@@ -67,7 +68,7 @@ function getAllExtendedBase64Variants(claim_string, payload = "") {
  * @returns [start, end] The start and end indexes of the (base64) encoded claim string in the input.
  */
 function indicesOfB64(input, field) {
-    const decoded = Buffer.from(input, 'base64').toString();
+    const decoded = Buffer.from(input, 'base64url').toString();
     const kv_pair = utils.getClaimString(decoded, field);
     const fieldStart = decoded.indexOf(`"${field}"`);
 
@@ -77,8 +78,6 @@ function indicesOfB64(input, field) {
     const x = (fieldStart - 1) % 3;
     const expectedB64Variant = b64Variants[x][0];
     if (input.indexOf(expectedB64Variant) == -1) {
-        console.log("Index:", x);
-        console.log(expectedB64Variant);
         throw new Error("Field " + kv_pair + " not found in the Base64");
     }
 
@@ -91,7 +90,7 @@ function decodeMaskedB64(input, offset) {
     if (offset > 3 || offset < 0) throw new Error("Invalid offset");
 
     var extraPrefix = '0'.repeat(offset);
-    const decoded = Buffer.from(extraPrefix + input, 'base64').toString('utf8');
+    const decoded = Buffer.from(extraPrefix + input, 'base64url').toString('utf8');
     return decoded.slice(offset);
     // Remove all characters corresponding to the added prefix before sending.
     // Due to the nature of Base64 encoding, the above action will also remove the first character of the decoded string in some cases.

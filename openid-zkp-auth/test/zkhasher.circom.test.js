@@ -1,15 +1,19 @@
 const chai = require("chai");
+const crypto = require("crypto");
 const path = require("path");
 const assert = chai.assert;
 
 const utils = require("../js/utils");
 const test = require("../js/test");
 
-describe("Poseidon hash", () => {
-    before (async () => {
-        const buildPoseidon = require("circomlibjs").buildPoseidon;
+const buildPoseidon = require("circomlibjs").buildPoseidon;
+
+describe("Zk-friendly hashing (Poseidon) tests", () => {
+    const P = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
+    const circuit_path = path.join(__dirname, "..", "circuits", "zkhasher.circom");
+
+    before(async () => {
         poseidon = await buildPoseidon();
-        circuit_path = path.join(__dirname, "..", "circuits", "zkhasher.circom");
     });
 
     it("Hashes a single value", async () => {
@@ -69,15 +73,9 @@ describe("Poseidon hash", () => {
         
         assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
     });
-});
 
-describe("Nonce hash checks", () => {
-    const P = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-
-    it("", async () => {
-        cir = await test.genMain(
-            path.join(__dirname, "..", "node_modules", "circomlib", "circuits", "poseidon.circom"), 
-            "Poseidon", [4]);
+    it("Nonce test", async () => {
+        cir = await test.genMain(circuit_path, "Hasher", [4]);
         await cir.loadSymbols();
 
         const ephPubKey = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
@@ -93,14 +91,9 @@ describe("Nonce hash checks", () => {
         assert.isTrue(ephPubKey_0 < P);
         assert.isTrue(ephPubKey_1 < P);
 
-        poseidon = await buildPoseidon();
-        F = poseidon.F;
-        const nonceExpected = F.toObject(poseidon([ephPubKey_0, ephPubKey_1, maxEpoch, randomness]));
-
-        const witness = await cir.calculateWitness({inputs: [ephPubKey_0, ephPubKey_1, maxEpoch, randomness]}, true);
-
+        const nonceExpected = utils.poseidonHash([ephPubKey_0, ephPubKey_1, maxEpoch, randomness], poseidon);
+        const witness = await cir.calculateWitness({in: [ephPubKey_0, ephPubKey_1, maxEpoch, randomness]}, true);
         const nonceActual = utils.getWitnessValue(witness, cir.symbols, "main.out");
-
         assert.deepEqual(nonceActual, nonceExpected);
     });
 });

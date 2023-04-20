@@ -55,8 +55,8 @@ const checkMaskedContent = (
     if (header_length == -1 || header_length != expected_payload_start_index - 1) throw new Error("Invalid header length");
 
     const encodedHeader = masked_content.slice(0, header_length).map(e => String.fromCharCode(e)).join('');
-    const header = Buffer.from(encodedHeader, 'base64').toString('utf8');
-    console.log("header", header);
+    const header = Buffer.from(encodedHeader, 'base64url').toString('utf8');
+    // console.log("header", header);
     // ...JSON Parse header...
 
     // Process SHA-2 padding
@@ -77,9 +77,9 @@ const checkMaskedContent = (
 
     // Process payload
     const maskedPayload = payload.map(e => String.fromCharCode(e)).join('');
-    console.log("encoded payload", maskedPayload);
+    console.log("Masked payload:", maskedPayload);
     const claims = extractClaims(maskedPayload);
-    console.log("claims", claims);
+    console.log("Revealed claims:", claims);
 }
 
 const b64utils = require("./b64utils");

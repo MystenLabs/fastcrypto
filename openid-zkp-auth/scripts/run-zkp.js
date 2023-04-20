@@ -2,7 +2,7 @@ const fs = require("fs");
 const snarkjs = require("snarkjs");
 
 const verifier = require('../js/verify');
-const GOOGLE = require("../js/testvectors").google_extension;
+const GOOGLE = require("../js/testvectors").google;
 const circuit = require("../js/circuit");
 const utils = require("../js/utils");
 

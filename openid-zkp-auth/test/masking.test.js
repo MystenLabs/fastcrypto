@@ -5,12 +5,12 @@ const circuit = require("../js/circuit");
 const utils = require("../js/utils");
 const verify = require("../js/verify");
 
-const GOOGLE1 = require("../js/testvectors").google_extension.jwt;
-const GOOGLE2 = require("../js/testvectors").google_playground.jwt;
+const GOOGLE1 = require("../js/testvectors").google.jwt;
+const GOOGLE2 = require("../js/testvectors").google_old.jwt;
 const FB = require("../js/testvectors").facebook.jwt;
 
 function getAllClaims(jwt) {
-    const payload = Buffer.from(jwt.split('.')[1], 'base64').toString();
+    const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();
     const json = JSON.parse(payload);
     return Object.keys(json);
 }
@@ -18,17 +18,17 @@ function getAllClaims(jwt) {
 function maskTesting(jwt, claimsToReveal, print=false) {
     if (print) console.log("Reveal:", claimsToReveal);
     var mask = circuit.genJwtMask(jwt, claimsToReveal);
-    if (print) console.log(mask.join(''));
+    if (print) console.log("Mask:", mask.join(''));
 
     var masked_jwt = utils.applyMask(new Uint8Array(Buffer.from(jwt)) , mask);
     masked_jwt = Buffer.from(masked_jwt).toString();
-    if (print) console.log(masked_jwt);
+    if (print) console.log("Masked JWT:", masked_jwt);
 
     const header_length = masked_jwt.indexOf('.');
     if (header_length == -1) throw new Error("Invalid header length");
 
     const encoded_header = masked_jwt.slice(0, header_length);
-    // const extracted_header = Buffer.from(encoded_header, 'base64').toString('utf8');
+    // const extracted_header = Buffer.from(encoded_header, 'base64url').toString('utf8');
     if (encoded_header !== jwt.split('.')[0]) {
         console.log("header", encoded_header, "\njwt", jwt.split('.')[0]);
         throw new Error("Header not found in masked JWT");
@@ -40,13 +40,12 @@ function maskTesting(jwt, claimsToReveal, print=false) {
     // We just check that each full claim string is present (somewhere) in the masked JWT. In practice, these would need to parsed out.
     // Note that some claims might not be at the start of an extracted_claim, e.g., if consecutive claims are being revealed.
     for (const claim of claimsToReveal) {
-        const claim_string = utils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64').toString(), claim);
+        const claim_string = utils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64url').toString(), claim);
         if (!extracted_claims.some(e => e.includes(claim_string))) {
             console.log("Can't find claim", claim, "in", extracted_claims);
             throw new Error("Claim not found in masked JWT");
         }
     }
-    if (print) console.log('\n');
 
     // First character of each extracted_claim must be either '{' or ',' or '"'
     for (const claim of extracted_claims) {
@@ -56,8 +55,8 @@ function maskTesting(jwt, claimsToReveal, print=false) {
         }
     }
 
-    // Last character of each extracted_claim must be ??
-    if (print) console.log(extracted_claims);
+    if (print) console.log("Extracted claims:", extracted_claims);
+    if (print) console.log('\n');
     return extracted_claims;
 }
 
@@ -73,8 +72,8 @@ function subsets(array) {
 describe("Masking with dummy JWTs", function() {
     // Creates a JWT-like string from a header and payload
     const constructJWT = (header, payload) => {
-        jwt = utils.trimEndByChar(Buffer.from(header).toString('base64'), '=') 
-                    + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64'), '=');
+        jwt = utils.trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
+                    + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64url'), '=');
         return jwt;
     }
 
@@ -140,6 +139,14 @@ describe("Masking with real JWTs", function() {
     it("Facebook", function() {
         const jwt = FB.split('.').slice(0,2).join('.');
         const claims = getAllClaims(jwt);
+        assert.deepEqual(claims.sort(), [
+            'aud',         'exp',
+            'family_name', 'given_name',
+            'iat',         'iss',
+            'jti',         'name',
+            'nonce',       'picture',
+            'sub'
+          ].sort());
         for (const subset of subsets(claims)) {
             maskTesting(jwt, subset);
         }
