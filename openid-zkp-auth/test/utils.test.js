@@ -191,7 +191,6 @@ describe("Base64 tests", () => {
             assert.deepEqual(j % 3, i);
 
             const jwt_b64 = Buffer.from(jwt).toString('base64url');
-            console.log(jwt_b64, variants[i]);
             assert.isTrue(jwt_b64.includes(variants[i]));
         });
     })

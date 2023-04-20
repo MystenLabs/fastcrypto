@@ -100,43 +100,39 @@ function applyMask(input, mask) {
             );
 }
 
-// Returns a claim as it appears in the decoded JWT
+/**
+ * Returns a claim as it appears in the decoded JWT.
+ * We take a conservative approach, e.g., assume that the claim value does not have spaces. In this case, the code will fail.
+ * 
+ * @param {*} decoded_payload e.g., {"sub":"1234567890","name":"John Doe","iat":1516239022} 
+ * @param {*} claim e.g., sub
+ * @returns e.g., "sub":"1234567890"
+ */
 function getClaimString(decoded_payload, claim) {
     const json_input = JSON.parse(decoded_payload);
 
     if (!json_input.hasOwnProperty(claim)) {
-        throw new Error("Field " + claim + " not found in JWT");
+        throw new Error("Field " + claim + " not found in " + decoded_payload);
     }
 
-    const start = decoded_payload.indexOf(`"${claim}"`);
+    const field_value = JSON.stringify(json_input[claim]);
+    const kv_pair = `"${claim}":${field_value}`;
 
-    if (start === -1) {
-      throw new Error("Field " + claim + " not found in JWT");
+    if (decoded_payload.includes(kv_pair)) {
+        return kv_pair;
     }
 
-    var end = decoded_payload.indexOf(',', start);
-    if (end === -1) {
-        end = decoded_payload.lastIndexOf('}');
+    // Facebook is escaping the '/' characters in the JWT payload
+    const escaped_field_value = field_value.replace(/([/])/g, '\\$1');
+    const escaped_kv_pair = `"${claim}":${escaped_field_value}`;
+
+    if (decoded_payload.includes(escaped_kv_pair)) {
+        return escaped_kv_pair;
     }
 
-    const claim_string = decoded_payload.substring(start, end);
-    // Additional checks
-    {
-        const field_value = JSON.stringify(json_input[claim]);
-        const kv_pair = `"${claim}":${field_value}`;
-
-        // Facebook is escaping the '/' in the URL
-        const escaped_field_value = field_value.replace(/([/])/g, '\\$1');
-        const escaped_kv_pair = `"${claim}":${escaped_field_value}`;
-
-        if (kv_pair !== claim_string && 
-                escaped_kv_pair !== claim_string) {
-            throw new Error("Fields " + kv_pair + "or" + escaped_kv_pair + " not found in JWT");
-        }
-    }
-    
-    return claim_string;
+    throw new Error("Fields " + kv_pair + " or " + escaped_kv_pair + " not found in " + decoded_payload);
 }
+
 
 module.exports = {
     arrayChunk: arrayChunk,
