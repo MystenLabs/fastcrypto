@@ -140,8 +140,10 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
     }
 }
 
+#[cfg(test)]
 mod tests {
-    use super::*;
+
+    use crate::{execute, Command, ProveArguments, VerifyArguments};
     use regex::Regex;
 
     #[test]
