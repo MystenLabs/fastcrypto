@@ -2,8 +2,8 @@ const fs = require("fs");
 const snarkjs = require("snarkjs");
 
 const verifier = require('../js/verify');
-const GOOGLE = require("../js/testvectors").google;
-const circuit = require("../js/circuit");
+const GOOGLE = require("../test/testvectors").google;
+const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
 
 const WASM_FILE_PATH = "./google/google_js/google.wasm";
@@ -38,7 +38,7 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, jwk) => {
+const zkOpenIDProve = async (jwt, claimsToReveal, jwk="", write_to_file=false) => {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
     if (jwk) {
         console.log("Verifying JWT with JWK...");
@@ -49,7 +49,7 @@ const zkOpenIDProve = async (jwt, jwk) => {
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
-    var inputs = await circuit.genJwtProofInputs(input, MAX_JWT_LENGTH, ["iss", "aud", "nonce"]);
+    var inputs = await circuit.genJwtProofInputs(input, MAX_JWT_LENGTH, claimsToReveal);
     const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
 
     const crypto = require("crypto");
@@ -69,9 +69,12 @@ const zkOpenIDProve = async (jwt, jwk) => {
     // Generate ZKP
     console.log("Generating ZKP...");
     const { proof, publicSignals: public_signals } = await groth16Prove(inputs, WASM_FILE_PATH, ZKEY_FILE_PATH);
-    utils.writeJSONToFile(proof, PROOF_FILE_PATH);
-    utils.writeJSONToFile(public_signals, PUBLIC_INPUTS_FILE_PATH);
-    utils.writeJSONToFile(auxiliary_inputs, AUX_INPUTS_FILE_PATH);
+    if (write_to_file) {
+        console.log("Writing proof...");
+        utils.writeJSONToFile(proof, PROOF_FILE_PATH);
+        utils.writeJSONToFile(public_signals, PUBLIC_INPUTS_FILE_PATH);
+        utils.writeJSONToFile(auxiliary_inputs, AUX_INPUTS_FILE_PATH);
+    }
 
     return { 
         "zkproof": proof, 
@@ -122,7 +125,7 @@ if (require.main === module) {
     // Call the processing function with the input string
     (async () => {
         try {
-            const proof = await zkOpenIDProve(jwt, jwk);
+            const proof = await zkOpenIDProve(jwt, ["iss", "aud", "nonce"], jwk, write_to_file=true);
 
             // Print the output to the console
 
@@ -138,4 +141,7 @@ if (require.main === module) {
     })();
 }
 
-module.exports = zkOpenIDProve;
+module.exports = {
+    zkOpenIDProve: zkOpenIDProve,
+    zkOpenIDVerify: zkOpenIDVerify
+}

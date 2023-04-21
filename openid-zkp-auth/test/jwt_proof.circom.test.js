@@ -8,8 +8,8 @@ const circuit_utils = require("../js/circuitutils");
 const utils = require("../js/utils");
 const b64utils = require("../js/b64utils");
 const test = require("../js/test");
-const GOOGLE = require("../js/testvectors").google;
-const FB = require("../js/testvectors").facebook;
+const GOOGLE = require("./testvectors").google;
+const FB = require("./testvectors").facebook;
 const checkMaskedContent = require("../js/verify").checkMaskedContent;
 
 const inWidth = "../js/constants".inWidth;
@@ -66,6 +66,14 @@ genJwtProof = (async (jwt, inCount, claimsToReveal, circuit, jwk = "") => {
     }
 })
 
+// Stringify and convert to base64
+constructJWT = (header, payload) => {
+    header = JSON.stringify(header);
+    payload = JSON.stringify(payload);
+    return utils.trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
+                + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
+}
+
 describe("JWT Proof", function() {
     it("Google", async function() {
         const circuit = await genCircuit(GOOGLE["jwt"], 64 * 11);
@@ -95,14 +103,6 @@ describe("Tests with crafted JWTs", () => {
         exp: 4,
         jti: 'a8a0728a'
     };
-
-    // Stringify and convert to base64
-    const constructJWT = (header, payload) => {
-        header = JSON.stringify(header);
-        payload = JSON.stringify(payload);
-        return utils.trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
-                    + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
-    }
 
     // const b64header = utils.trimEndByChar(Buffer.from(header, 'base64url').toString('base64url'), '=');
     // const b64payload = utils.trimEndByChar(Buffer.from(payload, 'base64url').toString('base64url'), '=');

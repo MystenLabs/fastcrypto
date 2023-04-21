@@ -4,7 +4,22 @@ const GOOGLE_EXTENSION = {
         "e": "AQAB",
         "kty": "RSA",
         "n": "vfBbH3bcgTzYXomo5hmimATzkEF0QIuhMYmwx0IrpdKT6M15b6KBVhZsPfwbRNoui3iBe8xLON2VHarDgXRzrHec6-oLx8Sh4R4B47MdASURoiIOBiSOiJ3BjKQexNXT4wO0ZLSEMTVt_h24fgIerASU6w2XQOeGb7bbgZnJX3a0NAjsfrxCeG0PacWK2TE2R00mZoeAYWtCuAsE-Xz0hkGqEsg7HqIMYeLjQ-NFkGBErGAi5Cd_k3_D7rv0IEdoB1GkJpIdMLqnI-MR_OxsQNZGpC12OaLXCqgkFAgW69QLAG3YMaTFgPi-Us1i2idc4SPADYijiPml---jCap9yw"
-      }
+    },
+    header: {
+        "alg": "RS256",
+        "kid": "96971808796829a972e79a9d1a9fff11cd61b1e3",
+        "typ": "JWT"
+    },
+    payload: {
+        "iss": "https://accounts.google.com",
+        "azp": "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com",
+        "aud": "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com",
+        "sub": "110463452167303598383",
+        "nonce": "16637918813908060261870528903994038721669799613803601616678155512181273289477",
+        "iat": 1682002642,
+        "exp": 1682006242,
+        "jti": "a8a0728a3ffd5dc81ecfd0ea81d0d33d803eb830"
+    }
 }
 
 const FACEBOOK = {
@@ -27,6 +42,10 @@ const GOOGLE_PLAYGROUND = {
         "n": "onb-s1Mvbpti06Sp-ZsHH5eeJxdvMhRgfmx5zK7cVlcAajI_0rKu8ylU2CkfgPlMe9-8W5ayozm1h2yx2ToS7P7qoR1sMINXbKxobu8xy9zOBuFAr3WvEoor6lo0Qp747_4bN1sVU6GBEBEXLjb8vHN-o_yoBv8NSB_yP7XbEaS3U5MJ4V2s5o7LziIIRP9PtzF0m3kWm7DuyEzGvCaW8s9bOiMd3eZyXXyfKjlBB727eBXgwqcV-PttECRw6JCLO-11__lmqfKIj5CBw18Pb4ZrNwBa-XrGXfHSSAJXFkR4LR7Bj24sWzlOcKXN2Ew4h3WDJfxtN_StNSYoagyaFQ"
     }
 }
+
+const SYNTHETIC_JWTs = [
+
+]
 
 module.exports = {
     google: GOOGLE_EXTENSION,

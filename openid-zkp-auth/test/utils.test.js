@@ -95,7 +95,7 @@ describe("Base64 tests", () => {
     })
 
     it("sub claim finding in Google JWT", () => {
-        const jwt = require('../js/testvectors').google.jwt;
+        const jwt = require('./testvectors').google.jwt;
         const payload = jwt.split('.')[1];
         const [start, _] = indicesOfB64(payload, "sub");
         assert.isTrue(start !== -1);
