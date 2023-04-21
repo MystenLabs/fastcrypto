@@ -32,12 +32,12 @@ describe("Num2BitsBE", () => {
         assert.deepEqual(out, [1n, 1n, 1n, 1n, 1n, 1n, 1n, 1n]);
     });
 
-    it ("Check 256: must throw an error", async () => {
+    it("Check 256: must throw an error", async () => {
         try {
             const witness = await cir.calculateWitness({"in": 256}, true);
             await cir.checkConstraints(witness);
-            assert.fail();
-        } catch (_) {
+        } catch (error) {
+            assert.include(error.message, "Error in template Num2BitsBE");
         }
     });
 
@@ -45,8 +45,8 @@ describe("Num2BitsBE", () => {
         try {
             const witness = await cir.calculateWitness({"in": -1}, true);
             await cir.checkConstraints(witness);
-            assert.fail();
-        } catch (_) {
+        } catch (error) {
+            assert.include(error.message, "Error in template Num2BitsBE");
         }
     });
 })
@@ -133,20 +133,13 @@ describe("Packer checks", () => {
         assert.deepEqual(out[0], 4660);
     });
 
-    // it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
-    //     { 
-    //         try {
-    //             cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 16, 2]);
-    //             await cir_fixed.loadSymbols();
-    //             input = [7,1,8,2];
-    //             const witness = await cir_fixed.calculateWitness({ "in": input });
-    //             await cir_fixed.checkConstraints(witness);
-    //             assert.fail();
-    //         } catch (error) {
-    //             console.log(error);
-    //         }
-    //     }
-    // });
+    it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
+        try {
+            cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 16, 2]);
+        } catch (_) {
+            // console.log(error);
+        }
+    });
 
     it("Checking Packer Case 6: Another test of correct padding", async () => {
         cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 7, 3]);
@@ -176,11 +169,9 @@ describe("RemainderMod4 checks", () => {
         try {
             const witness = await cir_fixed.calculateWitness({ "in": 8 });
             await cir_fixed.checkConstraints(witness);
-            assert.fail();
         } 
-        catch (_) {
-            // console.log("Caught error!");
-            // console.log(error);
+        catch (error) {
+            assert.include(error.message, 'Error in template Num2Bits', error.message); // Num2Bits does the length check
         }
     })
 })

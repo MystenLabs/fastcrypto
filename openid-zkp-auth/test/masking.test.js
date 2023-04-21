@@ -1,7 +1,7 @@
 const chai = require("chai");
 const assert = chai.assert;
 
-const circuit = require("../js/circuit");
+const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
 const verify = require("../js/verify");
 

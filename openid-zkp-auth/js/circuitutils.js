@@ -41,7 +41,7 @@ function genSha256Inputs(input, nCount, nWidth = 512, inParam = "in") {
     }
     
     if(segments.length > nCount) {
-        throw new Error('Padded message exceeds maximum blocks supported by circuit');
+        throw new Error('Padded message exceeds maximum blocks supported by circuit', segments.length, nCount);
     }
     
     return { [inParam]: segments, "num_sha2_blocks": num_sha2_blocks }; 

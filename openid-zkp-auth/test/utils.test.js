@@ -2,7 +2,7 @@ const chai = require("chai");
 const assert = chai.assert;
 const crypto = require("crypto");
 
-const circuit = require("../js/circuit");
+const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
 const b64utils = require("../js/b64utils");
 
