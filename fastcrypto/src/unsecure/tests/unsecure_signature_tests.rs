@@ -2,7 +2,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::encoding::{Base64, Encoding};
+use crate::hash::Digest;
 use crate::signature_service::SignatureService;
+use crate::traits::InsecureDefault;
+use crate::unsecure::hash::XXH128Unsecure;
+use crate::unsecure::signature::{PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH};
 use crate::{
     hash::{Blake2b256, HashFunction},
     hmac::hkdf_generate_from_ikm,
@@ -15,6 +20,7 @@ use crate::{
     },
 };
 use rand::{rngs::StdRng, SeedableRng as _};
+use std::str::FromStr;
 
 pub fn keys() -> Vec<UnsecureKeyPair> {
     let mut rng = StdRng::from_seed([0; 32]);
@@ -402,4 +408,85 @@ async fn signature_service() {
 
     // Verify the signature we received.
     assert!(pk.verify(digest.digest.as_slice(), &signature).is_ok());
+}
+
+#[test]
+fn scheme_test() {
+    let kp = keys().pop().unwrap();
+    let pk = kp.public();
+
+    // Expected signature scheme: signature = H(pk || message) where H(x) = XXH128(x) || XXH128(x) || XXH128(x).
+    let message = b"Hello, world!";
+    let mut digest_input = Vec::new();
+    digest_input.extend_from_slice(&pk.0);
+    digest_input.extend_from_slice(message);
+    let single_digest = XXH128Unsecure::digest(digest_input).digest;
+
+    let mut digest_bytes = Vec::new();
+    digest_bytes.extend_from_slice(&single_digest);
+    digest_bytes.extend_from_slice(&single_digest);
+    digest_bytes.extend_from_slice(&single_digest);
+    let expected_signature =
+        UnsecureSignature::from(Digest::<48>::new(digest_bytes[..48].try_into().unwrap()));
+    let signature = kp.sign(message);
+
+    assert_eq!(signature, expected_signature);
+}
+
+#[test]
+fn default_public_key() {
+    assert_eq!(
+        UnsecurePublicKey::insecure_default().0,
+        [0u8; PUBLIC_KEY_LENGTH]
+    );
+}
+
+#[test]
+fn default_signature() {
+    assert_eq!(UnsecureSignature::default().0, [0u8; SIGNATURE_LENGTH]);
+}
+
+#[test]
+fn fmt_public_key() {
+    let pk = keys().pop().unwrap().public().clone();
+    assert_eq!(pk.to_string(), Base64::encode(pk.as_bytes()));
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign(b"Hello, world!");
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
+#[test]
+fn keypair_to_from_bytes() {
+    let kp = keys().pop().unwrap();
+    let bytes = kp.as_ref();
+    let reconstructed = UnsecureKeyPair::from_bytes(bytes).unwrap();
+    assert_eq!(kp, reconstructed);
+}
+
+#[test]
+fn keypair_from_string() {
+    let kp = keys().pop().unwrap();
+    let as_string = Base64::encode(kp.as_ref());
+    let reconstructed = UnsecureKeyPair::from_str(&as_string).unwrap();
+    assert_eq!(kp, reconstructed);
+}
+
+#[test]
+fn fmt_aggregate_signature() {
+    let aggregated_signature = UnsecureAggregateSignature::default();
+    assert_eq!(
+        aggregated_signature.to_string(),
+        Base64::encode(aggregated_signature.as_bytes())
+    );
+}
+
+#[test]
+fn aggregate_signature_to_from_bytes() {
+    let aggregated_signature = UnsecureAggregateSignature::default();
+    let bytes = aggregated_signature.as_ref();
+    let reconstructed = UnsecureAggregateSignature::from_bytes(bytes).unwrap();
+    assert_eq!(aggregated_signature.as_ref(), reconstructed.as_ref());
 }
