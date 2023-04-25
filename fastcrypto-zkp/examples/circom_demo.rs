@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::HashMap, fs::File};
+use std::time::Instant;
+use std::str::FromStr;
 
 use ark_circom::{read_zkey, CircomBuilder, CircomConfig, CircomReduction, WitnessCalculator};
 
@@ -12,6 +14,8 @@ use ark_groth16::Groth16;
 use ark_std::rand::thread_rng;
 use fastcrypto_zkp::circom::{read_proof, read_public_inputs, read_vkey};
 use num_bigint::BigInt;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 
 #[derive(PartialEq)]
 enum IntegrationOption {
@@ -22,9 +26,57 @@ enum IntegrationOption {
 
 type CircomInput = HashMap<String, Vec<BigInt>>;
 
+/// Deserializes the contents of a JSON file at the given path into an instance of the specified type `T`.
+/// Returns a HashMap with string keys and Vec<BigInt> values that holds the deserialized data.
+/// Assumes that all values in the JSON file are BigInts.
+/// We use it to convert the JSON input file (values of all input signals) used by circom into an Arkworks-friendly format.
+fn load_test_vector<T>(path: &str) -> CircomInput 
+where 
+    T: DeserializeOwned + Serialize,
+{
+    let file = File::open(path).unwrap();
+    let reader = std::io::BufReader::new(file);
+    let inputs: T = serde_json::from_reader(reader).unwrap();
+
+    let inputs_map = serde_json::to_value(&inputs)
+        .unwrap()
+        .as_object()
+        .unwrap()
+        .iter()
+        .map(|(k, v)| {
+            (
+                k.clone(),
+                match v {
+                    serde_json::Value::Array(arr) => {
+                        let first_element = arr.first().unwrap();
+                        match first_element {
+                            serde_json::Value::Number(_) => {
+                                arr.iter().map(|num| num.as_u64().unwrap().into()).collect()
+                            }
+                            serde_json::Value::String(_) => {
+                                arr.iter().map(|s| BigInt::from_str(s.as_str().unwrap()).unwrap()).collect()
+                            }
+                            _ => panic!("unsupported array element type"),
+                        }
+                    }
+                    serde_json::Value::Number(num) => vec![num.as_u64().unwrap().into()],
+                    serde_json::Value::String(s) => vec![s.parse::<BigInt>().unwrap()],
+                    _ => panic!("unsupported value type"),
+                },
+            )
+        })
+        .collect();
+
+    println!("Loaded inputs: {:?}", inputs_map);
+    inputs_map
+}
+
 fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &str) {
     // Load the WASM and R1CS for witness and proof generation
+    println!("Loading WASM and R1CS...");
+    let mut before = Instant::now();
     let cfg = CircomConfig::<Bn254>::new(wasm_path, r1cs_path).unwrap();
+    println!("Elapsed time for loading R1CS: {:.2?}", before.elapsed());
 
     // Insert our public inputs as key value pairs
     let mut builder = CircomBuilder::new(cfg);
@@ -37,9 +89,12 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
     let circom = builder.setup();
 
     // Run a trusted setup
+    println!("Running setup...");
+    before = Instant::now();
     let mut rng = thread_rng();
     let params =
         Groth16::<Bn254>::generate_random_parameters_with_reduction(circom, &mut rng).unwrap();
+    println!("Elapsed time for setup: {:.2?}", before.elapsed());
 
     // Get the populated instance of the circuit with the witness
     let circom = builder.build().unwrap();
@@ -47,11 +102,15 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
     let public_inputs = circom.get_public_inputs().unwrap();
 
     // Generate the proof
+    before = Instant::now();
     let proof = Groth16::<Bn254>::prove(&params, circom, &mut rng).unwrap();
+    println!("Elapsed time for proof generation: {:.2?}", before.elapsed());
 
     // Check that the proof is valid
+    before = Instant::now();
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
     let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
+    println!("Elapsed time for proof verification: {:.2?}", before.elapsed());
     assert!(verified);
 }
 
@@ -94,9 +153,9 @@ fn main() {
     verify_mycircuit(IntegrationOption::Setup);
     verify_mycircuit(IntegrationOption::Prove);
 
-    verify_zkopenid(IntegrationOption::Verify);
+    verify_zkopenid(IntegrationOption::Setup);
 
-    verify_rsa(IntegrationOption::Setup);
+    // verify_rsa(IntegrationOption::Setup);
 }
 
 // This example is copied from https://github.com/gakonst/ark-circom
@@ -268,93 +327,25 @@ fn verify_rsa(option: IntegrationOption) {
 }
 
 #[allow(non_snake_case)]
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 struct OpenIDInputs {
-    // private inputs
     content: Vec<String>,
-    last_block: u64,
-    mask: Vec<u64>,
-    randomness: String,
+    num_sha2_blocks: u64,
+    payload_start_index: u64,
     sub_claim_index: u64,
-    // public inputs
-    jwt_sha2_hash: [String; 2],
-    masked_content_hash: String,
-    payload_index: u64,
+    payload_len: u64,
+    mask: Vec<u64>,
     eph_public_key: [String; 2],
     max_epoch: u64,
-    nonce: String,
-}
-
-fn load_zkopenid_test_vector(path: &str) -> CircomInput {
-    let file = File::open(path).unwrap();
-    let reader = std::io::BufReader::new(file);
-    let inputs: OpenIDInputs = serde_json::from_reader(reader).unwrap();
-    let mut inputs_map = HashMap::new();
-    inputs_map.insert(
-        "content".to_string(),
-        inputs
-            .content
-            .iter()
-            .map(|s| s.parse::<BigInt>().unwrap())
-            .collect(),
-    );
-    inputs_map.insert(
-        "last_block".to_string(),
-        vec![BigInt::from(inputs.last_block)],
-    );
-    inputs_map.insert(
-        "mask".to_string(),
-        inputs.mask.iter().map(|s| BigInt::from(*s)).collect(),
-    );
-    inputs_map.insert(
-        "nonce".to_string(),
-        vec![inputs.nonce.parse::<BigInt>().unwrap()],
-    );
-    inputs_map.insert(
-        "eph_public_key".to_string(),
-        inputs
-            .eph_public_key
-            .iter()
-            .map(|s| s.parse::<BigInt>().unwrap())
-            .collect(),
-    );
-    inputs_map.insert(
-        "randomness".to_string(),
-        vec![inputs.randomness.parse::<BigInt>().unwrap()],
-    );
-    inputs_map.insert(
-        "max_epoch".to_string(),
-        vec![BigInt::from(inputs.max_epoch)],
-    );
-    inputs_map.insert(
-        "jwt_sha2_hash".to_string(),
-        inputs
-            .jwt_sha2_hash
-            .iter()
-            .map(|s| s.parse::<BigInt>().unwrap())
-            .collect(),
-    );
-    inputs_map.insert(
-        "masked_content_hash".to_string(),
-        vec![inputs.masked_content_hash.parse::<BigInt>().unwrap()],
-    );
-    inputs_map.insert(
-        "payload_index".to_string(),
-        vec![BigInt::from(inputs.payload_index)],
-    );
-    inputs_map.insert(
-        "sub_claim_index".to_string(),
-        vec![BigInt::from(inputs.sub_claim_index)],
-    );
-    println!("Loaded inputs: {:?}", inputs_map);
-    inputs_map
+    randomness: String,
+    all_inputs_hash: String,
 }
 
 fn verify_zkopenid(option: IntegrationOption) {
     match option {
         IntegrationOption::Setup => {
             setup_prove_and_verify(
-                load_zkopenid_test_vector("../openid-zkp-auth/proving/inputs.json"),
+                load_test_vector::<OpenIDInputs>("../openid-zkp-auth/google/inputs.json"),
                 "../openid-zkp-auth/google/google_js/google.wasm",
                 "../openid-zkp-auth/google/google.r1cs",
             );
