@@ -19,6 +19,9 @@
 //! ```
 
 use crate::hash::HashFunction;
+use crate::secp256r1::conversion::{
+    arkworks_fq_to_fr, fq_arkworks_to_p256, fr_arkworks_to_p256, fr_p256_to_arkworks,
+};
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
     SECP256R1_SIGNATURE_LENTH,
@@ -30,6 +33,8 @@ use crate::{
     error::FastCryptoError,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
+use ark_ec::{AffineRepr, CurveGroup, Group};
+use ark_ff::Field;
 use ecdsa::elliptic_curve::scalar::IsHigh;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
@@ -37,11 +42,9 @@ use once_cell::sync::OnceCell;
 use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
-use p256::elliptic_curve::point::{AffineCoordinates, DecompressPoint};
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
-use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -161,9 +164,6 @@ impl RecoverableSigner for Secp256r1KeyPair {
         &self,
         msg: &[u8],
     ) -> Secp256r1RecoverableSignature {
-        // Inspired by Sign.rs in k256@0.11.6.
-        // TODO: Use sign_prehash_recoverable when a new version of the signatures crate where https://github.com/RustCrypto/signatures/pull/680 is included.
-
         // Hash message
         let z = FieldBytes::from(H::digest(msg).digest);
 
@@ -179,27 +179,28 @@ impl RecoverableSigner for Secp256r1KeyPair {
         ))
         .unwrap();
 
-        // Compute scalar inversion of 𝑘. Safe to unwrap because this only fails if k = 0 which is
-        // negligible because k is computed as a HMAC according to RFC6979.
-        let k_inv = k.invert().unwrap();
+        let k = fr_p256_to_arkworks(&k);
+        let k_inv = k.inverse().unwrap();
 
         // Compute 𝑹 = 𝑘×𝑮
-        let big_r = (ProjectivePoint::GENERATOR * k.borrow()).to_affine();
+        let big_r = (ark_secp256r1::Projective::generator() * k).into_affine();
 
         // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
         // integer, then reduce it into an element of the scalar field
-        let r = Scalar::reduce_bytes(&big_r.x());
+        let r = arkworks_fq_to_fr(big_r.x().unwrap());
 
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
-        let x = Scalar::reduce_bytes(&x);
-        let z = Scalar::reduce_bytes(&z);
+        let x = fr_p256_to_arkworks(&Scalar::reduce_bytes(&x));
+        let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
         let s = k_inv * (z + (r * x));
+
+        let s = fr_arkworks_to_p256(&s).to_bytes();
+        let r = fr_arkworks_to_p256(&r).to_bytes();
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let sig = ExternalSignature::from_scalars(r, s).unwrap();
 
-        // Note: This line is introduced here because big_r.y is a private field.
-        let y: Scalar = get_y_coordinate(&big_r);
+        let y = fq_arkworks_to_p256(big_r.y().unwrap());
 
         // Compute recovery id and normalize signature
         let is_r_odd = y.is_odd();
@@ -214,16 +215,6 @@ impl RecoverableSigner for Secp256r1KeyPair {
             recovery_id: recovery_id.to_byte(),
         }
     }
-}
-
-/// Get the y-coordinate from a given affine point.
-fn get_y_coordinate(point: &AffinePoint) -> Scalar {
-    let encoded_point = point.to_encoded_point(false);
-
-    // The encoded point is in uncompressed form, so we can safely get the y-coordinate here
-    let y = encoded_point.y().unwrap();
-
-    Scalar::reduce_bytes(y)
 }
 
 impl RecoverableSignature for Secp256r1RecoverableSignature {

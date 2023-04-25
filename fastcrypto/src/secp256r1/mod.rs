@@ -18,9 +18,12 @@
 
 pub mod recoverable;
 
+pub mod conversion;
+
 use crate::serde_helpers::BytesRepresentation;
-use crate::{encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
+use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
+use elliptic_curve::sec1::FromEncodedPoint;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
@@ -28,13 +31,9 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use std::{
-    fmt::{self, Debug, Display},
-    str::FromStr,
-};
-use elliptic_curve::sec1::{FromEncodedPoint, UncompressedPoint};
-use p256::{AffinePoint, EncodedPoint, NistP256, ProjectivePoint, Scalar};
-use p256::test_vectors::group::ADD_TEST_VECTORS;
+use p256::{EncodedPoint, ProjectivePoint, Scalar};
+use std::fmt::{self, Debug, Display};
+use std::str::FromStr;
 use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -419,10 +418,8 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
     }
 }
 
-
 #[test]
 fn test() {
-
     // p
     let p = EncodedPoint::from_str("046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5").unwrap();
     let p = ProjectivePoint::from_encoded_point(&p).unwrap();
@@ -440,5 +437,4 @@ fn test() {
 
     let s = Scalar::from(3u32);
     assert_eq!(p * s, r);
-
 }

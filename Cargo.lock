@@ -1535,6 +1535,7 @@ dependencies = [
  "ark-ec",
  "ark-ff",
  "ark-secp256r1",
+ "ark-serialize",
  "auto_ops",
  "base58",
  "base64 0.21.0",
@@ -1559,7 +1560,6 @@ dependencies = [
  "eyre",
  "fastcrypto-derive",
  "faster-hex",
- "fiat-crypto",
  "generic-array",
  "hex",
  "hex-literal 0.3.4",
@@ -1697,12 +1697,6 @@ dependencies = [
  "rand_core",
  "subtle",
 ]
-
-[[package]]
-name = "fiat-crypto"
-version = "0.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 
 [[package]]
 name = "fnv"
