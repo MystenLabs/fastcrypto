@@ -19,12 +19,14 @@ JWT Proof
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
     - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
 
-    Private inputs (revealed outside the circuit):
+    Circuit signals revealed to the verifier along with the ZK proof:
+    - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
+    - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
+    - masked_content:           The content with the sensitive parts masked
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
-    - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
 
     Public Inputs:
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
@@ -64,7 +66,7 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     )(
         string <== content,
         substrIndex <== sub_claim_index,
-        startIndex <== payload_start_index
+        payloadStartIndex <== payload_start_index
     );
 
     /** 
@@ -72,13 +74,13 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
         Cost: 1k constraints (2*inCount) 
     **/
     signal input mask[inCount];
-    signal masked[inCount];
+    signal masked_content[inCount];
 
     for(var i = 0; i < inCount; i++) {
         // Ensure mask is binary
         mask[i] * (1 - mask[i]) === 0;
         // If mask is 0, then replace with '=' (ASCII 61) to avoid conflicts with base64 characters
-        masked[i] <== content[i] * mask[i] + (1 - mask[i]) * 61;
+        masked_content[i] <== content[i] * mask[i] + (1 - mask[i]) * 61;
     }
 
     var outWidth = 253;
@@ -88,7 +90,7 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
         outCount++;
     }
 
-    signal packed[outCount] <== Packer(inWidth, inCount, outWidth, outCount)(masked);
+    signal packed[outCount] <== Packer(inWidth, inCount, outWidth, outCount)(masked_content);
     signal masked_content_hash <== Hasher(outCount)(packed);
 
     /**

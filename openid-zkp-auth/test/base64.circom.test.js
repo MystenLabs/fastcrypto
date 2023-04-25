@@ -6,7 +6,7 @@ const {toBigIntBE} = require('bigint-buffer');
 const utils = require("../js/utils");
 const test = require("../js/test");
 
-describe.only("Base64 checks", () => {
+describe("Base64 checks", () => {
 
     // create a map between base64 representation and the characters
     const base64Map = {};
