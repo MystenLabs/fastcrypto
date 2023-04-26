@@ -4,16 +4,21 @@
 use ark_ec::AffineRepr;
 #[cfg(test)]
 use ark_ec::{CurveGroup, Group};
+#[cfg(test)]
+use ark_ff::UniformRand;
 use ark_ff::PrimeField as ArkworksPrimeField;
 use ark_serialize::{CanonicalSerializeWithFlags, EmptyFlags};
 use elliptic_curve::bigint::ArrayEncoding;
 #[cfg(test)]
 use elliptic_curve::group::prime::PrimeCurveAffine;
+#[cfg(test)]
+use elliptic_curve::ops::Reduce;
 use elliptic_curve::scalar::FromUintUnchecked;
 use elliptic_curve::sec1::FromEncodedPoint;
 use elliptic_curve::sec1::ToEncodedPoint;
 #[cfg(test)]
 use elliptic_curve::Field;
+use elliptic_curve::PrimeField;
 use p256::{FieldBytes, U256};
 
 /// Convert a p256 scalar to an arkworks scalar.
@@ -41,6 +46,11 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
     p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::clone_from_slice(
         bytes.as_slice(),
     )))
+}
+
+/// Convert an arkworks field element to a p256 field element.
+pub(crate) fn fq_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fq {
+    ark_secp256r1::Fq::from_be_bytes_mod_order(scalar.to_bytes().as_slice())
 }
 
 /// Convert an p256 affine point to an arkworks affine point.
@@ -75,6 +85,12 @@ pub(crate) fn affine_pt_arkworks_to_p256(point: &ark_secp256r1::Affine) -> p256:
         false,
     );
     p256::AffinePoint::from_encoded_point(&encoded_point).unwrap()
+}
+
+pub(crate) fn reduce_bytes(bytes: &FieldBytes) -> ark_secp256r1::Fr {
+    arkworks_fq_to_fr(&fq_p256_to_arkworks(
+        &p256::Scalar::from_repr(*bytes).unwrap(),
+    ))
 }
 
 #[test]
@@ -122,4 +138,27 @@ fn test_pt_p256_to_arkworks() {
         ark_secp256r1::Affine::generator(),
         affine_pt_p256_to_arkworks(&p256::AffinePoint::generator())
     );
+}
+
+#[test]
+fn test_arkworks_fq_to_fr() {
+    let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
+    let s_fr = arkworks_fq_to_fr(&s);
+    let p256_s = fq_arkworks_to_p256(&s);
+    let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
+    assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
+
+    assert_eq!(reduce_bytes(&p256_s.to_bytes()), s_fr);
+}
+
+#[test]
+fn test_fq_p256_to_arkworks() {
+    let arkworks_seven = ark_secp256r1::Fq::from(7u32);
+    let p256_seven = p256::Scalar::from(7u32);
+
+    let actual_arkworks_seven = fq_p256_to_arkworks(&p256_seven);
+    assert_eq!(actual_arkworks_seven, arkworks_seven);
+
+    let actual_p256_seven = fq_arkworks_to_p256(&arkworks_seven);
+    assert_eq!(actual_p256_seven, p256_seven);
 }
