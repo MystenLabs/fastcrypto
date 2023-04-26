@@ -1348,15 +1348,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b0cf012f1230e43cd00ebb729c6bb58707ecfa8ad08b52ef3a4ccd2697fc30"
 
 [[package]]
-name = "eccoxide"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14f9defcfa8ad8eeb7fb8e239fe0910e494bbc7b0c0863c4c2070c04ea7feb0c"
-dependencies = [
- "lazy_static",
-]
-
-[[package]]
 name = "ecdsa"
 version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1553,7 +1544,6 @@ dependencies = [
  "curve25519-dalek-ng",
  "derive_more",
  "digest 0.10.6",
- "eccoxide",
  "ecdsa 0.16.6",
  "ed25519-consensus",
  "elliptic-curve 0.13.4",
@@ -1562,7 +1552,7 @@ dependencies = [
  "faster-hex",
  "generic-array",
  "hex",
- "hex-literal 0.3.4",
+ "hex-literal",
  "hkdf",
  "k256",
  "merlin",
@@ -1856,12 +1846,6 @@ name = "hex-literal"
 version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ebdb29d2ea9ed0083cd8cece49bbd968021bd99b0849edb4a9a7ee0fdf6a4e0"
-
-[[package]]
-name = "hex-literal"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hkdf"
@@ -2330,7 +2314,6 @@ checksum = "c9863ad85fa8f4460f9c48cb909d38a0d689dba1f6f6988a5e3e0d31071bcd4b"
 dependencies = [
  "ecdsa 0.16.6",
  "elliptic-curve 0.13.4",
- "hex-literal 0.4.1",
  "primeorder",
  "sha2 0.10.6",
 ]

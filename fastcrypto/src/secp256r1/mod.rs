@@ -22,7 +22,10 @@ pub mod conversion;
 
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
-use ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
+use ark_ec::{AffineRepr, CurveGroup, Group};
+use ark_ff::Field;
+use ecdsa::signature::hazmat::PrehashSigner;
+use elliptic_curve::ops::Reduce;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
@@ -30,6 +33,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
+use p256::{FieldBytes, Scalar};
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -37,6 +41,9 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::hash::{HashFunction, Sha256};
+use crate::secp256r1::conversion::{
+    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_p256_to_arkworks,
+};
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
 use crate::{
@@ -138,9 +145,31 @@ impl Secp256r1PublicKey {
                 "The s value of ECDSA signature must be low".to_string(),
             ));
         }
-        self.pubkey
-            .verify_prehash(H::digest(msg).as_ref(), &signature.sig)
-            .map_err(|_| FastCryptoError::InvalidSignature)
+
+        // The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using arkworks for the finite field and elliptic curve arithmetic.
+
+        let (r, s) = signature.sig.split_scalars();
+        let z = Scalar::reduce_bytes(&FieldBytes::from(H::digest(msg).digest));
+
+        // Convert scalars to arkworks representation
+        let ark_r = fr_p256_to_arkworks(&r);
+        let s = fr_p256_to_arkworks(&s);
+        let z = fr_p256_to_arkworks(&z);
+        let q =
+            ark_secp256r1::Projective::from(affine_pt_p256_to_arkworks(self.pubkey.as_affine()));
+
+        let s_inv = s.inverse().expect("s is zero. This should never happen.");
+        let u1 = z * s_inv;
+        let u2 = ark_r * s_inv;
+        let pt = (ark_secp256r1::Projective::generator() * u1 + q * u2).into_affine();
+
+        // This fails if the point is zero
+        let x = pt.x();
+
+        if x.is_some() && arkworks_fq_to_fr(x.unwrap()) == ark_r {
+            return Ok(());
+        }
+        Err(FastCryptoError::InvalidSignature)
     }
 }
 
