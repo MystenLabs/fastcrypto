@@ -10,7 +10,7 @@ use ark_ec::{CurveGroup, Group};
 use ark_ff::PrimeField as ArkworksPrimeField;
 #[cfg(test)]
 use ark_ff::UniformRand;
-use ark_serialize::{CanonicalSerializeWithFlags, EmptyFlags};
+use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 use elliptic_curve::bigint::ArrayEncoding;
 #[cfg(test)]
 use elliptic_curve::group::prime::PrimeCurveAffine;
@@ -35,27 +35,21 @@ pub(crate) fn fr_arkworks_to_p256(scalar: &ark_secp256r1::Fr) -> p256::Scalar {
     scalar
         .serialize_with_flags(&mut bytes[..], EmptyFlags)
         .unwrap();
-    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::clone_from_slice(
-        bytes.as_slice(),
-    )))
+    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::from(bytes)))
 }
 
 /// Convert an arkworks field element to a p256 field element.
 pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
-    // This implementation is taken from bls_fr_to_blst_fr in fastcrypto-zkp.
+    // This implementation is taken from bls_fq_to_blst_fp in fastcrypto-zkp.
     let mut bytes = [0u8; 32];
-    scalar
-        .serialize_with_flags(&mut bytes[..], EmptyFlags)
-        .unwrap();
-    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::clone_from_slice(
-        bytes.as_slice(),
-    )))
+    scalar.serialize_uncompressed(&mut bytes[..]).unwrap();
+    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::from(bytes)))
 }
 
 // TODO: This is currently only used for tests, but it could be made pub(crate) if needed.
 #[cfg(test)]
 fn fq_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fq {
-    ark_secp256r1::Fq::from_be_bytes_mod_order(scalar.to_bytes().as_slice())
+    ark_secp256r1::Fq::from_be_bytes_mod_order(&scalar.to_bytes())
 }
 
 /// Convert an p256 affine point to an arkworks affine point.
@@ -73,10 +67,8 @@ pub(crate) fn affine_pt_p256_to_arkworks(point: &p256::AffinePoint) -> ark_secp2
 /// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order)
 pub(crate) fn arkworks_fq_to_fr(scalar: &ark_secp256r1::Fq) -> ark_secp256r1::Fr {
     let mut bytes = [0u8; 32];
-    scalar
-        .serialize_with_flags(&mut bytes[..], EmptyFlags)
-        .unwrap();
-    ark_secp256r1::Fr::from_le_bytes_mod_order(bytes.as_slice())
+    scalar.serialize_uncompressed(&mut bytes[..]).unwrap();
+    ark_secp256r1::Fr::from_le_bytes_mod_order(&bytes)
 }
 
 /// Converts an arkworks affine point to a p256 affine point.
