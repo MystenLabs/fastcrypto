@@ -34,8 +34,9 @@ use crate::{
     error::FastCryptoError,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_ff::Field;
+use ark_secp256r1::Projective;
 use ecdsa::elliptic_curve::scalar::IsHigh;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
@@ -221,7 +222,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
             let u1 = -(r_inv * z);
             let u2 = r_inv * s;
             let pk = affine_pt_arkworks_to_p256(
-                &((ark_secp256r1::Affine::generator() * u1) + (big_r * u2)).into_affine(),
+                &(Projective::generator() * u1 + big_r * u2).into_affine(),
             );
 
             Ok(Secp256r1PublicKey {

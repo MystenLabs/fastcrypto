@@ -146,7 +146,8 @@ impl Secp256r1PublicKey {
             ));
         }
 
-        // The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using arkworks for the finite field and elliptic curve arithmetic.
+        // The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using
+        // arkworks for the finite field and elliptic curve arithmetic.
         let (r, s) = signature.sig.split_scalars();
         let z = Scalar::reduce_bytes(&FieldBytes::from(H::digest(msg).digest));
 
@@ -154,8 +155,7 @@ impl Secp256r1PublicKey {
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
         let z = fr_p256_to_arkworks(&z);
-        let q =
-            ark_secp256r1::Projective::from(affine_pt_p256_to_arkworks(self.pubkey.as_affine()));
+        let q = affine_pt_p256_to_arkworks(self.pubkey.as_affine());
 
         // Verify signature
         let s_inv = s.inverse().expect("s is zero. This should never happen.");
@@ -164,7 +164,8 @@ impl Secp256r1PublicKey {
         let point = (ark_secp256r1::Projective::generator() * u1 + q * u2).into_affine();
         let x = point.x();
 
-        // x is None if and only if the point is zero, in which case the signature is invalid (see step 5 in section 4.1.4 in SEC 1: Elliptic Curve Cryptography).
+        // x is None if and only if the point is zero, in which case the signature is invalid (see
+        // step 5 in section 4.1.4 in SEC 1: Elliptic Curve Cryptography).
         if x.is_some() && arkworks_fq_to_fr(x.unwrap()) == r {
             return Ok(());
         }
@@ -364,12 +365,13 @@ impl Secp256r1KeyPair {
         let z = FieldBytes::from(H::digest(msg).digest);
 
         // Private key as scalar
-        let x = self.secret.privkey.as_nonzero_scalar().to_bytes();
+        let x = self.secret.privkey.as_nonzero_scalar();
 
-        // Generate nonce according to rfc6979
+        // Generate nonce according to RFC6979. The unwrap is safe because k is generated smaller
+        // than the group size.
         let k = fr_p256_to_arkworks(
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
-                &x,
+                &x.to_bytes(),
                 &NistP256::ORDER.encode_field_bytes(),
                 &z,
                 &[],
@@ -377,16 +379,15 @@ impl Secp256r1KeyPair {
             .unwrap(),
         );
 
-        // Convert secret key and message to arkworks scalars. The unwrap is safe because the secret
-        // key is guaranteed to be in the scalar field.
-        let x = fr_p256_to_arkworks(&Scalar::from_repr(x).unwrap());
+        // Convert secret key and message to arkworks scalars.
+        let x = fr_p256_to_arkworks(x);
         let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
 
         // Compute scalar inversion of k
         let k_inv = k.inverse().expect("k should not be zero");
 
         // Compute R = kG
-        let big_r = (ark_secp256r1::Projective::generator() * k).into_affine();
+        let big_r = (ark_secp256r1::Affine::generator() * k).into_affine();
 
         // Lift x-coordinate of R and reduce it into an element of the scalar field
         let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
