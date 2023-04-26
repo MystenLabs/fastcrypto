@@ -24,8 +24,8 @@ use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_ff::Field;
-use ecdsa::signature::hazmat::PrehashSigner;
-use elliptic_curve::ops::Reduce;
+use elliptic_curve::ops::{Reduce};
+use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
@@ -33,7 +33,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::{FieldBytes, Scalar};
+use p256::{FieldBytes, NistP256, Scalar};
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -42,7 +42,7 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
-    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_p256_to_arkworks,
+    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
 };
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
@@ -360,16 +360,50 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+        // Hash message
+        let z = FieldBytes::from(H::digest(msg).digest);
+
         // Private key as scalar
+        let x = self.secret.privkey.as_nonzero_scalar().to_bytes();
 
-        // sign_prehash generates the nonce according to rfc6979.
-        let sig: Signature = self
-            .secret
-            .privkey
-            .sign_prehash(H::digest(msg).as_ref())
-            .unwrap();
+        // Generate nonce according to rfc6979
+        let k = fr_p256_to_arkworks(
+            &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
+                &x,
+                &NistP256::ORDER.encode_field_bytes(),
+                &z,
+                &[],
+            ))
+            .unwrap(),
+        );
 
+        // Convert secret key and message to arkworks scalars
+        let x = fr_p256_to_arkworks(&Scalar::reduce_bytes(&x));
+        let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
+
+        // Compute scalar inversion of 𝑘
+        let k_inv = k.inverse().expect("k should not be zero");
+
+        // Compute 𝑹 = 𝑘×𝑮
+        let big_r = (ark_secp256r1::Projective::generator() * k).into_affine();
+
+        // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
+        // integer, then reduce it into an element of the scalar field
+        let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
+
+        // Compute 𝒔 as a signature over 𝒓 and 𝒛.
+        let s = k_inv * (z + (r * x));
+
+        // Convert to p256 format
+        let s = fr_arkworks_to_p256(&s).to_bytes();
+        let r = fr_arkworks_to_p256(&r).to_bytes();
+
+        // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
+        let sig = Signature::from_scalars(r, s).expect("r or s is zero");
+
+        // Normalize signature
         let sig_low = sig.normalize_s().unwrap_or(sig);
+
         Secp256r1Signature {
             sig: sig_low,
             bytes: OnceCell::new(),

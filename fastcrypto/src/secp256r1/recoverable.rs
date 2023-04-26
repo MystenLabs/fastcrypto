@@ -199,7 +199,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let r = fr_arkworks_to_p256(&r).to_bytes();
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
-        let sig = ExternalSignature::from_scalars(r, s).expect("Invalid size");
+        let sig = ExternalSignature::from_scalars(r, s).expect("r or s is zero");
 
         let y = fq_arkworks_to_p256(big_r.y().expect("R is zero"));
 
