@@ -18,7 +18,7 @@
 //! ```
 
 use crate::hash::HashFunction;
-pub use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
+use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey};
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
@@ -33,7 +33,7 @@ use rust_secp256k1::{
     All, Message, Secp256k1,
 };
 use std::fmt::{self, Debug, Display};
-//pub use secp256k1::Secp256k1Signature;
+pub use crate::secp256k1::Secp256k1Signature;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
