@@ -157,14 +157,14 @@ impl Secp256r1PublicKey {
         let q =
             ark_secp256r1::Projective::from(affine_pt_p256_to_arkworks(self.pubkey.as_affine()));
 
+        // Verify signature
         let s_inv = s.inverse().expect("s is zero. This should never happen.");
         let u1 = z * s_inv;
         let u2 = r * s_inv;
-        let pt = (ark_secp256r1::Projective::generator() * u1 + q * u2).into_affine();
+        let point = (ark_secp256r1::Projective::generator() * u1 + q * u2).into_affine();
+        let x = point.x();
 
-        // This fails if the point is zero
-        let x = pt.x();
-
+        // x is None if and only if the point is zero, in which case the signature is invalid (see step 5 in section 4.1.4 in SEC 1: Elliptic Curve Cryptography).
         if x.is_some() && arkworks_fq_to_fr(x.unwrap()) == r {
             return Ok(());
         }
@@ -357,6 +357,8 @@ pub struct Secp256r1KeyPair {
 }
 
 impl Secp256r1KeyPair {
+    /// Sign a message using the given hash function and return the signature and the elliptic curve
+    /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
     fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
         // Hash message
         let z = FieldBytes::from(H::digest(msg).digest);

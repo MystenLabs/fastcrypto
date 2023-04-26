@@ -44,7 +44,7 @@ use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
 use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::point::DecompressPoint;
-use p256::elliptic_curve::{Curve};
+use p256::elliptic_curve::Curve;
 use p256::{AffinePoint, FieldBytes, NistP256, Scalar, U256};
 use std::fmt::{self, Debug, Display};
 
@@ -204,20 +204,20 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
             false => r.to_bytes(),
         };
 
+        // Reconstruct y-coordinate from x-coordinate using the given recovery id.
         let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
 
         if big_r.is_some().into() {
-            let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
-
-            let r_inv = fr_p256_to_arkworks(&r)
-                .inverse()
-                .expect("r should be non-zero");
-
+            // Convert to arkworks representation
+            let r = fr_p256_to_arkworks(&r);
+            let s = fr_p256_to_arkworks(&s);
             let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&FieldBytes::clone_from_slice(
                 H::digest(msg).as_ref(),
             )));
-            let s = fr_p256_to_arkworks(&s);
+            let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
 
+            // Compute public key
+            let r_inv = r.inverse().expect("r is zero. This should never happen.");
             let u1 = -(r_inv * z);
             let u2 = r_inv * s;
             let pk = affine_pt_arkworks_to_p256(
