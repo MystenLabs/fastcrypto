@@ -357,8 +357,7 @@ pub struct Secp256r1KeyPair {
 }
 
 impl Secp256r1KeyPair {
-    /// Create a new signature using the given hash function to hash the message.
-    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
         // Hash message
         let z = FieldBytes::from(H::digest(msg).digest);
 
@@ -376,21 +375,21 @@ impl Secp256r1KeyPair {
             .unwrap(),
         );
 
-        // Convert secret key and message to arkworks scalars
-        let x = fr_p256_to_arkworks(&Scalar::reduce_bytes(&x));
+        // Convert secret key and message to arkworks scalars. The unwrap is safe because the secret
+        // key is guaranteed to be in the scalar field.
+        let x = fr_p256_to_arkworks(&Scalar::from_repr(x).unwrap());
         let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
 
-        // Compute scalar inversion of 𝑘
+        // Compute scalar inversion of k
         let k_inv = k.inverse().expect("k should not be zero");
 
-        // Compute 𝑹 = 𝑘×𝑮
+        // Compute R = kG
         let big_r = (ark_secp256r1::Projective::generator() * k).into_affine();
 
-        // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
-        // integer, then reduce it into an element of the scalar field
+        // Lift x-coordinate of R and reduce it into an element of the scalar field
         let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
 
-        // Compute 𝒔 as a signature over 𝒓 and 𝒛.
+        // Compute s as a signature over r and z.
         let s = k_inv * (z + (r * x));
 
         // Convert to p256 format
@@ -398,13 +397,20 @@ impl Secp256r1KeyPair {
         let r = fr_arkworks_to_p256(&r).to_bytes();
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
-        let sig = Signature::from_scalars(r, s).expect("r or s is zero");
+        let signature = Signature::from_scalars(r, s).expect("r or s is zero");
+
+        (signature, big_r)
+    }
+
+    /// Create a new signature using the given hash function to hash the message.
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+        let (signature, _) = self.sign_common::<H>(msg);
 
         // Normalize signature
-        let sig_low = sig.normalize_s().unwrap_or(sig);
+        let normalized_signature = signature.normalize_s().unwrap_or(signature);
 
         Secp256r1Signature {
-            sig: sig_low,
+            sig: normalized_signature,
             bytes: OnceCell::new(),
         }
     }
