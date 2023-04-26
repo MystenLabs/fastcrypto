@@ -43,7 +43,6 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
     affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
-    reduce_bytes,
 };
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
@@ -378,8 +377,8 @@ impl Secp256r1KeyPair {
         );
 
         // Convert secret key and message to arkworks scalars
-        let x = reduce_bytes(&x);
-        let z = reduce_bytes(&z);
+        let x = fr_p256_to_arkworks(&Scalar::reduce_bytes(&x));
+        let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
 
         // Compute scalar inversion of 𝑘
         let k_inv = k.inverse().expect("k should not be zero");

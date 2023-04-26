@@ -1,12 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains conversion function between scalars (fr), field elements (fq) and elliptic curve
+//! points between the representations used by arkworks in ark-secp256r1 and RustCrypto's p256 crate.
+
 use ark_ec::AffineRepr;
 #[cfg(test)]
 use ark_ec::{CurveGroup, Group};
+use ark_ff::PrimeField as ArkworksPrimeField;
 #[cfg(test)]
 use ark_ff::UniformRand;
-use ark_ff::PrimeField as ArkworksPrimeField;
 use ark_serialize::{CanonicalSerializeWithFlags, EmptyFlags};
 use elliptic_curve::bigint::ArrayEncoding;
 #[cfg(test)]
@@ -18,7 +21,6 @@ use elliptic_curve::sec1::FromEncodedPoint;
 use elliptic_curve::sec1::ToEncodedPoint;
 #[cfg(test)]
 use elliptic_curve::Field;
-use elliptic_curve::PrimeField;
 use p256::{FieldBytes, U256};
 
 /// Convert a p256 scalar to an arkworks scalar.
@@ -48,8 +50,9 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
     )))
 }
 
-/// Convert an arkworks field element to a p256 field element.
-pub(crate) fn fq_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fq {
+// TODO: This is currently only used for tests, but it could be made pub(crate) if needed.
+#[cfg(test)]
+fn fq_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fq {
     ark_secp256r1::Fq::from_be_bytes_mod_order(scalar.to_bytes().as_slice())
 }
 
@@ -85,12 +88,6 @@ pub(crate) fn affine_pt_arkworks_to_p256(point: &ark_secp256r1::Affine) -> p256:
         false,
     );
     p256::AffinePoint::from_encoded_point(&encoded_point).unwrap()
-}
-
-pub(crate) fn reduce_bytes(bytes: &FieldBytes) -> ark_secp256r1::Fr {
-    arkworks_fq_to_fr(&fq_p256_to_arkworks(
-        &p256::Scalar::from_repr(*bytes).unwrap(),
-    ))
 }
 
 #[test]
@@ -147,8 +144,6 @@ fn test_arkworks_fq_to_fr() {
     let p256_s = fq_arkworks_to_p256(&s);
     let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
     assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
-
-    assert_eq!(reduce_bytes(&p256_s.to_bytes()), s_fr);
 }
 
 #[test]
