@@ -25,11 +25,12 @@ use p256::{FieldBytes, U256};
 
 /// Convert a p256 scalar to an arkworks scalar.
 pub(crate) fn fr_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fr {
-    ark_secp256r1::Fr::from_be_bytes_mod_order(scalar.to_bytes().as_slice())
+    ark_secp256r1::Fr::from_be_bytes_mod_order(&scalar.to_bytes())
 }
 
 /// Convert an arkworks scalar to a p256 scalar.
 pub(crate) fn fr_arkworks_to_p256(scalar: &ark_secp256r1::Fr) -> p256::Scalar {
+    // This implementation is taken from bls_fr_to_blst_fr in fastcrypto-zkp.
     let mut bytes = [0u8; 32];
     scalar
         .serialize_with_flags(&mut bytes[..], EmptyFlags)
@@ -41,6 +42,7 @@ pub(crate) fn fr_arkworks_to_p256(scalar: &ark_secp256r1::Fr) -> p256::Scalar {
 
 /// Convert an arkworks field element to a p256 field element.
 pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
+    // This implementation is taken from bls_fr_to_blst_fr in fastcrypto-zkp.
     let mut bytes = [0u8; 32];
     scalar
         .serialize_with_flags(&mut bytes[..], EmptyFlags)
@@ -83,8 +85,8 @@ pub(crate) fn affine_pt_arkworks_to_p256(point: &ark_secp256r1::Affine) -> p256:
         return p256::AffinePoint::IDENTITY;
     }
     let encoded_point = p256::EncodedPoint::from_affine_coordinates(
-        &fq_arkworks_to_p256(point.x().unwrap()).to_bytes(),
-        &fq_arkworks_to_p256(point.y().unwrap()).to_bytes(),
+        &fq_arkworks_to_p256(point.x().expect("The point should not be zero")).to_bytes(),
+        &fq_arkworks_to_p256(point.y().expect("The point should not be zero")).to_bytes(),
         false,
     );
     p256::AffinePoint::from_encoded_point(&encoded_point).unwrap()
