@@ -98,6 +98,12 @@ fn test_fr_p256_to_arkworks() {
 
 #[test]
 fn test_pt_arkworks_to_p256() {
+    // 0
+    assert_eq!(
+        p256::AffinePoint::IDENTITY,
+        affine_pt_arkworks_to_p256(&ark_secp256r1::Affine::zero())
+    );
+
     // G
     assert_eq!(
         p256::AffinePoint::generator(),
@@ -112,7 +118,7 @@ fn test_pt_arkworks_to_p256() {
         )
     );
 
-    // sG
+    // sG, random s
     let random_s = p256::Scalar::random(&mut rand::thread_rng());
     assert_eq!(
         (p256::AffinePoint::generator() * random_s).to_affine(),
@@ -125,9 +131,31 @@ fn test_pt_arkworks_to_p256() {
 
 #[test]
 fn test_pt_p256_to_arkworks() {
+    // 0
+    assert_eq!(
+        ark_secp256r1::Affine::zero(),
+        affine_pt_p256_to_arkworks(&p256::AffinePoint::IDENTITY)
+    );
+
+    // G
+    assert_eq!(
+        ark_secp256r1::Affine::generator() * ark_secp256r1::Fr::from(7u32),
+        affine_pt_p256_to_arkworks(
+            &(p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine()
+        )
+    );
+
+    // 7G
     assert_eq!(
         ark_secp256r1::Affine::generator(),
         affine_pt_p256_to_arkworks(&p256::AffinePoint::generator())
+    );
+
+    // sG, random s
+    let random_s = p256::Scalar::random(&mut rand::thread_rng());
+    assert_eq!(
+        (ark_secp256r1::Affine::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
+        affine_pt_p256_to_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
     );
 }
 
