@@ -78,30 +78,32 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
     let cfg = CircomConfig::<Bn254>::new(wasm_path, r1cs_path).unwrap();
     println!("Elapsed time for loading R1CS: {:.2?}", before.elapsed());
 
-    // Insert our public inputs as key value pairs
-    let mut builder = CircomBuilder::new(cfg);
-    for (k, v) in all_inputs {
-        for e in v {
-            builder.push_input(&k, e);
-        }
-    }
-    // Create an empty instance for setting it up
-    let circom = builder.setup();
 
     // Run a trusted setup
     println!("Running setup...");
     before = Instant::now();
+
+    // Create an empty instance for setting it up
+    let mut builder = CircomBuilder::new(cfg);
+    let circom = builder.setup();
+
     let mut rng = thread_rng();
     let params =
         Groth16::<Bn254>::generate_random_parameters_with_reduction(circom, &mut rng).unwrap();
     println!("Elapsed time for setup: {:.2?}", before.elapsed());
 
-    // Get the populated instance of the circuit with the witness
+    // Generate the proof
+    // Insert our public inputs as key value pairs
+    for (k, v) in all_inputs {
+        for e in v {
+            builder.push_input(&k, e);
+        }
+    }
     let circom = builder.build().unwrap();
 
+    // For proof verification...
     let public_inputs = circom.get_public_inputs().unwrap();
 
-    // Generate the proof
     before = Instant::now();
     let proof = Groth16::<Bn254>::prove(&params, circom, &mut rng).unwrap();
     println!("Elapsed time for proof generation: {:.2?}", before.elapsed());
@@ -109,9 +111,8 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
     // Check that the proof is valid
     before = Instant::now();
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
-    let verified = Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap();
+    assert!(Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap());
     println!("Elapsed time for proof verification: {:.2?}", before.elapsed());
-    assert!(verified);
 }
 
 fn prove_and_verify(all_inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
