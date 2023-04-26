@@ -20,7 +20,8 @@
 
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
-    arkworks_fq_to_fr, fq_arkworks_to_p256, fr_arkworks_to_p256, fr_p256_to_arkworks,
+    affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fq_arkworks_to_p256,
+    fr_arkworks_to_p256, fr_p256_to_arkworks,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
@@ -44,7 +45,7 @@ use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
-use p256::{AffinePoint, FieldBytes, NistP256, ProjectivePoint, Scalar, U256};
+use p256::{AffinePoint, FieldBytes, NistP256, Scalar, U256};
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -171,23 +172,23 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let x = self.secret.privkey.as_nonzero_scalar().to_bytes();
 
         // Generate k deterministically according to RFC6979
-        let k = Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
-            &x,
-            &NistP256::ORDER.encode_field_bytes(),
-            &z,
-            &[],
-        ))
-        .unwrap();
-
-        let k = fr_p256_to_arkworks(&k);
-        let k_inv = k.inverse().unwrap();
+        let k = fr_p256_to_arkworks(
+            &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
+                &x,
+                &NistP256::ORDER.encode_field_bytes(),
+                &z,
+                &[],
+            ))
+            .unwrap(),
+        );
+        let k_inv = k.inverse().expect("k should be non-zero");
 
         // Compute 𝑹 = 𝑘×𝑮
         let big_r = (ark_secp256r1::Projective::generator() * k).into_affine();
 
         // Lift x-coordinate of 𝑹 (element of base field) into a serialized big
         // integer, then reduce it into an element of the scalar field
-        let r = arkworks_fq_to_fr(big_r.x().unwrap());
+        let r = arkworks_fq_to_fr(big_r.x().expect("R is zero"));
 
         // Compute 𝒔 as a signature over 𝒓 and 𝒛.
         let x = fr_p256_to_arkworks(&Scalar::reduce_bytes(&x));
@@ -198,9 +199,9 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let r = fr_arkworks_to_p256(&r).to_bytes();
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
-        let sig = ExternalSignature::from_scalars(r, s).unwrap();
+        let sig = ExternalSignature::from_scalars(r, s).expect("Invalid size");
 
-        let y = fq_arkworks_to_p256(big_r.y().unwrap());
+        let y = fq_arkworks_to_p256(big_r.y().expect("R is zero"));
 
         // Compute recovery id and normalize signature
         let is_r_odd = y.is_odd();
@@ -228,7 +229,6 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
         let (r, s) = self.sig.split_scalars();
-        let z = Scalar::reduce_bytes(&FieldBytes::clone_from_slice(H::digest(msg).as_ref()));
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
         // Note: This has been added because it does not seem to be done in k256
@@ -242,11 +242,22 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
 
         if big_r.is_some().into() {
-            let big_r = ProjectivePoint::from(big_r.unwrap());
-            let r_inv = r.invert().unwrap();
+            let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
+
+            let r_inv = fr_p256_to_arkworks(&r)
+                .inverse()
+                .expect("r should be non-zero");
+
+            let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&FieldBytes::clone_from_slice(
+                H::digest(msg).as_ref(),
+            )));
+            let s = fr_p256_to_arkworks(&s);
+
             let u1 = -(r_inv * z);
-            let u2 = r_inv * *s;
-            let pk = ((ProjectivePoint::GENERATOR * u1) + (big_r * u2)).to_affine();
+            let u2 = r_inv * s;
+            let pk = affine_pt_arkworks_to_p256(
+                &((ark_secp256r1::Affine::generator() * u1) + (big_r * u2)).into_affine(),
+            );
 
             Ok(Secp256r1PublicKey {
                 pubkey: VerifyingKey::from_affine(pk)

@@ -91,10 +91,6 @@ harness = false
 name = "hash"
 harness = false
 
-[[bench]]
-name = "p256"
-harness = false
-
 [features]
 default = []
 copy_key = []

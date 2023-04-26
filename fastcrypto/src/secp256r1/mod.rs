@@ -23,7 +23,6 @@ pub mod conversion;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ecdsa::signature::hazmat::{PrehashSigner, PrehashVerifier};
-use elliptic_curve::sec1::FromEncodedPoint;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
@@ -31,7 +30,6 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::{EncodedPoint, ProjectivePoint, Scalar};
 use std::fmt::{self, Debug, Display};
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -416,25 +414,4 @@ impl From<Secp256r1PrivateKey> for Secp256r1KeyPair {
         let public = Secp256r1PublicKey::from(&secret);
         Secp256r1KeyPair { public, secret }
     }
-}
-
-#[test]
-fn test() {
-    // p
-    let p = EncodedPoint::from_str("046B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C2964FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5").unwrap();
-    let p = ProjectivePoint::from_encoded_point(&p).unwrap();
-
-    // 2p
-    let q = EncodedPoint::from_str("047CF27B188D034F7E8A52380304B51AC3C08969E277F21B35A60B48FC4766997807775510DB8ED040293D9AC69F7430DBBA7DADE63CE982299E04B79D227873D1").unwrap();
-    let q = ProjectivePoint::from_encoded_point(&q).unwrap();
-
-    // 3p
-    let r = EncodedPoint::from_str("045ECBE4D1A6330A44C8F7EF951D4BF165E6C6B721EFADA985FB41661BC6E7FD6C8734640C4998FF7E374B06CE1A64A2ECD82AB036384FB83D9A79B127A27D5032").unwrap();
-    let r = ProjectivePoint::from_encoded_point(&r).unwrap();
-
-    assert_eq!(p + p, q);
-    assert_eq!(p + q, r);
-
-    let s = Scalar::from(3u32);
-    assert_eq!(p * s, r);
 }
