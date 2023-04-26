@@ -1505,7 +1505,7 @@ checksum = "4443176a9f2c162692bd3d352d745ef9413eec5782a80d8fd6f8a1ac692a07f7"
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1610,7 +1610,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-zkp"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
