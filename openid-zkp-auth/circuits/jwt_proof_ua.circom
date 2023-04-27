@@ -6,22 +6,24 @@ include "strings.circom";
 include "zkhasher.circom";
 
 /**
-JWT Proof
-    Takes message content segmented into inWidth chunks and calculates a SHA256 hash, for which an RSA signature is known,
-    as well as masking the content to obscure private fields.
+JWT Proof: User-agnostic (UA) circuit
 
-    Construction Parameters:
-    - inCount:          Number of content inputs of inWidth size
+    Construction params:
+    - jwtMaxLen:                Maximum length of the JWT in bytes
+    - maxOptions:               Maximum number of options for the subject_id (in b64)
+    - maxSubLength:             Maximum length of the subject_id (in b64)
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
+    - subject_id:               The subject (user) ID
+    - subject_pin:              User's PIN to keep the subject_id private
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
-    - sub_claim_index:          The index of the substring `,"sub":UserID,` in the Base64 encoded content
 
     Circuit signals revealed to the verifier along with the ZK proof:
     - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
     - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
+    - subject_id_com:           A (binding, hiding) commitment to subject_id, H(subject_id || PIN)
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
     - masked_content:           The content with the sensitive parts masked
@@ -30,48 +32,57 @@ JWT Proof
 
     Public Inputs:
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
-                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks)
-
+                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks || subject_id_com)
 */
-template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets) {
+template JwtProofUA(jwtMaxLen, maxOptions, maxSubLength) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
+    var inCount = jwtMaxLen;
     signal input content[inCount];
 
     /**
-        #1) SHA-256 (30k * nBlocks constraints)
-    **/
+     1. SHA2(content)
+    */
     signal input num_sha2_blocks;
-    // Note: In theory, we could've packed 253 bits into an output value, but 
-    //       that'd still require at least 2 values. Instead, the below impl
-    //       packs the 256 bits into 2 values of 128 bits each. 
     var hashCount = 2;
     signal jwt_sha2_hash[hashCount] <== Sha2_wrapper(inWidth, inCount)(
         content, 
         num_sha2_blocks
     );
 
-    /** 
-        #2) Checks that the substring `,"sub":UserID,` appears at sub_claim_index 
-        Cost: (subValueLength + 1) * inCount constraints
-    **/
+    /**
+     2. 
+    */
+    signal input sub_id_array[maxOptions][maxSubLength];
+    signal input sub_offsets[maxOptions];
+    signal input sub_length;
+
     signal input payload_start_index;
     signal input sub_claim_index;
-    B64SubstrExists(
-        subValueArr,
-        numSubValues,
-        subValueLength,
-        subOffsets,
+    B64SubstrExistsAlt(
+        maxOptions,
+        maxSubLength,
         inCount
     )(
+        substringArray <== sub_id_array,
+        substringLength <== sub_length,
+        offsets <== sub_offsets,
         inputString <== content,
         substringIndex <== sub_claim_index,
         payloadIndex <== payload_start_index
     );
 
+    /**
+     3. Calculate commitment to subject_id
+
+        subject_id = H(sub_id_array[0] || ... || sub_id_array[maxOptions - 1] || sub_offsets[0] || ... || sub_offsets[maxOptions - 1] || sub_length)
+    **/
+    signal subject_id <== Poseidon(3)([sub_id_array[0][0], sub_offsets[0], sub_length]); // TODO: fix
+    signal input subject_pin;
+    signal subject_id_com <== Poseidon(2)([subject_id, subject_pin]);
+
     /** 
-        #3) Masking 
-        Cost: 1k constraints (2*inCount) 
+      4. Masking 
     **/
     signal input mask[inCount];
     signal masked_content[inCount];
@@ -94,7 +105,7 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     signal masked_content_hash <== Hasher(outCount)(packed);
 
     /**
-        #4) nonce == Hash(eph_public_key, max_epoch, r)
+     5. Calculate nonce
     **/
     signal input eph_public_key[2];
     signal input max_epoch;
@@ -108,7 +119,7 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     ]);
 
     /**
-        #5) Misc checks: 
+       6. Misc checks: 
             - Ensure mask[i] == 1 for all i >= payload_start_index + payload_len
     **/
     signal input payload_len;
@@ -121,10 +132,10 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     }
 
     /**
-        #6) Hash all public inputs
+       7. Hash all signals revealed to the verifier outside
     **/
     signal input all_inputs_hash;
-    signal all_inputs_hash_actual <== Poseidon(10)([
+    signal all_inputs_hash_actual <== Poseidon(11)([
         jwt_sha2_hash[0],
         jwt_sha2_hash[1],
         masked_content_hash,
@@ -134,7 +145,9 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
         eph_public_key[1],
         max_epoch,
         nonce,
-        num_sha2_blocks
+        num_sha2_blocks,
+        subject_id_com
     ]);
     all_inputs_hash === all_inputs_hash_actual;
+
 }

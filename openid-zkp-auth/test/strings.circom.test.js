@@ -2,6 +2,7 @@ const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
 
+const b64utils = require("../js/b64utils");
 const utils = require("../js/utils");
 const test = require("../js/test");
 
@@ -38,24 +39,39 @@ describe("Strings checks", () => {
         assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), []);
     });
 
+    it("Slice(6, 4), 2", async () => {
+        cir_fixed = await test.genMain(file, "Slice", [6, 4]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4,5,6];
+        
+        const witness = await cir_fixed.calculateWitness({ "in": input, "index": 1, "length": 2 });
+        
+        assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n, 0n, 0n]);
+    });
     
-    // substr <- subValue = [
-    //     [76,67,74,122,100,87,73,105,79,105,73,120,77,84,65,48,78,106,77,
-    //      48,78,84,73,120,78,106,99,122,77,68,77,49,79,84,103,122,79,68,77,105],
-    //     [119,105,99,51,86,105,73,106,111,105,77,84,69,119,78,68,89,122,
-    //      78,68,85,121,77,84,89,51,77,122,65,122,78,84,107,52,77,122,103,122,73,105],
-    //     [73,110,78,49,89,105,73,54,73,106,69,120,77,68,81,50,77,122,81,49,77,106,69,50,
-    //      78,122,77,119,77,122,85,53,79,68,77,52,77,121,73,115]
-    // ],
-    // substrLen <- subValueLength = 40,
-    // substrExpOffsets <- subOffsets = [0,2,0],
-    // inCount = 704
+    it("Slice(6, 4), 4", async () => {
+        cir_fixed = await test.genMain(file, "Slice", [6, 4]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4,5,6];
+        
+        const witness = await cir_fixed.calculateWitness({ "in": input, "index": 1, "length": 4 });
+        
+        assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n, 4n, 5n]);
+    });
 
-    // string[704] = content[i]
-    // startIndex = payload_index
-    // substrIndex = sub_claim_index
+    it("Slice outside", async () => {
+        cir_fixed = await test.genMain(file, "Slice", [6, 4]);
+        await cir_fixed.loadSymbols();
+        input = [1,2,3,4,5,6];
+        
+        const witness = await cir_fixed.calculateWitness({ "in": input, "index": 4, "length": 4 });
+        
+        assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [5n, 6n, 0n, 0n]);
+    });
+})
 
-    it("CheckIfB64StringExists", async () => {
+describe("B64SubstrExists", () => {
+    it("Dummy string", async () => {
         substr = [
                 [1, 2, 3, 4],
                 [3, 1, 5, 9],
@@ -66,15 +82,129 @@ describe("Strings checks", () => {
         substrExpOffsets = [2, 2, 2];
         inCount = 10;
 
-        cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-            "CheckIfB64StringExists", [substr, numSubstrs, substrLen, substrExpOffsets, inCount]);
-        await cir_fixed.loadSymbols();
-        string = [5, 4, 2, 7, 1, 8, 9, 6, 2, 3];
-        startIndex = 0;
-        substrIndex = 2;
+        {
+            cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
+                "B64SubstrExists", [substr, numSubstrs, substrLen, substrExpOffsets, inCount]);
+            string = [5, 4, 2, 7, 1, 8, 9, 6, 2, 3];
+            startIndex = 0;
+            substrIndex = 2;
         
-        const witness = await cir_fixed.calculateWitness(
-            { "string": string, "startIndex": startIndex, "substrIndex": substrIndex });
+            await cir_fixed.calculateWitness(
+                { "inputString": string, "payloadIndex": startIndex, "substringIndex": substrIndex });
+        }
+        
+       {
+            maxSubstrLen = 6;
+            substr = [ // Padding must be zeroes
+                [1, 2, 3, 4, 0, 0],
+                [3, 1, 5, 9, 0, 0],
+                [2, 7, 1, 8, 0, 0]
+            ];
+            cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
+                "B64SubstrExistsAlt", [numSubstrs, maxSubstrLen, inCount]);
+
+            string = [5, 4, 2, 7, 1, 8, 9, 6, 2, 3];
+            startIndex = 0;
+            substrIndex = 2;
+        
+            await cir_fixed.calculateWitness({
+                "substringArray": substr,
+                "substringLength": substrLen,
+                "offsets": substrExpOffsets,
+                "inputString": string,
+                "payloadIndex": startIndex,
+                "substringIndex": substrIndex
+            });
+       } 
     });
 
-})
+    describe("Real base64 string", () => {
+        const sub_claim = '"sub":"4840061"';
+        const sub_in_b64 = utils.removeDuplicates(b64utils.getAllExtendedBase64Variants(sub_claim));
+        const header = "Iei.";
+
+        it("Start", async () => {
+            const jwt = header + utils.trimEndByChar(Buffer.from(JSON.stringify({
+                "sub": "4840061",
+                "iat": 1614787200,
+                "exp": 1614787200
+            })).toString('base64url'), '=');
+            const index = jwt.indexOf(sub_in_b64[6][0]);
+            assert.equal(index, header.length);
+
+            circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
+            "B64SubstrExists", [
+                sub_in_b64.map(e => e[0].split('').map(c => c.charCodeAt())),
+                sub_in_b64.length,
+                sub_in_b64[0][0].length,
+                sub_in_b64.map(e => e[1]),
+                jwt.length
+            ]);
+
+            const witness = await circuit.calculateWitness({
+                "inputString": jwt.split('').map(c => c.charCodeAt()),
+                "payloadIndex": header.length,
+                "substringIndex": index
+            });
+    
+            await circuit.checkConstraints(witness);
+        });
+
+        it("End", async () => {
+            for (const [i, iat] of [10, 100, 1].entries()) {
+                const jwt = header + utils.trimEndByChar(Buffer.from(JSON.stringify({
+                    "iat": iat,
+                    "sub": "4840061"
+                })).toString('base64url'), '=');    
+
+                const index = jwt.indexOf(sub_in_b64[3 + i][0]);
+                assert.notDeepEqual(index, -1);
+
+                circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
+                "B64SubstrExists", [
+                    sub_in_b64.map(e => e[0].split('').map(c => c.charCodeAt())),
+                    sub_in_b64.length,
+                    sub_in_b64[0][0].length,
+                    sub_in_b64.map(e => e[1]),
+                    jwt.length
+                ]);
+    
+                const witness = await circuit.calculateWitness({
+                    "inputString": jwt.split('').map(c => c.charCodeAt()),
+                    "payloadIndex": header.length,
+                    "substringIndex": index
+                });                    
+                await circuit.checkConstraints(witness);
+            }
+        });
+
+        it("Middle", async () => {
+            for (const [i, iat] of [10, 100, 1].entries()) {
+                const jwt = utils.trimEndByChar(Buffer.from(JSON.stringify({
+                    "iat": iat,
+                    "sub": "4840061",
+                    "exp": 1614787200
+                })).toString('base64url'), '=');
+
+                const index = jwt.indexOf(sub_in_b64[i][0]);
+                assert.notDeepEqual(index, -1);
+
+                circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
+                "B64SubstrExists", [
+                    sub_in_b64.map(e => e[0].split('').map(c => c.charCodeAt())),
+                    sub_in_b64.length,
+                    sub_in_b64[0][0].length,
+                    sub_in_b64.map(e => e[1]),
+                    jwt.length
+                ]);
+    
+                const witness = await circuit.calculateWitness({
+                    "inputString": jwt.split('').map(c => c.charCodeAt()),
+                    "payloadIndex": header.length,
+                    "substringIndex": index
+                });                    
+                await circuit.checkConstraints(witness);
+            }
+        });
+    });
+});

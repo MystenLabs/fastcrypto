@@ -175,3 +175,87 @@ describe("RemainderMod4 checks", () => {
         }
     })
 })
+
+describe("Number to bit vector checks", () => {
+    it("OneBitVector", async () => {
+        circuit = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "OneBitVector", [4]);
+        await circuit.loadSymbols();
+
+        // Success
+        for (let i = 0; i < 4; i++) {
+            const w = await circuit.calculateWitness({ "index": i });
+            await circuit.checkConstraints(w);
+            var ans = [0n, 0n, 0n, 0n];
+            ans[i] = 1n;
+            assert.sameOrderedMembers(
+                utils.getWitnessArray(w, circuit.symbols, "main.out"), ans
+            );
+        }
+
+        // Failure
+        for (let i of [-1, 4, 8]) {
+            try {
+                const w = await circuit.calculateWitness({ "index": i });
+                await circuit.checkConstraints(w);
+            } catch (error) {
+                assert.include(error.message, 'Error in template OneBitVector', error.message);
+            }
+        }
+    })
+
+    it("GTBitVector", async () => {
+        circuit = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "GTBitVector", [4]);
+        await circuit.loadSymbols();
+
+        // Success
+        for (let i = 0; i < 4; i++) {
+            const w = await circuit.calculateWitness({ "index": i });
+            await circuit.checkConstraints(w);
+            var ans = [0n, 0n, 0n, 0n];
+            for (let j = i; j < 4; j++) {
+                ans[j] = 1n;
+            }
+            assert.sameOrderedMembers(
+                utils.getWitnessArray(w, circuit.symbols, "main.out"), ans
+            );
+        }
+
+        // Failure
+        for (let i of [-1, 4, 8]) {
+            try {
+                const w = await circuit.calculateWitness({ "index": i });
+                await circuit.checkConstraints(w);
+            } catch (error) {
+                assert.include(error.message, 'Error in template GTBitVector', error.message);
+            }
+        }
+    })
+
+    it("LTBitVector", async () => {
+        circuit = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "LTBitVector", [4]);
+        await circuit.loadSymbols();
+
+        // Success
+        for (let i = 0; i <= 4; i++) {
+            const w = await circuit.calculateWitness({ "index": i });
+            await circuit.checkConstraints(w);
+            var ans = [0n, 0n, 0n, 0n];
+            for (let j = 0; j < i; j++) {
+                ans[j] = 1n;
+            }
+            assert.sameOrderedMembers(
+                utils.getWitnessArray(w, circuit.symbols, "main.out"), ans
+            );
+        }
+
+        // Failure
+        for (let i of [-1, 5, 8]) {
+            try {
+                const w = await circuit.calculateWitness({ "index": i });
+                await circuit.checkConstraints(w);
+            } catch (error) {
+                assert.include(error.message, 'Error in template LTBitVector', error.message);
+            }
+        }
+    })
+});

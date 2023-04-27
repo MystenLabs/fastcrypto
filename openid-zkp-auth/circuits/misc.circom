@@ -75,7 +75,8 @@ template CalculateTotal(n) {
     sum <== lc;
 }
 
-// out[i] = 1 if i = index, 0 otherwise
+// out[i] = 1 if i = index, 0 otherwise.
+// Assumes index in [0, n). Fails otherwise.
 template OneBitVector(n) {
     signal input index;
     signal output out[n];
@@ -88,6 +89,7 @@ template OneBitVector(n) {
 }
 
 // out[i] = 1 if i >= index, 0 otherwise
+// Assumes index in [0, n). Fails otherwise.
 template GTBitVector(n) {
     signal input index;
     signal output out[n];
@@ -97,6 +99,20 @@ template GTBitVector(n) {
     out[0] <== eq[0];
     for (var i = 1; i < n; i++) {
         out[i] <== eq[i] + out[i - 1];
+    }
+}
+
+// out[i] = 1 if i < index, 0 otherwise
+// Assumes index in [0, n]. Fails otherwise.
+template LTBitVector(n) {
+    signal input index;
+    signal output out[n];
+
+    signal eq[n + 1] <== OneBitVector(n + 1)(index);
+
+    out[n-1] <== eq[n];
+    for (var i = n-2; i >= 0; i--) {
+        out[i] <== eq[i + 1] + out[i + 1];
     }
 }
 

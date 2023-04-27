@@ -66,14 +66,6 @@ genJwtProof = (async (jwt, inCount, claimsToReveal, circuit, jwk = "") => {
     }
 })
 
-// Stringify and convert to base64
-constructJWT = (header, payload) => {
-    header = JSON.stringify(header);
-    payload = JSON.stringify(payload);
-    return utils.trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
-                + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
-}
-
 describe("JWT Proof", function() {
     it("Google", async function() {
         const circuit = await genCircuit(GOOGLE["jwt"], 64 * 11);
@@ -106,7 +98,7 @@ describe("Tests with crafted JWTs", () => {
 
     // const b64header = utils.trimEndByChar(Buffer.from(header, 'base64url').toString('base64url'), '=');
     // const b64payload = utils.trimEndByChar(Buffer.from(payload, 'base64url').toString('base64url'), '=');
-    const jwt = constructJWT(header, payload);
+    const jwt = utils.constructJWT(header, payload);
 
     const inCount = 64 * 6;
 
@@ -135,7 +127,7 @@ describe("Tests with crafted JWTs", () => {
             exp: 4,
             jti: 'a8a0728a'
         };
-        const new_jwt = constructJWT(header, new_payload);
+        const new_jwt = utils.constructJWT(header, new_payload);
         await genJwtProof(
             new_jwt,
             inCount,
@@ -155,7 +147,7 @@ describe("Tests with crafted JWTs", () => {
             jti: 'a8a0728a',
             sub: '4840061'
         };
-        const new_jwt = constructJWT(header, new_payload);
+        const new_jwt = utils.constructJWT(header, new_payload);
         await genJwtProof(
             new_jwt,
             inCount,
@@ -175,7 +167,7 @@ describe("Tests with crafted JWTs", () => {
             azp: 'example.com',
             nonce: 'abcd',
         };
-        const new_jwt = constructJWT(header, new_payload);
+        const new_jwt = utils.constructJWT(header, new_payload);
         await genJwtProof(
             new_jwt,
             inCount,
@@ -184,7 +176,7 @@ describe("Tests with crafted JWTs", () => {
         );
     });
 
-    it("(Fail) Sub claim has invalid value!", async () => {
+    it.only("(Fail) Sub claim has invalid value!", async () => {
         const failing_cases = ['4840062', '3840061', '48', '48400610', '04840061'];
         for (var i = 0; i < failing_cases.length; i++) {
             const sub = failing_cases[i];
@@ -198,7 +190,7 @@ describe("Tests with crafted JWTs", () => {
                 jti: 'a8a0728a',
                 sub: sub
             };
-            const new_jwt = constructJWT(header, new_payload);
+            const new_jwt = utils.constructJWT(header, new_payload);
             try {
                 await genJwtProof(
                     new_jwt,
@@ -207,7 +199,7 @@ describe("Tests with crafted JWTs", () => {
                     circuit
                 );
             } catch (error) {
-                assert.include(error.message, 'Error in template CheckIfB64StringExists');
+                assert.include(error.message, 'Error in template B64SubstrExists');
             }
         }
     });

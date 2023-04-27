@@ -133,7 +133,14 @@ function getClaimString(decoded_payload, claim) {
     throw new Error("Fields " + kv_pair + " or " + escaped_kv_pair + " not found in " + decoded_payload);
 }
 
-
+// Stringify and convert to base64
+function constructJWT(header, payload) {
+    header = JSON.stringify(header);
+    payload = JSON.stringify(payload);
+    return trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
+                + '.' + trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
+}
+  
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
@@ -149,6 +156,7 @@ module.exports = {
     getClaimString: getClaimString,
     applyMask: applyMask,
     removeDuplicates: removeDuplicates,
+    constructJWT: constructJWT,
     // hashing
     calculateMaskedHash: calculateMaskedHash,
     poseidonHash: poseidonHash
