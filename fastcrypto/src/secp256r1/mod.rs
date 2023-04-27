@@ -47,7 +47,7 @@ use crate::{
         VerifyingKey,
     },
 };
-
+pub use crate::secp256r1::recoverable::Secp256r1Signature;
 /// The length of a public key in bytes.
 pub const SECP256R1_PUBLIC_KEY_LENGTH: usize = 33;
 
