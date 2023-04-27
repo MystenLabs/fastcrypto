@@ -45,7 +45,6 @@ use std::borrow::Borrow;
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
-pub use crate::secp256r1::Secp256r1Signature;
 
 /// Secp256r1 signature.
 #[readonly::make]
