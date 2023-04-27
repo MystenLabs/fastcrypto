@@ -23,8 +23,7 @@ pub mod conversion;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ark_ec::{AffineRepr, CurveGroup, Group};
-use ark_ff::Field;
-use elliptic_curve::ops::Reduce;
+use ark_ff::{Field};
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
@@ -41,9 +40,7 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::hash::{HashFunction, Sha256};
-use crate::secp256r1::conversion::{
-    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
-};
+use crate::secp256r1::conversion::{affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks, get_affine_x_coordinate, reduce_bytes};
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
 use crate::{
@@ -148,25 +145,26 @@ impl Secp256r1PublicKey {
 
         // The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using
         // arkworks for the finite field and elliptic curve arithmetic.
+
+        // Extract scalars from signature
         let (r, s) = signature.sig.split_scalars();
-        let z = Scalar::reduce_bytes(&FieldBytes::from(H::digest(msg).digest));
+        let z = reduce_bytes(&H::digest(msg).digest);
 
         // Convert scalars to arkworks representation
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
-        let z = fr_p256_to_arkworks(&z);
         let q = affine_pt_p256_to_arkworks(self.pubkey.as_affine());
 
         // Verify signature
         let s_inv = s.inverse().expect("s is zero. This should never happen.");
         let u1 = z * s_inv;
         let u2 = r * s_inv;
-        let point = (ark_secp256r1::Projective::generator() * u1 + q * u2).into_affine();
-        let x = point.x();
+        let p = ark_secp256r1::Projective::generator() * u1 + q * u2;
+        let x = get_affine_x_coordinate(&p);
 
-        // x is None if and only if the point is zero, in which case the signature is invalid (see
-        // step 5 in section 4.1.4 in SEC 1: Elliptic Curve Cryptography).
-        if x.is_some() && arkworks_fq_to_fr(x.unwrap()) == r {
+        // Note that x is none if and only if p is zero, in which case the signature is invalid. See
+        // step 5 in section 4.1.4 in "SEC 1: Elliptic Curve Cryptography".
+        if x.is_some() && arkworks_fq_to_fr(&x.unwrap()) == r {
             return Ok(());
         }
         Err(FastCryptoError::InvalidSignature)
@@ -362,7 +360,7 @@ impl Secp256r1KeyPair {
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
     fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
         // Hash message
-        let z = FieldBytes::from(H::digest(msg).digest);
+        let z = H::digest(msg).digest;
 
         // Private key as scalar
         let x = self.secret.privkey.as_nonzero_scalar();
@@ -373,7 +371,7 @@ impl Secp256r1KeyPair {
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
                 &x.to_bytes(),
                 &NistP256::ORDER.encode_field_bytes(),
-                &z,
+                &FieldBytes::from(z),
                 &[],
             ))
             .unwrap(),
@@ -381,7 +379,7 @@ impl Secp256r1KeyPair {
 
         // Convert secret key and message to arkworks scalars.
         let x = fr_p256_to_arkworks(x);
-        let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&z));
+        let z = reduce_bytes(&z);
 
         // Compute scalar inversion of k
         let k_inv = k.inverse().expect("k should not be zero");

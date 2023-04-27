@@ -21,7 +21,7 @@
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
     affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fq_arkworks_to_p256,
-    fr_p256_to_arkworks,
+    fr_p256_to_arkworks, reduce_bytes,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
@@ -43,10 +43,9 @@ use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{Signature as ExternalSignature, VerifyingKey};
 use p256::elliptic_curve::bigint::ArrayEncoding;
-use p256::elliptic_curve::ops::Reduce;
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::Curve;
-use p256::{AffinePoint, FieldBytes, NistP256, Scalar, U256};
+use p256::{AffinePoint, NistP256, U256};
 use std::fmt::{self, Debug, Display};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
@@ -212,9 +211,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
             // Convert to arkworks representation
             let r = fr_p256_to_arkworks(&r);
             let s = fr_p256_to_arkworks(&s);
-            let z = fr_p256_to_arkworks(&Scalar::reduce_bytes(&FieldBytes::clone_from_slice(
-                H::digest(msg).as_ref(),
-            )));
+            let z = reduce_bytes(&H::digest(msg).digest);
             let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
 
             // Compute public key

@@ -5,22 +5,12 @@
 //! points between the representations used by arkworks in ark-secp256r1 and RustCrypto's p256 crate.
 
 use ark_ec::AffineRepr;
-#[cfg(test)]
-use ark_ec::{CurveGroup, Group};
-use ark_ff::PrimeField as ArkworksPrimeField;
-#[cfg(test)]
-use ark_ff::UniformRand;
+use ark_ff::{Field, PrimeField as ArkworksPrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, EmptyFlags};
 use elliptic_curve::bigint::ArrayEncoding;
-#[cfg(test)]
-use elliptic_curve::group::prime::PrimeCurveAffine;
-#[cfg(test)]
-use elliptic_curve::ops::Reduce;
 use elliptic_curve::scalar::FromUintUnchecked;
 use elliptic_curve::sec1::FromEncodedPoint;
 use elliptic_curve::sec1::ToEncodedPoint;
-#[cfg(test)]
-use elliptic_curve::Field;
 use p256::{FieldBytes, U256};
 
 /// Convert a p256 scalar to an arkworks scalar.
@@ -46,12 +36,6 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
     p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::from(bytes)))
 }
 
-// TODO: This is currently only used for tests, but it could be made pub(crate) if needed.
-#[cfg(test)]
-fn fq_p256_to_arkworks(scalar: &p256::Scalar) -> ark_secp256r1::Fq {
-    ark_secp256r1::Fq::from_be_bytes_mod_order(&scalar.to_bytes())
-}
-
 /// Convert an p256 affine point to an arkworks affine point.
 pub(crate) fn affine_pt_p256_to_arkworks(point: &p256::AffinePoint) -> ark_secp256r1::Affine {
     if point.is_identity().into() {
@@ -62,6 +46,11 @@ pub(crate) fn affine_pt_p256_to_arkworks(point: &p256::AffinePoint) -> ark_secp2
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.x().unwrap()),
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.y().unwrap()),
     )
+}
+
+/// Reduce a big-endian integer representation modulo the subgroup order in arkworks representation.
+pub(crate) fn reduce_bytes(bytes: &[u8; 32]) -> ark_secp256r1::Fr {
+    ark_secp256r1::Fr::from_be_bytes_mod_order(bytes)
 }
 
 /// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order)
@@ -84,98 +73,122 @@ pub(crate) fn affine_pt_arkworks_to_p256(point: &ark_secp256r1::Affine) -> p256:
     p256::AffinePoint::from_encoded_point(&encoded_point).unwrap()
 }
 
-#[test]
-fn test_fr_p256_to_arkworks() {
-    let arkworks_seven = ark_secp256r1::Fr::from(7u32);
-    let p256_seven = p256::Scalar::from(7u32);
-
-    let actual_arkworks_seven = fr_p256_to_arkworks(&p256_seven);
-    assert_eq!(actual_arkworks_seven, arkworks_seven);
-
-    let actual_p256_seven = fr_arkworks_to_p256(&arkworks_seven);
-    assert_eq!(actual_p256_seven, p256_seven);
+/// Extract the affine x-coordinate from a projective point. Returns none if the point is the identity.
+pub(crate) fn get_affine_x_coordinate(
+    point: &ark_secp256r1::Projective,
+) -> Option<ark_secp256r1::Fq> {
+    if point.is_zero() {
+        return None;
+    }
+    let mut z_inv = point
+        .z
+        .inverse()
+        .expect("z is zero. This should never happen.");
+    z_inv.square_in_place();
+    Some(point.x * z_inv)
 }
 
-#[test]
-fn test_pt_arkworks_to_p256() {
-    // 0
-    assert_eq!(
-        p256::AffinePoint::IDENTITY,
-        affine_pt_arkworks_to_p256(&ark_secp256r1::Affine::zero())
-    );
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ark_ec::{CurveGroup, Group};
+    use ark_ff::{UniformRand};
+    use elliptic_curve::group::prime::PrimeCurveAffine;
+    use elliptic_curve::ops::Reduce;
+    use elliptic_curve::Field;
 
-    // G
-    assert_eq!(
-        p256::AffinePoint::generator(),
-        affine_pt_arkworks_to_p256(&ark_secp256r1::Affine::generator())
-    );
+    #[test]
+    fn test_fr_p256_to_arkworks() {
+        let arkworks_seven = ark_secp256r1::Fr::from(7u32);
+        let p256_seven = p256::Scalar::from(7u32);
 
-    // 7G
-    assert_eq!(
-        (p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine(),
-        affine_pt_arkworks_to_p256(
-            &(ark_secp256r1::Projective::generator() * ark_secp256r1::Fr::from(7u32)).into_affine()
-        )
-    );
+        let actual_arkworks_seven = fr_p256_to_arkworks(&p256_seven);
+        assert_eq!(actual_arkworks_seven, arkworks_seven);
 
-    // sG, random s
-    let random_s = p256::Scalar::random(&mut rand::thread_rng());
-    assert_eq!(
-        (p256::AffinePoint::generator() * random_s).to_affine(),
-        affine_pt_arkworks_to_p256(
-            &(ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(&random_s))
-                .into_affine()
-        )
-    );
-}
+        let actual_p256_seven = fr_arkworks_to_p256(&arkworks_seven);
+        assert_eq!(actual_p256_seven, p256_seven);
+    }
 
-#[test]
-fn test_pt_p256_to_arkworks() {
-    // 0
-    assert_eq!(
-        ark_secp256r1::Affine::zero(),
-        affine_pt_p256_to_arkworks(&p256::AffinePoint::IDENTITY)
-    );
+    #[test]
+    fn test_pt_arkworks_to_p256() {
+        // 0
+        assert_eq!(
+            p256::AffinePoint::IDENTITY,
+            affine_pt_arkworks_to_p256(&ark_secp256r1::Affine::zero())
+        );
 
-    // G
-    assert_eq!(
-        ark_secp256r1::Affine::generator() * ark_secp256r1::Fr::from(7u32),
-        affine_pt_p256_to_arkworks(
-            &(p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine()
-        )
-    );
+        // G
+        assert_eq!(
+            p256::AffinePoint::generator(),
+            affine_pt_arkworks_to_p256(&ark_secp256r1::Affine::generator())
+        );
 
-    // 7G
-    assert_eq!(
-        ark_secp256r1::Affine::generator(),
-        affine_pt_p256_to_arkworks(&p256::AffinePoint::generator())
-    );
+        // 7G
+        assert_eq!(
+            (p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine(),
+            affine_pt_arkworks_to_p256(
+                &(ark_secp256r1::Projective::generator() * ark_secp256r1::Fr::from(7u32))
+                    .into_affine()
+            )
+        );
 
-    // sG, random s
-    let random_s = p256::Scalar::random(&mut rand::thread_rng());
-    assert_eq!(
-        (ark_secp256r1::Affine::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
-        affine_pt_p256_to_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
-    );
-}
+        // sG, random s
+        let random_s = p256::Scalar::random(&mut rand::thread_rng());
+        assert_eq!(
+            (p256::AffinePoint::generator() * random_s).to_affine(),
+            affine_pt_arkworks_to_p256(
+                &(ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(&random_s))
+                    .into_affine()
+            )
+        );
+    }
 
-#[test]
-fn test_arkworks_fq_to_fr() {
-    let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
-    let s_fr = arkworks_fq_to_fr(&s);
-    let p256_s = fq_arkworks_to_p256(&s);
-    let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
-    assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
-}
+    #[test]
+    fn test_pt_p256_to_arkworks() {
+        // 0
+        assert_eq!(
+            ark_secp256r1::Affine::zero(),
+            affine_pt_p256_to_arkworks(&p256::AffinePoint::IDENTITY)
+        );
 
-#[test]
-fn test_fq_p256_to_arkworks() {
-    let arkworks_seven = ark_secp256r1::Fq::from(7u32);
-    let p256_seven = p256::Scalar::from(7u32);
+        // G
+        assert_eq!(
+            ark_secp256r1::Affine::generator() * ark_secp256r1::Fr::from(7u32),
+            affine_pt_p256_to_arkworks(
+                &(p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine()
+            )
+        );
 
-    let actual_arkworks_seven = fq_p256_to_arkworks(&p256_seven);
-    assert_eq!(actual_arkworks_seven, arkworks_seven);
+        // 7G
+        assert_eq!(
+            ark_secp256r1::Affine::generator(),
+            affine_pt_p256_to_arkworks(&p256::AffinePoint::generator())
+        );
 
-    let actual_p256_seven = fq_arkworks_to_p256(&arkworks_seven);
-    assert_eq!(actual_p256_seven, p256_seven);
+        // sG, random s
+        let random_s = p256::Scalar::random(&mut rand::thread_rng());
+        assert_eq!(
+            (ark_secp256r1::Affine::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
+            affine_pt_p256_to_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
+        );
+    }
+
+    #[test]
+    fn test_arkworks_fq_to_fr() {
+        let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
+        let s_fr = arkworks_fq_to_fr(&s);
+        let p256_s = fq_arkworks_to_p256(&s);
+        let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
+        assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
+        assert_eq!(reduce_bytes(&p256_s.to_bytes().try_into().unwrap()), s_fr);
+    }
+
+    #[test]
+    fn test_fq_arkworks_to_p256() {
+        let arkworks_seven = ark_secp256r1::Fq::from(7u32);
+        let p256_seven = p256::Scalar::from(7u32);
+
+        let actual_p256_seven = fq_arkworks_to_p256(&arkworks_seven);
+        assert_eq!(actual_p256_seven, p256_seven);
+    }
 }
