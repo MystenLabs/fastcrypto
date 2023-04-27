@@ -23,7 +23,7 @@ pub mod conversion;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
 use ark_ec::{AffineRepr, CurveGroup, Group};
-use ark_ff::{Field};
+use ark_ff::Field;
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
@@ -40,7 +40,10 @@ use zeroize::Zeroize;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 use crate::hash::{HashFunction, Sha256};
-use crate::secp256r1::conversion::{affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks, get_affine_x_coordinate, reduce_bytes};
+use crate::secp256r1::conversion::{
+    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
+    get_affine_x_coordinate, reduce_bytes,
+};
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
 use crate::{

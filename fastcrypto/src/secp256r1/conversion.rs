@@ -92,7 +92,7 @@ pub(crate) fn get_affine_x_coordinate(
 mod tests {
     use super::*;
     use ark_ec::{CurveGroup, Group};
-    use ark_ff::{UniformRand};
+    use ark_ff::UniformRand;
     use elliptic_curve::group::prime::PrimeCurveAffine;
     use elliptic_curve::ops::Reduce;
     use elliptic_curve::Field;
