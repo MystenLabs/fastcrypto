@@ -349,6 +349,14 @@ impl Secp256r1Signature {
             })
             .map_err(|_| FastCryptoError::InvalidInput)
     }
+    pub fn from_der(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ExternalSignature::from_der(bytes)
+        .map(|sig| Secp256r1Signature {
+            sig,
+            bytes: OnceCell::new(),
+        })
+        .map_err(|_| FastCryptoError::InvalidInput)
+    }
 }
 
 /// Secp256r1 public/private key pair.
