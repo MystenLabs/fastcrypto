@@ -807,6 +807,7 @@ pub mod min_sig {
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
+    use crate::bls12381::pairing;
     define_tests!();
 
     #[test]
@@ -826,6 +827,29 @@ pub mod min_sig {
         assert_eq!(sk.as_bytes(), secret);
         assert_eq!(pk.as_bytes(), public);
         assert_eq!(sig.as_bytes(), signature);
+    }
+
+    #[test]
+    fn test_pairing() {
+        let mut rng = StdRng::from_seed([1; 32]);
+        let msg = b"hello!";
+
+        let kp_e = BLS12381KeyPair::generate(&mut rng);
+        let sig_e = kp_e.sign(&msg[..]);
+        let kp_g = BLS12381KeyPair::generate(&mut rng);
+        let sig_g = kp_g.sign(&msg[..]);
+
+        let p1 = pairing(
+            sig_e.as_ref().try_into().unwrap(),
+            kp_g.public().as_ref().try_into().unwrap(),
+        )
+        .unwrap();
+        let p2 = pairing(
+            sig_g.as_ref().try_into().unwrap(),
+            kp_e.public().as_ref().try_into().unwrap(),
+        )
+        .unwrap();
+        assert_eq!(p1, p2);
     }
 }
 

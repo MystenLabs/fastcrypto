@@ -13,6 +13,7 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
+use crate::error::FastCryptoResult;
 use crate::generate_bytes_representation;
 use crate::serde_helpers::BytesRepresentation;
 use crate::traits::{
@@ -23,7 +24,11 @@ use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
 };
-use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
+use blst::{
+    blst_final_exp, blst_fp12, blst_miller_loop, blst_p1_affine, blst_p1_affine_in_g1,
+    blst_p1_deserialize, blst_p2_affine, blst_p2_affine_in_g2, blst_p2_deserialize, blst_scalar,
+    blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR,
+};
 #[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
@@ -732,6 +737,9 @@ pub const BLS_G1_LENGTH: usize = 48;
 /// The length of public keys when using the [min_sig] module and the length of signatures when using the [min_pk] module.
 pub const BLS_G2_LENGTH: usize = 96;
 
+/// The length of a GT group element.
+const BLS_GT_LENGTH: usize = 48 * 12;
+
 /// The key pair bytes length used by helper is the same as the private key length. This is because only private key is serialized.
 pub const BLS_KEYPAIR_LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
 
@@ -747,3 +755,30 @@ pub mod min_pk;
 
 #[cfg(feature = "experimental")]
 pub mod mskr;
+
+/// Generic Pairing API.
+pub fn pairing(
+    g1: &[u8; BLS_G1_LENGTH],
+    g2: &[u8; BLS_G2_LENGTH],
+) -> FastCryptoResult<[u8; BLS_GT_LENGTH]> {
+    unsafe {
+        let mut blst_g1 = blst_p1_affine::default();
+        if blst_p1_deserialize(&mut blst_g1, g1.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if !blst_p1_affine_in_g1(&blst_g1) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut blst_g2 = blst_p2_affine::default();
+        if blst_p2_deserialize(&mut blst_g2, g2.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if !blst_p2_affine_in_g2(&blst_g2) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut res = blst_fp12::default();
+        blst_miller_loop(&mut res, &blst_g2, &blst_g1);
+        blst_final_exp(&mut res, &res);
+        Ok(res.to_bendian())
+    }
+}
