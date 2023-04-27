@@ -20,7 +20,7 @@
 
 use crate::hash::HashFunction;
 use crate::secp256r1::{
-    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey,
+    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey,Secp256r1Signature,
     SECP256R1_SIGNATURE_LENTH,
 };
 use crate::serialize_deserialize_with_to_from_bytes;
