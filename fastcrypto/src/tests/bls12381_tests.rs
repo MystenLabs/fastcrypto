@@ -851,6 +851,24 @@ pub mod min_sig {
         .unwrap();
         assert_eq!(p1, p2);
     }
+
+    // DOESN"T WORK YET!!
+    #[test]
+    fn test_verify_drand_signature() {
+        // Regression test of an actual response from Drand.
+        let key = hex::decode("a0b862a7527fee3a731bcb59280ab6abd62d5c0b6ea03dc4ddf6612fdfc9d01f01c31542541771903475eb1ec6615f8d0df0b8b6dce385811d6dcf8cbefb8759e5e616a3dfd054c928940766d9a5b9db91e3b697e5d70a975181e007f87fca5e").unwrap();
+        let sig = hex::decode("8ea840dd95f67f79de07cdc0f431867808a6c7139ebcafca770809dccb0679b56860df218384b3ba9ca2030836152317").unwrap();
+
+        let round: u64 = 1648620;
+        let mut sha = Sha256::new();
+        sha.update(round.to_be_bytes());
+        let msg = sha.finalize().digest;
+
+        let key = BLS12381PublicKey::from_bytes(&key).unwrap();
+        key.validate().unwrap();
+        let sig = <BLS12381Signature as ToFromBytes>::from_bytes(&sig).unwrap();
+        assert!(key.verify(&msg, &sig).is_ok());
+    }
 }
 
 pub mod min_pk {
