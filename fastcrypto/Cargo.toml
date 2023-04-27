@@ -57,7 +57,7 @@ static_assertions = "1.1.0"
 ark-secp256r1 = "0.4.0"
 ark-ec = "0.4.1"
 ark-ff = "0.4.1"
-ark-serialize = "0.4.2"
+ark-serialize = "0.4.1"
 
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.2" }
 
