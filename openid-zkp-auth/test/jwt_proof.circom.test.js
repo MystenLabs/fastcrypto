@@ -176,7 +176,7 @@ describe("Tests with crafted JWTs", () => {
         );
     });
 
-    it.only("(Fail) Sub claim has invalid value!", async () => {
+    it("(Fail) Sub claim has invalid value!", async () => {
         const failing_cases = ['4840062', '3840061', '48', '48400610', '04840061'];
         for (var i = 0; i < failing_cases.length; i++) {
             const sub = failing_cases[i];

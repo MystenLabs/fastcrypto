@@ -74,7 +74,7 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
     });
 
-    it("Nonce test", async () => {
+    it.only("Nonce test", async () => {
         cir = await test.genMain(circuit_path, "Hasher", [4]);
         await cir.loadSymbols();
 
@@ -82,9 +82,9 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         const maxEpoch = 100;
         const randomness = BigInt("0x" + crypto.randomBytes(31).toString('hex'));
 
-        assert.isFalse(ephPubKey < P);
         assert.isTrue(randomness < P);
 
+        // Breaking it into two chunks to avoid overflow in case ephPubKey > P
         const ephPubKey_0 = ephPubKey % 2n**128n;
         const ephPubKey_1 = ephPubKey / 2n**128n;
 

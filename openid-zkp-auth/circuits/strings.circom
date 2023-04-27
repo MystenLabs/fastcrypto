@@ -7,14 +7,16 @@ include "base64.circom";
 
 // Returns in[index:index+outLen]
 // Cost: inLen + outLen * inLen
+// Assumes index in [0, inLen). Fails otherwise.
 template SliceFixed(inLen, outLen) {
     signal input in[inLen];
     signal input index;
     signal output out[outLen];
     
-    // eqs[i] = 1 if i = index, 0 otherwise
+    // eqs[index] = 1, 0 otherwise
     signal eqs[inLen] <== OneBitVector(inLen)(index);
     for(var i = 0; i < outLen; i++) {
+        // arr[i + index] = 1 (if i + index < inLen), 0 otherwise
         var arr[inLen];
         for (var j = 0; j < inLen; j++) {
             if (j < i) {
@@ -29,7 +31,7 @@ template SliceFixed(inLen, outLen) {
 
 // Returns in[index:index+length] + [0] * (outLen - length)
 // Cost: Roughly (inLen + outLen + outLen * inLen)
-// Assumes index in [0, inLen) and length in [0, outLen]. Fails otherwise.
+// Assumes index in [0, inLen), length in [0, outLen], outLen > 0. Fails otherwise.
 template Slice(inLen, outLen) {
     signal input in[inLen];
     signal input index;
@@ -142,8 +144,8 @@ template B64SubstrExistsAlt(numSubstrings, maxSubstringLength, inputStringLength
     signal extracted[maxSubstringLength] <== Slice(inputStringLength, maxSubstringLength)(
                                                 inputString, substringIndex, substringLength);
 
-    signal remainder <== RemainderMod4(log2(inputStringLength))(substringIndex -
-                                                                 payloadIndex);
+    var substringIndexInPayload = substringIndex - payloadIndex;
+    signal remainder <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
 
     signal isEqualArray[numSubstrings];
     signal isCheckEnabledArray[numSubstrings];
