@@ -74,7 +74,7 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         assert.equal(utils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
     });
 
-    it.only("Nonce test", async () => {
+    it("Nonce test", async () => {
         cir = await test.genMain(circuit_path, "Hasher", [4]);
         await cir.loadSymbols();
 

@@ -64,6 +64,15 @@ template IsEqualIfEnabled(n) {
     out <== and.out * enabled;
 }
 
+template ForceEqualIfEnabledMulti(n) {
+    signal input enabled;
+    signal input in[2][n];
+
+    for (var i = 0; i < n; i++) {
+        ForceEqualIfEnabled()(enabled, [in[0][i], in[1][i]]);
+    }
+}
+
 template CalculateTotal(n) {
     signal input nums[n];
     signal output sum;
@@ -114,6 +123,16 @@ template LTBitVector(n) {
     for (var i = n-2; i >= 0; i--) {
         out[i] <== eq[i + 1] + out[i + 1];
     }
+}
+
+template SingleMultiplexer(nIn) {
+    signal input inp[nIn];
+    signal input sel;
+    signal output out;
+
+    component dec = OneBitVector(nIn);
+    sel ==> dec.index;
+    EscalarProduct(nIn)(inp, dec.out) ==> out;
 }
 
 /**

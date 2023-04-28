@@ -155,8 +155,12 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
             startIndex = 0;
             substrIndex = 2;
         
-            await cir_fixed.calculateWitness(
-                { "inputString": string, "payloadIndex": startIndex, "substringIndex": substrIndex });
+            await cir_fixed.calculateWitness({
+                "inputString": string,
+                "payloadIndex": startIndex,
+                "substringIndex": substrIndex,
+                "selector": 2
+            });
         });
         
         it("Alt", async () => {
@@ -176,10 +180,11 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
             await cir_fixed.calculateWitness({
                 "substringArray": substr,
                 "substringLength": substrLen,
-                "offsets": substrExpOffsets,
+                "offsetArray": substrExpOffsets,
                 "inputString": string,
                 "payloadIndex": startIndex,
-                "substringIndex": substrIndex
+                "substringIndex": substrIndex,
+                "selector": 2 // substr[2]
             });
         });
     });
@@ -194,7 +199,7 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
 
         const header = "Iei.";
 
-        const run = async (jwt, index) => {
+        async function run(jwt, index, expected) {
             circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
             "B64SubstrExists", [
                 sub_in_b64,
@@ -206,14 +211,15 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
 
             const witness = await circuit.calculateWitness({
                 "inputString": jwt.split('').map(c => c.charCodeAt()),
+                "selector": expected,
                 "payloadIndex": header.length,
                 "substringIndex": index
             });
     
             await circuit.checkConstraints(witness);            
-        };
+        }
 
-        const runAlt1 = async (jwt, index) => {
+        async function runAlt1(jwt, index, expected) {
             circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
             "B64SubstrExistsAlt", [
                 num_options,
@@ -224,16 +230,17 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
             const witness = await circuit.calculateWitness({
                 "substringArray": sub_in_b64,
                 "substringLength": option_length,
-                "offsets": offsets,
+                "offsetArray": offsets,
                 "inputString": jwt.split('').map(c => c.charCodeAt()),
                 "payloadIndex": header.length,
-                "substringIndex": index
+                "substringIndex": index,
+                "selector": expected
             });
     
             await circuit.checkConstraints(witness);
-        };
+        }
 
-        const runAlt2 = async (jwt, index) => {
+        async function runAlt2(jwt, index, expected) {
             const maxSubstringLength = option_length + 10;
 
             circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
@@ -248,14 +255,15 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
             const witness = await circuit.calculateWitness({
                 "substringArray": sub_in_b64_padded,
                 "substringLength": option_length,
-                "offsets": offsets,
+                "offsetArray": offsets,
                 "inputString": jwt.split('').map(c => c.charCodeAt()),
                 "payloadIndex": header.length,
-                "substringIndex": index
+                "substringIndex": index,
+                "selector": expected
             });
     
             await circuit.checkConstraints(witness);
-        };
+        }
 
         describe("Start", async () => {
             const jwt = header + utils.trimEndByChar(Buffer.from(JSON.stringify({
@@ -266,14 +274,14 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
             const index = jwt.indexOf(A[6][0]);
             assert.equal(index, header.length);
 
-            it ("Main", async () => {
-                run(jwt, index);
+            it("Main", async () => {
+                await run(jwt, index, 6);
             });
             it ("Alt w/ substringLength = maxSubstringLength", async () => {
-                runAlt1(jwt, index);
+                await runAlt1(jwt, index, 6);
             });
             it ("Alt w/ substringLength < maxSubstringLength", async () => {
-                runAlt2(jwt, index);
+                await runAlt2(jwt, index, 6);
             });
         });
 
@@ -288,13 +296,13 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
                 assert.notDeepEqual(index, -1);
 
                 it ("Main (index:" + i + ")", async () => {
-                    run(jwt, index);
+                    await run(jwt, index, 3 + i);
                 });
                 it ("Alt w/ substringLength = maxSubstringLength (index:"  + i + ")", async () => {
-                    runAlt1(jwt, index);
+                    await runAlt1(jwt, index, 3 + i);
                 });
                 it ("Alt w/ substringLength < maxSubstringLength (index:"  + i + ")", async () => {
-                    runAlt2(jwt, index);
+                    await runAlt2(jwt, index, 3 + i);
                 });
                 }
         });
@@ -311,13 +319,13 @@ describe("B64SubstrExists and B64SubstrExistsAlt", () => {
                 assert.notDeepEqual(index, -1);
 
                 it ("Main (index:"  + i + ")", async () => {
-                    run(jwt, index);
+                    await run(jwt, index, i);
                 });
                 it ("Alt w/ substringLength = maxSubstringLength (index:"  + i + ")", async () => {
-                    runAlt1(jwt, index);
+                    await runAlt1(jwt, index, i);
                 });
                 it ("Alt w/ substringLength < maxSubstringLength (index:"  + i + ")", async () => {
-                    runAlt2(jwt, index);
+                    await runAlt2(jwt, index, i);
                 });
             }
         });

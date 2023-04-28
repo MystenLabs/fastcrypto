@@ -73,6 +73,8 @@ Construction Parameters:
 
 Input:
     inputString[inputStringLength]:                String to search in
+    expected:                                      Check if substringArray[expected] is
+                                                    the substring at substringIndex 
     payloadIndex:                                  Index of the 1st character of the 
                                                     payload in the JWT
     substringIndex:                                Index of the 1st character of the
@@ -80,34 +82,32 @@ Input:
 */
 template B64SubstrExists(substringArray, numSubstrings, substringLength, offsetArray, inputStringLength) {
     signal input inputString[inputStringLength];
-    signal input payloadIndex;
     signal input substringIndex;
+    // Extract the substring
+    signal extractedSubstring[substringLength] <== SliceFixed(inputStringLength, substringLength)(
+        inputString, 
+        substringIndex
+    );
 
-    signal extractedSubstring[substringLength] <== 
-        SliceFixed(inputStringLength, substringLength)
-            (inputString, substringIndex);
-
+    signal input payloadIndex;
     var substringIndexInPayload = substringIndex - payloadIndex;
-    signal remainder <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
+    signal expectedOffset <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
 
-    signal isEqualArray[numSubstrings];
-    signal isCheckEnabledArray[numSubstrings];
-    var sum = 0;
-    for (var i = 0; i < numSubstrings; i++) {
-        isCheckEnabledArray[i] <== IsEqual()([
-            remainder,
-            offsetArray[i]
-        ]);
+    signal input selector;
+    // Select the substring and offset to check
+    signal selectedString[substringLength] <== Multiplexer(substringLength, numSubstrings)(
+        substringArray,
+        selector
+    );
+    signal selectedOffset <== SingleMultiplexer(numSubstrings)(
+        offsetArray,
+        selector
+    );
 
-        isEqualArray[i] <== IsEqualIfEnabled(substringLength)([
-            extractedSubstring,
-            substringArray[i]
-        ], isCheckEnabledArray[i]);
-
-        sum += isEqualArray[i];
+    selectedOffset === expectedOffset;
+    for (var i = 0; i < substringLength; i++) {
+        selectedString[i] === extractedSubstring[i];
     }
-
-    sum === 1;
 }
 
 /**
@@ -124,7 +124,9 @@ Input:
                                                        of the substring to search for.
                                                        substringArray[numSubstrings][substringLength]
                                                        contains the real substring. The rest must be 0s.
-    offsets[numSubstrings]:                           The expected offsets of the substrings
+    expected:                                         Check if substringArray[expected] is
+                                                        the substring at substringIndex 
+    offsetArray[numSubstrings]:                           The expected offsets of the substrings
                                                        in the Base64 representation
     inputString[inputStringLength]:                   The string to search in
     payloadIndex:                                     The index of the first character of the 
@@ -135,34 +137,34 @@ Input:
 template B64SubstrExistsAlt(numSubstrings, maxSubstringLength, inputStringLength) {
     signal input substringArray[numSubstrings][maxSubstringLength];
     signal input substringLength;
-    signal input offsets[numSubstrings];
-
     signal input inputString[inputStringLength];
-    signal input payloadIndex;
     signal input substringIndex;
+    // Extract the substring
+    signal extractedSubstring[maxSubstringLength] <== Slice(inputStringLength, maxSubstringLength)(
+        inputString,
+        substringIndex,
+        substringLength
+    );
 
-    signal extracted[maxSubstringLength] <== Slice(inputStringLength, maxSubstringLength)(
-                                                inputString, substringIndex, substringLength);
-
+    // Calculate the expected offset
+    signal input payloadIndex;
     var substringIndexInPayload = substringIndex - payloadIndex;
-    signal remainder <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
+    signal expectedOffset <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
 
-    signal isEqualArray[numSubstrings];
-    signal isCheckEnabledArray[numSubstrings];
-    var sum = 0;
-    for (var i = 0; i < numSubstrings; i++) {
-        isCheckEnabledArray[i] <== IsEqual()([
-            remainder,
-            offsets[i]
-        ]);
+    signal input selector;
+    signal input offsetArray[numSubstrings];
+    // Select the substring and offset to check
+    signal selectedString[maxSubstringLength] <== Multiplexer(maxSubstringLength, numSubstrings)(
+        substringArray,
+        selector
+    );
+    signal selectedOffset <== SingleMultiplexer(numSubstrings)(
+        offsetArray,
+        selector
+    );
 
-        isEqualArray[i] <== IsEqualIfEnabled(maxSubstringLength)([
-            extracted,
-            substringArray[i]
-        ], isCheckEnabledArray[i]);
-
-        sum += isEqualArray[i];
+    selectedOffset === expectedOffset;
+    for (var i = 0; i < maxSubstringLength; i++) {
+        selectedString[i] === extractedSubstring[i];
     }
-
-    sum === 1;
 }

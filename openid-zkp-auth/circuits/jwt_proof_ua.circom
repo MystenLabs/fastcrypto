@@ -59,6 +59,7 @@ template JwtProofUA(jwtMaxLen, maxOptions, maxSubLength) {
 
     signal input payload_start_index;
     signal input sub_claim_index;
+    signal input sub_selector;
     B64SubstrExistsAlt(
         maxOptions,
         maxSubLength,
@@ -69,7 +70,8 @@ template JwtProofUA(jwtMaxLen, maxOptions, maxSubLength) {
         offsets <== sub_offsets,
         inputString <== content,
         substringIndex <== sub_claim_index,
-        payloadIndex <== payload_start_index
+        payloadIndex <== payload_start_index,
+        selector <== sub_selector
     );
 
     /**

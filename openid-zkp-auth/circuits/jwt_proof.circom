@@ -57,6 +57,7 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     **/
     signal input payload_start_index;
     signal input sub_claim_index;
+    signal input sub_selector;
     B64SubstrExists(
         subValueArr,
         numSubValues,
@@ -66,7 +67,8 @@ template JwtProof(inCount, subValueArr, numSubValues, subValueLength, subOffsets
     )(
         inputString <== content,
         substringIndex <== sub_claim_index,
-        payloadIndex <== payload_start_index
+        payloadIndex <== payload_start_index,
+        selector <== sub_selector
     );
 
     /** 
