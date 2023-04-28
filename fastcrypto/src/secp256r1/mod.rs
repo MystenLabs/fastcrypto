@@ -357,8 +357,8 @@ impl Secp256r1Signature {
         })
         .map_err(|_| FastCryptoError::InvalidInput)
     }
-    pub fn normalize_s(bytes: Signature) -> Result<Self,FastCryptoError> {
-        ExternalSignature::normalize_s(&bytes)
+    pub fn normalize_s(bytes: Secp256r1Signature) -> Result<Self,FastCryptoError> {
+        ExternalSignature::normalize_s(&bytes.sig)
         .ok_or(FastCryptoError::InvalidSignature)
         .map(|sig| Secp256r1Signature {
             sig,
