@@ -357,6 +357,14 @@ impl Secp256r1Signature {
         })
         .map_err(|_| FastCryptoError::InvalidInput)
     }
+    pub fn normalize_s(bytes: Signature) -> Result<Self,FastCryptoError> {
+        ExternalSignature::normalize_s(&bytes)
+        .ok_or(FastCryptoError::InvalidSignature)
+        .map(|sig| Secp256r1Signature {
+            sig,
+            bytes: OnceCell::new(),
+        },)
+    }
 }
 
 /// Secp256r1 public/private key pair.
