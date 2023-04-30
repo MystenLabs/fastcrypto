@@ -5,21 +5,69 @@ include "../node_modules/circomlib/circuits/gates.circom";
 include "../node_modules/circomlib/circuits/mux2.circom";
 include "../node_modules/circomlib/circuits/multiplexer.circom";
 
-// Returns math.ceil(log2(a)). Assumes a > 0.
-function log2(a) {
-    if (a == 1) {
-        return 0;
-    }
-    var n = 1;
-    var r = 0;
-    while (n < a) {
-        n *= 2;
-        r++;
-    }
-    return r;
+/**
+RemainderMod4: Calculates in % 4.
+
+Construction Params:
+    - n:  The bitwidth of in. 
+                
+Range checks:
+    - 0 <= in < 2^n (Checked in Num2Bits)
+**/
+template RemainderMod4(n) {
+    assert(n <= 252); // n <= log(p) - 2
+
+    signal input in;
+    signal output out;
+
+    component toBits = Num2Bits(n);
+    toBits.in <== in;
+    out <== 2 * toBits.out[1] + toBits.out[0];
 }
 
+
+/**
+RangeCheck: Checks if 0 <= in <= max.
+
+Construction params:
+    - n: The bitwidth of in and max.
+    - max: The maximum value that in can take.
+
+Range checks:
+    - 0 <= in (Checked in Num2Bits)
+    - in <= max
+**/
+template RangeCheck(n, max) {
+    assert(n <= 252); // n <= log(p) - 2
+    assert(max >= 0);
+    assert(numBits(max) <= n);
+
+    signal input in;
+    var unusedVar[n] = Num2Bits(n)(in);
+
+    signal leq <== LessEqThan(n)([in, max]);
+    leq === 1;
+}
+
+// Returns the number of bits needed to represent a number.
+// Helper function intended to operate only over construction params.
+function numBits(a) {
+    assert(a >= 0);
+    if (a == 0 || a == 1) {
+        return 1;
+    }
+    return 1 + numBits(a >> 1);
+}
+
+/**
+Num2BitsBE: Converts a number to a list of bits, in big-endian order.
+
+Range checks:
+    - 0 <= in < 2^n (Like with Num2Bits).
+**/
 template Num2BitsBE(n) {
+    assert(n <= 252); // n <= log(p) - 2
+
     signal input in;
     signal output out[n];
     var lc1 = 0;
@@ -64,12 +112,20 @@ template IsEqualIfEnabled(n) {
     out <== and.out * enabled;
 }
 
+// Optimized version of the official ForceEqualIfEnabled
+template MyForceEqualIfEnabled() {
+    signal input enabled;
+    signal input in[2];
+
+    (in[1] - in[0]) * enabled === 0;
+}
+
 template ForceEqualIfEnabledMulti(n) {
     signal input enabled;
     signal input in[2][n];
 
     for (var i = 0; i < n; i++) {
-        ForceEqualIfEnabled()(enabled, [in[0][i], in[1][i]]);
+        MyForceEqualIfEnabled()(enabled, [in[0][i], in[1][i]]);
     }
 }
 
@@ -136,9 +192,8 @@ template SingleMultiplexer(nIn) {
 }
 
 /**
-Packer
-
-Packs a list of numbers, each of a specified bitwidth, into another list of numbers with a different bitwidth.
+Packer: Packs a list of numbers, each of a specified bitwidth, 
+        into another list of numbers with a different bitwidth.
 
 - inWidth: The bitwidth of each input number.
 - inCount: The number of input numbers.
@@ -187,28 +242,4 @@ template Packer(inWidth, inCount, outWidth, outCount) {
     for(var i = 0; i < outCount; i++) {
         out[i] <== compressor[i].out;
     }
-}
-
-/**
-RemainderMod4
-
-Calculates the remainder of a number divided by 4.
-
-Construction Params:
-- maxBits: The maximum number of bits the input can have.
-
-IO Signals:
-- in: The input number.
-- out: The output remainder.
-
-Assumptions:
-- maxBits < log(p) - 1, where p is the modulus of the field. Note that this automatically implies val(in) >= 0.
-**/
-template RemainderMod4(maxBits) {
-    signal input in;
-    signal output out;
-
-    component toBits = Num2Bits(maxBits);
-    toBits.in <== in;
-    out <== 2 * toBits.out[1] + toBits.out[0];
 }

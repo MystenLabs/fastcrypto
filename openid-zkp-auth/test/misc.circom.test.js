@@ -36,6 +36,7 @@ describe("Num2BitsBE", () => {
         try {
             const witness = await cir.calculateWitness({"in": 256}, true);
             await cir.checkConstraints(witness);
+            assert.fail("Should have failed");
         } catch (error) {
             assert.include(error.message, "Error in template Num2BitsBE");
         }
@@ -45,6 +46,7 @@ describe("Num2BitsBE", () => {
         try {
             const witness = await cir.calculateWitness({"in": -1}, true);
             await cir.checkConstraints(witness);
+            assert.fail("Should have failed");
         } catch (error) {
             assert.include(error.message, "Error in template Num2BitsBE");
         }
@@ -136,8 +138,9 @@ describe("Packer checks", () => {
     it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
         try {
             cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "misc.circom"), "Packer", [4, 4, 16, 2]);
-        } catch (_) {
-            // console.log(error);
+            assert.fail("Should have failed");
+        } catch (error) {
+            assert.include(error.message, "assert(myOutCount == outCount)");
         }
     });
 
@@ -169,6 +172,7 @@ describe("RemainderMod4 checks", () => {
         try {
             const witness = await cir_fixed.calculateWitness({ "in": 8 });
             await cir_fixed.checkConstraints(witness);
+            assert.fail("Should have failed");
         } 
         catch (error) {
             assert.include(error.message, 'Error in template Num2Bits', error.message); // Num2Bits does the length check
@@ -197,6 +201,7 @@ describe("Number to bit vector checks", () => {
             try {
                 const w = await circuit.calculateWitness({ "index": i });
                 await circuit.checkConstraints(w);
+                assert.fail("Should have failed");
             } catch (error) {
                 assert.include(error.message, 'Error in template OneBitVector', error.message);
             }
@@ -225,6 +230,7 @@ describe("Number to bit vector checks", () => {
             try {
                 const w = await circuit.calculateWitness({ "index": i });
                 await circuit.checkConstraints(w);
+                assert.fail("Should have failed");
             } catch (error) {
                 assert.include(error.message, 'Error in template GTBitVector', error.message);
             }
@@ -253,9 +259,77 @@ describe("Number to bit vector checks", () => {
             try {
                 const w = await circuit.calculateWitness({ "index": i });
                 await circuit.checkConstraints(w);
+                assert.fail("Should have failed");
             } catch (error) {
                 assert.include(error.message, 'Error in template LTBitVector', error.message);
             }
         }
     })
+});
+
+describe("RangeCheck", () => {
+    async function genCircuit(nBits, max) {
+        return await test.genMain(
+            path.join(__dirname, "..", "circuits", "misc.circom"), 
+            "RangeCheck", 
+            [nBits, max]
+        );
+    }
+
+    it("Positive", async () => {
+        var nBits = 4;
+        var max = 8;
+
+        circuit = await genCircuit(nBits, max);
+
+        for (var i = 0; i <= max; i++) {
+            const w = await circuit.calculateWitness({ "in": 0});
+            await circuit.checkConstraints(w);    
+        }
+    })
+
+    describe("Negative", async () => {
+        var nBits = 4;
+        var max = 8;
+
+        before(async () => {
+            circuit = await genCircuit(nBits, max);
+        });
+
+        it("max < in < 2^nBits", async () => {
+            for (var i of [9, 10, 11, 15]) { // 
+                try {
+                    const w = await circuit.calculateWitness({ "in": i});
+                    await circuit.checkConstraints(w);
+                    assert.fail("Should have failed");
+                } catch (error) {
+                    assert.include(error.message, 'Error in template RangeCheck');
+                }
+            }
+        });
+
+        it("in < 0", async () => {
+            for (var i of [-1, -2, -3, -4]) {
+                try {
+                    const w = await circuit.calculateWitness({ "in": i});
+                    await circuit.checkConstraints(w);
+                    assert.fail("Should have failed");
+                } catch (error) {
+                    assert.include(error.message, 'Error in template RangeCheck');
+                }
+            }
+        });
+
+        it("in >= 2^nBits", async () => {
+            for (var i of [16, 17, 18, 19, 20]) {
+                try {
+                    const w = await circuit.calculateWitness({ "in": i});
+                    await circuit.checkConstraints(w);
+                    assert.fail("Should have failed");
+                } catch (error) {
+                    assert.include(error.message, 'Error in template RangeCheck');
+                }
+            }
+        });
+    });
 });

@@ -75,14 +75,7 @@ template Sha256_unsafe(nBlocks) {
     // Collapse the hashing result at the terminating data block
     // A modified Quin Selector allows us to select the block based on the num_sha2_blocks signal
     component calcTotal[256];
-    component eqs[nBlocks];
-
-    // Generate a bit vector of size nBlocks, where the bit corresponding to num_sha2_blocks is raised
-    for (var i = 0; i < nBlocks; i++) {
-        eqs[i] = IsEqual();
-        eqs[i].in[0] <== i;
-        eqs[i].in[1] <== num_sha2_blocks - 1;
-    }
+    signal eqs[nBlocks] <== OneBitVector(nBlocks)(num_sha2_blocks - 1);
 
     // For each bit of the output
     for(var k = 0; k < 256; k++) {
@@ -92,18 +85,17 @@ template Sha256_unsafe(nBlocks) {
         for (var i = 0; i < nBlocks; i++) {
             // eqs[i].out is 1 if the index matches. As such, at most one input to calcTotal is not 0.
             // The bit corresponding to the terminating data block will be raised
-            calcTotal[k].nums[i] <== eqs[i].out * sha256compression[i].out[k];
+            calcTotal[k].nums[i] <== eqs[i] * sha256compression[i].out[k];
         }
         out[k] <== calcTotal[k].sum;
     }
 }
 
-// TODO: Tests to be added.
 /**
 SHA2_Wrapper
 
     Calculates the SHA2 hash of an arbitrarily shaped input using SHA256_unsafe internally.
-    Additionally, it also packs the output and checks that everything after num_sha2_blocks is indeed 0.
+    Additionally, it packs the output and checks that all inputs after num_sha2_blocks are indeed 0.
 
     Construction Parameters:
     - inWidth:      Width of each input segment in bits
@@ -178,17 +170,12 @@ template Sha2_wrapper(inWidth, inCount) {
         Verify that content[i] for all blocks >= num_sha2_blocks is zero.
     **/
     // Generate a bit vector of size nBlocks, where the bit corresponding to num_sha2_blocks is raised
-    component gte[nBlocks];
-    for (var b = 0; b < nBlocks; b++) {
-        gte[b] = GreaterEqThan(log2(nBlocks));
-        gte[b].in[0] <== b;
-        gte[b].in[1] <== num_sha2_blocks;
-    }
+    signal gte[nBlocks] <== GTBitVector(nBlocks)(num_sha2_blocks);
 
     for (var b = 0; b < nBlocks; b++) {
         for (var s = 0; s < nSegments; s++) {
             var payloadIndex = (b * nSegments) + s;
-            gte[b].out * in[payloadIndex] === 0;
+            gte[b] * in[payloadIndex] === 0;
         }
     }
 }

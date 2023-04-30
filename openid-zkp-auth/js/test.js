@@ -26,6 +26,22 @@ component main = ${template_name}(${params_string});
     return circom_wasm(temp_circuit.path);
 }
 
+// Stringify and convert to base64. 
+// Note: Signature is omitted as this function is only meant for testing.
+function constructJWT(header, payload) {
+    header = JSON.stringify(header);
+    payload = JSON.stringify(payload);
+    const b64header = Buffer.from(header).toString('base64url');
+    const b64payload = Buffer.from(payload).toString('base64url');
+
+    if (b64header.slice(-1) === '=' || b64payload.slice(-1) === '=') {
+        throw new Error("Unexpected '=' in base64url string");
+    }
+
+    return b64header + "." + b64payload + ".";
+}
+
 module.exports = {
-  genMain: genMain
+  genMain: genMain,
+  constructJWT: constructJWT
 }

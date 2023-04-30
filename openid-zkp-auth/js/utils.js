@@ -51,14 +51,6 @@ function writeJSONToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
-function removeDuplicates(twod_array) {
-    return twod_array.filter((item, index) => {
-        return index === twod_array.findIndex((subItem) => {
-            return subItem.every((value, i) => value === item[i]);
-        });
-    });
-}
-
 function calculateMaskedHash(content, mask, poseidon, outWidth) {
     const masked_content = applyMask(content, mask);
     const bits = bigIntArray2Bits(masked_content, 8);
@@ -81,7 +73,7 @@ function poseidonHash(inputs, poseidon) {
         const hash2 = poseidon(inputs.slice(15));
         return poseidon.F.toObject(poseidon([hash1, hash2]));
     } else {
-        throw new Error("Unable to hash", inputs, ": Yet to implement");
+        throw new Error(`Yet to implement: Unable to hash a vector of length ${inputs.length}`);
     }
 }
 
@@ -100,47 +92,6 @@ function applyMask(input, mask) {
             );
 }
 
-/**
- * Returns a claim as it appears in the decoded JWT.
- * We take a conservative approach, e.g., assume that the claim value does not have spaces. In this case, the code will fail.
- * 
- * @param {*} decoded_payload e.g., {"sub":"1234567890","name":"John Doe","iat":1516239022} 
- * @param {*} claim e.g., sub
- * @returns e.g., "sub":"1234567890"
- */
-function getClaimString(decoded_payload, claim) {
-    const json_input = JSON.parse(decoded_payload);
-
-    if (!json_input.hasOwnProperty(claim)) {
-        throw new Error("Field " + claim + " not found in " + decoded_payload);
-    }
-
-    const field_value = JSON.stringify(json_input[claim]);
-    const kv_pair = `"${claim}":${field_value}`;
-
-    if (decoded_payload.includes(kv_pair)) {
-        return kv_pair;
-    }
-
-    // Facebook is escaping the '/' characters in the JWT payload
-    const escaped_field_value = field_value.replace(/([/])/g, '\\$1');
-    const escaped_kv_pair = `"${claim}":${escaped_field_value}`;
-
-    if (decoded_payload.includes(escaped_kv_pair)) {
-        return escaped_kv_pair;
-    }
-
-    throw new Error("Fields " + kv_pair + " or " + escaped_kv_pair + " not found in " + decoded_payload);
-}
-
-// Stringify and convert to base64
-function constructJWT(header, payload) {
-    header = JSON.stringify(header);
-    payload = JSON.stringify(payload);
-    return trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
-                + '.' + trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
-}
-  
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
@@ -153,10 +104,7 @@ module.exports = {
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
     writeJSONToFile: writeJSONToFile,
-    getClaimString: getClaimString,
     applyMask: applyMask,
-    removeDuplicates: removeDuplicates,
-    constructJWT: constructJWT,
     // hashing
     calculateMaskedHash: calculateMaskedHash,
     poseidonHash: poseidonHash

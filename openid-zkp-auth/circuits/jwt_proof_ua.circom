@@ -10,12 +10,12 @@ JWT Proof: User-agnostic (UA) circuit
 
     Construction params:
     - jwtMaxLen:                Maximum length of the JWT in bytes
-    - maxOptions:               Maximum number of options for the subject_id (in b64)
-    - maxSubLength:             Maximum length of the subject_id (in b64)
+    - maxSubLength:             Maximum length of the subject_id (in ascii)
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
-    - subject_id:               The subject (user) ID
+    - sub_length_ascii:         Length of the subject_id in ASCII, e.g., for ',"sub":12345,' it is 13
+    - subject_id[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
     - subject_pin:              User's PIN to keep the subject_id private
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
@@ -34,7 +34,7 @@ JWT Proof: User-agnostic (UA) circuit
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
                                   eph_public_key[2] || max_epoch || nonce || num_sha2_blocks || subject_id_com)
 */
-template JwtProofUA(jwtMaxLen, maxOptions, maxSubLength) {
+template JwtProofUA(jwtMaxLen, maxSubLength) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
     var inCount = jwtMaxLen;
@@ -51,37 +51,31 @@ template JwtProofUA(jwtMaxLen, maxOptions, maxSubLength) {
     );
 
     /**
-     2. 
+     2. Check if the user-input string exists in the JWT payload
     */
-    signal input sub_id_array[maxOptions][maxSubLength];
-    signal input sub_offsets[maxOptions];
-    signal input sub_length;
+    signal input subject_id[maxSubLength];
+    signal input sub_length_ascii;
+    signal input sub_length_b64;
 
     signal input payload_start_index;
-    signal input sub_claim_index;
-    signal input sub_selector;
-    B64SubstrExistsAlt(
-        maxOptions,
-        maxSubLength,
-        inCount
+    signal input sub_claim_index_b64;
+    ASCIISubstrExistsInB64(
+        inCount,
+        maxSubLength
     )(
-        substringArray <== sub_id_array,
-        substringLength <== sub_length,
-        offsets <== sub_offsets,
-        inputString <== content,
-        substringIndex <== sub_claim_index,
-        payloadIndex <== payload_start_index,
-        selector <== sub_selector
+        b64Str <== content,
+        BIndex <== sub_claim_index_b64,
+        lenB <== sub_length_b64,
+        A <== subject_id,
+        lenA <== sub_length_ascii,
+        payloadIndex <== payload_start_index
     );
 
     /**
      3. Calculate commitment to subject_id
-
-        subject_id = H(sub_id_array[0] || ... || sub_id_array[maxOptions - 1] || sub_offsets[0] || ... || sub_offsets[maxOptions - 1] || sub_length)
     **/
-    signal subject_id <== Poseidon(3)([sub_id_array[0][0], sub_offsets[0], sub_length]); // TODO: fix
     signal input subject_pin;
-    signal subject_id_com <== Poseidon(2)([subject_id, subject_pin]);
+    signal subject_id_com <== Poseidon(2)([subject_id[0], subject_pin]); // To fix
 
     /** 
       4. Masking 

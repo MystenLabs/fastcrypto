@@ -2,17 +2,32 @@ pragma circom 2.0.0;
 
 include "../node_modules/circomlib/circuits/comparators.circom";
 include "../node_modules/circomlib/circuits/multiplexer.circom";
+include "../node_modules/circomlib/circuits/gates.circom";
 include "misc.circom";
 include "base64.circom";
 
-// Returns in[index:index+outLen]
-// Cost: inLen + outLen * inLen
-// Assumes index in [0, inLen). Fails otherwise.
+/**
+SliceFixed: Returns a fixed-length slice of an array.
+More precisely, in[index:index+outLen] (both inclusive).
+
+Cost: inLen + outLen * inLen
+
+Range checks:
+    - index in [0, inLen)
+    - index + outLen in [0, inLen]
+    - outLen in (0, inLen]
+**/
 template SliceFixed(inLen, outLen) {
+    assert(outLen > 0);
+    assert(outLen <= inLen);
+
     signal input in[inLen];
     signal input index;
     signal output out[outLen];
-    
+
+    RangeCheck(numBits(inLen), inLen - 1)(index); // index in [0, inLen - 1]
+    RangeCheck(numBits(inLen), inLen)(index + outLen); // index + outLen in [0, inLen]
+
     // eqs[index] = 1, 0 otherwise
     signal eqs[inLen] <== OneBitVector(inLen)(index);
     for(var i = 0; i < outLen; i++) {
@@ -29,13 +44,29 @@ template SliceFixed(inLen, outLen) {
     }
 }
 
-// Returns in[index:index+length] + [0] * (outLen - length)
-// Cost: Roughly (inLen + outLen + outLen * inLen)
-// Assumes index in [0, inLen), length in [0, outLen], outLen > 0. Fails otherwise.
+/**
+Slice: Returns a variable-length slice of an array.
+More precisely, in[index:index+length] + [0] * (outLen - length).
+
+Cost: Roughly (inLen + outLen + outLen * inLen)
+
+Range checks:
+    - index in [0, inLen)
+    - length in [0, outLen]
+    - index + length in [0, inLen]
+    - outLen in (0, inLen]
+**/
 template Slice(inLen, outLen) {
+    assert(outLen > 0);
+    assert(outLen <= inLen);
+
     signal input in[inLen];
     signal input index;
     signal input length;
+
+    RangeCheck(numBits(inLen), inLen - 1)(index); // index in [0, inLen - 1]
+    RangeCheck(numBits(outLen), outLen)(length); // length in [0, outLen]
+    RangeCheck(numBits(inLen), inLen)(index + length); // index + length in [0, inLen]
 
     signal output out[outLen];
 
@@ -60,111 +91,103 @@ template Slice(inLen, outLen) {
 }
 
 /**
-Checks if a Base64-encoded substring exists in a Base64-encoded string.
+Checks if an ASCII-encoded substring exists in a Base64-encoded string.
+
+Cost: Slice is the costliest since b64StrLen is big in practice.
 
 Construction Parameters:
-    substringArray[numSubstrings][substringLength]: An array of Base64 representations
-                                                    of the substrings to search for
-    numSubstrings:                                 Number of substrings
-    substringLength:                               Length of the substring
-    offsetArray[numSubstrings]:                    Array of expected offsets of the
-                                                    substrings in the Base64 representation
-    inputStringLength:                             Length of the input string
+    b64StrLen:              The length of the Base64-encoded string
+    maxA:                   The maximum length of the ASCII-encoded substring
+                            (must be a multiple of 3)
 
 Input:
-    inputString[inputStringLength]:                String to search in
-    expected:                                      Check if substringArray[expected] is
-                                                    the substring at substringIndex 
-    payloadIndex:                                  Index of the 1st character of the 
-                                                    payload in the JWT
-    substringIndex:                                Index of the 1st character of the
-                                                    substring to check in the JWT
+    b64Str[b64StrLen]:      The Base64-encoded string to search in
+    lenB:                   The length of the Base64-encoded substring to check
+    BIndex:                 The index of the first character of the
+                            Base64-encoded substring to check. For the check to 
+                            work, it should represent just the part of b64Str that 
+                            contains A.
+    A[maxA]:                The ASCII-encoded substring to search for padded with 0s
+                            e.g., A = ,"sub":"12345",0000 and lenA = 15
+    lenA:                   The length of the ASCII-encoded substring
+    payloadIndex:           The index of the first character of the payload
+
+Output:
+    The function checks if the ASCII-encoded substring exists in the
+    Base64-encoded string with an offset of 0, 1, or 2.
+
+Range checks:
+    0 <= lenB <= maxB (checked in Slice)
+    0 <= BIndex < b64StrLen (checked in Slice)
+    0 <= BIndex + lenB <= b64StrLen (checked in Slice)
+    maxB <= b64StrLen (checked in Slice)
+    0 <= lenA <= maxA (checked in LTBitVector)
+    payloadIndex <= BIndex (checked in RemainderMod4)
 */
-template B64SubstrExists(substringArray, numSubstrings, substringLength, offsetArray, inputStringLength) {
-    signal input inputString[inputStringLength];
-    signal input substringIndex;
-    // Extract the substring
-    signal extractedSubstring[substringLength] <== SliceFixed(inputStringLength, substringLength)(
-        inputString, 
-        substringIndex
+template ASCIISubstrExistsInB64(b64StrLen, maxA) {
+    assert(maxA % 3 == 0); // for simplicity
+    var maxB = 1 + ((maxA / 3) * 4); // max(b64Len(maxA, i)) for any i
+
+    signal input b64Str[b64StrLen];
+    signal input lenB;
+    signal input BIndex;
+    signal B[maxB] <== Slice(b64StrLen, maxB)(
+        b64Str, BIndex, lenB
     );
 
-    signal input payloadIndex;
-    var substringIndexInPayload = substringIndex - payloadIndex;
-    signal expectedOffset <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
+    var B_bit_len = maxB * 6;
+    signal B_in_bits[B_bit_len] <== MultiB64URLToBits(maxB)(B);
 
-    signal input selector;
-    // Select the substring and offset to check
-    signal selectedString[substringLength] <== Multiplexer(substringLength, numSubstrings)(
-        substringArray,
-        selector
-    );
-    signal selectedOffset <== SingleMultiplexer(numSubstrings)(
-        offsetArray,
-        selector
-    );
+    signal input A[maxA];
+    signal input lenA;
 
-    selectedOffset === expectedOffset;
-    for (var i = 0; i < substringLength; i++) {
-        selectedString[i] === extractedSubstring[i];
+    var A_bit_len = 8 * maxA;
+    signal A_in_bits[A_bit_len];
+    for (var i = 0; i < maxA; i++) {
+        var X[8] = Num2BitsBE(8)(A[i]);
+        for (var j = 0; j < 8; j++) {
+            A_in_bits[i * 8 + j] <== X[j];
+        }
     }
-}
 
-/**
-Checks if a Base64-encoded substring exists in a Base64-encoded string.
-This variant takes the different substring options as a private input.
-
-Construction Parameters:
-    numSubstrings:          The number of substrings
-    maxSubstringLength:     The maximum length of the substring
-    inputStringLength:      The length of the input string
-
-Input:
-    substringArray[numSubstrings][maxSubstringLength]: An array of Base64 representations
-                                                       of the substring to search for.
-                                                       substringArray[numSubstrings][substringLength]
-                                                       contains the real substring. The rest must be 0s.
-    expected:                                         Check if substringArray[expected] is
-                                                        the substring at substringIndex 
-    offsetArray[numSubstrings]:                           The expected offsets of the substrings
-                                                       in the Base64 representation
-    inputString[inputStringLength]:                   The string to search in
-    payloadIndex:                                     The index of the first character of the 
-                                                        payload in the JWT
-    substringIndex:                                   The index of the first character of the
-                                                       substring to check in the JWT
-*/
-template B64SubstrExistsAlt(numSubstrings, maxSubstringLength, inputStringLength) {
-    signal input substringArray[numSubstrings][maxSubstringLength];
-    signal input substringLength;
-    signal input inputString[inputStringLength];
-    signal input substringIndex;
-    // Extract the substring
-    signal extractedSubstring[maxSubstringLength] <== Slice(inputStringLength, maxSubstringLength)(
-        inputString,
-        substringIndex,
-        substringLength
-    );
-
-    // Calculate the expected offset
     signal input payloadIndex;
-    var substringIndexInPayload = substringIndex - payloadIndex;
-    signal expectedOffset <== RemainderMod4(log2(inputStringLength))(substringIndexInPayload);
+    var BIndexInPayload = BIndex - payloadIndex;
+    signal expectedOffset <== RemainderMod4(numBits(b64StrLen))(BIndexInPayload);
+    signal eq_0 <== IsEqual()([expectedOffset, 0]);
+    signal eq_1 <== IsEqual()([expectedOffset, 1]);
+    signal eq_2 <== IsEqual()([expectedOffset, 2]);
+    eq_0 + eq_1 + eq_2 === 1; // ensure offset is 0, 1, or 2
 
-    signal input selector;
-    signal input offsetArray[numSubstrings];
-    // Select the substring and offset to check
-    signal selectedString[maxSubstringLength] <== Multiplexer(maxSubstringLength, numSubstrings)(
-        substringArray,
-        selector
-    );
-    signal selectedOffset <== SingleMultiplexer(numSubstrings)(
-        offsetArray,
-        selector
-    );
+    var T_actual_len = lenA * 8;
+    signal tmp[maxA] <== LTBitVector(maxA)(lenA);
 
-    selectedOffset === expectedOffset;
-    for (var i = 0; i < maxSubstringLength; i++) {
-        selectedString[i] === extractedSubstring[i];
+    signal enabled_0[maxA];
+    // A_bit_len <= B_bit_len is guaranteed by the condition on maxB
+    assert(A_bit_len <= B_bit_len);
+    for (var i = 0; i < A_bit_len; i++) {
+        if (i % 8 == 0) {
+            enabled_0[i \ 8] <== tmp[i \ 8] * eq_0;
+        }
+        MyForceEqualIfEnabled()(enabled_0[i \ 8], [A_in_bits[i], B_in_bits[i]]);
+    }
+
+    signal enabled_1[maxA];
+    // A_bit_len + 2 <= B_bit_len is guaranteed by the condition on maxB
+    assert(A_bit_len + 2 <= B_bit_len);
+    for (var i = 0; i < A_bit_len; i++) {
+        if (i % 8 == 0) {
+            enabled_1[i \ 8] <== tmp[i \ 8] * eq_1;
+        }
+        MyForceEqualIfEnabled()(enabled_1[i \ 8], [A_in_bits[i], B_in_bits[i + 2]]);
+    }
+
+    signal enabled_2[maxA];
+    // A_bit_len + 4 <= B_bit_len is guaranteed by the condition on maxB
+    assert(A_bit_len + 4 <= B_bit_len);
+    for (var i = 0; i < A_bit_len; i++) {
+        if (i % 8 == 0) {
+            enabled_2[i \ 8] <== tmp[i \ 8] * eq_2;
+        }
+        MyForceEqualIfEnabled()(enabled_2[i \ 8], [A_in_bits[i], B_in_bits[i + 4]]);
     }
 }

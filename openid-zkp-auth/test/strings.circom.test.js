@@ -2,7 +2,7 @@ const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
 
-const b64utils = require("../js/b64utils");
+const jwtutils = require("../js/jwtutils");
 const utils = require("../js/utils");
 const test = require("../js/test");
 
@@ -30,16 +30,6 @@ describe("Slices", () => {
             assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [3n, 1n, 5n, 9n, 2n, 6n]);
         });
     
-        it("Corner case: outputLength = 0", async () => {
-            cir_fixed = await test.genMain(file, "SliceFixed", [6, 0]);
-            await cir_fixed.loadSymbols();
-            input = [3,1,5,9,2,6];
-            
-            const witness = await cir_fixed.calculateWitness({ "in": input, "index": 0 });
-            
-            assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), []);
-        });
-    
         it("Fails when OOB: index >= inputLength", async () => {
             cir_fixed = await test.genMain(file, "SliceFixed", [6, 4]);
             await cir_fixed.loadSymbols();
@@ -47,9 +37,10 @@ describe("Slices", () => {
             
             try {
                 await cir_fixed.calculateWitness({ "in": input, "index": 6 });
+                assert.fail("Should have failed");
             } catch (e) {
-                assert.include(e.message, "Error in template SliceFixed");
-            }            
+                assert.include(e.message, "Error in template RangeCheck");
+            }
         });
 
         it("Slice outside: index + outputLength > inputLength", async () => {
@@ -57,9 +48,12 @@ describe("Slices", () => {
             await cir_fixed.loadSymbols();
             input = [3,1,5,9,2,6];
             
-            const witness = await cir_fixed.calculateWitness({ "in": input, "index": 4 });
-            
-            assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 6n, 0n, 0n]);
+            try {
+                await cir_fixed.calculateWitness({ "in": input, "index": 4 });
+                assert.fail("Should have failed");
+            } catch (e) {
+                assert.include(e.message, "Error in template RangeCheck");
+            }
         });
     })
 
@@ -94,36 +88,42 @@ describe("Slices", () => {
             assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n, 4n, 5n]);
         });
 
-        it("Fails when OOB: index >= inputLength", async () => {
+        it("Fails when index >= inputLength", async () => {
             cir_fixed = await test.genMain(file, "Slice", [6, 4]);
             await cir_fixed.loadSymbols();
             input = [1,2,3,4,5,6];
             
             try {
                 await cir_fixed.calculateWitness({ "in": input, "index": 6, "length": 4 });
+                assert.fail("Should have failed");
             } catch (e) {
-                assert.include(e.message, "Error in template Slice");
+                assert.include(e.message, "Error in template RangeCheck");
             }
         });
 
-        it("Fails when OOB: length > outputLength", async () => {
+        it("Fails when length > outputLength", async () => {
             cir_fixed = await test.genMain(file, "Slice", [6, 4]);
             await cir_fixed.loadSymbols();
             input = [1,2,3,4,5,6];
             
             try {
                 await cir_fixed.calculateWitness({ "in": input, "index": 1, "length": 5 });
+                assert.fail("Should have failed");
             } catch (e) {
-                assert.include(e.message, "Error in template Slice");
+                assert.include(e.message, "Error in template RangeCheck");
             }
         });
 
-        it("Slice outside: index + length > inputLength", async () => {
+        it("Fails when index + length > inputLength", async () => {
             cir_fixed = await test.genMain(file, "Slice", [6, 4]);
             await cir_fixed.loadSymbols();
             input = [1,2,3,4,5,6];
-            const witness = await cir_fixed.calculateWitness({ "in": input, "index": 4, "length": 4 });
-            assert.sameOrderedMembers(utils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [5n, 6n, 0n, 0n]);
+            try {
+                await cir_fixed.calculateWitness({ "in": input, "index": 4, "length": 4 });
+                assert.fail("Should have failed");
+            } catch (e) {
+                assert.include(e.message, "Error in template RangeCheck");
+            }
         });
 
         it("Slice outside:  inputLength >= index + length > outputLength", async () => {
@@ -136,197 +136,96 @@ describe("Slices", () => {
     });
 })
 
-describe("B64SubstrExists and B64SubstrExistsAlt", () => {
-    describe("Dummy string", async () => {
-        substr = [
-                [1, 2, 3, 4],
-                [3, 1, 5, 9],
-                [2, 7, 1, 8]
-        ];
-        numSubstrs = 3;
-        substrLen = 4;
-        substrExpOffsets = [2, 2, 2];
-        inCount = 10;
+describe("ASCIISubstrExistsInB64" , () => {
+    async function gen(jwt, maxJwtLen, A, maxA, indexB, lenB, payloadIndex) {
+        assert.isTrue(jwt.length <= maxJwtLen, "JWT too long");
+        const circuit = await test.genMain(
+            path.join(__dirname, "..", "circuits", "strings.circom"),
+            "ASCIISubstrExistsInB64",
+            [maxJwtLen, maxA]
+        );
 
-        it("Main", async () => {
-            cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-                "B64SubstrExists", [substr, numSubstrs, substrLen, substrExpOffsets, inCount]);
-            string = [5, 4, 2, 7, 1, 8, 9, 6, 2, 3];
-            startIndex = 0;
-            substrIndex = 2;
-        
-            await cir_fixed.calculateWitness({
-                "inputString": string,
-                "payloadIndex": startIndex,
-                "substringIndex": substrIndex,
-                "selector": 2
-            });
-        });
-        
-        it("Alt", async () => {
-            maxSubstrLen = 6;
-            substr = [ // Padding must be zeroes
-                [1, 2, 3, 4, 0, 0],
-                [3, 1, 5, 9, 0, 0],
-                [2, 7, 1, 8, 0, 0]
-            ];
-            cir_fixed = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-                "B64SubstrExistsAlt", [numSubstrs, maxSubstrLen, inCount]);
-
-            string = [5, 4, 2, 7, 1, 8, 9, 6, 2, 3];
-            startIndex = 0;
-            substrIndex = 2;
-        
-            await cir_fixed.calculateWitness({
-                "substringArray": substr,
-                "substringLength": substrLen,
-                "offsetArray": substrExpOffsets,
-                "inputString": string,
-                "payloadIndex": startIndex,
-                "substringIndex": substrIndex,
-                "selector": 2 // substr[2]
-            });
-        });
-    });
-
-    describe("Real (base64) string", () => {
-        const sub_claim = '"sub":"4840061"';
-        const A = utils.removeDuplicates(b64utils.getAllExtendedBase64Variants(sub_claim));
-        const num_options = A.length;
-        const sub_in_b64 = A.map(e => e[0].split('').map(c => c.charCodeAt()));
-        const option_length = A[0][0].length;
-        const offsets = A.map(e => e[1]);
-
-        const header = "Iei.";
-
-        async function run(jwt, index, expected) {
-            circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-            "B64SubstrExists", [
-                sub_in_b64,
-                num_options,
-                option_length,
-                offsets,
-                jwt.length
-            ]);
-
-            const witness = await circuit.calculateWitness({
-                "inputString": jwt.split('').map(c => c.charCodeAt()),
-                "selector": expected,
-                "payloadIndex": header.length,
-                "substringIndex": index
-            });
-    
-            await circuit.checkConstraints(witness);            
-        }
-
-        async function runAlt1(jwt, index, expected) {
-            circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-            "B64SubstrExistsAlt", [
-                num_options,
-                option_length,
-                jwt.length
-            ]);
-
-            const witness = await circuit.calculateWitness({
-                "substringArray": sub_in_b64,
-                "substringLength": option_length,
-                "offsetArray": offsets,
-                "inputString": jwt.split('').map(c => c.charCodeAt()),
-                "payloadIndex": header.length,
-                "substringIndex": index,
-                "selector": expected
-            });
-    
-            await circuit.checkConstraints(witness);
-        }
-
-        async function runAlt2(jwt, index, expected) {
-            const maxSubstringLength = option_length + 10;
-
-            circuit = await test.genMain(path.join(__dirname, "..", "circuits", "strings.circom"), 
-            "B64SubstrExistsAlt", [
-                num_options,
-                maxSubstringLength,
-                jwt.length
-            ]);
-
-            const sub_in_b64_padded = sub_in_b64.map(e => e.concat(Array(maxSubstringLength - option_length).fill(0)));
-
-            const witness = await circuit.calculateWitness({
-                "substringArray": sub_in_b64_padded,
-                "substringLength": option_length,
-                "offsetArray": offsets,
-                "inputString": jwt.split('').map(c => c.charCodeAt()),
-                "payloadIndex": header.length,
-                "substringIndex": index,
-                "selector": expected
-            });
-    
-            await circuit.checkConstraints(witness);
-        }
-
-        describe("Start", async () => {
-            const jwt = header + utils.trimEndByChar(Buffer.from(JSON.stringify({
-                "sub": "4840061",
-                "iat": 1614787200,
-                "exp": 1614787200
-            })).toString('base64url'), '=');
-            const index = jwt.indexOf(A[6][0]);
-            assert.equal(index, header.length);
-
-            it("Main", async () => {
-                await run(jwt, index, 6);
-            });
-            it ("Alt w/ substringLength = maxSubstringLength", async () => {
-                await runAlt1(jwt, index, 6);
-            });
-            it ("Alt w/ substringLength < maxSubstringLength", async () => {
-                await runAlt2(jwt, index, 6);
-            });
+        const witness = await circuit.calculateWitness({
+            "b64Str": jwt.split("").map(c => c.charCodeAt(0)).concat(Array(maxJwtLen - jwt.length).fill(0)), // pad with 0s
+            "lenB": lenB,
+            "BIndex": indexB,
+            "A": A.split("").map(c => c.charCodeAt(0)).concat(Array(maxA - A.length).fill(0)), // pad with 0s
+            "lenA": A.length,
+            "payloadIndex": payloadIndex
         });
 
-        describe("End", async () => {
-            for (const [i, iat] of [10, 100, 1].entries()) {
-                const jwt = header + utils.trimEndByChar(Buffer.from(JSON.stringify({
-                    "iat": iat,
-                    "sub": "4840061"
-                })).toString('base64url'), '=');    
+        await circuit.checkConstraints(witness);
+    }
 
-                const index = jwt.indexOf(A[3 + i][0]);
-                assert.notDeepEqual(index, -1);
+    describe("Simple JWTs", () => {
+        const maxJwtLen = 100;
+        const A = '"sub":"4840061"}';
+        const maxA = A.length + 14;
+        const maxB = 1 + ((maxA / 3) * 4);
 
-                it ("Main (index:" + i + ")", async () => {
-                    await run(jwt, index, 3 + i);
-                });
-                it ("Alt w/ substringLength = maxSubstringLength (index:"  + i + ")", async () => {
-                    await runAlt1(jwt, index, 3 + i);
-                });
-                it ("Alt w/ substringLength < maxSubstringLength (index:"  + i + ")", async () => {
-                    await runAlt2(jwt, index, 3 + i);
-                });
+        // Prefixes chosen such that index of A in the JWT is 0, 1, 2
+        const prefixes = ['{   ', '{', '{ '];
+        const decoded_jwts = prefixes.map(prefix => prefix + A);
+        const jwts = decoded_jwts.map(jwt => Buffer.from(jwt).toString("base64url"));
+
+        const X = jwts.map(jwt => jwtutils.indicesOfB64(jwt, 'sub'));
+        const indicesB = X.map(tuple => tuple[0]);
+        const lensB = X.map(tuple => tuple[1]);
+
+        before(() => {
+            assert.equal(maxA % 3, 0);
+            assert.isTrue(maxB <= maxJwtLen);
+            for (let i = 0; i < decoded_jwts.length; i++) {
+                assert.deepEqual(decoded_jwts[i].indexOf(A) % 4 , i);
+                assert.deepEqual(jwtutils.getClaimString(decoded_jwts[i], 'sub'), A);
+                assert.deepEqual(jwtutils.decodeB64URL(
+                    jwts[i].slice(indicesB[i], indicesB[i] + lensB[i]),
+                    indicesB[i]
+                ), A);
+            }
+            // console.log(jwts);
+            // console.log(X);
+            // console.log("lenBs", lensB);
+            // console.log("BIndices", indicesB);
+        });
+
+        for (let offset = 0; offset < 3; offset++) {
+            it(`Succeeds when A is at offset ${offset}`, async () => {
+                await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset], 0);
+            });
+
+            it("Fails when substring index is either large or small", async () => {
+                for (let i in [1, -1]) {
+                    try {
+                        await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset] + i, lensB[offset], 0);
+                        assert.fail("Should have failed");
+                    } catch (e) {
+                        assert.include(e.message, "Error in template ASCIISubstrExistsInB64");
+                    }
                 }
-        });
+            });
 
-        describe("Middle", async () => {
-            for (const [i, iat] of [10, 100, 1].entries()) {
-                const jwt = utils.trimEndByChar(Buffer.from(JSON.stringify({
-                    "iat": iat,
-                    "sub": "4840061",
-                    "exp": 1614787200
-                })).toString('base64url'), '=');
+            it("Fails when lenB is small", async () => {
+                try {
+                    await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] - 1, 0);
+                    assert.fail("Should have failed");
+                } catch (e) {
+                    assert.include(e.message, "Error in template ASCIISubstrExistsInB64");
+                }
+            });
 
-                const index = jwt.indexOf(A[i][0]);
-                assert.notDeepEqual(index, -1);
+            it("Succeeds when lenB is large", async() => {
+                await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] + 1, 0);
+            });
+        }
 
-                it ("Main (index:"  + i + ")", async () => {
-                    await run(jwt, index, i);
-                });
-                it ("Alt w/ substringLength = maxSubstringLength (index:"  + i + ")", async () => {
-                    await runAlt1(jwt, index, i);
-                });
-                it ("Alt w/ substringLength < maxSubstringLength (index:"  + i + ")", async () => {
-                    await runAlt2(jwt, index, i);
-                });
+        it("Fails when substring index < payload index", async () => {
+            try {
+                await gen(jwts[0], maxJwtLen, A, maxA, indicesB[0], lensB[0], indicesB[0] + 1);
+                assert.fail("Should have failed");
+            } catch (e) {
+                assert.include(e.message, "Error in template RemainderMod4");
+                assert.include(e.message, "Error in template Num2Bits");
             }
         });
     });

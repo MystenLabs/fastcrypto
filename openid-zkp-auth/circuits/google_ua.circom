@@ -4,8 +4,4 @@ include "jwt_proof_ua.circom";
 
 component main {
     public [all_inputs_hash]
-} = JwtProofUA(
-    64*11,
-    7,
-    40
-);
+} = JwtProofUA(64*12, 27);

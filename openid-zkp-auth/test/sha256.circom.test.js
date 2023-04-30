@@ -3,8 +3,6 @@ const path = require("path");
 const assert = chai.assert;
 const crypto = require("crypto");
 
-const tester = require("circom_tester").wasm;
-
 const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
 const test = require("../js/test");

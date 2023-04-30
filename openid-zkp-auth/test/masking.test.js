@@ -3,6 +3,7 @@ const assert = chai.assert;
 
 const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
+const jwtutils = require("../js/jwtutils");
 const verify = require("../js/verify");
 
 const GOOGLE1 = require("./testvectors").google.jwt;
@@ -40,7 +41,7 @@ function maskTesting(jwt, claimsToReveal, print=false) {
     // We just check that each full claim string is present (somewhere) in the masked JWT. In practice, these would need to parsed out.
     // Note that some claims might not be at the start of an extracted_claim, e.g., if consecutive claims are being revealed.
     for (const claim of claimsToReveal) {
-        const claim_string = utils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64url').toString(), claim);
+        const claim_string = jwtutils.getClaimString(Buffer.from(jwt.split('.')[1], 'base64url').toString(), claim);
         if (!extracted_claims.some(e => e.includes(claim_string))) {
             console.log("Can't find claim", claim, "in", extracted_claims);
             throw new Error("Claim not found in masked JWT");

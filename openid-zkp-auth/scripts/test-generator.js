@@ -9,14 +9,6 @@ const utils = require('../js/utils');
 const zkOpenIDProve = require('./run-zkp').zkOpenIDProve;
 const zkOpenIDVerify = require('./run-zkp').zkOpenIDVerify;
 
-// Stringify and convert to base64
-constructJWT = (header, payload) => {
-    header = JSON.stringify(header);
-    payload = JSON.stringify(payload);
-    return utils.trimEndByChar(Buffer.from(header).toString('base64url'), '=') 
-                + '.' + utils.trimEndByChar(Buffer.from(payload).toString('base64url'), '=') + '.';
-}
-
 const header = {
     "alg":"RS256",
     "kid":"827917329",

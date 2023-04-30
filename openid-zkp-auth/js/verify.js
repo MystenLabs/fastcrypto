@@ -82,7 +82,7 @@ const checkMaskedContent = (
     console.log("Revealed claims:", claims);
 }
 
-const b64utils = require("./b64utils");
+const jwtutils = require("./jwtutils");
 // Extracts the claims from the masked payload.
 // 1. Extract continguous sets of non-masked characters
 // 2. For each group of Base64 chars, find its starting index and prefix-pad with enough '0's before Base64 decoding.
@@ -90,7 +90,7 @@ const extractClaims = (maskedPayload) => {
     return maskedPayload.split(/=+/).filter(e => e !== '').map(
         e => {
             const pos = maskedPayload.indexOf(e);
-            return b64utils.decodeMaskedB64(e, pos % 4);
+            return jwtutils.decodeB64URL(e, pos % 4);
         }
     );
 }

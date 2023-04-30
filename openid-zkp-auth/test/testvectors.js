@@ -43,12 +43,20 @@ const GOOGLE_PLAYGROUND = {
     }
 }
 
-const SYNTHETIC_JWTs = [
-
-]
+const TWITCH = {
+    jwt: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJnanQxZTY2YjJubnk4Yjk5aDQ5N2hteTA2ODNjbzAiLCJleHAiOjE2ODI3NzYyNzYsImlhdCI6MTY4Mjc3NTM3NiwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoiZ2p0MWU2NmIybm55OGI5OWg0OTdobXkwNjgzY28wIiwibm9uY2UiOiIxNjYzNzkxODgxMzkwODA2MDI2MTg3MDUyODkwMzk5NDAzODcyMTY2OTc5OTYxMzgwMzYwMTYxNjY3ODE1NTUxMjE4MTI3MzI4OTQ3NyIsInByZWZlcnJlZF91c2VybmFtZSI6ImpveXF2cSJ9.PfduhP0eLpwkVCmvoqf267uinjRdkEAIVLCnVCJ4wv0QwY7t2JH0_xjbXK1krfR96rBeZQEz_hJ4KSoVnN-NA7ym7AdfjmWviRUbsGdCyrgSygv4qt8h-cdxNk46CXm2k7JvXzHEsgcZmuPpvZz2kTMqYIRatn9BDG_FQQhG7v4anwz0c-NNL8lhmzwxoaMWf-cfS-B9UFtC1WXOIFWnnNHbNP92dBTkyEiA-UM8457pAV5ZTknMph4lSq322AxJGRkTz0XPimrHqcixE26sP6zn4DMySRl1H-ftmst3lhThZCG8kEoRt2LIDMafqBrXWeEadCs4cMpwiDzQRHvtrw",
+    jwk: {
+        "alg":"RS256",
+        "e":"AQAB",
+        "kid":"1",
+        "kty":"RSA",
+        "n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw","use":"sig"
+    }
+}
 
 module.exports = {
     google: GOOGLE_EXTENSION,
     google_old: GOOGLE_PLAYGROUND,
-    facebook: FACEBOOK
+    facebook: FACEBOOK,
+    twitch: TWITCH
 }

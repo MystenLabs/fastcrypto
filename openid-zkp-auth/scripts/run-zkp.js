@@ -83,7 +83,8 @@ const zkOpenIDProve = async (jwt, claimsToReveal, jwk="", write_to_file=false) =
     }
 };
 
-// Not a full implementation: only implements some of the checks. For a full implementation, see the Authenticator code in Rust. 
+// Not a full implementation: only implements some of the checks. 
+// For a full implementation, see the Authenticator code in Rust. 
 const zkOpenIDVerify = async (proof) => {
     const { zkproof, public_inputs, auxiliary_inputs: auxiliary_inputs } = proof; 
 
@@ -141,7 +142,7 @@ if (require.main === module) {
     })();
 }
 
-module.exports = {
-    zkOpenIDProve: zkOpenIDProve,
-    zkOpenIDVerify: zkOpenIDVerify
-}
+// module.exports = {
+//     zkOpenIDProve: zkOpenIDProve,
+//     zkOpenIDVerify: zkOpenIDVerify
+// }
