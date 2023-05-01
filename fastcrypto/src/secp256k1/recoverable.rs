@@ -27,6 +27,7 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use once_cell::sync::{Lazy, OnceCell};
+pub use rust_secp256k1::ecdsa::Signature as Secp256k1Sig;
 use rust_secp256k1::{
     constants,
     ecdsa::{RecoverableSignature as ExternalRecoverableSignature, RecoveryId},
