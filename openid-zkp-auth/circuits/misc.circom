@@ -154,12 +154,12 @@ template OneBitVector(n) {
 }
 
 // out[i] = 1 if i >= index, 0 otherwise
-// Assumes index in [0, n). Fails otherwise.
+// Assumes index in [0, n]. Fails otherwise.
 template GTBitVector(n) {
     signal input index;
     signal output out[n];
 
-    signal eq[n] <== OneBitVector(n)(index);
+    signal eq[n + 1] <== OneBitVector(n + 1)(index);
 
     out[0] <== eq[0];
     for (var i = 1; i < n; i++) {

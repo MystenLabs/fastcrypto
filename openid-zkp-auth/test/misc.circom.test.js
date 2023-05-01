@@ -214,7 +214,7 @@ describe("Number to bit vector checks", () => {
         await circuit.loadSymbols();
 
         // Success
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i <= 4; i++) {
             const w = await circuit.calculateWitness({ "index": i });
             await circuit.checkConstraints(w);
             var ans = [0n, 0n, 0n, 0n];
@@ -227,7 +227,7 @@ describe("Number to bit vector checks", () => {
         }
 
         // Failure
-        for (let i of [-1, 4, 8]) {
+        for (let i of [-1, 5, 8]) {
             try {
                 const w = await circuit.calculateWitness({ "index": i });
                 await circuit.checkConstraints(w);

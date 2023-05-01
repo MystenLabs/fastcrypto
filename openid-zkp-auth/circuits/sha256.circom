@@ -169,7 +169,6 @@ template Sha2_wrapper(inWidth, inCount) {
     /**
         Verify that content[i] for all blocks >= num_sha2_blocks is zero.
     **/
-    // Generate a bit vector of size nBlocks, where the bit corresponding to num_sha2_blocks is raised
     signal gte[nBlocks] <== GTBitVector(nBlocks)(num_sha2_blocks);
 
     for (var b = 0; b < nBlocks; b++) {
