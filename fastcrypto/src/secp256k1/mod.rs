@@ -176,7 +176,11 @@ impl Display for Secp256k1PublicKey {
 }
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey, SECP256K1_PUBLIC_KEY_LENGTH);
-
+generate_bytes_representation!(
+    Secp256k1PublicKey,
+    SECP256K1_PUBLIC_KEY_LENGTH,
+    Secp256k1PublicKeyAsBytes
+);
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
         Secp256k1PublicKey {
