@@ -3,6 +3,7 @@
 
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::scalar::IsHigh;
+use p256::Scalar;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
@@ -124,6 +125,29 @@ fn to_from_bytes_signature() {
     let mut sig_bytes = signature.as_ref().to_vec();
     sig_bytes.pop();
     assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
+}
+
+#[test]
+fn fail_on_r_or_s_zero() {
+    // Verification (split_scalars) panics if r or s is zero, so we check that this is caught in deserialization.
+
+    // Build valid signature
+    let signature = keys().pop().unwrap().sign_recoverable(b"Hello, world!");
+    let sig_bytes = signature.as_ref();
+
+    // Set r to zero
+    let mut r_is_zero = [0u8; 65];
+    r_is_zero[0..32].copy_from_slice(&Scalar::ZERO.to_bytes());
+    r_is_zero[32..64].copy_from_slice(&sig_bytes[32..64]);
+    r_is_zero[64] = sig_bytes[64];
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&r_is_zero).is_err());
+
+    // Set s to zero
+    let mut s_is_zero = [0u8; 65];
+    s_is_zero[0..32].copy_from_slice(&sig_bytes[0..32]);
+    s_is_zero[32..64].copy_from_slice(&Scalar::ZERO.to_bytes());
+    s_is_zero[64] = sig_bytes[64];
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&s_is_zero).is_err());
 }
 
 #[test]

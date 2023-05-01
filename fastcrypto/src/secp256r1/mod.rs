@@ -149,7 +149,8 @@ impl Secp256r1PublicKey {
         // The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using
         // arkworks for the finite field and elliptic curve arithmetic.
 
-        // Extract scalars from signature
+        // Split signature into scalars. Note that this panics if r or s are zero, which is handled
+        // in Secp256r1Signature::from_bytes.
         let (r, s) = signature.sig.split_scalars();
         let z = reduce_bytes(&H::digest(msg).digest);
 
@@ -158,8 +159,11 @@ impl Secp256r1PublicKey {
         let s = fr_p256_to_arkworks(&s);
         let q = affine_pt_p256_to_arkworks(self.pubkey.as_affine());
 
+        // Compute inverse of s. This fails if s is zero which is checked in deserialization and in
+        // split_scalars above, but we avoid an unwrap here to be safe.
+        let s_inv = s.inverse().ok_or(FastCryptoError::InvalidSignature)?;
+
         // Verify signature
-        let s_inv = s.inverse().expect("s is zero. This should never happen.");
         let u1 = z * s_inv;
         let u2 = r * s_inv;
         let p = ark_secp256r1::Projective::generator() * u1 + q * u2;
@@ -281,6 +285,7 @@ impl ToFromBytes for Secp256r1Signature {
             return Err(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
         }
 
+        // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
         let sig = ExternalSignature::try_from(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(Secp256r1Signature {
