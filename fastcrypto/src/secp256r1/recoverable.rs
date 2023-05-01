@@ -71,6 +71,8 @@ impl ToFromBytes for Secp256r1RecoverableSignature {
                 SECP256R1_RECOVERABLE_SIGNATURE_LENGTH,
             ));
         }
+
+        // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
         ExternalSignature::try_from(&bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1])
             .map(|sig| Secp256r1RecoverableSignature {
                 sig,
@@ -189,10 +191,14 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {
         // This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
+
+        // Split signature into scalars. Note that this panics if r or s are zero, which is handled
+        // in Secp256r1RecoverableSignature::from_bytes.
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
-        // Note: This has been added because it does not seem to be done in k256
+        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. Note that
+        // this does not seem to be done in the k256 implementation.
         let r_bytes = match v.is_x_reduced() {
             true => U256::from(r.as_ref())
                 .wrapping_add(&NistP256::ORDER)
@@ -202,30 +208,31 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
 
         // Reconstruct y-coordinate from x-coordinate using the given recovery id.
         let big_r = AffinePoint::decompress(&r_bytes, Choice::from(v.is_y_odd() as u8));
-
-        if big_r.is_some().into() {
-            // Convert to arkworks representation
-            let r = fr_p256_to_arkworks(&r);
-            let s = fr_p256_to_arkworks(&s);
-            let z = reduce_bytes(&H::digest(msg).digest);
-            let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
-
-            // Compute public key
-            let r_inv = r.inverse().expect("r is zero. This should never happen.");
-            let u1 = -(r_inv * z);
-            let u2 = r_inv * s;
-            let pk = affine_pt_arkworks_to_p256(
-                &(Projective::generator() * u1 + big_r * u2).into_affine(),
-            );
-
-            Ok(Secp256r1PublicKey {
-                pubkey: VerifyingKey::from_affine(pk)
-                    .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
-                bytes: OnceCell::new(),
-            })
-        } else {
-            Err(FastCryptoError::GeneralOpaqueError)
+        if big_r.is_none().into() {
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
+
+        // Convert to arkworks representation
+        let r = fr_p256_to_arkworks(&r);
+        let s = fr_p256_to_arkworks(&s);
+        let z = reduce_bytes(&H::digest(msg).digest);
+        let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
+
+        // Compute inverse of r. This fails if r is zero which is checked in deserialization and in
+        // split_scalars called above, but we avoid an unwrap here to be safe.
+        let r_inv = r.inverse().ok_or(FastCryptoError::InvalidSignature)?;
+
+        // Compute public key
+        let u1 = -(r_inv * z);
+        let u2 = r_inv * s;
+        let pk =
+            affine_pt_arkworks_to_p256(&(Projective::generator() * u1 + big_r * u2).into_affine());
+
+        Ok(Secp256r1PublicKey {
+            pubkey: VerifyingKey::from_affine(pk)
+                .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
