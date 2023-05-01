@@ -27,13 +27,13 @@ use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
     SECP256R1_SIGNATURE_LENTH,
 };
-use crate::serialize_deserialize_with_to_from_bytes;
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
+use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
 use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_ff::Field;
 use ark_secp256r1::Projective;
@@ -46,7 +46,7 @@ use p256::elliptic_curve::bigint::ArrayEncoding;
 use p256::elliptic_curve::point::DecompressPoint;
 use p256::elliptic_curve::Curve;
 use p256::{AffinePoint, NistP256, U256};
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Debug};
 
 pub const SECP256R1_RECOVERABLE_SIGNATURE_LENGTH: usize = SECP256R1_SIGNATURE_LENTH + 1;
 
@@ -109,11 +109,7 @@ impl PartialEq for Secp256r1RecoverableSignature {
 
 impl Eq for Secp256r1RecoverableSignature {}
 
-impl Display for Secp256r1RecoverableSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Secp256r1RecoverableSignature);
 
 impl Secp256r1RecoverableSignature {
     /// Recover the public key used to create this signature. This assumes the recovery id byte has been set. The hash function `H` is used to hash the message.

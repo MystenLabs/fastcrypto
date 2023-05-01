@@ -23,7 +23,7 @@ use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
-    serialize_deserialize_with_to_from_bytes,
+    impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes,
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use once_cell::sync::{Lazy, OnceCell};
@@ -32,7 +32,7 @@ use rust_secp256k1::{
     ecdsa::{RecoverableSignature as ExternalRecoverableSignature, RecoveryId},
     All, Message, Secp256k1,
 };
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Debug};
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
@@ -100,11 +100,7 @@ impl PartialEq for Secp256k1RecoverableSignature {
 
 impl Eq for Secp256k1RecoverableSignature {}
 
-impl Display for Secp256k1RecoverableSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Secp256k1RecoverableSignature);
 
 impl Secp256k1RecoverableSignature {
     /// Convert a non-recoverable signature into a recoverable signature.

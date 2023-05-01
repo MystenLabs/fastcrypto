@@ -18,6 +18,7 @@ use crate::traits::{InsecureDefault, Signer};
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
+    impl_base64_display_fmt,
     traits::{
         AllowedRng, Authenticator, EncodeDecodeBase64, KeyPair, SigningKey, ToFromBytes,
         VerifyingKey,
@@ -256,11 +257,7 @@ impl AsRef<[u8]> for Ed25519Signature {
     }
 }
 
-impl Display for Ed25519Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Ed25519Signature);
 
 impl Default for Ed25519Signature {
     fn default() -> Self {
@@ -292,11 +289,7 @@ impl InsecureDefault for Ed25519PublicKey {
     }
 }
 
-impl Display for Ed25519PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.0.as_bytes()))
-    }
-}
+impl_base64_display_fmt!(Ed25519PublicKey);
 
 impl Debug for Ed25519PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

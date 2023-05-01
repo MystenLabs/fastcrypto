@@ -76,7 +76,7 @@ impl RistrettoPoint {
     }
 }
 
-impl std::ops::Mul<RistrettoScalar> for RistrettoPoint {
+impl Mul<RistrettoScalar> for RistrettoPoint {
     type Output = RistrettoPoint;
 
     fn mul(self, rhs: RistrettoScalar) -> RistrettoPoint {

@@ -13,7 +13,6 @@
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
 
-use crate::generate_bytes_representation;
 use crate::serde_helpers::BytesRepresentation;
 use crate::traits::{
     AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, InsecureDefault,
@@ -23,6 +22,7 @@ use crate::{
     encoding::Base64, encoding::Encoding, error::FastCryptoError,
     serialize_deserialize_with_to_from_bytes,
 };
+use crate::{generate_bytes_representation, impl_base64_display_fmt};
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 #[cfg(any(test, feature = "experimental"))]
 use eyre::eyre;
@@ -30,7 +30,7 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use std::{
     borrow::Borrow,
-    fmt::{self, Debug, Display},
+    fmt::{self, Debug},
     mem::MaybeUninit,
     str::FromStr,
 };
@@ -119,11 +119,7 @@ impl Ord for BLS12381PublicKey {
     }
 }
 
-impl Display for BLS12381PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(BLS12381PublicKey);
 
 impl Debug for BLS12381PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
@@ -421,11 +417,7 @@ impl ToFromBytes for BLS12381Signature {
     }
 }
 
-impl Display for BLS12381Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(BLS12381Signature);
 
 //
 // Custom code for [BLS12381Signature].
@@ -542,6 +534,8 @@ impl FromStr for BLS12381KeyPair {
 // Boilerplate code for [BLS12381AggregateSignature].
 //
 
+impl_base64_display_fmt!(BLS12381AggregateSignature);
+
 impl PartialEq for BLS12381AggregateSignature {
     fn eq(&self, other: &Self) -> bool {
         self.sig == other.sig
@@ -549,12 +543,6 @@ impl PartialEq for BLS12381AggregateSignature {
 }
 
 impl Eq for BLS12381AggregateSignature {}
-
-impl Display for BLS12381AggregateSignature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
 
 impl Default for BLS12381AggregateSignature {
     fn default() -> Self {

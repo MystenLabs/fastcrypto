@@ -21,7 +21,10 @@ pub mod recoverable;
 pub mod conversion;
 
 use crate::serde_helpers::BytesRepresentation;
-use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
+use crate::{
+    generate_bytes_representation, impl_base64_display_fmt,
+    serialize_deserialize_with_to_from_bytes,
+};
 use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_ff::Field;
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
@@ -33,7 +36,7 @@ use p256::ecdsa::{
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
 use p256::{FieldBytes, NistP256, Scalar};
-use std::fmt::{self, Debug, Display};
+use std::fmt::{self, Debug};
 use std::str::FromStr;
 use zeroize::Zeroize;
 
@@ -198,11 +201,7 @@ impl ToFromBytes for Secp256r1PublicKey {
     }
 }
 
-impl Display for Secp256r1PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Secp256r1PublicKey);
 
 impl<'a> From<&'a Secp256r1PrivateKey> for Secp256r1PublicKey {
     fn from(secret: &'a Secp256r1PrivateKey) -> Self {
@@ -323,11 +322,7 @@ impl PartialEq for Secp256r1Signature {
 
 impl Eq for Secp256r1Signature {}
 
-impl Display for Secp256r1Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Secp256r1Signature);
 
 impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
     fn from(recoverable_sig: &Secp256r1RecoverableSignature) -> Self {
