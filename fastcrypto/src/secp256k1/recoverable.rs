@@ -33,7 +33,7 @@ use rust_secp256k1::{
     All, Message, Secp256k1,
 };
 use std::fmt::{self, Debug, Display};
-pub use rust_secp256k1::ecdsa::Signature as secpSig;
+pub use rust_secp256k1::ecdsa::Signature as Secp256k1Sig;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
