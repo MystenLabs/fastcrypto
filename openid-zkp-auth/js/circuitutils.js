@@ -113,16 +113,11 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
     const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
     const jwt_sha2_hash = [hash / 2n**128n, hash % 2n**128n];
   
-    // set mask 
+    // masking 
     inputs["mask"] = genJwtMask(input, fields).concat(Array(nCount - input.length).fill(1));
-  
-    // set hash of the masked content
-    const masked_content_hash = utils.calculateMaskedHash(
-        inputs["content"],
-        inputs["mask"],
-        poseidon,
-        outWidth
-    );
+    const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
+    const packed = utils.pack(masked_content, 8, outWidth);
+    const masked_content_hash = poseidonHash(packed, poseidon);
   
     // set nonce-related inputs
     inputs = Object.assign({}, inputs, genNonceInputs());
@@ -148,7 +143,14 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
     ], poseidon);
 
     const auxiliary_inputs = {
-        "sub_id_com": subject_id_com,
+        "masked_content": masked_content,
+        "jwt_sha2_hash": jwt_sha2_hash,
+        "payload_start_index": inputs["payload_start_index"],
+        "payload_len": inputs["payload_len"],
+        "eph_public_key": inputs["eph_public_key"].map(e => e.toString()),
+        "max_epoch": inputs["max_epoch"],
+        "num_sha2_blocks": inputs["num_sha2_blocks"],
+        "sub_id_com": subject_id_com
     }
   
     return [inputs, auxiliary_inputs];

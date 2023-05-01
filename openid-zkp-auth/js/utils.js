@@ -51,12 +51,6 @@ function writeJSONToFile(inputs, file_name = "inputs.json") {
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }
 
-function calculateMaskedHash(content, mask, poseidon, outWidth) {
-    const masked_content = applyMask(content, mask);
-    const packed = pack(masked_content, 8, outWidth);
-    return poseidonHash(packed, poseidon);
-}
-
 function pack(inArr, inWidth, outWidth) {
     const bits = bigIntArray2Bits(inArr, inWidth);
 
@@ -132,6 +126,5 @@ module.exports = {
     padWithZeroes: padWithZeroes, // padding
     pack: pack, // packing
     commitSubID: commitSubID,
-    calculateMaskedHash: calculateMaskedHash, // hashing
     poseidonHash: poseidonHash // hashing
 }

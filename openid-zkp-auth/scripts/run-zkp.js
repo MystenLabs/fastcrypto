@@ -5,6 +5,7 @@ const verifier = require('../js/verify');
 const GOOGLE = require("../test/testvectors").google;
 const circuit = require("../js/circuitutils");
 const utils = require("../js/utils");
+const constants = require("../js/constants");
 
 const WASM_FILE_PATH = "./google/google_js/google.wasm";
 const ZKEY_FILE_PATH = "./google/google.zkey";
@@ -13,7 +14,8 @@ const PROOF_FILE_PATH = "./google/google.proof";
 const AUX_INPUTS_FILE_PATH = "./google/aux.json";
 const PUBLIC_INPUTS_FILE_PATH = "./google/public.json";
 
-const MAX_JWT_LENGTH = 64*11;
+const maxContentLen = constants.google.maxContentLen;
+const maxSubLen = constants.google.maxSubstrLen;
 
 const groth16Prove = async (inputs, wasm_file, zkey_file) => {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
@@ -49,22 +51,10 @@ const zkOpenIDProve = async (jwt, claimsToReveal, jwk="", write_to_file=false) =
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
-    var inputs = await circuit.genJwtProofInputs(input, MAX_JWT_LENGTH, claimsToReveal);
-    const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
-
-    const crypto = require("crypto");
-    const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
-
-    const auxiliary_inputs = {
+    var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(input, maxContentLen, claimsToReveal, maxSubLen);
+    auxiliary_inputs = Object.assign({}, auxiliary_inputs, {
         "jwt_signature": signature,
-        "masked_content": masked_content,
-        "jwt_sha2_hash": [(hash / 2n**128n).toString(), (hash % 2n**128n).toString()],
-        "payload_start_index": inputs["payload_start_index"],
-        "payload_len": inputs["payload_len"],
-        "eph_public_key": inputs["eph_public_key"].map(e => e.toString()),
-        "max_epoch": inputs["max_epoch"],
-        "num_sha2_blocks": inputs["num_sha2_blocks"]
-    }
+    });
 
     // Generate ZKP
     console.log("Generating ZKP...");
@@ -92,7 +82,7 @@ const zkOpenIDVerify = async (proof) => {
     console.log("Verifying ZKP...");
     await groth16Verify(zkproof, public_inputs, VKEY_FILE_PATH);
 
-    verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, MAX_JWT_LENGTH);
+    verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
 }
 
 // Check if the script was called directly

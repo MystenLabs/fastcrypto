@@ -9,7 +9,7 @@ include "zkhasher.circom";
 JWT Proof: User-agnostic (UA) circuit
 
     Construction params:
-    - jwtMaxLen:                Maximum length of the JWT in bytes
+    - maxContentLength:         Maximum length of the JWT + SHA2 padding in bytes
     - maxSubLength:             Maximum length of the subject_id (in ascii)
 
     Private Inputs:
@@ -34,10 +34,10 @@ JWT Proof: User-agnostic (UA) circuit
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
                                   eph_public_key[2] || max_epoch || nonce || num_sha2_blocks || subject_id_com)
 */
-template JwtProofUA(jwtMaxLen, maxSubLength) {
+template JwtProofUA(maxContentLength, maxSubLength) {
     // Input is Base64 characters encoded as ASCII
     var inWidth = 8;
-    var inCount = jwtMaxLen;
+    var inCount = maxContentLength;
     signal input content[inCount];
 
     /**

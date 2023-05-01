@@ -10,21 +10,21 @@ const test = require("../js/test");
 const utils = require("../js/utils");
 const verify = require('../js/verify');
 
-async function genCircuit(jwtMaxLen, maxSubLength) {
+async function genCircuit(maxContentLen, maxSubLength) {
     return await test.genMain(
         path.join(__dirname, "..", "circuits", "jwt_proof_ua.circom"), "JwtProofUA", [
-            jwtMaxLen,
+            maxContentLen,
             maxSubLength
         ]
     );
 }
 
-async function genProof(jwt, jwtMaxLen, claimsToReveal, maxSubLength, circuit, nTamper = false, tamperedClaim = ''){
+async function genProof(jwt, maxContentLen, claimsToReveal, maxSubLength, circuit, nTamper = false, tamperedClaim = ''){
     const [header, payload, _] = jwt.split('.');
     const input = header + '.' + payload;
     var [inputs, auxiliary_inputs] = await circuitutils.genJwtProofUAInputs(
         input, 
-        jwtMaxLen, 
+        maxContentLen, 
         claimsToReveal,
         maxSubLength
     );
@@ -43,7 +43,7 @@ async function genProof(jwt, jwtMaxLen, claimsToReveal, maxSubLength, circuit, n
         inputs["num_sha2_blocks"],
         inputs["payload_start_index"],
         inputs["payload_len"],
-        jwtMaxLen
+        maxContentLen
     );
 
     return [inputs, auxiliary_inputs];
@@ -57,14 +57,14 @@ describe("JWT Proof", function() {
         google: {
             jwt: GOOGLE["jwt"],
             jwk: GOOGLE["jwk"],
-            jwtMaxLen: constants.google.jwtMaxLen,
+            maxContentLen: constants.google.maxContentLen,
             claimsToReveal: constants.google.claimsToReveal,
             maxSubstrLen: constants.google.maxSubstrLen
         }, 
         twitch: {
             jwt: TWITCH["jwt"],
             jwk: TWITCH["jwk"],
-            jwtMaxLen: constants.twitch.jwtMaxLen,
+            maxContentLen: constants.twitch.maxContentLen,
             claimsToReveal: constants.twitch.claimsToReveal,
             maxSubstrLen: constants.twitch.maxSubstrLen
         }
@@ -78,12 +78,12 @@ describe("JWT Proof", function() {
 
             it("Prove", async function() {
                 const circuit = await genCircuit(
-                    constants["jwtMaxLen"],
+                    constants["maxContentLen"],
                     constants["maxSubstrLen"]
                 );
                 await genProof(
                     constants["jwt"],
-                    constants["jwtMaxLen"],
+                    constants["maxContentLen"],
                     constants["claimsToReveal"],
                     constants["maxSubstrLen"],
                     circuit
@@ -117,7 +117,7 @@ describe("Tests with crafted JWTs", () => {
     // const b64payload = utils.trimEndByChar(Buffer.from(payload, 'base64url').toString('base64url'), '=');
     const jwt = test.constructJWT(header, payload);
 
-    const jwtMaxLen = 64 * 6;
+    const maxContentLen = 64 * 6;
     const maxSubLength = 21;
 
     before(async () => {
@@ -125,13 +125,13 @@ describe("Tests with crafted JWTs", () => {
         expect(claim_string.length).at.most(maxSubLength);
         expect(await utils.commitSubID(claim_string.slice(0, -1), pin, maxSubLength)).equals(sub_commitment);
         console.log("JWT: ", jwt);
-        circuit = await genCircuit(jwtMaxLen, maxSubLength);
+        circuit = await genCircuit(maxContentLen, maxSubLength);
     });
 
     it("No change", async function() {
         const [_, aux] = await genProof(
             jwt,
-            jwtMaxLen,
+            maxContentLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
@@ -153,7 +153,7 @@ describe("Tests with crafted JWTs", () => {
         const new_jwt = test.constructJWT(header, new_payload);
         const [_, aux] = await genProof(
             new_jwt,
-            jwtMaxLen,
+            maxContentLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
@@ -175,7 +175,7 @@ describe("Tests with crafted JWTs", () => {
         const new_jwt = test.constructJWT(header, new_payload);
         const [_, aux] = await genProof(
             new_jwt,
-            jwtMaxLen,
+            maxContentLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
@@ -197,7 +197,7 @@ describe("Tests with crafted JWTs", () => {
         const new_jwt = test.constructJWT(header, new_payload);
         const [_, aux] = await genProof(
             new_jwt,
-            jwtMaxLen,
+            maxContentLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
@@ -232,7 +232,7 @@ describe("Tests with crafted JWTs", () => {
             // The on-chain address should be different
             const [_, aux] = await genProof(
                 new_jwt,
-                jwtMaxLen,
+                maxContentLen,
                 ["iss", "aud", "nonce"],
                 maxSubLength,
                 circuit
@@ -243,7 +243,7 @@ describe("Tests with crafted JWTs", () => {
             try {
                 await genProof(
                     new_jwt,
-                    jwtMaxLen,
+                    maxContentLen,
                     ["iss", "aud", "nonce"],
                     maxSubLength,
                     circuit,
