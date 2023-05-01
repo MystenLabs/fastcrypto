@@ -77,6 +77,10 @@ pub mod signature_service_tests;
 #[path = "tests/test_helpers.rs"]
 pub mod test_helpers;
 
+#[cfg(test)]
+#[path = "tests/utils_tests.rs"]
+pub mod utils_tests;
+
 pub mod traits;
 
 #[cfg(any(test, feature = "experimental"))]
@@ -96,6 +100,7 @@ pub mod secp256k1;
 pub mod secp256r1;
 pub mod serde_helpers;
 pub mod signature_service;
+pub mod utils;
 pub mod vrf;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless
