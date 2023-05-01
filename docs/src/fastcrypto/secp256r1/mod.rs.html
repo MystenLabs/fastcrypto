@@ -482,6 +482,11 @@
 <a href="#482" id="482">482</a>
 <a href="#483" id="483">483</a>
 <a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
+<a href="#488" id="488">488</a>
+<a href="#489" id="489">489</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -636,7 +641,8 @@
         <span class="comment">// The flow below is identical to verify_prehash from ecdsa-0.16.6/src/hazmat.rs, but using
         // arkworks for the finite field and elliptic curve arithmetic.
 
-        // Extract scalars from signature
+        // Split signature into scalars. Note that this panics if r or s are zero, which is handled
+        // in Secp256r1Signature::from_bytes.
         </span><span class="kw">let </span>(r, s) = signature.sig.split_scalars();
         <span class="kw">let </span>z = reduce_bytes(<span class="kw-2">&amp;</span>H::digest(msg).digest);
 
@@ -645,9 +651,12 @@
         <span class="kw">let </span>s = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>s);
         <span class="kw">let </span>q = affine_pt_p256_to_arkworks(<span class="self">self</span>.pubkey.as_affine());
 
+        <span class="comment">// Compute inverse of s. This fails if s is zero which is checked in deserialization and in
+        // split_scalars above, but we avoid an unwrap here to be safe.
+        </span><span class="kw">let </span>s_inv = s.inverse().ok_or(FastCryptoError::InvalidSignature)<span class="question-mark">?</span>;
+
         <span class="comment">// Verify signature
-        </span><span class="kw">let </span>s_inv = s.inverse().expect(<span class="string">&quot;s is zero. This should never happen.&quot;</span>);
-        <span class="kw">let </span>u1 = z * s_inv;
+        </span><span class="kw">let </span>u1 = z * s_inv;
         <span class="kw">let </span>u2 = r * s_inv;
         <span class="kw">let </span>p = ark_secp256r1::Projective::generator() * u1 + q * u2;
         <span class="kw">let </span>x = get_affine_x_coordinate(<span class="kw-2">&amp;</span>p);
@@ -764,7 +773,8 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(SECP256R1_SIGNATURE_LENTH));
         }
 
-        <span class="kw">let </span>sig = ExternalSignature::try_from(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+        <span class="comment">// This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
+        </span><span class="kw">let </span>sig = ExternalSignature::try_from(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
         <span class="prelude-val">Ok</span>(Secp256r1Signature {
             sig,

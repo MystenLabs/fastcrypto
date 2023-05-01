@@ -232,6 +232,13 @@
 <a href="#232" id="232">232</a>
 <a href="#233" id="233">233</a>
 <a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -305,7 +312,9 @@
                 SECP256R1_RECOVERABLE_SIGNATURE_LENGTH,
             ));
         }
-        ExternalSignature::try_from(<span class="kw-2">&amp;</span>bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - <span class="number">1</span>])
+
+        <span class="comment">// This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
+        </span>ExternalSignature::try_from(<span class="kw-2">&amp;</span>bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - <span class="number">1</span>])
             .map(|sig| Secp256r1RecoverableSignature {
                 sig,
                 recovery_id: bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - <span class="number">1</span>],
@@ -423,10 +432,14 @@
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Secp256r1PublicKey, FastCryptoError&gt; {
         <span class="comment">// This is inspired by `recover_verify_key_from_digest_bytes` in the k256@0.11.6 crate with a few alterations.
+
+        // Split signature into scalars. Note that this panics if r or s are zero, which is handled
+        // in Secp256r1RecoverableSignature::from_bytes.
         </span><span class="kw">let </span>(r, s) = <span class="self">self</span>.sig.split_scalars();
         <span class="kw">let </span>v = RecoveryId::from_byte(<span class="self">self</span>.recovery_id).ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-        <span class="comment">// Note: This has been added because it does not seem to be done in k256
+        <span class="comment">// If the x-coordinate of kR overflowed the curve order, we reconstruct it here. Note that
+        // this does not seem to be done in the k256 implementation.
         </span><span class="kw">let </span>r_bytes = <span class="kw">match </span>v.is_x_reduced() {
             <span class="bool-val">true </span>=&gt; U256::from(r.as_ref())
                 .wrapping_add(<span class="kw-2">&amp;</span>NistP256::ORDER)
@@ -436,30 +449,31 @@
 
         <span class="comment">// Reconstruct y-coordinate from x-coordinate using the given recovery id.
         </span><span class="kw">let </span>big_r = AffinePoint::decompress(<span class="kw-2">&amp;</span>r_bytes, Choice::from(v.is_y_odd() <span class="kw">as </span>u8));
-
-        <span class="kw">if </span>big_r.is_some().into() {
-            <span class="comment">// Convert to arkworks representation
-            </span><span class="kw">let </span>r = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>r);
-            <span class="kw">let </span>s = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>s);
-            <span class="kw">let </span>z = reduce_bytes(<span class="kw-2">&amp;</span>H::digest(msg).digest);
-            <span class="kw">let </span>big_r = affine_pt_p256_to_arkworks(<span class="kw-2">&amp;</span>big_r.unwrap());
-
-            <span class="comment">// Compute public key
-            </span><span class="kw">let </span>r_inv = r.inverse().expect(<span class="string">&quot;r is zero. This should never happen.&quot;</span>);
-            <span class="kw">let </span>u1 = -(r_inv * z);
-            <span class="kw">let </span>u2 = r_inv * s;
-            <span class="kw">let </span>pk = affine_pt_arkworks_to_p256(
-                <span class="kw-2">&amp;</span>(Projective::generator() * u1 + big_r * u2).into_affine(),
-            );
-
-            <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
-                pubkey: VerifyingKey::from_affine(pk)
-                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>,
-                bytes: OnceCell::new(),
-            })
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+        <span class="kw">if </span>big_r.is_none().into() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError);
         }
+
+        <span class="comment">// Convert to arkworks representation
+        </span><span class="kw">let </span>r = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>r);
+        <span class="kw">let </span>s = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>s);
+        <span class="kw">let </span>z = reduce_bytes(<span class="kw-2">&amp;</span>H::digest(msg).digest);
+        <span class="kw">let </span>big_r = affine_pt_p256_to_arkworks(<span class="kw-2">&amp;</span>big_r.unwrap());
+
+        <span class="comment">// Compute inverse of r. This fails if r is zero which is checked in deserialization and in
+        // split_scalars called above, but we avoid an unwrap here to be safe.
+        </span><span class="kw">let </span>r_inv = r.inverse().ok_or(FastCryptoError::InvalidSignature)<span class="question-mark">?</span>;
+
+        <span class="comment">// Compute public key
+        </span><span class="kw">let </span>u1 = -(r_inv * z);
+        <span class="kw">let </span>u2 = r_inv * s;
+        <span class="kw">let </span>pk =
+            affine_pt_arkworks_to_p256(<span class="kw-2">&amp;</span>(Projective::generator() * u1 + big_r * u2).into_affine());
+
+        <span class="prelude-val">Ok</span>(Secp256r1PublicKey {
+            pubkey: VerifyingKey::from_affine(pk)
+                .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>,
+            bytes: OnceCell::new(),
+        })
     }
 }
 
