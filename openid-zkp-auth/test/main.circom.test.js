@@ -22,14 +22,14 @@ async function genCircuit(jwtMaxLen, maxSubLength) {
 async function genProof(jwt, jwtMaxLen, claimsToReveal, maxSubLength, circuit, nTamper = false, tamperedClaim = ''){
     const [header, payload, _] = jwt.split('.');
     const input = header + '.' + payload;
-    var inputs = await circuitutils.genJwtProofUAInputs(
+    var [inputs, auxiliary_inputs] = await circuitutils.genJwtProofUAInputs(
         input, 
         jwtMaxLen, 
         claimsToReveal,
         maxSubLength
     );
     if (nTamper) { // Tamper with some inputs for testing purposes
-        inputs["subject_id"] = tamperedClaim.split('').map(c => c.charCodeAt()).concat(Array(maxSubLength - tamperedClaim.length).fill(0));
+        inputs["subject_id"] = utils.padWithZeroes(tamperedClaim.split('').map(c => c.charCodeAt()), maxSubLength);
         inputs["sub_length_ascii"] = tamperedClaim.length;
     }
     utils.writeJSONToFile(inputs, "inputs.json");
@@ -45,6 +45,8 @@ async function genProof(jwt, jwtMaxLen, claimsToReveal, maxSubLength, circuit, n
         inputs["payload_len"],
         jwtMaxLen
     );
+
+    return [inputs, auxiliary_inputs];
 }
 
 describe("JWT Proof", function() {
@@ -107,7 +109,9 @@ describe("Tests with crafted JWTs", () => {
         exp: 4,
         jti: 'a8a0728a'
     };
-    const claim_string = '"sub":"4840061",'
+    const claim_string = '"sub":"4840061",';
+    const sub_commitment = 6621753577113798222817846331081670375939652571040388319046768774068537034346n;
+    const pin = 123456789;
 
     // const b64header = utils.trimEndByChar(Buffer.from(header, 'base64url').toString('base64url'), '=');
     // const b64payload = utils.trimEndByChar(Buffer.from(payload, 'base64url').toString('base64url'), '=');
@@ -119,18 +123,20 @@ describe("Tests with crafted JWTs", () => {
     before(async () => {
         expect(jwtutils.getClaimString(JSON.stringify(payload), "sub")).equals(claim_string);
         expect(claim_string.length).at.most(maxSubLength);
-        console.log("JWT: " + jwt);
+        expect(await utils.commitSubID(claim_string.slice(0, -1), pin, maxSubLength)).equals(sub_commitment);
+        console.log("JWT: ", jwt);
         circuit = await genCircuit(jwtMaxLen, maxSubLength);
     });
 
     it("No change", async function() {
-        await genProof(
+        const [_, aux] = await genProof(
             jwt,
             jwtMaxLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
         );
+        expect(aux["sub_id_com"]).equals(sub_commitment);
     });
 
     it("Sub claim comes first!", async function() {
@@ -145,13 +151,14 @@ describe("Tests with crafted JWTs", () => {
             jti: 'a8a0728a'
         };
         const new_jwt = test.constructJWT(header, new_payload);
-        await genProof(
+        const [_, aux] = await genProof(
             new_jwt,
             jwtMaxLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
         );
+        expect(aux["sub_id_com"]).equals(sub_commitment);
     });
 
     it("Sub claim comes last!", async function() {
@@ -166,13 +173,14 @@ describe("Tests with crafted JWTs", () => {
             sub: '4840061'
         };
         const new_jwt = test.constructJWT(header, new_payload);
-        await genProof(
+        const [_, aux] = await genProof(
             new_jwt,
             jwtMaxLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
         );
+        expect(aux["sub_id_com"]).equals(sub_commitment);
     });
 
     it("Order of claims is jumbled!", async function() {
@@ -187,17 +195,24 @@ describe("Tests with crafted JWTs", () => {
             nonce: 'abcd',
         };
         const new_jwt = test.constructJWT(header, new_payload);
-        await genProof(
+        const [_, aux] = await genProof(
             new_jwt,
             jwtMaxLen,
             ["iss", "aud", "nonce"],
             maxSubLength,
             circuit
         );
+        expect(aux["sub_id_com"]).equals(sub_commitment);
     });
 
-    it("(Fail) Sub claim has invalid value!", async () => { // To fix
-        const failing_cases = ['4840062', '3840061', '48', '48400610', '04840061'];
+    it("(Fail) Sub claim has invalid value!", async () => {
+        const failing_cases = [
+            '4840062', 
+            '3840061', 
+            '48', 
+            '48400610', 
+            '04840061'
+        ];
         for (var i = 0; i < failing_cases.length; i++) {
             const sub = failing_cases[i];
             const new_payload = {
@@ -211,6 +226,20 @@ describe("Tests with crafted JWTs", () => {
                 sub: sub
             };
             const new_jwt = test.constructJWT(header, new_payload);
+            // console.log(JSON.stringify(new_payload));
+            // console.log("New JWT: ", new_jwt);
+
+            // The on-chain address should be different
+            const [_, aux] = await genProof(
+                new_jwt,
+                jwtMaxLen,
+                ["iss", "aud", "nonce"],
+                maxSubLength,
+                circuit
+            );
+            expect(aux["sub_id_com"]).not.equals(sub_commitment);
+
+            // Fake the subject_id array
             try {
                 await genProof(
                     new_jwt,

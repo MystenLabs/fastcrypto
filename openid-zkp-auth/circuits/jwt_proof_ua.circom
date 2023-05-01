@@ -51,10 +51,14 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
     );
 
     /**
-     2. Check if the user-input string exists in the JWT payload
+     2. Checks on subject_id
+        a) Is it in the JWT payload?
+        b) Is subject_id[i] == 0 for all i >= sub_length_ascii?
+        c) Is subject_id[sub_length_ascii - 1] == ',' or '}'?
     */
+    var subInWidth = 8;
     signal input subject_id[maxSubLength];
-    signal input sub_length_ascii;
+    signal input sub_length_ascii; // Check if we ensure it is >= 1 and <= maxSubLength
     signal input sub_length_b64;
 
     signal input payload_start_index;
@@ -71,11 +75,34 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
         payloadIndex <== payload_start_index
     );
 
+    // subject_id[i] == 0 for all i >= sub_length_ascii
+    signal sigt[maxSubLength] <== GTBitVector(maxSubLength)(sub_length_ascii);
+    for (var i = 0; i < maxSubLength; i++) {
+        sigt[i] * subject_id[i] === 0;
+    }
+
+    signal lastchar <== SingleMultiplexer(maxSubLength)(subject_id, sub_length_ascii - 1);
+    (lastchar - 44) * (lastchar - 125) === 0; // lastchar = ',' or '}'
+
     /**
-     3. Calculate commitment to subject_id
+     3. Calculate commitment to subject_id. We exclude the last character of the subject_id
+        because it is either ',' or '}'.
     **/
+    // exclude last character
+    signal subject_id_without_last_char[maxSubLength] <== Slice(maxSubLength, maxSubLength)(
+        subject_id, 
+        0,
+        sub_length_ascii - 1
+    );
+
+    // pack
+    var outWidth = 253; // field prime is 254 bits
+    var subOutCount = getPackedOutputSize(maxSubLength * subInWidth, outWidth);
+    signal packed_subject_id[subOutCount] <== Packer(subInWidth, maxSubLength, outWidth, subOutCount)(subject_id_without_last_char);
+    signal subject_id_hash <== Hasher(subOutCount)(packed_subject_id);
+
     signal input subject_pin;
-    signal subject_id_com <== Poseidon(2)([subject_id[0], subject_pin]); // To fix
+    signal subject_id_com <== Hasher(2)([subject_id_hash, subject_pin]);
 
     /** 
       4. Masking 
@@ -90,13 +117,7 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
         masked_content[i] <== content[i] * mask[i] + (1 - mask[i]) * 61;
     }
 
-    var outWidth = 253;
-    var inBits = inCount * inWidth;
-    var outCount = inBits \ outWidth;
-    if (inBits % outWidth != 0) {
-        outCount++;
-    }
-
+    var outCount = getPackedOutputSize(inCount * inWidth, outWidth);
     signal packed[outCount] <== Packer(inWidth, inCount, outWidth, outCount)(masked_content);
     signal masked_content_hash <== Hasher(outCount)(packed);
 
@@ -107,7 +128,7 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
     signal input max_epoch;
     signal input randomness;
 
-    signal nonce <== Poseidon(4)([
+    signal nonce <== Hasher(4)([
         eph_public_key[0], 
         eph_public_key[1], 
         max_epoch, 
@@ -131,7 +152,7 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
        7. Hash all signals revealed to the verifier outside
     **/
     signal input all_inputs_hash;
-    signal all_inputs_hash_actual <== Poseidon(11)([
+    signal all_inputs_hash_actual <== Hasher(11)([
         jwt_sha2_hash[0],
         jwt_sha2_hash[1],
         masked_content_hash,
@@ -145,5 +166,4 @@ template JwtProofUA(jwtMaxLen, maxSubLength) {
         subject_id_com
     ]);
     all_inputs_hash === all_inputs_hash_actual;
-
 }

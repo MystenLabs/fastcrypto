@@ -90,6 +90,7 @@ describe("Packer checks", () => {
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
         assert.deepEqual(out, [1, 2, 3, 4]);
+        assert.deepEqual(out, utils.pack(input, 4, 4).map(Number));
     });
 
     it("Checking Packer Case 1: Output width is multiple of input width", async () => {
@@ -99,8 +100,8 @@ describe("Packer checks", () => {
         const witness = await cir_fixed.calculateWitness({ "in": input });
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
-        assert.deepEqual(out[0], 18);
-        assert.deepEqual(out[1], 52);
+        assert.deepEqual(out, [18, 52]);
+        assert.deepEqual(out, utils.pack(input, 4, 8).map(Number));
     });
 
     it("Checking Packer Case 2: Output width is not a multiple of input width", async () => {
@@ -110,9 +111,8 @@ describe("Packer checks", () => {
         const witness = await cir_fixed.calculateWitness({ "in": input });
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
-        assert.deepEqual(out[0], 4);
-        assert.deepEqual(out[1], 35);
-        assert.deepEqual(out[2], 16)
+        assert.deepEqual(out, [4, 35, 16]);
+        assert.deepEqual(out, utils.pack(input, 4, 6).map(Number));
     });
 
     it("Checking Packer Case 3: Edge case - just one input", async () => {  
@@ -122,7 +122,8 @@ describe("Packer checks", () => {
         const witness = await cir_fixed.calculateWitness({ "in": input });
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
-        assert.deepEqual(out[0], 32);
+        assert.deepEqual(out, [32]);
+        assert.deepEqual(out, utils.pack(input, 1, 6).map(Number));
     });
 
     it("Checking Packer Case 4: Edge case - just one output", async () => {
@@ -132,7 +133,8 @@ describe("Packer checks", () => {
         const witness = await cir_fixed.calculateWitness({ "in": input });
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
-        assert.deepEqual(out[0], 4660);
+        assert.deepEqual(out, [4660]);
+        assert.deepEqual(out, utils.pack(input, 4, 16).map(Number));
     });
 
     it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
@@ -151,9 +153,8 @@ describe("Packer checks", () => {
         const witness = await cir_fixed.calculateWitness({ "in": input });
         
         const out = utils.getWitnessArray(witness, cir_fixed.symbols, "main.out").map(e => Number(e) - '0');
-        assert.deepEqual(out[0], 56);
-        assert.deepEqual(out[1], 96);
-        assert.deepEqual(out[2], 64);
+        assert.deepEqual(out, [56, 96, 64]);
+        assert.deepEqual(out, utils.pack(input, 4, 7).map(Number));
     });
 });
 

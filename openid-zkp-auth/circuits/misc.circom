@@ -191,6 +191,14 @@ template SingleMultiplexer(nIn) {
     EscalarProduct(nIn)(inp, dec.out) ==> out;
 }
 
+function getPackedOutputSize(inBits, outWidth) {
+    var outCount = inBits \ outWidth;
+    if (inBits % outWidth != 0) {
+        outCount++;
+    }
+    return outCount;
+}
+
 /**
 Packer: Packs a list of numbers, each of a specified bitwidth, 
         into another list of numbers with a different bitwidth.
@@ -205,10 +213,7 @@ template Packer(inWidth, inCount, outWidth, outCount) {
     signal output out[outCount];
 
     var inBits = inCount * inWidth;
-    var myOutCount = inBits \ outWidth;
-    if (inBits % outWidth != 0) {
-        myOutCount++;
-    }
+    var myOutCount = getPackedOutputSize(inBits, outWidth);
     assert(myOutCount == outCount);
 
     component expander[inCount];

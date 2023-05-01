@@ -53,14 +53,25 @@ function writeJSONToFile(inputs, file_name = "inputs.json") {
 
 function calculateMaskedHash(content, mask, poseidon, outWidth) {
     const masked_content = applyMask(content, mask);
-    const bits = bigIntArray2Bits(masked_content, 8);
+    const packed = pack(masked_content, 8, outWidth);
+    return poseidonHash(packed, poseidon);
+}
 
-    const extra_bits = (bits.length % outWidth == 0) ? 0 : outWidth - (bits.length % outWidth);
+function pack(inArr, inWidth, outWidth) {
+    const bits = bigIntArray2Bits(inArr, inWidth);
+
+    const extra_bits = bits.length % outWidth == 0 ? 0 : outWidth - (bits.length % outWidth);
     const bits_padded = bits.concat(Array(extra_bits).fill(0));
     if (bits_padded.length % outWidth != 0) throw new Error("Invalid logic");
 
     const packed = arrayChunk(bits_padded, outWidth).map(chunk => BigInt("0b" + chunk.join('')));
-    return poseidonHash(packed, poseidon);
+    return packed;
+}
+
+function padWithZeroes(inArr, outCount) {
+    const extra_bits = outCount - inArr.length;
+    const bits_padded = inArr.concat(Array(extra_bits).fill(0));
+    return bits_padded;
 }
 
 function poseidonHash(inputs, poseidon) {
@@ -92,6 +103,19 @@ function applyMask(input, mask) {
             );
 }
 
+
+async function commitSubID(claim_string, pin, maxSubLength, outWidth=253) {
+    const buildPoseidon = require("circomlibjs").buildPoseidon;
+    poseidon = await buildPoseidon();
+
+    const padded_claim_string = padWithZeroes(claim_string.split('').map(c => c.charCodeAt()), maxSubLength);
+    const packed_subject_id = pack(padded_claim_string, 8, outWidth);
+    return poseidonHash([
+        poseidonHash(packed_subject_id, poseidon),
+        pin
+    ], poseidon);
+}
+
 module.exports = {
     arrayChunk: arrayChunk,
     trimEndByChar: trimEndByChar,
@@ -104,8 +128,10 @@ module.exports = {
     getWitnessArray: getWitnessArray,
     getWitnessBuffer: getWitnessBuffer,
     writeJSONToFile: writeJSONToFile,
-    applyMask: applyMask,
-    // hashing
-    calculateMaskedHash: calculateMaskedHash,
-    poseidonHash: poseidonHash
+    applyMask: applyMask, // masking
+    padWithZeroes: padWithZeroes, // padding
+    pack: pack, // packing
+    commitSubID: commitSubID,
+    calculateMaskedHash: calculateMaskedHash, // hashing
+    poseidonHash: poseidonHash // hashing
 }

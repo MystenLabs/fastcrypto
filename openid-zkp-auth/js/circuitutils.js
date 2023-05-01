@@ -5,6 +5,7 @@ const {toBigIntBE} = require('bigint-buffer');
 
 const nWidth = require("./constants").inWidth;
 const outWidth = require("./constants").outWidth;
+const poseidonHash = require('./utils').poseidonHash;
 
 // https://datatracker.ietf.org/doc/html/rfc4634#section-4.1
 function padMessage(bits) {
@@ -61,9 +62,9 @@ function genNonceInputs() {
       "max_epoch": max_epoch,
       "randomness": randomness
     };
-  }
+}
   
-function genSubInputs(payload, maxSubLength, payloadIndex) {
+async function genSubInputs(payload, maxSubLength, payloadIndex) {
     const decoded_payload = Buffer.from(payload, 'base64url').toString();
     const sub_claim = jwtutils.getClaimString(decoded_payload, "sub");
     const [start, len] = jwtutils.indicesOfB64(payload, 'sub');
@@ -72,16 +73,20 @@ function genSubInputs(payload, maxSubLength, payloadIndex) {
         throw new Error(`Subject claim ${sub_claim} exceeds maximum length of ${maxSubLength} characters`);
     }
 
-    return {
-        "subject_id": sub_claim.split('').map(c => c.charCodeAt()).concat(Array(maxSubLength - sub_claim.length).fill(0)), // pad with 0s
+    const sub_claim_without_last_char = sub_claim.slice(0, -1);
+    const pin = 123456789; // TODO: Fixed for dev
+    const subject_id_com = await utils.commitSubID(sub_claim_without_last_char, pin, maxSubLength, outWidth);
+
+    const padded_subject_id = utils.padWithZeroes(sub_claim.split('').map(c => c.charCodeAt()), maxSubLength);
+    return [{
+        "subject_id": padded_subject_id,
         "sub_length_ascii": sub_claim.length,
         "sub_claim_index_b64": start + payloadIndex,
         "sub_length_b64": len,
-        "subject_pin": 123456789 // TODO: Fixed for dev
-    }
+        "subject_pin": pin
+    }, subject_id_com];
 }
 
-// TODO: make it return auxiliary inputs
 async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {  
     // init poseidon
     const buildPoseidon = require("circomlibjs").buildPoseidon;
@@ -97,12 +102,12 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
     inputs["payload_len"] = payload.length;
 
     // set sub claim inputs
-    inputs = Object.assign({}, inputs, genSubInputs(payload, maxSubLength, inputs["payload_start_index"]));
-    
-    const subject_id_com = utils.poseidonHash([
-        inputs["subject_id"][0],
-        inputs["subject_pin"]
-    ], poseidon);
+    const [sub_inputs, subject_id_com] = await genSubInputs(
+        payload,
+        maxSubLength,
+        inputs["payload_start_index"]
+    );
+    inputs = Object.assign({}, inputs, sub_inputs);
 
     // set hash
     const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
@@ -121,14 +126,14 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
   
     // set nonce-related inputs
     inputs = Object.assign({}, inputs, genNonceInputs());
-    const nonce = utils.poseidonHash([
+    const nonce = poseidonHash([
         inputs["eph_public_key"][0], 
         inputs["eph_public_key"][1], 
         inputs["max_epoch"], 
         inputs["randomness"]
     ], poseidon);
   
-    inputs["all_inputs_hash"] = utils.poseidonHash([
+    inputs["all_inputs_hash"] = poseidonHash([
         jwt_sha2_hash[0],
         jwt_sha2_hash[1],
         masked_content_hash,
@@ -141,8 +146,12 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
         inputs["num_sha2_blocks"],
         subject_id_com
     ], poseidon);
+
+    const auxiliary_inputs = {
+        "sub_id_com": subject_id_com,
+    }
   
-    return inputs;
+    return [inputs, auxiliary_inputs];
 }  
 
 module.exports = {
