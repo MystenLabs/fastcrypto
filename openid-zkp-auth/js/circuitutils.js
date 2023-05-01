@@ -144,13 +144,13 @@ async function genJwtProofUAInputs(input, nCount, fields, maxSubLength) {
 
     const auxiliary_inputs = {
         "masked_content": masked_content,
-        "jwt_sha2_hash": jwt_sha2_hash,
+        "jwt_sha2_hash": jwt_sha2_hash.map(e => e.toString()),
         "payload_start_index": inputs["payload_start_index"],
         "payload_len": inputs["payload_len"],
         "eph_public_key": inputs["eph_public_key"].map(e => e.toString()),
         "max_epoch": inputs["max_epoch"],
         "num_sha2_blocks": inputs["num_sha2_blocks"],
-        "sub_id_com": subject_id_com
+        "sub_id_com": subject_id_com.toString()
     }
   
     return [inputs, auxiliary_inputs];

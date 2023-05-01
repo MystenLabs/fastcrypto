@@ -110,7 +110,7 @@ describe("Tests with crafted JWTs", () => {
         jti: 'a8a0728a'
     };
     const claim_string = '"sub":"4840061",';
-    const sub_commitment = 6621753577113798222817846331081670375939652571040388319046768774068537034346n;
+    const sub_commitment = '6621753577113798222817846331081670375939652571040388319046768774068537034346';
     const pin = 123456789;
 
     // const b64header = utils.trimEndByChar(Buffer.from(header, 'base64url').toString('base64url'), '=');
@@ -123,7 +123,7 @@ describe("Tests with crafted JWTs", () => {
     before(async () => {
         expect(jwtutils.getClaimString(JSON.stringify(payload), "sub")).equals(claim_string);
         expect(claim_string.length).at.most(maxSubLength);
-        expect(await utils.commitSubID(claim_string.slice(0, -1), pin, maxSubLength)).equals(sub_commitment);
+        expect((await utils.commitSubID(claim_string.slice(0, -1), pin, maxSubLength)).toString()).equals(sub_commitment);
         console.log("JWT: ", jwt);
         circuit = await genCircuit(maxContentLen, maxSubLength);
     });
@@ -240,7 +240,7 @@ describe("Tests with crafted JWTs", () => {
             );
             expect(aux["sub_id_com"]).not.equals(sub_commitment);
 
-            // Fake the subject_id array
+            // Fake the subject_id array to match sub_commitment
             try {
                 await genProof(
                     new_jwt,
