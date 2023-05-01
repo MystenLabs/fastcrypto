@@ -64,16 +64,25 @@ describe("JWT utils tests", () => {
 
     describe("getClaimString", () => {
         it("Normal strings", () => {
+            // Without quotes, not end
             assert.deepEqual(
                 getClaimString('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "iss"),
                 '"iss":12345,'
             );
-    
+
+            // With quotes, not end
             assert.deepEqual(
-                getClaimString('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "sub"),
-                '"sub":45678,'
+                getClaimString('{"iss":"12345","sub":45678,"aud":"https://example.com"}', "iss"),
+                '"iss":"12345",'
+            );
+
+            // Without quotes, end
+            assert.deepEqual(
+                getClaimString('{"iss":12345,"sub":45678}', "sub"),
+                '"sub":45678}'
             );
     
+            // With quotes, end
             assert.deepEqual(
                 getClaimString('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "aud"),
                 '"aud":"https://example.com"}'

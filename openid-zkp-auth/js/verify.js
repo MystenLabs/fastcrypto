@@ -2,6 +2,9 @@
 const jwt = require("jsonwebtoken");
 const jwkToPem = require("jwk-to-pem");
 
+const jwtutils = require("./jwtutils");
+const { toBigIntBE } = require("bigint-buffer");
+
 // JWT Token, JWK Public Key
 const verifyJwt = (token, jwkPublicKey) => {
     try {
@@ -32,13 +35,13 @@ const verifyOpenIDProof = (public_inputs, auxiliary_inputs, MAX_JWT_LENGTH) => {
 }
 
 // TODO: Add checks related to payload_len
-const checkMaskedContent = (
+function checkMaskedContent (
     masked_content, 
     num_sha2_blocks,
     expected_payload_start_index,
     expected_payload_len,
     expected_length
-) => {
+){
     if (masked_content.length != expected_length) throw new Error("Invalid length");
     if (num_sha2_blocks * 64 > masked_content.length) throw new Error("Invalid last block");
 
@@ -61,12 +64,17 @@ const checkMaskedContent = (
 
     // Process SHA-2 padding
     const payload_and_sha2pad = masked_content.slice(header_length + 1);
-    const header_and_payload_len_in_bits = Number('0x' + payload_and_sha2pad.slice(-8).map(e => e.toString(16)).join(''));
+    var header_and_payload_len_in_bits =  toBigIntBE(Buffer.from(payload_and_sha2pad.slice(-8)));
+    if (header_and_payload_len_in_bits > Number.MAX_SAFE_INTEGER) { // 2^53 - 1
+        throw new Error("Too large header_and_payload_len_in_bits");
+    }
+    // casting to a number should work for our use case as the numbers aren't big
+    header_and_payload_len_in_bits = Number(header_and_payload_len_in_bits);
     if (header_and_payload_len_in_bits % 8 != 0) throw new Error("Invalid header_and_payload_len_in_bits");
     const header_and_payload_len = header_and_payload_len_in_bits / 8;
 
     const payload_len = header_and_payload_len - expected_payload_start_index;
-    if (payload_len != expected_payload_len) throw new Error("Invalid payload length");
+    if (payload_len != expected_payload_len) throw new Error(`Invalid payload length: ${payload_len} != ${expected_payload_len}`);
 
     const payload = payload_and_sha2pad.slice(0, payload_len);
     const sha2pad = payload_and_sha2pad.slice(payload_len);
@@ -82,7 +90,6 @@ const checkMaskedContent = (
     console.log("Revealed claims:", claims);
 }
 
-const jwtutils = require("./jwtutils");
 // Extracts the claims from the masked payload.
 // 1. Extract continguous sets of non-masked characters
 // 2. For each group of Base64 chars, find its starting index and prefix-pad with enough '0's before Base64 decoding.

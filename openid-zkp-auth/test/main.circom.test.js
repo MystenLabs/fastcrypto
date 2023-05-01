@@ -211,7 +211,8 @@ describe("Tests with crafted JWTs", () => {
             '3840061', 
             '48', 
             '48400610', 
-            '04840061'
+            '04840061',
+            4840061 // Number
         ];
         for (var i = 0; i < failing_cases.length; i++) {
             const sub = failing_cases[i];

@@ -23,7 +23,7 @@ JWT Proof: User-agnostic (UA) circuit
     Circuit signals revealed to the verifier along with the ZK proof:
     - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
     - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
-    - subject_id_com:           A (binding, hiding) commitment to subject_id, H(subject_id || PIN)
+    - subject_id_com:           H(subject_id || PIN). A binding and hiding commitment to subject_id
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
     - masked_content:           The content with the sensitive parts masked
