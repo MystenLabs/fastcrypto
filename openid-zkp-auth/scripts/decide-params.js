@@ -24,6 +24,11 @@ function computeSubLen(jwt) {
     return jwtutils.getClaimString(payload, "sub").length;
 }
 
+function computeAudLen(jwt) {
+    const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();
+    return jwtutils.getClaimString(payload, "aud").length;
+}
+
 function decide(jwt, buffer1, buffer2) {
     const p1 = computeNumSHA2Blocks(jwt);
     const maxSHA2Blocks = Math.floor(p1 * (1 + buffer1));
@@ -33,8 +38,15 @@ function decide(jwt, buffer1, buffer2) {
     var maxSubLen = Math.floor(p2 * (1 + buffer2));
 
     // Round maxSubLen to the nearest multiple of 3
-    maxSubLen = Math.floor(maxSubLen / 3) * 3;
+    maxSubLen = Math.ceil(maxSubLen / 3) * 3;
     console.log(`Sub length: ${p2}, Max sub length: ${maxSubLen}`);
+
+    const p3 = computeAudLen(jwt);
+    var maxAudLen = Math.floor(p3 * (1 + buffer2));
+
+    // Round maxAudLen to the nearest multiple of 3
+    maxAudLen = Math.ceil(maxAudLen / 3) * 3;
+    console.log(`Aud length: ${p3}, Max aud length: ${maxAudLen}`);
 }
 
 const GOOGLE = require("../test/testvectors").google;
