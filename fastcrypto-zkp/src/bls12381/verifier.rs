@@ -10,7 +10,7 @@ use blst::{
     blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p1s_mult_pippenger,
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::{error::FastCryptoError, utils::log2_byte};
 
 use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
@@ -158,16 +158,6 @@ const G1_IDENTITY: blst_p1 = blst_p1 {
     z: blst_fp { l: [0; 6] },
 };
 
-/// Returns the log base 2 of b in O(lg(N)) time.
-fn log_2_byte(b: u8) -> usize {
-    let mut r = u8::from(b > 0xF) << 2;
-    let mut b = b >> r;
-    let shift = u8::from(b > 0x3) << 1;
-    b >>= shift + 1;
-    r |= shift | b;
-    r.into()
-}
-
 /// Returns a single scalar multiplication of `pt` by `b`.
 fn mul(pt: &blst_p1, b: &blst_fr) -> blst_p1 {
     let mut scalar: blst_scalar = blst_scalar::default();
@@ -193,7 +183,7 @@ fn mul(pt: &blst_p1, b: &blst_fr) -> blst_p1 {
                 &mut result,
                 pt,
                 &(scalar.b[0]),
-                8 * i - 7 + log_2_byte(scalar.b[i - 1]),
+                8 * i - 7 + log2_byte(scalar.b[i - 1]),
             );
         }
     }

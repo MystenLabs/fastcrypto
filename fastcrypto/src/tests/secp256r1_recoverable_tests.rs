@@ -3,12 +3,16 @@
 
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::scalar::IsHigh;
+use p256::Scalar;
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use wycheproof::ecdsa::{TestName::EcdsaSecp256r1Sha256, TestSet};
 use wycheproof::TestResult;
 
+use crate::encoding::{Base64, Encoding};
 use crate::hash::Blake2b256;
 use crate::secp256r1::{
     Secp256r1KeyPair, Secp256r1PrivateKey, Secp256r1PublicKey, Secp256r1Signature,
@@ -121,6 +125,49 @@ fn to_from_bytes_signature() {
     let mut sig_bytes = signature.as_ref().to_vec();
     sig_bytes.pop();
     assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&sig_bytes).is_err());
+}
+
+#[test]
+fn fail_on_r_or_s_zero() {
+    // Verification (split_scalars) panics if r or s is zero, so we check that this is caught in deserialization.
+
+    // Build valid signature
+    let signature = keys().pop().unwrap().sign_recoverable(b"Hello, world!");
+    let sig_bytes = signature.as_ref();
+
+    // Set r to zero
+    let mut r_is_zero = [0u8; 65];
+    r_is_zero[0..32].copy_from_slice(&Scalar::ZERO.to_bytes());
+    r_is_zero[32..64].copy_from_slice(&sig_bytes[32..64]);
+    r_is_zero[64] = sig_bytes[64];
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&r_is_zero).is_err());
+
+    // Set s to zero
+    let mut s_is_zero = [0u8; 65];
+    s_is_zero[0..32].copy_from_slice(&sig_bytes[0..32]);
+    s_is_zero[32..64].copy_from_slice(&Scalar::ZERO.to_bytes());
+    s_is_zero[64] = sig_bytes[64];
+    assert!(<Secp256r1RecoverableSignature as ToFromBytes>::from_bytes(&s_is_zero).is_err());
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
+#[test]
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+
+    let mut hasher = DefaultHasher::new();
+    sig.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    sig.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
 }
 
 #[test]
@@ -351,4 +398,24 @@ fn test_recoverable_nonrecoverable_conversion() {
         .public()
         .verify_recoverable(message, &recovered_signature)
         .is_ok());
+}
+
+#[test]
+fn test_invalid_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message.
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign_recoverable(message);
+    let nonrecoverable_signature = Secp256r1Signature::try_from(&signature).unwrap();
+
+    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
+    let other_message: &[u8] = b"Hello, other world!";
+    assert!(Secp256r1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        kp.public(),
+        other_message,
+    )
+    .is_err());
 }

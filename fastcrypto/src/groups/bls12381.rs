@@ -8,6 +8,7 @@ use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarT
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
+use crate::utils::log2_byte;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 use blst::{
     blst_bendian_from_scalar, blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
@@ -92,7 +93,7 @@ fn size_in_bytes(scalar: &blst_scalar) -> usize {
 /// Given a scalar and its size in bytes (computed using [size_in_bytes], this method returns the size
 /// of the scalar in bits.
 fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
-    8 * size_in_bytes - 7 + log_2_byte(scalar.b[size_in_bytes - 1])
+    8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
 }
 
 impl Mul<Scalar> for G1Element {
@@ -577,13 +578,3 @@ const BLST_FR_ONE: blst_fr = blst_fr {
         1739710354780652911,
     ],
 };
-
-/// Returns the log base 2 of b in O(lg(N)) time.
-fn log_2_byte(b: u8) -> usize {
-    let mut r = u8::from(b > 0xF) << 2;
-    let mut b = b >> r;
-    let shift = u8::from(b > 0x3) << 1;
-    b >>= shift + 1;
-    r |= shift | b;
-    r.into()
-}

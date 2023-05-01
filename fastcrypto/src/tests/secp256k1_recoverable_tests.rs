@@ -14,7 +14,10 @@ use crate::{
     test_helpers,
     traits::{EncodeDecodeBase64, KeyPair, ToFromBytes, VerifyingKey},
 };
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 
+use crate::encoding::{Base64, Encoding};
 #[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signature as ExternalSignature;
 #[cfg(feature = "copy_key")]
@@ -44,6 +47,26 @@ fn serialize_deserialize() {
     // The other types (pk, sk, keypair) are tested in the nonrecoverable tests.
     let sig = keys().pop().unwrap().sign_recoverable(MSG);
     verify_serialization(&sig, Some(sig.as_bytes()));
+}
+
+#[test]
+fn fmt_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+    assert_eq!(sig.to_string(), Base64::encode(sig.as_bytes()));
+}
+
+#[test]
+fn hash_signature() {
+    let sig = keys().pop().unwrap().sign_recoverable(MSG);
+
+    let mut hasher = DefaultHasher::new();
+    sig.hash(&mut hasher);
+    let digest = hasher.finish();
+
+    let mut other_hasher = DefaultHasher::new();
+    sig.as_bytes().hash(&mut other_hasher);
+    let expected = other_hasher.finish();
+    assert_eq!(expected, digest);
 }
 
 #[test]
@@ -457,4 +480,24 @@ fn test_recoverable_nonrecoverable_conversion() {
         .public()
         .verify_recoverable(message, &recovered_signature)
         .is_ok());
+}
+
+#[test]
+fn test_invalid_nonrecoverable_conversion() {
+    // Get a keypair.
+    let kp = keys().pop().unwrap();
+
+    // Sign over raw message.
+    let message: &[u8] = b"Hello, world!";
+    let signature = kp.sign_recoverable(message);
+    let nonrecoverable_signature = Secp256k1Signature::try_from(&signature).unwrap();
+
+    // Try to convert a nonrecoverable signature to a recoverable one with a different message.
+    let other_message: &[u8] = b"Hello, other world!";
+    assert!(Secp256k1RecoverableSignature::try_from_nonrecoverable(
+        &nonrecoverable_signature,
+        kp.public(),
+        other_message,
+    )
+    .is_err());
 }

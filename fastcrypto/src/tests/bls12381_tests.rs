@@ -16,6 +16,8 @@ use crate::{
 };
 use proptest::{collection, prelude::*};
 use rand::{rngs::StdRng, SeedableRng as _};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::str::FromStr;
 
 // We use the following macro in order to run all tests for both min_sig and min_pk.
@@ -222,7 +224,25 @@ fn verify_valid_batch_different_msg() {
 
 #[test]
 fn verify_invalid_batch_different_msg() {
+
+    // Should fail on empty inputs
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg::<&[u8]>(
+        &[],
+        &[],
+        &[],
+    );
+    assert!(res.is_err(), "{:?}", res);
+
+    // Should fail on mismatch in input sizes
     let mut inputs = signature_test_inputs_different_msg::<BLS12381KeyPair>();
+    let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
+        &inputs.digests[0..2],
+        &inputs.pubkeys,
+        &inputs.signatures,
+    );
+    assert!(res.is_err(), "{:?}", res);
+
+    // Should fail with one invalid signature
     inputs.signatures[0] = BLS12381Signature::default();
     let res = BLS12381PublicKey::verify_batch_empty_fail_different_msg(
         &inputs.digests,
@@ -584,6 +604,58 @@ fn test_verify_with_default_values() {
     assert!(default_agg_sig.verify(&[valid_pk.clone()], b"message").is_err());
     assert!(default_agg_sig.verify(&[default_pk.clone()], b"message").is_err());
 }
+
+#[test]
+ fn public_key_ordering() {
+     let pk1 = keys().pop().unwrap().public().clone();
+     let pk2 = keys().pop().unwrap().public().clone();
+     assert_eq!(pk1.as_bytes().cmp(pk2.as_bytes()), pk1.cmp(&pk2));
+     assert_eq!(
+         pk1.as_bytes().cmp(pk2.as_bytes()),
+         pk1.partial_cmp(&pk2).unwrap()
+     );
+ }
+
+#[test]
+ fn fmt_public_key() {
+     let kpref = keys().pop().unwrap();
+     let public_key = kpref.public();
+
+     // Display
+     assert_eq!(
+         format!("{}", public_key),
+         Base64::encode(public_key.as_bytes())
+     );
+
+     // Debug
+     assert_eq!(
+         format!("{:?}", public_key),
+         Base64::encode(public_key.as_bytes())
+     );
+ }
+
+#[test]
+ fn hash_signature() {
+     let sig = keys().pop().unwrap().sign(b"Hello, world!");
+
+     let mut hasher = DefaultHasher::new();
+     sig.hash(&mut hasher);
+     let digest = hasher.finish();
+
+     let mut other_hasher = DefaultHasher::new();
+     sig.as_bytes().hash(&mut other_hasher);
+     let expected = other_hasher.finish();
+     assert_eq!(expected, digest);
+ }
+
+#[test]
+ fn fmt_signature() {
+     let sig = keys().pop().unwrap().sign(b"Hello, world!");
+     assert_eq!(format!("{}", sig), Base64::encode(sig.as_bytes()));
+
+     let aggregate_sig = BLS12381AggregateSignature::aggregate(&[sig.clone()]).unwrap();
+     assert_eq!(format!("{}", aggregate_sig), Base64::encode(aggregate_sig.as_bytes()));
+ }
 
 //
 // Proptests

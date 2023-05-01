@@ -17,7 +17,6 @@
 
 pub mod recoverable;
 
-use crate::generate_bytes_representation;
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::serde_helpers::BytesRepresentation;
@@ -31,6 +30,7 @@ use crate::{
         VerifyingKey,
     },
 };
+use crate::{generate_bytes_representation, impl_base64_display_fmt};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::{Lazy, OnceCell};
 use rust_secp256k1::{
@@ -38,7 +38,7 @@ use rust_secp256k1::{
     SecretKey,
 };
 use std::{
-    fmt::{self, Debug, Display},
+    fmt::{self, Debug},
     str::FromStr,
 };
 use zeroize::Zeroize;
@@ -169,11 +169,7 @@ impl ToFromBytes for Secp256k1PublicKey {
     }
 }
 
-impl Display for Secp256k1PublicKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", Base64::encode(self.as_ref()))
-    }
-}
+impl_base64_display_fmt!(Secp256k1PublicKey);
 
 serialize_deserialize_with_to_from_bytes!(Secp256k1PublicKey, SECP256K1_PUBLIC_KEY_LENGTH);
 
@@ -246,6 +242,8 @@ generate_bytes_representation!(
     Secp256k1SignatureAsBytes
 );
 
+impl_base64_display_fmt!(Secp256k1Signature);
+
 impl ToFromBytes for Secp256k1Signature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         if bytes.len() != SECP256K1_SIGNATURE_LENGTH {
@@ -279,12 +277,6 @@ impl AsRef<[u8]> for Secp256k1Signature {
 impl std::hash::Hash for Secp256k1Signature {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
-    }
-}
-
-impl Display for Secp256k1Signature {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        write!(f, "{}", Base64::encode(self.as_ref()))
     }
 }
 

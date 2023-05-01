@@ -32,9 +32,9 @@ use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_by
 ///
 
 // Set to same sizes as BLS
-const PRIVATE_KEY_LENGTH: usize = 32;
-const PUBLIC_KEY_LENGTH: usize = 96;
-const SIGNATURE_LENGTH: usize = 48;
+pub const PRIVATE_KEY_LENGTH: usize = 32;
+pub const PUBLIC_KEY_LENGTH: usize = 96;
+pub const SIGNATURE_LENGTH: usize = 48;
 
 type DefaultHashFunction = Fast256HashUnsecure;
 
@@ -118,12 +118,7 @@ serialize_deserialize_with_to_from_bytes!(UnsecurePublicKey, PUBLIC_KEY_LENGTH);
 
 impl<'a> From<&'a UnsecurePrivateKey> for UnsecurePublicKey {
     fn from(secret: &'a UnsecurePrivateKey) -> Self {
-        let result = crate::hash::Sha256::digest(secret.0.as_ref());
-        let bytes: [u8; PUBLIC_KEY_LENGTH] = result.as_ref()[0..PUBLIC_KEY_LENGTH]
-            .try_into()
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
-            .unwrap();
-        UnsecurePublicKey(bytes)
+        UnsecureKeyPair::from(secret.clone()).public().clone()
     }
 }
 
