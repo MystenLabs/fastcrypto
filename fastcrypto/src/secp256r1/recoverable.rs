@@ -201,8 +201,8 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let (r, s) = self.sig.split_scalars();
         let v = RecoveryId::from_byte(self.recovery_id).ok_or(FastCryptoError::InvalidInput)?;
 
-        // If the x-coordinate overflowed, we reconstruct it here. This does not seem to be done in
-        // the k256 implementation.
+        // If the x-coordinate of kR overflowed the curve order, we reconstruct it here. Note that
+        // this does not seem to be done in the k256 implementation.
         let r_bytes = match v.is_x_reduced() {
             true => U256::from(r.as_ref())
                 .wrapping_add(&NistP256::ORDER)
