@@ -139,7 +139,6 @@ impl Secp256k1PublicKey {
     }
 
     /// util function to parse wycheproof test key from DER format.
-    #[cfg(test)]
     pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
         let pubkey = PublicKey::from_slice(uncompressed).unwrap();
         Self {
