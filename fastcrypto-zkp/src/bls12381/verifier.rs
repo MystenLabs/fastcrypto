@@ -10,10 +10,7 @@ use blst::{
     blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p1s_mult_pippenger,
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
-use fastcrypto::{
-    error::FastCryptoError,
-    utils::log2_byte,
-};
+use fastcrypto::{error::FastCryptoError, utils::log2_byte};
 
 use crate::bls12381::conversions::{
     bls_fq12_to_blst_fp12, bls_fr_to_blst_fr, bls_g1_affine_to_blst_g1_affine,
