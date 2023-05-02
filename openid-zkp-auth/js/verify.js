@@ -88,12 +88,26 @@ function checkMaskedContent (
     console.log("Masked payload:", maskedPayload);
     const claims = extractClaims(maskedPayload);
     console.log("Revealed claims:", claims);
+
+    for (const claim of claims) {
+        if (claim[0] !== '"') {
+            // First character of each extracted_claim must be '"' (extractClaims omits partial bits at the start)
+            console.log("Invalid claim", claim);
+            throw new Error("Invalid claim");
+        }
+
+        if (!(claim.slice(-1) === '}' || claim.slice(-1) === ',')) {
+            // Last character of each extracted_claim must be '}' or ','
+            console.log("Invalid claim", claim);
+            throw new Error("Invalid claim");
+        }
+    }
 }
 
 // Extracts the claims from the masked payload.
 // 1. Extract continguous sets of non-masked characters
 // 2. For each group of Base64 chars, find its starting index and prefix-pad with enough '0's before Base64 decoding.
-const extractClaims = (maskedPayload) => {
+function extractClaims(maskedPayload) {
     return maskedPayload.split(/=+/).filter(e => e !== '').map(
         e => {
             const pos = maskedPayload.indexOf(e);

@@ -48,9 +48,15 @@ function maskTesting(jwt, claimsToReveal, print=false) {
         }
     }
 
-    // First character of each extracted_claim must be either '{' or ',' or '"'
     for (const claim of extracted_claims) {
-        if (!['{', ',', '"'].includes(claim[0])) {
+        if (claim[0] !== '"') {
+            // First character of each extracted_claim must be '"' (extractClaims omits partial bits at the start)
+            console.log("Invalid claim", claim);
+            throw new Error("Invalid claim");
+        }
+
+        if (!(claim.slice(-1) === '}' || claim.slice(-1) === ',')) {
+            // Last character of each extracted_claim must be '}' or ','
             console.log("Invalid claim", claim);
             throw new Error("Invalid claim");
         }

@@ -137,96 +137,200 @@ describe("Slices", () => {
 })
 
 describe("ASCIISubstrExistsInB64" , () => {
-    async function gen(jwt, maxJwtLen, A, maxA, indexB, lenB, payloadIndex) {
-        assert.isTrue(jwt.length <= maxJwtLen, "JWT too long");
-        const circuit = await test.genMain(
+    async function genCircuit(maxJwtLen, maxA) {
+        return await test.genMain(
             path.join(__dirname, "..", "circuits", "strings.circom"),
             "ASCIISubstrExistsInB64",
             [maxJwtLen, maxA]
         );
+    }
+
+    async function genProof(circuit, jwt, maxJwtLen, A, maxA, indexB, lenB, payloadIndex, lenA=A.length) {
+        assert.isTrue(jwt.length <= maxJwtLen, "JWT too long");
+        assert.isTrue(A.length <= maxA, "A too long");
 
         const witness = await circuit.calculateWitness({
-            "b64Str": jwt.split("").map(c => c.charCodeAt(0)).concat(Array(maxJwtLen - jwt.length).fill(0)), // pad with 0s
+            "b64Str":  utils.padWithZeroes(jwt.split("").map(c => c.charCodeAt(0)), maxJwtLen), // pad with 0s
             "lenB": lenB,
             "BIndex": indexB,
-            "A": A.split("").map(c => c.charCodeAt(0)).concat(Array(maxA - A.length).fill(0)), // pad with 0s
-            "lenA": A.length,
+            "A": utils.padWithZeroes(A.split("").map(c => c.charCodeAt(0)), maxA), // pad with 0s
+            "lenA": lenA,
             "payloadIndex": payloadIndex
         });
 
         await circuit.checkConstraints(witness);
     }
 
-    describe("Simple JWTs", () => {
-        const maxJwtLen = 100;
+    describe("lenA < maxA", () => {
+        const maxJwtLen = 200;
         const A = '"sub":"4840061"}';
         const maxA = A.length + 14;
         const maxB = 1 + ((maxA / 3) * 4);
-
-        // Prefixes chosen such that index of A in the JWT is 0, 1, 2
-        const prefixes = ['{   ', '{', '{ '];
-        const decoded_jwts = prefixes.map(prefix => prefix + A);
-        const jwts = decoded_jwts.map(jwt => Buffer.from(jwt).toString("base64url"));
-
-        const X = jwts.map(jwt => jwtutils.indicesOfB64(jwt, 'sub'));
-        const indicesB = X.map(tuple => tuple[0]);
-        const lensB = X.map(tuple => tuple[1]);
+        var circuit;
 
         before(() => {
             assert.equal(maxA % 3, 0);
             assert.isTrue(maxB <= maxJwtLen);
-            for (let i = 0; i < decoded_jwts.length; i++) {
-                assert.deepEqual(decoded_jwts[i].indexOf(A) % 4 , i);
-                assert.deepEqual(jwtutils.getClaimString(decoded_jwts[i], 'sub'), A);
-                assert.deepEqual(jwtutils.decodeB64URL(
-                    jwts[i].slice(indicesB[i], indicesB[i] + lensB[i]),
-                    indicesB[i]
-                ), A);
-            }
-            // console.log(jwts);
-            // console.log(X);
-            // console.log("lenBs", lensB);
-            // console.log("BIndices", indicesB);
+        })
+
+        beforeEach(async () => {
+            circuit = await genCircuit(maxJwtLen, maxA);
         });
 
-        for (let offset = 0; offset < 3; offset++) {
-            it(`Succeeds when A is at offset ${offset}`, async () => {
-                await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset], 0);
+        describe("Simple JWTs", () => {
+            // Prefixes chosen such that index of A in the JWT is 0, 1, 2
+            const prefixes = ['{   ', '{', '{ '];
+            const decoded_jwts = prefixes.map(prefix => prefix + A);
+            const jwts = decoded_jwts.map(jwt => Buffer.from(jwt).toString("base64url"));
+
+            const X = jwts.map(jwt => jwtutils.indicesOfB64(jwt, 'sub'));
+            const indicesB = X.map(tuple => tuple[0]);
+            const lensB = X.map(tuple => tuple[1]);
+
+            before(async () => {
+                assert.equal(maxA % 3, 0);
+                assert.isTrue(maxB <= maxJwtLen);
+                for (let i = 0; i < decoded_jwts.length; i++) {
+                    assert.deepEqual(decoded_jwts[i].indexOf(A) % 4 , i);
+                    assert.deepEqual(jwtutils.getClaimString(decoded_jwts[i], 'sub'), A);
+                    assert.deepEqual(jwtutils.decodeB64URL(
+                        jwts[i].slice(indicesB[i], indicesB[i] + lensB[i]),
+                        indicesB[i]
+                    ), A);
+                }
             });
 
-            it("Fails when substring index is either large or small", async () => {
-                for (let i in [1, -1]) {
+            for (let offset = 0; offset < 3; offset++) {
+                it(`Succeeds when A is at offset ${offset}`, async () => {
+                    await genProof(circuit, jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset], 0);
+                });
+    
+                it("Fails when substring index is either large or small", async () => {
+                    for (let i in [1, -1]) {
+                        try {
+                            await genProof(circuit, jwts[offset], maxJwtLen, A, maxA, indicesB[offset] + i, lensB[offset], 0);
+                            assert.fail("Should have failed");
+                        } catch (e) {
+                            assert.include(e.message, "Error in template ASCIISubstrExistsInB64");
+                        }
+                    }
+                });
+    
+                it("Fails when lenB is small", async () => {
                     try {
-                        await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset] + i, lensB[offset], 0);
+                        await genProof(circuit, jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] - 1, 0);
                         assert.fail("Should have failed");
                     } catch (e) {
                         assert.include(e.message, "Error in template ASCIISubstrExistsInB64");
                     }
-                }
-            });
-
-            it("Fails when lenB is small", async () => {
+                });
+    
+                it("Succeeds when lenB is large", async() => {
+                    await genProof(circuit, jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] + 1, 0);
+                });
+            }
+    
+            it("Fails when substring index < payload index", async () => {
                 try {
-                    await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] - 1, 0);
+                    await genProof(circuit, jwts[0], maxJwtLen, A, maxA, indicesB[0], lensB[0], indicesB[0] + 1);
                     assert.fail("Should have failed");
                 } catch (e) {
-                    assert.include(e.message, "Error in template ASCIISubstrExistsInB64");
+                    assert.include(e.message, "Error in template RemainderMod4");
+                    assert.include(e.message, "Error in template Num2Bits");
+                }
+            });    
+        });
+
+        describe("Bigger JWTs", async () => {
+            const payload = JSON.stringify({
+                "iat": 1616421600,
+                "exp": 1616425200,
+                "name": "John Doe",
+                "sub": "4840061"
+            });
+            const encoded_payload = Buffer.from(payload).toString("base64url");
+
+            it("No header", async () => {
+                const jwt = encoded_payload;
+                [index, len] = jwtutils.indicesOfB64(jwt, 'sub');
+                await genProof(circuit, jwt, maxJwtLen, A, maxA, index, len, 0);    
+            });
+
+            it("With header", async () => {
+                const header = JSON.stringify({
+                    "alg": "RS256",
+                    "typ": "JWT"
+                });
+                const jwt = Buffer.from(header).toString("base64url") + "." + encoded_payload;
+                [index, len] = jwtutils.indicesOfB64(encoded_payload, 'sub');
+                const payload_index = jwt.indexOf(encoded_payload);
+                await genProof(circuit, jwt, maxJwtLen, A, maxA, index + payload_index, len, payload_index);
+            });
+
+            it("lenB = maxB", async () => {
+                const jwt = encoded_payload;
+                [index, len] = jwtutils.indicesOfB64(jwt, 'sub');
+                await genProof(circuit, jwt, maxJwtLen, A, maxA, index, maxB, 0);
+            });
+
+            it("Fails when lenB > maxB or lenB < 0", async () => {
+                const jwt = encoded_payload;
+                [index, len] = jwtutils.indicesOfB64(jwt, 'sub');
+                for (lenB of [-1, maxB + 1]) {
+                    try {
+                        await genProof(circuit, jwt, maxJwtLen, A, maxA, index, lenB, 0);
+                        assert.fail("Should have failed");
+                    } catch (e) {
+                        assert.include(e.message, "Error in template RangeCheck");
+                        assert.include(e.message, "Error in template Slice");
+                    }
+                }
+            })
+
+            it("Fails when lenA > maxA or lenA < 0", async () => {
+                const jwt = encoded_payload;
+                [index, len] = jwtutils.indicesOfB64(jwt, 'sub');
+                for (lenA of [maxA + 1, -1]) {
+                    try {
+                        await genProof(circuit, jwt, maxJwtLen, A, maxA, index, len, 0, lenA);
+                        assert.fail("Should have failed");
+                    } catch (e) {
+                        assert.include(e.message, "Error in template LTBitVector");
+                    }
                 }
             });
 
-            it("Succeeds when lenB is large", async() => {
-                await gen(jwts[offset], maxJwtLen, A, maxA, indicesB[offset], lensB[offset] + 1, 0);
-            });
-        }
-
-        it("Fails when substring index < payload index", async () => {
-            try {
-                await gen(jwts[0], maxJwtLen, A, maxA, indicesB[0], lensB[0], indicesB[0] + 1);
-                assert.fail("Should have failed");
-            } catch (e) {
-                assert.include(e.message, "Error in template RemainderMod4");
-                assert.include(e.message, "Error in template Num2Bits");
-            }
         });
+    });
+
+    it("lenA = maxA", async () => {
+        const maxJwtLen = 200;
+        const A = '"sub":"484061",'; // 15 chars
+        assert.deepEqual(A.length % 3, 0);
+
+        const lenA = A.length;
+        const maxA = lenA;
+        const maxB = 1 + ((maxA / 3) * 4);
+        const header = JSON.stringify({
+            "alg": "RS256",
+            "typ": "JWT"
+        });
+        const payload = JSON.stringify({
+            "sub": "484061",
+            "iat": 1616421600,
+            "exp": 1616425200,
+            "name": "John Doe"
+        });
+        assert.deepEqual(jwtutils.getClaimString(payload, 'sub'), A);
+        const encoded_payload = Buffer.from(payload).toString("base64url");
+        const jwt = Buffer.from(header).toString("base64url") + "." + encoded_payload;
+
+        const payload_index = jwt.indexOf(encoded_payload);
+
+        [index, len] = jwtutils.indicesOfB64(encoded_payload, 'sub');
+        assert.isAtMost(len, maxB);
+
+        const circuit = await genCircuit(maxJwtLen, maxA);
+        await genProof(circuit, jwt, maxJwtLen, A, maxA, index + payload_index, len, payload_index);
     });
 });
