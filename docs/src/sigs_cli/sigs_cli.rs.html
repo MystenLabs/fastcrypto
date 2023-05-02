@@ -261,15 +261,40 @@
 <a href="#261" id="261">261</a>
 <a href="#262" id="262">262</a>
 <a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>fastcrypto::traits::Signer;
 <span class="kw">use </span>fastcrypto::{
-    bls12381::min_sig::{
-        BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
-    },
     ed25519::{Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
     encoding::{Encoding, Hex},
     error::FastCryptoError,
@@ -319,7 +344,8 @@
     Secp256k1Recoverable,
     Secp256r1,
     Secp256r1Recoverable,
-    BLS12381,
+    BLS12381MinSig,
+    BLS12381MinPk,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>SignatureScheme {
@@ -332,7 +358,8 @@
             <span class="string">&quot;secp256k1-rec&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256k1Recoverable),
             <span class="string">&quot;secp256r1&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1),
             <span class="string">&quot;secp256r1-rec&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1Recoverable),
-            <span class="string">&quot;bls12381&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381),
+            <span class="string">&quot;bls12381-minsig&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig),
+            <span class="string">&quot;bls12381-minpk&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::new(ErrorKind::Other, <span class="string">&quot;Invalid signature scheme.&quot;</span>)),
         }
     }
@@ -412,8 +439,15 @@
                         Hex::encode(kp.public().as_ref()),
                     )
                 }
-                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381) =&gt; {
-                    <span class="kw">let </span>kp = BLS12381KeyPair::generate(rng);
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig) =&gt; {
+                    <span class="kw">let </span>kp = fastcrypto::bls12381::min_sig::BLS12381KeyPair::generate(rng);
+                    (
+                        Hex::encode(kp.copy().private().as_ref()),
+                        Hex::encode(kp.public().as_ref()),
+                    )
+                }
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk) =&gt; {
+                    <span class="kw">let </span>kp = fastcrypto::bls12381::min_pk::BLS12381KeyPair::generate(rng);
                     (
                         Hex::encode(kp.copy().private().as_ref()),
                         Hex::encode(kp.public().as_ref()),
@@ -467,8 +501,19 @@
                         Hex::encode(kp.sign_recoverable(<span class="kw-2">&amp;</span>msg).as_ref()),
                     )
                 }
-                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381) =&gt; {
-                    <span class="kw">let </span>kp = BLS12381KeyPair::from(BLS12381PrivateKey::from_bytes(<span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>);
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig) =&gt; {
+                    <span class="kw">let </span>kp = fastcrypto::bls12381::min_sig::BLS12381KeyPair::from(
+                        fastcrypto::bls12381::min_sig::BLS12381PrivateKey::from_bytes(<span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>,
+                    );
+                    (
+                        Hex::encode(kp.public()),
+                        Hex::encode(kp.sign(<span class="kw-2">&amp;</span>msg).as_ref()),
+                    )
+                }
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk) =&gt; {
+                    <span class="kw">let </span>kp = fastcrypto::bls12381::min_pk::BLS12381KeyPair::from(
+                        fastcrypto::bls12381::min_pk::BLS12381PrivateKey::from_bytes(<span class="kw-2">&amp;</span>sk)<span class="question-mark">?</span>,
+                    );
                     (
                         Hex::encode(kp.public()),
                         Hex::encode(kp.sign(<span class="kw-2">&amp;</span>msg).as_ref()),
@@ -512,10 +557,21 @@
                         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
                     pk.verify_recoverable(<span class="kw-2">&amp;</span>msg, <span class="kw-2">&amp;</span>Secp256r1RecoverableSignature::from_bytes(<span class="kw-2">&amp;</span>sig)<span class="question-mark">?</span>)
                 }
-                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381) =&gt; {
-                    <span class="kw">let </span>pk = BLS12381PublicKey::from_bytes(<span class="kw-2">&amp;</span>pk)
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig) =&gt; {
+                    <span class="kw">let </span>pk = fastcrypto::bls12381::min_sig::BLS12381PublicKey::from_bytes(<span class="kw-2">&amp;</span>pk)
                         .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-                    pk.verify(<span class="kw-2">&amp;</span>msg, <span class="kw-2">&amp;</span>BLS12381Signature::from_bytes(<span class="kw-2">&amp;</span>sig)<span class="question-mark">?</span>)
+                    pk.verify(
+                        <span class="kw-2">&amp;</span>msg,
+                        <span class="kw-2">&amp;</span>fastcrypto::bls12381::min_sig::BLS12381Signature::from_bytes(<span class="kw-2">&amp;</span>sig)<span class="question-mark">?</span>,
+                    )
+                }
+                <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk) =&gt; {
+                    <span class="kw">let </span>pk = fastcrypto::bls12381::min_pk::BLS12381PublicKey::from_bytes(<span class="kw-2">&amp;</span>pk)
+                        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                    pk.verify(
+                        <span class="kw-2">&amp;</span>msg,
+                        <span class="kw-2">&amp;</span>fastcrypto::bls12381::min_pk::BLS12381Signature::from_bytes(<span class="kw-2">&amp;</span>sig)<span class="question-mark">?</span>,
+                    )
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
             };
