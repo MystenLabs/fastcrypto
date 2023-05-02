@@ -135,7 +135,11 @@ impl VerifyingKey for Secp256r1PublicKey {
 }
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
-
+generate_bytes_representation!(
+    Secp256r1PublicKey,
+    SECP256R1_PUBLIC_KEY_LENGTH,
+    Secp256r1PublicKeyAsBytes
+);
 impl Secp256r1PublicKey {
     /// Verify the signature using the given hash function to hash the message.
     pub fn verify_with_hash<H: HashFunction<32>>(

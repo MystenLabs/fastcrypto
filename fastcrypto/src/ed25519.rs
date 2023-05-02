@@ -317,7 +317,11 @@ impl Ord for Ed25519PublicKey {
 }
 
 serialize_deserialize_with_to_from_bytes!(Ed25519PublicKey, ED25519_PUBLIC_KEY_LENGTH);
-
+generate_bytes_representation!(
+    Ed25519PublicKey,
+    ED25519_PUBLIC_KEY_LENGTH,
+    Ed25519PublicKeyAsBytes
+);
 impl VerifyingKey for Ed25519PublicKey {
     type PrivKey = Ed25519PrivateKey;
     type Sig = Ed25519Signature;
