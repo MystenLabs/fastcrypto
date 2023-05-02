@@ -4,8 +4,6 @@
 ///! This module contains test vectors for all signature schemes supported by the sigs_cli tool.
 pub mod sigs_cli_test_vectors {
 
-    // This needs to be public to make it available in both unit and integration tests.
-
     /// A test vector containing a signature over MSG encoded as a hex string.
     pub struct TestVector {
         pub name: &'static str,
@@ -15,6 +13,7 @@ pub mod sigs_cli_test_vectors {
     }
 
     pub const MSG: &str = "00010203";
+    pub const SEED: &str = "0101010101010101010101010101010101010101010101010101010101010101";
 
     const ED25519_TEST: TestVector = TestVector {
         name: "ed25519",
@@ -51,19 +50,27 @@ pub mod sigs_cli_test_vectors {
         sig: "54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd01",
     };
 
-    const BLS12381_TEST: TestVector = TestVector {
-        name: "bls12381",
+    const BLS12381_MINSIG_TEST: TestVector = TestVector {
+        name: "bls12381-minsig",
         private: "5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337",
         public: "a57feae28362201f657ccf6cdaba629758beb0214942804d2c084967d76908fe46ce355e0e735bdde2705620c7cf4b3903177f62ba43ba39277d952d80afee4fdc439a3ce2ce6fd113196d7de7aff7d1683ed507a21e6920119c91980329925b",
         sig: "a09f9b16ac4cfeadfd4d69b940cf9ead098a7d9f0df0a11d07820cb1dbacda6e1d0631529b1070ec1d8eb29fbc76a807",
     };
 
-    pub const TEST_CASES: [TestVector; 6] = [
+    const BLS12381_MINPK_TEST: TestVector = TestVector {
+        name: "bls12381-minpk",
+        private: "5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337",
+        public: "83738acb2121bb33db5a178a0a56ec041ae3b3617c9f2615a4366b9e3aa4021f3bbfe02858a0a0659ef9e8312c7b7d0f",
+        sig: "ae65a019350ebbb2280d52d19d1bed3fe804b753c1dd5ce7738ca47fa90110e668dc75b6f53972a1c812f135b099fd780bdf69f18952b777d32a865cbabce270a6af400223f9558161102348f79980537c10455355a54158b44bf62b5eef8c63",
+    };
+
+    pub const TEST_CASES: [TestVector; 7] = [
         ED25519_TEST,
         SECP256K1_TEST,
         SECP256K1_RECOVERABLE_TEST,
         SECP256R1_TEST,
         SECP256R1_RECOVERABLE_TEST,
-        BLS12381_TEST,
+        BLS12381_MINSIG_TEST,
+        BLS12381_MINPK_TEST,
     ];
 }

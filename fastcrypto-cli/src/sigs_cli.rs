@@ -294,9 +294,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
 mod tests {
     use crate::{execute, Command, KeygenArguments, SigningArguments, VerifiyingArguments};
     use fastcrypto::error::FastCryptoError;
-    use fastcrypto_cli::sigs_cli_test_vectors::{MSG, TEST_CASES};
-
-    pub const SEED: &str = "0101010101010101010101010101010101010101010101010101010101010101";
+    use fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
 
     fn test_keygen_single(scheme: &str, seed: &str) -> Result<(), FastCryptoError> {
         execute(Command::Keygen(KeygenArguments {

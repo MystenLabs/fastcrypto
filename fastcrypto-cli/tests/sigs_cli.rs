@@ -2,10 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use assert_cmd::Command;
-use fastcrypto_cli::sigs_cli_test_vectors::{MSG, TEST_CASES};
+use fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
 use regex::Regex;
-
-pub const SEED: &str = "0101010101010101010101010101010101010101010101010101010101010101";
 
 fn valid_keygen(scheme: &str, seed: &str, expected_secret_key: &str, expected_public_key: &str) {
     let result = Command::cargo_bin("sigs-cli")
