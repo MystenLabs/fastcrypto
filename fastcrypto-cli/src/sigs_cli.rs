@@ -4,9 +4,6 @@
 use clap::Parser;
 use fastcrypto::traits::Signer;
 use fastcrypto::{
-    bls12381::min_sig::{
-        BLS12381KeyPair, BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
-    },
     ed25519::{Ed25519KeyPair, Ed25519PrivateKey, Ed25519PublicKey, Ed25519Signature},
     encoding::{Encoding, Hex},
     error::FastCryptoError,
@@ -56,7 +53,8 @@ enum SignatureScheme {
     Secp256k1Recoverable,
     Secp256r1,
     Secp256r1Recoverable,
-    BLS12381,
+    BLS12381MinSig,
+    BLS12381MinPk,
 }
 
 impl FromStr for SignatureScheme {
@@ -69,7 +67,8 @@ impl FromStr for SignatureScheme {
             "secp256k1-rec" => Ok(SignatureScheme::Secp256k1Recoverable),
             "secp256r1" => Ok(SignatureScheme::Secp256r1),
             "secp256r1-rec" => Ok(SignatureScheme::Secp256r1Recoverable),
-            "bls12381" => Ok(SignatureScheme::BLS12381),
+            "bls12381-minsig" => Ok(SignatureScheme::BLS12381MinSig),
+            "bls12381-minpk" => Ok(SignatureScheme::BLS12381MinPk),
             _ => Err(Error::new(ErrorKind::Other, "Invalid signature scheme.")),
         }
     }
@@ -149,8 +148,15 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         Hex::encode(kp.public().as_ref()),
                     )
                 }
-                Ok(SignatureScheme::BLS12381) => {
-                    let kp = BLS12381KeyPair::generate(rng);
+                Ok(SignatureScheme::BLS12381MinSig) => {
+                    let kp = fastcrypto::bls12381::min_sig::BLS12381KeyPair::generate(rng);
+                    (
+                        Hex::encode(kp.copy().private().as_ref()),
+                        Hex::encode(kp.public().as_ref()),
+                    )
+                }
+                Ok(SignatureScheme::BLS12381MinPk) => {
+                    let kp = fastcrypto::bls12381::min_pk::BLS12381KeyPair::generate(rng);
                     (
                         Hex::encode(kp.copy().private().as_ref()),
                         Hex::encode(kp.public().as_ref()),
@@ -204,8 +210,19 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         Hex::encode(kp.sign_recoverable(&msg).as_ref()),
                     )
                 }
-                Ok(SignatureScheme::BLS12381) => {
-                    let kp = BLS12381KeyPair::from(BLS12381PrivateKey::from_bytes(&sk)?);
+                Ok(SignatureScheme::BLS12381MinSig) => {
+                    let kp = fastcrypto::bls12381::min_sig::BLS12381KeyPair::from(
+                        fastcrypto::bls12381::min_sig::BLS12381PrivateKey::from_bytes(&sk)?,
+                    );
+                    (
+                        Hex::encode(kp.public()),
+                        Hex::encode(kp.sign(&msg).as_ref()),
+                    )
+                }
+                Ok(SignatureScheme::BLS12381MinPk) => {
+                    let kp = fastcrypto::bls12381::min_pk::BLS12381KeyPair::from(
+                        fastcrypto::bls12381::min_pk::BLS12381PrivateKey::from_bytes(&sk)?,
+                    );
                     (
                         Hex::encode(kp.public()),
                         Hex::encode(kp.sign(&msg).as_ref()),
@@ -249,10 +266,21 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                         .map_err(|_| FastCryptoError::InvalidInput)?;
                     pk.verify_recoverable(&msg, &Secp256r1RecoverableSignature::from_bytes(&sig)?)
                 }
-                Ok(SignatureScheme::BLS12381) => {
-                    let pk = BLS12381PublicKey::from_bytes(&pk)
+                Ok(SignatureScheme::BLS12381MinSig) => {
+                    let pk = fastcrypto::bls12381::min_sig::BLS12381PublicKey::from_bytes(&pk)
                         .map_err(|_| FastCryptoError::InvalidInput)?;
-                    pk.verify(&msg, &BLS12381Signature::from_bytes(&sig)?)
+                    pk.verify(
+                        &msg,
+                        &fastcrypto::bls12381::min_sig::BLS12381Signature::from_bytes(&sig)?,
+                    )
+                }
+                Ok(SignatureScheme::BLS12381MinPk) => {
+                    let pk = fastcrypto::bls12381::min_pk::BLS12381PublicKey::from_bytes(&pk)
+                        .map_err(|_| FastCryptoError::InvalidInput)?;
+                    pk.verify(
+                        &msg,
+                        &fastcrypto::bls12381::min_pk::BLS12381Signature::from_bytes(&sig)?,
+                    )
                 }
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
