@@ -342,19 +342,6 @@ impl From<&Secp256r1RecoverableSignature> for Secp256r1Signature {
     }
 }
 
-impl Secp256r1Signature {
-    /// util function to parse wycheproof test key from DER format.
-    #[cfg(test)]
-    pub fn from_uncompressed(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        ExternalSignature::try_from(bytes)
-            .map(|sig| Secp256r1Signature {
-                sig,
-                bytes: OnceCell::new(),
-            })
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
-}
-
 /// Secp256r1 public/private key pair.
 #[derive(Debug, PartialEq, Eq)]
 pub struct Secp256r1KeyPair {

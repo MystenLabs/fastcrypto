@@ -392,7 +392,7 @@ proptest::proptest! {
 fn wycheproof_test() {
     let test_set = TestSet::load(EcdsaSecp256k1Sha256).unwrap();
     for test_group in test_set.test_groups {
-        let pk = Secp256k1PublicKey::from_uncompressed(&test_group.key.key);
+        let pk = Secp256k1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let bytes = match Signature::from_der(&test.sig) {
                 Ok(s) => s.serialize_compact(),

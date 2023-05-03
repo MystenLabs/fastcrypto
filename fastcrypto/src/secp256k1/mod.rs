@@ -137,16 +137,6 @@ impl Secp256k1PublicKey {
             .verify(&hashed_message, &self.pubkey)
             .map_err(|_| FastCryptoError::InvalidSignature)
     }
-
-    /// util function to parse wycheproof test key from DER format.
-    #[cfg(test)]
-    pub fn from_uncompressed(uncompressed: &[u8]) -> Self {
-        let pubkey = PublicKey::from_slice(uncompressed).unwrap();
-        Self {
-            pubkey,
-            bytes: OnceCell::new(),
-        }
-    }
 }
 
 impl AsRef<[u8]> for Secp256k1PublicKey {
