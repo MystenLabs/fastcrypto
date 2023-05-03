@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-ba5701c5741a7b69.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.71.0-nightly (a368898de 2023-05-02)" data-search-js="search-618e954b235f6acc.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-6f6ffb5395b17c6e.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../source-files.js"></script><script defer src="../../static.files/main-f0540c1d82cde29b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../fastcrypto_cli/index.html"><img class="rust-logo" src="../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<a href="#2" id="2">2</a>
+<a href="#3" id="3">3</a>
+<a href="#4" id="4">4</a>
+<a href="#5" id="5">5</a>
+<a href="#6" id="6">6</a>
+<a href="#7" id="7">7</a>
+<a href="#8" id="8">8</a>
+<a href="#9" id="9">9</a>
+<a href="#10" id="10">10</a>
+<a href="#11" id="11">11</a>
+<a href="#12" id="12">12</a>
+<a href="#13" id="13">13</a>
+<a href="#14" id="14">14</a>
+<a href="#15" id="15">15</a>
+<a href="#16" id="16">16</a>
+<a href="#17" id="17">17</a>
+<a href="#18" id="18">18</a>
+<a href="#19" id="19">19</a>
+<a href="#20" id="20">20</a>
+<a href="#21" id="21">21</a>
+<a href="#22" id="22">22</a>
+<a href="#23" id="23">23</a>
+<a href="#24" id="24">24</a>
+<a href="#25" id="25">25</a>
+<a href="#26" id="26">26</a>
+<a href="#27" id="27">27</a>
+<a href="#28" id="28">28</a>
+<a href="#29" id="29">29</a>
+<a href="#30" id="30">30</a>
+<a href="#31" id="31">31</a>
+<a href="#32" id="32">32</a>
+<a href="#33" id="33">33</a>
+<a href="#34" id="34">34</a>
+<a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+</pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+</span><span class="doccomment">///! This module contains test vectors for all signature schemes supported by the sigs_cli tool.
+</span><span class="kw">pub mod </span>sigs_cli_test_vectors {
+
+    <span class="doccomment">/// A test vector containing a signature over MSG encoded as a hex string.
+    </span><span class="kw">pub struct </span>TestVector {
+        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        <span class="kw">pub </span>private: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        <span class="kw">pub </span>public: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        <span class="kw">pub </span>sig: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    }
+
+    <span class="kw">pub const </span>MSG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;00010203&quot;</span>;
+    <span class="kw">pub const </span>SEED: <span class="kw-2">&amp;</span>str = <span class="string">&quot;0101010101010101010101010101010101010101010101010101010101010101&quot;</span>;
+
+    <span class="kw">const </span>ED25519_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;ed25519&quot;</span>,
+        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
+        public: <span class="string">&quot;8c553335eee80b9bfa0c544a45fe63474a09dff9c4b0b33db2b662f934ea46c4&quot;</span>,
+        sig: <span class="string">&quot;e929370aa36bef3a6b51594b6d96e0f389f09f28807e6b3a25d0ea93f56dd4659e15995f87545ab8f7f924bc18e0502fa689a57e57e931620b79a6c9ec7b3208&quot;</span>,
+    };
+
+    <span class="kw">const </span>SECP256K1_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;secp256k1&quot;</span>,
+        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
+        public: <span class="string">&quot;033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62&quot;</span>,
+        sig: <span class="string">&quot;416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc9046&quot;</span>,
+    };
+
+    <span class="kw">const </span>SECP256K1_RECOVERABLE_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;secp256k1-rec&quot;</span>,
+        private: SECP256K1_TEST.private,
+        public: SECP256K1_TEST.public,
+        sig: <span class="string">&quot;416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc904601&quot;</span>,
+    };
+
+    <span class="kw">const </span>SECP256R1_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;secp256r1&quot;</span>,
+        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
+        public: <span class="string">&quot;035a8b075508c75f4a124749982a7d21f80d9a5f6893e41a9e955fe4c821e0debe&quot;</span>,
+        sig: <span class="string">&quot;54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd&quot;</span>,
+    };
+
+    <span class="kw">const </span>SECP256R1_RECOVERABLE_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;secp256r1-rec&quot;</span>,
+        private: SECP256R1_TEST.private,
+        public: SECP256R1_TEST.public,
+        sig: <span class="string">&quot;54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd01&quot;</span>,
+    };
+
+    <span class="kw">const </span>BLS12381_MINSIG_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;bls12381-minsig&quot;</span>,
+        private: <span class="string">&quot;5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337&quot;</span>,
+        public: <span class="string">&quot;a57feae28362201f657ccf6cdaba629758beb0214942804d2c084967d76908fe46ce355e0e735bdde2705620c7cf4b3903177f62ba43ba39277d952d80afee4fdc439a3ce2ce6fd113196d7de7aff7d1683ed507a21e6920119c91980329925b&quot;</span>,
+        sig: <span class="string">&quot;a09f9b16ac4cfeadfd4d69b940cf9ead098a7d9f0df0a11d07820cb1dbacda6e1d0631529b1070ec1d8eb29fbc76a807&quot;</span>,
+    };
+
+    <span class="kw">const </span>BLS12381_MINPK_TEST: TestVector = TestVector {
+        name: <span class="string">&quot;bls12381-minpk&quot;</span>,
+        private: <span class="string">&quot;5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337&quot;</span>,
+        public: <span class="string">&quot;83738acb2121bb33db5a178a0a56ec041ae3b3617c9f2615a4366b9e3aa4021f3bbfe02858a0a0659ef9e8312c7b7d0f&quot;</span>,
+        sig: <span class="string">&quot;ae65a019350ebbb2280d52d19d1bed3fe804b753c1dd5ce7738ca47fa90110e668dc75b6f53972a1c812f135b099fd780bdf69f18952b777d32a865cbabce270a6af400223f9558161102348f79980537c10455355a54158b44bf62b5eef8c63&quot;</span>,
+    };
+
+    <span class="kw">pub const </span>TEST_CASES: [TestVector; <span class="number">7</span>] = [
+        ED25519_TEST,
+        SECP256K1_TEST,
+        SECP256K1_RECOVERABLE_TEST,
+        SECP256R1_TEST,
+        SECP256R1_RECOVERABLE_TEST,
+        BLS12381_MINSIG_TEST,
+        BLS12381_MINPK_TEST,
+    ];
+}
+</code></pre></div></section></main></body></html>
