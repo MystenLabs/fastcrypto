@@ -388,8 +388,7 @@ fn fail_to_verify_if_upper_s() {
     let normalized = sig.sig.normalize_s().unwrap();
 
     // Normalize S to be less than N/2.
-    let normalized_sig =
-        Secp256r1Signature::from_uncompressed(normalized.to_bytes().as_slice()).unwrap();
+    let normalized_sig = Secp256r1Signature::from_bytes(normalized.to_bytes().as_slice()).unwrap();
 
     // Verify with normalized lower S.
     assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
@@ -523,7 +522,7 @@ fn wycheproof_test_nonrecoverable() {
         let pk = Secp256r1PublicKey::from_bytes(&test_group.key.key).unwrap();
         for test in test_group.tests {
             let signature = match Signature::from_der(&test.sig) {
-                Ok(s) => Secp256r1Signature::from_uncompressed(
+                Ok(s) => Secp256r1Signature::from_bytes(
                     // Wycheproof tests do not enforce low s but we do, so we need to normalize
                     s.normalize_s().unwrap_or(s).to_bytes().as_slice(),
                 )
