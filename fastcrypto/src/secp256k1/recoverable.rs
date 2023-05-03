@@ -27,10 +27,10 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use once_cell::sync::{Lazy, OnceCell};
-pub use rust_secp256k1::ecdsa::Signature as Secp256k1Sig;
+pub use rust_secp256k1::ecdsa::{Signature as Secp256k1Sig, RecoverableSignature as ExternalRecoverableSignature};
 use rust_secp256k1::{
     constants,
-    ecdsa::{RecoverableSignature as ExternalRecoverableSignature, RecoveryId},
+    ecdsa::{RecoveryId},
     All, Message, Secp256k1,
 };
 use std::fmt::{self, Debug};
