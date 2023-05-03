@@ -289,3 +289,118 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{execute, Command, KeygenArguments, SigningArguments, VerifiyingArguments};
+    use fastcrypto::error::FastCryptoError;
+    use fastcrypto_cli::sigs_cli_test_vectors::{MSG, SEED, TEST_CASES};
+
+    fn test_keygen_single(scheme: &str, seed: &str) -> Result<(), FastCryptoError> {
+        execute(Command::Keygen(KeygenArguments {
+            scheme: scheme.to_string(),
+            seed: seed.to_string(),
+        }))
+    }
+
+    #[test]
+    fn test_keygen() {
+        // Valid
+        for test_case in TEST_CASES {
+            assert!(test_keygen_single(test_case.name, SEED).is_ok());
+        }
+
+        // Unknown scheme
+        assert!(test_keygen_single("unknown_scheme", SEED).is_err());
+
+        // Invalid seed
+        let invalid_seed = "invalid seed";
+        for test_case in TEST_CASES {
+            assert!(test_keygen_single(test_case.name, invalid_seed).is_err());
+        }
+    }
+
+    fn test_sign_single(scheme: &str, msg: &str, secret_key: &str) -> Result<(), FastCryptoError> {
+        execute(Command::Sign(SigningArguments {
+            msg: msg.to_string(),
+            secret_key: secret_key.to_string(),
+            scheme: scheme.to_string(),
+        }))
+    }
+
+    #[test]
+    fn test_sign() {
+        // Valid
+        for test_case in TEST_CASES {
+            assert!(test_sign_single(test_case.name, MSG, test_case.private).is_ok());
+        }
+
+        // Unknown scheme
+        assert!(test_sign_single("unknown_scheme", MSG, TEST_CASES[0].private).is_err());
+
+        // Invalid secret key
+        for test_case in TEST_CASES {
+            assert!(test_sign_single(
+                test_case.name,
+                MSG,
+                &test_case.private[0..test_case.private.len() - 1]
+            )
+            .is_err());
+        }
+    }
+
+    fn test_verify_single(
+        scheme: &str,
+        msg: &str,
+        signature: &str,
+        public_key: &str,
+    ) -> Result<(), FastCryptoError> {
+        execute(Command::Verify(VerifiyingArguments {
+            msg: msg.to_string(),
+            signature: signature.to_string(),
+            public_key: public_key.to_string(),
+            scheme: scheme.to_string(),
+        }))
+    }
+
+    #[test]
+    fn test_verify() {
+        // Valid
+        for test_case in TEST_CASES {
+            assert!(
+                test_verify_single(test_case.name, MSG, test_case.sig, test_case.public).is_ok()
+            );
+        }
+
+        // Unknown scheme
+        assert!(test_verify_single(
+            "unknown scheme",
+            MSG,
+            TEST_CASES[0].sig,
+            TEST_CASES[0].public
+        )
+        .is_err());
+
+        // Invalid signature (too short)
+        for test_case in TEST_CASES {
+            assert!(test_verify_single(
+                test_case.name,
+                MSG,
+                &test_case.sig[0..test_case.sig.len() - 1],
+                test_case.public
+            )
+            .is_err());
+        }
+
+        // Invalid public key (too short)
+        for test_case in TEST_CASES {
+            assert!(test_verify_single(
+                test_case.name,
+                MSG,
+                test_case.sig,
+                &test_case.public[0..test_case.public.len() - 1]
+            )
+            .is_err());
+        }
+    }
+}
