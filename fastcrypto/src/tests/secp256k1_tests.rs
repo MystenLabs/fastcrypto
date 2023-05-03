@@ -151,6 +151,27 @@ fn import_export_secret_key() {
 }
 
 #[test]
+fn non_canonical_secret_key() {
+    // Secret keys should be scalars between 0 and the base point order
+
+    let zero =
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    assert!(Secp256k1PrivateKey::from_bytes(&zero).is_err());
+
+    let one =
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+    assert!(Secp256k1PrivateKey::from_bytes(&one).is_ok());
+
+    let order_minus_one =
+        hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364140").unwrap();
+    assert!(Secp256k1PrivateKey::from_bytes(&order_minus_one).is_ok());
+
+    let order =
+        hex::decode("FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141").unwrap();
+    assert!(Secp256k1PrivateKey::from_bytes(&order).is_err());
+}
+
+#[test]
 #[cfg(feature = "copy_key")]
 fn test_copy_key_pair() {
     let kp = keys().pop().unwrap();

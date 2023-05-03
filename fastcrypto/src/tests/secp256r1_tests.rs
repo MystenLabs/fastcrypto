@@ -180,6 +180,27 @@ fn private_key_from_bytes() {
 }
 
 #[test]
+fn non_canonical_secret_key() {
+    // Secret keys should be scalars between 0 and the base point order
+
+    let zero =
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    assert!(Secp256r1PrivateKey::from_bytes(&zero).is_err());
+
+    let one =
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+    assert!(Secp256r1PrivateKey::from_bytes(&one).is_ok());
+
+    let order_minus_one =
+        hex::decode("FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632550").unwrap();
+    assert!(Secp256r1PrivateKey::from_bytes(&order_minus_one).is_ok());
+
+    let order =
+        hex::decode("FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551").unwrap();
+    assert!(Secp256r1PrivateKey::from_bytes(&order).is_err());
+}
+
+#[test]
 fn to_from_bytes_signature() {
     let kpref = keys().pop().unwrap();
     let signature = kpref.sign(b"Hello, world!");
