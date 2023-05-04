@@ -13,3 +13,6 @@ pub mod verifier;
 
 /// Poseidon hash function over BN254
 pub mod poseidon;
+
+/// Zk login module utilities
+pub mod zk_login;

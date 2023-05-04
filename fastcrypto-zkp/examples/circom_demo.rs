@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, fs::File};
-use std::time::Instant;
 use std::str::FromStr;
+use std::time::Instant;
+use std::{collections::HashMap, fs::File};
 
 use ark_circom::{read_zkey, CircomBuilder, CircomConfig, CircomReduction, WitnessCalculator};
 
@@ -30,8 +30,8 @@ type CircomInput = HashMap<String, Vec<BigInt>>;
 /// Returns a HashMap with string keys and Vec<BigInt> values that holds the deserialized data.
 /// Assumes that all values in the JSON file are BigInts.
 /// We use it to convert the JSON input file (values of all input signals) used by circom into an Arkworks-friendly format.
-fn load_test_vector<T>(path: &str) -> CircomInput 
-where 
+fn load_test_vector<T>(path: &str) -> CircomInput
+where
     T: DeserializeOwned + Serialize,
 {
     let file = File::open(path).unwrap();
@@ -53,9 +53,10 @@ where
                             serde_json::Value::Number(_) => {
                                 arr.iter().map(|num| num.as_u64().unwrap().into()).collect()
                             }
-                            serde_json::Value::String(_) => {
-                                arr.iter().map(|s| BigInt::from_str(s.as_str().unwrap()).unwrap()).collect()
-                            }
+                            serde_json::Value::String(_) => arr
+                                .iter()
+                                .map(|s| BigInt::from_str(s.as_str().unwrap()).unwrap())
+                                .collect(),
                             _ => panic!("unsupported array element type"),
                         }
                     }
@@ -77,7 +78,6 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
     let mut before = Instant::now();
     let cfg = CircomConfig::<Bn254>::new(wasm_path, r1cs_path).unwrap();
     println!("Elapsed time for loading R1CS: {:.2?}", before.elapsed());
-
 
     // Run a trusted setup
     println!("Running setup...");
@@ -106,13 +106,19 @@ fn setup_prove_and_verify(all_inputs: CircomInput, wasm_path: &str, r1cs_path: &
 
     before = Instant::now();
     let proof = Groth16::<Bn254>::prove(&params, circom, &mut rng).unwrap();
-    println!("Elapsed time for proof generation: {:.2?}", before.elapsed());
+    println!(
+        "Elapsed time for proof generation: {:.2?}",
+        before.elapsed()
+    );
 
     // Check that the proof is valid
     before = Instant::now();
     let pvk = Groth16::<Bn254>::process_vk(&params.vk).unwrap();
     assert!(Groth16::<Bn254>::verify_proof(&pvk, &proof, &public_inputs).unwrap());
-    println!("Elapsed time for proof verification: {:.2?}", before.elapsed());
+    println!(
+        "Elapsed time for proof verification: {:.2?}",
+        before.elapsed()
+    );
 }
 
 fn prove_and_verify(all_inputs: CircomInput, zkey_path: &str, wasm_path: &str) {
