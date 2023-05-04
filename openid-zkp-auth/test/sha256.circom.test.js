@@ -58,3 +58,26 @@ describe("Unsafe SHA256", () => {
         assert.equal(hash2, hash);
     });
 });
+
+// describe.only("Unsafe SHA256", () => {
+//     const nBlocks = 5;
+//     const hexBytesToBlock = 512/8/2;
+//     const nWidth = 8;
+//     const nCount = nBlocks * 512 / nWidth;
+//     var cir;
+    
+//     it("Hashing produces expected output for filled blocks", async () => {
+//         const input = crypto.randomBytes((nBlocks * hexBytesToBlock)-32).toString("hex");
+//         const hash = crypto.createHash("sha256").update(input).digest("hex");
+
+//         console.log(input);
+//         const inputs = circuit.genSha256Inputs(input, nBlocks);
+        
+//         cir = await test.genMain(path.join(__dirname, "..", "circuits", "sha256.circom"), "Sha2_wrapper", [nWidth, nCount]);
+//         await cir.loadSymbols();
+//         const witness = await cir.calculateWitness(inputs, true);        
+//         const hash2 = utils.getWitnessBuffer(witness, cir.symbols, "main.out").toString("hex");
+        
+//         assert.equal(hash2, hash);
+//     });
+// });

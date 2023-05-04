@@ -73,7 +73,6 @@ template Sha256_unsafe(nBlocks) {
     }
     
     // Collapse the hashing result at the terminating data block
-    // A modified Quin Selector allows us to select the block based on the num_sha2_blocks signal
     component calcTotal[256];
     signal eqs[nBlocks] <== OneBitVector(nBlocks)(num_sha2_blocks - 1);
 

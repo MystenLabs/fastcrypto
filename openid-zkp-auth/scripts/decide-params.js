@@ -31,6 +31,7 @@ function computeAudLen(jwt) {
 
 function decide(jwt, buffer1, buffer2) {
     const p1 = computeNumSHA2Blocks(jwt);
+    // TODO: Move to ceil?
     const maxSHA2Blocks = Math.floor(p1 * (1 + buffer1));
     console.log(`SHA2 blocks: ${p1}, Max SHA2 blocks: ${maxSHA2Blocks}`);
 
