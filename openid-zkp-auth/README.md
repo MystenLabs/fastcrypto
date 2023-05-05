@@ -5,6 +5,12 @@ Install via `npm install`
 ## Filetree Description
 
 ```bash
+bench/
+    index.html
+    prover.js
+    google_inputs.json # Sample inputs for the Google circuit
+    twitch_inputs.json # Sample inputs for the Twitch circuit
+    snarkjs.min.js
 circuits/
     google.circom # Runner with Google's params
     jwt_proof_ua.circom # Starting file for circuit code
@@ -49,3 +55,13 @@ The above steps can be repeated with `twitch` except you'd need to run ``npm run
 ## Tests
 
 ``npm test``
+
+## Benchmarks
+
+Install your favorite http-server and start it from `openid-zkp-auth`. 
+
+For example, do `npm install -g http-server` and run `http-server`.
+
+Open `bench/index.html` in a browser and click on Google / Twitch buttons to start respective benchmarks. The timings are displayed in the console.
+
+Note: These benchmarks assume that the zkey and wasm files are in the respective folders.
