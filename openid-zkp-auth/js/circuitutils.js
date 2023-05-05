@@ -6,6 +6,7 @@ const jwtutils = require('./jwtutils');
 
 const nWidth = require("./constants").inWidth;
 const outWidth = require("./constants").outWidth;
+const pin = require("./constants").pin;
 const poseidonHash = require('./utils').poseidonHash;
 
 // https://datatracker.ietf.org/doc/html/rfc4634#section-4.1
@@ -79,7 +80,6 @@ async function genSubInputs(payload, maxSubLength, payloadIndex) {
     }
 
     const sub_claim_without_last_char = sub_claim.slice(0, -1);
-    const pin = 123456789; // TODO: Fixed for dev
     const subject_id_com = await utils.commitSubID(sub_claim_without_last_char, pin, maxSubLength, outWidth);
 
     const padded_subject_id = utils.padWithZeroes(sub_claim.split('').map(c => c.charCodeAt()), maxSubLength);
