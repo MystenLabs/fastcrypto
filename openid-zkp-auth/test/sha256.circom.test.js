@@ -13,7 +13,7 @@ const { inWidth } = require("../js/constants");
 
 describe("Unsafe SHA256", () => {
     const nBlocks = 4;
-    const nWidth = 8;
+    const nWidth = inWidth;
     const nCount = nBlocks * 512 / nWidth;
 
     const outWidth = 128;

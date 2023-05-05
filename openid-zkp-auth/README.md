@@ -17,7 +17,8 @@ circuits/
         zkhasher.circom
 js/
     circuitutils.js # Circuit utilities
-    constants.js
+    constants.js # Circuit params
+    decideparams.js # A script to decide circuit params based on real JWTs
     jwtutils.js # JWT utilities
     prove.js # Helper script to run the ZKP using a given zkey, vkey, JWT
     utils.js # Generic utilities
@@ -47,4 +48,4 @@ The above steps can be repeated with `twitch` except you'd need to run ``npm run
 
 ## Tests
 
-``npm run test``
+``npm test``
