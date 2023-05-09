@@ -60,7 +60,7 @@ describe("JWT utils tests", () => {
     const getClaimString = jwtutils.getClaimString;
     const b64Len = jwtutils.b64Len;
     const indicesOfB64 = jwtutils.indicesOfB64;
-    const decodeB64URL = jwtutils.decodeB64URL;
+    const decodeBase64URL = jwtutils.decodeBase64URL;
 
     describe("getClaimString", () => {
         it("Normal strings", () => {
@@ -115,19 +115,19 @@ describe("JWT utils tests", () => {
         assert.deepEqual(b64Len(9, 2), 13, "Test case 10");
     });
 
-    describe("decodeB64URL", () => {
+    describe("decodeBase64URL", () => {
         it("Corner case: Two length strings", () => {
             const input = Buffer.from("H").toString('base64url');
             assert.deepEqual(input.length, 2);
-            assert.deepEqual(decodeB64URL(input, 0), 'H');
+            assert.deepEqual(decodeBase64URL(input, 0), 'H');
 
             const input2 = Buffer.from("He").toString('base64url').slice(1);
             assert.deepEqual(input2.length, 2);
-            assert.deepEqual(decodeB64URL(input2, 1), 'e');
+            assert.deepEqual(decodeBase64URL(input2, 1), 'e');
 
             const input3 = Buffer.from("Hel").toString('base64url').slice(2);
             assert.deepEqual(input3.length, 2);
-            assert.deepEqual(decodeB64URL(input3, 2), 'l');
+            assert.deepEqual(decodeBase64URL(input3, 2), 'l');
         });
 
         it('should decode a tightly packed base64URL string with i % 4 == 0', () => {
@@ -135,7 +135,7 @@ describe("JWT utils tests", () => {
             const i = 0;
             const expected = "Hello, world!";
 
-            const result = decodeB64URL(input, i);
+            const result = decodeBase64URL(input, i);
             assert.deepEqual(result, expected);
         });
 
@@ -144,7 +144,7 @@ describe("JWT utils tests", () => {
             const i = 1;
             const expected = 'ello, world';
         
-            const result = decodeB64URL(input, i);
+            const result = decodeBase64URL(input, i);
             assert.deepEqual(result, expected);
         });
 
@@ -153,7 +153,7 @@ describe("JWT utils tests", () => {
             const i = 2;
             const expected = 'llo, world';
         
-            const result = decodeB64URL(input, i);
+            const result = decodeBase64URL(input, i);
             assert.deepEqual(result, expected);
         });
 
@@ -161,7 +161,7 @@ describe("JWT utils tests", () => {
             const input = Buffer.from("Hello, world").toString('base64url');
         
             try {
-                decodeB64URL(input, 3);
+                decodeBase64URL(input, 3);
                 assert.fail();
             } catch (e) {
                 assert.include(e.message, "not tightly packed because i%4 = 3");
@@ -173,7 +173,7 @@ describe("JWT utils tests", () => {
             const i = 2;
             assert.deepEqual((i + input.length - 1) % 4, 0);
             try {
-                decodeB64URL(input, i);
+                decodeBase64URL(input, i);
                 assert.fail();
             } catch (e) {
                 assert.include(e.message, "not tightly packed because (i + s.length - 1)%4 = 0");
@@ -184,10 +184,10 @@ describe("JWT utils tests", () => {
             // this input has a different base64 and base64url encoding
             const extendedInput = ',' + 'abc/?' + '}';
             const b64 = utils.trimEndByChar(Buffer.from(extendedInput).toString('base64'), '=');
-            const b64url = Buffer.from(extendedInput).toString('base64url');
-            assert.isTrue(b64 !== b64url);
+            const Base64URL = Buffer.from(extendedInput).toString('base64url');
+            assert.isTrue(b64 !== Base64URL);
 
-            assert.deepEqual(decodeB64URL(b64url, 0), extendedInput);
+            assert.deepEqual(decodeBase64URL(Base64URL, 0), extendedInput);
         })
     })
 
@@ -208,7 +208,7 @@ describe("JWT utils tests", () => {
                 const [start, len] = indicesOfB64(jwt, "sub");
     
                 const substr = jwt.slice(start, start + len);
-                const decoded = decodeB64URL(substr, start % 4);
+                const decoded = decodeBase64URL(substr, start % 4);
                 assert.deepEqual(decoded, sub_claim_with_last_char);
             });    
         })
@@ -222,7 +222,7 @@ describe("JWT utils tests", () => {
 
             const [start, len] = indicesOfB64(payload, "sub");
             const substr = payload.slice(start, start + len);
-            const decoded = decodeB64URL(substr, start % 4);
+            const decoded = decodeBase64URL(substr, start % 4);
             assert.deepEqual(decoded, sub_claim_with_last_char);    
         })
 
@@ -235,14 +235,14 @@ describe("JWT utils tests", () => {
             assert.deepEqual(sub_claim_with_last_char, '"sub":"904448692",');
             const [start, len] = indicesOfB64(payload, "sub");
             const substr = payload.slice(start, start + len);
-            const decoded = decodeB64URL(substr, start % 4);
+            const decoded = decodeBase64URL(substr, start % 4);
             assert.deepEqual(decoded, sub_claim_with_last_char);
 
             const username = getClaimString(decoded_payload, "preferred_username");
             assert.deepEqual(username, '"preferred_username":"joyqvq"}');
             const [start2, len2] = indicesOfB64(payload, "preferred_username");
             const substr2 = payload.slice(start2, start2 + len2);
-            const decoded2 = decodeB64URL(substr2, start2 % 4);
+            const decoded2 = decodeBase64URL(substr2, start2 % 4);
             assert.deepEqual(decoded2, username);
         })
     })

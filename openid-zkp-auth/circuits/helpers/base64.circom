@@ -28,7 +28,7 @@ Cost: 73 constraints
         NOTE: Behavior is undefined otherwise.
 - out:  The 6-bit value
 */
-template B64URLToBits() {
+template Base64URLToBits() {
     signal input in;
     signal output out[6];
 
@@ -122,12 +122,12 @@ template B64URLToBits() {
     }
 }
 
-template MultiB64URLToBits(n) {
+template MultiBase64URLToBits(n) {
     signal input in[n];
     signal output out[n * 6];
 
     for (var i = 0; i < n; i++) {
-        var bits[6] = B64URLToBits()(in[i]);
+        var bits[6] = Base64URLToBits()(in[i]);
         for (var j = 0; j < 6; j++) {
             out[i * 6 + j] <== bits[j];
         }

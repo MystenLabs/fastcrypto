@@ -6,7 +6,7 @@ const jwtutils = require("../js/jwtutils");
 
 describe("Base64 checks", () => {
     before(async() => {
-        cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "base64.circom"), "B64URLToBits");
+        cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "base64.circom"), "Base64URLToBits");
         await cir.loadSymbols();
     });
 

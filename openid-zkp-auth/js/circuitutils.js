@@ -58,7 +58,7 @@ function genNonceInputs() {
     const eph_public_key = 0x0d7dab358c8dadaa4efa0049a75b07436555b10a368219bb680f70571349d775n; // TODO: Fixed for dev
     // const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
     const max_epoch = 10000; // TODO: Fixed for dev
-    const randomness = 50683480294434968413708503290439057629605340925620961559740848568164438166n; // TODO: Fixed for dev
+    const randomness = 100681567828351849884072155819400689117n; // TODO: Fixed for dev
   
     const eph_public_key_0 = eph_public_key / 2n**128n;
     const eph_public_key_1 = eph_public_key % 2n**128n;

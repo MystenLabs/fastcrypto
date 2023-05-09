@@ -3,7 +3,7 @@ pragma circom 2.1.3;
 include "helpers/sha256.circom";
 include "helpers/misc.circom";
 include "helpers/strings.circom";
-include "helpers/zkhasher.circom";
+include "helpers/hasher.circom";
 
 /**
 JWT Proof: User-agnostic (UA) circuit
@@ -13,12 +13,13 @@ JWT Proof: User-agnostic (UA) circuit
     - maxSubLength:             Maximum length of the subject_id (in ascii)
 
     Private Inputs:
-    - content[inCount]:         Segments of X as inWidth bit chunks where X is JWT header + JWT payload + SHA-2 padding + zeroes
+    - content[inCount]:         Segments of X as inWidth bit chunks where X is the 
+                                    decoded JWT header + decoded JWT payload + SHA-2 padding + zeroes
     - sub_length_ascii:         Length of the subject_id in ASCII, e.g., for ',"sub":12345,' it is 13
     - subject_id[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
-    - subject_pin:              User's PIN to keep the subject_id private
+    - subject_pin:              A 128-bit PIN to keep the subject_id private
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
-    - randomness:               A 248-bit random number to keep the sensitive parts of JWT hidden
+    - jwt_randomness:           A 128-bit random number to keep the sensitive parts of JWT hidden
 
     Circuit signals revealed to the verifier along with the ZK proof:
     - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
@@ -103,6 +104,8 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     signal subject_id_hash <== Hasher(subOutCount)(packed_subject_id);
 
     signal input subject_pin;
+    subject_pin ==> Num2Bits(128); // ensure it is 16 bytes
+
     signal subject_id_com <== Hasher(2)([subject_id_hash, subject_pin]);
 
     /** 
@@ -127,13 +130,14 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     **/
     signal input eph_public_key[2];
     signal input max_epoch;
-    signal input randomness;
+    signal input jwt_randomness;
+    jwt_randomness ==> Num2Bits(128); // ensure it is 16 bytes
 
     signal nonce <== Hasher(4)([
         eph_public_key[0], 
         eph_public_key[1], 
         max_epoch, 
-        randomness
+        jwt_randomness
     ]);
 
     /**

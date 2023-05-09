@@ -167,7 +167,7 @@ template ASCIISubstrExistsInB64(b64StrLen, maxA) {
     );
 
     var B_bit_len = maxB * 6;
-    signal B_in_bits[B_bit_len] <== MultiB64URLToBits(maxB)(B);
+    signal B_in_bits[B_bit_len] <== MultiBase64URLToBits(maxB)(B);
 
     signal input A[maxA];
     signal input lenA;

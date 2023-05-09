@@ -224,7 +224,7 @@ function base64UrlStringToBitVector(base64UrlString) {
  * Like before, we assume tight packing, i.e., both s[i] and s[i + s.length - 1] carry 
  *  non-zero bits of the encoded string.
  */
-function decodeB64URL(s, i) {
+function decodeBase64URL(s, i) {
     if (s.length < 2) {
         throw new Error(`Input (s = ${s}) is not tightly packed because s.length < 2`);
     }
@@ -272,6 +272,6 @@ module.exports = {
     getClaimString: getClaimString,
     indicesOfB64: indicesOfB64,
     b64Len: b64Len,
-    decodeB64URL: decodeB64URL,
+    decodeBase64URL: decodeBase64URL,
     base64UrlCharTo6Bits: base64UrlCharTo6Bits
 }

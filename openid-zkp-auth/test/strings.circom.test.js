@@ -194,7 +194,7 @@ describe("ASCIISubstrExistsInB64" , () => {
                 for (let i = 0; i < decoded_jwts.length; i++) {
                     assert.deepEqual(decoded_jwts[i].indexOf(A) % 4 , i);
                     assert.deepEqual(jwtutils.getClaimString(decoded_jwts[i], 'sub'), A);
-                    assert.deepEqual(jwtutils.decodeB64URL(
+                    assert.deepEqual(jwtutils.decodeBase64URL(
                         jwts[i].slice(indicesB[i], indicesB[i] + lensB[i]),
                         indicesB[i]
                     ), A);

@@ -20,7 +20,7 @@ circuits/
         misc.circom
         sha256.circom
         strings.circom
-        zkhasher.circom
+        hasher.circom
 js/
     circuitutils.js # Circuit utilities
     constants.js # Circuit params

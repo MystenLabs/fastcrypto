@@ -109,7 +109,7 @@ function extractClaims(maskedPayload) {
     return maskedPayload.split(/=+/).filter(e => e !== '').map(
         e => {
             const pos = maskedPayload.indexOf(e);
-            return jwtutils.decodeB64URL(e, pos % 4);
+            return jwtutils.decodeBase64URL(e, pos % 4);
         }
     );
 }

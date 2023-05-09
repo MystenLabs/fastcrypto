@@ -11,7 +11,7 @@ const buildPoseidon = require("circomlibjs").buildPoseidon;
 
 describe("Zk-friendly hashing (Poseidon) tests", () => {
     const P = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
-    const circuit_path = path.join(__dirname, "../circuits/helpers", "zkhasher.circom");
+    const circuit_path = path.join(__dirname, "../circuits/helpers", "hasher.circom");
 
     before(async () => {
         poseidon = await buildPoseidon();
