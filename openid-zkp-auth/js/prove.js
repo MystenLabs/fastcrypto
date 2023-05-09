@@ -9,6 +9,8 @@ const verifier = require('./verify');
 const GOOGLE = require("../testvectors").google;
 const TWITCH = require("../testvectors").twitch;
 
+const claimsToReveal = constants.claimsToReveal;
+
 const groth16Prove = async (inputs, wasm_file, zkey_file) => {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         inputs, 
@@ -32,7 +34,7 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, claimsToReveal, provider, jwk="", write_to_file=false) => {
+const zkOpenIDProve = async (jwt, provider, ephPK, maxEpoch, jwtRand, userPIN, jwk="", write_to_file=false) => {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
     if (jwk) {
         console.log("Verifying JWT with JWK...");
@@ -48,7 +50,10 @@ const zkOpenIDProve = async (jwt, claimsToReveal, provider, jwk="", write_to_fil
     }
     const maxContentLen = constants[provider].maxContentLen;
     const maxSubLen = constants[provider].maxSubstrLen;
-    var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(input, maxContentLen, claimsToReveal, maxSubLen);
+    var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
+        input, maxContentLen, maxSubLen, claimsToReveal, 
+        ephPK, maxEpoch, jwtRand, userPIN
+    );
     auxiliary_inputs = Object.assign({}, auxiliary_inputs, {
         "jwt_signature": signature,
     });
@@ -139,7 +144,13 @@ if (require.main === module) {
     // Call the processing function with the input string
     (async () => {
         try {
-            const proof = await zkOpenIDProve(jwt, ["iss", "aud", "nonce"], provider, jwk, write_to_file=true);
+            const ephPK = constants.dev.ephPK;
+            const maxEpoch = constants.dev.maxEpoch;
+            const jwtRand = constants.dev.jwtRand;
+            const pin = constants.dev.pin;
+
+            const proof = await zkOpenIDProve(jwt, provider, 
+                ephPK, maxEpoch, jwtRand, pin, jwk, write_to_file=true);
 
             // Print the output to the console
 

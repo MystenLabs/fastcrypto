@@ -104,7 +104,8 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     signal subject_id_hash <== Hasher(subOutCount)(packed_subject_id);
 
     signal input subject_pin;
-    subject_pin ==> Num2Bits(128); // ensure it is 16 bytes
+    component size_checker_1 = Num2Bits(128);
+    size_checker_1.in <== subject_pin; // ensure it is 16 bytes
 
     signal subject_id_com <== Hasher(2)([subject_id_hash, subject_pin]);
 
@@ -131,7 +132,8 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     signal input eph_public_key[2];
     signal input max_epoch;
     signal input jwt_randomness;
-    jwt_randomness ==> Num2Bits(128); // ensure it is 16 bytes
+    component size_checker_2 = Num2Bits(128);
+    size_checker_2.in <== jwt_randomness; // ensure it is 16 bytes
 
     signal nonce <== Hasher(4)([
         eph_public_key[0], 

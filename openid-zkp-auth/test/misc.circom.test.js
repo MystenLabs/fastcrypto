@@ -7,7 +7,7 @@ const utils = require("../js/utils");
 const testutils = require("./testutils");
 
 describe("Num2BitsBE", () => {
-    before (async () => {
+    beforeEach(async () => {
         cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Num2BitsBE", [8]);
         await cir.loadSymbols();
     });
@@ -53,6 +53,55 @@ describe("Num2BitsBE", () => {
         }
     });
 })
+
+// Note: Although it is an offical circuit, tests for illustrative purposes and my own sanity
+describe("Num2Bits", () => {
+    beforeEach(async () => {
+        cir = await testutils.genMain(path.join(__dirname, "../node_modules/circomlib/circuits", "bitify.circom"), "Num2Bits", [8]);
+        await cir.loadSymbols();
+    });
+
+    it ("Check 0", async () => {
+        const witness = await cir.calculateWitness({"in": 0}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessArray(witness, cir.symbols, "main.out");
+        assert.deepEqual(out, [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]);
+    });
+
+    it ("Check 1", async () => {
+        const witness = await cir.calculateWitness({"in": 1}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessArray(witness, cir.symbols, "main.out");
+        assert.deepEqual(out, [1n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]);
+    });
+
+    it ("Check 255", async () => {
+        const witness = await cir.calculateWitness({"in": 255}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessArray(witness, cir.symbols, "main.out");
+        assert.deepEqual(out, [1n, 1n, 1n, 1n, 1n, 1n, 1n, 1n]);
+    });
+
+    it("Check 256: must throw an error", async () => {
+        try {
+            const witness = await cir.calculateWitness({"in": 256}, true);
+            await cir.checkConstraints(witness);
+            assert.fail("Should have failed");
+        } catch (error) {
+            assert.include(error.message, "Error in template Num2Bits");
+        }
+    });
+
+    it ("Check -1: must throw an error", async () => {
+        try {
+            const witness = await cir.calculateWitness({"in": -1}, true);
+            await cir.checkConstraints(witness);
+            assert.fail("Should have failed");
+        } catch (error) {
+            assert.include(error.message, "Error in template Num2Bits");
+        }
+    });
+});
 
 describe("Bits2NumBE", () => {
     before (async () => {
