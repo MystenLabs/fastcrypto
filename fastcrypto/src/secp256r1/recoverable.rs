@@ -143,6 +143,7 @@ impl Secp256r1RecoverableSignature {
     }
 
     /// util function to parse wycheproof test key from DER format.
+    #[cfg(test)]
     pub(crate) fn from_uncompressed(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ExternalSignature::try_from(bytes)
             .map(|sig| Secp256r1RecoverableSignature {

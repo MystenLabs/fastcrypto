@@ -98,6 +98,25 @@ pub struct Secp256r1Signature {
     pub bytes: OnceCell<[u8; SECP256R1_SIGNATURE_LENTH]>,
 }
 
+impl Secp256r1Signature {
+    fn from_der(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+        ExternalSignature::from_der(bytes)
+            .map(|sig| Secp256r1Signature {
+                sig,
+                bytes: OnceCell::new(),
+            })
+            .map_err(|_| FastCryptoError::InvalidInput)
+    }
+    fn normalize(&self) -> Result<Self, FastCryptoError> {
+        ExternalSignature::normalize_s(&self.sig)
+            .ok_or(FastCryptoError::InvalidSignature)
+            .map(|sig| Secp256r1Signature {
+                sig,
+                bytes: OnceCell::new(),
+            })
+    }
+}
+
 impl std::hash::Hash for Secp256r1PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.as_ref().hash(state);
