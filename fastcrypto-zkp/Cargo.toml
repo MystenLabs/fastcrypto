@@ -23,7 +23,7 @@ ark-relations = "0.4.0"
 ark-serialize = "0.4.1"
 blst = "0.3.10"
 byte-slice-cast = "1.2.2"
-fastcrypto = { path = "../fastcrypto" }
+fastcrypto = { path = "../fastcrypto", version = "0.1.5" }
 derive_more = "0.99.16"
 
 [dev-dependencies]
