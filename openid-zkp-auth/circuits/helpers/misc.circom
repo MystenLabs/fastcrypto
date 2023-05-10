@@ -66,8 +66,6 @@ Range checks:
     - 0 <= in < 2^n (Like with Num2Bits).
 **/
 template Num2BitsBE(n) {
-    assert(n <= 252); // n <= log(p) - 2
-
     signal input in;
     signal output out[n];
     var lc1 = 0;

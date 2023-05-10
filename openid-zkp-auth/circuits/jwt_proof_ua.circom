@@ -5,26 +5,64 @@ include "helpers/misc.circom";
 include "helpers/strings.circom";
 include "helpers/hasher.circom";
 
+template NonceChecker(extNonceLength, nonceBitLen) {
+    signal input expected_nonce;
+    signal expected_bits[nonceBitLen] <== Num2BitsBE(nonceBitLen)(expected_nonce);
+
+    signal input actual_extended_nonce[extNonceLength];
+
+    // Checks on prefix
+    actual_extended_nonce[0] === 34; // '"'
+    actual_extended_nonce[1] === 110; // 'n'
+    actual_extended_nonce[2] === 111; // 'o'
+    actual_extended_nonce[3] === 110; // 'n'
+    actual_extended_nonce[4] === 99; // 'c'
+    actual_extended_nonce[5] === 101; // 'e'
+    actual_extended_nonce[6] === 34; // '"'
+    actual_extended_nonce[7] === 58; // ':'
+    actual_extended_nonce[8] === 34; // '"'
+
+    // Checks on last char
+    var lastchar = actual_extended_nonce[extNonceLength - 1];
+    (lastchar - 44) * (lastchar - 125) === 0; // lastchar = ',' or '}'
+
+    // Checks on last but one char
+    var lastbutone = actual_extended_nonce[extNonceLength - 2];
+    lastbutone === 34;
+
+    var value[extNonceLength - 11];
+    for (var i = 0; i < extNonceLength - 11; i++) {
+        value[i] = actual_extended_nonce[i + 9];
+    }
+
+    signal actual_bits[6 * (extNonceLength - 11)] <== MultiBase64URLToBits(extNonceLength - 11)(value);
+
+    assert(6 * (extNonceLength - 11) >= nonceBitLen);
+    for (var i = 0; i < nonceBitLen; i++) {
+        expected_bits[i] === actual_bits[i];
+    }
+}
+
 /**
 JWT Proof: User-agnostic (UA) circuit
 
     Construction params:
     - maxContentLength:         Maximum length of the JWT + SHA2 padding in bytes
-    - maxSubLength:             Maximum length of the subject_id (in ascii)
+    - maxSubLength:             Maximum length of the extended_sub (in ascii)
 
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is the 
                                     decoded JWT header + decoded JWT payload + SHA-2 padding + zeroes
-    - sub_length_ascii:         Length of the subject_id in ASCII, e.g., for ',"sub":12345,' it is 13
-    - subject_id[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
-    - subject_pin:              A 128-bit PIN to keep the subject_id private
+    - sub_length_ascii:         Length of the extended_sub in ASCII, e.g., for ',"sub":12345,' it is 13
+    - extended_sub[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
+    - subject_pin:              A 128-bit PIN to keep the extended_sub private
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - jwt_randomness:           A 128-bit random number to keep the sensitive parts of JWT hidden
 
     Circuit signals revealed to the verifier along with the ZK proof:
     - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
     - num_sha2_blocks:          Number of SHA2 (64-byte) blocks the SHA2-padded JWT consumes
-    - subject_id_com:           H(subject_id || PIN). A binding and hiding commitment to subject_id
+    - subject_id_com:           H(extended_sub || PIN). A binding and hiding commitment to extended_sub
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
     - masked_content:           The content with the sensitive parts masked
@@ -53,18 +91,19 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     );
 
     /**
-     2. Checks on subject_id
+     2. Checks on extended_sub
         a) Is it in the JWT payload?
-        b) Is subject_id[i] == 0 for all i >= sub_length_ascii?
-        c) Is subject_id[sub_length_ascii - 1] == ',' or '}'?
+        b) Is extended_sub[i] == 0 for all i >= sub_length_ascii?
+        c) Is extended_sub[sub_length_ascii - 1] == ',' or '}'?
     */
     var subInWidth = 8;
-    signal input subject_id[maxSubLength];
+    signal input extended_sub[maxSubLength];
     signal input sub_length_ascii; // Check if we ensure it is >= 1 and <= maxSubLength
+
+    signal input sub_claim_index_b64;
     signal input sub_length_b64;
 
     signal input payload_start_index;
-    signal input sub_claim_index_b64;
     ASCIISubstrExistsInB64(
         inCount,
         maxSubLength
@@ -72,27 +111,27 @@ template JwtProofUA(maxContentLength, maxSubLength) {
         b64Str <== content,
         BIndex <== sub_claim_index_b64,
         lenB <== sub_length_b64,
-        A <== subject_id,
+        A <== extended_sub,
         lenA <== sub_length_ascii,
         payloadIndex <== payload_start_index
     );
 
-    // subject_id[i] == 0 for all i >= sub_length_ascii
+    // extended_sub[i] == 0 for all i >= sub_length_ascii
     signal sigt[maxSubLength] <== GTBitVector(maxSubLength)(sub_length_ascii);
     for (var i = 0; i < maxSubLength; i++) {
-        sigt[i] * subject_id[i] === 0;
+        sigt[i] * extended_sub[i] === 0;
     }
 
-    signal lastchar <== SingleMultiplexer(maxSubLength)(subject_id, sub_length_ascii - 1);
+    signal lastchar <== SingleMultiplexer(maxSubLength)(extended_sub, sub_length_ascii - 1);
     (lastchar - 44) * (lastchar - 125) === 0; // lastchar = ',' or '}'
 
     /**
-     3. Calculate commitment to subject_id. We exclude the last character of the subject_id
+     3. Calculate commitment to extended_sub. We exclude the last character of the extended_sub
         because it is either ',' or '}'.
     **/
     // exclude last character
-    signal subject_id_without_last_char[maxSubLength] <== Slice(maxSubLength, maxSubLength)(
-        subject_id, 
+    signal extended_sub_without_last_char[maxSubLength] <== Slice(maxSubLength, maxSubLength)(
+        extended_sub, 
         0,
         sub_length_ascii - 1
     );
@@ -100,7 +139,7 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     // pack
     var outWidth = 253; // field prime is 254 bits
     var subOutCount = getPackedOutputSize(maxSubLength * subInWidth, outWidth);
-    signal packed_subject_id[subOutCount] <== Packer(subInWidth, maxSubLength, outWidth, subOutCount)(subject_id_without_last_char);
+    signal packed_subject_id[subOutCount] <== Packer(subInWidth, maxSubLength, outWidth, subOutCount)(extended_sub_without_last_char);
     signal subject_id_hash <== Hasher(subOutCount)(packed_subject_id);
 
     signal input subject_pin;
@@ -127,8 +166,33 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     signal masked_content_hash <== Hasher(outCount)(packed);
 
     /**
-     5. Calculate nonce
+     5. Checks on extended_nonce
+        a) Is it in the JWT payload? 
+        b) Calculate nonce from public key, epoch, and randomness
+        c) Check that nonce appears in extended_nonce
     **/
+    var extNonceLength = 43 + 11; // 43 for Base64 encoding of 256 bits + 11 for prefix and suffix
+
+    // 5a) Is it in the JWT payload?
+    signal input extended_nonce[extNonceLength];
+    signal input nonce_length_ascii;
+
+    signal input nonce_claim_index_b64;
+    signal input nonce_length_b64;
+
+    ASCIISubstrExistsInB64(
+        inCount,
+        extNonceLength
+    )(
+        b64Str <== content,
+        BIndex <== nonce_claim_index_b64,
+        lenB <== nonce_length_b64,
+        A <== extended_nonce,
+        lenA <== nonce_length_ascii,
+        payloadIndex <== payload_start_index
+    );
+
+    // 5b) Calculate nonce
     signal input eph_public_key[2];
     signal input max_epoch;
     signal input jwt_randomness;
@@ -141,6 +205,12 @@ template JwtProofUA(maxContentLength, maxSubLength) {
         max_epoch, 
         jwt_randomness
     ]);
+
+    // 5c) Check that nonce appears in extended_nonce
+    NonceChecker(extNonceLength, 256)(
+        expected_nonce <== nonce,
+        actual_extended_nonce <== extended_nonce
+    );
 
     /**
        6. Misc checks: 
@@ -159,7 +229,7 @@ template JwtProofUA(maxContentLength, maxSubLength) {
        7. Hash all signals revealed to the verifier outside
     **/
     signal input all_inputs_hash;
-    signal all_inputs_hash_actual <== Hasher(11)([
+    signal all_inputs_hash_actual <== Hasher(10)([
         jwt_sha2_hash[0],
         jwt_sha2_hash[1],
         masked_content_hash,
@@ -168,7 +238,6 @@ template JwtProofUA(maxContentLength, maxSubLength) {
         eph_public_key[0],
         eph_public_key[1],
         max_epoch,
-        nonce,
         num_sha2_blocks,
         subject_id_com
     ]);

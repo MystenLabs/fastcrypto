@@ -90,37 +90,6 @@ template Slice(inLen, outLen) {
     }
 }
 
-// in[index: index + length*groupLen] + [0] * (outLen - length)*groupLen
-// template SliceGrouped(inLen, outLen, groupLen) {
-//     signal input in[inLen];
-//     signal input index;
-//     signal input length;
-
-//     signal output out[outLen * groupLen];
-
-//     // eqs[i] = 1 if i = index, 0 otherwise
-//     signal eqs[inLen] <== OneBitVector(inLen)(index);
-//     // lt[i] = 1 if i < length, 0 otherwise
-//     signal lts[outLen] <== LTBitVector(outLen)(length);
-
-//     signal tmp[outLen];
-//     for(var i = 0; i < outLen; i++) {
-//         var arr[inLen];
-//         for (var j = 0; j < inLen; j++) {
-//             if (j < i) {
-//                 arr[j] = 0;
-//             } else {
-//                 arr[j] = eqs[j - i];
-//             }
-//         }
-//         tmp[i] <== EscalarProduct(inLen)(arr, in);
-
-//         for (var j = 0; j < groupLen; j++) {
-//             out[i * groupLen + j] <== tmp[i] * lts[i];
-//         }
-//     }
-// }
-
 /**
 Checks if an ASCII-encoded substring exists in a Base64-encoded string.
 
@@ -189,7 +158,6 @@ template ASCIISubstrExistsInB64(b64StrLen, maxA) {
     signal eq_2 <== IsEqual()([expectedOffset, 2]);
     eq_0 + eq_1 + eq_2 === 1; // ensure offset is 0, 1, or 2
 
-    var T_actual_len = lenA * 8;
     signal tmp[maxA] <== LTBitVector(maxA)(lenA);
 
     signal enabled_0[maxA];

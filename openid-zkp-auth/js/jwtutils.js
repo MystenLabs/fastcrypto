@@ -8,7 +8,7 @@
  * @param {*} claim e.g., sub
  * @returns e.g., "sub":"1234567890",
  */
-function getClaimString(decoded_payload, claim) {
+function getExtendedClaim(decoded_payload, claim) {
     const json_input = JSON.parse(decoded_payload);
     if (!json_input.hasOwnProperty(claim)) {
         throw new Error("Field " + claim + " not found in " + decoded_payload);
@@ -57,7 +57,7 @@ function getClaimString(decoded_payload, claim) {
 function indicesOfB64(payload, field) {
     const decoded = Buffer.from(payload, 'base64url').toString();
     
-    const kv_pair = getClaimString(decoded, field);
+    const kv_pair = getExtendedClaim(decoded, field);
     const start_index_ascii = decoded.indexOf(kv_pair);
     const length_b64 = b64Len(kv_pair.length, start_index_ascii);
     const start_b64 = b64Index(start_index_ascii);
@@ -269,7 +269,7 @@ function decodeBase64URL(s, i) {
 }
 
 module.exports = {
-    getClaimString: getClaimString,
+    getExtendedClaim: getExtendedClaim,
     indicesOfB64: indicesOfB64,
     b64Len: b64Len,
     decodeBase64URL: decodeBase64URL,

@@ -9,6 +9,8 @@ module.exports = {
         jwtRand: 100681567828351849884072155819400689117n
     },
     maskValue: '='.charCodeAt(),
+    nonceLen: Math.ceil(256 / 6), // 43
+    extNonceLen: Math.ceil(256 / 6) + 11, // 11 for prefix and suffix
     claimsToReveal: ["iss", "aud", "nonce"],
     google: {
         maxContentLen: 64*12,

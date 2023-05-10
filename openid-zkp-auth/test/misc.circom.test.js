@@ -6,7 +6,7 @@ const utils = require("../js/utils");
 
 const testutils = require("./testutils");
 
-describe("Num2BitsBE", () => {
+describe("Num2BitsBE(8)", () => {
     beforeEach(async () => {
         cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Num2BitsBE", [8]);
         await cir.loadSymbols();
@@ -52,6 +52,26 @@ describe("Num2BitsBE", () => {
             assert.include(error.message, "Error in template Num2BitsBE");
         }
     });
+})
+
+describe("Num2BitsBE(256)", async () => {
+    const L = 256;
+    const P = 21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+
+    cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Num2BitsBE", [L]);
+    await cir.loadSymbols();
+    const crypto = require("crypto");
+    const num = BigInt("0x" + crypto.randomBytes(32).toString('hex')) % P;
+
+    const witness = await cir.calculateWitness({"in": num}, true);
+    await cir.checkConstraints(witness);
+    const out = testutils.getWitnessArray(witness, cir.symbols, "main.out").map(x => Number(x));
+    assert.equal(out.length, L);
+
+    const out1 = (num % P).toString(2).padStart(L, '0').split('').map(x => Number(x));
+    assert.equal(out1.length, L);
+
+    assert.deepEqual(out, out1);
 })
 
 // Note: Although it is an offical circuit, tests for illustrative purposes and my own sanity

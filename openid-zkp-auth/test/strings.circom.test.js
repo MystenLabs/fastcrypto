@@ -1,11 +1,14 @@
 const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
+const expect = chai.expect;
 
 const jwtutils = require("../js/jwtutils");
 const utils = require("../js/utils");
 
 const testutils = require("./testutils");
+const { toBigIntBE } = require("bigint-buffer");
+const exp = require("constants");
 
 describe("Slices", () => {
     const file = path.join(__dirname, "../circuits/helpers", "strings.circom");
@@ -193,7 +196,7 @@ describe("ASCIISubstrExistsInB64" , () => {
                 assert.isTrue(maxB <= maxJwtLen);
                 for (let i = 0; i < decoded_jwts.length; i++) {
                     assert.deepEqual(decoded_jwts[i].indexOf(A) % 4 , i);
-                    assert.deepEqual(jwtutils.getClaimString(decoded_jwts[i], 'sub'), A);
+                    assert.deepEqual(jwtutils.getExtendedClaim(decoded_jwts[i], 'sub'), A);
                     assert.deepEqual(jwtutils.decodeBase64URL(
                         jwts[i].slice(indicesB[i], indicesB[i] + lensB[i]),
                         indicesB[i]
@@ -322,13 +325,56 @@ describe("ASCIISubstrExistsInB64" , () => {
             "exp": 1616425200,
             "name": "John Doe"
         });
-        assert.deepEqual(jwtutils.getClaimString(payload, 'sub'), A);
+        assert.deepEqual(jwtutils.getExtendedClaim(payload, 'sub'), A);
         const encoded_payload = Buffer.from(payload).toString("base64url");
         const jwt = Buffer.from(header).toString("base64url") + "." + encoded_payload;
 
         const payload_index = jwt.indexOf(encoded_payload);
 
         [index, len] = jwtutils.indicesOfB64(encoded_payload, 'sub');
+        assert.isAtMost(len, maxB);
+
+        const circuit = await genCircuit(maxJwtLen, maxA);
+        await genProof(circuit, jwt, maxJwtLen, A, maxA, index + payload_index, len, payload_index);
+    });
+
+    it("Nonce", async() => {
+        const maxJwtLen = 200;
+        const bignum = 8679359968269066238270369971672891012793979385072768529748854974904529914083n;
+        const numbits = bignum.toString(2).length;
+        expect(numbits).to.be.at.most(254);
+
+        const bignum_in_base64 = Buffer.from(bignum.toString(16), "hex").toString("base64url");
+        console.log("bignum_in_base64", bignum_in_base64);
+        chai.expect(bignum_in_base64.length).to.equal(Math.ceil(numbits / 6));
+
+        const A = '"nonce":"' + bignum_in_base64 + '",'; // <= 11 + Math.ceil(254/6) = 54 chars 
+        console.log(A);
+
+        const lenA = A.length;
+        const maxA = lenA;
+        expect(maxA).to.be.at.most(54);
+        const maxB = 1 + ((maxA / 3) * 4);
+
+        console.log("maxA", maxA);
+
+        const header = JSON.stringify({
+            "alg": "RS256",
+            "typ": "JWT"
+        });
+        const payload = JSON.stringify({
+            "sub": "484061",
+            "iat": 1616421600,
+            "exp": 1616425200,
+            "nonce": bignum_in_base64,
+            "name": "John Doe"
+        });
+        assert.deepEqual(jwtutils.getExtendedClaim(payload, 'nonce'), A);
+
+        const encoded_payload = Buffer.from(payload).toString("base64url");
+        const jwt = Buffer.from(header).toString("base64url") + "." + encoded_payload;
+        const payload_index = jwt.indexOf(encoded_payload);
+        const [index, len] = jwtutils.indicesOfB64(encoded_payload, 'nonce');
         assert.isAtMost(len, maxB);
 
         const circuit = await genCircuit(maxJwtLen, maxA);

@@ -26,12 +26,12 @@ function computeNumSHA2Blocks(jwt) {
 
 function computeSubLen(jwt) {
     const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();
-    return jwtutils.getClaimString(payload, "sub").length;
+    return jwtutils.getExtendedClaim(payload, "sub").length;
 }
 
 function computeAudLen(jwt) {
     const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();
-    return jwtutils.getClaimString(payload, "aud").length;
+    return jwtutils.getExtendedClaim(payload, "aud").length;
 }
 
 function decide(jwt, buffer1, buffer2) {

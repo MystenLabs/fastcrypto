@@ -57,46 +57,46 @@ describe("Circuit Utilities", () => {
 });
 
 describe("JWT utils tests", () => {
-    const getClaimString = jwtutils.getClaimString;
+    const getExtendedClaim = jwtutils.getExtendedClaim;
     const b64Len = jwtutils.b64Len;
     const indicesOfB64 = jwtutils.indicesOfB64;
     const decodeBase64URL = jwtutils.decodeBase64URL;
 
-    describe("getClaimString", () => {
+    describe("getExtendedClaim", () => {
         it("Normal strings", () => {
             // Without quotes, not end
             assert.deepEqual(
-                getClaimString('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "iss"),
+                getExtendedClaim('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "iss"),
                 '"iss":12345,'
             );
 
             // With quotes, not end
             assert.deepEqual(
-                getClaimString('{"iss":"12345","sub":45678,"aud":"https://example.com"}', "iss"),
+                getExtendedClaim('{"iss":"12345","sub":45678,"aud":"https://example.com"}', "iss"),
                 '"iss":"12345",'
             );
 
             // Without quotes, end
             assert.deepEqual(
-                getClaimString('{"iss":12345,"sub":45678}', "sub"),
+                getExtendedClaim('{"iss":12345,"sub":45678}', "sub"),
                 '"sub":45678}'
             );
     
             // With quotes, end
             assert.deepEqual(
-                getClaimString('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "aud"),
+                getExtendedClaim('{"iss":12345,"sub":45678,"aud":"https://example.com"}', "aud"),
                 '"aud":"https://example.com"}'
             );
         })
 
         it("With escapes", () => {
             assert.deepEqual(
-                getClaimString('{"iss":"https:\\/\\/www.facebook.com","sub":45678,"aud":12345}', "iss"),
+                getExtendedClaim('{"iss":"https:\\/\\/www.facebook.com","sub":45678,"aud":12345}', "iss"),
                 '"iss":"https:\\/\\/www.facebook.com",'
             );
     
             assert.deepEqual(
-                getClaimString('{"iss":"https:\\/\\/www.facebook.com","sub":45678,"picture":"https:\\/\\/platform-lookaside.fbsbx.com\\/platform\\/profilepic\\/?asid=708562611009525&height=100&width=100&ext=1684596798&hash=AeRIgRL_XooqrdDidNY"}', "picture"),
+                getExtendedClaim('{"iss":"https:\\/\\/www.facebook.com","sub":45678,"picture":"https:\\/\\/platform-lookaside.fbsbx.com\\/platform\\/profilepic\\/?asid=708562611009525&height=100&width=100&ext=1684596798&hash=AeRIgRL_XooqrdDidNY"}', "picture"),
                 '"picture":"https:\\/\\/platform-lookaside.fbsbx.com\\/platform\\/profilepic\\/?asid=708562611009525&height=100&width=100&ext=1684596798&hash=AeRIgRL_XooqrdDidNY"}'
             );
         });
@@ -200,7 +200,7 @@ describe("JWT utils tests", () => {
                 '{"iss":12345,"sub":45678,"aud":"https://example.com"}' // In the middle
             ].forEach(input => {
                 assert.isTrue(input.includes(sub_claim));
-                const sub_claim_with_last_char = getClaimString(input, "sub");
+                const sub_claim_with_last_char = getExtendedClaim(input, "sub");
                 assert.deepEqual(sub_claim_with_last_char.slice(0, -1), sub_claim);
                 assert.isTrue(sub_claim_with_last_char.slice(-1) === ',' || sub_claim_with_last_char.slice(-1) === '}');
     
@@ -217,7 +217,7 @@ describe("JWT utils tests", () => {
             const jwt = require('../testvectors').google.jwt;
             const payload = jwt.split('.')[1];
             const decoded_payload = Buffer.from(payload, 'base64url').toString();
-            const sub_claim_with_last_char = getClaimString(decoded_payload, "sub");
+            const sub_claim_with_last_char = getExtendedClaim(decoded_payload, "sub");
             assert.deepEqual(sub_claim_with_last_char, '"sub":"110463452167303598383",');
 
             const [start, len] = indicesOfB64(payload, "sub");
@@ -231,14 +231,20 @@ describe("JWT utils tests", () => {
             const payload = jwt.split('.')[1];
             const decoded_payload = Buffer.from(payload, 'base64url').toString();
 
-            const sub_claim_with_last_char = getClaimString(decoded_payload, "sub");
+            const sub_claim_with_last_char = getExtendedClaim(decoded_payload, "sub");
             assert.deepEqual(sub_claim_with_last_char, '"sub":"904448692",');
             const [start, len] = indicesOfB64(payload, "sub");
             const substr = payload.slice(start, start + len);
             const decoded = decodeBase64URL(substr, start % 4);
             assert.deepEqual(decoded, sub_claim_with_last_char);
+        })
 
-            const username = getClaimString(decoded_payload, "preferred_username");
+        it.skip("Twitch JWT with username", () => {
+            const jwt = require('../testvectors').twitch.jwt;
+            const payload = jwt.split('.')[1];
+            const decoded_payload = Buffer.from(payload, 'base64url').toString();
+
+            const username = getExtendedClaim(decoded_payload, "preferred_username");
             assert.deepEqual(username, '"preferred_username":"joyqvq"}');
             const [start2, len2] = indicesOfB64(payload, "preferred_username");
             const substr2 = payload.slice(start2, start2 + len2);

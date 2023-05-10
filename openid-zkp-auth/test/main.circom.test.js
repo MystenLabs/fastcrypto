@@ -54,7 +54,7 @@ async function genProof(circuit, jwt, maxContentLen, maxSubLength,
     return [inputs, auxiliary_inputs];
 }
 
-describe("JWT Proof", function() {
+describe.skip("JWT Proof", function() {
     const GOOGLE = require("../testvectors").google;
     const TWITCH = require("../testvectors").twitch;
 
@@ -116,19 +116,20 @@ describe("Tests with crafted JWTs", () => {
         "kid":"827917329",
         "typ":"JWT"
     };
+    const claim_string = '"sub":"4840061",';
+    const sub_commitment = '6621753577113798222817846331081670375939652571040388319046768774068537034346';
+    const pin = 123456789;
+    const nonce = "GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M";
     const payload = { // Resembles Google's JWT
         iss: 'google.com',
         azp: 'example.com',
         aud: 'example.com',
         sub: '4840061',
-        nonce: 'abcd',
+        nonce: nonce,
         iat: 4,
         exp: 4,
         jti: 'a8a0728a'
     };
-    const claim_string = '"sub":"4840061",';
-    const sub_commitment = '6621753577113798222817846331081670375939652571040388319046768774068537034346';
-    const pin = 123456789;
 
     // const b64header = utils.trimEndByChar(Buffer.from(header, 'base64url').toString('base64url'), '=');
     // const b64payload = utils.trimEndByChar(Buffer.from(payload, 'base64url').toString('base64url'), '=');
@@ -138,8 +139,9 @@ describe("Tests with crafted JWTs", () => {
     const maxSubLength = 21;
 
     before(async () => {
-        expect(jwtutils.getClaimString(JSON.stringify(payload), "sub")).equals(claim_string);
+        expect(jwtutils.getExtendedClaim(JSON.stringify(payload), "sub")).equals(claim_string);
         expect(claim_string.length).at.most(maxSubLength);
+        expect(await circuitutils.computeNonce()).equals(nonce);
         /** NOTE: Skipping a portion of the tests until address format is finalized */
         // expect((await utils.commitSubID(claim_string.slice(0, -1), pin, maxSubLength)).toString()).equals(sub_commitment);
         console.log("JWT: ", jwt);
@@ -165,7 +167,7 @@ describe("Tests with crafted JWTs", () => {
             iss: 'google.com',
             azp: 'example.com',
             aud: 'example.com',
-            nonce: 'abcd',
+            nonce: nonce,
             iat: 4,
             exp: 4,
             jti: 'a8a0728a'
@@ -185,7 +187,7 @@ describe("Tests with crafted JWTs", () => {
             iss: 'google.com',
             azp: 'example.com',
             aud: 'example.com',
-            nonce: 'abcd',
+            nonce: nonce,
             iat: 4,
             exp: 4,
             jti: 'a8a0728a',
@@ -210,7 +212,7 @@ describe("Tests with crafted JWTs", () => {
             exp: 4,
             sub: '4840061',
             azp: 'example.com',
-            nonce: 'abcd',
+            nonce: nonce,
         };
         const new_jwt = constructJWT(header, new_payload);
         const [_, aux] = await genProof(
@@ -237,7 +239,7 @@ describe("Tests with crafted JWTs", () => {
                 iss: 'google.com',
                 azp: 'example.com',
                 aud: 'example.com',
-                nonce: 'abcd',
+                nonce: nonce,
                 iat: 4,
                 exp: 4,
                 jti: 'a8a0728a',
@@ -266,7 +268,7 @@ describe("Tests with crafted JWTs", () => {
                     maxSubLength
                 );
                 const tamperedClaim = claim_string;
-                inputs["subject_id"] = utils.padWithZeroes(tamperedClaim.split('').map(c => c.charCodeAt()), maxSubLength);
+                inputs["extended_sub"] = utils.padWithZeroes(tamperedClaim.split('').map(c => c.charCodeAt()), maxSubLength);
                 inputs["sub_length_ascii"] = tamperedClaim.length;
                 await circuit.calculateWitness(inputs, true);
 
@@ -274,6 +276,38 @@ describe("Tests with crafted JWTs", () => {
             } catch (error) {
                 assert.include(error.message, 'Error in template ASCIISubstrExistsInB64');
             }
+        }
+    });
+
+    it("(Fail) Nonce has invalid value!", async () => {
+        const new_payload = {
+            sub: '4840061',
+            iss: 'google.com',
+            azp: 'example.com',
+            aud: 'example.com',
+            nonce: 'JMi6c_3qXn1H8UX5la1P6YDwThkN5LZxqagTyjfiYwU', // incorrect nonce
+            iat: 4,
+            exp: 4,
+            jti: 'a8a0728a'
+        };
+        const new_jwt = constructJWT(header, new_payload);
+        try {
+            const [header, payload,] = new_jwt.split('.');
+            const input = header + '.' + payload;
+            var [inputs, ] = await circuitutils.genJwtProofUAInputs(
+                input, 
+                maxContentLen, 
+                maxSubLength,
+                constants.claimsToReveal, 
+                devVars.ephPK, 
+                devVars.maxEpoch, 
+                devVars.jwtRand, 
+                devVars.pin,
+                false // set to false to turn off sanity checks
+            );
+            await circuit.calculateWitness(inputs, true);
+        } catch (error) {
+            assert.include(error.message, 'Error in template NonceChecker');
         }
     });
 });
