@@ -99,7 +99,7 @@ pub struct Secp256r1Signature {
 }
 
 impl Secp256r1Signature {
-    fn from_der(bytes: &[u8]) -> Result<Self, FastCryptoError> {
+    pub fn from_der(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ExternalSignature::from_der(bytes)
             .map(|sig| Secp256r1Signature {
                 sig,
@@ -107,7 +107,7 @@ impl Secp256r1Signature {
             })
             .map_err(|_| FastCryptoError::InvalidInput)
     }
-    fn normalize(&self) -> Result<Self, FastCryptoError> {
+    pub fn normalize(&self) -> Result<Self, FastCryptoError> {
         ExternalSignature::normalize_s(&self.sig)
             .ok_or(FastCryptoError::InvalidSignature)
             .map(|sig| Secp256r1Signature {
