@@ -11,6 +11,10 @@ const TWITCH = require("../testvectors").twitch;
 
 const claimsToReveal = constants.claimsToReveal;
 
+const ARTIFACTS_DIR = "./artifacts";
+const PROJ_NAME = "zklogin";
+const PROOF_DIR = ARTIFACTS_DIR + "/proof";
+
 const groth16Prove = async (inputs, wasm_file, zkey_file) => {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         inputs, 
@@ -45,11 +49,8 @@ const zkOpenIDProve = async (jwt, provider, ephPK, maxEpoch, jwtRand, userPIN, j
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
-    if (!(provider in constants)) {
-        throw new Error("Invalid provider. Not in constants.js");
-    }
-    const maxContentLen = constants[provider].maxContentLen;
-    const maxSubLen = constants[provider].maxSubstrLen;
+    const maxContentLen = constants.maxContentLen;
+    const maxSubLen = constants.maxSubstrLen;
     var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
         input, maxContentLen, maxSubLen, claimsToReveal, 
         ephPK, maxEpoch, jwtRand, userPIN
@@ -60,14 +61,14 @@ const zkOpenIDProve = async (jwt, provider, ephPK, maxEpoch, jwtRand, userPIN, j
 
     // Generate ZKP
     console.log("Generating ZKP...");
-    const WASM_FILE_PATH = `./${provider}/${provider}_js/${provider}.wasm`;
-    const ZKEY_FILE_PATH = `./${provider}/${provider}.zkey`;
+    const WASM_FILE_PATH = `${ARTIFACTS_DIR}/${PROJ_NAME}_js/${PROJ_NAME}.wasm`;
+    const ZKEY_FILE_PATH = `${ARTIFACTS_DIR}/${PROJ_NAME}.zkey`;
     const { proof, publicSignals: public_signals } = await groth16Prove(inputs, WASM_FILE_PATH, ZKEY_FILE_PATH);
 
     if (write_to_file) {
-        const PROOF_FILE_PATH = `./${provider}/${provider}.proof`;
-        const AUX_INPUTS_FILE_PATH = `./${provider}/aux.json`;
-        const PUBLIC_INPUTS_FILE_PATH = `./${provider}/public.json`;
+        const PROOF_FILE_PATH = `${PROOF_DIR}/zkp.json`;
+        const AUX_INPUTS_FILE_PATH = `${PROOF_DIR}/aux.json`;
+        const PUBLIC_INPUTS_FILE_PATH = `${PROOF_DIR}/public.json`;
 
         console.log("Writing proof...");
         utils.writeJSONToFile(proof, PROOF_FILE_PATH);
@@ -89,10 +90,10 @@ const zkOpenIDVerify = async (proof, provider) => {
 
     // Verify ZKP
     console.log("Verifying ZKP...");
-    const VKEY_FILE_PATH = `./${provider}/${provider}.vkey`;
+    const VKEY_FILE_PATH = `${ARTIFACTS_DIR}/${PROJ_NAME}.vkey`;
     await groth16Verify(zkproof, public_inputs, VKEY_FILE_PATH);
 
-    const maxContentLen = constants[provider].maxContentLen;
+    const maxContentLen = constants.maxContentLen;
     verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
 }
 

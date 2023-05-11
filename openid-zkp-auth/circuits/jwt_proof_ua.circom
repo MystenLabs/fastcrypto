@@ -46,27 +46,29 @@ template NonceChecker(extNonceLength, nonceBitLen) {
 /**
 JWT Proof: User-agnostic (UA) circuit
 
+Constraints (rough): (maxContentLength/64)*30k + maxContentLength * (maxSubLength + maxNonceLength)
+The first term is incurred by Sha2_wrapper and the second term is incurred by Slice.
+
     Construction params:
-    - maxContentLength:         Maximum length of the JWT + SHA2 padding in bytes
+    - maxContentLength:         Maximum length of the JWT + SHA2 padding in bytes. Must be a multiple of 64.
     - maxSubLength:             Maximum length of the extended_sub (in ascii)
 
     Private Inputs:
-    - content[inCount]:         Segments of X as inWidth bit chunks where X is the 
-                                    decoded JWT header + decoded JWT payload + SHA-2 padding + zeroes
+    - content[inCount]:         X in bytes where X is the 
+                                decoded JWT header + decoded JWT payload + SHA-2 padding + zeroes
 
     - extended_sub[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
     - sub_length_ascii:         Length of the extended_sub in ASCII, e.g., for ',"sub":12345,' it is 13
-    - sub_claim_index_b64:
-    - sub_length_b64:
+    - sub_claim_index_b64:      The index of extended_sub encoded into Base64 in the JWT payload
+    - sub_length_b64:           The length of extended_sub in Base64
     - subject_pin:              A 128-bit PIN to keep the extended_sub private
 
-    - extended_nonce[maxNonceLength]: 
-    - nonce_length_ascii:
-    - nonce_claim_index_b64:
-    - nonce_length_b64:
+    - extended_nonce[maxNonceLength]: The nonce for the first nonce_length_ascii characters and 0s for the rest
+    - nonce_claim_index_b64:    The index of extended_nonce encoded into Base64 in the JWT payload
+    - nonce_length_b64:         The length of extended_nonce in Base64
 
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
-    - jwt_randomness:           A 128-bit random number to keep the sensitive parts of JWT hidden
+    - jwt_randomness:           A 128-bit random number to keep the sensitive parts of JWT hidden.
 
     Circuit signals revealed to the verifier along with the ZK proof:
     - jwt_sha2_hash:            The SHA2 hash of the JWT header + JWT payload + SHA-2 padding
@@ -74,17 +76,19 @@ JWT Proof: User-agnostic (UA) circuit
     - subject_id_com:           H(extended_sub || PIN). A binding and hiding commitment to extended_sub
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
-    - masked_content:           The content with the sensitive parts masked
+    - masked_content:           The content with "iss" and "aud" claims revealed. Rest of it is masked
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
 
     Public Inputs:
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
                                   eph_public_key[2] || max_epoch || num_sha2_blocks || subject_id_com)
+
+Notes:
+- nonce = H(nonce_preamble || eph_public_key || max_epoch || jwt_randomness)
 */
 template JwtProofUA(maxContentLength, maxSubLength) {
-    // Input is Base64 characters encoded as ASCII
-    var inWidth = 8;
+    var inWidth = 8; // input is in bytes
     var inCount = maxContentLength;
     signal input content[inCount];
 
@@ -104,6 +108,10 @@ template JwtProofUA(maxContentLength, maxSubLength) {
         a) Is it in the JWT payload?
         b) Is extended_sub[i] == 0 for all i >= sub_length_ascii?
         c) Is extended_sub[sub_length_ascii - 1] == ',' or '}'?
+
+    Note that the OpenID standard permits extended_sub to be any valid JSON member. 
+    But the below logic is more restrictive: it assumes that the exact same string is 
+        returned by the server every time the user logs in.
     */
     var subInWidth = 8;
     signal input extended_sub[maxSubLength];
@@ -184,7 +192,6 @@ template JwtProofUA(maxContentLength, maxSubLength) {
 
     // 5a) Is it in the JWT payload?
     signal input extended_nonce[extNonceLength];
-    signal input nonce_length_ascii;
 
     signal input nonce_claim_index_b64;
     signal input nonce_length_b64;
@@ -197,7 +204,7 @@ template JwtProofUA(maxContentLength, maxSubLength) {
         BIndex <== nonce_claim_index_b64,
         lenB <== nonce_length_b64,
         A <== extended_nonce,
-        lenA <== nonce_length_ascii,
+        lenA <== extNonceLength,
         payloadIndex <== payload_start_index
     );
 

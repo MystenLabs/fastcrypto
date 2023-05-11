@@ -102,7 +102,6 @@ async function genNonceCheckInputs(
 
     return {
         "extended_nonce": extended_nonce.split('').map(c => c.charCodeAt()),
-        "nonce_length_ascii": extended_nonce.length,
         "nonce_claim_index_b64": start + payloadIndex,
         "nonce_length_b64": len,
         "eph_public_key": [ephemeral_public_key / 2n**128n, ephemeral_public_key % 2n**128n],
@@ -139,7 +138,7 @@ async function sanityChecks(
     max_epoch = devVars.maxEpoch, 
     jwt_randomness = devVars.jwtRand,
 ) {
-    const nonce = await computeNonce(ephemeral_public_key, max_epoch, jwt_randomness);
+    const nonce = await computeNonce(0x1, ephemeral_public_key, max_epoch, jwt_randomness);
 
     const decoded_payload = Buffer.from(payload, 'base64url').toString();
     const json_nonce = JSON.parse(decoded_payload).nonce;
