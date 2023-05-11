@@ -53,9 +53,18 @@ JWT Proof: User-agnostic (UA) circuit
     Private Inputs:
     - content[inCount]:         Segments of X as inWidth bit chunks where X is the 
                                     decoded JWT header + decoded JWT payload + SHA-2 padding + zeroes
-    - sub_length_ascii:         Length of the extended_sub in ASCII, e.g., for ',"sub":12345,' it is 13
+
     - extended_sub[maxSubLength]: The subject (user) ID for the first sub_length_ascii characters and 0s for the rest
+    - sub_length_ascii:         Length of the extended_sub in ASCII, e.g., for ',"sub":12345,' it is 13
+    - sub_claim_index_b64:
+    - sub_length_b64:
     - subject_pin:              A 128-bit PIN to keep the extended_sub private
+
+    - extended_nonce[maxNonceLength]: 
+    - nonce_length_ascii:
+    - nonce_claim_index_b64:
+    - nonce_length_b64:
+
     - mask[inCount]:            A binary mask over X, i.e., mask[i] = 0 or 1
     - jwt_randomness:           A 128-bit random number to keep the sensitive parts of JWT hidden
 
@@ -71,7 +80,7 @@ JWT Proof: User-agnostic (UA) circuit
 
     Public Inputs:
     - all_inputs_hash:          H(jwt_sha2_hash[2] || masked_content_hash || payload_start_index || payload_len
-                                  eph_public_key[2] || max_epoch || nonce || num_sha2_blocks || subject_id_com)
+                                  eph_public_key[2] || max_epoch || num_sha2_blocks || subject_id_com)
 */
 template JwtProofUA(maxContentLength, maxSubLength) {
     // Input is Base64 characters encoded as ASCII
@@ -199,10 +208,12 @@ template JwtProofUA(maxContentLength, maxSubLength) {
     component size_checker_2 = Num2Bits(128);
     size_checker_2.in <== jwt_randomness; // ensure it is 16 bytes
 
-    signal nonce <== Hasher(4)([
-        eph_public_key[0], 
-        eph_public_key[1], 
-        max_epoch, 
+    var nonce_preamble = 1;
+    signal nonce <== Hasher(5)([
+        nonce_preamble,
+        eph_public_key[0],
+        eph_public_key[1],
+        max_epoch,
         jwt_randomness
     ]);
 

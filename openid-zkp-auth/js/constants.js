@@ -11,13 +11,7 @@ module.exports = {
     maskValue: '='.charCodeAt(),
     nonceLen: Math.ceil(256 / 6), // 43
     extNonceLen: Math.ceil(256 / 6) + 11, // 11 for prefix and suffix
-    claimsToReveal: ["iss", "aud", "nonce"],
-    google: {
-        maxContentLen: 64*12,
-        maxSubstrLen: 36,
-    },
-    twitch: {
-        maxContentLen: 64*8,
-        maxSubstrLen: 21,
-    }
+    claimsToReveal: ["iss", "aud"],
+    maxContentLen: 64*12,
+    maxSubstrLen: 36
 }

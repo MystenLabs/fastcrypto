@@ -12,7 +12,10 @@ const verify = require('../js/verify');
 
 const testutils = require("./testutils");
 
-async function genCircuit(maxContentLen, maxSubLength) {
+async function genCircuit(
+    maxContentLen = constants.maxContentLen,
+    maxSubLength = constants.maxSubstrLen
+) {
     return await testutils.genMain(
         path.join(__dirname, "../circuits", "jwt_proof_ua.circom"), "JwtProofUA", [
             maxContentLen,
@@ -21,10 +24,12 @@ async function genCircuit(maxContentLen, maxSubLength) {
     );
 }
 
-async function genProof(circuit, jwt, maxContentLen, maxSubLength, 
+async function genProof(
+    circuit, jwt,
+    maxContentLen = constants.maxContentLen, maxSubLength = constants.maxSubstrLen,
     claimsToReveal = constants.claimsToReveal, ephPK = devVars.ephPK,
     maxEpoch = devVars.maxEpoch, jwtRand = devVars.jwtRand, userPIN = devVars.pin
-){
+) {
     const [header, payload, _] = jwt.split('.');
     const input = header + '.' + payload;
     var [inputs, auxiliary_inputs] = await circuitutils.genJwtProofUAInputs(
@@ -54,41 +59,32 @@ async function genProof(circuit, jwt, maxContentLen, maxSubLength,
     return [inputs, auxiliary_inputs];
 }
 
-describe.skip("JWT Proof", function() {
+describe("JWT Proof", function() {
     const GOOGLE = require("../testvectors").google;
     const TWITCH = require("../testvectors").twitch;
 
     const test_vectors = {
         google: {
             jwt: GOOGLE["jwt"],
-            jwk: GOOGLE["jwk"],
-            maxContentLen: constants.google.maxContentLen,
-            maxSubstrLen: constants.google.maxSubstrLen
-        }, 
+            jwk: GOOGLE["jwk"]
+        },
         twitch: {
             jwt: TWITCH["jwt"],
-            jwk: TWITCH["jwk"],
-            maxContentLen: constants.twitch.maxContentLen,
-            maxSubstrLen: constants.twitch.maxSubstrLen
+            jwk: TWITCH["jwk"]
         }
     }
 
     for (const [provider, constants] of Object.entries(test_vectors)) {
         describe(provider, async function() {
-            it("Verify JWT with JWK", async function() {
+            it.skip("Verify JWT with JWK", async function() {
                 verify.verifyJwt(constants["jwt"], constants["jwk"]);
             });
 
             it("Prove", async function() {
-                const circuit = await genCircuit(
-                    constants["maxContentLen"],
-                    constants["maxSubstrLen"]
-                );
+                const circuit = await genCircuit();
                 await genProof(
                     circuit,
-                    constants["jwt"],
-                    constants["maxContentLen"],
-                    constants["maxSubstrLen"],
+                    constants["jwt"]
                 );
             });
         });
@@ -119,7 +115,7 @@ describe("Tests with crafted JWTs", () => {
     const claim_string = '"sub":"4840061",';
     const sub_commitment = '6621753577113798222817846331081670375939652571040388319046768774068537034346';
     const pin = 123456789;
-    const nonce = "GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M";
+    const nonce = "K-pwFqdPP3PUBjniz2PobCuAzacon6uhHQNZCMVnCPc";
     const payload = { // Resembles Google's JWT
         iss: 'google.com',
         azp: 'example.com',

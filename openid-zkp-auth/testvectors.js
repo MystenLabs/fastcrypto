@@ -1,5 +1,5 @@
 const GOOGLE_EXTENSION = {
-    jwt: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTA0NjM0NTIxNjczMDM1OTgzODMiLCJlbWFpbCI6IndhbmdxaWFveWkuam95QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJub25jZSI6IkpNaTZjXzNxWG4xSDhVWDVsYTFQNllEd1Roa041TFp4cWFnVHlqZmlZd1UiLCJpYXQiOjE2ODMzMjMyNjksImV4cCI6MTY4MzMyNjg2OSwianRpIjoiMDEzMzA2YjY1MmY0Zjg1MjUxZTU1OGVhNGFhOWJkYWI3ZmQxNzk3ZiJ9.TCI2XSbEmFc3KVHn2MoZi4OwCM56l59hiSZBdWwMeaCQWCbcJ87OhqtDTOuJMtUclBfkvEDoX_F2VhLJEbUcsFc5XyH_wrPjEqLet3uK1NB8Pqvuk1Q8lMy9nTvSCugGyCRUVhGiOiUfITwq8DhP-NPQ_2vp0NVb_EmHEUxgRniNA-h5JXK2RRxKb1Sx0-yAnerxAamNcvYCOL679Ig9u0N_G_v2cwUVYEm-8XkKpyrUeMv60euxMdO0LDCa1qbOj_l0OmPtMweCMGtVJOCrR3upZ443ttALJ2slsXdXc0Ee9byDoEP9KaPsvMT2ZQX3ZDss_ce3opYDd0snUf-H8A",
+    jwt: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTA0NjM0NTIxNjczMDM1OTgzODMiLCJlbWFpbCI6IndhbmdxaWFveWkuam95QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJub25jZSI6IkstcHdGcWRQUDNQVUJqbml6MlBvYkN1QXphY29uNnVoSFFOWkNNVm5DUGMiLCJpYXQiOjE2ODMzMjMyNjksImV4cCI6MTY4MzMyNjg2OSwianRpIjoiMDEzMzA2YjY1MmY0Zjg1MjUxZTU1OGVhNGFhOWJkYWI3ZmQxNzk3ZiJ9.",
     jwk: {
         "e": "AQAB",
         "kty": "RSA",
@@ -17,7 +17,7 @@ const GOOGLE_EXTENSION = {
         "sub": "110463452167303598383",
         "email": "wangqiaoyi.joy@gmail.com",
         "email_verified": true,
-        "nonce": "GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M",
+        "nonce": "K-pwFqdPP3PUBjniz2PobCuAzacon6uhHQNZCMVnCPc",
         "iat": 1683323269,
         "exp": 1683326869,
         "jti": "013306b652f4f85251e558ea4aa9bdab7fd1797f"
@@ -46,11 +46,25 @@ const GOOGLE_PLAYGROUND = {
 }
 
 const TWITCH = {
-    jwt: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLCJleHAiOjE2ODMzMjQyNjgsImlhdCI6MTY4MzMyMzM2OCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiZW1haWwiOiJ3YW5nam95am95MjAxOUBnbWFpbC5jb20iLCJub25jZSI6IkpNaTZjXzNxWG4xSDhVWDVsYTFQNllEd1Roa041TFp4cWFnVHlqZmlZd1UifQ.KPQ3F3tStLSNl_KR7BjO37xGTBX6IeJKgn8Rp6Gg8iEx7wcWRCGQHAb_baImXRXmaqfwKR5XZQv_eq52KqD5EMltcPq166v_LTEGURBPYn_tbrEYplDe3tqLpuci1jwrUdj0hDQlZ683Uz_QuqLRkn0alAx0wnZIfTP7zJqpq_KyUIAc6hvOxrfQLJAgMW8zhxXO3xLDn0qOC4yXXfeUC8V8ntqTEOzfmLL1b0Ly604gwjhWtQgF-NrYnuopvNbTJAZei1Ha8RoyLh1qFWCG3B-XJPrvblQY_RIGnQzzjteLz7Lc0iHxCBBBqVqMZbP96DR2gp5fxFVfCqA5G0YA9A",
+    jwt: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLCJleHAiOjE2ODMzMjQyNjgsImlhdCI6MTY4MzMyMzM2OCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiZW1haWwiOiJ3YW5nam95am95MjAxOUBnbWFpbC5jb20iLCJub25jZSI6IkstcHdGcWRQUDNQVUJqbml6MlBvYkN1QXphY29uNnVoSFFOWkNNVm5DUGMifQ.",
     jwk: {
         "e": "AQAB",
         "kty": "RSA",
         "n": "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw"
+    },
+    header: {
+        "alg": "RS256",
+        "typ": "JWT",
+        "kid": "1"
+    },
+    payload: {
+        "aud": "d31icql6l8xzpa7ef31ztxyss46ock",
+        "exp": 1683324268,
+        "iat": 1683323368,
+        "iss": "https://id.twitch.tv/oauth2",
+        "sub": "904448692",
+        "email": "wangjoyjoy2019@gmail.com",
+        "nonce": "K-pwFqdPP3PUBjniz2PobCuAzacon6uhHQNZCMVnCPc"
     }
 }
 

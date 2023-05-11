@@ -57,6 +57,7 @@ function genSha256Inputs(input, nCount, nWidth = 8, inParam = "in") {
 }
 
 async function computeNonce(
+    preamble = 0x1,
     ephemeral_public_key = devVars.ephPK, 
     max_epoch = devVars.maxEpoch, 
     jwt_randomness = devVars.jwtRand,
@@ -67,6 +68,7 @@ async function computeNonce(
     const buildPoseidon = require("circomlibjs").buildPoseidon;
     poseidon = await buildPoseidon();
     const bignum = poseidonHash([
+        preamble,
         eph_public_key_0,
         eph_public_key_1,
         max_epoch,
