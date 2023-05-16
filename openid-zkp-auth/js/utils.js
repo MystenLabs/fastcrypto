@@ -1,3 +1,12 @@
+const constants = require('./constants');
+
+function getNumFieldElements(asciiSize, packWidth=constants.packWidth) {
+    if (packWidth % 8 !== 0) throw new Error("packWidth must be a multiple of 8");
+
+    const packWidthInBytes = packWidth / 8;
+    return Math.ceil(asciiSize / packWidthInBytes);
+}
+
 function arrayChunk(array, chunk_size) {
     return Array(Math.ceil(array.length / chunk_size)).fill().map((_, index) => index * chunk_size).
                 map(begin => array.slice(begin, begin + chunk_size));
@@ -33,6 +42,7 @@ function bigIntArray2Buffer(arr, intSize=16) {
     return bitArray2Buffer(bigIntArray2Bits(arr, intSize));
 }
 
+// Pack into an array of chunks each outWidth bits
 function pack(inArr, inWidth, outWidth) {
     const bits = bigIntArray2Bits(inArr, inWidth);
 
@@ -44,7 +54,17 @@ function pack(inArr, inWidth, outWidth) {
     return packed;
 }
 
+// Pack into exactly outCount chunks of outWidth bits each
+function pack2(inArr, inWidth, outWidth, outCount) {
+    const packed = pack(inArr, inWidth, outWidth);
+    if (packed.length > outCount) throw new Error("packed is big enough");
+
+    return packed.concat(Array(outCount - packed.length).fill(0));
+}
+
 function padWithZeroes(inArr, outCount) {
+    if (inArr.length > outCount) throw new Error("inArr is big enough");
+
     const extra_bits = outCount - inArr.length;
     const bits_padded = inArr.concat(Array(extra_bits).fill(0));
     return bits_padded;
@@ -74,16 +94,32 @@ function applyMask(input, mask) {
             );
 }
 
-async function commitSubID(claim_string, pin, maxSubLength, outWidth=253) {
+async function deriveAddrSeed(
+    claim_value, pin,
+    maxKeyClaimValueLen = constants.maxKeyClaimValueLen,
+    packWidth=constants.packWidth
+){
+    const claim_val_F = await mapToField(claim_value, maxKeyClaimValueLen, packWidth);
     const buildPoseidon = require("circomlibjs").buildPoseidon;
     poseidon = await buildPoseidon();
 
-    const padded_claim_string = padWithZeroes(claim_string.split('').map(c => c.charCodeAt()), maxSubLength);
-    const packed_subject_id = pack(padded_claim_string, 8, outWidth);
     return poseidonHash([
-        poseidonHash(packed_subject_id, poseidon),
-        pin
+        claim_val_F, pin
     ], poseidon);
+}
+
+// Map str into a field element after padding it to maxSize chars
+async function mapToField(str, maxSize, packWidth=constants.packWidth) {
+    if (str.length > maxSize) {
+        throw new Error(`String ${str} is longer than ${maxSize} chars`);
+    }
+
+    const numElements = getNumFieldElements(maxSize, packWidth);
+    const packed = pack2(str.split('').map(c => c.charCodeAt()), 8, packWidth, numElements);
+
+    const buildPoseidon = require("circomlibjs").buildPoseidon;
+    poseidon = await buildPoseidon();
+    return poseidonHash(packed, poseidon);
 }
 
 function writeJSONToFile(inputs, file_name = "inputs.json") {
@@ -101,7 +137,8 @@ module.exports = {
     applyMask: applyMask,
     padWithZeroes: padWithZeroes,
     pack: pack,
-    commitSubID: commitSubID,
+    deriveAddrSeed: deriveAddrSeed,
     poseidonHash: poseidonHash,
-    writeJSONToFile: writeJSONToFile
+    writeJSONToFile: writeJSONToFile,
+    mapToField: mapToField
 }

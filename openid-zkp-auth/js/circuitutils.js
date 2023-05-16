@@ -8,7 +8,7 @@ const constants = require('./constants');
 const claimsToReveal = constants.claimsToReveal;
 const devVars = constants.dev;
 const nWidth = constants.inWidth;
-const outWidth = constants.outWidth;
+const packWidth = constants.packWidth;
 const poseidonHash = require('./utils').poseidonHash;
 
 // https://datatracker.ietf.org/doc/html/rfc4634#section-4.1
@@ -57,7 +57,6 @@ function genSha256Inputs(input, nCount, nWidth = 8, inParam = "in") {
 }
 
 async function computeNonce(
-    preamble = 0x1,
     ephemeral_public_key = devVars.ephPK, 
     max_epoch = devVars.maxEpoch, 
     jwt_randomness = devVars.jwtRand,
@@ -68,7 +67,6 @@ async function computeNonce(
     const buildPoseidon = require("circomlibjs").buildPoseidon;
     poseidon = await buildPoseidon();
     const bignum = poseidonHash([
-        preamble,
         eph_public_key_0,
         eph_public_key_1,
         max_epoch,
@@ -110,26 +108,28 @@ async function genNonceCheckInputs(
     };
 }
 
-async function genSubCheckInputs(payload, maxSubLength, payloadIndex, userPIN) {
+async function genKeyClaimCheckInputs(
+    payload, maxExtClaimLen, 
+    payloadIndex, userPIN,
+    keyClaimName = "sub"
+) {
     const decoded_payload = Buffer.from(payload, 'base64url').toString();
-    const extended_sub = jwtutils.getExtendedClaim(decoded_payload, "sub");
-    const [start, len] = jwtutils.indicesOfB64(payload, 'sub');
+    const ext_key_claim = jwtutils.getExtendedClaim(decoded_payload, keyClaimName);
+    const [start, len] = jwtutils.indicesOfB64(payload, keyClaimName);
 
-    if (extended_sub.length > maxSubLength) {
-        throw new Error(`Subject claim ${extended_sub} exceeds maximum length of ${maxSubLength} characters`);
+    if (ext_key_claim.length > maxExtClaimLen) {
+        throw new Error(`The claim ${ext_key_claim} exceeds the maximum length of ${maxExtClaimLen} characters`);
     }
 
-    const sub_claim_without_last_char = extended_sub.slice(0, -1);
-    const subject_id_com = await utils.commitSubID(sub_claim_without_last_char, userPIN, maxSubLength, outWidth);
-
-    const padded_subject_id = utils.padWithZeroes(extended_sub.split('').map(c => c.charCodeAt()), maxSubLength);
-    return [{
-        "extended_sub": padded_subject_id,
-        "sub_length_ascii": extended_sub.length,
-        "sub_claim_index_b64": start + payloadIndex,
-        "sub_length_b64": len,
-        "subject_pin": userPIN
-    }, subject_id_com];
+    const padded_ext_key_claim = utils.padWithZeroes(ext_key_claim.split('').map(c => c.charCodeAt()), maxExtClaimLen);
+    return {
+        "extended_key_claim": padded_ext_key_claim,
+        "claim_length_ascii": ext_key_claim.length,
+        "claim_index_b64": start + payloadIndex,
+        "claim_length_b64": len,
+        "subject_pin": userPIN,
+        "key_claim_name_length": keyClaimName.length
+    };
 }
 
 async function sanityChecks(
@@ -138,7 +138,7 @@ async function sanityChecks(
     max_epoch = devVars.maxEpoch, 
     jwt_randomness = devVars.jwtRand,
 ) {
-    const nonce = await computeNonce(0x1, ephemeral_public_key, max_epoch, jwt_randomness);
+    const nonce = await computeNonce(ephemeral_public_key, max_epoch, jwt_randomness);
 
     const decoded_payload = Buffer.from(payload, 'base64url').toString();
     const json_nonce = JSON.parse(decoded_payload).nonce;
@@ -148,8 +148,10 @@ async function sanityChecks(
 }
 
 async function genJwtProofUAInputs(
-    input, maxContentLen, maxSubLen,
-    fields = claimsToReveal, ephPK = devVars.ephPK, maxEpoch = devVars.maxEpoch, 
+    input, maxContentLen, maxExtClaimLen,
+    maxKeyClaimNameLen, maxKeyClaimValueLen,
+    keyClaimName = "sub", fields = claimsToReveal,
+    ephPK = devVars.ephPK, maxEpoch = devVars.maxEpoch, 
     jwtRand = devVars.jwtRand, userPIN = devVars.pin,
     dev = true
 ){
@@ -166,14 +168,15 @@ async function genJwtProofUAInputs(
     const payload = input.split('.')[1];
     inputs.payload_len = payload.length;
 
-    // set sub claim inputs
-    const [sub_inputs, subject_id_com] = await genSubCheckInputs(
+    // set the key claim inputs
+    const key_claim_inputs = await genKeyClaimCheckInputs(
         payload,
-        maxSubLen,
+        maxExtClaimLen,
         inputs.payload_start_index,
-        userPIN
+        userPIN,
+        keyClaimName
     );
-    inputs = Object.assign({}, inputs, sub_inputs);
+    inputs = Object.assign({}, inputs, key_claim_inputs);
 
     // set hash
     const hash = BigInt("0x" + crypto.createHash("sha256").update(input).digest("hex"));
@@ -182,7 +185,7 @@ async function genJwtProofUAInputs(
     // masking 
     inputs.mask = genJwtMask(input, fields).concat(Array(maxContentLen - input.length).fill(1));
     const masked_content = utils.applyMask(inputs.content, inputs.mask);
-    const packed = utils.pack(masked_content, 8, outWidth);
+    const packed = utils.pack(masked_content, 8, packWidth);
     const masked_content_hash = poseidonHash(packed, poseidon);
 
     // set nonce-related inputs
@@ -191,6 +194,15 @@ async function genJwtProofUAInputs(
         ephPK, maxEpoch, jwtRand
     );
     inputs = Object.assign({}, inputs, nonce_inputs);
+
+    // derive address
+    const decoded_payload = Buffer.from(payload, 'base64url').toString();
+    const key_claim_value = jwtutils.getClaimValue(decoded_payload, keyClaimName);
+    const address_seed = await utils.deriveAddrSeed(
+        key_claim_value, userPIN, maxKeyClaimValueLen
+    );
+    console.log(`Seed ${address_seed} derived from ID ${key_claim_value} and PIN ${userPIN}`);
+    const key_claim_name_F = await utils.mapToField(keyClaimName, maxKeyClaimNameLen);
 
     inputs.all_inputs_hash = poseidonHash([
         jwt_sha2_hash[0],
@@ -202,7 +214,8 @@ async function genJwtProofUAInputs(
         inputs.eph_public_key[1], 
         inputs.max_epoch,
         inputs.num_sha2_blocks,
-        subject_id_com
+        key_claim_name_F,
+        address_seed
     ], poseidon);
 
     const auxiliary_inputs = {
@@ -213,7 +226,8 @@ async function genJwtProofUAInputs(
         "eph_public_key": inputs.eph_public_key.map(e => e.toString()),
         "max_epoch": inputs.max_epoch,
         "num_sha2_blocks": inputs.num_sha2_blocks,
-        "sub_id_com": subject_id_com.toString()
+        "key_claim_name_F": key_claim_name_F.toString(),
+        "addr_seed": address_seed,
     }
 
     if (dev) {

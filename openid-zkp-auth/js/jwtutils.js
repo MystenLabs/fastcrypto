@@ -1,3 +1,11 @@
+function getClaimValue(decoded_payload, claim) {
+    const json_input = JSON.parse(decoded_payload);
+    if (!json_input.hasOwnProperty(claim)) {
+        throw new Error("Field " + claim + " not found in " + decoded_payload);
+    }
+    return json_input[claim];
+}
+
 /**
  * Returns a claim as it appears in the decoded JWT.
  * We take a conservative approach, e.g., assume that the claim value does not have spaces. 
@@ -269,6 +277,7 @@ function decodeBase64URL(s, i) {
 }
 
 module.exports = {
+    getClaimValue: getClaimValue,
     getExtendedClaim: getExtendedClaim,
     indicesOfB64: indicesOfB64,
     b64Len: b64Len,

@@ -1,5 +1,5 @@
 const GOOGLE_EXTENSION = {
-    jwt: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTA0NjM0NTIxNjczMDM1OTgzODMiLCJlbWFpbCI6IndhbmdxaWFveWkuam95QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJub25jZSI6IkstcHdGcWRQUDNQVUJqbml6MlBvYkN1QXphY29uNnVoSFFOWkNNVm5DUGMiLCJpYXQiOjE2ODMzMjMyNjksImV4cCI6MTY4MzMyNjg2OSwianRpIjoiMDEzMzA2YjY1MmY0Zjg1MjUxZTU1OGVhNGFhOWJkYWI3ZmQxNzk3ZiJ9.",
+    jwt: "eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTA0NjM0NTIxNjczMDM1OTgzODMiLCJlbWFpbCI6IndhbmdxaWFveWkuam95QGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJub25jZSI6IkdDd3EyekN1cXRzYTFCaGFBYzJTRWx3VW9ZdjhqS2hFNnZzNlZtZXB1Mk0iLCJpYXQiOjE2ODMzMjMyNjksImV4cCI6MTY4MzMyNjg2OSwianRpIjoiMDEzMzA2YjY1MmY0Zjg1MjUxZTU1OGVhNGFhOWJkYWI3ZmQxNzk3ZiJ9.",
     jwk: {
         "e": "AQAB",
         "kty": "RSA",
@@ -17,7 +17,7 @@ const GOOGLE_EXTENSION = {
         "sub": "110463452167303598383",
         "email": "wangqiaoyi.joy@gmail.com",
         "email_verified": true,
-        "nonce": "K-pwFqdPP3PUBjniz2PobCuAzacon6uhHQNZCMVnCPc",
+        "nonce": "GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M",
         "iat": 1683323269,
         "exp": 1683326869,
         "jti": "013306b652f4f85251e558ea4aa9bdab7fd1797f"
@@ -46,7 +46,7 @@ const GOOGLE_PLAYGROUND = {
 }
 
 const TWITCH = {
-    jwt: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLCJleHAiOjE2ODMzMjQyNjgsImlhdCI6MTY4MzMyMzM2OCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiZW1haWwiOiJ3YW5nam95am95MjAxOUBnbWFpbC5jb20iLCJub25jZSI6IkstcHdGcWRQUDNQVUJqbml6MlBvYkN1QXphY29uNnVoSFFOWkNNVm5DUGMifQ.",
+    jwt: "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLCJleHAiOjE2ODMzMjQyNjgsImlhdCI6MTY4MzMyMzM2OCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiZW1haWwiOiJ3YW5nam95am95MjAxOUBnbWFpbC5jb20iLCJub25jZSI6IkdDd3EyekN1cXRzYTFCaGFBYzJTRWx3VW9ZdjhqS2hFNnZzNlZtZXB1Mk0ifQ.",
     jwk: {
         "e": "AQAB",
         "kty": "RSA",
@@ -64,7 +64,7 @@ const TWITCH = {
         "iss": "https://id.twitch.tv/oauth2",
         "sub": "904448692",
         "email": "wangjoyjoy2019@gmail.com",
-        "nonce": "K-pwFqdPP3PUBjniz2PobCuAzacon6uhHQNZCMVnCPc"
+        "nonce": "GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M"
     }
 }
 

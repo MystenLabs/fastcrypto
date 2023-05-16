@@ -38,7 +38,7 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, provider, ephPK, maxEpoch, jwtRand, userPIN, jwk="", write_to_file=false) => {
+const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, jwk="", write_to_file=false) => {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
     if (jwk) {
         console.log("Verifying JWT with JWK...");
@@ -50,7 +50,7 @@ const zkOpenIDProve = async (jwt, provider, ephPK, maxEpoch, jwtRand, userPIN, j
     const input = header + '.' + payload;
 
     const maxContentLen = constants.maxContentLen;
-    const maxSubLen = constants.maxSubstrLen;
+    const maxSubLen = constants.maxExtClaimLen;
     var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
         input, maxContentLen, maxSubLen, claimsToReveal, 
         ephPK, maxEpoch, jwtRand, userPIN
@@ -150,8 +150,8 @@ if (require.main === module) {
             const jwtRand = constants.dev.jwtRand;
             const pin = constants.dev.pin;
 
-            const proof = await zkOpenIDProve(jwt, provider, 
-                ephPK, maxEpoch, jwtRand, pin, jwk, write_to_file=true);
+            const proof = await zkOpenIDProve(jwt, ephPK, maxEpoch, 
+                jwtRand, pin, jwk, write_to_file=true);
 
             // Print the output to the console
 
