@@ -10,10 +10,11 @@ circuits/
     zklogin.circom # Circom runner
     helpers/
         base64.circom
+        hasher.circom
+        jwtchecks.circom
         misc.circom
         sha256.circom
         strings.circom
-        hasher.circom
 js/
     circuitutils.js # Circuit utilities
     constants.js # Circuit params
@@ -33,11 +34,11 @@ testvectors.js # Real JWTs
 
 1. Create a folder named `artifacts` inside `openid-zkp-auth`.
 
-2. Get pre-generated trusted setup: wget https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_19.ptau. Place it inside `artifacts`.
+2. Get pre-generated trusted setup: wget https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_20.ptau. Place it inside `artifacts`.
 
 3. Generate R1CS and witness generator (WASM): `circom circuits/zklogin.circom --r1cs --wasm --output artifacts`
 
-4. Run circuit-specific trusted setup: `snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_19.ptau zklogin.zkey`
+4. Run circuit-specific trusted setup: `snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_20.ptau zklogin.zkey`
 
 5. Export verification key: `snarkjs zkey export verificationkey zklogin.zkey zklogin.vkey`
 
