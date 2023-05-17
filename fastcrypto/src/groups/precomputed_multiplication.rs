@@ -32,7 +32,7 @@ pub struct FixedWindowScalarMultiplier<
 impl<G: GroupElement, const CACHE_SIZE: usize, const SCALAR_SIZE: usize>
     FixedWindowScalarMultiplier<G, CACHE_SIZE, SCALAR_SIZE>
 {
-    /// Get the multiple of the base element G for a scalar smaller than `2^WINDOW_WIDTH`.
+    /// Get the multiple of the base element G for a scalar strictly smaller than `2^WINDOW_WIDTH`.
     fn get_multiple(&self, s: usize) -> G {
         if s == 0 {
             return G::zero();
@@ -48,8 +48,10 @@ fn get_base_2w_expansion<const N: usize, const W: usize>(bytes: &[u8; N]) -> Vec
     let mut next_byte = 8;
     let mut current_byte = 0;
     let mut i = 0;
-    // TODO: What if W does not divide 8*N?
-    while i < 8 * N {
+
+    let (digits, residue) = ((8 * N) / W, (8 * N) % W);
+
+    for _ in 0..digits {
         let mut limb = 0;
         let mut limb_index = 0;
         while limb_index < W {
@@ -64,6 +66,11 @@ fn get_base_2w_expansion<const N: usize, const W: usize>(bytes: &[u8; N]) -> Vec
         }
         result.push(limb as usize);
     }
+
+    if residue > 0 {
+        result.push(get_bits(&bytes[current_byte], i % 8, 7) as usize);
+    }
+
     result
 }
 
