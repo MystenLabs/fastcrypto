@@ -11,6 +11,12 @@ use std::ops::{AddAssign, SubAssign};
 pub mod bls12381;
 pub mod ristretto255;
 
+#[cfg(any(test, feature = "experimental"))]
+pub mod secp256r1;
+
+#[cfg(any(test, feature = "experimental"))]
+pub mod precomputed_multiplication;
+
 /// Trait impl'd by elements of an additive cyclic group.
 pub trait GroupElement:
     Copy
@@ -62,4 +68,9 @@ pub trait HashToGroupElement {
 /// Trait for groups that support multi-scalar multiplication.
 pub trait MultiScalarMul: GroupElement {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
+}
+
+/// Trait for groups that have a fast doubling operation.
+pub trait Doubling {
+    fn double(&self) -> Self;
 }

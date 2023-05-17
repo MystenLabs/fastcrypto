@@ -5,8 +5,13 @@ extern crate criterion;
 
 mod group_benches {
     use criterion::{measurement, BenchmarkGroup, Criterion};
+    use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
+    use fastcrypto::groups::precomputed_multiplication::{
+        FixedWindowScalarMultiplier, ScalarMultiplier,
+    };
     use fastcrypto::groups::ristretto255::RistrettoPoint;
+    use fastcrypto::groups::secp256r1::ProjectivePoint;
     use fastcrypto::groups::{GroupElement, HashToGroupElement, Pairing, Scalar};
     use rand::thread_rng;
 
@@ -42,6 +47,15 @@ mod group_benches {
         scale_single::<G2Element, _>("BLS12381-G2", &mut group);
         scale_single::<GTElement, _>("BLS12381-GT", &mut group);
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
+        scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
+
+        let multiplier = FixedWindowScalarMultiplier::<ProjectivePoint, 16, 32>::new(
+            ProjectivePoint::generator(),
+        );
+        let y = &groups::secp256r1::Scalar::rand(&mut thread_rng());
+        group.bench_function("Secp256r1 precomputed", move |b| {
+            b.iter(|| multiplier.mul(y))
+        });
     }
 
     fn hash_to_group_single<G: GroupElement + HashToGroupElement, M: measurement::Measurement>(
