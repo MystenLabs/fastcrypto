@@ -34,11 +34,26 @@ testvectors.js # Real JWTs
 
 1. Create a folder named `artifacts` inside `openid-zkp-auth`.
 
-2. Get pre-generated trusted setup: wget https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_20.ptau. Place it inside `artifacts`.
+```
+cd fastcrypto/openid-zkp-auth && mkdir artifacts
+```
 
-3. Generate R1CS and witness generator (WASM): `circom circuits/zklogin.circom --r1cs --wasm --output artifacts`
+2. Get pre-generated trusted setup and place it inside `artifacts`.
 
-4. Run circuit-specific trusted setup: `snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_20.ptau zklogin.zkey`
+```
+cd artifacts && wget https://hermez.s3-eu-west-1.amazonaws.com/powersOfTau28_hez_final_20.ptau
+```
+
+3. Generate R1CS and witness generator (WASM): 
+
+```
+cd ../ && circom circuits/zklogin.circom --r1cs --wasm --output artifacts
+
+# maybe need
+npm install
+```
+
+4. Run circuit-specific trusted setup: `cd artifacts && snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_20.ptau zklogin.zkey`
 
 5. Export verification key: `snarkjs zkey export verificationkey zklogin.zkey zklogin.vkey`
 
