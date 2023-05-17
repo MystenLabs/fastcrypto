@@ -7,6 +7,7 @@ use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use crate::groups::secp256r1::{ProjectivePoint, Scalar};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
+use std::cmp::min;
 
 /// Trait for scalar multiplication of a fixed group element, eg. using precomputed values.
 pub trait ScalarMultiplier<G: GroupElement> {
@@ -38,19 +39,35 @@ impl<G: GroupElement, const CACHE_SIZE: usize, const SCALAR_SIZE: usize>
         }
         self.cache[s - 1]
     }
-
-    /// Assuming the scalar is written in base 2^window_size as k_0,...,k_{m-1}, return the the k_i'th
-    /// element from the cache, eg. k_i * B.
-    fn get_from_cache(
-        &self,
-        scalar_bytes: &[u8; SCALAR_SIZE],
-        window_size: usize,
-        index: usize,
-    ) -> G {
-        self.get_multiple(read_window(scalar_bytes, index, window_size))
-    }
 }
 
+/// Given a binary representation of a number in little-endian format, return the digits of its base 2^W expansion.
+fn get_base_2w_expansion<const N: usize, const W: usize>(bytes: &[u8; N]) -> Vec<usize> {
+    let mut result = Vec::new();
+
+    let mut next_byte = 8;
+    let mut current_byte = 0;
+    let mut i = 0;
+    // TODO: What if W does not divide 8*N?
+    while i < 8 * N {
+        let mut limb = 0;
+        let mut limb_index = 0;
+        while limb_index < W {
+            let step = min(next_byte - i, W - limb_index);
+            limb = (limb << step) + get_bits(&bytes[current_byte], i % 8, i % 8 + step - 1);
+            limb_index += step;
+            i += step;
+            if i >= next_byte {
+                current_byte += 1;
+                next_byte += 8;
+            }
+        }
+        result.push(limb as usize);
+    }
+    result
+}
+
+// End is inclusive
 fn get_bits(byte: &u8, start: usize, end: usize) -> u8 {
     let mut result = *byte;
     result >>= start;
@@ -76,67 +93,6 @@ fn test_get_bits() {
     assert_eq!(0, get_bits(&byte, 7, 7));
 }
 
-// TODO: Do this in one loop instead
-/// Get the i'th window of WINDOW_WIDTH bits from the given byte array
-fn read_window<const N: usize>(
-    scalar_bytes: &[u8; N],
-    window_number: usize,
-    window_width: usize,
-) -> usize {
-    let start_byte_index = (window_number * window_width) / 8;
-    let start_bit_index = (window_number * window_width) % 8;
-    let end_byte_index = ((window_number + 1) * window_width - 1) / 8;
-    let end_bit_index = ((window_number + 1) * window_width - 1) % 8;
-
-    if start_byte_index >= N {
-        return 0;
-    }
-
-    if start_byte_index == end_byte_index {
-        return get_bits(
-            &scalar_bytes[start_byte_index],
-            start_bit_index,
-            end_bit_index,
-        ) as usize;
-    }
-
-    let mut result = get_bits(&scalar_bytes[start_byte_index], start_bit_index, 7) as usize;
-
-    //for (i, byte) in scalar_bytes.iter().enumerate().take(end_byte_index + 1).skip(start_byte_index + 1) {
-    for i in start_byte_index + 1..=end_byte_index {
-        if i != end_byte_index {
-            result <<= 8;
-            result += if i < N { scalar_bytes[i] as usize } else { 0 };
-        } else {
-            result <<= end_bit_index + 1;
-            result += if i < N {
-                get_bits(&scalar_bytes[i], 0, end_bit_index) as usize
-            } else {
-                0
-            };
-        }
-    }
-
-    result
-}
-
-#[test]
-fn test_window() {
-    let bytes = [0b00000001, 0b00000010, 0b00000011, 0b00000100];
-    assert_eq!(bytes[0] as usize, read_window(&bytes, 0, 8));
-    assert_eq!(bytes[2] as usize, read_window(&bytes, 2, 8));
-
-    assert_eq!(1, read_window(&bytes, 0, 4));
-    assert_eq!(0, read_window(&bytes, 1, 4));
-
-    assert_eq!(1, read_window(&bytes, 0, 6));
-    assert_eq!(2, read_window(&bytes, 1, 6));
-    assert_eq!(3, read_window(&bytes, 2, 6));
-    assert_eq!(0, read_window(&bytes, 3, 6));
-    assert_eq!(4, read_window(&bytes, 4, 6));
-    assert_eq!(0, read_window(&bytes, 5, 6));
-}
-
 impl<
         G: GroupElement<ScalarType = S> + Doubling,
         S: ToFromByteArray<SCALAR_SIZE>,
@@ -156,18 +112,20 @@ impl<
     fn mul(&self, scalar: &S) -> G {
         let scalar_bytes = scalar.to_byte_array();
 
+        let limbs = get_base_2w_expansion::<SCALAR_SIZE, 4>(&scalar_bytes);
+
         // TODO: Compute this somewhere nice
         let window_size = 4;
 
         // Number of digits in the base 2^window_size representation of the scalar
         let m = CACHE_SIZE;
-        let mut r: G = self.get_from_cache(&scalar_bytes, window_size, m - 1);
+        let mut r: G = self.get_multiple(limbs[m - 1]); //self.get_from_cache(&scalar_bytes, window_size, m - 1);
 
         for i in (0..m - 1).rev() {
             for _ in 1..=window_size {
                 r = r.double();
             }
-            r += self.get_from_cache(&scalar_bytes, window_size, i);
+            r += self.get_multiple(limbs[i]); //self.get_from_cache(&scalar_bytes, window_size, i);
         }
         r
     }
