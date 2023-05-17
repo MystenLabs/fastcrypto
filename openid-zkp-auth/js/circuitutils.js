@@ -226,8 +226,8 @@ async function genJwtProofUAInputs(
         "eph_public_key": inputs.eph_public_key.map(e => e.toString()),
         "max_epoch": inputs.max_epoch,
         "num_sha2_blocks": inputs.num_sha2_blocks,
-        "key_claim_name_F": key_claim_name_F.toString(),
-        "addr_seed": address_seed,
+        "key_claim_name": keyClaimName,
+        "addr_seed": address_seed.toString(),
     }
 
     if (dev) {

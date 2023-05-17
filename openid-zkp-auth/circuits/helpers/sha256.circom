@@ -73,20 +73,20 @@ template Sha256_unsafe(nBlocks) {
     }
     
     // Collapse the hashing result at the terminating data block
-    component calcTotal[256];
+    component totals[256];
     signal eqs[nBlocks] <== OneBitVector(nBlocks)(num_sha2_blocks - 1);
 
     // For each bit of the output
     for(var k = 0; k < 256; k++) {
-        calcTotal[k] = CalculateTotal(nBlocks);
+        totals[k] = Sum(nBlocks);
 
         // For each possible block
         for (var i = 0; i < nBlocks; i++) {
-            // eqs[i].out is 1 if the index matches. As such, at most one input to calcTotal is not 0.
+            // eqs[i].out is 1 if the index matches. As such, at most one input to totals is not 0.
             // The bit corresponding to the terminating data block will be raised
-            calcTotal[k].nums[i] <== eqs[i] * sha256compression[i].out[k];
+            totals[k].nums[i] <== eqs[i] * sha256compression[i].out[k];
         }
-        out[k] <== calcTotal[k].sum;
+        out[k] <== totals[k].sum;
     }
 }
 

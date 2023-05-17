@@ -7,6 +7,9 @@ template Hasher(nInputs) {
     signal output out;
 
     component pos1, pos2;
+    // See https://github.com/iden3/circomlib/blob/master/circuits/poseidon.circom#L78. 
+    // It implicitly forces t <= 17 or nInputs <= 16. 
+    // TODO: The current limitation of 15 comes from the rust library we use (https://github.com/Lightprotocol/light-poseidon).
     if (nInputs <= 15) {
         out <== Poseidon(nInputs)(in);
     } else if (nInputs <= 30) {

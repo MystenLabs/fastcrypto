@@ -25,6 +25,7 @@ The first term is incurred by Sha2_wrapper and the second term is incurred by Sl
     - claim_length_ascii:       Length of the extended_key_claim in ASCII, e.g., for ',"sub":12345,' it is 13
     - claim_index_b64:          The index of extended_key_claim encoded into Base64 in the JWT payload
     - claim_length_b64:         The length of extended_key_claim in Base64
+    - key_claim_name_length:    Length of the key_claim_name in ASCII, e.g., for "sub" it is 3
     - subject_pin:              A 128-bit PIN to keep the extended_key_claim private
 
     - extended_nonce[maxNonceLength]: 
@@ -43,7 +44,8 @@ The first term is incurred by Sha2_wrapper and the second term is incurred by Sl
                                     subject_addr = Blake2b(flag, iss, key_claim_name_F, address_seed)
     - payload_start_index:      The index of the payload in the content
     - payload_len:              The length of the payload
-    - masked_content:           The content with "iss" and "aud" claims revealed. Rest of it is masked
+    - masked_content:           The content with the values of "iss" and "aud" is expected (though chosen by the prover). 
+                                    Rest of it is masked.
     - eph_public_key[2]:        The ephemeral public key split into two 128-bit values
     - max_epoch:                The maximum epoch for which the eph_public_key is valid
 
@@ -130,8 +132,8 @@ template JwtProofUA(maxContentLength, maxExtKeyClaimLength, maxKeyClaimNameLen) 
         masked_content[i] <== content[i] * mask[i] + (1 - mask[i]) * 61;
     }
 
-    var outCount = getPackedOutputSize(inCount * inWidth, packWidth);
-    signal packed[outCount] <== Packer(inWidth, inCount, packWidth, outCount)(masked_content);
+    var outCount = getBaseConvertedOutputSize(inCount * inWidth, packWidth);
+    signal packed[outCount] <== ConvertBase(inWidth, inCount, packWidth, outCount)(masked_content);
     signal masked_content_hash <== Hasher(outCount)(packed);
 
     /**

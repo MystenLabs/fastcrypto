@@ -32,6 +32,9 @@ template Base64URLToBits() {
     signal input in;
     signal output out[6];
 
+    // Compute the base64 representation of in, e.g., if in = 66 ('B') then outascii = 1
+    //  This step does not add any constraints. 
+    //  We check the correctness of the base64 representation next.
     signal outascii;
     outascii <-- asciiToBase64Url(in);
 
@@ -45,6 +48,7 @@ template Base64URLToBits() {
     gt64.in[0] <== in;
     gt64.in[1] <== 64;
 
+    // If in is in [65, 90], then outascii = in - 65 (line 8 of asciiToBase64Url)
     component forceequal1;
     forceequal1 = MyForceEqualIfEnabled();
     forceequal1.enabled <== lt91.out * gt64.out;
@@ -61,6 +65,7 @@ template Base64URLToBits() {
     gt96.in[0] <== in;
     gt96.in[1] <== 96;
 
+    // If in is in [97, 122], then outascii = in - 71 (line 10 of asciiToBase64Url)
     component forceequal2;
     forceequal2 = MyForceEqualIfEnabled();
     forceequal2.enabled <== lt123.out * gt96.out;
@@ -77,6 +82,7 @@ template Base64URLToBits() {
     gt47.in[0] <== in;
     gt47.in[1] <== 47;
 
+    // If in is in [48, 57], then outascii = in + 4 (line 12 of asciiToBase64Url)
     component forceequal3;
     forceequal3 = MyForceEqualIfEnabled();
     forceequal3.enabled <== lt58.out * gt47.out;
@@ -88,6 +94,7 @@ template Base64URLToBits() {
     eq45.in[0] <== in;
     eq45.in[1] <== 45;
 
+    // If in is 45, then outascii = 62 (line 14 of asciiToBase64Url)
     component forceequal4;
     forceequal4 = MyForceEqualIfEnabled();
     forceequal4.enabled <== eq45.out;
@@ -99,6 +106,7 @@ template Base64URLToBits() {
     eq95.in[0] <== in;
     eq95.in[1] <== 95;
 
+    // If in is 95, then outascii = 63 (line 16 of asciiToBase64Url)
     component forceequal5;
     forceequal5 = MyForceEqualIfEnabled();
     forceequal5.enabled <== eq95.out;
@@ -109,6 +117,7 @@ template Base64URLToBits() {
     //  This is because all the enabled signals are guaranteed to be either 0 or 1.
     var any = 1 - (forceequal1.enabled + forceequal2.enabled + forceequal3.enabled + forceequal4.enabled + forceequal5.enabled);
 
+    // If in is not a valid base64url character, then outascii = 0
     component forceequal6;
     forceequal6 = MyForceEqualIfEnabled();
     forceequal6.enabled <== any;

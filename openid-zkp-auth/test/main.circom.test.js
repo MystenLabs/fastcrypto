@@ -148,17 +148,17 @@ describe("Tests with crafted JWTs", () => {
     const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
     const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
 
-    const seed_sub = 3933397123257831927251308270714554907807704888576094124721682124818019353989n;
-    const seed_email = 1973999242154691951111604273911528395925144468932358877866874679764640280443n;
+    const seed_sub = '3933397123257831927251308270714554907807704888576094124721682124818019353989';
+    const seed_email = '1973999242154691951111604273911528395925144468932358877866874679764640280443';
 
     before(async () => {
         expect(jwtutils.getExtendedClaim(JSON.stringify(payload), "sub")).equals(claim_string);
         expect(claim_string.length).at.most(maxExtClaimLen);
         expect(await circuitutils.computeNonce()).equals(nonce);
         expect(payload.sub.length).at.most(maxKeyClaimValueLen);
-        expect(await utils.deriveAddrSeed(payload.sub, pin, maxKeyClaimValueLen)).equals(seed_sub);
+        expect(await utils.deriveAddrSeed(payload.sub, pin, maxKeyClaimValueLen)).equals(BigInt(seed_sub));
         expect(payload.email.length).at.most(maxKeyClaimValueLen);
-        expect(await utils.deriveAddrSeed(payload.email, pin, maxKeyClaimValueLen)).equals(seed_email);
+        expect(await utils.deriveAddrSeed(payload.email, pin, maxKeyClaimValueLen)).equals(BigInt(seed_email));
         console.log("JWT: ", jwt);
     });
 

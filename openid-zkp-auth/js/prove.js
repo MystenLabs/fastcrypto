@@ -38,22 +38,26 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, jwk="", write_to_file=false) => {
+const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='sub', jwk="", write_to_file=false) => {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
     if (jwk) {
         console.log("Verifying JWT with JWK...");
         verifier.verifyJwt(jwt, jwk);
     }
 
+    console.time('prove');
     // Split the JWT into its three parts
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
     const maxContentLen = constants.maxContentLen;
-    const maxSubLen = constants.maxExtClaimLen;
+    const maxExtClaimLen = constants.maxExtClaimLen;
+    const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
+    const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
+
     var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
-        input, maxContentLen, maxSubLen, claimsToReveal, 
-        ephPK, maxEpoch, jwtRand, userPIN
+        input, maxContentLen, maxExtClaimLen, maxKeyClaimNameLen, maxKeyClaimValueLen, keyClaim,
+        claimsToReveal, ephPK, maxEpoch, jwtRand, userPIN
     );
     auxiliary_inputs = Object.assign({}, auxiliary_inputs, {
         "jwt_signature": signature,
@@ -65,6 +69,7 @@ const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, jwk="", wri
     const ZKEY_FILE_PATH = `${ARTIFACTS_DIR}/${PROJ_NAME}.zkey`;
     const { proof, publicSignals: public_signals } = await groth16Prove(inputs, WASM_FILE_PATH, ZKEY_FILE_PATH);
 
+    console.timeEnd('prove');
     if (write_to_file) {
         const PROOF_FILE_PATH = `${PROOF_DIR}/zkp.json`;
         const AUX_INPUTS_FILE_PATH = `${PROOF_DIR}/aux.json`;
@@ -90,8 +95,10 @@ const zkOpenIDVerify = async (proof, provider) => {
 
     // Verify ZKP
     console.log("Verifying ZKP...");
+    console.time('zk verify');
     const VKEY_FILE_PATH = `${ARTIFACTS_DIR}/${PROJ_NAME}.vkey`;
     await groth16Verify(zkproof, public_inputs, VKEY_FILE_PATH);
+    console.timeEnd('zk verify');
 
     const maxContentLen = constants.maxContentLen;
     verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
@@ -151,10 +158,7 @@ if (require.main === module) {
             const pin = constants.dev.pin;
 
             const proof = await zkOpenIDProve(jwt, ephPK, maxEpoch, 
-                jwtRand, pin, jwk, write_to_file=true);
-
-            // Print the output to the console
-
+                jwtRand, pin, 'sub', jwk, write_to_file=true);
             console.log("--------------------");
 
             // Verify the proof

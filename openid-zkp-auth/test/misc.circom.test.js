@@ -151,9 +151,9 @@ describe("Bits2NumBE", () => {
     });
 });
 
-describe("Packer checks", () => {
-    it("Checking Packer Case 0: input and output should be same", async () => {
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 4, 4]);
+describe("ConvertBase checks", () => {
+    it("Checking ConvertBase Case 0: input and output should be same", async () => {
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 4, 4]);
         await cir_fixed.loadSymbols();
         input = [1,2,3,4];
         const witness = await cir_fixed.calculateWitness({ "in": input });
@@ -163,8 +163,8 @@ describe("Packer checks", () => {
         assert.deepEqual(out, utils.pack(input, 4, 4).map(Number));
     });
 
-    it("Checking Packer Case 1: Output width is multiple of input width", async () => {
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 8, 2]);
+    it("Checking ConvertBase Case 1: Output width is multiple of input width", async () => {
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 8, 2]);
         await cir_fixed.loadSymbols();
         input = [1,2,3,4];
         const witness = await cir_fixed.calculateWitness({ "in": input });
@@ -174,8 +174,8 @@ describe("Packer checks", () => {
         assert.deepEqual(out, utils.pack(input, 4, 8).map(Number));
     });
 
-    it("Checking Packer Case 2: Output width is not a multiple of input width", async () => {
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 6, 3]);
+    it("Checking ConvertBase Case 2: Output width is not a multiple of input width", async () => {
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 6, 3]);
         await cir_fixed.loadSymbols();
         input = [1,2,3,4];
         const witness = await cir_fixed.calculateWitness({ "in": input });
@@ -185,8 +185,8 @@ describe("Packer checks", () => {
         assert.deepEqual(out, utils.pack(input, 4, 6).map(Number));
     });
 
-    it("Checking Packer Case 3: Edge case - just one input", async () => {  
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [1, 1, 6, 1]);
+    it("Checking ConvertBase Case 3: Edge case - just one input", async () => {  
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [1, 1, 6, 1]);
         await cir_fixed.loadSymbols();
         input = [1];
         const witness = await cir_fixed.calculateWitness({ "in": input });
@@ -196,8 +196,8 @@ describe("Packer checks", () => {
         assert.deepEqual(out, utils.pack(input, 1, 6).map(Number));
     });
 
-    it("Checking Packer Case 4: Edge case - just one output", async () => {
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 16, 1]);
+    it("Checking ConvertBase Case 4: Edge case - just one output", async () => {
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 16, 1]);
         await cir_fixed.loadSymbols();
         input = [1, 2, 3, 4];
         const witness = await cir_fixed.calculateWitness({ "in": input });
@@ -207,17 +207,17 @@ describe("Packer checks", () => {
         assert.deepEqual(out, utils.pack(input, 4, 16).map(Number));
     });
 
-    it("Checking Packer Case 5: Assert fail for myOutCount != outCount", async () => {
+    it("Checking ConvertBase Case 5: Assert fail for myOutCount != outCount", async () => {
         try {
-            cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 16, 2]);
+            cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 16, 2]);
             assert.fail("Should have failed");
         } catch (error) {
             assert.include(error.message, "assert(myOutCount == outCount)");
         }
     });
 
-    it("Checking Packer Case 6: Another test of correct padding", async () => {
-        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Packer", [4, 4, 7, 3]);
+    it("Checking ConvertBase Case 6: Another test of correct padding", async () => {
+        cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 7, 3]);
         await cir_fixed.loadSymbols();
         input = [7,1,8,2];
         const witness = await cir_fixed.calculateWitness({ "in": input });

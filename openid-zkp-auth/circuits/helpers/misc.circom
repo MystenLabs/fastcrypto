@@ -25,7 +25,6 @@ template RemainderMod4(n) {
     out <== 2 * toBits.out[1] + toBits.out[0];
 }
 
-
 /**
 RangeCheck: Checks if 0 <= in <= max.
 
@@ -82,6 +81,11 @@ template Num2BitsBE(n) {
     lc1 === in;
 }
 
+/**
+Bits2NumBE: Converts a list of bits to a number, in big-endian order.
+
+Note: It is assumed that each input bit is either 0 or 1.
+**/
 template Bits2NumBE(n) {
     signal input in[n];
     signal output out;
@@ -96,21 +100,13 @@ template Bits2NumBE(n) {
     lc1 ==> out;
 }
 
-template IsEqualIfEnabled(n) {
-    signal input in[2][n];
-    signal input enabled;
-    signal output out;
+/**
+MyForceEqualIfEnabled: Optimized version of the official ForceEqualIfEnabled 
 
-    component and = MultiAND(n);
+If enabled is 1, then in[0] == in[1]. Otherwise, in[0] and in[1] can be anything.
 
-    for (var i = 0; i < n; i++) {
-        and.in[i] <== IsZero()(in[0][i] - in[1][i]);
-    }
-    
-    out <== and.out * enabled;
-}
-
-// Optimized version of the official ForceEqualIfEnabled
+Original: https://github.com/iden3/circomlib/blob/master/circuits/comparators.circom#L48
+**/
 template MyForceEqualIfEnabled() {
     signal input enabled;
     signal input in[2];
@@ -118,16 +114,10 @@ template MyForceEqualIfEnabled() {
     (in[1] - in[0]) * enabled === 0;
 }
 
-template ForceEqualIfEnabledMulti(n) {
-    signal input enabled;
-    signal input in[2][n];
-
-    for (var i = 0; i < n; i++) {
-        MyForceEqualIfEnabled()(enabled, [in[0][i], in[1][i]]);
-    }
-}
-
-template CalculateTotal(n) {
+/**
+Sum: Calculates the sum of all the input elements.
+**/
+template Sum(n) {
     signal input nums[n];
     signal output sum;
 
@@ -138,8 +128,14 @@ template CalculateTotal(n) {
     sum <== lc;
 }
 
-// out[i] = 1 if i = index, 0 otherwise.
-// Assumes index in [0, n). Fails otherwise.
+/**
+OneBitVector: Given an index, returns a vector of size n with a 1 in the index-th position.
+
+out[i] = 1 if i = index, 0 otherwise.
+
+Range checks:
+    - index in [0, n). Fails otherwise.
+**/
 template OneBitVector(n) {
     signal input index;
     signal output out[n];
@@ -151,8 +147,14 @@ template OneBitVector(n) {
     out <== X.out;
 }
 
-// out[i] = 1 if i >= index, 0 otherwise
-// Assumes index in [0, n]. Fails otherwise.
+/**
+GTBitVector: Given an index, returns a vector of size n with a 1 in all indices greater than or equal to index.
+
+out[i] = 1 if i >= index, 0 otherwise
+
+Range checks:
+    - index in [0, n]. Fails otherwise.
+**/
 template GTBitVector(n) {
     signal input index;
     signal output out[n];
@@ -165,8 +167,14 @@ template GTBitVector(n) {
     }
 }
 
-// out[i] = 1 if i < index, 0 otherwise
-// Assumes index in [0, n]. Fails otherwise.
+/**
+LTBitVector: Given an index, returns a vector of size n with a 1 in all indices less than index.
+
+out[i] = 1 if i < index, 0 otherwise
+
+Range checks:
+    - index in [0, n]. Fails otherwise.
+**/
 template LTBitVector(n) {
     signal input index;
     signal output out[n];
@@ -179,6 +187,14 @@ template LTBitVector(n) {
     }
 }
 
+/**
+SingleMultiplexer: Given a list of inputs, selects one of them based on the value of sel.
+
+More precisely, out = inp[sel].
+
+Range checks:
+    - 0 <= sel < nIn (Checked in OneBitVector)
+**/
 template SingleMultiplexer(nIn) {
     signal input inp[nIn];
     signal input sel;
@@ -189,7 +205,8 @@ template SingleMultiplexer(nIn) {
     EscalarProduct(nIn)(inp, dec.out) ==> out;
 }
 
-function getPackedOutputSize(inBits, outWidth) {
+// Returns the number of output chunks (each of size outWidth) needed to represent inBits.
+function getBaseConvertedOutputSize(inBits, outWidth) {
     var outCount = inBits \ outWidth;
     if (inBits % outWidth != 0) {
         outCount++;
@@ -198,20 +215,20 @@ function getPackedOutputSize(inBits, outWidth) {
 }
 
 /**
-Packer: Packs a list of numbers, each of a specified bitwidth, 
-        into another list of numbers with a different bitwidth.
+ConvertBase: Given a list of numbers, each of a specified bitwidth, 
+        converts it into another list of numbers with a different bitwidth.
 
 - inWidth: The bitwidth of each input number.
 - inCount: The number of input numbers.
 - outWidth: The bitwidth of each output number.
 - outCount: The number of output numbers. (Should be inCount * inWidth / outWidth, rounded up.)
 */
-template Packer(inWidth, inCount, outWidth, outCount) {
+template ConvertBase(inWidth, inCount, outWidth, outCount) {
     signal input in[inCount];
     signal output out[outCount];
 
     var inBits = inCount * inWidth;
-    var myOutCount = getPackedOutputSize(inBits, outWidth);
+    var myOutCount = getBaseConvertedOutputSize(inBits, outWidth);
     assert(myOutCount == outCount);
 
     component expander[inCount];
