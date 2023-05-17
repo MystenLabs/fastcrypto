@@ -31,8 +31,10 @@ template KeyClaimChecker(maxExtLength, maxClaimNameLen, maxClaimValueLen, packWi
     signal input extended_claim_len;
     signal input name_len;
 
-    // Checks on prefix
+    // Checks on the first char
     extended_claim[0] === 34; // '"'
+
+    // Extract claim name
     signal name[maxClaimNameLen] <== Slice(maxExtLength, maxClaimNameLen)(
         in <== extended_claim,
         index <== 1,
@@ -43,15 +45,15 @@ template KeyClaimChecker(maxExtLength, maxClaimNameLen, maxClaimValueLen, packWi
     signal output claim_name_F <== Hasher(nameOutCount)(packed_claim_name);
 
     // Checks on middle
-    signal postnamechar <== SingleMultiplexer(maxExtLength)(extended_claim, name_len + 1);
-    postnamechar === 34; // '"'
+    signal middle[3] <== SliceFixed(maxExtLength, 3)(
+        in <== extended_claim,
+        index <== name_len + 1
+    );
+    middle[0] === 34; // '"'
+    middle[1] === 58; // ':'
+    middle[2] === 34; // '"'
 
-    signal nameseperator <== SingleMultiplexer(maxExtLength)(extended_claim, name_len + 2);
-    nameseperator === 58; // ':'
-
-    signal prevaluechar <== SingleMultiplexer(maxExtLength)(extended_claim, name_len + 3);
-    prevaluechar === 34; // '"'
-
+    // Extract claim value
     signal value[maxClaimValueLen];
     value <== Slice(maxExtLength, maxClaimValueLen)(
         in <== extended_claim,
@@ -68,12 +70,13 @@ template KeyClaimChecker(maxExtLength, maxClaimNameLen, maxClaimValueLen, packWi
         sigt[i] * extended_claim[i] === 0;
     }
 
-    // Checks on last but one char
-    signal postvaluechar <== SingleMultiplexer(maxExtLength)(extended_claim, extended_claim_len - 2);
-    postvaluechar === 34; // '"'
-
-    signal lastchar <== SingleMultiplexer(maxExtLength)(extended_claim, extended_claim_len - 1);
-    (lastchar - 44) * (lastchar - 125) === 0; // lastchar = ',' or '}'
+    // Checks on last two chars
+    signal end[2] <== SliceFixed(maxExtLength, 2)(
+        in <== extended_claim,
+        index <== extended_claim_len - 2
+    );
+    end[0] === 34; // '"'
+    (end[1] - 44) * (end[1] - 125) === 0; // lastchar = ',' or '}'
 }
 
 /**
