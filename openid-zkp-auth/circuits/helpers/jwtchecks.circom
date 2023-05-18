@@ -65,7 +65,7 @@ template KeyClaimChecker(maxExtLength, maxClaimNameLen, maxClaimValueLen, packWi
     signal output claim_value_F <== Hasher(valueOutCount)(packed_claim_value);
 
     // extended_claim[i] == 0 for all i >= extended_claim_len
-    signal sigt[maxExtLength] <== GTBitVector(maxExtLength)(extended_claim_len);
+    signal sigt[maxExtLength] <== GTBitVector(maxExtLength)(extended_claim_len - 1);
     for (var i = 0; i < maxExtLength; i++) {
         sigt[i] * extended_claim[i] === 0;
     }

@@ -167,7 +167,7 @@ template Sha2_wrapper(inWidth, inCount, outWidth, outCount) {
     /**
         Verify that content[i] for all blocks >= num_sha2_blocks is zero.
     **/
-    signal gte[nBlocks] <== GTBitVector(nBlocks)(num_sha2_blocks);
+    signal gte[nBlocks] <== GTBitVector(nBlocks)(num_sha2_blocks - 1);
 
     for (var b = 0; b < nBlocks; b++) {
         for (var s = 0; s < nSegments; s++) {

@@ -67,4 +67,6 @@ describe("Key claim checks", () => {
     })
 
     // TODO: Add failing tests
+
+    // TODO: Add tests for corner cases: extended_claim_len = maxExtLength, ...
 })

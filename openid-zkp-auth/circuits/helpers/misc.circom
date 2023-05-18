@@ -148,22 +148,22 @@ template OneBitVector(n) {
 }
 
 /**
-GTBitVector: Given an index, returns a vector of size n with a 1 in all indices greater than or equal to index.
+GTBitVector: Given an index, returns a vector of size n with a 1 in all indices greater than index.
 
-out[i] = 1 if i >= index, 0 otherwise
+out[i] = 1 if i > index, 0 otherwise
 
 Range checks:
-    - index in [0, n]. Fails otherwise.
+    - index in [0, n). Fails otherwise.
 **/
 template GTBitVector(n) {
     signal input index;
     signal output out[n];
 
-    signal eq[n + 1] <== OneBitVector(n + 1)(index);
+    signal eq[n] <== OneBitVector(n)(index);
 
-    out[0] <== eq[0];
+    out[0] <== 0;
     for (var i = 1; i < n; i++) {
-        out[i] <== eq[i] + out[i - 1];
+        out[i] <== eq[i - 1] + out[i - 1];
     }
 }
 

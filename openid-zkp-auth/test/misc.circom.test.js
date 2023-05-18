@@ -284,11 +284,11 @@ describe("Number to bit vector checks", () => {
         await circuit.loadSymbols();
 
         // Success
-        for (let i = 0; i <= 4; i++) {
+        for (let i = 0; i < 4; i++) {
             const w = await circuit.calculateWitness({ "index": i });
             await circuit.checkConstraints(w);
             var ans = [0n, 0n, 0n, 0n];
-            for (let j = i; j < 4; j++) {
+            for (let j = i + 1; j < 4; j++) {
                 ans[j] = 1n;
             }
             assert.sameOrderedMembers(
@@ -297,11 +297,11 @@ describe("Number to bit vector checks", () => {
         }
 
         // Failure
-        for (let i of [-1, 5, 8]) {
+        for (let i of [-1, 4, 5, 8]) {
             try {
                 const w = await circuit.calculateWitness({ "index": i });
                 await circuit.checkConstraints(w);
-                assert.fail("Should have failed");
+                assert.fail(`Should have failed: index = ${i}`);
             } catch (error) {
                 assert.include(error.message, 'Error in template GTBitVector', error.message);
             }
