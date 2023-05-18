@@ -69,6 +69,15 @@ impl MultiScalarMul for RistrettoPoint {
     }
 }
 
+impl Div<RistrettoScalar> for RistrettoPoint {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: RistrettoScalar) -> Self::Output {
+        let inv = (RistrettoScalar::generator() / rhs)?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<RistrettoScalar> for RistrettoPoint {
     type Output = RistrettoPoint;
 

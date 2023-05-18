@@ -7,9 +7,8 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
-#[cfg(any(test, feature = "experimental"))]
+// TODO: audit
 pub mod bls12381;
-
 pub mod ristretto255;
 
 /// Trait impl'd by elements of an additive cyclic group.
@@ -26,6 +25,7 @@ pub trait GroupElement:
     + for<'a> Sub<&'a Self, Output = Self>
     + Neg<Output = Self>
     + Mul<Self::ScalarType, Output = Self>
+    + Div<Self::ScalarType, Output = Result<Self, FastCryptoError>>
     + for<'a> Mul<&'a Self::ScalarType, Output = Self>
     + Sized
 {
@@ -39,15 +39,8 @@ pub trait GroupElement:
     fn generator() -> Self;
 }
 
-/// Trait impl'd by scalars to be used with [AdditiveGroupElement].
-pub trait Scalar:
-    GroupElement<ScalarType = Self>
-    + Copy
-    + From<u64>
-    + Div<Self, Output = Result<Self, FastCryptoError>>
-    + Sized
-    + Debug
-{
+/// Trait impl'd by scalars to be used with [GroupElement].
+pub trait Scalar: GroupElement<ScalarType = Self> + Copy + From<u64> + Sized + Debug {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
 }
 

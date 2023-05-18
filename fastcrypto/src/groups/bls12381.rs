@@ -101,6 +101,15 @@ fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
     8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
 }
 
+impl Div<Scalar> for G1Element {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = (Scalar::generator() / rhs)?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<Scalar> for G1Element {
     type Output = Self;
 
@@ -271,6 +280,15 @@ impl Neg for G2Element {
     }
 }
 
+impl Div<Scalar> for G2Element {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = (Scalar::generator() / rhs)?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<Scalar> for G2Element {
     type Output = Self;
 
@@ -423,6 +441,15 @@ impl Neg for GTElement {
     }
 }
 
+impl Div<Scalar> for GTElement {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = (Scalar::generator() / rhs)?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<Scalar> for GTElement {
     type Output = Self;
 
@@ -554,7 +581,7 @@ impl From<u64> for Scalar {
 impl Div<Scalar> for Scalar {
     type Output = Result<Self, FastCryptoError>;
 
-    fn div(self, rhs: Self) -> Result<Self, FastCryptoError> {
+    fn div(self, rhs: Self) -> Self::Output {
         if rhs == Scalar::zero() {
             return Err(FastCryptoError::InvalidInput);
         }
