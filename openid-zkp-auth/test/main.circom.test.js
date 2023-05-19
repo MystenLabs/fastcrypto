@@ -273,6 +273,7 @@ describe("Tests with crafted JWTs", () => {
         }
     });
 
+    // TODO: Test with an email of length 50
     it("No change w/ email", async function() {
         const [_, aux] = await genProof(
             circuit,
