@@ -52,7 +52,7 @@ Cost: Roughly (inLen + outLen + outLen * inLen)
 
 Range checks:
     - index in [0, inLen)
-    - length in [0, outLen]
+    - length in (0, outLen]
     - index + length in [0, inLen]
     - outLen in (0, inLen]
 **/
@@ -117,11 +117,11 @@ Output:
     Base64-encoded string with an offset of 0, 1, or 2.
 
 Range checks:
-    0 <= lenB <= maxB (checked in Slice)
+    0 < lenB <= maxB (checked in Slice)
     0 <= BIndex < b64StrLen (checked in Slice)
     0 <= BIndex + lenB <= b64StrLen (checked in Slice)
     maxB <= b64StrLen (checked in Slice)
-    0 <= lenA <= maxA (checked in LTBitVector)
+    0 < lenA <= maxA (checked in LTBitVector)
     payloadIndex <= BIndex (checked in RemainderMod4)
 */
 template ASCIISubstrExistsInB64(b64StrLen, maxA) {

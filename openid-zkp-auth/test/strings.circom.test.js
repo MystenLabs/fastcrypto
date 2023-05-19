@@ -7,8 +7,6 @@ const jwtutils = require("../js/jwtutils");
 const utils = require("../js/utils");
 
 const testutils = require("./testutils");
-const { toBigIntBE } = require("bigint-buffer");
-const exp = require("constants");
 
 describe("Slices", () => {
     const file = path.join(__dirname, "../circuits/helpers", "strings.circom");
@@ -72,16 +70,6 @@ describe("Slices", () => {
             assert.sameOrderedMembers(testutils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [2n, 3n, 0n, 0n]);
         });
         
-        it("Corner case: length = 0", async () => {
-            cir_fixed = await testutils.genMain(file, "Slice", [6, 4]);
-            await cir_fixed.loadSymbols();
-            input = [1,2,3,4,5,6];
-
-            const witness = await cir_fixed.calculateWitness({ "in": input, "index": 1, "length": 0 });
-
-            assert.sameOrderedMembers(testutils.getWitnessArray(witness, cir_fixed.symbols, "main.out"), [0n, 0n, 0n, 0n]);
-        });
-
         it("Corner case: length = outputLength", async () => {
             cir_fixed = await testutils.genMain(file, "Slice", [6, 4]);
             await cir_fixed.loadSymbols();
@@ -115,6 +103,19 @@ describe("Slices", () => {
                 assert.fail("Should have failed");
             } catch (e) {
                 assert.include(e.message, "Error in template RangeCheck");
+            }
+        });
+
+        it("Fails when length = 0", async () => {
+            cir_fixed = await testutils.genMain(file, "Slice", [6, 4]);
+            await cir_fixed.loadSymbols();
+            input = [1,2,3,4,5,6];
+
+            try {
+                await cir_fixed.calculateWitness({ "in": input, "index": 1, "length": 0 });
+                assert.fail("Should have failed");
+            } catch (e) {
+                assert.include(e.message, "Error in template LTBitVector");
             }
         });
 

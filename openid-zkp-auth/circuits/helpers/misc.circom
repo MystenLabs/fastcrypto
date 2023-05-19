@@ -173,17 +173,17 @@ LTBitVector: Given an index, returns a vector of size n with a 1 in all indices 
 out[i] = 1 if i < index, 0 otherwise
 
 Range checks:
-    - index in [0, n]. Fails otherwise.
+    - index in (0, n]. Fails otherwise.
 **/
 template LTBitVector(n) {
     signal input index;
     signal output out[n];
 
-    signal eq[n + 1] <== OneBitVector(n + 1)(index);
+    signal eq[n] <== OneBitVector(n)(index - 1);
 
-    out[n-1] <== eq[n];
+    out[n-1] <== eq[n-1];
     for (var i = n-2; i >= 0; i--) {
-        out[i] <== eq[i + 1] + out[i + 1];
+        out[i] <== eq[i] + out[i + 1];
     }
 }
 
