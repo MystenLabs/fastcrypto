@@ -23,6 +23,9 @@ use blst::{
     blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
     blst_scalar_from_lendian, p1_affines, p2_affines, Pairing as BlstPairing, BLS12_381_G1,
     BLS12_381_G2, BLST_ERROR,
+    blst_p2_to_affine, blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian,
+    blst_scalar_from_fr, blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1,
+    BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -616,6 +619,9 @@ impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
         unsafe {
             let mut scalar = blst_scalar::default();
             blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            if !blst_scalar_fr_check(&scalar) {
+                return Err(FastCryptoError::InvalidInput);
+            }
             blst_fr_from_scalar(&mut ret, &scalar);
         }
         Ok(Scalar::from(ret))

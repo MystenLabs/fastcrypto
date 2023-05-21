@@ -7,6 +7,8 @@ use crate::groups::{
     GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
 };
 use crate::test_helpers::verify_serialization;
+use crate::groups::{GroupElement, HashToGroupElement, Pairing};
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
@@ -42,6 +44,11 @@ fn test_g1_arithmetic() {
 
     assert_ne!(G1Element::zero(), g);
     assert_eq!(G1Element::zero(), g - g);
+
+    // Scalar::from_byte_array should not accept the order.
+    let order =
+        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
+    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
 }
 
 #[test]

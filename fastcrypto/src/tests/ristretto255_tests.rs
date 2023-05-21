@@ -41,8 +41,13 @@ fn test_arithmetic() {
     assert_eq!(RistrettoPoint::zero(), g * RistrettoScalar::group_order());
 
     // RistrettoScalar::from_byte_array should accept only canonical representations.
-    assert!(RistrettoScalar::from_byte_array(&RistrettoScalar::group_order().to_byte_array()).is_err());
-    assert!(RistrettoScalar::from_byte_array(&(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()).is_ok());
+    assert!(
+        RistrettoScalar::from_byte_array(&RistrettoScalar::group_order().to_byte_array()).is_err()
+    );
+    assert!(RistrettoScalar::from_byte_array(
+        &(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()
+    )
+    .is_ok());
 }
 
 #[test]
