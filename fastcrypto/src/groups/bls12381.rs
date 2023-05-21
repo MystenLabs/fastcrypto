@@ -389,7 +389,7 @@ impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(&mut ret, &affine);
-            // Verify that the deserialized element is in G1
+            // Verify that the deserialized element is in G2
             if !blst_p2_in_g2(&ret) {
                 return Err(FastCryptoError::InvalidInput);
             }
@@ -631,6 +631,7 @@ impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
         bytes
     }
 }
+
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
 pub(crate) fn is_odd(value: &blst_fr) -> bool {
