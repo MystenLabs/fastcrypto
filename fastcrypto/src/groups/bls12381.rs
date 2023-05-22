@@ -523,6 +523,7 @@ impl GTElement {
     }
 }
 
+// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
 impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
     fn from_byte_array(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
         // The following is based on the order from
