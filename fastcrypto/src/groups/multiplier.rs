@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::mem::size_of;
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
+use std::mem::size_of;
 
 /// Trait for scalar multiplication for a fixed group element, e.g. by using precomputed values.
 pub trait ScalarMultiplier<G: GroupElement> {
@@ -25,7 +25,7 @@ pub struct ConstantTimeMultiplier<
     const SCALAR_SIZE: usize,
 > {
     /// Precomputed multiples of the base element, B, up to (2^WINDOW_WIDTH - 1) * B.
-    cache: [G; CACHE_SIZE]
+    cache: [G; CACHE_SIZE],
 }
 
 impl<
@@ -51,7 +51,7 @@ impl<
 /// Given a binary representation of a number in little-endian format, return the digits of its base 2^W expansion.
 /// We use usize as digits because we will eventually use these as indices into a table of precomputed multiples.
 fn compute_base_2w_expansion<const N: usize>(bytes: &[u8; N], window_size: usize) -> Vec<usize> {
-    if window_size > 8*size_of::<usize>() {
+    if window_size > 8 * size_of::<usize>() {
         panic!("Window size must be less than or equal to the number of bits in a usize");
     }
 
@@ -61,7 +61,7 @@ fn compute_base_2w_expansion<const N: usize>(bytes: &[u8; N], window_size: usize
 
     // Compute the number of digits needed to represent the numbed in base 2^w. This is equal to
     // ceil(8*N / window_size), and we compute like this because div_ceil is unstable as of rustc 1.69.0.
-    let digits = (8*N + window_size - 1) / window_size;
+    let digits = (8 * N + window_size - 1) / window_size;
 
     // The current byte and bit index
     let mut current_byte = 0;
