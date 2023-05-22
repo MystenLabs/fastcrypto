@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
+use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH};
 use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
 use crate::groups::{
     GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
@@ -182,6 +183,22 @@ fn test_serde_and_regression() {
     verify_serialization(&g2, Some(hex::decode("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8").unwrap().as_slice()));
     verify_serialization(&id1, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(&id2, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
+}
+
+#[test]
+fn test_gt_serialize_deserialize() {
+    // Serialize and deserialize 7*G1
+    let p = GTElement::generator() * Scalar::from(7);
+    let serialized = bincode::serialize(&p).unwrap();
+    assert_eq!(serialized.len(), GT_ELEMENT_BYTE_LENGTH);
+    let deserialized: GTElement = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
+
+    // Serialize and deserialize O
+    let p = GTElement::zero();
+    let serialized = bincode::serialize(&p).unwrap();
+    let deserialized: GTElement = bincode::deserialize(&serialized).unwrap();
+    assert_eq!(deserialized, p);
 }
 
 #[test]

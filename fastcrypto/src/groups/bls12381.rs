@@ -26,9 +26,20 @@ use blst::{
     blst_p2_to_affine, blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian,
     blst_scalar_from_fr, blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1,
     BLS12_381_G2, BLST_ERROR,
+    blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
+    blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
+    blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
+    blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1,
+    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize,
+    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2,
+    blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_scalar,
+    blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
+    BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
+use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
@@ -56,6 +67,7 @@ pub struct Scalar(blst_fr);
 pub const SCALAR_LENGTH: usize = 32;
 pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
+pub const GT_ELEMENT_BYTE_LENGTH: usize = 576;
 
 impl Add for G1Element {
     type Output = Self;
@@ -494,16 +506,53 @@ impl GroupElement for GTElement {
     }
 
     fn generator() -> Self {
-        unsafe {
-            // Compute the generator as e(G1, G2).
-            // TODO: Should be precomputed.
-            let dst = [0u8; 3];
-            let mut pairing_blst = BlstPairing::new(false, &dst);
-            pairing_blst.raw_aggregate(&BLS12_381_G2, &BLS12_381_G1);
-            Self::from(pairing_blst.as_fp12())
-        }
+        static G: OnceCell<blst_fp12> = OnceCell::new();
+        Self::from(*G.get_or_init(|| Self::compute_generator()))
     }
 }
+
+impl GTElement {
+    fn compute_generator() -> blst_fp12 {
+        // Compute the generator as e(G1, G2).
+        let mut res = blst_fp12::default();
+        unsafe {
+            blst_miller_loop(&mut res, &BLS12_381_G2, &BLS12_381_G1);
+            blst_final_exp(&mut res, &res);
+        }
+        res
+    }
+}
+
+impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
+    fn from_byte_array(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        // The following is based on the order from
+        // https://github.com/supranational/blst/blob/b4ebf88014251f1cfefeb6cf1cd4df7c40dc568f/src/fp12_tower.c#L773-L786C2
+        let mut gt: blst_fp12 = Default::default();
+        let mut current = 0; // simpler to track
+        for i in 0..3 {
+            for j in 0..2 {
+                for k in 0..2 {
+                    let mut fp = blst_fp::default();
+                    unsafe {
+                        blst_fp_from_bendian(&mut fp, bytes[current..current + 48].as_ptr());
+                    }
+                    gt.fp6[j].fp2[i].fp[k] = fp;
+                    current += 48;
+                }
+            }
+        }
+        match gt.in_group() {
+            true => Ok(Self::from(gt)),
+            false => Err(FastCryptoError::InvalidInput),
+        }
+    }
+
+    fn to_byte_array(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
+        self.0.to_bendian()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(GTElement);
 
 impl GroupElement for Scalar {
     type ScalarType = Self;
