@@ -507,7 +507,7 @@ impl GroupElement for GTElement {
 
     fn generator() -> Self {
         static G: OnceCell<blst_fp12> = OnceCell::new();
-        Self::from(*G.get_or_init(|| Self::compute_generator()))
+        Self::from(*G.get_or_init(Self::compute_generator))
     }
 }
 
