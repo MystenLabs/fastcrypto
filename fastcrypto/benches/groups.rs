@@ -7,12 +7,12 @@ mod group_benches {
     use criterion::{measurement, BenchmarkGroup, Criterion};
     use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
-    use fastcrypto::groups::precomputed_multiplication::{
-        FixedWindowScalarMultiplier, ScalarMultiplier,
+    use fastcrypto::groups::multiplier::{
+        ConstantTimeMultiplier, ScalarMultiplier,
     };
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{GroupElement, HashToGroupElement, Pairing, Scalar};
+    use fastcrypto::groups::{GroupElement, HashToGroupElement, Pairing, Scalar, secp256r1};
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
@@ -49,11 +49,11 @@ mod group_benches {
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
         scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
 
-        let multiplier = FixedWindowScalarMultiplier::<ProjectivePoint, 16, 32>::new(
+        let multiplier = ConstantTimeMultiplier::<ProjectivePoint, secp256r1::Scalar, 32, 32>::new(
             ProjectivePoint::generator(),
         );
         let y = &groups::secp256r1::Scalar::rand(&mut thread_rng());
-        group.bench_function("Secp256r1 precomputed", move |b| {
+        group.bench_function("Secp256r1 precomputed (32)", move |b| {
             b.iter(|| multiplier.mul(y))
         });
     }

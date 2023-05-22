@@ -15,7 +15,7 @@ pub mod ristretto255;
 pub mod secp256r1;
 
 #[cfg(any(test, feature = "experimental"))]
-pub mod precomputed_multiplication;
+pub mod multiplier;
 
 /// Trait impl'd by elements of an additive cyclic group.
 pub trait GroupElement:
