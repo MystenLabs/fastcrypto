@@ -90,9 +90,12 @@ template JwtProofUA(maxContentLength, maxExtKeyClaimLength, maxKeyClaimNameLen) 
     signal input claim_length_b64;
 
     signal input payload_start_index;
+
+    var numsPerGroup = 16; // since inWidth is 8, this is the maximum we can set
     ASCIISubstrExistsInB64(
         inCount,
-        maxExtKeyClaimLength
+        maxExtKeyClaimLength,
+        numsPerGroup
     )(
         b64Str <== content,
         BIndex <== claim_index_b64,
@@ -152,7 +155,8 @@ template JwtProofUA(maxContentLength, maxExtKeyClaimLength, maxKeyClaimNameLen) 
 
     ASCIISubstrExistsInB64(
         inCount,
-        extNonceLength
+        extNonceLength,
+        numsPerGroup
     )(
         b64Str <== content,
         BIndex <== nonce_claim_index_b64,

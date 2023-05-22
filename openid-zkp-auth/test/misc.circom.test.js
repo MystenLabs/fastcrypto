@@ -151,6 +151,34 @@ describe("Bits2NumBE", () => {
     });
 });
 
+describe("Segments2NumBE", () => {
+    before (async () => {
+        cir = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "Segments2NumBE", [8, 3]);
+        await cir.loadSymbols();
+    });
+
+    it ("Check 0", async () => {
+        const witness = await cir.calculateWitness({"in": [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n]}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessValue(witness, cir.symbols, "main.out");
+        assert.equal(out, 0n);
+    });
+
+    it ("Check 8", async () => {
+        const witness = await cir.calculateWitness({"in": [0n, 0n, 0n, 0n, 0n, 0n, 1n, 0n]}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessValue(witness, cir.symbols, "main.out");
+        assert.equal(out, 8n);
+    });
+
+    it ("Check 511", async () => {
+        const witness = await cir.calculateWitness({"in": [0n, 0n, 0n, 0n, 0n, 7n, 7n, 7n]}, true);
+        await cir.checkConstraints(witness);
+        const out = testutils.getWitnessValue(witness, cir.symbols, "main.out");
+        assert.equal(out, 511n);
+    });
+})
+
 describe("ConvertBase checks", () => {
     it("Checking ConvertBase Case 0: input and output should be same", async () => {
         cir_fixed = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "ConvertBase", [4, 4, 4, 4]);
@@ -247,6 +275,23 @@ describe("RemainderMod4 checks", () => {
         } 
         catch (error) {
             assert.include(error.message, 'Error in template Num2Bits', error.message); // Num2Bits does the length check
+        }
+    })
+});
+
+describe("DivideMod2Power checks", () => {
+    it("With 2^2 = 4", async () => {
+        circuit = await testutils.genMain(path.join(__dirname, "../circuits/helpers", "misc.circom"), "DivideMod2Power", [4, 2]);
+        await circuit.loadSymbols();
+
+        for (let i = 0; i < 16; i++) {
+            const w = await circuit.calculateWitness({ "in": i });
+            await circuit.checkConstraints(w);
+            const quotient = testutils.getWitnessValue(w, circuit.symbols, "main.quotient");
+            const remainder = testutils.getWitnessValue(w, circuit.symbols, "main.remainder");
+
+            assert.deepEqual(quotient, BigInt(Math.floor(i / 4)));
+            assert.deepEqual(remainder, BigInt(i % 4));
         }
     })
 })

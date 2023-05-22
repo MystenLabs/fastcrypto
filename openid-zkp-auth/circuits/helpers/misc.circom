@@ -6,6 +6,35 @@ include "../../node_modules/circomlib/circuits/mux2.circom";
 include "../../node_modules/circomlib/circuits/multiplexer.circom";
 
 /**
+DivideMod2Power: Returns quotient (in / 2^p) and remainder (in % 2^p)
+
+Range checks:
+    - 0 <= in < 2^n (Checked in Num2Bits)
+    - 0 < p < n
+**/
+template DivideMod2Power(n, p) {
+    assert(n <= 252); // n <= log(p) - 2
+    assert(p < n);
+    assert(p > 0);
+
+    signal input in;
+    component toBits = Num2Bits(n);
+    toBits.in <== in;
+
+    component fromBitsQ = Bits2Num(n - p);
+    for (var i = 0; i < n - p; i++) {
+        fromBitsQ.in[i] <== toBits.out[i + p];
+    }
+    signal output quotient <== fromBitsQ.out;
+
+    component fromBitsR = Bits2Num(p);
+    for (var i = 0; i < p; i++) {
+        fromBitsR.in[i] <== toBits.out[i];
+    }
+    signal output remainder <== fromBitsR.out;
+}
+
+/**
 RemainderMod4: Calculates in % 4.
 
 Construction Params:
@@ -95,6 +124,27 @@ template Bits2NumBE(n) {
     for (var i = 0; i < n; i++) {
         lc1 += in[(n - 1) - i] * e2;
         e2 = e2 + e2;
+    }
+
+    lc1 ==> out;
+}
+
+/**
+Segments2NumBE: Converts a list of w-bit segments to a number, in big-endian order.
+
+Note: It is assumed that each input segment is a number between 0 and 2^w - 1.
+**/
+template Segments2NumBE(n, w) {
+    assert(n * w <= 253); 
+
+    signal input in[n];
+    signal output out;
+    var lc1=0;
+
+    var e2 = 1;
+    for (var i = 0; i < n; i++) {
+        lc1 += in[(n - 1) - i] * e2;
+        e2 = e2 * (1 << w);
     }
 
     lc1 ==> out;
