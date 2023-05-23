@@ -90,7 +90,7 @@ const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='s
 
 // Not a full implementation: only implements some of the checks. 
 // For a full implementation, see the Authenticator code in Rust. 
-const zkOpenIDVerify = async (proof, provider) => {
+const zkOpenIDVerify = async (proof) => {
     const { zkproof, public_inputs, auxiliary_inputs: auxiliary_inputs } = proof; 
 
     // Verify ZKP
@@ -105,42 +105,68 @@ const zkOpenIDVerify = async (proof, provider) => {
 }
 
 // Check if the script was called directly
+const yargs = require('yargs/yargs');
+const { hideBin } = require('yargs/helpers');
+
 if (require.main === module) {
-    var provider = process.argv[2];
-    if (!provider) {
-        console.log("Using the default provider..");
-        provider = "google";
-    } else if (provider !== "google" && provider !== "twitch") {
-        console.error("Invalid provider:", provider);
-        process.exit(1);
-    }
+    const argv = yargs(hideBin(process.argv))
+        .option('provider', {
+            alias: 'p',
+            type: 'string',
+            description: 'Specify the provider',
+            default: 'google',
+            choices: ['google', 'twitch']
+        })
+        .option('jwt', {
+            alias: 'j',
+            type: 'string',
+            description: 'JWT token'
+        })
+        .option('eph_public_key', {
+            alias: 'e',
+            type: 'string',
+            description: 'Ephemeral public key',
+            default: constants.dev.ephPK,
+        })
+        .option('max_epoch', {
+            alias: 'm',
+            type: 'string',
+            description: 'Max epoch',
+            default: constants.dev.maxEpoch,
+        })
+        .option('jwt_rand', {
+            alias: 'r',
+            type: 'string',
+            description: 'JWT rand',
+            default: constants.dev.jwtRand,
+        })
+        .option('user_pin', {
+            alias: 'u',
+            type: 'string',
+            description: 'User PIN',
+            default: constants.dev.pin,
+        })
+        .option('key_claim_name', {
+            alias: 'k',
+            type: 'string',
+            description: 'Key claim name',
+            default: 'sub',
+        })
+        .option('public_key_path', {
+            alias: 'pk',
+            type: 'string',
+            description: 'Public key path',
+        })
+        .help()
+        .argv;
 
-    // Read the input string from the command line arguments
-    var jwt = process.argv[3];
+    argv.jwt = argv.jwt || (argv.provider === "google" ? GOOGLE["jwt"] : TWITCH["jwt"]);
+    let jwk;
 
-    if (!jwt) { // this is an optional argument (for now)
-        console.log("Using the default JWT..");
-        if (provider === "google") {
-            jwt = GOOGLE["jwt"];
-        } else if (provider === "twitch") {
-            jwt = TWITCH["jwt"];
-        }
-    }
-
-    const publicKeyPath = process.argv[4];
-    var jwk;
-
-    if (!publicKeyPath) {
-        console.log("Using the default JWK..");
-        if (provider === "google") {
-            jwk = GOOGLE["jwk"];
-        } else if (provider === "twitch") {
-            jwk = TWITCH["jwk"];
-        }
-    }
-    else { // this is an optional argument
-        // Read the JWK from the file
-        fs.readFile(publicKeyPath, "utf8", (err, jwkJson) => {
+    if (!argv.public_key_path) {
+        jwk = argv.provider === "google" ? GOOGLE["jwk"] : TWITCH["jwk"];
+    } else {
+        fs.readFile(argv.public_key_path, "utf8", (err, jwkJson) => {
             if (err) {
                 console.error("Error reading JWK:", err.message);
                 process.exit(1);
@@ -149,20 +175,23 @@ if (require.main === module) {
         });
     }
 
-    // Call the processing function with the input string
+    console.log(`Provider -> ${argv.provider}`);
+    console.log(`JWT -> ${argv.jwt}`);
+    console.log(`Ephemeral public key -> ${argv.eph_public_key}`);
+    console.log(`Max epoch -> ${argv.max_epoch}`);
+    console.log(`JWT rand -> ${argv.jwt_rand}`);
+    console.log(`User PIN -> ${argv.user_pin}`);
+    console.log(`Key claim name -> ${argv.key_claim_name}`);
+    console.log(`Public key path -> ${argv.public_key_path}`);
+
     (async () => {
         try {
-            const ephPK = constants.dev.ephPK;
-            const maxEpoch = constants.dev.maxEpoch;
-            const jwtRand = constants.dev.jwtRand;
-            const pin = constants.dev.pin;
-
-            const proof = await zkOpenIDProve(jwt, ephPK, maxEpoch, 
-                jwtRand, pin, 'sub', jwk, write_to_file=true);
+            const proof = await zkOpenIDProve(argv.jwt, argv.eph_public_key, argv.max_epoch,
+                argv.jwt_rand, argv.user_pin, argv.key_claim_name, jwk, true);
             console.log("--------------------");
 
             // Verify the proof
-            await zkOpenIDVerify(proof, provider);
+            await zkOpenIDVerify(proof);
 
             process.exit(0);
         } catch (error) {
