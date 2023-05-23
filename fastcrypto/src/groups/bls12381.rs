@@ -3,8 +3,10 @@
 
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
-use crate::error::FastCryptoError;
-use crate::groups::{GroupElement, HashToGroupElement, Pairing, Scalar as ScalarType};
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::{
+    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarType,
+};
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -19,7 +21,8 @@ use blst::{
     blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
     blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
     blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
-    blst_scalar_from_lendian, Pairing as BlstPairing, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_scalar_from_lendian, p1_affines, p2_affines, Pairing as BlstPairing, BLS12_381_G1,
+    BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -29,10 +32,12 @@ use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[repr(transparent)]
 pub struct G1Element(blst_p1);
 
 /// Elements of the group G_2 in BLS 12-381.
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[repr(transparent)]
 pub struct G2Element(blst_p2);
 
 /// Elements of the subgroup G_T of F_q^{12} in BLS 12-381. Note that it is written in additive notation here.
@@ -128,6 +133,28 @@ impl Mul<Scalar> for G1Element {
         }
 
         Self::from(result)
+    }
+}
+
+impl MultiScalarMul for G1Element {
+    fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self> {
+        if scalars.len() != points.len() || scalars.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Inspired by blstrs.
+        let points =
+            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
+        let points = p1_affines::from(points);
+        let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
+        for a in scalars.iter().map(|s| s.0) {
+            let mut scalar: blst_scalar = blst_scalar::default();
+            unsafe {
+                blst_scalar_from_fr(&mut scalar, &a);
+            }
+            scalar_bytes.extend_from_slice(&scalar.b);
+        }
+        let res = points.mult(scalar_bytes.as_slice(), 255);
+        Ok(Self::from(res))
     }
 }
 
@@ -276,6 +303,28 @@ impl Mul<Scalar> for G2Element {
         }
 
         Self::from(result)
+    }
+}
+
+impl MultiScalarMul for G2Element {
+    fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self> {
+        if scalars.len() != points.len() || scalars.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Inspired by blstrs.
+        let points =
+            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p2, points.len()) };
+        let points = p2_affines::from(points);
+        let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
+        for a in scalars.iter().map(|s| s.0) {
+            let mut scalar: blst_scalar = blst_scalar::default();
+            unsafe {
+                blst_scalar_from_fr(&mut scalar, &a);
+            }
+            scalar_bytes.extend_from_slice(&scalar.b);
+        }
+        let res = points.mult(scalar_bytes.as_slice(), 255);
+        Ok(Self::from(res))
     }
 }
 

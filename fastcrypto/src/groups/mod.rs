@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::FastCryptoError;
+use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::fmt::Debug;
@@ -63,4 +63,9 @@ pub trait Pairing: GroupElement {
 pub trait HashToGroupElement {
     /// Hashes the given message and maps the result to a group element.
     fn hash_to_group_element(msg: &[u8]) -> Self;
+}
+
+/// Trait for groups that support multi-scalar multiplication.
+pub trait MultiScalarMul: GroupElement {
+    fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
 }
