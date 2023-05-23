@@ -4,13 +4,18 @@
 extern crate criterion;
 
 mod group_benches {
+    use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
     use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
-    use fastcrypto::groups::multiplier::{ConstantTimeMultiplier, ScalarMultiplier};
+    use fastcrypto::groups::multiplier::comb_method::CombMultiplier;
+    use fastcrypto::groups::multiplier::fixed_window::FixedWindowMultiplier;
+    use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{secp256r1, GroupElement, HashToGroupElement, Pairing, Scalar};
+    use fastcrypto::groups::{
+        secp256r1, Doubling, GroupElement, HashToGroupElement, Pairing, Scalar,
+    };
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
@@ -39,6 +44,22 @@ mod group_benches {
         c.bench_function(&(name.to_string()), move |b| b.iter(|| x * y));
     }
 
+    fn scale_single_precomputed<
+        G: GroupElement<ScalarType = S> + Doubling,
+        S: Scalar,
+        Mul: ScalarMultiplier<G>,
+        M: Measurement,
+    >(
+        name: &str,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let x = G::generator() * S::rand(&mut thread_rng());
+        let y = S::rand(&mut thread_rng());
+
+        let multiplier = Mul::new(x);
+        c.bench_function(&(name.to_string()), move |b| b.iter(|| multiplier.mul(&y)));
+    }
+
     fn scale(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Scalar To Point Multiplication");
         scale_single::<G1Element, _>("BLS12381-G1", &mut group);
@@ -47,13 +68,49 @@ mod group_benches {
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
         scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
 
-        let multiplier = ConstantTimeMultiplier::<ProjectivePoint, secp256r1::Scalar, 32, 32>::new(
-            ProjectivePoint::generator(),
-        );
-        let y = &groups::secp256r1::Scalar::rand(&mut thread_rng());
-        group.bench_function("Secp256r1 precomputed (32)", move |b| {
-            b.iter(|| multiplier.mul(y))
-        });
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32>,
+            _,
+        >("Secp256r1 Fixed window (16)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32>,
+            _,
+        >("Secp256r1 Fixed window (32)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32>,
+            _,
+        >("Secp256r1 Fixed window (64)", &mut group);
+
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 64, 32>,
+            _,
+        >("Secp256r1 Comb method (16x64 = 1024)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 52, 32>,
+            _,
+        >("Secp256r1 Comb method (32x52 = 1664)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
+            _,
+        >("Secp256r1 Comb method (64x43 = 2752)", &mut group);
+        scale_single_precomputed::<
+            ProjectivePoint,
+            secp256r1::Scalar,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
+            _,
+        >("Secp256r1 Comb method (128x37 = 4736)", &mut group);
     }
 
     fn hash_to_group_single<G: GroupElement + HashToGroupElement, M: measurement::Measurement>(
