@@ -128,8 +128,9 @@ mod tests {
         assert_eq!(expected, actual);
 
         // Assert a panic due to setting the HEIGHT too small
-        let result = std::panic::catch_unwind(|| {
+        assert!(std::panic::catch_unwind(|| {
             CombMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(ProjectivePoint::generator())
-        });
+        })
+        .is_err());
     }
 }

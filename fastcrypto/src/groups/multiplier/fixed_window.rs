@@ -1,6 +1,8 @@
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
+use crate::groups::multiplier::{integer_utils, DefaultMultiplier, ScalarMultiplier};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
+use std::collections::HashMap;
+use std::marker::PhantomData;
 use std::mem::size_of;
 
 /// Performs scalar multiplication using a fixed window method. If the addition and doubling operations for
@@ -71,6 +73,127 @@ impl<
     }
 }
 
+trait SmallScalarMultiplier<G: GroupElement> {
+    fn new(base_element: G) -> Self;
+    fn mul(&self, scalar: usize) -> G;
+}
+
+/// NOT constant time
+struct LazySmallMultiplier<G: GroupElement + Doubling> {
+    cache: HashMap<usize, G>,
+}
+
+impl<G: GroupElement + Doubling> SmallScalarMultiplier<G> for LazySmallMultiplier<G> {
+    fn new(base_element: G) -> Self {
+        let mut multiplier = Self {
+            cache: HashMap::new(),
+        };
+        multiplier.cache.insert(1, base_element);
+        multiplier
+    }
+
+    fn mul(&self, scalar: usize) -> G {
+        if scalar == 0 {
+            return G::zero();
+        }
+        if self.cache.contains_key(&scalar) {
+            return *self.cache.get(&scalar).unwrap();
+        }
+        let mut result = self.mul(scalar >> 1).double();
+        if scalar % 2 == 1 {
+            result += *self.cache.get(&1).unwrap();
+        }
+        result
+    }
+}
+
+pub trait DoubleScalarMultiplier<G: GroupElement> {
+    fn new(base_element: G) -> Self;
+    fn mul(
+        &self,
+        base_scalar: &G::ScalarType,
+        other_element: &G,
+        other_scalar: &G::ScalarType,
+    ) -> G;
+}
+
+pub struct WrappingDoubleMultiplier<G: GroupElement, M: ScalarMultiplier<G>>(PhantomData<G>, M);
+
+impl<G: GroupElement, M: ScalarMultiplier<G>> DoubleScalarMultiplier<G>
+    for WrappingDoubleMultiplier<G, M>
+{
+    fn new(base_element: G) -> Self {
+        Self(PhantomData::default(), M::new(base_element))
+    }
+
+    fn mul(
+        &self,
+        base_scalar: &G::ScalarType,
+        other_element: &G,
+        other_scalar: &G::ScalarType,
+    ) -> G {
+        self.1.mul(base_scalar) + *other_element * other_scalar
+    }
+}
+
+pub type DefaultDoubleMultiplier<G> = WrappingDoubleMultiplier<G, DefaultMultiplier<G>>;
+
+/// NOT constant time
+pub struct MyDoubleMultiplier<
+    G: GroupElement<ScalarType = S> + Doubling,
+    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+    const CACHE_SIZE: usize,
+    const SCALAR_SIZE: usize,
+> {
+    cache: FixedWindowMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>,
+}
+
+impl<
+        G: GroupElement<ScalarType = S> + Doubling,
+        S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+        const CACHE_SIZE: usize,
+        const SCALAR_SIZE: usize,
+    > DoubleScalarMultiplier<G> for MyDoubleMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>
+{
+    fn new(base_element: G) -> Self {
+        Self {
+            cache: FixedWindowMultiplier::new(base_element),
+        }
+    }
+
+    fn mul(
+        &self,
+        base_scalar: &G::ScalarType,
+        other_element: &G,
+        other_scalar: &G::ScalarType,
+    ) -> G {
+        let scalar_bytes = base_scalar.to_byte_array();
+        let other_scalar_bytes = other_scalar.to_byte_array();
+
+        let window_width = 8 * size_of::<usize>() - CACHE_SIZE.leading_zeros() as usize - 1;
+
+        let limbs =
+            integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(&scalar_bytes, window_width);
+        let other_limbs = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
+            &other_scalar_bytes,
+            window_width,
+        );
+
+        let lazy_multiplier = LazySmallMultiplier::new(*other_element);
+        let mut r: G = self.cache.get_precomputed_multiple(limbs[limbs.len() - 1])
+            + lazy_multiplier.mul(other_limbs[other_limbs.len() - 1]);
+
+        for i in (0..=(limbs.len() - 2)).rev() {
+            for _ in 1..=window_width {
+                r = r.double();
+            }
+            r += self.cache.get_precomputed_multiple(limbs[i]);
+            r += lazy_multiplier.mul(other_limbs[i]);
+        }
+        r
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -127,6 +250,29 @@ mod tests {
             ProjectivePoint::generator(),
         );
         let actual = multiplier.mul(&scalar);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_double_mul() {
+        let multiplier = MyDoubleMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32>::new(
+            RistrettoPoint::generator(),
+        );
+
+        let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
+
+        let a = RistrettoScalar::from(2345);
+        let b = RistrettoScalar::from(6789);
+        let expected = RistrettoPoint::generator() * a + other_point * b;
+        let actual = multiplier.mul(&a, &other_point, &b);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_small_multiplier() {
+        let multiplier = LazySmallMultiplier::<RistrettoPoint>::new(RistrettoPoint::generator());
+        let expected = RistrettoPoint::generator() * RistrettoScalar::from(7);
+        let actual = multiplier.mul(7);
         assert_eq!(expected, actual);
     }
 }
