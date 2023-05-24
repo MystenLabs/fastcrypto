@@ -627,6 +627,83 @@
 <a href="#627" id="627">627</a>
 <a href="#628" id="628">628</a>
 <a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -642,19 +719,20 @@
 <span class="kw">use </span><span class="kw">crate</span>::utils::log2_byte;
 <span class="kw">use crate</span>::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 <span class="kw">use </span>blst::{
-    blst_bendian_from_scalar, blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
-    blst_fp12_one, blst_fp12_sqr, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar,
-    blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2,
-    blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine,
-    blst_p1_cneg, blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1,
-    blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
-    blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
-    blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
-    blst_scalar_from_lendian, p1_affines, p2_affines, Pairing <span class="kw">as </span>BlstPairing, BLS12_381_G1,
-    BLS12_381_G2, BLST_ERROR,
+    blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
+    blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
+    blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
+    blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1,
+    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize,
+    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2,
+    blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_scalar,
+    blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
+    p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 <span class="kw">use </span>derive_more::From;
 <span class="kw">use </span>fastcrypto_derive::GroupOpsExtend;
+<span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{de, Deserialize};
 <span class="kw">use </span>std::ops::{Add, Div, Mul, Neg, Sub};
 <span class="kw">use </span>std::ptr;
@@ -682,6 +760,7 @@
 </span><span class="kw">pub const </span>SCALAR_LENGTH: usize = <span class="number">32</span>;
 <span class="kw">pub const </span>G1_ELEMENT_BYTE_LENGTH: usize = <span class="number">48</span>;
 <span class="kw">pub const </span>G2_ELEMENT_BYTE_LENGTH: usize = <span class="number">96</span>;
+<span class="kw">pub const </span>GT_ELEMENT_BYTE_LENGTH: usize = <span class="number">576</span>;
 
 <span class="kw">impl </span>Add <span class="kw">for </span>G1Element {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
@@ -728,6 +807,16 @@
 /// of the scalar in bits.
 </span><span class="kw">fn </span>size_in_bits(scalar: <span class="kw-2">&amp;</span>blst_scalar, size_in_bytes: usize) -&gt; usize {
     <span class="number">8 </span>* size_in_bytes - <span class="number">7 </span>+ log2_byte(scalar.b[size_in_bytes - <span class="number">1</span>])
+}
+
+<span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
+</span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>G1Element {
+    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+
+    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
+        <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self </span>* inv)
+    }
 }
 
 <span class="kw">impl </span>Mul&lt;Scalar&gt; <span class="kw">for </span>G1Element {
@@ -900,6 +989,16 @@
     }
 }
 
+<span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
+</span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>G2Element {
+    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+
+    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
+        <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self </span>* inv)
+    }
+}
+
 <span class="kw">impl </span>Mul&lt;Scalar&gt; <span class="kw">for </span>G2Element {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
 
@@ -1000,7 +1099,7 @@
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>affine);
-            <span class="comment">// Verify that the deserialized element is in G1
+            <span class="comment">// Verify that the deserialized element is in G2
             </span><span class="kw">if </span>!blst_p2_in_g2(<span class="kw-2">&amp;</span>ret) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
@@ -1052,6 +1151,16 @@
     }
 }
 
+<span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
+</span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>GTElement {
+    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+
+    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
+        <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self </span>* inv)
+    }
+}
+
 <span class="kw">impl </span>Mul&lt;Scalar&gt; <span class="kw">for </span>GTElement {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
 
@@ -1093,16 +1202,54 @@
     }
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
-        <span class="kw">unsafe </span>{
-            <span class="comment">// Compute the generator as e(G1, G2).
-            // TODO: Should be precomputed.
-            </span><span class="kw">let </span>dst = [<span class="number">0u8</span>; <span class="number">3</span>];
-            <span class="kw">let </span><span class="kw-2">mut </span>pairing_blst = BlstPairing::new(<span class="bool-val">false</span>, <span class="kw-2">&amp;</span>dst);
-            pairing_blst.raw_aggregate(<span class="kw-2">&amp;</span>BLS12_381_G2, <span class="kw-2">&amp;</span>BLS12_381_G1);
-            <span class="self">Self</span>::from(pairing_blst.as_fp12())
-        }
+        <span class="kw">static </span>G: OnceCell&lt;blst_fp12&gt; = OnceCell::new();
+        <span class="self">Self</span>::from(<span class="kw-2">*</span>G.get_or_init(<span class="self">Self</span>::compute_generator))
     }
 }
+
+<span class="kw">impl </span>GTElement {
+    <span class="kw">fn </span>compute_generator() -&gt; blst_fp12 {
+        <span class="comment">// Compute the generator as e(G1, G2).
+        </span><span class="kw">let </span><span class="kw-2">mut </span>res = blst_fp12::default();
+        <span class="kw">unsafe </span>{
+            blst_miller_loop(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>BLS12_381_G2, <span class="kw-2">&amp;</span>BLS12_381_G1);
+            blst_final_exp(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>res);
+        }
+        res
+    }
+}
+
+<span class="comment">// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
+</span><span class="kw">impl </span>ToFromByteArray&lt;GT_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>GTElement {
+    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; GT_ELEMENT_BYTE_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="comment">// The following is based on the order from
+        // https://github.com/supranational/blst/blob/b4ebf88014251f1cfefeb6cf1cd4df7c40dc568f/src/fp12_tower.c#L773-L786C2
+        </span><span class="kw">let </span><span class="kw-2">mut </span>gt: blst_fp12 = Default::default();
+        <span class="kw">let </span><span class="kw-2">mut </span>current = <span class="number">0</span>; <span class="comment">// simpler to track
+        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
+            <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+                <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
+                    <span class="kw">let </span><span class="kw-2">mut </span>fp = blst_fp::default();
+                    <span class="kw">unsafe </span>{
+                        blst_fp_from_bendian(<span class="kw-2">&amp;mut </span>fp, bytes[current..current + <span class="number">48</span>].as_ptr());
+                    }
+                    gt.fp6[j].fp2[i].fp[k] = fp;
+                    current += <span class="number">48</span>;
+                }
+            }
+        }
+        <span class="kw">match </span>gt.in_group() {
+            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(gt)),
+            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+        }
+    }
+
+    <span class="kw">fn </span>to_byte_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; GT_ELEMENT_BYTE_LENGTH] {
+        <span class="self">self</span>.<span class="number">0</span>.to_bendian()
+    }
+}
+
+<span class="macro">serialize_deserialize_with_to_from_byte_array!</span>(GTElement);
 
 <span class="kw">impl </span>GroupElement <span class="kw">for </span>Scalar {
     <span class="kw">type </span>ScalarType = <span class="self">Self</span>;
@@ -1180,21 +1327,13 @@
     }
 }
 
-<span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>Scalar {
+<span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
+</span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>Scalar {
     <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
-    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">if </span>rhs == Scalar::zero() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
-        <span class="kw">unsafe </span>{
-            <span class="kw">let </span><span class="kw-2">mut </span>inverse = blst_fr::default();
-            blst_fr_inverse(<span class="kw-2">&amp;mut </span>inverse, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
-            blst_fr_mul(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>inverse);
-        }
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(ret))
+    <span class="kw">fn </span>div(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self</span>::Output {
+        <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self </span>* inv)
     }
 }
 
@@ -1210,6 +1349,17 @@
         }
         Scalar::from(ret)
     }
+
+    <span class="kw">fn </span>inverse(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self </span>== Scalar::zero() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
+        <span class="kw">unsafe </span>{
+            blst_fr_inverse(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
+        }
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(ret))
+    }
 }
 
 <span class="kw">impl </span>ToFromByteArray&lt;SCALAR_LENGTH&gt; <span class="kw">for </span>Scalar {
@@ -1218,6 +1368,9 @@
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>scalar = blst_scalar::default();
             blst_scalar_from_bendian(<span class="kw-2">&amp;mut </span>scalar, bytes.as_ptr());
+            <span class="kw">if </span>!blst_scalar_fr_check(<span class="kw-2">&amp;</span>scalar) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+            }
             blst_fr_from_scalar(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>scalar);
         }
         <span class="prelude-val">Ok</span>(Scalar::from(ret))
@@ -1233,6 +1386,7 @@
         bytes
     }
 }
+
 <span class="macro">serialize_deserialize_with_to_from_byte_array!</span>(Scalar);
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_odd(value: <span class="kw-2">&amp;</span>blst_fr) -&gt; bool {
