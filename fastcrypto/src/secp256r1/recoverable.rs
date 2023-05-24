@@ -18,13 +18,16 @@
 //! assert_eq!(kp.public(), &signature.recover(message).unwrap());
 //! ```
 
+use crate::groups::multiplier::ScalarMultiplier;
+use crate::groups::secp256r1;
+use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
     affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fq_arkworks_to_p256,
     fr_p256_to_arkworks, reduce_bytes,
 };
 use crate::secp256r1::{
-    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature,
+    DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
     SECP256R1_SIGNATURE_LENTH,
 };
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
@@ -34,7 +37,7 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
-use ark_ec::{AffineRepr, CurveGroup, Group};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::Field;
 use ark_secp256r1::Projective;
 use ecdsa::elliptic_curve::scalar::IsHigh;
@@ -225,11 +228,17 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         // Compute public key
         let u1 = -(r_inv * z);
         let u2 = r_inv * s;
-        let pk =
-            affine_pt_arkworks_to_p256(&(Projective::generator() * u1 + big_r * u2).into_affine());
+
+        let pk = MULTIPLIER
+            .mul_double(
+                &secp256r1::Scalar(u1),
+                &ProjectivePoint(Projective::from(big_r)),
+                &secp256r1::Scalar(u2),
+            )
+            .0;
 
         Ok(Secp256r1PublicKey {
-            pubkey: VerifyingKey::from_affine(pk)
+            pubkey: VerifyingKey::from_affine(affine_pt_arkworks_to_p256(&pk.into_affine()))
                 .map_err(|_| FastCryptoError::GeneralOpaqueError)?,
             bytes: OnceCell::new(),
         })

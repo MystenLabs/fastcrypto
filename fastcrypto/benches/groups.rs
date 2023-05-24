@@ -9,10 +9,7 @@ mod group_benches {
     use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
     use fastcrypto::groups::multiplier::comb_method::CombMultiplier;
-    use fastcrypto::groups::multiplier::fixed_window::{
-        DefaultDoubleMultiplier, DoubleScalarMultiplier, FixedWindowMultiplier, MyDoubleMultiplier,
-        WrappingDoubleMultiplier,
-    };
+    use fastcrypto::groups::multiplier::fixed_window::FixedWindowMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
@@ -20,6 +17,7 @@ mod group_benches {
         secp256r1, Doubling, GroupElement, HashToGroupElement, Pairing, Scalar,
     };
     use rand::thread_rng;
+    use std::marker::PhantomData;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
         name: &str,
@@ -124,7 +122,7 @@ mod group_benches {
         >("Secp256r1 Comb method (128x37 = 4736)", &mut group);
     }
 
-    fn double_scale_single<G: GroupElement, Mul: DoubleScalarMultiplier<G>, M: Measurement>(
+    fn double_scale_single<G: GroupElement, Mul: ScalarMultiplier<G>, M: Measurement>(
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
@@ -135,7 +133,7 @@ mod group_benches {
 
         let multiplier = Mul::new(g1);
         c.bench_function(&(name.to_string()), move |b| {
-            b.iter(|| multiplier.mul(&s1, &g2, &s2))
+            b.iter(|| multiplier.mul_double(&s1, &g2, &s2))
         });
     }
 
@@ -144,79 +142,61 @@ mod group_benches {
 
         double_scale_single::<
             ProjectivePoint,
-            MyDoubleMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32>,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32>,
             _,
         >("Secp256r1 Straus (16)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            MyDoubleMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32>,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32>,
             _,
         >("Secp256r1 Straus (32)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            MyDoubleMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32>,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32>,
             _,
         >("Secp256r1 Straus (64)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            MyDoubleMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32>,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32>,
             _,
         >("Secp256r1 Straus (128)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            MyDoubleMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32>,
+            FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32>,
             _,
         >("Secp256r1 Straus (256)", &mut group);
-        double_scale_single::<ProjectivePoint, DefaultDoubleMultiplier<ProjectivePoint>, _>(
+        double_scale_single::<ProjectivePoint, DefaultMultiplier<ProjectivePoint>, _>(
             "Secp256r1",
             &mut group,
         );
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 4, 128, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 4, 128, 32>,
             _,
         >("Secp256r1 Comb (4x128", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 8, 86, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 8, 86, 32>,
             _,
         >("Secp256r1 Comb (8x86)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 64, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 64, 32>,
             _,
         >("Secp256r1 Comb (16x64)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 52, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 52, 32>,
             _,
         >("Secp256r1 Comb (32x52)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
             _,
         >("Secp256r1 Comb (64x43)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WrappingDoubleMultiplier<
-                ProjectivePoint,
-                CombMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 37, 32>,
-            >,
+            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 37, 32>,
             _,
         >("Secp256r1 Comb (128x37)", &mut group);
     }
@@ -251,6 +231,20 @@ mod group_benches {
     fn pairing(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Pairing");
         pairing_single::<G1Element, _>("BLS12381-G1", &mut group);
+    }
+
+    /// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
+    /// simply calling the GroupElement implementation. Only used for benchmarking.
+    pub struct DefaultMultiplier<G: GroupElement>(G);
+
+    impl<G: GroupElement> ScalarMultiplier<G> for DefaultMultiplier<G> {
+        fn new(base_element: G) -> Self {
+            Self(base_element)
+        }
+
+        fn mul(&self, scalar: &G::ScalarType) -> G {
+            self.0 * scalar
+        }
     }
 
     criterion_group! {

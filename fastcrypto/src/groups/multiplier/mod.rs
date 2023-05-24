@@ -9,23 +9,20 @@ mod integer_utils;
 
 /// Trait for scalar multiplication for a fixed group element, e.g. by using precomputed values.
 pub trait ScalarMultiplier<G: GroupElement> {
-    /// Create a new scalar multiplier for the given base element.
+    /// Create a new scalar multiplier with the given base element.
     fn new(base_element: G) -> Self;
 
     /// Multiply the base element by the given scalar.
     fn mul(&self, scalar: &G::ScalarType) -> G;
-}
 
-/// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
-/// simply calling the GroupElement implementation.
-pub struct DefaultMultiplier<G: GroupElement>(G);
-
-impl<G: GroupElement> ScalarMultiplier<G> for DefaultMultiplier<G> {
-    fn new(base_element: G) -> Self {
-        Self(base_element)
-    }
-
-    fn mul(&self, scalar: &G::ScalarType) -> G {
-        self.0 * scalar
+    /// Compute `self.base_scalar * base_element + other_scalar * other_element`.
+    fn mul_double(
+        &self,
+        base_scalar: &G::ScalarType,
+        other_element: &G,
+        other_scalar: &G::ScalarType,
+    ) -> G {
+        // The default implementation if not optimised double multiplication is implemented.
+        self.mul(base_scalar) + *other_element * other_scalar
     }
 }

@@ -11,10 +11,8 @@ use std::ops::{AddAssign, SubAssign};
 pub mod bls12381;
 pub mod ristretto255;
 
-#[cfg(any(test, feature = "experimental"))]
 pub mod secp256r1;
 
-#[cfg(any(test, feature = "experimental"))]
 pub mod multiplier;
 
 /// Trait impl'd by elements of an additive cyclic group.

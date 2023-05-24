@@ -1,21 +1,25 @@
-use crate::groups::multiplier::{integer_utils, DefaultMultiplier, ScalarMultiplier};
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
-use std::collections::HashMap;
-use std::marker::PhantomData;
 use std::mem::size_of;
 
-/// Performs scalar multiplication using a fixed window method. If the addition and doubling operations for
-/// `G` are constant time, the `mul`  is also constant time. The `CACHE_SIZE` should ideally be a power of
-/// two. The `SCALAR_SIZE` is the number of bytes in the byte representation of the scalar type `S`, and we
-/// assume that the `S::from_bytes` method returns the scalar in little-endian format.
+/// This multiplier uses pre-computation with the fixed window method. If the addition and doubling
+/// operations for `G` are constant time, the `mul` and `double_mul` methods are also constant time.
+/// The `CACHE_SIZE` should be a power of two. The `SCALAR_SIZE` is the number of bytes in the byte
+/// representation of the scalar type `S`, and we assume that the `S::from_bytes` method returns the
+/// scalar in little-endian format.
+///
+/// This multiplier is particularly fast for double multiplications.
 pub struct FixedWindowMultiplier<
     G: GroupElement<ScalarType = S>,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
     const CACHE_SIZE: usize,
     const SCALAR_SIZE: usize,
 > {
-    /// Precomputed multiples of the base element, B, up to (2^WINDOW_WIDTH - 1) * B.
+    /// Precomputed multiples of the base element from 0 up to (2^WINDOW_WIDTH - 1).
     cache: [G; CACHE_SIZE],
 }
 
@@ -55,142 +59,89 @@ impl<
     fn mul(&self, scalar: &S) -> G {
         let scalar_bytes = scalar.to_byte_array();
 
-        let limbs = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
+        let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
             &scalar_bytes,
             Self::WINDOW_WIDTH,
         );
 
         // Number of digits in the base 2^window_size representation of the scalar
-        let mut r: G = self.get_precomputed_multiple(limbs[limbs.len() - 1]);
+        let mut result: G =
+            self.get_precomputed_multiple(base_2w_expansion[base_2w_expansion.len() - 1]);
 
-        for i in (0..=(limbs.len() - 2)).rev() {
+        for i in (0..=(base_2w_expansion.len() - 2)).rev() {
             for _ in 1..=Self::WINDOW_WIDTH {
-                r = r.double();
+                result = result.double();
             }
-            r += self.get_precomputed_multiple(limbs[i]);
+            result += self.get_precomputed_multiple(base_2w_expansion[i]);
         }
-        r
-    }
-}
-
-trait SmallScalarMultiplier<G: GroupElement> {
-    fn new(base_element: G) -> Self;
-    fn mul(&self, scalar: usize) -> G;
-}
-
-/// NOT constant time
-struct LazySmallMultiplier<G: GroupElement + Doubling> {
-    cache: HashMap<usize, G>,
-}
-
-impl<G: GroupElement + Doubling> SmallScalarMultiplier<G> for LazySmallMultiplier<G> {
-    fn new(base_element: G) -> Self {
-        let mut multiplier = Self {
-            cache: HashMap::new(),
-        };
-        multiplier.cache.insert(1, base_element);
-        multiplier
+        result
     }
 
-    fn mul(&self, scalar: usize) -> G {
-        if scalar == 0 {
-            return G::zero();
-        }
-        if self.cache.contains_key(&scalar) {
-            return *self.cache.get(&scalar).unwrap();
-        }
-        let mut result = self.mul(scalar >> 1).double();
-        if scalar % 2 == 1 {
-            result += *self.cache.get(&1).unwrap();
+    fn mul_double(
+        &self,
+        base_scalar: &G::ScalarType,
+        other_element: &G,
+        other_scalar: &G::ScalarType,
+    ) -> G {
+        // Compute the sum of the two multiples using Straus' algorithm.
+        let base_scalar_bytes = base_scalar.to_byte_array();
+        let base_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
+            &base_scalar_bytes,
+            Self::WINDOW_WIDTH,
+        );
+
+        let other_scalar_bytes = other_scalar.to_byte_array();
+        let other_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
+            &other_scalar_bytes,
+            Self::WINDOW_WIDTH,
+        );
+
+        let mut multiplier = PrecomputedSmallMultiplier::<G, CACHE_SIZE>::new(*other_element);
+
+        let mut result: G = self
+            .get_precomputed_multiple(base_scalar_2w_expansion[base_scalar_2w_expansion.len() - 1])
+            + multiplier.mul(other_scalar_2w_expansion[other_scalar_2w_expansion.len() - 1]);
+
+        for i in (0..=(base_scalar_2w_expansion.len() - 2)).rev() {
+            for _ in 1..=Self::WINDOW_WIDTH {
+                result = result.double();
+            }
+            result += self.get_precomputed_multiple(base_scalar_2w_expansion[i]);
+            result += multiplier.mul(other_scalar_2w_expansion[i]);
         }
         result
     }
 }
 
-pub trait DoubleScalarMultiplier<G: GroupElement> {
+/// Compute scalar multiplication with a small scalar (usize type)
+trait SmallScalarMultiplier<G: GroupElement> {
+    /// Create a new multiplier with the given base element
     fn new(base_element: G) -> Self;
-    fn mul(
-        &self,
-        base_scalar: &G::ScalarType,
-        other_element: &G,
-        other_scalar: &G::ScalarType,
-    ) -> G;
+
+    /// Compute scalar * base_element.
+    fn mul(&mut self, scalar: usize) -> G;
 }
 
-pub struct WrappingDoubleMultiplier<G: GroupElement, M: ScalarMultiplier<G>>(PhantomData<G>, M);
+/// Scalar multiplier which precomputes i * base_element for i = 1,...,N-1. If larger multiples are
+/// requested, the `mul` method will panic.
+struct PrecomputedSmallMultiplier<G: GroupElement + Doubling, const N: usize> {
+    cache: [G; N],
+}
 
-impl<G: GroupElement, M: ScalarMultiplier<G>> DoubleScalarMultiplier<G>
-    for WrappingDoubleMultiplier<G, M>
+impl<G: GroupElement + Doubling, const N: usize> SmallScalarMultiplier<G>
+    for PrecomputedSmallMultiplier<G, N>
 {
     fn new(base_element: G) -> Self {
-        Self(PhantomData::default(), M::new(base_element))
-    }
-
-    fn mul(
-        &self,
-        base_scalar: &G::ScalarType,
-        other_element: &G,
-        other_scalar: &G::ScalarType,
-    ) -> G {
-        self.1.mul(base_scalar) + *other_element * other_scalar
-    }
-}
-
-pub type DefaultDoubleMultiplier<G> = WrappingDoubleMultiplier<G, DefaultMultiplier<G>>;
-
-/// NOT constant time
-pub struct MyDoubleMultiplier<
-    G: GroupElement<ScalarType = S> + Doubling,
-    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
-    const CACHE_SIZE: usize,
-    const SCALAR_SIZE: usize,
-> {
-    cache: FixedWindowMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>,
-}
-
-impl<
-        G: GroupElement<ScalarType = S> + Doubling,
-        S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
-        const CACHE_SIZE: usize,
-        const SCALAR_SIZE: usize,
-    > DoubleScalarMultiplier<G> for MyDoubleMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>
-{
-    fn new(base_element: G) -> Self {
-        Self {
-            cache: FixedWindowMultiplier::new(base_element),
+        let mut cache = [G::zero(); N];
+        cache[1] = base_element;
+        for i in 2..N {
+            cache[i] = cache[i - 1] + base_element;
         }
+        Self { cache }
     }
 
-    fn mul(
-        &self,
-        base_scalar: &G::ScalarType,
-        other_element: &G,
-        other_scalar: &G::ScalarType,
-    ) -> G {
-        let scalar_bytes = base_scalar.to_byte_array();
-        let other_scalar_bytes = other_scalar.to_byte_array();
-
-        let window_width = 8 * size_of::<usize>() - CACHE_SIZE.leading_zeros() as usize - 1;
-
-        let limbs =
-            integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(&scalar_bytes, window_width);
-        let other_limbs = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
-            &other_scalar_bytes,
-            window_width,
-        );
-
-        let lazy_multiplier = LazySmallMultiplier::new(*other_element);
-        let mut r: G = self.cache.get_precomputed_multiple(limbs[limbs.len() - 1])
-            + lazy_multiplier.mul(other_limbs[other_limbs.len() - 1]);
-
-        for i in (0..=(limbs.len() - 2)).rev() {
-            for _ in 1..=window_width {
-                r = r.double();
-            }
-            r += self.cache.get_precomputed_multiple(limbs[i]);
-            r += lazy_multiplier.mul(other_limbs[i]);
-        }
-        r
+    fn mul(&mut self, scalar: usize) -> G {
+        self.cache[scalar]
     }
 }
 
@@ -254,23 +205,24 @@ mod tests {
     }
 
     #[test]
-    fn test_double_mul() {
-        let multiplier = MyDoubleMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32>::new(
+    fn test_double_mul_secp256r1() {
+        let multiplier = FixedWindowMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32>::new(
             RistrettoPoint::generator(),
         );
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
 
-        let a = RistrettoScalar::from(2345);
-        let b = RistrettoScalar::from(6789);
+        let a = RistrettoScalar::from(1234);
+        let b = RistrettoScalar::from(5678);
         let expected = RistrettoPoint::generator() * a + other_point * b;
-        let actual = multiplier.mul(&a, &other_point, &b);
+        let actual = multiplier.mul_double(&a, &other_point, &b);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_small_multiplier() {
-        let multiplier = LazySmallMultiplier::<RistrettoPoint>::new(RistrettoPoint::generator());
+        let mut multiplier =
+            PrecomputedSmallMultiplier::<RistrettoPoint, 8>::new(RistrettoPoint::generator());
         let expected = RistrettoPoint::generator() * RistrettoScalar::from(7);
         let actual = multiplier.mul(7);
         assert_eq!(expected, actual);

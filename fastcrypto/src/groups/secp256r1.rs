@@ -1,6 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Implementation of the Secp256r1 (aka P-256) curve. This is a 256-bit Weirstrass curve of prime order.
+//! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
+
 use crate::error::FastCryptoError;
 use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
@@ -13,13 +16,16 @@ use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Div, Mul};
 
+/// A point on the Secp256r1 curve in affine coordinates.
 pub struct AffinePoint(Affine);
 
+/// A point on the Secp256r1 curve in projective coordinates.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
-pub struct ProjectivePoint(Projective);
+pub struct ProjectivePoint(pub(crate) Projective);
 
+/// A field element in the prime field of the same order as the curve.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
-pub struct Scalar(Fr);
+pub struct Scalar(pub(crate) Fr);
 
 impl ProjectivePoint {
     pub fn to_affine(&self) -> AffinePoint {
@@ -100,7 +106,6 @@ impl GroupElement for ProjectivePoint {
 
 impl ToFromByteArray<32> for Scalar {
     fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
-        // TODO: Check this
         Ok(Scalar(Fr::from_be_bytes_mod_order(bytes)))
     }
 
