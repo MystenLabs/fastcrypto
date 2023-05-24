@@ -4,7 +4,7 @@
 //! Implementation of the Secp256r1 (aka P-256) curve. This is a 256-bit Weirstrass curve of prime order.
 //! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
 
-use crate::error::FastCryptoError;
+use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -38,6 +38,14 @@ impl Mul<Scalar> for Scalar {
     }
 }
 
+impl Div<Scalar> for ProjectivePoint {
+    type Output = Result<ProjectivePoint, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Result<ProjectivePoint, FastCryptoError> {
+        Ok(self * rhs.inverse()?)
+    }
+}
+
 impl GroupElement for Scalar {
     type ScalarType = Scalar;
 
@@ -54,10 +62,7 @@ impl Div<Scalar> for Scalar {
     type Output = Result<Scalar, FastCryptoError>;
 
     fn div(self, rhs: Scalar) -> Result<Scalar, FastCryptoError> {
-        if rhs.0 == Fr::zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        Ok(Scalar::from(self.0 * rhs.0.inverse().unwrap()))
+        Ok(self * rhs.inverse()?)
     }
 }
 
@@ -72,6 +77,12 @@ impl ScalarTrait for Scalar {
         let mut bytes = [0u8; 32];
         rng.fill_bytes(&mut bytes);
         Scalar(Fr::from_be_bytes_mod_order(&bytes))
+    }
+
+    fn inverse(&self) -> FastCryptoResult<Self> {
+        Ok(Scalar(
+            self.0.inverse().ok_or(FastCryptoError::InvalidInput)?,
+        ))
     }
 }
 

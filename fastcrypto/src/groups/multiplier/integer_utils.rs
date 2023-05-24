@@ -57,7 +57,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
         }
         digits.push(current_digit);
     }
-    
+
     digits
 }
 
