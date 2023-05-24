@@ -13,19 +13,20 @@ use crate::traits::AllowedRng;
 use crate::utils::log2_byte;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 use blst::{
-    blst_bendian_from_scalar, blst_final_exp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
-    blst_fp12_one, blst_fp12_sqr, blst_fr, blst_fr_add, blst_fr_cneg, blst_fr_from_scalar,
-    blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2,
-    blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine,
-    blst_p1_cneg, blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1,
-    blst_p1_mult, blst_p1_to_affine, blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg,
-    blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
-    blst_p2_to_affine, blst_scalar, blst_scalar_from_bendian, blst_scalar_from_fr,
-    blst_scalar_from_lendian, p1_affines, p2_affines, Pairing as BlstPairing, BLS12_381_G1,
-    BLS12_381_G2, BLST_ERROR,
+    blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
+    blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
+    blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
+    blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1,
+    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize,
+    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2,
+    blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_scalar,
+    blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
+    p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
+use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
@@ -53,6 +54,7 @@ pub struct Scalar(blst_fr);
 pub const SCALAR_LENGTH: usize = 32;
 pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
+pub const GT_ELEMENT_BYTE_LENGTH: usize = 576;
 
 impl Add for G1Element {
     type Output = Self;
@@ -99,6 +101,16 @@ fn size_in_bytes(scalar: &blst_scalar) -> usize {
 /// of the scalar in bits.
 fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
     8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
+}
+
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div<Scalar> for G1Element {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
+    }
 }
 
 impl Mul<Scalar> for G1Element {
@@ -271,6 +283,16 @@ impl Neg for G2Element {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div<Scalar> for G2Element {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<Scalar> for G2Element {
     type Output = Self;
 
@@ -371,7 +393,7 @@ impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(&mut ret, &affine);
-            // Verify that the deserialized element is in G1
+            // Verify that the deserialized element is in G2
             if !blst_p2_in_g2(&ret) {
                 return Err(FastCryptoError::InvalidInput);
             }
@@ -423,6 +445,16 @@ impl Neg for GTElement {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
+impl Div<Scalar> for GTElement {
+    type Output = Result<Self, FastCryptoError>;
+
+    fn div(self, rhs: Scalar) -> Self::Output {
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
+    }
+}
+
 impl Mul<Scalar> for GTElement {
     type Output = Self;
 
@@ -464,16 +496,54 @@ impl GroupElement for GTElement {
     }
 
     fn generator() -> Self {
-        unsafe {
-            // Compute the generator as e(G1, G2).
-            // TODO: Should be precomputed.
-            let dst = [0u8; 3];
-            let mut pairing_blst = BlstPairing::new(false, &dst);
-            pairing_blst.raw_aggregate(&BLS12_381_G2, &BLS12_381_G1);
-            Self::from(pairing_blst.as_fp12())
-        }
+        static G: OnceCell<blst_fp12> = OnceCell::new();
+        Self::from(*G.get_or_init(Self::compute_generator))
     }
 }
+
+impl GTElement {
+    fn compute_generator() -> blst_fp12 {
+        // Compute the generator as e(G1, G2).
+        let mut res = blst_fp12::default();
+        unsafe {
+            blst_miller_loop(&mut res, &BLS12_381_G2, &BLS12_381_G1);
+            blst_final_exp(&mut res, &res);
+        }
+        res
+    }
+}
+
+// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
+impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
+    fn from_byte_array(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+        // The following is based on the order from
+        // https://github.com/supranational/blst/blob/b4ebf88014251f1cfefeb6cf1cd4df7c40dc568f/src/fp12_tower.c#L773-L786C2
+        let mut gt: blst_fp12 = Default::default();
+        let mut current = 0; // simpler to track
+        for i in 0..3 {
+            for j in 0..2 {
+                for k in 0..2 {
+                    let mut fp = blst_fp::default();
+                    unsafe {
+                        blst_fp_from_bendian(&mut fp, bytes[current..current + 48].as_ptr());
+                    }
+                    gt.fp6[j].fp2[i].fp[k] = fp;
+                    current += 48;
+                }
+            }
+        }
+        match gt.in_group() {
+            true => Ok(Self::from(gt)),
+            false => Err(FastCryptoError::InvalidInput),
+        }
+    }
+
+    fn to_byte_array(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
+        self.0.to_bendian()
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(GTElement);
 
 impl GroupElement for Scalar {
     type ScalarType = Self;
@@ -551,21 +621,13 @@ impl From<u64> for Scalar {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for Scalar {
     type Output = Result<Self, FastCryptoError>;
 
-    fn div(self, rhs: Self) -> Result<Self, FastCryptoError> {
-        if rhs == Scalar::zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let mut ret = blst_fr::default();
-        unsafe {
-            let mut inverse = blst_fr::default();
-            blst_fr_inverse(&mut inverse, &rhs.0);
-            blst_fr_mul(&mut ret, &self.0, &inverse);
-        }
-        Ok(Self::from(ret))
+    fn div(self, rhs: Self) -> Self::Output {
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
     }
 }
 
@@ -581,6 +643,17 @@ impl ScalarType for Scalar {
         }
         Scalar::from(ret)
     }
+
+    fn inverse(&self) -> FastCryptoResult<Self> {
+        if *self == Scalar::zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut ret = blst_fr::default();
+        unsafe {
+            blst_fr_inverse(&mut ret, &self.0);
+        }
+        Ok(Self::from(ret))
+    }
 }
 
 impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
@@ -589,6 +662,9 @@ impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
         unsafe {
             let mut scalar = blst_scalar::default();
             blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            if !blst_scalar_fr_check(&scalar) {
+                return Err(FastCryptoError::InvalidInput);
+            }
             blst_fr_from_scalar(&mut ret, &scalar);
         }
         Ok(Scalar::from(ret))
@@ -604,6 +680,7 @@ impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
         bytes
     }
 }
+
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
 pub(crate) fn is_odd(value: &blst_fr) -> bool {

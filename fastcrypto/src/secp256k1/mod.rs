@@ -167,6 +167,7 @@ generate_bytes_representation!(
     SECP256K1_PUBLIC_KEY_LENGTH,
     Secp256k1PublicKeyAsBytes
 );
+
 impl<'a> From<&'a Secp256k1PrivateKey> for Secp256k1PublicKey {
     fn from(secret: &'a Secp256k1PrivateKey) -> Self {
         Secp256k1PublicKey {
