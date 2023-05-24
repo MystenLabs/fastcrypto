@@ -13,7 +13,7 @@ use crate::serde_helpers::ToFromByteArray;
 ///
 /// This multiplier is particularly fast for double multiplications.
 pub struct FixedWindowMultiplier<
-    G: GroupElement<ScalarType = S>,
+    G: GroupElement<ScalarType = S> + Doubling,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
     const CACHE_SIZE: usize,
     const SCALAR_SIZE: usize,
@@ -23,7 +23,7 @@ pub struct FixedWindowMultiplier<
 }
 
 impl<
-        G: GroupElement<ScalarType = S>,
+        G: GroupElement<ScalarType = S> + Doubling,
         S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
         const CACHE_SIZE: usize,
         const SCALAR_SIZE: usize,
@@ -92,9 +92,7 @@ impl<
         let multiplier = PrecomputedSmallMultiplier::<G, CACHE_SIZE>::new(*other_element);
 
         let last_digit = base_scalar_2w_expansion.len() - 1;
-        let mut result: G = self
-            .cache
-            .mul(base_scalar_2w_expansion[last_digit])
+        let mut result: G = self.cache.mul(base_scalar_2w_expansion[last_digit])
             + multiplier.mul(other_scalar_2w_expansion[last_digit]);
 
         for digit in (0..=(last_digit - 1)).rev() {
@@ -119,11 +117,11 @@ trait SmallScalarMultiplier<G: GroupElement> {
 
 /// Scalar multiplier which precomputes i * base_element for i = 1,...,N-1. If larger multiples are
 /// requested, the `mul` method will panic.
-struct PrecomputedSmallMultiplier<G: GroupElement, const CACHE_SIZE: usize> {
+struct PrecomputedSmallMultiplier<G: GroupElement + Doubling, const CACHE_SIZE: usize> {
     cache: [G; CACHE_SIZE],
 }
 
-impl<G: GroupElement, const CACHE_SIZE: usize> SmallScalarMultiplier<G>
+impl<G: GroupElement + Doubling, const CACHE_SIZE: usize> SmallScalarMultiplier<G>
     for PrecomputedSmallMultiplier<G, CACHE_SIZE>
 {
     fn new(base_element: G) -> Self {
@@ -217,7 +215,7 @@ mod tests {
     #[test]
     fn test_small_multiplier() {
         let multiplier =
-            PrecomputedSmallMultiplier::<RistrettoPoint, 8>::new(RistrettoPoint::generator());
+            PrecomputedSmallMultiplier::<RistrettoPoint, 16>::new(RistrettoPoint::generator());
         let expected = RistrettoPoint::generator() * RistrettoScalar::from(7);
         let actual = multiplier.mul(7);
         assert_eq!(expected, actual);
