@@ -14,10 +14,10 @@ pub trait ScalarMultiplier<G: GroupElement> {
     /// Create a new scalar multiplier with the given base element.
     fn new(base_element: G) -> Self;
 
-    /// Multiply the base element by the given scalar.
+    /// Multiply `self.base_element * scalar`".
     fn mul(&self, scalar: &G::ScalarType) -> G;
 
-    /// Compute `self.base_scalar * base_element + other_scalar * other_element`.
+    /// Compute `self.base_element * base_scalar + other_element * other_scalar`.
     fn mul_double(
         &self,
         base_scalar: &G::ScalarType,
