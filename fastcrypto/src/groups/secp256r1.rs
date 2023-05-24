@@ -97,7 +97,7 @@ impl GroupElement for ProjectivePoint {
 
 impl ToFromByteArray<32> for Scalar {
     fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
-        Ok(Scalar(Fr::from_be_bytes_mod_order(bytes)))
+        Ok(Scalar(Fr::from_le_bytes_mod_order(bytes)))
     }
 
     fn to_byte_array(&self) -> [u8; 32] {

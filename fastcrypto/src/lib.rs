@@ -81,6 +81,10 @@ pub mod test_helpers;
 #[path = "tests/utils_tests.rs"]
 pub mod utils_tests;
 
+#[cfg(test)]
+#[path = "tests/secp256r1_group_tests.rs"]
+pub mod secp256r1_group_tests;
+
 pub mod traits;
 
 #[cfg(any(test, feature = "experimental"))]
