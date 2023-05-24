@@ -3,7 +3,6 @@
 
 use crate::groups::GroupElement;
 
-pub mod comb_method;
 pub mod fixed_window;
 mod integer_utils;
 

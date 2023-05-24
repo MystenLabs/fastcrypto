@@ -7,7 +7,6 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
-    use fastcrypto::groups::multiplier::comb_method::CombMultiplier;
     use fastcrypto::groups::multiplier::fixed_window::FixedWindowMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -85,37 +84,6 @@ mod group_benches {
             FixedWindowMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
-
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 4, 128, 32>,
-            _,
-        >("Secp256r1 Comb method (4x128 = 512)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 8, 86, 32>,
-            _,
-        >("Secp256r1 Comb method (8x86 = 688)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 64, 32>,
-            _,
-        >("Secp256r1 Comb method (16x64 = 1024)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 52, 32>,
-            _,
-        >("Secp256r1 Comb method (32x52 = 1664)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
-            _,
-        >("Secp256r1 Comb method (64x43 = 2752)", &mut group);
-        scale_single_precomputed::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 37, 32>,
-            _,
-        >("Secp256r1 Comb method (128x37 = 4736)", &mut group);
     }
 
     fn double_scale_single<G: GroupElement, Mul: ScalarMultiplier<G>, M: Measurement>(
@@ -165,36 +133,6 @@ mod group_benches {
             "Secp256r1",
             &mut group,
         );
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 4, 128, 32>,
-            _,
-        >("Secp256r1 Comb (4x128", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 8, 86, 32>,
-            _,
-        >("Secp256r1 Comb (8x86)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 64, 32>,
-            _,
-        >("Secp256r1 Comb (16x64)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 52, 32>,
-            _,
-        >("Secp256r1 Comb (32x52)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 43, 32>,
-            _,
-        >("Secp256r1 Comb (64x43)", &mut group);
-        double_scale_single::<
-            ProjectivePoint,
-            CombMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 37, 32>,
-            _,
-        >("Secp256r1 Comb (128x37)", &mut group);
     }
 
     fn hash_to_group_single<G: GroupElement + HashToGroupElement, M: measurement::Measurement>(
