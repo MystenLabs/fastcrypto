@@ -38,6 +38,7 @@ impl Mul<Scalar> for Scalar {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for ProjectivePoint {
     type Output = Result<ProjectivePoint, FastCryptoError>;
 
@@ -58,6 +59,7 @@ impl GroupElement for Scalar {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for Scalar {
     type Output = Result<Scalar, FastCryptoError>;
 
