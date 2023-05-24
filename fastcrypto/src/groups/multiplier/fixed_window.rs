@@ -4,7 +4,6 @@
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
-use std::mem::size_of;
 
 /// This multiplier uses pre-computation with the fixed window method. If the addition and doubling
 /// operations for `G` are constant time, the `mul` and `double_mul` methods are also constant time.
@@ -31,7 +30,7 @@ impl<
     > FixedWindowMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
-    const WINDOW_WIDTH: usize = 8 * size_of::<usize>() - CACHE_SIZE.leading_zeros() as usize - 1;
+    const WINDOW_WIDTH: usize = (usize::BITS - CACHE_SIZE.leading_zeros() - 1) as usize;
 
     /// Get the multiple `s * base_element` for a scalar `s` with `0 <= s < 2^Self::WINDOW_WIDTH`.
     /// If `s` is not in this range the method will panic.

@@ -5,7 +5,6 @@ use crate::groups::multiplier::integer_utils::div_ceil;
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
-use std::mem::size_of;
 
 /// Performs scalar multiplication using a comb method. We must have HEIGHT >= ceil(SCALAR_SIZE * 8 / ceil(log2(WIDTH))
 /// and the precomputation tables will be of size WIDTH x HEIGHT. Once precomputation has been done,
@@ -33,7 +32,7 @@ impl<
     > CombMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the `WIDTH`.
-    const WINDOW_WIDTH: usize = 8 * size_of::<usize>() - WIDTH.leading_zeros() as usize - 1;
+    const WINDOW_WIDTH: usize = (usize::BITS - WIDTH.leading_zeros() - 1) as usize;
 
     /// Get 2^{column * WINDOW_WIDTH} * row * base_point.
     fn get_precomputed_multiple(&self, row: usize, column: usize) -> G {
@@ -86,8 +85,8 @@ impl<
         );
 
         let mut result = self.get_precomputed_multiple(0, base_2w_expansion[0]);
-        for i in 1..base_2w_expansion.len() {
-            result += self.get_precomputed_multiple(i, base_2w_expansion[i]);
+        for (i, digit) in base_2w_expansion.iter().enumerate().skip(1) {
+            result += self.get_precomputed_multiple(i, *digit);
         }
         result
     }

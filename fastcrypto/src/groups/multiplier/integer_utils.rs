@@ -1,4 +1,5 @@
-use std::mem::size_of;
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
 /// Given a binary representation of a number in little-endian format, return the digits of its base
 /// `2^window_size` expansion. We use usize as digits because we will eventually use these as indices
@@ -7,7 +8,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
     bytes: &[u8; N],
     window_size: usize,
 ) -> Vec<usize> {
-    if window_size > 8 * size_of::<usize>() {
+    if window_size > usize::BITS as usize {
         panic!("Window size must be less than or equal to the number of bits in a usize");
     }
 
