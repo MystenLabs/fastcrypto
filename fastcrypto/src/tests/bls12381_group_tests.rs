@@ -44,6 +44,8 @@ fn test_g1_arithmetic() {
     assert_ne!(G1Element::zero(), g);
     assert_eq!(G1Element::zero(), g - g);
 
+    assert!((G1Element::generator() / Scalar::zero()).is_err());
+
     // Scalar::from_byte_array should not accept the order.
     let order =
         hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
@@ -93,6 +95,8 @@ fn test_g2_arithmetic() {
 
     let p6 = g * Scalar::zero();
     assert_eq!(G2Element::zero(), p6);
+
+    assert!((G2Element::generator() / Scalar::zero()).is_err());
 
     assert_ne!(G2Element::zero(), g);
     assert_eq!(G2Element::zero(), g - g);
@@ -144,6 +148,8 @@ fn test_gt_arithmetic() {
 
     assert_ne!(GTElement::zero(), g);
     assert_eq!(GTElement::zero(), g - g);
+
+    assert!((GTElement::generator() / Scalar::zero()).is_err());
 }
 
 #[test]
@@ -170,9 +176,6 @@ fn test_serde_and_regression() {
     let id1 = G1Element::zero();
     let id2 = G2Element::zero();
     let id3 = GTElement::zero();
-
-    println!("gt: {:?}", hex::encode(gt.to_byte_array().as_slice()));
-    println!("id3: {:?}", hex::encode(id3.to_byte_array().as_slice()));
 
     verify_serialization(
         &s1,
