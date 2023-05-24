@@ -6,18 +6,14 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
-    use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
     use fastcrypto::groups::multiplier::comb_method::CombMultiplier;
     use fastcrypto::groups::multiplier::fixed_window::FixedWindowMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{
-        secp256r1, Doubling, GroupElement, HashToGroupElement, Pairing, Scalar,
-    };
+    use fastcrypto::groups::{secp256r1, GroupElement, HashToGroupElement, Pairing, Scalar};
     use rand::thread_rng;
-    use std::marker::PhantomData;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
         name: &str,
@@ -235,7 +231,7 @@ mod group_benches {
 
     /// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
     /// simply calling the GroupElement implementation. Only used for benchmarking.
-    pub struct DefaultMultiplier<G: GroupElement>(G);
+    struct DefaultMultiplier<G: GroupElement>(G);
 
     impl<G: GroupElement> ScalarMultiplier<G> for DefaultMultiplier<G> {
         fn new(base_element: G) -> Self {
