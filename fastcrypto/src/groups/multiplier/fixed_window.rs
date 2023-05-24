@@ -18,8 +18,8 @@ pub struct FixedWindowMultiplier<
     const CACHE_SIZE: usize,
     const SCALAR_SIZE: usize,
 > {
-    /// Precomputed multiples of the base element from 0 up to (2^WINDOW_WIDTH - 1).
-    cache: [G; CACHE_SIZE],
+    /// Precomputed multiples of the base element from 0 up to CACHE_SIZE - 1 = 2^WINDOW_WIDTH - 1.
+    cache: PrecomputedSmallMultiplier<G, CACHE_SIZE>,
 }
 
 impl<
@@ -31,12 +31,6 @@ impl<
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
     const WINDOW_WIDTH: usize = (usize::BITS - CACHE_SIZE.leading_zeros() - 1) as usize;
-
-    /// Get the multiple `s * base_element` for a scalar `s` with `0 <= s < 2^Self::WINDOW_WIDTH`.
-    /// If `s` is not in this range the method will panic.
-    fn get_precomputed_multiple(&self, s: usize) -> G {
-        self.cache[s]
-    }
 }
 
 impl<
@@ -47,13 +41,9 @@ impl<
     > ScalarMultiplier<G> for FixedWindowMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>
 {
     fn new(base_element: G) -> Self {
-        // Compute cache [0, base_element, 2 * base_element, ..., (2^WINDOW_WIDTH - 1) * base_element].
-        // Note that CACHE_SIZE = 2^WINDOW_WIDTH.
-        let mut cache = [G::zero(); CACHE_SIZE];
-        for i in 1..CACHE_SIZE {
-            cache[i] = cache[i - 1] + base_element;
+        Self {
+            cache: PrecomputedSmallMultiplier::new(base_element),
         }
-        Self { cache }
     }
 
     fn mul(&self, scalar: &S) -> G {
@@ -65,14 +55,15 @@ impl<
             Self::WINDOW_WIDTH,
         );
 
-        let mut result: G =
-            self.get_precomputed_multiple(base_2w_expansion[base_2w_expansion.len() - 1]);
+        let mut result: G = self
+            .cache
+            .mul(base_2w_expansion[base_2w_expansion.len() - 1]);
 
         for i in (0..=(base_2w_expansion.len() - 2)).rev() {
             for _ in 1..=Self::WINDOW_WIDTH {
                 result = result.double();
             }
-            result += self.get_precomputed_multiple(base_2w_expansion[i]);
+            result += self.cache.mul(base_2w_expansion[i]);
         }
         result
     }
@@ -97,17 +88,18 @@ impl<
             Self::WINDOW_WIDTH,
         );
 
-        let mut multiplier = PrecomputedSmallMultiplier::<G, CACHE_SIZE>::new(*other_element);
+        let multiplier = PrecomputedSmallMultiplier::<G, CACHE_SIZE>::new(*other_element);
 
         let mut result: G = self
-            .get_precomputed_multiple(base_scalar_2w_expansion[base_scalar_2w_expansion.len() - 1])
+            .cache
+            .mul(base_scalar_2w_expansion[base_scalar_2w_expansion.len() - 1])
             + multiplier.mul(other_scalar_2w_expansion[other_scalar_2w_expansion.len() - 1]);
 
         for i in (0..=(base_scalar_2w_expansion.len() - 2)).rev() {
             for _ in 1..=Self::WINDOW_WIDTH {
                 result = result.double();
             }
-            result += self.get_precomputed_multiple(base_scalar_2w_expansion[i]);
+            result += self.cache.mul(base_scalar_2w_expansion[i]);
             result += multiplier.mul(other_scalar_2w_expansion[i]);
         }
         result
@@ -120,28 +112,28 @@ trait SmallScalarMultiplier<G: GroupElement> {
     fn new(base_element: G) -> Self;
 
     /// Compute scalar * base_element.
-    fn mul(&mut self, scalar: usize) -> G;
+    fn mul(&self, scalar: usize) -> G;
 }
 
 /// Scalar multiplier which precomputes i * base_element for i = 1,...,N-1. If larger multiples are
 /// requested, the `mul` method will panic.
-struct PrecomputedSmallMultiplier<G: GroupElement + Doubling, const N: usize> {
-    cache: [G; N],
+struct PrecomputedSmallMultiplier<G: GroupElement, const CACHE_SIZE: usize> {
+    cache: [G; CACHE_SIZE],
 }
 
-impl<G: GroupElement + Doubling, const N: usize> SmallScalarMultiplier<G>
-    for PrecomputedSmallMultiplier<G, N>
+impl<G: GroupElement, const CACHE_SIZE: usize> SmallScalarMultiplier<G>
+    for PrecomputedSmallMultiplier<G, CACHE_SIZE>
 {
     fn new(base_element: G) -> Self {
-        let mut cache = [G::zero(); N];
+        let mut cache = [G::zero(); CACHE_SIZE];
         cache[1] = base_element;
-        for i in 2..N {
+        for i in 2..CACHE_SIZE {
             cache[i] = cache[i - 1] + base_element;
         }
         Self { cache }
     }
 
-    fn mul(&mut self, scalar: usize) -> G {
+    fn mul(&self, scalar: usize) -> G {
         self.cache[scalar]
     }
 }
@@ -222,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_small_multiplier() {
-        let mut multiplier =
+        let multiplier =
             PrecomputedSmallMultiplier::<RistrettoPoint, 8>::new(RistrettoPoint::generator());
         let expected = RistrettoPoint::generator() * RistrettoScalar::from(7);
         let actual = multiplier.mul(7);
