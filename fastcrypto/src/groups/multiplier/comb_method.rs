@@ -35,7 +35,7 @@ impl<
     /// The number of bits in the window. This is equal to the floor of the log2 of the `WIDTH`.
     const WINDOW_WIDTH: usize = 8 * size_of::<usize>() - WIDTH.leading_zeros() as usize - 1;
 
-    /// Get 2^column * row * base_point.
+    /// Get 2^{column * WINDOW_WIDTH} * row * base_point.
     fn get_precomputed_multiple(&self, row: usize, column: usize) -> G {
         self.cache[row][column]
     }
@@ -56,7 +56,7 @@ impl<
             panic!("Invalid parameters. HEIGHT needs to be at least {} with the given WIDTH and SCALAR_SIZE.", lower_limit);
         }
 
-        // Store cache[i][j] = 2^{iw} * j * base_element
+        // Store cache[i][j] = 2^{i w} * j * base_element
         let mut cache = [[G::zero(); WIDTH]; HEIGHT];
 
         // Compute cache[0][j] = j * base_element.
