@@ -69,11 +69,12 @@ impl MultiScalarMul for RistrettoPoint {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<RistrettoScalar> for RistrettoPoint {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: RistrettoScalar) -> Self::Output {
-        let inv = (RistrettoScalar::generator() / rhs)?;
+        let inv = rhs.inverse()?;
         Ok(self * inv)
     }
 }
@@ -162,14 +163,13 @@ impl Mul<RistrettoScalar> for RistrettoScalar {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<RistrettoScalar> for RistrettoScalar {
     type Output = Result<RistrettoScalar, FastCryptoError>;
 
     fn div(self, rhs: RistrettoScalar) -> Result<RistrettoScalar, FastCryptoError> {
-        if rhs.0 == ExternalRistrettoScalar::zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        Ok(RistrettoScalar::from(self.0 * rhs.0.invert()))
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
     }
 }
 
@@ -187,6 +187,13 @@ impl GroupElement for RistrettoScalar {
 impl Scalar for RistrettoScalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         Self(ExternalRistrettoScalar::random(rng))
+    }
+
+    fn inverse(&self) -> FastCryptoResult<Self> {
+        if self.0 == ExternalRistrettoScalar::zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(RistrettoScalar::from(self.0.invert()))
     }
 }
 

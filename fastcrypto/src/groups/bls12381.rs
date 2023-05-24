@@ -103,11 +103,12 @@ fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
     8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for G1Element {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
-        let inv = (Scalar::generator() / rhs)?;
+        let inv = rhs.inverse()?;
         Ok(self * inv)
     }
 }
@@ -282,11 +283,12 @@ impl Neg for G2Element {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for G2Element {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
-        let inv = (Scalar::generator() / rhs)?;
+        let inv = rhs.inverse()?;
         Ok(self * inv)
     }
 }
@@ -443,11 +445,12 @@ impl Neg for GTElement {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for GTElement {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
-        let inv = (Scalar::generator() / rhs)?;
+        let inv = rhs.inverse()?;
         Ok(self * inv)
     }
 }
@@ -618,21 +621,13 @@ impl From<u64> for Scalar {
     }
 }
 
+#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for Scalar {
     type Output = Result<Self, FastCryptoError>;
 
     fn div(self, rhs: Self) -> Self::Output {
-        if rhs == Scalar::zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let mut ret = blst_fr::default();
-        unsafe {
-            let mut inverse = blst_fr::default();
-            blst_fr_inverse(&mut inverse, &rhs.0);
-            blst_fr_mul(&mut ret, &self.0, &inverse);
-        }
-        Ok(Self::from(ret))
+        let inv = rhs.inverse()?;
+        Ok(self * inv)
     }
 }
 
@@ -647,6 +642,17 @@ impl ScalarType for Scalar {
             blst_fr_from_scalar(&mut ret, &scalar);
         }
         Scalar::from(ret)
+    }
+
+    fn inverse(&self) -> FastCryptoResult<Self> {
+        if *self == Scalar::zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut ret = blst_fr::default();
+        unsafe {
+            blst_fr_inverse(&mut ret, &self.0);
+        }
+        Ok(Self::from(ret))
     }
 }
 
