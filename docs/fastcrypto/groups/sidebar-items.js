@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["bls12381","ristretto255"],"trait":["GroupElement","HashToGroupElement","Pairing","Scalar"]};
+window.SIDEBAR_ITEMS = {"mod":["bls12381","ristretto255"],"trait":["GroupElement","HashToGroupElement","MultiScalarMul","Pairing","Scalar"]};
