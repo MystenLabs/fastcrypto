@@ -2,18 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
-use crate::groups::bls12381::{
-    G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
+use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
+use crate::groups::{
+    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
 };
-use crate::groups::{GroupElement, HashToGroupElement, Pairing};
+use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
-use rand::{rngs::StdRng, SeedableRng as _};
+use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
 
-// TODO: add regression tests with test vectors.
+// TODO: add test vectors.
 
 #[test]
 fn test_g1_arithmetic() {
@@ -44,6 +45,26 @@ fn test_g1_arithmetic() {
 }
 
 #[test]
+fn test_g1_msm() {
+    let mut scalars = Vec::new();
+    let mut points = Vec::new();
+    let mut expected = G1Element::zero();
+    for _ in 0..50 {
+        let s = Scalar::rand(&mut thread_rng());
+        let e = Scalar::rand(&mut thread_rng());
+        let g = G1Element::generator() * e;
+        expected += g * s;
+        scalars.push(s);
+        points.push(g);
+    }
+    let actual = G1Element::multi_scalar_mul(&scalars, &points).unwrap();
+    assert_eq!(expected, actual);
+
+    assert!(G1Element::multi_scalar_mul(&scalars[1..], &points).is_err());
+    assert!(G1Element::multi_scalar_mul(&[], &[]).is_err());
+}
+
+#[test]
 fn test_g2_arithmetic() {
     // Test that different ways of computing [5]G gives the expected result
     let g = G2Element::generator();
@@ -69,6 +90,26 @@ fn test_g2_arithmetic() {
 
     assert_ne!(G2Element::zero(), g);
     assert_eq!(G2Element::zero(), g - g);
+}
+
+#[test]
+fn test_g2_msm() {
+    let mut scalars = Vec::new();
+    let mut points = Vec::new();
+    let mut expected = G2Element::zero();
+    for _ in 0..50 {
+        let s = Scalar::rand(&mut thread_rng());
+        let e = Scalar::rand(&mut thread_rng());
+        let g = G2Element::generator() * e;
+        expected += g * s;
+        scalars.push(s);
+        points.push(g);
+    }
+    let actual = G2Element::multi_scalar_mul(&scalars, &points).unwrap();
+    assert_eq!(expected, actual);
+
+    assert!(G2Element::multi_scalar_mul(&scalars[1..], &points).is_err());
+    assert!(G2Element::multi_scalar_mul(&[], &[]).is_err());
 }
 
 #[test]
@@ -115,35 +156,25 @@ fn test_pairing_and_hash_to_curve() {
 }
 
 #[test]
-fn test_g1_serialize_deserialize() {
-    // Serialize and deserialize 7*G1
-    let p = G1Element::generator() * Scalar::from(7);
-    let serialized = bincode::serialize(&p).unwrap();
-    assert_eq!(serialized.len(), G1_ELEMENT_BYTE_LENGTH);
-    let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, p);
+fn test_serde_and_regression() {
+    let s1 = Scalar::from(1);
+    let g1 = G1Element::generator();
+    let g2 = G2Element::generator();
+    let id1 = G1Element::zero();
+    let id2 = G2Element::zero();
 
-    // Serialize and deserialize O
-    let p = G1Element::zero();
-    let serialized = bincode::serialize(&p).unwrap();
-    let deserialized: G1Element = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, p);
-}
-
-#[test]
-fn test_g2_serialize_deserialize() {
-    // Serialize and deserialize 7*G1
-    let p = G2Element::generator() * Scalar::from(7);
-    let serialized = bincode::serialize(&p).unwrap();
-    assert_eq!(serialized.len(), G2_ELEMENT_BYTE_LENGTH);
-    let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, p);
-
-    // Serialize and deserialize O
-    let p = G2Element::zero();
-    let serialized = bincode::serialize(&p).unwrap();
-    let deserialized: G2Element = bincode::deserialize(&serialized).unwrap();
-    assert_eq!(deserialized, p);
+    verify_serialization(
+        &s1,
+        Some(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+                .unwrap()
+                .as_slice(),
+        ),
+    );
+    verify_serialization(&g1, Some(hex::decode("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb").unwrap().as_slice()));
+    verify_serialization(&g2, Some(hex::decode("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8").unwrap().as_slice()));
+    verify_serialization(&id1, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
+    verify_serialization(&id2, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
 }
 
 #[test]

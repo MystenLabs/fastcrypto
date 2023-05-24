@@ -65,7 +65,7 @@ pub trait VRFProof<const OUTPUT_SIZE: usize> {
 pub mod ecvrf {
     use crate::error::FastCryptoError;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
-    use crate::groups::{GroupElement, Scalar};
+    use crate::groups::{GroupElement, MultiScalarMul, Scalar};
     use crate::hash::{HashFunction, ReverseWrapper, Sha512};
     use crate::serde_helpers::ToFromByteArray;
     use crate::traits::AllowedRng;
@@ -245,11 +245,11 @@ pub mod ecvrf {
             let h = public_key.ecvrf_encode_to_curve(alpha_string);
 
             let challenge = RistrettoScalar::from(&self.c);
-            let u = RistrettoPoint::multiscalar_mul(
-                [self.s, -challenge],
-                [RistrettoPoint::generator(), public_key.0],
+            let u = RistrettoPoint::multi_scalar_mul(
+                &[self.s, -challenge],
+                &[RistrettoPoint::generator(), public_key.0],
             )?;
-            let v = RistrettoPoint::multiscalar_mul([self.s, -challenge], [h, self.gamma])?;
+            let v = RistrettoPoint::multi_scalar_mul(&[self.s, -challenge], &[h, self.gamma])?;
 
             let c_prime = ecvrf_challenge_generation([&public_key.0, &h, &self.gamma, &u, &v]);
 
