@@ -13,17 +13,17 @@ pub fn compute_base_2w_expansion<const N: usize>(
     }
 
     // The base 2^window_size expansions digits in little-endian representation.
-    let mut expansion = Vec::new();
+    let mut digits = Vec::new();
 
     // Compute the number of digits needed to represent the numbed in base 2^w. This is equal to
     // ceil(8*N / window_size), and we compute like this because div_ceil is unstable as of rustc 1.69.0.
-    let digits = div_ceil(8 * N, bits_per_digit);
+    let digits_count = div_ceil(8 * N, bits_per_digit);
 
     // The current byte and bit index
     let mut current_byte = 0;
     let mut current_bit = 0;
 
-    for _ in 0..digits {
+    for _ in 0..digits_count {
         let mut current_digit: usize = 0;
         let mut bits_added_to_current_digit = 0;
         while bits_added_to_current_digit < bits_per_digit && current_byte < N {
@@ -55,10 +55,10 @@ pub fn compute_base_2w_expansion<const N: usize>(
             current_bit = next_bit;
             current_byte = next_byte;
         }
-        expansion.push(current_digit);
+        digits.push(current_digit);
     }
-
-    expansion
+    
+    digits
 }
 
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
