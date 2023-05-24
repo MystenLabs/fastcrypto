@@ -1,6 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains implementations of optimised scalar multiplication algorithms where the
+//! group element is fixed and certain multiples of this may be pre-computed.
+
 use crate::groups::GroupElement;
 
 pub mod fixed_window;
