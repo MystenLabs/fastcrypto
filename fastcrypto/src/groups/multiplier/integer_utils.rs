@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Given a binary representation of a number in little-endian format, return the digits of its base
-/// `2^window_size` expansion. We use usize as digits because we will eventually use these as indices
+/// `2^bits_per_digit` expansion. We use usize as digits because we will eventually use these as indices
 /// in an array.
 pub fn compute_base_2w_expansion<const N: usize>(
     bytes: &[u8; N],
-    window_size: usize,
+    bits_per_digit: usize,
 ) -> Vec<usize> {
-    if window_size > usize::BITS as usize {
+    if bits_per_digit > usize::BITS as usize {
         panic!("Window size must be less than or equal to the number of bits in a usize");
     }
 
@@ -17,42 +17,45 @@ pub fn compute_base_2w_expansion<const N: usize>(
 
     // Compute the number of digits needed to represent the numbed in base 2^w. This is equal to
     // ceil(8*N / window_size), and we compute like this because div_ceil is unstable as of rustc 1.69.0.
-    let digits = div_ceil(8 * N, window_size);
+    let digits = div_ceil(8 * N, bits_per_digit);
 
     // The current byte and bit index
     let mut current_byte = 0;
     let mut current_bit = 0;
 
     for _ in 0..digits {
-        let mut current_digit_value: usize = 0;
+        let mut current_digit: usize = 0;
         let mut bits_added_to_current_digit = 0;
-        while bits_added_to_current_digit < window_size && current_byte < N {
-            let next_byte_index = (current_byte + 1) * 8;
-
-            let (bits_to_read, next_byte) =
-                if window_size - bits_added_to_current_digit < next_byte_index - current_bit {
+        while bits_added_to_current_digit < bits_per_digit && current_byte < N {
+            let remaining_bits_for_current_digit = bits_per_digit - bits_added_to_current_digit;
+            let (bits_to_read, next_byte, next_bit) =
+                if remaining_bits_for_current_digit < 8 - current_bit {
                     // There are enough bits in the current byte to fill the current digit
-                    (window_size - bits_added_to_current_digit, current_byte)
+                    (
+                        remaining_bits_for_current_digit,
+                        current_byte,
+                        current_bit + remaining_bits_for_current_digit,
+                    )
                 } else {
                     // There are not enough bits in the current byte to fill the current digit. Take the
                     // remaining bits and increment the byte index
-                    (next_byte_index - current_bit, current_byte + 1)
+                    (8 - current_bit, current_byte + 1, 0)
                 };
 
             // Add the bits to the current digit
-            current_digit_value += (get_lendian_from_substring(
+            current_digit += (get_lendian_from_substring(
                 &bytes[current_byte],
-                current_bit % 8,
-                current_bit % 8 + bits_to_read,
+                current_bit,
+                current_bit + bits_to_read,
             ) as usize)
                 << bits_added_to_current_digit;
 
             // Increment the counters
             bits_added_to_current_digit += bits_to_read;
-            current_bit += bits_to_read;
+            current_bit = next_bit;
             current_byte = next_byte;
         }
-        expansion.push(current_digit_value);
+        expansion.push(current_digit);
     }
 
     expansion
