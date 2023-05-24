@@ -88,19 +88,21 @@ impl<
             Self::WINDOW_WIDTH,
         );
 
+        // Cache all small multiples of the other element.
         let multiplier = PrecomputedSmallMultiplier::<G, CACHE_SIZE>::new(*other_element);
 
+        let last_digit = base_scalar_2w_expansion.len() - 1;
         let mut result: G = self
             .cache
-            .mul(base_scalar_2w_expansion[base_scalar_2w_expansion.len() - 1])
-            + multiplier.mul(other_scalar_2w_expansion[other_scalar_2w_expansion.len() - 1]);
+            .mul(base_scalar_2w_expansion[last_digit])
+            + multiplier.mul(other_scalar_2w_expansion[last_digit]);
 
-        for i in (0..=(base_scalar_2w_expansion.len() - 2)).rev() {
+        for digit in (0..=(last_digit - 1)).rev() {
             for _ in 1..=Self::WINDOW_WIDTH {
                 result = result.double();
             }
-            result += self.cache.mul(base_scalar_2w_expansion[i]);
-            result += multiplier.mul(other_scalar_2w_expansion[i]);
+            result += self.cache.mul(base_scalar_2w_expansion[digit]);
+            result += multiplier.mul(other_scalar_2w_expansion[digit]);
         }
         result
     }
