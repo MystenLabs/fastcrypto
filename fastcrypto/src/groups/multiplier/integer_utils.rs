@@ -1,7 +1,8 @@
 use std::mem::size_of;
 
-/// Given a binary representation of a number in little-endian format, return the digits of its base 2^W expansion.
-/// We use usize as digits because we will eventually use these as indices into a table of precomputed multiples.
+/// Given a binary representation of a number in little-endian format, return the digits of its base
+/// `2^window_size` expansion. We use usize as digits because we will eventually use these as indices
+/// in an array.
 pub fn compute_base_2w_expansion<const N: usize>(
     bytes: &[u8; N],
     window_size: usize,
@@ -10,8 +11,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
         panic!("Window size must be less than or equal to the number of bits in a usize");
     }
 
-    // TODO: The output size is constant when used in the multipliers, so we should be able to use an array with fixed size here
-    // The base 2^w expansions digits in little-endian.
+    // The base 2^window_size expansions digits in little-endian representation.
     let mut expansion = Vec::new();
 
     // Compute the number of digits needed to represent the numbed in base 2^w. This is equal to
@@ -20,7 +20,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
 
     // The current byte and bit index
     let mut current_byte = 0;
-    let mut i = 0;
+    let mut current_bit = 0;
 
     for _ in 0..digits {
         let mut current_digit_value: usize = 0;
@@ -29,24 +29,26 @@ pub fn compute_base_2w_expansion<const N: usize>(
             let next_byte_index = (current_byte + 1) * 8;
 
             let (bits_to_read, next_byte) =
-                if window_size - bits_added_to_current_digit < next_byte_index - i {
+                if window_size - bits_added_to_current_digit < next_byte_index - current_bit {
                     // There are enough bits in the current byte to fill the current digit
                     (window_size - bits_added_to_current_digit, current_byte)
                 } else {
                     // There are not enough bits in the current byte to fill the current digit. Take the
                     // remaining bits and increment the byte index
-                    (next_byte_index - i, current_byte + 1)
+                    (next_byte_index - current_bit, current_byte + 1)
                 };
 
             // Add the bits to the current digit
-            current_digit_value +=
-                (get_lendian_from_substring(&bytes[current_byte], i % 8, i % 8 + bits_to_read)
-                    as usize)
-                    << bits_added_to_current_digit;
+            current_digit_value += (get_lendian_from_substring(
+                &bytes[current_byte],
+                current_bit % 8,
+                current_bit % 8 + bits_to_read,
+            ) as usize)
+                << bits_added_to_current_digit;
 
             // Increment the counters
             bits_added_to_current_digit += bits_to_read;
-            i += bits_to_read;
+            current_bit += bits_to_read;
             current_byte = next_byte;
         }
         expansion.push(current_digit_value);

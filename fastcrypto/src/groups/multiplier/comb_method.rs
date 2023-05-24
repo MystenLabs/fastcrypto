@@ -77,6 +77,7 @@ impl<
     }
 
     fn mul(&self, scalar: &S) -> G {
+        // Scalar as bytes in little-endian representation.
         let scalar_bytes = scalar.to_byte_array();
 
         let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(

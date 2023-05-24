@@ -48,7 +48,8 @@ impl<
     > ScalarMultiplier<G> for FixedWindowMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE>
 {
     fn new(base_element: G) -> Self {
-        // Compute cache [0, base_element, 2 * base_element, ..., (2^WINDOW_WIDTH - 1) * base_element]
+        // Compute cache [0, base_element, 2 * base_element, ..., (2^WINDOW_WIDTH - 1) * base_element].
+        // Note that CACHE_SIZE = 2^WINDOW_WIDTH.
         let mut cache = [G::zero(); CACHE_SIZE];
         for i in 1..CACHE_SIZE {
             cache[i] = cache[i - 1] + base_element;
@@ -57,6 +58,7 @@ impl<
     }
 
     fn mul(&self, scalar: &S) -> G {
+        // Scalar as bytes in little-endian representation.
         let scalar_bytes = scalar.to_byte_array();
 
         let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
@@ -64,7 +66,6 @@ impl<
             Self::WINDOW_WIDTH,
         );
 
-        // Number of digits in the base 2^window_size representation of the scalar
         let mut result: G =
             self.get_precomputed_multiple(base_2w_expansion[base_2w_expansion.len() - 1]);
 
@@ -84,12 +85,13 @@ impl<
         other_scalar: &G::ScalarType,
     ) -> G {
         // Compute the sum of the two multiples using Straus' algorithm.
+
+        // Scalars as bytes in little-endian representations.
         let base_scalar_bytes = base_scalar.to_byte_array();
         let base_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
             &base_scalar_bytes,
             Self::WINDOW_WIDTH,
         );
-
         let other_scalar_bytes = other_scalar.to_byte_array();
         let other_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
             &other_scalar_bytes,
