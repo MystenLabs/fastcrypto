@@ -6,6 +6,7 @@
     "test": "mocha --max-old-space-size=16000 -t 10000s",
     "prove": "node js/prove.js"
   },
+  "bin": { "zkpinputs" : "js/genZKPinputs.js" },
   "author": "",
   "license": "ISC",
   "dependencies": {
