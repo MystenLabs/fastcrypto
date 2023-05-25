@@ -6,6 +6,8 @@
 
 use crate::groups::GroupElement;
 
+#[cfg(feature = "experimental")]
+pub mod comb_method;
 pub mod fixed_window;
 mod integer_utils;
 

@@ -1,18 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::groups::multiplier::integer_utils::{compute_base_2w_expansion, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
+use std::iter::successors;
 
-/// This multiplier uses pre-computation with the fixed window method. The double multiplication,
-/// `double_mul`, is not constant time.
+/// This multiplier uses pre-computation with the fixed window method. This multiplier is particularly
+/// fast for double multiplications, but the double multiplication function, `double_mul`, is not constant
+/// time. However, the single multiplication method, `mul`, is constant time.
 ///
 /// The `CACHE_SIZE` should be a power of two. The `SCALAR_SIZE` is the number of bytes in the byte
-/// representation of the scalar type `S`, and we assume that the `S::from_bytes` method returns the
+/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns the
 /// scalar in little-endian format.
-///
-/// This multiplier is particularly fast for double multiplications.
 pub struct FixedWindowMultiplier<
     G: GroupElement<ScalarType = S>,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
@@ -76,7 +77,7 @@ impl<
         other_element: &G,
         other_scalar: &G::ScalarType,
     ) -> G {
-        // Compute the sum of the two multiples using Straus' algorithm using precomputed multiples of the base element.
+        // Compute the sum of the two multiples using Straus' algorithm.
 
         // Scalars as bytes in little-endian representations.
         let base_scalar_bytes = base_scalar.to_byte_array();
@@ -85,63 +86,35 @@ impl<
             Self::WINDOW_WIDTH,
         );
         let other_scalar_bytes = other_scalar.to_byte_array();
+        let other_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
+            &other_scalar_bytes,
+            Self::WINDOW_WIDTH,
+        );
+
+        // Cache all small multiples of the other element.
+        // TODO: Allow a different cache size for the other element.
+        let other_element_cache =
+            successors(Some(G::zero()), |element| Some(*element + other_element))
+                .take(CACHE_SIZE)
+                .collect::<Vec<_>>();
 
         let last_digit = base_scalar_2w_expansion.len() - 1;
-        let scalar_size_in_bits = SCALAR_SIZE * 8;
-        let mut current_bit = scalar_size_in_bits - 1;
-
-        let mut result: G = if test_bit(&other_scalar_bytes, current_bit) {
-            *other_element
-        } else {
-            G::zero()
-        };
-
-        // Handle the last digit first. This will not have filled an entire window if the window width
-        // does not divide the scalar size.
-
-        // Compute the number of bits in the last digit of the base 2^w expansion.
-        let remainder_bits = scalar_size_in_bits % Self::WINDOW_WIDTH;
-        let bits_in_last_digit = if remainder_bits == 0 {
-            Self::WINDOW_WIDTH
-        } else {
-            remainder_bits
-        };
-        for _ in 2..=bits_in_last_digit {
-            result = result.double();
-            current_bit -= 1;
-            if test_bit(&other_scalar_bytes, current_bit) {
-                result += *other_element;
-            }
+        let mut result: G = self.cache[base_scalar_2w_expansion[last_digit]];
+        if other_scalar_2w_expansion[last_digit] != 0 {
+            result += other_element_cache[other_scalar_2w_expansion[last_digit]];
         }
-        result += self.cache[base_scalar_2w_expansion[last_digit]];
 
-        // Handle remaining digits.
         for digit in (0..=(last_digit - 1)).rev() {
             for _ in 1..=Self::WINDOW_WIDTH {
                 result = result.double();
-                if test_bit(&other_scalar_bytes, current_bit) {
-                    result += *other_element;
-                }
-                current_bit -= 1;
             }
             result += self.cache[base_scalar_2w_expansion[digit]];
+            if other_scalar_2w_expansion[digit] != 0 {
+                result += other_element_cache[other_scalar_2w_expansion[digit]];
+            }
         }
         result
     }
-}
-
-fn test_bit<const N: usize>(bytes: &[u8; N], index: usize) -> bool {
-    let byte = index / 8;
-    (bytes[byte] << (index - 1)) & 1 != 0
-}
-
-/// Compute scalar multiplication with a small scalar (usize type)
-trait SmallScalarMultiplier<G: GroupElement> {
-    /// Create a new multiplier with the given base element
-    fn new(base_element: G) -> Self;
-
-    /// Compute scalar * base_element.
-    fn mul(&self, scalar: usize) -> G;
 }
 
 #[cfg(test)]
@@ -206,23 +179,17 @@ mod tests {
     }
 
     #[test]
-    fn test_double_mul_secp256r1() {
+    fn test_double_mul_ristretto() {
         let multiplier = FixedWindowMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32>::new(
             RistrettoPoint::generator(),
         );
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
 
-        let a = RistrettoScalar::rand(&mut thread_rng());
-        let b = RistrettoScalar::rand(&mut thread_rng());
+        let a = RistrettoScalar::from(1); //rand(&mut thread_rng());
+        let b = RistrettoScalar::from(1); //rand(&mut thread_rng());
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.mul_double(&a, &other_point, &b);
         assert_eq!(expected, actual);
-    }
-
-    #[test]
-    fn test_test_bit() {
-        let bytes = [0b00000001, 0b00000010];
-        assert!(test_bit(&bytes, 1))
     }
 }

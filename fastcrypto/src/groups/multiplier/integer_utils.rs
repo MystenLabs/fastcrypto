@@ -68,8 +68,16 @@ fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
 }
 
 /// Compute ceil(numerator / denominator).
-pub fn div_ceil(numerator: usize, denominator: usize) -> usize {
+pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
     (numerator + denominator - 1) / denominator
+}
+
+/// Return true iff the bit at the given index is set.
+#[inline]
+pub fn test_bit<const N: usize>(bytes: &[u8; N], index: usize) -> bool {
+    let byte = index >> 3;
+    let shifted = bytes[byte] >> (index & 7);
+    shifted & 1 != 0
 }
 
 #[cfg(test)]
@@ -121,5 +129,14 @@ mod tests {
             }
             assert_eq!(value, sum);
         }
+    }
+
+    #[test]
+    fn test_test_bit() {
+        let bytes = [0b00000001, 0b00000010];
+        assert!(test_bit(&bytes, 0));
+        assert!(!test_bit(&bytes, 1));
+        assert!(!test_bit(&bytes, 8));
+        assert!(test_bit(&bytes, 9));
     }
 }
