@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::multiplier::integer_utils::{compute_base_2w_expansion, test_bit};
+use crate::groups::multiplier::integer_utils::compute_base_2w_expansion;
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
@@ -81,15 +81,11 @@ impl<
 
         // Scalars as bytes in little-endian representations.
         let base_scalar_bytes = base_scalar.to_byte_array();
-        let base_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
-            &base_scalar_bytes,
-            Self::WINDOW_WIDTH,
-        );
+        let base_scalar_2w_expansion =
+            compute_base_2w_expansion::<SCALAR_SIZE>(&base_scalar_bytes, Self::WINDOW_WIDTH);
         let other_scalar_bytes = other_scalar.to_byte_array();
-        let other_scalar_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
-            &other_scalar_bytes,
-            Self::WINDOW_WIDTH,
-        );
+        let other_scalar_2w_expansion =
+            compute_base_2w_expansion::<SCALAR_SIZE>(&other_scalar_bytes, Self::WINDOW_WIDTH);
 
         // Cache all small multiples of the other element.
         // TODO: Allow a different cache size for the other element.
@@ -186,8 +182,8 @@ mod tests {
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
 
-        let a = RistrettoScalar::from(1); //rand(&mut thread_rng());
-        let b = RistrettoScalar::from(1); //rand(&mut thread_rng());
+        let a = RistrettoScalar::rand(&mut thread_rng());
+        let b = RistrettoScalar::rand(&mut thread_rng());
         let expected = RistrettoPoint::generator() * a + other_point * b;
         let actual = multiplier.mul_double(&a, &other_point, &b);
         assert_eq!(expected, actual);

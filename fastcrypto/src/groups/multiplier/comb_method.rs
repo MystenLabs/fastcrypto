@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::multiplier::integer_utils::{compute_base_2w_expansion, div_ceil};
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
+use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
 
