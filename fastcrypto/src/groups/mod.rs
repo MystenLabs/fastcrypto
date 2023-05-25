@@ -41,6 +41,11 @@ pub trait GroupElement:
 
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
+
+    /// Compute 2 * Self. May be overwritten by implementations that has a fast doubling operation.
+    fn double(&self) -> Self {
+        *self + self
+    }
 }
 
 /// Trait impl'd by scalars to be used with [GroupElement].
@@ -66,9 +71,4 @@ pub trait HashToGroupElement {
 /// Trait for groups that support multi-scalar multiplication.
 pub trait MultiScalarMul: GroupElement {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
-}
-
-/// Trait for groups that have a fast doubling operation.
-pub trait Doubling {
-    fn double(&self) -> Self;
 }

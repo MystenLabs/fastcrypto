@@ -5,7 +5,7 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::error::FastCryptoResult;
-use crate::groups::{Doubling, GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -219,9 +219,3 @@ impl ToFromByteArray<RISTRETTO_SCALAR_BYTE_LENGTH> for RistrettoScalar {
 }
 
 serialize_deserialize_with_to_from_byte_array!(RistrettoScalar);
-
-impl Doubling for RistrettoPoint {
-    fn double(&self) -> Self {
-        self + self
-    }
-}

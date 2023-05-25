@@ -48,7 +48,7 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use crate::groups::multiplier::fixed_window::FixedWindowMultiplier;
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1;
-use crate::groups::secp256r1::ProjectivePoint;
+use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
     affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
@@ -76,6 +76,8 @@ pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
 
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
+
+pub const PRECOMPUTED_POINTS: usize = 16;
 
 /// Default hash function used for signing and verifying messages unless another hash function is
 /// specified using the `with_hash` functions.
@@ -142,10 +144,17 @@ impl VerifyingKey for Secp256r1PublicKey {
 }
 
 lazy_static! {
-    static ref MULTIPLIER: FixedWindowMultiplier<ProjectivePoint, crate::groups::secp256r1::Scalar, 16, 32> =
-        FixedWindowMultiplier::<ProjectivePoint, crate::groups::secp256r1::Scalar, 16, 32>::new(
-            secp256r1::ProjectivePoint::generator()
-        );
+    static ref MULTIPLIER: FixedWindowMultiplier<
+        ProjectivePoint,
+        crate::groups::secp256r1::Scalar,
+        PRECOMPUTED_POINTS,
+        SCALAR_SIZE_IN_BYTES,
+    > = FixedWindowMultiplier::<
+        ProjectivePoint,
+        crate::groups::secp256r1::Scalar,
+        PRECOMPUTED_POINTS,
+        SCALAR_SIZE_IN_BYTES,
+    >::new(secp256r1::ProjectivePoint::generator());
 }
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
