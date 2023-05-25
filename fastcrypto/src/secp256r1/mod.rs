@@ -45,7 +45,7 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
-use crate::groups::multiplier::fixed_window::FixedWindowMultiplier;
+use crate::groups::multiplier::windowed::WindowedScalarMultiplier;
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1;
 use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
@@ -78,7 +78,10 @@ pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
 
 /// The number of precomputed points used for scalar multiplication.
-pub const PRECOMPUTED_POINTS: usize = 32;
+pub const PRECOMPUTED_POINTS: usize = 256;
+
+/// The size of the sliding window used for scalar multiplication.
+pub const SLIDING_WINDOW_WIDTH: usize = 5;
 
 /// Default hash function used for signing and verifying messages unless another hash function is
 /// specified using the `with_hash` functions.
@@ -145,16 +148,18 @@ impl VerifyingKey for Secp256r1PublicKey {
 }
 
 lazy_static! {
-    static ref MULTIPLIER: FixedWindowMultiplier<
+    static ref MULTIPLIER: WindowedScalarMultiplier<
         ProjectivePoint,
         crate::groups::secp256r1::Scalar,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
-    > = FixedWindowMultiplier::<
+        SLIDING_WINDOW_WIDTH,
+    > = WindowedScalarMultiplier::<
         ProjectivePoint,
         crate::groups::secp256r1::Scalar,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
+        SLIDING_WINDOW_WIDTH,
     >::new(secp256r1::ProjectivePoint::generator());
 }
 

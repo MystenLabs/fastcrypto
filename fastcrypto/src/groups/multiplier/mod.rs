@@ -8,8 +8,8 @@ use crate::groups::GroupElement;
 
 #[cfg(feature = "experimental")]
 pub mod comb_method;
-pub mod fixed_window;
 mod integer_utils;
+pub mod windowed;
 
 /// Trait for scalar multiplication for a fixed group element, e.g. by using precomputed values.
 pub trait ScalarMultiplier<G: GroupElement> {
