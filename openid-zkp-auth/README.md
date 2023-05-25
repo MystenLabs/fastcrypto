@@ -30,7 +30,7 @@ test/
 testvectors.js # Real JWTs
 ```
 
-## Steps to generate the ZKP
+## Steps to generate a OpenID signature (using snarkJS prover)
 
 1. Create a folder named `artifacts` inside `openid-zkp-auth`.
 
@@ -57,7 +57,7 @@ npm install
 
 5. Export verification key: `snarkjs zkey export verificationkey zklogin.zkey zklogin.vkey`
 
-6. Create a folder named `proof` inside the `artifacts` directory. Generate a OpenID signature: ``npm run prove <provider> <jwt>``. The last two arguments are optional. `provider` can be either `google` (default) or `twitch`. Default JWTs for both are in `testvectors.js`.
+6. Create a folder named `proof` inside the `artifacts` directory. Generate a OpenID signature: ``npm run prove <provider> <jwt>``. The last two arguments are optional. `provider` can be either `google` (default) or `twitch`. Default JWTs for both are in `testvectors/realJWTs.js`.
 
 It generates three files: the zk proof (`zkp.proof`), auxiliary inputs to the verifier (`aux.json`) and public inputs to the ZKP (`public.json`) inside the `proof` folder.
 

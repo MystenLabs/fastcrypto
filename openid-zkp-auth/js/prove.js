@@ -6,8 +6,8 @@ const constants = require("./constants");
 const utils = require("./utils");
 const verifier = require('./verify');
 
-const GOOGLE = require("../testvectors").google;
-const TWITCH = require("../testvectors").twitch;
+const GOOGLE = require("../testvectors/realJWTs").google;
+const TWITCH = require("../testvectors/realJWTs").twitch;
 
 const claimsToReveal = constants.claimsToReveal;
 
@@ -38,7 +38,8 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='sub', jwk="", write_to_file=false) => {
+const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='sub', jwk="", 
+    write_to_file=false, only_gen_inputs=false) => {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
     if (jwk) {
         console.log("Verifying JWT with JWK...");
@@ -104,7 +105,6 @@ const zkOpenIDVerify = async (proof) => {
     verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
 }
 
-// Check if the script was called directly
 const yargs = require('yargs/yargs');
 const { hideBin } = require('yargs/helpers');
 

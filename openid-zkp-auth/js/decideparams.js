@@ -1,7 +1,7 @@
 const jwtutils = require("./jwtutils");
 
-const GOOGLE = require("../testvectors").google;
-const TWITCH = require("../testvectors").twitch;
+const GOOGLE = require("../testvectors/realJWTs").google;
+const TWITCH = require("../testvectors/realJWTs").twitch;
 const BUFFER1 = 0.15; // 15 percent
 const BUFFER2 = 0.15; // 15 percent
 

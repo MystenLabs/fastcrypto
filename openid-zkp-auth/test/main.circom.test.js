@@ -66,8 +66,8 @@ async function genProof(
 }
 
 describe("JWT Proof", function() {
-    const GOOGLE = require("../testvectors").google;
-    const TWITCH = require("../testvectors").twitch;
+    const GOOGLE = require("../testvectors/realJWTs").google;
+    const TWITCH = require("../testvectors/realJWTs").twitch;
 
     const test_vectors = {
         google: {

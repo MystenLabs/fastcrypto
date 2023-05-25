@@ -123,6 +123,7 @@ async function mapToField(str, maxSize, packWidth=constants.packWidth) {
 }
 
 function writeJSONToFile(inputs, file_name = "inputs.json") {
+    BigInt.prototype.toJSON = function() { return this.toString() }
     const fs = require('fs');
     fs.writeFileSync(file_name, JSON.stringify(inputs, null, 2));
 }

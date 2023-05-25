@@ -6,9 +6,9 @@ const utils = require("../js/utils");
 const jwtutils = require("../js/jwtutils");
 const verify = require("../js/verify");
 
-const GOOGLE1 = require("../testvectors").google.jwt;
-const GOOGLE2 = require("../testvectors").google_old.jwt;
-const FB = require("../testvectors").facebook.jwt;
+const GOOGLE1 = require("../testvectors/realJWTs").google.jwt;
+const GOOGLE2 = require("../testvectors/realJWTs").google_old.jwt;
+const FB = require("../testvectors/realJWTs").facebook.jwt;
 
 function getAllClaims(jwt) {
     const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();
