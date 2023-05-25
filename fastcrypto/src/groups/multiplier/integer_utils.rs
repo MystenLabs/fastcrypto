@@ -19,43 +19,12 @@ pub fn compute_base_2w_expansion<const N: usize>(
     // ceil(8*N / window_size), and we compute like this because div_ceil is unstable as of rustc 1.69.0.
     let digits_count = div_ceil(8 * N, bits_per_digit);
 
-    // The current byte and bit index
-    let mut current_byte = 0;
-    let mut current_bit = 0;
-
-    for _ in 0..digits_count {
-        let mut current_digit: usize = 0;
-        let mut bits_added_to_current_digit = 0;
-        while bits_added_to_current_digit < bits_per_digit && current_byte < N {
-            let remaining_bits_for_current_digit = bits_per_digit - bits_added_to_current_digit;
-            let (bits_to_read, next_byte, next_bit) =
-                if remaining_bits_for_current_digit < 8 - current_bit {
-                    // There are enough bits in the current byte to fill the current digit
-                    (
-                        remaining_bits_for_current_digit,
-                        current_byte,
-                        current_bit + remaining_bits_for_current_digit,
-                    )
-                } else {
-                    // There are not enough bits in the current byte to fill the current digit. Take the
-                    // remaining bits and increment the byte index
-                    (8 - current_bit, current_byte + 1, 0)
-                };
-
-            // Add the bits to the current digit
-            current_digit += (get_lendian_from_substring(
-                &bytes[current_byte],
-                current_bit,
-                current_bit + bits_to_read,
-            ) as usize)
-                << bits_added_to_current_digit;
-
-            // Increment the counters
-            bits_added_to_current_digit += bits_to_read;
-            current_bit = next_bit;
-            current_byte = next_byte;
-        }
-        digits.push(current_digit);
+    for i in 0..digits_count {
+        digits.push(get_bits_from_bytes(
+            bytes,
+            bits_per_digit * i,
+            bits_per_digit * (i + 1),
+        ));
     }
     digits
 }
