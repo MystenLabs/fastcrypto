@@ -5,11 +5,11 @@ const crypto = require("crypto");
 
 const {toBigIntBE} = require('bigint-buffer');
 
-const utils = require("../js/utils");
-const circuit = require("../js/circuitutils");
+const utils = require("../js/src/utils");
+const circuit = require("../js/src/circuitutils");
 
 const testutils = require("./testutils");
-const { inWidth } = require("../js/constants");
+const inWidth = require("../js/src/common").constants.inWidth;
 
 describe("Unsafe SHA256", () => {
     const nBlocks = 4;
@@ -37,12 +37,15 @@ describe("Unsafe SHA256", () => {
         const hash = crypto.createHash("sha256").update(input).digest("hex");
 
         var inputs = circuit.genSha256Inputs(input, nCount, nWidth);
-        inputs["in"] = inputs["in"].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
 
-        assert.equal(inputs["num_sha2_blocks"], expected_num_sha2_blocks);
-        console.log(`num_sha2_blocks = ${inputs["num_sha2_blocks"]}`);
+        var final_inputs = {};
+        final_inputs["in"] = inputs["content"];
+        final_inputs["num_sha2_blocks"] = inputs["num_sha2_blocks"];
 
-        const witness = await cir.calculateWitness(inputs, true);
+        assert.equal(final_inputs["num_sha2_blocks"], expected_num_sha2_blocks);
+        console.log(`num_sha2_blocks = ${final_inputs["num_sha2_blocks"]}`);
+
+        const witness = await cir.calculateWitness(final_inputs, true);
 
         const hash2 = testutils.getWitnessBuffer(witness, cir.symbols, "main.hash", outWidth).toString("hex");
         console.log(`hash = ${hash2}`);
@@ -70,11 +73,14 @@ describe("Unsafe SHA256", () => {
         const input = crypto.randomBytes(1 * bytesToBlock);
 
         var inputs = circuit.genSha256Inputs(input, nCount, nWidth);
-        inputs["in"] = inputs["in"].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
-        inputs["in"][inputs["in"].length - 1] = 1n; // Make the last byte non-zero
 
+        var final_inputs = {};
+        final_inputs["in"] = inputs["content"];
+        final_inputs["num_sha2_blocks"] = inputs["num_sha2_blocks"];
+
+        final_inputs["in"][final_inputs["in"].length - 1] = 1n; // Make the last byte non-zero
         try {
-            await cir.calculateWitness(inputs, true);
+            await cir.calculateWitness(final_inputs, true);
             assert.fail("Should have thrown an error");
         } catch (e) {
             assert.include(e.message, "Error in template Sha2_wrapper");
@@ -85,13 +91,14 @@ describe("Unsafe SHA256", () => {
         const input = crypto.randomBytes(1 * bytesToBlock);
 
         var inputs = circuit.genSha256Inputs(input, nCount, nWidth);
-        inputs["in"] = inputs["in"].map(bits => toBigIntBE(utils.bitArray2Buffer(bits)));
+        var final_inputs = {};
+        final_inputs["in"] = inputs["content"];
+        final_inputs["num_sha2_blocks"] = inputs["num_sha2_blocks"];
 
-        var num_sha2_blocks = inputs["num_sha2_blocks"];
-        inputs["in"][num_sha2_blocks * 512 / nWidth] = 1n; // Make the first byte post SHA2-padding non-zero
-
+        var num_sha2_blocks = final_inputs["num_sha2_blocks"];
+        final_inputs["in"][num_sha2_blocks * 512 / nWidth] = 1n; // Make the first byte post SHA2-padding non-zero
         try {
-            await cir.calculateWitness(inputs, true);
+            await cir.calculateWitness(final_inputs, true);
             assert.fail("Should have thrown an error");
         } catch (e) {
             assert.include(e.message, "Error in template Sha2_wrapper");

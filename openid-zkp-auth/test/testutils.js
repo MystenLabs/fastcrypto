@@ -3,7 +3,7 @@ const path = require("path");
 const fs = require("fs");
 
 const circom_wasm = require("circom_tester").wasm;
-const utils = require("../js/utils");
+const utils = require("../js/src/utils");
 
 function getWitnessValue(witness, symbols, varName) {
     return witness[symbols[varName]['varIdx']];

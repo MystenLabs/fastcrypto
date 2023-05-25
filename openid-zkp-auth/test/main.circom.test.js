@@ -3,12 +3,12 @@ const path = require("path");
 const assert = chai.assert;
 const expect = chai.expect;
 
-const jwtutils = require("../js/jwtutils");
-const circuitutils = require("../js/circuitutils");
-const constants = require('../js/constants');
+const jwtutils = require("../js/src/jwtutils");
+const circuitutils = require("../js/src/circuitutils");
+const constants = require('../js/src/common').constants;
 const devVars = constants.dev;
-const utils = require("../js/utils");
-const verify = require('../js/verify');
+const utils = require("../js/src/utils");
+const verify = require('../js/src/verify');
 
 const testutils = require("./testutils");
 
@@ -66,8 +66,8 @@ async function genProof(
 }
 
 describe("JWT Proof", function() {
-    const GOOGLE = require("../testvectors/realJWTs").google;
-    const TWITCH = require("../testvectors/realJWTs").twitch;
+    const GOOGLE = require("../js/testvectors/realJWTs").GOOGLE;
+    const TWITCH = require("../js/testvectors/realJWTs").TWITCH;
 
     const test_vectors = {
         google: {
@@ -166,7 +166,7 @@ describe("Tests with crafted JWTs", () => {
         circuit = await genCircuit(maxContentLen, maxExtClaimLen, maxKeyClaimNameLen);
     });
 
-    it("No change", async function() {
+    it.only("No change", async function() {
         const [_, aux] = await genProof(
             circuit,
             jwt,

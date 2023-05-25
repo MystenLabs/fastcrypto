@@ -1,16 +1,16 @@
-const jwt = require("jsonwebtoken");
-const jwkToPem = require("jwk-to-pem");
-
-const jwtutils = require("./jwtutils");
-const { toBigIntBE } = require("bigint-buffer");
+import * as jwt from "jsonwebtoken";
+import jwkToPem, { JWK } from "jwk-to-pem";
+import * as jwtutils from './jwtutils';
+import { toBigIntBE } from "bigint-buffer";
+import { AuxInputs } from "./common";
 
 // JWT Token, JWK Public Key
-const verifyJwt = (token, jwkPublicKey) => {
+const verifyJwt = (token: string, jwkPublicKey: JWK) => {
     try {
         // Convert the JWK to PEM format
         const publicKey = jwkToPem(jwkPublicKey);
 
-        const verifyOptions = {
+        const verifyOptions: jwt.VerifyOptions = {
             algorithms: ["RS256"],
             ignoreExpiration: true
         };
@@ -18,12 +18,12 @@ const verifyJwt = (token, jwkPublicKey) => {
         const decoded = jwt.verify(token, publicKey, verifyOptions);
         console.log("JWT is valid:", decoded);
     } catch (error) {
-        console.error("Invalid JWT:", error.message);
+        console.error("Invalid JWT:", (error as Error).message);
     }
 };
 
 // A partial implementation of the on-chain proof verification logic. Only checks the masked_content.
-const verifyOpenIDProof = (public_inputs, auxiliary_inputs, MAX_JWT_LENGTH) => {
+const verifyOpenIDProof = (public_inputs: any, auxiliary_inputs: AuxInputs, MAX_JWT_LENGTH: number) => {
     checkMaskedContent(
         auxiliary_inputs["masked_content"],
         auxiliary_inputs["num_sha2_blocks"],
@@ -34,25 +34,25 @@ const verifyOpenIDProof = (public_inputs, auxiliary_inputs, MAX_JWT_LENGTH) => {
 }
 
 function checkMaskedContent (
-    masked_content, 
-    num_sha2_blocks,
-    expected_payload_start_index,
-    expected_payload_len,
-    expected_length
-){
+    masked_content: number[], 
+    num_sha2_blocks: number,
+    expected_payload_start_index: number,
+    expected_payload_len: number,
+    expected_length: number
+) {
     if (masked_content.length != expected_length) throw new Error("Invalid length");
     if (num_sha2_blocks * 64 > masked_content.length) throw new Error("Invalid last block");
 
     // Process any extra padding
-    extra_padding = masked_content.slice(num_sha2_blocks * 64);
+    const extra_padding = masked_content.slice(num_sha2_blocks * 64);
     console.log("Length of extra padding:", extra_padding.length);
-    if (extra_padding != '') {
+    if (extra_padding.length !== 0) {
         if (extra_padding.some(e => e != 0)) throw new Error("Invalid extra padding");
         masked_content = masked_content.slice(0, num_sha2_blocks * 64);
     }
 
     // Process header
-    const header_length = masked_content.indexOf('.'.charCodeAt());
+    const header_length = masked_content.indexOf('.'.charCodeAt(0));
     if (header_length == -1 || header_length != expected_payload_start_index - 1) throw new Error("Invalid header length");
 
     const encodedHeader = masked_content.slice(0, header_length).map(e => String.fromCharCode(e)).join('');
@@ -62,12 +62,12 @@ function checkMaskedContent (
 
     // Process SHA-2 padding
     const payload_and_sha2pad = masked_content.slice(header_length + 1);
-    var header_and_payload_len_in_bits =  toBigIntBE(Buffer.from(payload_and_sha2pad.slice(-8)));
-    if (header_and_payload_len_in_bits > Number.MAX_SAFE_INTEGER) { // 2^53 - 1
+    const header_and_payload_len_in_bits_bigint =  toBigIntBE(Buffer.from(payload_and_sha2pad.slice(-8)));
+    if (header_and_payload_len_in_bits_bigint > Number.MAX_SAFE_INTEGER) { // 2^53 - 1
         throw new Error("Too large header_and_payload_len_in_bits");
     }
     // casting to a number should work for our use case as the numbers aren't big
-    header_and_payload_len_in_bits = Number(header_and_payload_len_in_bits);
+    const header_and_payload_len_in_bits = Number(header_and_payload_len_in_bits_bigint);
     if (header_and_payload_len_in_bits % 8 != 0) throw new Error("Invalid header_and_payload_len_in_bits");
     const header_and_payload_len = header_and_payload_len_in_bits / 8;
 
@@ -105,7 +105,7 @@ function checkMaskedContent (
 // Extracts the claims from the masked payload.
 // 1. Extract continguous sets of non-masked characters
 // 2. For each group of Base64 chars, find its starting index and prefix-pad with enough '0's before Base64 decoding.
-function extractClaims(maskedPayload) {
+function extractClaims(maskedPayload: string) {
     return maskedPayload.split(/=+/).filter(e => e !== '').map(
         e => {
             const pos = maskedPayload.indexOf(e);
@@ -114,9 +114,9 @@ function extractClaims(maskedPayload) {
     );
 }
 
-module.exports = {
-  verifyJwt, 
-  verifyOpenIDProof,
-  checkMaskedContent, 
-  extractClaims
+export {
+    verifyJwt, 
+    verifyOpenIDProof,
+    checkMaskedContent, 
+    extractClaims
 };

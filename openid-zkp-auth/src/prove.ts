@@ -1,13 +1,14 @@
-const fs = require("fs");
 const snarkjs = require("snarkjs");
 
-const circuit = require("./circuitutils");
-const constants = require("./constants");
-const utils = require("./utils");
-const verifier = require('./verify');
-
-const GOOGLE = require("../testvectors/realJWTs").google;
-const TWITCH = require("../testvectors/realJWTs").twitch;
+import fs from 'fs';
+import * as circuit from './circuitutils';
+import { constants, PartialZKLoginSig } from './common';
+import * as utils from './utils';
+import * as verifier from './verify';
+import { GOOGLE, TWITCH } from "../testvectors/realJWTs";
+import yargs from 'yargs';
+import { hideBin } from 'yargs/helpers';
+import { JWK } from 'jwk-to-pem';
 
 const claimsToReveal = constants.claimsToReveal;
 
@@ -15,7 +16,7 @@ const ARTIFACTS_DIR = "./artifacts";
 const PROJ_NAME = "zklogin";
 const PROOF_DIR = ARTIFACTS_DIR + "/proof";
 
-const groth16Prove = async (inputs, wasm_file, zkey_file) => {
+const groth16Prove = async (inputs: any, wasm_file: string, zkey_file: string) => {
     const { proof, publicSignals } = await snarkjs.groth16.fullProve(
         inputs, 
         wasm_file, 
@@ -25,8 +26,8 @@ const groth16Prove = async (inputs, wasm_file, zkey_file) => {
     return { proof, publicSignals };
 }
 
-const groth16Verify = async (proof, public_inputs, vkey_file) => {
-    const vkey = JSON.parse(fs.readFileSync(vkey_file));
+const groth16Verify = async (proof: any, public_inputs: any, vkey_file: string) => {
+    const vkey = JSON.parse(fs.readFileSync(vkey_file, 'utf-8'));
 
     const res = await snarkjs.groth16.verify(vkey, public_inputs, proof);
 
@@ -38,10 +39,18 @@ const groth16Verify = async (proof, public_inputs, vkey_file) => {
 }
 
 // Generate a ZKP for a JWT. If a JWK is provided, the JWT is verified first (sanity check).
-const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='sub', jwk="", 
-    write_to_file=false, only_gen_inputs=false) => {
+async function zkOpenIDProve(
+    jwt: string,
+    ephPK: bigint,
+    maxEpoch: number,
+    jwtRand: bigint,
+    userPIN: bigint, 
+    keyClaim='sub',
+    jwk?: JWK,
+    write_to_file=false
+): Promise<PartialZKLoginSig> {
     // Check if the JWT is a valid OpenID Connect ID Token if a JWK is provided
-    if (jwk) {
+    if (typeof jwk !== 'undefined') {
         console.log("Verifying JWT with JWK...");
         verifier.verifyJwt(jwt, jwk);
     }
@@ -60,9 +69,7 @@ const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='s
         input, maxContentLen, maxExtClaimLen, maxKeyClaimNameLen, maxKeyClaimValueLen, keyClaim,
         claimsToReveal, ephPK, maxEpoch, jwtRand, userPIN
     );
-    auxiliary_inputs = Object.assign({}, auxiliary_inputs, {
-        "jwt_signature": signature,
-    });
+    auxiliary_inputs.jwt_signature = signature;
 
     // Generate ZKP
     console.log("Generating ZKP...");
@@ -91,7 +98,7 @@ const zkOpenIDProve = async (jwt, ephPK, maxEpoch, jwtRand, userPIN, keyClaim='s
 
 // Not a full implementation: only implements some of the checks. 
 // For a full implementation, see the Authenticator code in Rust. 
-const zkOpenIDVerify = async (proof) => {
+const zkOpenIDVerify = async (proof: PartialZKLoginSig) => {
     const { zkproof, public_inputs, auxiliary_inputs: auxiliary_inputs } = proof; 
 
     // Verify ZKP
@@ -105,8 +112,16 @@ const zkOpenIDVerify = async (proof) => {
     verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
 }
 
-const yargs = require('yargs/yargs');
-const { hideBin } = require('yargs/helpers');
+type CliArgs = {
+    provider: string;
+    jwt: string;
+    eph_public_key: string;
+    max_epoch: string;
+    jwt_rand: string;
+    user_pin: string;
+    key_claim_name: string;
+    public_key_path: string;
+};
 
 if (require.main === module) {
     const argv = yargs(hideBin(process.argv))
@@ -158,13 +173,13 @@ if (require.main === module) {
             description: 'Public key path',
         })
         .help()
-        .argv;
+        .argv as unknown as CliArgs;
 
     argv.jwt = argv.jwt || (argv.provider === "google" ? GOOGLE["jwt"] : TWITCH["jwt"]);
-    let jwk;
 
+    let jwk: JWK | undefined;
     if (!argv.public_key_path) {
-        jwk = argv.provider === "google" ? GOOGLE["jwk"] : TWITCH["jwk"];
+        jwk = (argv.provider === "google") ? GOOGLE.jwk : TWITCH.jwk;
     } else {
         fs.readFile(argv.public_key_path, "utf8", (err, jwkJson) => {
             if (err) {
@@ -186,8 +201,8 @@ if (require.main === module) {
 
     (async () => {
         try {
-            const proof = await zkOpenIDProve(argv.jwt, argv.eph_public_key, argv.max_epoch,
-                argv.jwt_rand, argv.user_pin, argv.key_claim_name, jwk, true);
+            const proof = await zkOpenIDProve(argv.jwt, BigInt(argv.eph_public_key), Number(argv.max_epoch),
+                BigInt(argv.jwt_rand), BigInt(argv.user_pin), argv.key_claim_name, jwk, true);
             console.log("--------------------");
 
             // Verify the proof

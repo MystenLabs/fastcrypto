@@ -1,14 +1,14 @@
 const chai = require("chai");
 const assert = chai.assert;
 
-const circuit = require("../js/circuitutils");
-const utils = require("../js/utils");
-const jwtutils = require("../js/jwtutils");
-const verify = require("../js/verify");
+const circuit = require("../js/src/circuitutils");
+const utils = require("../js/src/utils");
+const jwtutils = require("../js/src/jwtutils");
+const verify = require("../js/src/verify");
 
-const GOOGLE1 = require("../testvectors/realJWTs").google.jwt;
-const GOOGLE2 = require("../testvectors/realJWTs").google_old.jwt;
-const FB = require("../testvectors/realJWTs").facebook.jwt;
+const GOOGLE1 = require("../js/testvectors/realJWTs").GOOGLE.jwt;
+const GOOGLE2 = require("../js/testvectors/realJWTs").GOOGLE_OLD.jwt;
+const FB = require("../js/testvectors/realJWTs").FACEBOOK.jwt;
 
 function getAllClaims(jwt) {
     const payload = Buffer.from(jwt.split('.')[1], 'base64url').toString();

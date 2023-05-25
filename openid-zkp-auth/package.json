@@ -6,7 +6,9 @@
     "test": "mocha --max-old-space-size=16000 -t 10000s",
     "prove": "node js/prove.js"
   },
-  "bin": { "zkpinputs" : "js/genZKPinputs.js" },
+  "bin": {
+    "zkpinputs": "js/genZKPinputs.js"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -20,11 +22,16 @@
     "yargs": "^17.7.2"
   },
   "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.2",
+    "@types/jwk-to-pem": "^2.0.1",
+    "@types/node": "^20.2.3",
+    "@types/yargs": "^17.0.24",
     "circom_tester": "^0.0.19",
     "circomlibjs": "^0.1.7",
     "jose": "^4.3.7",
     "mocha": "^10.2.0",
+    "node-fetch": "^2.6.1",
     "node-jose": "^2.0.0",
-    "node-fetch": "^2.6.1"
+    "typescript": "^5.0.4"
   }
 }

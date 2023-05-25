@@ -3,8 +3,8 @@ const path = require("path");
 const assert = chai.assert;
 const expect = chai.expect;
 
-const jwtutils = require("../js/jwtutils");
-const utils = require("../js/utils");
+const jwtutils = require("../js/src/jwtutils");
+const utils = require("../js/src/utils");
 
 const testutils = require("./testutils");
 

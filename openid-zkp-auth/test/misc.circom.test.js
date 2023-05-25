@@ -2,7 +2,7 @@ const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
 
-const utils = require("../js/utils");
+const utils = require("../js/src/utils");
 
 const testutils = require("./testutils");
 

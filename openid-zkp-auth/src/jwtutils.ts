@@ -1,4 +1,4 @@
-function getClaimValue(decoded_payload, claim) {
+function getClaimValue(decoded_payload: string, claim: string): any {
     const json_input = JSON.parse(decoded_payload);
     if (!json_input.hasOwnProperty(claim)) {
         throw new Error("Field " + claim + " not found in " + decoded_payload);
@@ -16,7 +16,7 @@ function getClaimValue(decoded_payload, claim) {
  * @param {*} claim e.g., sub
  * @returns e.g., "sub":"1234567890",
  */
-function getExtendedClaim(decoded_payload, claim) {
+function getExtendedClaim(decoded_payload: string, claim: string): string {
     const json_input = JSON.parse(decoded_payload);
     if (!json_input.hasOwnProperty(claim)) {
         throw new Error("Field " + claim + " not found in " + decoded_payload);
@@ -62,7 +62,7 @@ function getExtendedClaim(decoded_payload, claim) {
  * The returned indices are tight, i.e., both payload[start] and payload[start + length - 1] 
  *  contain at least some bits of the claim string.
  */
-function indicesOfB64(payload, field) {
+function indicesOfB64(payload: string, field: string): [number, number] {
     const decoded = Buffer.from(payload, 'base64url').toString();
     
     const kv_pair = getExtendedClaim(decoded, field);
@@ -81,7 +81,7 @@ function indicesOfB64(payload, field) {
 
 // If a character appears at an index i in a string S, 
 //  return the index at which it would appear in the base64 representation of S
-function b64Index(i) {
+function b64Index(i: number): number {
     var q = 4 * Math.floor(i / 3);
 
     if (i % 3 == 0) {
@@ -106,13 +106,13 @@ function b64Index(i) {
          */
         return q + 2;
     } else {
-        throw new Error("Something is wrong with the index", i);
+        throw new Error(`Something is wrong with the index ${i}`);
     }
 }
 
 // Given an ascii string of length n starting at index i, 
 //  return the length of its base64 representation
-function b64Len(n, i) {
+function b64Len(n: number, i: number): number {
     var q = 4 * Math.floor(n / 3);
     if (i % 3 == 0) {
         if (n % 3 == 0) {
@@ -184,11 +184,11 @@ function b64Len(n, i) {
             return q + 4;
         }
     } else {
-        throw new Error("Something is wrong with the index", i);
+        throw new Error(`Something is wrong with the index ${i}`);
     }
 }
 
-function base64UrlCharTo6Bits(base64UrlChar) {
+function base64UrlCharTo6Bits(base64UrlChar: string): number[] {
     if (base64UrlChar.length !== 1) {
         throw new Error('Invalid base64Url character: ' + base64UrlChar);
     }
@@ -212,8 +212,8 @@ function base64UrlCharTo6Bits(base64UrlChar) {
     return bits;
 }
 
-function base64UrlStringToBitVector(base64UrlString) {
-    let bitVector = [];
+function base64UrlStringToBitVector(base64UrlString: string) {
+    let bitVector: number[] = [];
     for (let i = 0; i < base64UrlString.length; i++) {
         const base64UrlChar = base64UrlString.charAt(i);
         const bits = base64UrlCharTo6Bits(base64UrlChar);
@@ -232,7 +232,7 @@ function base64UrlStringToBitVector(base64UrlString) {
  * Like before, we assume tight packing, i.e., both s[i] and s[i + s.length - 1] carry 
  *  non-zero bits of the encoded string.
  */
-function decodeBase64URL(s, i) {
+function decodeBase64URL(s: string, i: number): string {
     if (s.length < 2) {
         throw new Error(`Input (s = ${s}) is not tightly packed because s.length < 2`);
     }
@@ -276,11 +276,11 @@ function decodeBase64URL(s, i) {
     return Buffer.from(bytes).toString();
 }
 
-module.exports = {
-    getClaimValue: getClaimValue,
-    getExtendedClaim: getExtendedClaim,
-    indicesOfB64: indicesOfB64,
-    b64Len: b64Len,
-    decodeBase64URL: decodeBase64URL,
-    base64UrlCharTo6Bits: base64UrlCharTo6Bits
+export {
+    getClaimValue,
+    getExtendedClaim,
+    indicesOfB64,
+    b64Len,
+    decodeBase64URL,
+    base64UrlCharTo6Bits
 }

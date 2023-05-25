@@ -3,8 +3,8 @@ const path = require("path");
 const assert = chai.assert;
 const expect = chai.expect;
 
-const constants = require('../js/constants');
-const utils = require('../js/utils');
+const constants = require('../js/src/common').constants;
+const utils = require('../js/src/utils');
 const testutils = require("./testutils");
 
 describe("Key claim checks", () => {

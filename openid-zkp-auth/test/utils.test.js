@@ -5,9 +5,9 @@ const assert = chai.assert;
 const expect = chai.expect;
 const crypto = require("crypto");
 
-const circuit = require("../js/circuitutils");
-const utils = require("../js/utils");
-const jwtutils = require("../js/jwtutils");
+const circuit = require("../js/src/circuitutils");
+const utils = require("../js/src/utils");
+const jwtutils = require("../js/src/jwtutils");
 
 describe("Circuit Utilities", () => {
     it("Buffer to/from bit array works as expected", async () => {

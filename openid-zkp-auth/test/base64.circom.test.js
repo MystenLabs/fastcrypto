@@ -2,7 +2,7 @@ const path = require("path");
 const assert = require("chai").assert;
 
 const testutils = require("./testutils");
-const jwtutils = require("../js/jwtutils");
+const jwtutils = require("../js/src/jwtutils");
 
 describe("Base64 checks", () => {
     before(async() => {
