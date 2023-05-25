@@ -57,7 +57,6 @@ pub fn compute_base_2w_expansion<const N: usize>(
         }
         digits.push(current_digit);
     }
-
     digits
 }
 
@@ -70,6 +69,56 @@ fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
 /// Compute ceil(numerator / denominator).
 pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
     (numerator + denominator - 1) / denominator
+}
+
+/// Get the integer represented by a given range of bits of a an integer represented by a little-endian
+/// byte array from start to end (exclusive).
+#[inline]
+pub fn get_bits_from_bytes<const N: usize>(bytes: &[u8; N], start: usize, end: usize) -> usize {
+    let mut current_digit: usize = 0;
+    let mut bits_added_to_current_digit = 0;
+
+    let mut current_bit = start % 8;
+    let mut current_byte = start / 8;
+
+    while bits_added_to_current_digit < end - start && current_byte < N {
+        let remaining_bits_for_current_digit = end - start - bits_added_to_current_digit;
+        let (bits_to_read, next_byte, next_bit) =
+            if remaining_bits_for_current_digit < 8 - current_bit {
+                // There are enough bits in the current byte to fill the current digit
+                (
+                    remaining_bits_for_current_digit,
+                    current_byte,
+                    current_bit + remaining_bits_for_current_digit,
+                )
+            } else {
+                // There are not enough bits in the current byte to fill the current digit. Take the
+                // remaining bits and increment the byte index
+                (8 - current_bit, current_byte + 1, 0)
+            };
+
+        // Add the bits to the current digit
+        current_digit += (get_lendian_from_substring(
+            &bytes[current_byte],
+            current_bit,
+            current_bit + bits_to_read,
+        ) as usize)
+            << bits_added_to_current_digit;
+
+        // Increment the counters
+        bits_added_to_current_digit += bits_to_read;
+        current_bit = next_bit;
+        current_byte = next_byte;
+    }
+    current_digit
+}
+
+/// Return true iff the bit at the given index is set.
+#[inline]
+pub fn test_bit<const N: usize>(bytes: &[u8; N], index: usize) -> bool {
+    let byte = index >> 3;
+    let shifted = bytes[byte] >> (index & 7);
+    shifted & 1 != 0
 }
 
 #[cfg(test)]
@@ -122,5 +171,12 @@ mod tests {
             }
             assert_eq!(value, sum);
         }
+    }
+
+    #[test]
+    fn test_bits_form_bytes() {
+        let bytes = [0b00000001, 0b00000011, 0b10000001];
+        assert_eq!(1, get_bits_from_bytes(&bytes, 0, 1));
+        assert_eq!(3, get_bits_from_bytes(&bytes, 8, 10));
     }
 }

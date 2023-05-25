@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::multiplier::integer_utils::compute_base_2w_expansion;
+use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
@@ -77,38 +77,79 @@ impl<
         other_element: &G,
         other_scalar: &G::ScalarType,
     ) -> G {
-        // Compute the sum of the two multiples using Straus' algorithm.
+        // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
 
-        // Scalars as bytes in little-endian representations.
         let base_scalar_bytes = base_scalar.to_byte_array();
-        let base_scalar_2w_expansion =
-            compute_base_2w_expansion::<SCALAR_SIZE>(&base_scalar_bytes, Self::WINDOW_WIDTH);
         let other_scalar_bytes = other_scalar.to_byte_array();
-        let other_scalar_2w_expansion =
-            compute_base_2w_expansion::<SCALAR_SIZE>(&other_scalar_bytes, Self::WINDOW_WIDTH);
 
-        // Cache all small multiples of the other element.
-        // TODO: Allow a different cache size for the other element.
+        // TODO: Allow other cache sizes here
         let other_element_cache =
             successors(Some(G::zero()), |element| Some(*element + other_element))
                 .take(CACHE_SIZE)
                 .collect::<Vec<_>>();
 
-        let last_digit = base_scalar_2w_expansion.len() - 1;
-        let mut result: G = self.cache[base_scalar_2w_expansion[last_digit]];
-        if other_scalar_2w_expansion[last_digit] != 0 {
-            result += other_element_cache[other_scalar_2w_expansion[last_digit]];
-        }
+        let mut base_scalar_window_index = 0;
+        let mut base_scalar_is_in_window = false;
+        let mut base_scalar_latest_one_bit = 0;
 
-        for digit in (0..=(last_digit - 1)).rev() {
-            for _ in 1..=Self::WINDOW_WIDTH {
+        let mut other_scalar_window_index = 0;
+        let mut other_scalar_is_in_window = false;
+        let mut other_scalar_latest_one_bit = 0;
+
+        let mut result = G::zero();
+
+        let mut bit = SCALAR_SIZE * 8;
+        let mut skip_doubling = true;
+
+        while bit > 0 {
+            if !skip_doubling {
                 result = result.double();
             }
-            result += self.cache[base_scalar_2w_expansion[digit]];
-            if other_scalar_2w_expansion[digit] != 0 {
-                result += other_element_cache[other_scalar_2w_expansion[digit]];
+
+            bit -= 1;
+            if base_scalar_is_in_window {
+                base_scalar_window_index += 1;
+                if base_scalar_window_index == Self::WINDOW_WIDTH {
+                    result += self.cache[base_scalar_latest_one_bit];
+                    base_scalar_is_in_window = false;
+                }
+            } else if test_bit(&base_scalar_bytes, bit) {
+                if bit >= Self::WINDOW_WIDTH - 1 {
+                    base_scalar_window_index = 1;
+                    base_scalar_is_in_window = true;
+                    base_scalar_latest_one_bit = get_bits_from_bytes(
+                        &base_scalar_bytes,
+                        bit + 1 - Self::WINDOW_WIDTH,
+                        bit + 1,
+                    );
+                } else {
+                    result += self.cache[1];
+                }
+                skip_doubling = false;
+            }
+
+            if other_scalar_is_in_window {
+                other_scalar_window_index += 1;
+                if other_scalar_window_index == Self::WINDOW_WIDTH {
+                    other_scalar_is_in_window = false;
+                    result += other_element_cache[other_scalar_latest_one_bit];
+                }
+            } else if test_bit(&other_scalar_bytes, bit) {
+                if bit >= Self::WINDOW_WIDTH - 1 {
+                    other_scalar_window_index = 1;
+                    other_scalar_is_in_window = true;
+                    other_scalar_latest_one_bit = get_bits_from_bytes(
+                        &other_scalar_bytes,
+                        bit + 1 - Self::WINDOW_WIDTH,
+                        bit + 1,
+                    );
+                } else {
+                    result += *other_element;
+                }
+                skip_doubling = false;
             }
         }
+
         result
     }
 }
