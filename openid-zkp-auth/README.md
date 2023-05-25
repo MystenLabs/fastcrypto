@@ -27,7 +27,10 @@ test/
     testutils.js # Test utilities
     xyz.circom.test.js # testing circom code
     abc.test.js # testing js code
-testvectors.js # Real JWTs
+testvectors/
+    realJWTs.js # Real JWTs
+    sampleWalletInputs.json
+    sampleZKPInputs.json
 ```
 
 ## Steps to generate a OpenID signature (using snarkJS prover)
@@ -75,4 +78,17 @@ It generates three files: the zk proof (`zkp.proof`), auxiliary inputs to the ve
 
 # Steps to access the back-end
 
-`node tools/request.js testvectors/sampleWalletInputs.json zklogin`
+After installing the module, simply run the command: `node tools/request.js <walletInputs.json> zklogin`. The inputs JSON file has the following format:
+
+```
+struct {
+    jwt: String,
+    eph_public_key: String,
+    max_epoch: Number,
+    jwt_rand: String,
+    user_pin: String,
+    key_claim_name: String
+}
+```
+
+An example is in `testvectors/sampleWalletInputs.json`.
