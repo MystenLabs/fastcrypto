@@ -2,15 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 /// Given a binary representation of a number in little-endian format, return the digits of its base
-/// `2^bits_per_digit` expansion. We use usize as digits because we will eventually use these as indices
-/// in an array.
+/// `2^bits_per_digit` expansion.
 pub fn compute_base_2w_expansion<const N: usize>(
     bytes: &[u8; N],
     bits_per_digit: usize,
 ) -> Vec<usize> {
-    if bits_per_digit > usize::BITS as usize {
-        panic!("Window size must be less than or equal to the number of bits in a usize");
-    }
+    assert!(0 < bits_per_digit && bits_per_digit <= usize::BITS as usize);
 
     // The base 2^window_size expansions digits in little-endian representation.
     let mut digits = Vec::new();
@@ -32,6 +29,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
 #[inline]
 fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
+    assert!(start < end);
     byte >> start & ((1 << (end - start)) - 1) as u8
 }
 
@@ -41,53 +39,56 @@ pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
 }
 
 /// Get the integer represented by a given range of bits of a an integer represented by a little-endian
-/// byte array from start to end (exclusive).
+/// byte array from start to end (exclusive). The `end` argument may be arbitrarily large, but if it
+/// is larger than 8*N, the remaining bits of the byte array will be assumed to be zero.
 #[inline]
 pub fn get_bits_from_bytes<const N: usize>(bytes: &[u8; N], start: usize, end: usize) -> usize {
-    let mut current_digit: usize = 0;
-    let mut bits_added_to_current_digit = 0;
+    assert!(start < end && start < 8 * N);
+
+    let mut result: usize = 0;
+    let mut bits_added = 0;
 
     let mut current_bit = start % 8;
     let mut current_byte = start / 8;
 
-    while bits_added_to_current_digit < end - start && current_byte < N {
-        let remaining_bits_for_current_digit = end - start - bits_added_to_current_digit;
-        let (bits_to_read, next_byte, next_bit) =
-            if remaining_bits_for_current_digit < 8 - current_bit {
-                // There are enough bits in the current byte to fill the current digit
-                (
-                    remaining_bits_for_current_digit,
-                    current_byte,
-                    current_bit + remaining_bits_for_current_digit,
-                )
-            } else {
-                // There are not enough bits in the current byte to fill the current digit. Take the
-                // remaining bits and increment the byte index
-                (8 - current_bit, current_byte + 1, 0)
-            };
+    while bits_added < end - start && current_byte < N {
+        let remaining_bits = end - start - bits_added;
+        let (bits_to_read, next_byte, next_bit) = if remaining_bits < 8 - current_bit {
+            // There are enough bits left in the current byte
+            (remaining_bits, current_byte, current_bit + remaining_bits)
+        } else {
+            // There are not enough bits in the current byte. Take the remaining bits and increment the byte index
+            (8 - current_bit, current_byte + 1, 0)
+        };
 
-        // Add the bits to the current digit
-        current_digit += (get_lendian_from_substring(
+        // Add the bits to the result
+        result += (get_lendian_from_substring(
             &bytes[current_byte],
             current_bit,
             current_bit + bits_to_read,
         ) as usize)
-            << bits_added_to_current_digit;
+            << bits_added;
 
         // Increment the counters
-        bits_added_to_current_digit += bits_to_read;
+        bits_added += bits_to_read;
         current_bit = next_bit;
         current_byte = next_byte;
     }
-    current_digit
+    result
 }
 
 /// Return true iff the bit at the given index is set.
 #[inline]
 pub fn test_bit<const N: usize>(bytes: &[u8; N], index: usize) -> bool {
+    assert!(index < 8 * N);
     let byte = index >> 3;
     let shifted = bytes[byte] >> (index & 7);
     shifted & 1 != 0
+}
+
+/// Compute the floor of the base-2 logarithm of <i>x</i>.
+pub const fn log2(x: usize) -> usize {
+    (usize::BITS - x.leading_zeros() - 1) as usize
 }
 
 #[cfg(test)]
@@ -96,7 +97,7 @@ mod tests {
     use std::assert_eq;
 
     #[test]
-    fn test_get_bits() {
+    fn test_lendian_from_substring() {
         let byte = 0b00000001;
         assert_eq!(0, get_lendian_from_substring(&byte, 0, 0));
         assert_eq!(1, get_lendian_from_substring(&byte, 0, 1));
@@ -147,5 +148,8 @@ mod tests {
         let bytes = [0b00000001, 0b00000011, 0b10000001];
         assert_eq!(1, get_bits_from_bytes(&bytes, 0, 1));
         assert_eq!(3, get_bits_from_bytes(&bytes, 8, 10));
+        assert_eq!(1, get_bits_from_bytes(&bytes, 16, 17));
+        assert_eq!(0, get_bits_from_bytes(&bytes, 17, 23));
+        assert_eq!(1, get_bits_from_bytes(&bytes, 23, 100));
     }
 }

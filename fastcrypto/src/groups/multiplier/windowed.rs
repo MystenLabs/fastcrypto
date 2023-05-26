@@ -42,11 +42,7 @@ impl<
     > WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
-    const WINDOW_WIDTH: usize = log2(CACHE_SIZE);
-}
-
-const fn log2(x: usize) -> usize {
-    (usize::BITS - x.leading_zeros() - 1) as usize
+    const WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
 }
 
 impl<
@@ -146,7 +142,7 @@ pub fn multi_scalar_mul<
     for i in 0..N {
         if precomputed_multiples.contains_key(&i) {
             all_precomputed_multiples.push(precomputed_multiples.get(&i).unwrap());
-            window_sizes[i] = log2(all_precomputed_multiples[i].len()) + 1;
+            window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
         } else {
             all_precomputed_multiples.push(&missing_precomputations[&i]);
             window_sizes[i] = default_window_width;
@@ -218,6 +214,7 @@ pub fn multi_scalar_mul<
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
 fn compute_multiples<G: GroupElement>(base_element: &G, window_size: usize) -> Vec<G> {
+    assert!(window_size > 0, "Window size must be strictly positive.");
     let mut smallest_multiple = base_element.double();
     for _ in 2..window_size {
         smallest_multiple = smallest_multiple.double();
