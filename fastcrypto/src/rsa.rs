@@ -5,6 +5,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{HashFunction, Sha256};
+pub use base64ct::{Base64UrlUnpadded, Encoding};
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::pkcs1v15::Signature as ExternalSignature;
 use rsa::{BigUint, RsaPublicKey as ExternalPublicKey};
@@ -65,8 +66,8 @@ impl RSASignature {
 #[cfg(test)]
 mod test {
     use crate::hash::{HashFunction, Sha256};
+    use crate::rsa::{Base64UrlUnpadded, Encoding};
     use crate::rsa::{RSAPublicKey, RSASignature};
-    use base64ct::{Base64UrlUnpadded, Encoding};
 
     #[test]
     fn jwt_test() {

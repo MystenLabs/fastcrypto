@@ -56,11 +56,21 @@ cd ../ && circom circuits/zklogin.circom --r1cs --wasm --output artifacts
 npm install
 ```
 
-4. Run circuit-specific trusted setup: `cd artifacts && snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_20.ptau zklogin.zkey`
+4. Run circuit-specific trusted setup:
+```
+cd artifacts && snarkjs groth16 setup zklogin.r1cs powersOfTau28_hez_final_20.ptau zklogin.zkey
+```
 
-5. Export verification key: `snarkjs zkey export verificationkey zklogin.zkey zklogin.vkey`
+5. Export verification key:
+```
+snarkjs zkey export verificationkey zklogin.zkey zklogin.vkey
+```
 
 6. Create a folder named `proof` inside the `artifacts` directory. Generate a OpenID signature: ``npm run prove <provider> <jwt>``. The last two arguments are optional. `provider` can be either `google` (default) or `twitch`. Default JWTs for both are in `testvectors/realJWTs.js`.
+
+```
+mkdir proof && npm run prove google $JWT_TOKEN
+```
 
 It generates three files: the zk proof (`zkp.proof`), auxiliary inputs to the verifier (`aux.json`) and public inputs to the ZKP (`public.json`) inside the `proof` folder.
 

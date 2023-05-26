@@ -1,12 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::verifier::{process_vk_special, verify_with_processed_vk, PreparedVerifyingKey};
+use crate::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
+use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
-use ark_groth16::Proof as ArkProof;
-use ark_serialize::CanonicalDeserialize;
+use ark_crypto_primitives::snark::SNARK;
+pub use ark_ff::ToConstraintField;
+use ark_groth16::{Groth16, Proof, VerifyingKey};
+pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
-
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
 mod api_tests;
@@ -17,9 +19,9 @@ pub const SCALAR_SIZE: usize = 32;
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`crate::bn254::verifier::PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
-    let vk = ark_groth16::VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
+    let vk = VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
-    process_vk_special(&vk.into()).as_serialized()
+    process_vk_special(&Bn254VerifyingKey(vk)).as_serialized()
 }
 
 /// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
@@ -33,17 +35,8 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
-    // Deserialize public inputs
     if proof_public_inputs_as_bytes.len() % SCALAR_SIZE != 0 {
         return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
-    }
-    let mut x = Vec::new();
-    for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(
-            Bn254Fr::deserialize_compressed(chunk)
-                .map_err(|_| FastCryptoError::InvalidInput)?
-                .into(),
-        );
     }
 
     let pvk = PreparedVerifyingKey::deserialize(
@@ -53,9 +46,24 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     )?;
 
-    let proof = ArkProof::deserialize_compressed(proof_points_as_bytes)
-        .map_err(|_| FastCryptoError::InvalidInput)?
-        .into();
+    verify_groth16(&pvk, proof_public_inputs_as_bytes, proof_points_as_bytes)
+}
 
-    verify_with_processed_vk(&pvk, &x, &proof)
+/// Verify proof with a given verifying key in [struct PreparedVerifyingKey], serialized public inputs
+/// and serialized proof points.
+pub fn verify_groth16(
+    pvk: &PreparedVerifyingKey,
+    proof_public_inputs_as_bytes: &[u8],
+    proof_points_as_bytes: &[u8],
+) -> Result<bool, FastCryptoError> {
+    let proof = Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let mut public_inputs = Vec::new();
+    for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
+        public_inputs.push(
+            Bn254Fr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?,
+        );
+    }
+    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &public_inputs, &proof)
+        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

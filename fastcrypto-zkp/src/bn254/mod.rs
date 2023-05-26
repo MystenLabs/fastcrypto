@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-#![warn(missing_docs, unreachable_pub)]
 #![deny(unused_must_use, missing_debug_implementations)]
+#![deny(unused_must_use)]
 
 //! Groth16 verifier over the BN254 elliptic curve construction.
 
@@ -12,6 +12,12 @@ pub mod api;
 
 /// Groth16 SNARK verifier
 pub mod verifier;
+
+/// Poseidon hash function over BN254
+pub mod poseidon;
+
+/// Zk login structs and utilities
+pub mod zk_login;
 
 /// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
 #[derive(Debug, From)]

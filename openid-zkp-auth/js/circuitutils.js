@@ -203,6 +203,7 @@ async function genJwtProofUAInputs(
     );
     console.log(`Seed ${address_seed} derived from ID ${key_claim_value} and PIN ${userPIN}`);
     const key_claim_name_F = await utils.mapToField(keyClaimName, maxKeyClaimNameLen);
+    console.log(`key_claim_name_F ${key_claim_name_F}`);
 
     inputs.all_inputs_hash = poseidonHash([
         jwt_sha2_hash[0],
