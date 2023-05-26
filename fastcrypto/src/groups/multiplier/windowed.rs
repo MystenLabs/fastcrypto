@@ -1,22 +1,27 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+use std::iter::successors;
+
+use crate::error::FastCryptoResult;
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
-use std::iter::successors;
 
-/// This multiplier uses pre-computation with the windowed method. This multiplier is particularly
+/// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
 /// fast for double multiplications, where a sliding window method is used, but this implies that the
-/// `double_mul`, is NOT constant time. However, the single multiplication method, `mul`, is constant time.
+/// `double_mul`, is NOT constant time. However, the single multiplication method `mul` is constant
+/// time if the group operations for `G` are constant time.
 ///
 /// The `CACHE_SIZE` should be a power of two. The `SCALAR_SIZE` is the number of bytes in the byte
-/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns the
-/// scalar in little-endian format.
+/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
+/// the scalar in little-endian format.
 ///
-/// The SLIDING_WINDOW_WIDTH is the number of bits in the sliding window. This should be approximately
-/// log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for optimal performance.
+/// The SLIDING_WINDOW_WIDTH is the number of bits in the sliding window of the elements not already
+/// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
+/// optimal performance.
 pub struct WindowedScalarMultiplier<
     G: GroupElement<ScalarType = S>,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
@@ -37,7 +42,11 @@ impl<
     > WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
-    const WINDOW_WIDTH: usize = (usize::BITS - CACHE_SIZE.leading_zeros() - 1) as usize;
+    const WINDOW_WIDTH: usize = log2(CACHE_SIZE);
+}
+
+const fn log2(x: usize) -> usize {
+    (usize::BITS - x.leading_zeros() - 1) as usize
 }
 
 impl<
@@ -86,99 +95,147 @@ impl<
     ) -> G {
         // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
 
-        // Scalar as bytes in little-endian representation.
-        let base_scalar_bytes = base_scalar.to_byte_array();
-        let other_scalar_bytes = other_scalar.to_byte_array();
+        let mut map = HashMap::new();
+        map.insert(0, self.cache[CACHE_SIZE / 2..CACHE_SIZE].to_vec());
 
-        // Compute multiples of the other element. We only need precomputed values for the upper half since a window always begins with a one bit.
-        let mut smallest_other_element_multiple = other_element.double();
-        for _ in 2..SLIDING_WINDOW_WIDTH {
-            smallest_other_element_multiple = smallest_other_element_multiple.double();
-        }
-        let other_element_cache = successors(Some(smallest_other_element_multiple), |element| {
-            Some(*element + other_element)
-        })
-        .take(1 << (SLIDING_WINDOW_WIDTH - 1))
-        .collect::<Vec<_>>();
-
-        let mut base_scalar_window_index = 0;
-        let mut base_scalar_is_in_window = false;
-        let mut base_scalar_latest_one_bit = 0;
-
-        let mut other_scalar_window_index = 0;
-        let mut other_scalar_is_in_window = false;
-        let mut other_scalar_latest_one_bit = 0;
-
-        let mut result = G::zero();
-
-        let mut current_bit = SCALAR_SIZE * 8;
-
-        // We may skip the first doubling and also until we get to the first one bit in either of the scalars.
-        let mut skip_doubling = true;
-
-        while current_bit > 0 {
-            if !skip_doubling {
-                result = result.double();
-            }
-
-            // TODO: Put in loop
-            current_bit -= 1;
-            if base_scalar_is_in_window {
-                base_scalar_window_index += 1;
-                if base_scalar_window_index == Self::WINDOW_WIDTH {
-                    result += self.cache[base_scalar_latest_one_bit];
-                    skip_doubling = false;
-                    base_scalar_is_in_window = false;
-                }
-            } else if test_bit(&base_scalar_bytes, current_bit) {
-                if current_bit >= Self::WINDOW_WIDTH - 1 {
-                    base_scalar_window_index = 1;
-                    base_scalar_is_in_window = true;
-                    base_scalar_latest_one_bit = get_bits_from_bytes(
-                        &base_scalar_bytes,
-                        current_bit + 1 - Self::WINDOW_WIDTH,
-                        current_bit + 1,
-                    );
-                } else {
-                    result += self.cache[1];
-                    skip_doubling = false;
-                }
-            }
-
-            if other_scalar_is_in_window {
-                other_scalar_window_index += 1;
-                if other_scalar_window_index == SLIDING_WINDOW_WIDTH {
-                    other_scalar_is_in_window = false;
-                    skip_doubling = false;
-                    result += other_element_cache[other_scalar_latest_one_bit];
-                }
-            } else if test_bit(&other_scalar_bytes, current_bit) {
-                if current_bit >= SLIDING_WINDOW_WIDTH - 1 {
-                    other_scalar_window_index = 1;
-                    other_scalar_is_in_window = true;
-                    other_scalar_latest_one_bit = get_bits_from_bytes(
-                        &other_scalar_bytes,
-                        current_bit + 1 - SLIDING_WINDOW_WIDTH,
-                        current_bit, // We only store the upper half of the multiples since a window always begins with a one bit, so we ignore the last bit.
-                    );
-                } else {
-                    result += *other_element;
-                    skip_doubling = false;
-                }
-            }
-        }
-
-        result
+        multi_scalar_mul(
+            &[*base_scalar, *other_scalar],
+            &[self.cache[1], *other_element],
+            &map,
+            SLIDING_WINDOW_WIDTH,
+        )
+        .unwrap()
     }
+}
+
+/// This method computes the linear combination of the given scalars and group elements using the
+/// sliding window method. Some group elements may have tables of precomputed elements which can
+/// be given in the `precomputed` hash map. For the elements which does not have a precomputed table
+/// a table of size <i>2<sup>default_window_width</sup> - 1</i> is computed.
+///
+/// The precomputed tables for an element <i>g</i> should contain the multiples <i>2<sup>w-1</sup> g
+/// , ..., (2<sup>w</sup> - 1) g</i> for some integer <i>w > 1</i> which is the window width for the
+/// given element.
+///
+/// The `default_window_width` is the window width for the elements that does not have a precomputation
+/// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
+/// the bit length of the square root of the scalar size for optimal performance.
+pub fn multi_scalar_mul<
+    G: GroupElement<ScalarType = S>,
+    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+    const SCALAR_SIZE: usize,
+    const N: usize,
+>(
+    scalars: &[G::ScalarType; N],
+    elements: &[G; N],
+    precomputed_multiples: &HashMap<usize, Vec<G>>,
+    default_window_width: usize,
+) -> FastCryptoResult<G> {
+    let mut window_sizes = [0usize; N];
+
+    // Compute missing precomputation tables.
+    let mut missing_precomputations = HashMap::new();
+    for (i, element) in elements.iter().enumerate() {
+        if !precomputed_multiples.contains_key(&i) {
+            missing_precomputations.insert(i, compute_multiples(element, default_window_width));
+        }
+    }
+
+    // Create vector with all precomputation tables.
+    let mut all_precomputed_multiples = vec![];
+    for i in 0..N {
+        if precomputed_multiples.contains_key(&i) {
+            all_precomputed_multiples.push(precomputed_multiples.get(&i).unwrap());
+            window_sizes[i] = log2(all_precomputed_multiples[i].len()) + 1;
+        } else {
+            all_precomputed_multiples.push(&missing_precomputations[&i]);
+            window_sizes[i] = default_window_width;
+        }
+    }
+
+    // Compute little-endian byte representations of scalars.
+    let scalar_bytes = scalars
+        .iter()
+        .map(|s| s.to_byte_array())
+        .collect::<Vec<[u8; SCALAR_SIZE]>>();
+
+    // We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
+    // beginning of a window, and we continue the iteration. When the iterations exists the window,
+    // we add the corresponding precomputed value and keeps iterating until the next one bit is found
+    // which marks the beginning of the next window.
+    let mut is_in_window = [false; N];
+    let mut index_in_window = [0usize; N]; // Counter for the current window
+    let mut precomputed_multiple_from_window = [0usize; N];
+
+    // We may skip doubling until result is non-zero.
+    let mut is_zero = true;
+    let mut result = G::zero();
+
+    // Iterate through all bits of the scalars from the top.
+    for bit in (0..SCALAR_SIZE * 8).rev() {
+        if !is_zero {
+            result = result.double();
+        }
+        for i in 0..N {
+            if is_in_window[i] {
+                // A window has been set for this scalar. Keep iterating until the window is finished.
+                index_in_window[i] += 1;
+                if index_in_window[i] == window_sizes[i] {
+                    // This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
+                    result = if is_zero {
+                        is_zero = false;
+                        all_precomputed_multiples[i][precomputed_multiple_from_window[i]]
+                    } else {
+                        result + all_precomputed_multiples[i][precomputed_multiple_from_window[i]]
+                    };
+                    is_in_window[i] = false;
+                }
+            } else if test_bit(&scalar_bytes[i], bit) {
+                // The iteration has reached a set bit for the i'th scalar.
+                if bit >= window_sizes[i] - 1 {
+                    // There is enough room for a window. Set indicator and reset window index.
+                    is_in_window[i] = true;
+                    index_in_window[i] = 1;
+                    precomputed_multiple_from_window[i] = get_bits_from_bytes(
+                        &scalar_bytes[i],
+                        bit + 1 - window_sizes[i],
+                        bit, // The last bit is always one, so we ignore it and only precompute the upper half of the first 2^window_sizes multiples.
+                    );
+                } else {
+                    // There is not enough room left for a window. Continue with regular double-and-add.
+                    result = if is_zero {
+                        is_zero = false;
+                        elements[i]
+                    } else {
+                        result + elements[i]
+                    };
+                }
+            }
+        }
+    }
+    Ok(result)
+}
+
+/// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
+fn compute_multiples<G: GroupElement>(base_element: &G, window_size: usize) -> Vec<G> {
+    let mut smallest_multiple = base_element.double();
+    for _ in 2..window_size {
+        smallest_multiple = smallest_multiple.double();
+    }
+    successors(Some(smallest_multiple), |g| Some(*g + base_element))
+        .take(1 << (window_size - 1))
+        .collect::<Vec<_>>()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use rand::thread_rng;
+
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::Scalar as ScalarTrait;
-    use rand::thread_rng;
+
+    use super::*;
 
     #[test]
     fn test_scalar_multiplication_ristretto() {
