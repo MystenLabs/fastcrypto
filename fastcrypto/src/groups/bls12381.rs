@@ -15,14 +15,14 @@ use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_by
 use blst::{
     blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
     blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
-    blst_fr_from_scalar, blst_fr_inverse, blst_fr_mul, blst_fr_rshift, blst_fr_sub,
-    blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop, blst_p1,
-    blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress, blst_p1_deserialize,
-    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p2,
-    blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize,
-    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_scalar,
-    blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, blst_scalar_from_lendian,
-    p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
+    blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
+    blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
+    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine,
+    blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
+    blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine,
+    blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
+    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -50,7 +50,6 @@ pub struct GTElement(blst_fp12);
 #[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct Scalar(blst_fr);
 
-/// Length of [Scalar]s in bytes.
 pub const SCALAR_LENGTH: usize = 32;
 pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
@@ -607,15 +606,9 @@ impl Mul<Scalar> for Scalar {
 
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
-        let low_bytes: [u8; 8] = u64::to_le_bytes(value);
-        let mut bytes = [0u8; SCALAR_LENGTH];
-        bytes[0..8].copy_from_slice(&low_bytes);
-
         let mut ret = blst_fr::default();
         unsafe {
-            let mut scalar = blst_scalar::default();
-            blst_scalar_from_lendian(&mut scalar, bytes.as_ptr());
-            blst_fr_from_scalar(&mut ret, &scalar);
+            blst_fr_from_uint64(&mut ret, &value);
         }
         Self::from(ret)
     }

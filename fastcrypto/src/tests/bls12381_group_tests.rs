@@ -18,6 +18,34 @@ const MSG: &[u8] = b"test message";
 // TODO: add test vectors.
 
 #[test]
+fn test_scalar_arithmetic() {
+    let zero = Scalar::zero();
+    let one = Scalar::generator();
+
+    let four = one + zero + one + one + one;
+    assert_eq!(four, Scalar::from(4));
+
+    let three = four - one;
+    assert_eq!(three, one + one + one);
+
+    let six = three * Scalar::from(2);
+    assert_eq!(six, Scalar::from(6));
+
+    let two = (six / three).unwrap();
+    assert_eq!(two, Scalar::from(2));
+
+    assert!((six / zero).is_err());
+
+    let inv_two = two.inverse().unwrap();
+    assert_eq!(inv_two * two, one);
+
+    // Scalar::from_byte_array should not accept the order.
+    let order =
+        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
+    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
+}
+
+#[test]
 fn test_g1_arithmetic() {
     // Test that different ways of computing [5]G gives the expected result
     let g = G1Element::generator();
@@ -45,11 +73,6 @@ fn test_g1_arithmetic() {
     assert_eq!(G1Element::zero(), g - g);
 
     assert!((G1Element::generator() / Scalar::zero()).is_err());
-
-    // Scalar::from_byte_array should not accept the order.
-    let order =
-        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
-    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
 }
 
 #[test]
@@ -148,6 +171,7 @@ fn test_gt_arithmetic() {
 
     assert_ne!(GTElement::zero(), g);
     assert_eq!(GTElement::zero(), g - g);
+    assert_eq!(GTElement::zero(), GTElement::zero() - GTElement::zero());
 
     assert!((GTElement::generator() / Scalar::zero()).is_err());
 }
@@ -198,16 +222,20 @@ fn test_consistent_bls12381_serialization() {
     // Generate with BLS signature APIs.
     let pair = BLS12381KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let (pk1, sk1) = (pair.public().clone(), pair.private());
-    let sig1 = sk1.sign(MSG); // encoded in G1.
+    let sig1 = sk1.sign(MSG); // encoded in G2.
 
     // Convert using serialized byte arrays.
+    let sk2: Scalar = bincode::deserialize(sk1.as_ref()).unwrap();
     let pk2: G1Element = bincode::deserialize(pk1.as_ref()).unwrap();
-    let sig2: G2Element = bincode::deserialize(sig1.as_ref()).unwrap();
+    // Sign using group ops.
+    let sig2 = G2Element::hash_to_group_element(MSG) * sk2;
     // Check signature with pk2, sig2.
     assert_eq!(
         pk2.pairing(&G2Element::hash_to_group_element(MSG)),
         G1Element::generator().pairing(&sig2)
     );
+    let sig2_from_bytes: G2Element = bincode::deserialize(sig1.as_ref()).unwrap();
+    assert_eq!(sig2, sig2_from_bytes);
 
     // Convert back and check the resulting signature.
     let sig2_as_bytes = bincode::serialize(&sig2).unwrap();
