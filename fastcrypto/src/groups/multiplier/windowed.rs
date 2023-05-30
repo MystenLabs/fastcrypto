@@ -4,7 +4,6 @@
 use std::collections::HashMap;
 use std::iter::successors;
 
-use crate::error::FastCryptoResult;
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
@@ -100,7 +99,6 @@ impl<
             &map,
             SLIDING_WINDOW_WIDTH,
         )
-        .unwrap()
     }
 }
 
@@ -126,7 +124,7 @@ pub fn multi_scalar_mul<
     elements: &[G; N],
     precomputed_multiples: &HashMap<usize, Vec<G>>,
     default_window_width: usize,
-) -> FastCryptoResult<G> {
+) -> G {
     let mut window_sizes = [0usize; N];
 
     // Compute missing precomputation tables.
@@ -140,12 +138,15 @@ pub fn multi_scalar_mul<
     // Create vector with all precomputation tables.
     let mut all_precomputed_multiples = vec![];
     for i in 0..N {
-        if precomputed_multiples.contains_key(&i) {
-            all_precomputed_multiples.push(precomputed_multiples.get(&i).unwrap());
-            window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
-        } else {
-            all_precomputed_multiples.push(&missing_precomputations[&i]);
-            window_sizes[i] = default_window_width;
+        match precomputed_multiples.get(&i).take() {
+            Some(precomputed_multiples) => {
+                all_precomputed_multiples.push(precomputed_multiples);
+                window_sizes[i] = integer_utils::log2(all_precomputed_multiples[i].len()) + 1;
+            }
+            None => {
+                all_precomputed_multiples.push(&missing_precomputations[&i]);
+                window_sizes[i] = default_window_width;
+            }
         }
     }
 
@@ -209,7 +210,7 @@ pub fn multi_scalar_mul<
             }
         }
     }
-    Ok(result)
+    result
 }
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.

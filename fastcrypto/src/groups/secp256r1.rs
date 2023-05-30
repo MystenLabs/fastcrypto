@@ -115,7 +115,9 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
         let mut bytes = [0u8; SCALAR_SIZE_IN_BYTES];
-        self.0.serialize_uncompressed(&mut bytes[..]).unwrap();
+        self.0
+            .serialize_uncompressed(&mut bytes[..])
+            .expect("Byte array not large enough");
         bytes
     }
 }
