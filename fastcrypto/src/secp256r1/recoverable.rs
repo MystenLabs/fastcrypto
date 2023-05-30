@@ -230,7 +230,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let u2 = r_inv * s;
 
         let pk = MULTIPLIER
-            .mul_double(
+            .two_scalar_mul(
                 &secp256r1::Scalar(u1),
                 &ProjectivePoint(Projective::from(big_r)),
                 &secp256r1::Scalar(u2),

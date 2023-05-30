@@ -29,7 +29,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
 #[inline]
 fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
-    assert!(start < end);
+    assert!(start <= end);
     byte >> start & ((1 << (end - start)) - 1) as u8
 }
 
@@ -43,7 +43,7 @@ pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
 /// is larger than 8*N, the remaining bits of the byte array will be assumed to be zero.
 #[inline]
 pub fn get_bits_from_bytes<const N: usize>(bytes: &[u8; N], start: usize, end: usize) -> usize {
-    assert!(start < end && start < 8 * N);
+    assert!(start <= end && start < 8 * N);
 
     let mut result: usize = 0;
     let mut bits_added = 0;
@@ -146,6 +146,7 @@ mod tests {
     #[test]
     fn test_bits_form_bytes() {
         let bytes = [0b00000001, 0b00000011, 0b10000001];
+        assert_eq!(0, get_bits_from_bytes(&bytes, 0, 0));
         assert_eq!(1, get_bits_from_bytes(&bytes, 0, 1));
         assert_eq!(3, get_bits_from_bytes(&bytes, 8, 10));
         assert_eq!(1, get_bits_from_bytes(&bytes, 16, 17));

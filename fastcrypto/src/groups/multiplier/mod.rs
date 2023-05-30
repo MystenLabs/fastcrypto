@@ -7,7 +7,7 @@
 use crate::groups::GroupElement;
 
 #[cfg(feature = "experimental")]
-pub mod comb_method;
+pub mod bgmw;
 mod integer_utils;
 pub mod windowed;
 
@@ -16,17 +16,17 @@ pub trait ScalarMultiplier<G: GroupElement> {
     /// Create a new scalar multiplier with the given base element.
     fn new(base_element: G) -> Self;
 
-    /// Multiply `self.base_element * scalar`".
+    /// Compute `self.base_element * scalar`.
     fn mul(&self, scalar: &G::ScalarType) -> G;
 
     /// Compute `self.base_element * base_scalar + other_element * other_scalar`.
-    fn mul_double(
+    fn two_scalar_mul(
         &self,
         base_scalar: &G::ScalarType,
         other_element: &G,
         other_scalar: &G::ScalarType,
     ) -> G {
-        // The default implementation if not optimised double multiplication is implemented.
+        // The default implementation. May be overwritten by implementations that allow optimised double multiplication.
         self.mul(base_scalar) + *other_element * other_scalar
     }
 }

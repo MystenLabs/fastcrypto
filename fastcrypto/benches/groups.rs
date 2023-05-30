@@ -97,7 +97,7 @@ mod group_benches {
 
         let multiplier = Mul::new(g1);
         c.bench_function(&(name.to_string()), move |b| {
-            b.iter(|| multiplier.mul_double(&s1, &g2, &s2))
+            b.iter(|| multiplier.two_scalar_mul(&s1, &g2, &s2))
         });
     }
 

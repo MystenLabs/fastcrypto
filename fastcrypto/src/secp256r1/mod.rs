@@ -205,7 +205,7 @@ impl Secp256r1PublicKey {
 
         // Do optimised double multiplication
         let p = MULTIPLIER
-            .mul_double(
+            .two_scalar_mul(
                 &secp256r1::Scalar(u1),
                 &ProjectivePoint(Projective::from(q)),
                 &secp256r1::Scalar(u2),

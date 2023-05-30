@@ -42,7 +42,7 @@ pub trait GroupElement:
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
 
-    /// Compute 2 * Self. May be overwritten by implementations that has a fast doubling operation.
+    /// Compute 2 * Self. May be overwritten by implementations that have a fast doubling operation.
     fn double(&self) -> Self {
         *self + self
     }

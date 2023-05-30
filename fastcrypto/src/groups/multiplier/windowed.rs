@@ -19,7 +19,7 @@ use crate::serde_helpers::ToFromByteArray;
 /// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
 /// the scalar in little-endian format.
 ///
-/// The SLIDING_WINDOW_WIDTH is the number of bits in the sliding window of the elements not already
+/// The `SLIDING_WINDOW_WIDTH` is the number of bits in the sliding window of the elements not already
 /// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
 /// optimal performance.
 pub struct WindowedScalarMultiplier<
@@ -72,7 +72,7 @@ impl<
             Self::WINDOW_WIDTH,
         );
 
-        // Computer multiplication using the fixed window method to ensure that it's constant time.
+        // Computer multiplication using the fixed-window method to ensure that it's constant time.
         let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]];
         for digit in base_2w_expansion.iter().rev().skip(1) {
             for _ in 1..=Self::WINDOW_WIDTH {
@@ -83,7 +83,7 @@ impl<
         result
     }
 
-    fn mul_double(
+    fn two_scalar_mul(
         &self,
         base_scalar: &G::ScalarType,
         other_element: &G,
@@ -161,7 +161,7 @@ pub fn multi_scalar_mul<
     // which marks the beginning of the next window.
     let mut is_in_window = [false; N];
     let mut index_in_window = [0usize; N]; // Counter for the current window
-    let mut precomputed_multiple_from_window = [0usize; N];
+    let mut precomputed_multiple_index = [0usize; N];
 
     // We may skip doubling until result is non-zero.
     let mut is_zero = true;
@@ -180,9 +180,9 @@ pub fn multi_scalar_mul<
                     // This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
                     result = if is_zero {
                         is_zero = false;
-                        all_precomputed_multiples[i][precomputed_multiple_from_window[i]]
+                        all_precomputed_multiples[i][precomputed_multiple_index[i]]
                     } else {
-                        result + all_precomputed_multiples[i][precomputed_multiple_from_window[i]]
+                        result + all_precomputed_multiples[i][precomputed_multiple_index[i]]
                     };
                     is_in_window[i] = false;
                 }
@@ -192,7 +192,7 @@ pub fn multi_scalar_mul<
                     // There is enough room for a window. Set indicator and reset window index.
                     is_in_window[i] = true;
                     index_in_window[i] = 1;
-                    precomputed_multiple_from_window[i] = get_bits_from_bytes(
+                    precomputed_multiple_index[i] = get_bits_from_bytes(
                         &scalar_bytes[i],
                         bit + 1 - window_sizes[i],
                         bit, // The last bit is always one, so we ignore it and only precompute the upper half of the first 2^window_sizes multiples.
@@ -300,7 +300,7 @@ mod tests {
         let a = RistrettoScalar::rand(&mut thread_rng());
         let b = RistrettoScalar::rand(&mut thread_rng());
         let expected = RistrettoPoint::generator() * a + other_point * b;
-        let actual = multiplier.mul_double(&a, &other_point, &b);
+        let actual = multiplier.two_scalar_mul(&a, &other_point, &b);
         assert_eq!(expected, actual);
     }
 }

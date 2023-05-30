@@ -6,14 +6,17 @@ use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
 
-/// Performs scalar multiplication using a comb method. We must have HEIGHT >= ceil(SCALAR_SIZE * 8 / ceil(log2(WIDTH))
-/// and the precomputation tables will be of size WIDTH x HEIGHT. Once pre-computation has been done,
-/// a scalar multiplication requires HEIGHT additions. Both `mul` and `double_mul` are constant time
-/// assuming the group operations for `G` are constant time.
+/// Performs scalar multiplication using a windowed method with a larger pre-computation table than
+/// the one used in the `windowed` multiplier. We must have HEIGHT >= ceil(SCALAR_SIZE * 8 / ceil(log2(WIDTH))
+/// where WIDTH is the window width, and the pre-computation tables will be of size WIDTH x HEIGHT.
+/// Once pre-computation has been done, a scalar multiplication requires HEIGHT additions. Both `mul`
+/// and `double_mul` are constant time assuming the group operations for `G` are constant time.
 ///
-/// This method is faster than the fixed window for a single multiplication, but it requires a larger
-/// number of precomputed points.
-pub struct CombMultiplier<
+/// The algorithm used is the BGMW algorithm with base `2^WIDTH` and the basic digit set set to `0, ..., 2^WIDTH-1`.
+///
+/// This method is faster than the WindowedScalarMultiplier for a single multiplication, but it requires
+/// a larger number of precomputed points.
+pub struct BGMWScalarMultiplier<
     G: GroupElement<ScalarType = S>,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
     const WIDTH: usize,
@@ -30,7 +33,7 @@ impl<
         const WIDTH: usize,
         const HEIGHT: usize,
         const SCALAR_SIZE: usize,
-    > CombMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
+    > BGMWScalarMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the `WIDTH`.
     const WINDOW_WIDTH: usize = (usize::BITS - WIDTH.leading_zeros() - 1) as usize;
@@ -47,7 +50,7 @@ impl<
         const WIDTH: usize,
         const HEIGHT: usize,
         const SCALAR_SIZE: usize,
-    > ScalarMultiplier<G> for CombMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
+    > ScalarMultiplier<G> for BGMWScalarMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
 {
     fn new(base_element: G) -> Self {
         // Verify parameters
@@ -99,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_scalar_multiplication_ristretto() {
-        let multiplier = CombMultiplier::<RistrettoPoint, RistrettoScalar, 16, 64, 32>::new(
+        let multiplier = BGMWScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 64, 32>::new(
             RistrettoPoint::generator(),
         );
         let scalar = RistrettoScalar::from(12345423);
@@ -113,19 +116,19 @@ mod tests {
         let scalar = Scalar::from(123456789);
         let expected = ProjectivePoint::generator() * scalar;
 
-        let multiplier = CombMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
+        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
             ProjectivePoint::generator(),
         );
         let actual = multiplier.mul(&scalar);
         assert_eq!(expected, actual);
 
-        let multiplier = CombMultiplier::<ProjectivePoint, Scalar, 32, 52, 32>::new(
+        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 32, 52, 32>::new(
             ProjectivePoint::generator(),
         );
         let actual = multiplier.mul(&scalar);
         assert_eq!(expected, actual);
 
-        let multiplier = CombMultiplier::<ProjectivePoint, Scalar, 64, 43, 32>::new(
+        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 64, 43, 32>::new(
             ProjectivePoint::generator(),
         );
         let actual = multiplier.mul(&scalar);
@@ -133,7 +136,9 @@ mod tests {
 
         // Assert a panic due to setting the HEIGHT too small
         assert!(std::panic::catch_unwind(|| {
-            CombMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(ProjectivePoint::generator())
+            BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
+                ProjectivePoint::generator(),
+            )
         })
         .is_err());
     }
