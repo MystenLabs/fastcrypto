@@ -89,14 +89,10 @@ impl<
         other_scalar: &G::ScalarType,
     ) -> G {
         // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
-
-        let mut map = HashMap::new();
-        map.insert(0, self.cache[CACHE_SIZE / 2..CACHE_SIZE].to_vec());
-
         multi_scalar_mul(
             &[*base_scalar, *other_scalar],
             &[self.cache[1], *other_element],
-            &map,
+            &HashMap::from([(0, self.cache[CACHE_SIZE / 2..CACHE_SIZE].to_vec())]),
             SLIDING_WINDOW_WIDTH,
         )
     }
