@@ -7,7 +7,6 @@ use core::ops::{Add, Div, Mul, Neg, Sub};
 use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
-// TODO: audit
 pub mod bls12381;
 pub mod ristretto255;
 
