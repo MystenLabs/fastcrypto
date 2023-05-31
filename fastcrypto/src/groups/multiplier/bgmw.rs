@@ -99,40 +99,71 @@ mod tests {
     use super::*;
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use ark_ff::{BigInteger, PrimeField};
+    use ark_secp256r1::Fr;
 
     #[test]
     fn test_scalar_multiplication_ristretto() {
         let multiplier = BGMWScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 64, 32>::new(
             RistrettoPoint::generator(),
         );
-        let scalar = RistrettoScalar::from(12345423);
-        let expected = RistrettoPoint::generator() * scalar;
-        let actual = multiplier.mul(&scalar);
-        assert_eq!(expected, actual);
+
+        let scalars = [
+            RistrettoScalar::from(0),
+            RistrettoScalar::from(1),
+            RistrettoScalar::from(2),
+            RistrettoScalar::from(1234),
+            RistrettoScalar::from(123456),
+            RistrettoScalar::from(123456789),
+            RistrettoScalar::from(0xffffffffffffffff),
+            RistrettoScalar::group_order(),
+            RistrettoScalar::group_order() - RistrettoScalar::from(1),
+            RistrettoScalar::group_order() + RistrettoScalar::from(1),
+        ];
+
+        for scalar in scalars {
+            let expected = RistrettoPoint::generator() * scalar;
+            let actual = multiplier.mul(&scalar);
+            assert_eq!(expected, actual);
+        }
     }
 
     #[test]
     fn test_scalar_multiplication_secp256r1() {
-        let scalar = Scalar::from(123456789);
-        let expected = ProjectivePoint::generator() * scalar;
+        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO.clone();
+        modulus_minus_one.mul2();
+        let scalars = [
+            Scalar::from(0),
+            Scalar::from(1),
+            Scalar::from(2),
+            Scalar::from(1234),
+            Scalar::from(123456),
+            Scalar::from(123456789),
+            Scalar::from(0xffffffffffffffff),
+            Scalar(Fr::from(modulus_minus_one)),
+        ];
 
-        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
-            ProjectivePoint::generator(),
-        );
-        let actual = multiplier.mul(&scalar);
-        assert_eq!(expected, actual);
+        for scalar in scalars {
+            let expected = ProjectivePoint::generator() * scalar;
 
-        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 32, 52, 32>::new(
-            ProjectivePoint::generator(),
-        );
-        let actual = multiplier.mul(&scalar);
-        assert_eq!(expected, actual);
+            let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
+                ProjectivePoint::generator(),
+            );
+            let actual = multiplier.mul(&scalar);
+            assert_eq!(expected, actual);
 
-        let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 64, 43, 32>::new(
-            ProjectivePoint::generator(),
-        );
-        let actual = multiplier.mul(&scalar);
-        assert_eq!(expected, actual);
+            let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 32, 52, 32>::new(
+                ProjectivePoint::generator(),
+            );
+            let actual = multiplier.mul(&scalar);
+            assert_eq!(expected, actual);
+
+            let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 64, 43, 32>::new(
+                ProjectivePoint::generator(),
+            );
+            let actual = multiplier.mul(&scalar);
+            assert_eq!(expected, actual);
+        }
 
         // Assert a panic due to setting the HEIGHT too small
         assert!(std::panic::catch_unwind(|| {

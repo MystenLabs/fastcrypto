@@ -223,7 +223,7 @@ fn compute_multiples<G: GroupElement>(base_element: &G, window_size: usize) -> V
 
 #[cfg(test)]
 mod tests {
-    use ark_ff::{BigInt, BigInteger, PrimeField};
+    use ark_ff::{BigInteger, PrimeField};
     use ark_secp256r1::Fr;
     use rand::thread_rng;
 
@@ -262,8 +262,8 @@ mod tests {
 
     #[test]
     fn test_scalar_multiplication_secp256r1() {
-        let modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO.clone();
-        modulus_minus_one.mul
+        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO.clone();
+        modulus_minus_one.mul2();
         let scalars = [
             Scalar::from(0),
             Scalar::from(1),
@@ -272,7 +272,7 @@ mod tests {
             Scalar::from(123456),
             Scalar::from(123456789),
             Scalar::from(0xffffffffffffffff),
-            Scalar(Fr::from(Fr::MODULUS_MINUS_ONE_DIV_TWO)),
+            Scalar(Fr::from(modulus_minus_one)),
         ];
 
         for scalar in scalars {
