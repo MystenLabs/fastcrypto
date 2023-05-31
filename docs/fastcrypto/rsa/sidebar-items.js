@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["RSAPublicKey","RSASignature"]};
+window.SIDEBAR_ITEMS = {"struct":["Base64UrlUnpadded","RSAPublicKey","RSASignature"],"trait":["Encoding"]};

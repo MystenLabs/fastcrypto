@@ -5,7 +5,7 @@ var sourcesIndex = JSON.parse('{\
 "fastcrypto_cli":["",[],["lib.rs"]],\
 "fastcrypto_derive":["",[],["lib.rs"]],\
 "fastcrypto_tbls":["",[],["lib.rs"]],\
-"fastcrypto_zkp":["",[["bls12381",[],["api.rs","conversions.rs","mod.rs","verifier.rs"]],["bn254",[],["api.rs","mod.rs","verifier.rs"]]],["dummy_circuits.rs","lib.rs"]],\
+"fastcrypto_zkp":["",[["bls12381",[],["api.rs","conversions.rs","mod.rs","verifier.rs"]],["bn254",[],["api.rs","mod.rs","poseidon.rs","verifier.rs","zk_login.rs"]]],["circom.rs","dummy_circuits.rs","lib.rs"]],\
 "sigs_cli":["",[],["sigs_cli.rs"]]\
 }');
 createSourceSidebar();
