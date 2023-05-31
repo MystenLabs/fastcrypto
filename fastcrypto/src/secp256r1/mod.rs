@@ -20,14 +20,17 @@ pub mod recoverable;
 
 pub mod conversion;
 
+use crate::groups::GroupElement;
 use crate::serde_helpers::BytesRepresentation;
 use crate::{
     generate_bytes_representation, impl_base64_display_fmt,
     serialize_deserialize_with_to_from_bytes,
 };
-use ark_ec::{AffineRepr, CurveGroup, Group};
+use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::Field;
+use ark_secp256r1::Projective;
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
+use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
     Signature as ExternalSignature, Signature, SigningKey as ExternalSecretKey,
@@ -42,6 +45,10 @@ use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
+use crate::groups::multiplier::windowed::WindowedScalarMultiplier;
+use crate::groups::multiplier::ScalarMultiplier;
+use crate::groups::secp256r1;
+use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
     affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
@@ -69,6 +76,12 @@ pub const SECP256R1_SIGNATURE_LENTH: usize = 64;
 
 /// The key pair bytes length is the same as the private key length. This enforces deserialization to always derive the public key from the private key.
 pub const SECP256R1_KEYPAIR_LENGTH: usize = SECP256R1_PRIVATE_KEY_LENGTH;
+
+/// The number of precomputed points used for scalar multiplication.
+pub const PRECOMPUTED_POINTS: usize = 256;
+
+/// The size of the sliding window used for scalar multiplication.
+pub const SLIDING_WINDOW_WIDTH: usize = 5;
 
 /// Default hash function used for signing and verifying messages unless another hash function is
 /// specified using the `with_hash` functions.
@@ -134,6 +147,22 @@ impl VerifyingKey for Secp256r1PublicKey {
     }
 }
 
+lazy_static! {
+    static ref MULTIPLIER: WindowedScalarMultiplier<
+        ProjectivePoint,
+        crate::groups::secp256r1::Scalar,
+        PRECOMPUTED_POINTS,
+        SCALAR_SIZE_IN_BYTES,
+        SLIDING_WINDOW_WIDTH,
+    > = WindowedScalarMultiplier::<
+        ProjectivePoint,
+        crate::groups::secp256r1::Scalar,
+        PRECOMPUTED_POINTS,
+        SCALAR_SIZE_IN_BYTES,
+        SLIDING_WINDOW_WIDTH,
+    >::new(secp256r1::ProjectivePoint::generator());
+}
+
 serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);
 generate_bytes_representation!(
     Secp256r1PublicKey,
@@ -173,7 +202,16 @@ impl Secp256r1PublicKey {
         // Verify signature
         let u1 = z * s_inv;
         let u2 = r * s_inv;
-        let p = ark_secp256r1::Projective::generator() * u1 + q * u2;
+
+        // Do optimised double multiplication
+        let p = MULTIPLIER
+            .two_scalar_mul(
+                &secp256r1::Scalar(u1),
+                &ProjectivePoint(Projective::from(q)),
+                &secp256r1::Scalar(u2),
+            )
+            .0;
+
         let x = get_affine_x_coordinate(&p);
 
         // Note that x is none if and only if p is zero, in which case the signature is invalid. See
@@ -379,7 +417,7 @@ impl Secp256r1KeyPair {
         let k_inv = k.inverse().expect("k should not be zero");
 
         // Compute R = kG
-        let big_r = (ark_secp256r1::Affine::generator() * k).into_affine();
+        let big_r = MULTIPLIER.mul(&secp256r1::Scalar(k)).0.into_affine();
 
         // Lift x-coordinate of R and reduce it into an element of the scalar field
         let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));

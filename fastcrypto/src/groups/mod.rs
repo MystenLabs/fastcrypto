@@ -10,6 +10,10 @@ use std::ops::{AddAssign, SubAssign};
 pub mod bls12381;
 pub mod ristretto255;
 
+pub mod secp256r1;
+
+pub mod multiplier;
+
 /// Trait impl'd by elements of an additive cyclic group.
 pub trait GroupElement:
     Copy
@@ -36,6 +40,11 @@ pub trait GroupElement:
 
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
+
+    /// Compute 2 * Self. May be overwritten by implementations that have a fast doubling operation.
+    fn double(&self) -> Self {
+        *self + self
+    }
 }
 
 /// Trait impl'd by scalars to be used with [GroupElement].

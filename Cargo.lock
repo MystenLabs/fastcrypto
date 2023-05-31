@@ -1555,6 +1555,7 @@ dependencies = [
  "hex-literal",
  "hkdf",
  "k256",
+ "lazy_static",
  "merlin",
  "once_cell",
  "p256",
