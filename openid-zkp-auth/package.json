@@ -6,7 +6,9 @@
     "test": "mocha --max-old-space-size=16000 -t 10000s",
     "prove": "node js/prove.js"
   },
-  "bin": { "zkpinputs" : "js/genZKPinputs.js" },
+  "bin": {
+    "zkpinputs": "js/genZKPinputs.js"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {
@@ -24,7 +26,8 @@
     "circomlibjs": "^0.1.7",
     "jose": "^4.3.7",
     "mocha": "^10.2.0",
+    "node-fetch": "^2.6.1",
     "node-jose": "^2.0.0",
-    "node-fetch": "^2.6.1"
+    "poseidon-lite": "^0.2.0"
   }
 }

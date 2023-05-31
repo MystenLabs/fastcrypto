@@ -9,6 +9,42 @@ const testutils = require("./testutils");
 
 const buildPoseidon = require("circomlibjs").buildPoseidon;
 
+const poseidonlite = require("poseidon-lite");
+
+const poseidonNumToHashFN = [
+    undefined,
+    poseidonlite.poseidon1,
+    poseidonlite.poseidon2,
+    poseidonlite.poseidon3,
+    poseidonlite.poseidon4,
+    poseidonlite.poseidon5,
+    poseidonlite.poseidon6,
+    poseidonlite.poseidon7,
+    poseidonlite.poseidon8,
+    poseidonlite.poseidon9,
+    poseidonlite.poseidon10,
+    poseidonlite.poseidon11,
+    poseidonlite.poseidon12,
+    poseidonlite.poseidon13,
+    poseidonlite.poseidon14,
+    poseidonlite.poseidon15,
+];
+
+function litePoseidonHash(inputs) {
+    const hashFN = poseidonNumToHashFN[inputs.length];
+    if (hashFN) {
+        return hashFN(inputs);
+    } else if (inputs.length <= 30) {
+        const hash1 = litePoseidonHash(inputs.slice(0, 15));
+        const hash2 = litePoseidonHash(inputs.slice(15));
+        return litePoseidonHash([hash1, hash2]);
+    } else {
+        throw new Error(
+            `Yet to implement: Unable to hash a vector of length ${inputs.length}`
+        );
+    }
+}
+
 describe("Zk-friendly hashing (Poseidon) tests", () => {
     const P = BigInt("21888242871839275222246405745257275088548364400416034343698204186575808495617");
     const circuit_path = path.join(__dirname, "../circuits/helpers", "hasher.circom");
@@ -21,22 +57,24 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         cir = await testutils.genMain(circuit_path, "Hasher", [1]);
         await cir.loadSymbols();
         input = [1];
-        
+        const expected_hash = utils.poseidonHash(input, poseidon);
+
         const witness = await cir.calculateWitness({ "in": input });
         
-        assert.equal(testutils.getWitnessValue(witness, cir.symbols, "main.out"), 
-                     utils.poseidonHash(input, poseidon));
+        assert.deepEqual(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(litePoseidonHash(input), expected_hash);
     });
 
     it("Hashes two values", async () => {
         cir = await testutils.genMain(circuit_path, "Hasher", [2]);
         await cir.loadSymbols();
         input = [1, 2];
+        const expected_hash = utils.poseidonHash(input, poseidon);
         
         const witness = await cir.calculateWitness({ "in": input });
         
-        assert.equal(testutils.getWitnessValue(witness, cir.symbols, "main.out"), 
-                     utils.poseidonHash(input, poseidon));
+        assert.deepEqual(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(litePoseidonHash(input), expected_hash);
     });
 
     it("Hashes 15 values", async () => {
@@ -47,7 +85,8 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         
         const witness = await cir.calculateWitness({ "in": input });
         
-        assert.equal(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(litePoseidonHash(input), expected_hash);
     });
 
     it("Hashes 16 values", async () => {
@@ -58,7 +97,8 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         
         const witness = await cir.calculateWitness({ "in": input });
         
-        assert.equal(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(litePoseidonHash(input), expected_hash);
     });
 
     it("Hashes 30 values", async () => {
@@ -72,7 +112,8 @@ describe("Zk-friendly hashing (Poseidon) tests", () => {
         
         const witness = await cir.calculateWitness({ "in": input });
         
-        assert.equal(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(testutils.getWitnessValue(witness, cir.symbols, "main.out"), expected_hash);
+        assert.deepEqual(litePoseidonHash(input), expected_hash);
     });
 
     it("Nonce test", async () => {
