@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["multi_scalar_mul"],"struct":["WindowedScalarMultiplier"]};
