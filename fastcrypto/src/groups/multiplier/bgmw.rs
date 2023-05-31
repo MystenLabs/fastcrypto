@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_scalar_multiplication_secp256r1() {
-        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO.clone();
+        let mut modulus_minus_one = Fr::MODULUS_MINUS_ONE_DIV_TWO;
         modulus_minus_one.mul2();
         let scalars = [
             Scalar::from(0),
