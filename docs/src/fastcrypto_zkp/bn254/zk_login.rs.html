@@ -733,6 +733,16 @@
 <a href="#733" id="733">733</a>
 <a href="#734" id="734">734</a>
 <a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -994,6 +1004,16 @@
         <span class="prelude-val">Ok</span>(inputs)
     }
 
+    <span class="doccomment">/// Init ParsedMaskedContent
+    </span><span class="kw">pub fn </span>init(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="self">self</span>.parsed_masked_content = ParsedMaskedContent::new(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.masked_content,
+            <span class="self">self</span>.payload_start_index,
+            <span class="self">self</span>.payload_len,
+            <span class="self">self</span>.num_sha2_blocks,
+        )<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.to_owned())
+    }
     <span class="doccomment">/// Get the jwt hash in byte array format.
     </span><span class="kw">pub fn </span>get_jwt_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
         <span class="self">self</span>.jwt_sha2_hash
