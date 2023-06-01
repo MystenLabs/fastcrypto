@@ -1,21 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use ark_crypto_primitives::snark::SNARK;
 use std::collections::HashMap;
 use std::fmt;
 
-use super::{api::verify_groth16, poseidon::PoseidonWrapper, verifier::process_vk_special};
+use super::{poseidon::PoseidonWrapper, verifier::process_vk_special};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
+use crate::circom::CircomPublicInputs;
 use crate::{
     bn254::verifier::PreparedVerifyingKey,
-    circom::{
-        g1_affine_from_str_projective, g2_affine_from_str_projective, read_proof,
-        read_public_inputs,
-    },
+    circom::{g1_affine_from_str_projective, g2_affine_from_str_projective},
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
-use ark_groth16::VerifyingKey;
+use ark_groth16::{Groth16, Proof, VerifyingKey};
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::{
     error::FastCryptoError,
@@ -76,7 +75,7 @@ static SUPPORTED_KEY_CLAIM_TO_FIELD: Lazy<HashMap<(&str, String), &str>> = Lazy:
 pub enum OAuthProvider {
     /// See https://accounts.google.com/.well-known/openid-configuration
     Google,
-    /// See // https://id.twitch.tv/oauth2/.well-known/openid-configuration
+    /// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
     Twitch,
 }
 
@@ -129,90 +128,91 @@ pub fn is_claim_supported(claim_name: &str) -> bool {
     vec![SupportedKeyClaim::Sub.to_string()].contains(&claim_name.to_owned())
 }
 
-/// Verify proof using fixed verifying key.
-pub fn verify_groth16_with_fixed_vk(
-    proof_public_inputs_as_bytes: &[u8],
-    proof_points_as_bytes: &[u8],
+/// Verify a zk login proof using the fixed verifying key.
+pub fn verify_zk_login_proof_with_fixed_vk(
+    proof: &ZkLoginProof,
+    public_inputs: &PublicInputs,
 ) -> Result<bool, FastCryptoError> {
-    verify_groth16(
-        &GLOBAL_VERIFYING_KEY,
-        proof_public_inputs_as_bytes,
-        proof_points_as_bytes,
+    Groth16::<Bn254>::verify_with_processed_vk(
+        &GLOBAL_VERIFYING_KEY.as_arkworks_pvk(),
+        &public_inputs.as_arkworks(),
+        &proof.as_arkworks(),
     )
+    .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
 
 /// Load a fixed verifying key from zklogin.vkey output from setup
 /// https://github.com/MystenLabs/fastcrypto/blob/2a704431e4d2685625c0cc06d19fd7d08a4aafa4/openid-zkp-auth/README.md
 fn global_pvk() -> PreparedVerifyingKey {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    let vk_alpha_1 = g1_affine_from_str_projective((
+    let vk_alpha_1 = g1_affine_from_str_projective(vec![
         "20491192805390485299153009773594534940189261866228447918068658471970481763042".to_string(),
         "9383485363053290200918347156157836566562967994039712273449902621266178545958".to_string(),
         "1".to_string(),
-    ));
-    let vk_beta_2 = g2_affine_from_str_projective((
-        (
+    ]);
+    let vk_beta_2 = g2_affine_from_str_projective(vec![
+        vec![
             "6375614351688725206403948262868962793625744043794305715222011528459656738731"
                 .to_string(),
             "4252822878758300859123897981450591353533073413197771768651442665752259397132"
                 .to_string(),
-        ),
-        (
+        ],
+        vec![
             "10505242626370262277552901082094356697409835680220590971873171140371331206856"
                 .to_string(),
             "21847035105528745403288232691147584728191162732299865338377159692350059136679"
                 .to_string(),
-        ),
-        ("1".to_string(), "0".to_string()),
-    ));
-    let vk_gamma_2 = g2_affine_from_str_projective((
-        (
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ]);
+    let vk_gamma_2 = g2_affine_from_str_projective(vec![
+        vec![
             "10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 .to_string(),
             "11559732032986387107991004021392285783925812861821192530917403151452391805634"
                 .to_string(),
-        ),
-        (
+        ],
+        vec![
             "8495653923123431417604973247489272438418190587263600148770280649306958101930"
                 .to_string(),
             "4082367875863433681332203403145435568316851327593401208105741076214120093531"
                 .to_string(),
-        ),
-        ("1".to_string(), "0".to_string()),
-    ));
-    let vk_delta_2 = g2_affine_from_str_projective((
-        (
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ]);
+    let vk_delta_2 = g2_affine_from_str_projective(vec![
+        vec![
             "10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 .to_string(),
             "11559732032986387107991004021392285783925812861821192530917403151452391805634"
                 .to_string(),
-        ),
-        (
+        ],
+        vec![
             "8495653923123431417604973247489272438418190587263600148770280649306958101930"
                 .to_string(),
             "4082367875863433681332203403145435568316851327593401208105741076214120093531"
                 .to_string(),
-        ),
-        ("1".to_string(), "0".to_string()),
-    ));
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ]);
 
     // Create a vector of G1Affine elements from the IC
     let mut vk_gamma_abc_g1 = Vec::new();
     for e in vec![
-        (
+        vec![
             "21183358641622484817215111139470022177326582350406970926849441861916304846879"
                 .to_string(),
             "9609753270711487997004685326926008148436053932399549746895730904921545872481"
                 .to_string(),
             "1".to_string(),
-        ),
-        (
+        ],
+        vec![
             "2451395408131210990711574556469197927676865118802961294188038077304501058245"
                 .to_string(),
             "18200924803448811236028275521647293421800677536880312214294190679047040791522"
                 .to_string(),
             "1".to_string(),
-        ),
+        ],
     ] {
         let g1 = g1_affine_from_str_projective(e);
         vk_gamma_abc_g1.push(g1);
@@ -228,60 +228,35 @@ fn global_pvk() -> PreparedVerifyingKey {
     process_vk_special(&Bn254VerifyingKey(vk))
 }
 
-/// A parsed result of all aux inputs where the masked content is parsed with
-/// all necessary fields.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+/// A parsed result of all aux inputs.
+#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
 pub struct AuxInputs {
-    masked_content: ParsedMaskedContent,
-    jwt_sha2_hash: [String; 2], // Represented in 2 BigInt strings.
-    payload_start_index: u64,
-    payload_len: u64,
-    num_sha2_blocks: u64,
-    eph_public_key: [String; 2], // Represented in 2 BigInt strings.
-    max_epoch: u64,
-    key_claim_name: String,
     addr_seed: String,
-    jwt_signature: Vec<u8>,
-}
-
-/// A helper struct that helps to read the aux input from JSON format from file.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-pub struct AuxInputsReader {
-    addr_seed: String,
-    eph_public_key: [String; 2],
-    jwt_sha2_hash: [String; 2],
+    eph_public_key: Vec<String>,
+    jwt_sha2_hash: Vec<String>,
     jwt_signature: String,
     key_claim_name: String,
     masked_content: Vec<u8>,
     max_epoch: u64,
-    payload_start_index: u64,
-    payload_len: u64,
-    num_sha2_blocks: u64,
+    num_sha2_blocks: u8,
+    payload_len: u16,
+    payload_start_index: u16,
+    #[serde(skip)]
+    parsed_masked_content: ParsedMaskedContent,
 }
 
 impl AuxInputs {
-    /// Parse and validate all aux inputs from a file.
+    /// Validate and parse masked content bytes into the struct and other json strings into the struct.
     pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        let inputs: AuxInputsReader =
+        let mut inputs: AuxInputs =
             serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(Self {
-            jwt_signature: Base64UrlUnpadded::decode_vec(&inputs.jwt_signature)
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-            masked_content: ParsedMaskedContent::new(
-                &inputs.masked_content,
-                inputs.payload_start_index as usize,
-                inputs.payload_len as usize,
-                inputs.num_sha2_blocks as usize,
-            )?,
-            jwt_sha2_hash: inputs.jwt_sha2_hash,
-            payload_start_index: inputs.payload_start_index,
-            payload_len: inputs.payload_len,
-            eph_public_key: inputs.eph_public_key,
-            max_epoch: inputs.max_epoch,
-            key_claim_name: inputs.key_claim_name,
-            num_sha2_blocks: inputs.num_sha2_blocks,
-            addr_seed: inputs.addr_seed,
-        })
+        inputs.parsed_masked_content = ParsedMaskedContent::new(
+            &inputs.masked_content,
+            inputs.payload_start_index,
+            inputs.payload_len,
+            inputs.num_sha2_blocks,
+        )?;
+        Ok(inputs)
     }
 
     /// Get the jwt hash in byte array format.
@@ -306,28 +281,29 @@ impl AuxInputs {
     }
 
     /// Get jwt signature in bytes.
-    pub fn get_jwt_signature(&self) -> &[u8] {
-        &self.jwt_signature
+    pub fn get_jwt_signature(&self) -> Result<Vec<u8>, FastCryptoError> {
+        Base64UrlUnpadded::decode_vec(&self.jwt_signature)
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 
-    /// Get the address seed.
+    /// Get the address seed in string.
     pub fn get_address_seed(&self) -> &str {
         &self.addr_seed
     }
 
     /// Get the iss string.
     pub fn get_iss(&self) -> &str {
-        &self.masked_content.iss
+        self.parsed_masked_content.get_iss()
     }
 
     /// Get the client id string.
     pub fn get_client_id(&self) -> &str {
-        &self.masked_content.client_id
+        self.parsed_masked_content.get_client_id()
     }
 
     /// Get the kid string.
     pub fn get_kid(&self) -> &str {
-        self.masked_content.get_kid()
+        self.parsed_masked_content.get_kid()
     }
 
     /// Get the key claim name string.
@@ -337,11 +313,11 @@ impl AuxInputs {
 
     /// Calculate the poseidon hash from 10 selected fields in the aux inputs.
     pub fn calculate_all_inputs_hash(&self) -> String {
-        // Safe to unwrap here all fields are converted to string from valid BigInt.
+        // TODO(joyqvq): check each string for bigint is valid.
         let mut poseidon = PoseidonWrapper::new(11);
         let jwt_sha2_hash_0 = Bn254Fr::from_str(&self.jwt_sha2_hash[0]).unwrap();
         let jwt_sha2_hash_1 = Bn254Fr::from_str(&self.jwt_sha2_hash[1]).unwrap();
-        let masked_content_hash = Bn254Fr::from_str(&self.masked_content.hash).unwrap();
+        let masked_content_hash = Bn254Fr::from_str(&self.parsed_masked_content.hash).unwrap();
         let payload_start_index = Bn254Fr::from_str(&self.payload_start_index.to_string()).unwrap();
         let payload_len = Bn254Fr::from_str(&self.payload_len.to_string()).unwrap();
         let eph_public_key_0 = Bn254Fr::from_str(&self.eph_public_key[0]).unwrap();
@@ -374,7 +350,7 @@ impl AuxInputs {
 }
 
 /// A structed of all parsed and validated values from the masked content bytes.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 pub struct ParsedMaskedContent {
     header: JWTHeader,
     iss: String,
@@ -384,7 +360,7 @@ pub struct ParsedMaskedContent {
 
 /// Struct that represents a standard JWT header according to
 /// https://openid.net/specs/openid-connect-core-1_0.html
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 pub struct JWTHeader {
     alg: String,
     kid: String,
@@ -393,17 +369,17 @@ pub struct JWTHeader {
 
 impl ParsedMaskedContent {
     /// Parse the masked content bytes into a [struct ParsedMaskedContent].
-    /// Aux inputs (payload_start_index, payload_len, num_sha2_blocks) are
-    /// are used for validation and parsing.
+    /// payload_start_index, payload_len, num_sha2_blocks are used for
+    /// validation and parsing.
     pub fn new(
         masked_content: &[u8],
-        payload_start_index: usize,
-        payload_len: usize,
-        num_sha2_blocks: usize,
+        payload_start_index: u16,
+        payload_len: u16,
+        num_sha2_blocks: u8,
     ) -> Result<Self, FastCryptoError> {
         // Verify the bytes after 64 * num_sha2_blocks should be all 0s.
         if !masked_content
-            .get(64 * num_sha2_blocks..)
+            .get(64 * num_sha2_blocks as usize..)
             .ok_or(FastCryptoError::InvalidInput)?
             .iter()
             .all(|&x| x == 0)
@@ -414,11 +390,12 @@ impl ParsedMaskedContent {
         }
 
         let masked_content_tmp = masked_content
-            .get(..64 * num_sha2_blocks)
+            .get(..64 * num_sha2_blocks as usize)
             .ok_or(FastCryptoError::InvalidInput)?;
 
         // Verify the byte at payload start index is indeed b'.'.
-        if payload_start_index < 1 || masked_content_tmp.get(payload_start_index - 1) != Some(&b'.')
+        if payload_start_index < 1
+            || masked_content_tmp.get(payload_start_index as usize - 1) != Some(&b'.')
         {
             return Err(FastCryptoError::GeneralError(
                 "Incorrect payload index for separator".to_string(),
@@ -427,7 +404,7 @@ impl ParsedMaskedContent {
 
         let header = parse_and_validate_header(
             masked_content_tmp
-                .get(0..payload_start_index - 1)
+                .get(0..payload_start_index as usize - 1)
                 .ok_or_else(|| {
                     FastCryptoError::GeneralError(
                         "Invalid payload index to parse header".to_string(),
@@ -442,14 +419,16 @@ impl ParsedMaskedContent {
         let jwt_length = calculate_value_from_bytearray(jwt_length_bytes);
 
         // Verify the jwt length equals to 8*(payload_start_index + payload_len).
-        if jwt_length != 8 * (payload_start_index + payload_len) {
+        if jwt_length != 8 * (payload_start_index as usize + payload_len as usize) {
             return Err(FastCryptoError::GeneralError(
                 "Incorrect jwt length".to_string(),
             ));
         }
 
         // Parse sha2 pad into a bit array.
-        let sha_2_pad = bytearray_to_bits(&masked_content_tmp[payload_start_index + payload_len..]);
+        let sha_2_pad = bytearray_to_bits(
+            &masked_content_tmp[payload_start_index as usize + payload_len as usize..],
+        );
 
         // Verify that the first bit of the bit array of sha2 pad is 1.
         if !sha_2_pad[0] {
@@ -465,7 +444,8 @@ impl ParsedMaskedContent {
         // Splits the masked payload into 3 parts (that reveals iss, aud, nonce respectively)
         // separated by a delimiter of "=" of any length. With padding etc
         let parts = find_parts_and_indices(
-            &masked_content_tmp[payload_start_index..payload_start_index + payload_len],
+            &masked_content_tmp
+                [payload_start_index as usize..payload_start_index as usize + payload_len as usize],
         )?;
 
         Ok(Self {
@@ -492,58 +472,61 @@ impl ParsedMaskedContent {
     }
 }
 
-/// The serialized bytes of the proof points.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-pub struct ProofPoints {
-    bytes: Vec<u8>,
+/// The zk login proof.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub struct ZkLoginProof {
+    pi_a: Vec<String>,
+    pi_b: Vec<Vec<String>>,
+    pi_c: Vec<String>,
+    protocol: String,
 }
 
-impl ProofPoints {
-    /// Parse the proof points from a file.
-    pub fn from_json(value: &str) -> Self {
-        let proof = read_proof(value);
-        let mut bytes = Vec::new();
-        proof.a.serialize_compressed(&mut bytes).unwrap();
-        proof.b.serialize_compressed(&mut bytes).unwrap();
-        proof.c.serialize_compressed(&mut bytes).unwrap();
-        Self { bytes }
+impl ZkLoginProof {
+    /// Parse the proof from a json string.
+    pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
+        let proof: ZkLoginProof =
+            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?;
+        match proof.protocol == "groth16" {
+            true => Ok(proof),
+            false => Err(FastCryptoError::InvalidProof),
+        }
     }
 
-    /// Get proof points in bytes.
-    pub fn get_bytes(&self) -> &[u8] {
-        &self.bytes
+    /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
+    pub fn as_arkworks(&self) -> Proof<Bn254> {
+        let a = g1_affine_from_str_projective(self.pi_a.clone());
+        let b = g2_affine_from_str_projective(self.pi_b.clone());
+        let c = g1_affine_from_str_projective(self.pi_c.clone());
+        Proof { a, b, c }
     }
 }
 
-/// The public inputs containing the all_inputs_hash and its serialized form.
+/// The public inputs containing an array of string that is the all inputs hash.
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 pub struct PublicInputs {
-    all_inputs_hash: String,  // Represented in a BigInt string.
-    serialized_hash: Vec<u8>, // Represented the public inputs in canonical serialized form.
+    inputs: Vec<String>, // Represented the public inputs in canonical serialized form.
 }
 
 impl PublicInputs {
-    /// Parse the public inputs from a file.
-    pub fn from_json(value: &str) -> Self {
-        let inputs = read_public_inputs(value);
-        let mut serialized_hash = Vec::new();
-        for a in inputs.clone() {
-            a.serialize_compressed(&mut serialized_hash).unwrap()
-        }
-        Self {
-            all_inputs_hash: inputs[0].to_string(),
-            serialized_hash,
-        }
+    /// Parse the public inputs from a json string.
+    pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
+        let inputs: CircomPublicInputs =
+            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?;
+        Ok(Self { inputs })
     }
 
-    /// Get the all_inputs_hash bigint string.
+    /// Convert the public inputs into arkworks format.
+    pub fn as_arkworks(&self) -> Vec<Bn254Fr> {
+        // TODO(joyqvq): check safety for valid bigint string.
+        self.inputs
+            .iter()
+            .map(|x| Bn254Fr::from_str(x).unwrap())
+            .collect()
+    }
+
+    /// Get the all_inputs_hash as big int string.
     pub fn get_all_inputs_hash(&self) -> &str {
-        &self.all_inputs_hash
-    }
-
-    /// Get the serialized hash bytes.
-    pub fn get_serialized_hash(&self) -> &[u8] {
-        &self.serialized_hash
+        &self.inputs[0]
     }
 }
 
