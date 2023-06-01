@@ -259,6 +259,16 @@ impl AuxInputs {
         Ok(inputs)
     }
 
+    /// Init ParsedMaskedContent
+    pub fn init(&mut self) -> Result<Self, FastCryptoError> {
+        self.parsed_masked_content = ParsedMaskedContent::new(
+            &self.masked_content,
+            self.payload_start_index,
+            self.payload_len,
+            self.num_sha2_blocks,
+        )?;
+        Ok(self.to_owned())
+    }
     /// Get the jwt hash in byte array format.
     pub fn get_jwt_hash(&self) -> Vec<u8> {
         self.jwt_sha2_hash
