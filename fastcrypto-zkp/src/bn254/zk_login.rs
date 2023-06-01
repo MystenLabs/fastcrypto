@@ -488,16 +488,24 @@ pub struct ZkLoginProof {
     pi_a: Vec<String>,
     pi_b: Vec<Vec<String>>,
     pi_c: Vec<String>,
-    protocol: String,
+    // protocol: String,
 }
 
+/// The zk login proof.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+pub struct ZkLoginProofReader {
+    pi_a: Vec<String>,
+    pi_b: Vec<Vec<String>>,
+    pi_c: Vec<String>,
+    protocol: String,
+}
 impl ZkLoginProof {
     /// Parse the proof from a json string.
     pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        let proof: ZkLoginProof =
+        let proof: ZkLoginProofReader =
             serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?;
         match proof.protocol == "groth16" {
-            true => Ok(proof),
+            true => Ok(Self { pi_a: proof.pi_a, pi_b: proof.pi_b, pi_c: proof.pi_c }),
             false => Err(FastCryptoError::InvalidProof),
         }
     }
