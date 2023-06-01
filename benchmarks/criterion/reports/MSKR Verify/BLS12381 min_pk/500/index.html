@@ -117,33 +117,33 @@ h3 {
                         <tbody>
                             <tr>
                                 <td>R&#xb2;</td>
-                                <td class="ci-bound">0.0002277</td>
-                                <td>0.0002383</td>
-                                <td class="ci-bound">0.0002315</td>
+                                <td class="ci-bound">0.0030313</td>
+                                <td>0.0031502</td>
+                                <td class="ci-bound">0.0030365</td>
                             </tr>
                             <tr>
                                 <td>Mean</td>
-                                <td class="ci-bound">2.3029 ms</td>
-                                <td>2.3051 ms</td>
-                                <td class="ci-bound">2.3069 ms</td>
+                                <td class="ci-bound">2.2917 ms</td>
+                                <td>2.2974 ms</td>
+                                <td class="ci-bound">2.3030 ms</td>
                             </tr>
                             <tr>
                                 <td title="Standard Deviation">Std. Dev.</td>
-                                <td class="ci-bound">4.1031 µs</td>
-                                <td>10.440 µs</td>
-                                <td class="ci-bound">14.879 µs</td>
+                                <td class="ci-bound">25.283 µs</td>
+                                <td>28.836 µs</td>
+                                <td class="ci-bound">31.876 µs</td>
                             </tr>
                             <tr>
                                 <td>Median</td>
-                                <td class="ci-bound">2.3074 ms</td>
-                                <td>2.3076 ms</td>
-                                <td class="ci-bound">2.3077 ms</td>
+                                <td class="ci-bound">2.2904 ms</td>
+                                <td>2.3062 ms</td>
+                                <td class="ci-bound">2.3128 ms</td>
                             </tr>
                             <tr>
                                 <td title="Median Absolute Deviation">MAD</td>
-                                <td class="ci-bound">469.58 ns</td>
-                                <td>684.29 ns</td>
-                                <td class="ci-bound">787.23 ns</td>
+                                <td class="ci-bound">22.637 µs</td>
+                                <td>30.528 µs</td>
+                                <td class="ci-bound">37.770 µs</td>
                             </tr>
                         </tbody>
                     </table>
@@ -181,6 +181,82 @@ h3 {
                         documentation</a> for more details on the additional statistics.</p>
             </section>
         </div>
+        <section class="plots">
+            <h3>Change Since Previous Benchmark</h3>
+            <div class="relative">
+                <table width="100%">
+                    <tbody>
+                        <tr>
+                            <td>
+                                <a href="both/pdf.svg">
+                                    <img src="relative_pdf_small.svg" alt="PDF Comparison" width="450"
+                                        height="300" />
+                                </a>
+                            </td>
+                            <td>
+                                <a href="both/iteration_times.svg">
+                                    <img src="relative_iteration_times_small.svg" alt="Iteration Time Comparison" width="450"
+                                        height="300" />
+                                </a>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <section class="stats">
+            <div class="additional_stats">
+                <h4>Additional Statistics:</h4>
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th title="0.95 confidence level" class="ci-bound">Lower bound</th>
+                            <th>Estimate</th>
+                            <th title="0.95 confidence level" class="ci-bound">Upper bound</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Change in time</td>
+                            <td class="ci-bound">-0.5911%</td>
+                            <td>-0.3324%</td>
+                            <td class="ci-bound">-0.0921%</td>
+                            <td>(p = 0.01 &lt;
+                                0.05)</td>
+                        </tr>
+                    </tbody>
+                </table>
+                Change within noise threshold.
+            </div>
+            <div class="additional_plots">
+                <h4>Additional Plots:</h4>
+                <ul>
+                    
+                    <li>
+                        <a href="change/mean.svg">Change in mean</a>
+                    </li>
+                    <li>
+                        <a href="change/median.svg">Change in median</a>
+                    </li>
+                    <li>
+                        <a href="change/t-test.svg">T-Test</a>
+                    </li>
+                </ul>
+            </div>
+        </section>
+        <section class="explanation">
+            <h4>Understanding this report:</h4>
+            <p>The plot on the left shows the probability of the function taking a certain amount of time. The red
+                curve represents the saved measurements from the last time this benchmark was run, while the blue curve
+                shows the measurements from this run. The lines represent the mean time per iteration. Click on the
+                plot for a larger view.</p>
+            <p>The plot on the right shows the iteration times for the two measurements. Again, the red dots represent
+                the previous measurement while the blue dots show the current measurement.</p>
+            <p>See <a href="https://bheisler.github.io/criterion.rs/book/user_guide/command_line_output.html#change">the
+                    documentation</a> for more details on the additional statistics.</p>
+        </section>
     </div>
     <div id="footer">
         <p>This report was generated by <a href="https://github.com/bheisler/cargo-criterion">cargo-criterion</a></p>
