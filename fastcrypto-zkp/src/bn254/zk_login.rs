@@ -267,6 +267,7 @@ impl AuxInputs {
             self.payload_len,
             self.num_sha2_blocks,
         )?;
+        println!("initttttt: {:?}", self.parsed_masked_content);
         Ok(self.to_owned())
     }
     /// Get the jwt hash in byte array format.
