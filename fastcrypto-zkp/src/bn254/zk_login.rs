@@ -322,9 +322,9 @@ impl AuxInputs {
     }
 
     /// Calculate the poseidon hash from 10 selected fields in the aux inputs.
-    pub fn calculate_all_inputs_hash(&self) -> String {
+    pub fn calculate_all_inputs_hash(&self) -> Result<String, FastCryptoError> {
         // TODO(joyqvq): check each string for bigint is valid.
-        let mut poseidon = PoseidonWrapper::new(11);
+        let mut poseidon = PoseidonWrapper::new();
         let jwt_sha2_hash_0 = Bn254Fr::from_str(&self.jwt_sha2_hash[0]).unwrap();
         let jwt_sha2_hash_1 = Bn254Fr::from_str(&self.jwt_sha2_hash[1]).unwrap();
         let masked_content_hash = Bn254Fr::from_str(&self.parsed_masked_content.hash).unwrap();
@@ -341,8 +341,8 @@ impl AuxInputs {
                 .unwrap(),
         )
         .unwrap();
-        poseidon
-            .hash(&[
+        Ok(poseidon
+            .hash(vec![
                 jwt_sha2_hash_0,
                 jwt_sha2_hash_1,
                 masked_content_hash,
@@ -354,8 +354,8 @@ impl AuxInputs {
                 num_sha2_blocks,
                 key_claim_name_f,
                 addr_seed,
-            ])
-            .to_string()
+            ])?
+            .to_string())
     }
 }
 
@@ -462,7 +462,7 @@ impl ParsedMaskedContent {
             header,
             iss: parts[0].to_string(),
             client_id: parts[1].to_string(),
-            hash: calculate_merklized_hash(masked_content),
+            hash: calculate_merklized_hash(masked_content)?,
         })
     }
 
@@ -691,22 +691,33 @@ fn parse_and_validate_header(chunk: &[u8]) -> Result<JWTHeader, FastCryptoError>
 }
 
 /// Calculate the merklized hash of the given bytes after 0 paddings.
-pub fn calculate_merklized_hash(bytes: &[u8]) -> String {
+pub fn calculate_merklized_hash(bytes: &[u8]) -> Result<String, FastCryptoError> {
     let mut bitarray = bytearray_to_bits(bytes);
     pad_bitarray(&mut bitarray, 248);
     let bigints = convert_to_bigints(&bitarray, 248);
-    let mut poseidon1 = PoseidonWrapper::new(15);
-    let hash1 = poseidon1.hash(&bigints[0..15]);
-
-    let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15);
-    let hash2 = poseidon2.hash(&bigints[15..]);
-
-    let mut poseidon3 = PoseidonWrapper::new(2);
-    let hash_final = poseidon3.hash(&[hash1, hash2]);
-
-    hash_final.to_string()
+    to_poseidon_hash(bigints)
 }
 
+/// Calculate the hash of the inputs.
+pub fn to_poseidon_hash(inputs: Vec<Bn254Fr>) -> Result<String, FastCryptoError> {
+    if inputs.len() <= 15 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        Ok(poseidon1.hash(inputs)?.to_string())
+    } else if inputs.len() <= 30 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        let hash1 = poseidon1.hash(inputs[0..15].to_vec())?;
+
+        let mut poseidon2 = PoseidonWrapper::new();
+        let hash2 = poseidon2.hash(inputs[15..].to_vec())?;
+
+        let mut poseidon3 = PoseidonWrapper::new();
+        let hash_final = poseidon3.hash([hash1, hash2].to_vec());
+
+        Ok(hash_final?.to_string())
+    } else {
+        Err(FastCryptoError::InvalidInput)
+    }
+}
 /// Convert a bytearray to a bitarray.
 fn bytearray_to_bits(bytearray: &[u8]) -> Vec<bool> {
     bytearray

@@ -16,7 +16,7 @@ fn test_verify_groth16_in_bytes_api() {
     .unwrap();
 
     assert_eq!(
-        aux_inputs.calculate_all_inputs_hash(),
+        aux_inputs.calculate_all_inputs_hash().unwrap(),
         public_inputs.get_all_inputs_hash()
     );
 
