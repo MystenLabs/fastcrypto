@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/poseidon.rs`."><title>poseidon.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f3501f0f5ae15dfb.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (871b59520 2023-05-31)" data-search-js="search-4926e5fc22a5646a.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-f0540c1d82cde29b.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto_zkp/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/poseidon.rs`."><title>poseidon.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-2fcac8296ac587d8.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (d59363ad0 2023-06-01)" data-search-js="search-4926e5fc22a5646a.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-48600a9606eff342.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto_zkp/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -116,17 +116,65 @@
 <a href="#116" id="116">116</a>
 <a href="#117" id="117">117</a>
 <a href="#118" id="118">118</a>
+<a href="#119" id="119">119</a>
+<a href="#120" id="120">120</a>
+<a href="#121" id="121">121</a>
+<a href="#122" id="122">122</a>
+<a href="#123" id="123">123</a>
+<a href="#124" id="124">124</a>
+<a href="#125" id="125">125</a>
+<a href="#126" id="126">126</a>
+<a href="#127" id="127">127</a>
+<a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>ark_bn254::Fr;
-<span class="kw">use </span>light_poseidon::Poseidon;
-<span class="kw">use </span>light_poseidon::PoseidonHasher;
+<span class="kw">use </span>fastcrypto::error::FastCryptoError;
+<span class="kw">use </span>poseidon_ark::Poseidon;
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::fmt::Formatter;
 <span class="doccomment">/// Wrapper struct for Poseidon hash instance.
 </span><span class="kw">pub struct </span>PoseidonWrapper {
-    instance: Poseidon&lt;Fr&gt;,
+    instance: Poseidon,
 }
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>PoseidonWrapper {
@@ -135,26 +183,41 @@
     }
 }
 
+<span class="kw">impl </span>Default <span class="kw">for </span>PoseidonWrapper {
+    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new()
+    }
+}
+
 <span class="kw">impl </span>PoseidonWrapper {
     <span class="doccomment">/// Initialize a Poseidon hash function with the given size.
-    </span><span class="kw">pub fn </span>new(size: usize) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>new() -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
-            instance: Poseidon::&lt;Fr&gt;::new_circom(size).unwrap(),
+            instance: Poseidon::new(),
         }
     }
 
     <span class="doccomment">/// Calculate the hash of the given inputs.
-    </span><span class="kw">pub fn </span>hash(<span class="kw-2">&amp;mut </span><span class="self">self</span>, inputs: <span class="kw-2">&amp;</span>[Fr]) -&gt; Fr {
-        <span class="self">self</span>.instance.hash(inputs).unwrap()
+    </span><span class="kw">pub fn </span>hash(<span class="kw-2">&amp;mut </span><span class="self">self</span>, inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+        <span class="self">self</span>.instance
+            .hash(inputs)
+            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 }
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
-    <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::calculate_merklized_hash;
-
     <span class="kw">use </span><span class="kw">super</span>::PoseidonWrapper;
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::Bn254Fr;
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::{calculate_merklized_hash, to_poseidon_hash};
     <span class="kw">use </span>ark_bn254::Fr;
     <span class="kw">use </span>std::str::FromStr;
+
+    <span class="kw">fn </span>to_bigint_arr(vals: Vec&lt;u8&gt;) -&gt; Vec&lt;Bn254Fr&gt; {
+        vals.iter()
+            .map(|x| Bn254Fr::from_str(<span class="kw-2">&amp;</span>x.to_string()).unwrap())
+            .collect()
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>poseidon_test() {
         <span class="comment">// TODO (joyqvq): add more test vectors here from circom.js
@@ -164,7 +227,7 @@
         // 10000,
         // 50683480294434968413708503290439057629605340925620961559740848568164438166n])
         // = 2272550810841985018139126931041192927190568084082399473943239080305281957330n
-        </span><span class="kw">let </span><span class="kw-2">mut </span>poseidon = PoseidonWrapper::new(<span class="number">4</span>);
+        </span><span class="kw">let </span><span class="kw-2">mut </span>poseidon = PoseidonWrapper::new();
         <span class="kw">let </span>input1 = Fr::from_str(<span class="string">&quot;134696963602902907403122104327765350261&quot;</span>).unwrap();
         <span class="kw">let </span>input2 = Fr::from_str(<span class="string">&quot;17932473587154777519561053972421347139&quot;</span>).unwrap();
         <span class="kw">let </span>input3 = Fr::from_str(<span class="string">&quot;10000&quot;</span>).unwrap();
@@ -172,7 +235,7 @@
             <span class="string">&quot;50683480294434968413708503290439057629605340925620961559740848568164438166&quot;</span>,
         )
         .unwrap();
-        <span class="kw">let </span>hash = poseidon.hash(<span class="kw-2">&amp;</span>[input1, input2, input3, input4]);
+        <span class="kw">let </span>hash = poseidon.hash(<span class="macro">vec!</span>[input1, input2, input3, input4]).unwrap();
         <span class="macro">assert_eq!</span>(
             hash,
             Fr::from_str(
@@ -185,14 +248,45 @@
     </span><span class="kw">fn </span>test_merklized_hash() {
         <span class="kw">let </span>masked_content = <span class="string">b&quot;eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.=yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC===========================================================================================================CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC==========================================================================================================================================================================================================================================================================================================\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xd8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00&quot;</span>;
         <span class="macro">assert_eq!</span>(
-            calculate_merklized_hash(masked_content),
+            calculate_merklized_hash(masked_content).unwrap(),
             <span class="string">&quot;14900420995580824499222150327925943524564997104405553289134597516335134742309&quot;
+        </span>);
+
+        <span class="macro">assert_eq!</span>(
+            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>])).unwrap(),
+            <span class="string">&quot;18586133768512220936620570745912940619677854269274689475585506675881198879027&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>])).unwrap(),
+            <span class="string">&quot;7853200120776062878684798364095072458815029376092732009249414926327459813530&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+                <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15
+            </span>]))
+            .unwrap(),
+            <span class="string">&quot;4203130618016961831408770638653325366880478848856764494148034853759773445968&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+                <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16
+            </span>]))
+            .unwrap(),
+            <span class="string">&quot;13895998335546007571506436905298853781676311844723695580596383169075721618652&quot;
+        </span>);
+        <span class="macro">assert_eq!</span>(
+            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+                <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>,
+                <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29
+            </span>]))
+            .unwrap(),
+            <span class="string">&quot;14023706212980258922092162104379517008998397500440232747089120702484714603058&quot;
         </span>);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_all_inputs_hash() {
-        <span class="kw">let </span><span class="kw-2">mut </span>poseidon = PoseidonWrapper::new(<span class="number">11</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>poseidon = PoseidonWrapper::new();
         <span class="kw">let </span>jwt_sha2_hash_0 = Fr::from_str(<span class="string">&quot;248987002057371616691124650904415756047&quot;</span>).unwrap();
         <span class="kw">let </span>jwt_sha2_hash_1 = Fr::from_str(<span class="string">&quot;113498781424543581252500776698433499823&quot;</span>).unwrap();
         <span class="kw">let </span>masked_content_hash = Fr::from_str(
@@ -214,19 +308,21 @@
         )
         .unwrap();
 
-        <span class="kw">let </span>hash = poseidon.hash(<span class="kw-2">&amp;</span>[
-            jwt_sha2_hash_0,
-            jwt_sha2_hash_1,
-            masked_content_hash,
-            payload_start_index,
-            payload_len,
-            eph_public_key_0,
-            eph_public_key_1,
-            max_epoch,
-            num_sha2_blocks,
-            key_claim_name_f,
-            addr_seed,
-        ]);
+        <span class="kw">let </span>hash = poseidon
+            .hash(<span class="macro">vec!</span>[
+                jwt_sha2_hash_0,
+                jwt_sha2_hash_1,
+                masked_content_hash,
+                payload_start_index,
+                payload_len,
+                eph_public_key_0,
+                eph_public_key_1,
+                max_epoch,
+                num_sha2_blocks,
+                key_claim_name_f,
+                addr_seed,
+            ])
+            .unwrap();
         <span class="macro">assert_eq!</span>(
             hash.to_string(),
             <span class="string">&quot;2487117669597822357956926047501254969190518860900347921480370492048882803688&quot;
