@@ -462,7 +462,7 @@ impl ParsedMaskedContent {
             header,
             iss: parts[0].to_string(),
             client_id: parts[1].to_string(),
-            hash: calculate_merklized_hash(masked_content),
+            hash: calculate_merklized_hash(masked_content)?,
         })
     }
 
@@ -691,20 +691,27 @@ fn parse_and_validate_header(chunk: &[u8]) -> Result<JWTHeader, FastCryptoError>
 }
 
 /// Calculate the merklized hash of the given bytes after 0 paddings.
-pub fn calculate_merklized_hash(bytes: &[u8]) -> String {
+pub fn calculate_merklized_hash(bytes: &[u8]) -> Result<String, FastCryptoError> {
     let mut bitarray = bytearray_to_bits(bytes);
     pad_bitarray(&mut bitarray, 248);
     let bigints = convert_to_bigints(&bitarray, 248);
-    let mut poseidon1 = PoseidonWrapper::new(15);
-    let hash1 = poseidon1.hash(&bigints[0..15]);
+    if bigints.len() <= 15 {
+        let mut poseidon1 = PoseidonWrapper::new(bigints.len());
+        let hash1 = poseidon1.hash(&bigints[0..bigints.len()]);
+        Ok(hash1.to_string())
+    } else if bigints.len() <= 30 {
+        let mut poseidon1 = PoseidonWrapper::new(15);
+        let hash1 = poseidon1.hash(&bigints[0..15]);
 
-    let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15);
-    let hash2 = poseidon2.hash(&bigints[15..]);
+        let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15);
+        let hash2 = poseidon2.hash(&bigints[15..]);
 
-    let mut poseidon3 = PoseidonWrapper::new(2);
-    let hash_final = poseidon3.hash(&[hash1, hash2]);
-
-    hash_final.to_string()
+        let mut poseidon3 = PoseidonWrapper::new(2);
+        let hash_final = poseidon3.hash(&[hash1, hash2]);
+        Ok(hash_final.to_string())
+    } else {
+        Err(FastCryptoError::InvalidInput)
+    }
 }
 
 /// Convert a bytearray to a bitarray.
