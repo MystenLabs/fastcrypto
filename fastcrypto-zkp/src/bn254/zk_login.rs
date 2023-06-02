@@ -325,7 +325,7 @@ impl AuxInputs {
     /// Calculate the poseidon hash from 10 selected fields in the aux inputs.
     pub fn calculate_all_inputs_hash(&self) -> Result<String, FastCryptoError> {
         // TODO(joyqvq): check each string for bigint is valid.
-        let mut poseidon = PoseidonWrapper::new(15)?;
+        let mut poseidon = PoseidonWrapper::new(11)?;
         let jwt_sha2_hash_0 = Bn254Fr::from_str(&self.jwt_sha2_hash[0]).unwrap();
         let jwt_sha2_hash_1 = Bn254Fr::from_str(&self.jwt_sha2_hash[1]).unwrap();
         let masked_content_hash = Bn254Fr::from_str(&self.parsed_masked_content.hash).unwrap();
@@ -342,10 +342,10 @@ impl AuxInputs {
                 .unwrap(),
         )
         .unwrap();
-    let dummy_12 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
-    let dummy_13 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
-    let dummy_14 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
-    let dummy_15 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
+    // let dummy_12 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
+    // let dummy_13 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
+    // let dummy_14 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
+    // let dummy_15 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
 
         Ok(poseidon
             .hash(&[
@@ -360,10 +360,10 @@ impl AuxInputs {
                 num_sha2_blocks,
                 key_claim_name_f,
                 addr_seed,
-                dummy_12,
-                dummy_13,
-                dummy_14,
-                dummy_15
+                // dummy_12,
+                // dummy_13,
+                // dummy_14,
+                // dummy_15
             ])?
             .to_string())
     }
