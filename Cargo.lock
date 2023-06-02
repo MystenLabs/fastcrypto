@@ -1650,9 +1650,9 @@ dependencies = [
  "derive_more",
  "fastcrypto",
  "hex",
- "light-poseidon",
  "num-bigint",
  "once_cell",
+ "poseidon-ark",
  "proptest",
  "regex",
  "schemars",
@@ -2044,17 +2044,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "348108ab3fba42ec82ff6e9564fc4ca0247bdccdc68dd8af9764bbc79c3c8ffb"
 
 [[package]]
-name = "light-poseidon"
-version = "0.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12aa484fae158f9b31772661f5e404f0c02073deffa50ff6da51c178ba579634"
-dependencies = [
- "ark-bn254",
- "ark-ff",
- "thiserror",
-]
-
-[[package]]
 name = "link-cplusplus"
 version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2436,6 +2425,16 @@ dependencies = [
  "cpufeatures",
  "opaque-debug",
  "universal-hash",
+]
+
+[[package]]
+name = "poseidon-ark"
+version = "0.0.1"
+source = "git+https://github.com/arnaucube/poseidon-ark.git?rev=bf96de3b946e8b343c6b65412bae92f8d32251ad#bf96de3b946e8b343c6b65412bae92f8d32251ad"
+dependencies = [
+ "ark-bn254",
+ "ark-ff",
+ "ark-std",
 ]
 
 [[package]]
