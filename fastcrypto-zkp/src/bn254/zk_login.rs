@@ -322,9 +322,9 @@ impl AuxInputs {
     }
 
     /// Calculate the poseidon hash from 10 selected fields in the aux inputs.
-    pub fn calculate_all_inputs_hash(&self) -> String {
+    pub fn calculate_all_inputs_hash(&self) -> Result<String, FastCryptoError> {
         // TODO(joyqvq): check each string for bigint is valid.
-        let mut poseidon = PoseidonWrapper::new(15);
+        let mut poseidon = PoseidonWrapper::new(15)?;
         let jwt_sha2_hash_0 = Bn254Fr::from_str(&self.jwt_sha2_hash[0]).unwrap();
         let jwt_sha2_hash_1 = Bn254Fr::from_str(&self.jwt_sha2_hash[1]).unwrap();
         let masked_content_hash = Bn254Fr::from_str(&self.parsed_masked_content.hash).unwrap();
@@ -346,7 +346,7 @@ impl AuxInputs {
     let dummy_14 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
     let dummy_15 = Bn254Fr::from_str("2487117669597822357956926047501254969190518860900347921480370492048882803688").unwrap();
 
-        poseidon
+        Ok(poseidon
             .hash(&[
                 jwt_sha2_hash_0,
                 jwt_sha2_hash_1,
@@ -363,8 +363,8 @@ impl AuxInputs {
                 dummy_13,
                 dummy_14,
                 dummy_15
-            ])
-            .to_string()
+            ])?
+            .to_string())
     }
 }
 
@@ -471,8 +471,8 @@ impl ParsedMaskedContent {
             header,
             iss: parts[0].to_string(),
             client_id: parts[1].to_string(),
-            hash: "50683480294434968413708503290439057629605340925620961559740848568164438166".to_string()
-            // hash: calculate_merklized_hash(masked_content),
+            // hash: "50683480294434968413708503290439057629605340925620961559740848568164438166".to_string()
+            hash: calculate_merklized_hash(masked_content)?,
         })
     }
 
@@ -701,20 +701,20 @@ fn parse_and_validate_header(chunk: &[u8]) -> Result<JWTHeader, FastCryptoError>
 }
 
 /// Calculate the merklized hash of the given bytes after 0 paddings.
-pub fn calculate_merklized_hash(bytes: &[u8]) -> String {
+pub fn calculate_merklized_hash(bytes: &[u8]) -> Result<String, FastCryptoError> {
     let mut bitarray = bytearray_to_bits(bytes);
     pad_bitarray(&mut bitarray, 248);
     let bigints = convert_to_bigints(&bitarray, 248);
-    let mut poseidon1 = PoseidonWrapper::new(15);
-    let hash1 = poseidon1.hash(&bigints[0..15]);
+    let mut poseidon1 = PoseidonWrapper::new(15)?;
+    let hash1 = poseidon1.hash(&bigints[0..15])?;
 
-    let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15);
-    let hash2 = poseidon2.hash(&bigints[15..]);
+    let mut poseidon2 = PoseidonWrapper::new(bigints.len() - 15)?;
+    let hash2 = poseidon2.hash(&bigints[15..])?;
 
-    let mut poseidon3 = PoseidonWrapper::new(2);
-    let hash_final = poseidon3.hash(&[hash1, hash2]);
+    let mut poseidon3 = PoseidonWrapper::new(2)?;
+    let hash_final = poseidon3.hash(&[hash1, hash2])?;
 
-    hash_final.to_string()
+    Ok(hash_final.to_string())
 }
 
 /// Convert a bytearray to a bitarray.

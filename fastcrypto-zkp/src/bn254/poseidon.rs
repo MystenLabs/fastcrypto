@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use ark_bn254::Fr;
+use fastcrypto::error::FastCryptoError;
 use light_poseidon::Poseidon;
 use light_poseidon::PoseidonHasher;
 use std::fmt::Debug;
@@ -19,15 +20,15 @@ impl Debug for PoseidonWrapper {
 
 impl PoseidonWrapper {
     /// Initialize a Poseidon hash function with the given size.
-    pub fn new(size: usize) -> Self {
-        Self {
-            instance: Poseidon::<Fr>::new_circom(size).unwrap(),
-        }
+    pub fn new(size: usize) -> Result<Self, FastCryptoError> {
+        Ok(Self {
+            instance: Poseidon::<Fr>::new_circom(size).map_err(|_| FastCryptoError::InputTooShort(10))?
+        })
     }
 
     /// Calculate the hash of the given inputs.
-    pub fn hash(&mut self, inputs: &[Fr]) -> Fr {
-        self.instance.hash(inputs).unwrap()
+    pub fn hash(&mut self, inputs: &[Fr]) -> Result<Fr, FastCryptoError> {
+        Ok(self.instance.hash(inputs).map_err(|_| FastCryptoError::InputTooShort(11))?)
     }
 }
 #[cfg(test)]
@@ -46,7 +47,7 @@ mod test {
         // 10000,
         // 50683480294434968413708503290439057629605340925620961559740848568164438166n])
         // = 2272550810841985018139126931041192927190568084082399473943239080305281957330n
-        let mut poseidon = PoseidonWrapper::new(4);
+        let mut poseidon = PoseidonWrapper::new(4).unwrap();
         let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
         let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
         let input3 = Fr::from_str("10000").unwrap();
@@ -54,7 +55,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = poseidon.hash(&[input1, input2, input3, input4]);
+        let hash = poseidon.hash(&[input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             Fr::from_str(
@@ -67,14 +68,14 @@ mod test {
     fn test_merklized_hash() {
         let masked_content = b"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.=yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC===========================================================================================================CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC==========================================================================================================================================================================================================================================================================================================\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xd8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
         assert_eq!(
-            calculate_merklized_hash(masked_content),
+            calculate_merklized_hash(masked_content).unwrap(),
             "14900420995580824499222150327925943524564997104405553289134597516335134742309"
         );
     }
 
     #[test]
     fn test_all_inputs_hash() {
-        let mut poseidon = PoseidonWrapper::new(11);
+        let mut poseidon = PoseidonWrapper::new(11).unwrap();
         let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
         let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
         let masked_content_hash = Fr::from_str(
@@ -108,7 +109,7 @@ mod test {
             num_sha2_blocks,
             key_claim_name_f,
             addr_seed,
-        ]);
+        ]).unwrap();
         assert_eq!(
             hash.to_string(),
             "2487117669597822357956926047501254969190518860900347921480370492048882803688"
