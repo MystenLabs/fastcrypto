@@ -32,6 +32,7 @@
     "mocha": "^10.2.0",
     "node-fetch": "^2.6.1",
     "node-jose": "^2.0.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.0.4",
+    "poseidon-lite": "^0.2.0"
   }
 }

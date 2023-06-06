@@ -166,7 +166,7 @@ describe("Tests with crafted JWTs", () => {
         circuit = await genCircuit(maxContentLen, maxExtClaimLen, maxKeyClaimNameLen);
     });
 
-    it.only("No change", async function() {
+    it("No change", async function() {
         const [_, aux] = await genProof(
             circuit,
             jwt,
