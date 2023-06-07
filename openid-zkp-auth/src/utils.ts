@@ -1,7 +1,9 @@
-import { constants, bit } from './common';
+import { constants, bit, circuit_params } from './common';
 import * as fs from 'fs';
 
-function getNumFieldElements(asciiSize: number, packWidth=constants.packWidth): number {
+const pack_width = constants.pack_width;
+
+function getNumFieldElements(asciiSize: number, packWidth = pack_width): number {
     if (packWidth % 8 !== 0) throw new Error("packWidth must be a multiple of 8");
 
     const packWidthInBytes = packWidth / 8;
@@ -106,8 +108,8 @@ function applyMask(input: number[], mask: bit[]) {
 
 async function deriveAddrSeed(
     claim_value: string, pin: bigint,
-    maxKeyClaimValueLen = constants.maxKeyClaimValueLen,
-    packWidth=constants.packWidth
+    maxKeyClaimValueLen = circuit_params.max_key_claim_value_len,
+    packWidth = pack_width
 ): Promise<bigint> {
     const claim_val_F = await mapToField(claim_value, maxKeyClaimValueLen, packWidth);
     const buildPoseidon = require("circomlibjs").buildPoseidon;
@@ -119,7 +121,7 @@ async function deriveAddrSeed(
 }
 
 // Map str into a field element after padding it to maxSize chars
-async function mapToField(str: string, maxSize: number, packWidth=constants.packWidth) {
+async function mapToField(str: string, maxSize: number, packWidth=pack_width) {
     if (str.length > maxSize) {
         throw new Error(`String ${str} is longer than ${maxSize} chars`);
     }

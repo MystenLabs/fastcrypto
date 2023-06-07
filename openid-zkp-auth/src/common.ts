@@ -1,7 +1,7 @@
 export type bit = 0 | 1;
 
 export interface WalletInputs {
-    jwt: string,
+    unsigned_jwt: string,
     eph_public_key: bigint,
     max_epoch: number,
     jwt_rand: bigint,
@@ -55,9 +55,9 @@ export class ZKInputs implements KCCheckInputs, NonceCheckInputs {
     "all_inputs_hash": bigint;
 }
 
-export class AuxInputs {
+// AuxInputs minus JWT signature
+export class PartialAuxInputs {
     "masked_content": number[];
-    "jwt_signature": string;
     "jwt_sha2_hash": [bigint, bigint];
     "payload_start_index": number;
     "payload_len": number;
@@ -68,18 +68,31 @@ export class AuxInputs {
     "addr_seed": bigint;
 }
 
-// missing the tx signature
+// ZKLoginSig minus the tx signature
 export class PartialZKLoginSig {
     "zkproof": any;
     "public_inputs": any;
-    "auxiliary_inputs": AuxInputs;
+    "auxiliary_inputs": PartialAuxInputs;
 }
+
+export interface CircuitConstants {
+    max_padded_unsigned_jwt_len: number,
+    max_extended_key_claim_len: number,
+    max_key_claim_name_len: number,
+    max_key_claim_value_len: number,
+}
+
+export const circuit_params: CircuitConstants = {
+    max_padded_unsigned_jwt_len: 64*12,
+    max_extended_key_claim_len: 66, // name + value + 6 chars (four '"', one ':' and one ',' / '}')
+    max_key_claim_name_len: 10,
+    max_key_claim_value_len: 50,
+};
 
 export const constants = {
     P: 21888242871839275222246405745257275088548364400416034343698204186575808495617n,
     flag: 5,
     inWidth: 8,
-    packWidth: 248,
     // const eph_public_key = BigInt("0x" + crypto.randomBytes(32).toString('hex'));
     dev: { // NOTE: Constants meant to be used for dev
         pin: 283089722053851751073973683904920435104n,
@@ -87,13 +100,9 @@ export const constants = {
         maxEpoch: 10000,
         jwtRand: 100681567828351849884072155819400689117n
     },
+    pack_width: 248,
     maskValue: '='.charCodeAt(0),
     nonceLen: Math.ceil(256 / 6), // 43
     extNonceLen: Math.ceil(256 / 6) + 11, // 11 for prefix and suffix
-    claimsToReveal: ["iss", "aud"],
-    maxContentLen: 64*12,
-    maxExtClaimLen: 66, // name + value + 6 chars (four '"', one ':' and one ',' / '}')
-    maxKeyClaimNameLen: 10,
-    maxKeyClaimValueLen: 50,
-    maxIssValueLen: 31 * 3
+    claimsToReveal: ["iss", "aud"]
 }

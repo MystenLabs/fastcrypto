@@ -1,17 +1,16 @@
 const chai = require("chai");
 const path = require("path");
-const assert = chai.assert;
 const expect = chai.expect;
 
-const constants = require('../js/src/common').constants;
+const constants = require('../js/src/common').circuit_params;
 const utils = require('../js/src/utils');
 const testutils = require("./testutils");
 
 describe("Key claim checks", () => {
     var circuit;
-    const maxExtLength = constants.maxExtClaimLen;
-    const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
-    const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
+    const maxExtLength = constants.max_extended_key_claim_len;
+    const maxKeyClaimNameLen = constants.max_key_claim_name_len;
+    const maxKeyClaimValueLen = constants.max_key_claim_value_len;
 
     before(async () => {
         circuit = await testutils.genMain(

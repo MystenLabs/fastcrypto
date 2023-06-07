@@ -3,8 +3,7 @@
 import fs from 'fs';
 import * as circuit from './circuitutils';
 import * as utils from './utils';
-import { constants, WalletInputs} from './common';
-const { claimsToReveal } = constants;
+import { WalletInputs, circuit_params} from './common';
 
 function readJsonFile(filename: string): WalletInputs {
     try {
@@ -24,7 +23,7 @@ function readJsonFile(filename: string): WalletInputs {
         }
 
         const walletinputs: WalletInputs = {
-            jwt: jsonData.jwt,
+            unsigned_jwt: jsonData.jwt,
             eph_public_key: BigInt(jsonData.eph_public_key),
             max_epoch: Number(jsonData.max_epoch),
             jwt_rand: BigInt(jsonData.jwt_rand),
@@ -44,27 +43,13 @@ async function genZKPInputs (
     ZKP_INPUTS_FILE_PATH: string,
     AUX_INPUTS_FILE_PATH: string
 ) {
-    const [header, payload, signature] = walletinputs.jwt.split('.');
-    const input = header + '.' + payload;
-
-    const maxContentLen = constants.maxContentLen;
-    const maxExtClaimLen = constants.maxExtClaimLen;
-    const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
-    const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
-
-    const [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
-        input, maxContentLen, maxExtClaimLen, maxKeyClaimNameLen, maxKeyClaimValueLen, 
-        walletinputs.key_claim_name, claimsToReveal, 
-        walletinputs.eph_public_key,
-        walletinputs.max_epoch,
-        walletinputs.jwt_rand,
-        walletinputs.user_pin
+    const [zk_inputs, auxiliary_inputs] = await circuit.genZKLoginInputs(
+        walletinputs, 
+        circuit_params
     );
 
     console.log(`Writing inputs to ${ZKP_INPUTS_FILE_PATH}...`);
-    utils.writeJSONToFile(inputs, ZKP_INPUTS_FILE_PATH);
-
-    auxiliary_inputs.jwt_signature = signature;
+    utils.writeJSONToFile(zk_inputs, ZKP_INPUTS_FILE_PATH);
 
     console.log(`Writing auxiliary inputs to ${AUX_INPUTS_FILE_PATH}...`);
     utils.writeJSONToFile(auxiliary_inputs, AUX_INPUTS_FILE_PATH);

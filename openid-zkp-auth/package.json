@@ -17,22 +17,22 @@
     "jsonwebtoken": "^9.0.0",
     "jwk-to-pem": "^2.0.5",
     "node-rsa": "^1.1.1",
-    "snarkjs": "^0.6.10",
+    "snarkjs": "^0.7.0",
     "temp": "^0.9.4",
     "yargs": "^17.7.2"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.2",
     "@types/jwk-to-pem": "^2.0.1",
-    "@types/node": "^20.2.3",
+    "@types/node": "^20.2.5",
     "@types/yargs": "^17.0.24",
     "circom_tester": "^0.0.19",
     "circomlibjs": "^0.1.7",
     "jose": "^4.3.7",
     "mocha": "^10.2.0",
-    "node-fetch": "^2.6.1",
+    "node-fetch": "^3.3.1",
     "node-jose": "^2.0.0",
-    "typescript": "^5.0.4",
-    "poseidon-lite": "^0.2.0"
+    "poseidon-lite": "^0.2.0",
+    "typescript": "^5.0.4"
   }
 }

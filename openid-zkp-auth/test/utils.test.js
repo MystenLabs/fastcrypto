@@ -214,7 +214,7 @@ describe("JWT utils tests", () => {
         })
 
         it("Google JWT", () => {
-            const jwt = require('../testvectors/realJWTs').google.jwt;
+            const jwt = require('../js/testvectors/realJWTs').GOOGLE.jwt;
             const payload = jwt.split('.')[1];
             const decoded_payload = Buffer.from(payload, 'base64url').toString();
             const sub_claim_with_last_char = getExtendedClaim(decoded_payload, "sub");
@@ -227,7 +227,7 @@ describe("JWT utils tests", () => {
         })
 
         it("Twitch JWT", () => {
-            const jwt = require('../testvectors/realJWTs').twitch.jwt;
+            const jwt = require('../js/testvectors/realJWTs').TWITCH.jwt;
             const payload = jwt.split('.')[1];
             const decoded_payload = Buffer.from(payload, 'base64url').toString();
 

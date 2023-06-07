@@ -2,15 +2,13 @@ const snarkjs = require("snarkjs");
 
 import fs from 'fs';
 import * as circuit from './circuitutils';
-import { constants, PartialZKLoginSig } from './common';
+import { constants, circuit_params as P, PartialZKLoginSig, WalletInputs } from './common';
 import * as utils from './utils';
 import * as verifier from './verify';
 import { GOOGLE, TWITCH } from "../testvectors/realJWTs";
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { JWK } from 'jwk-to-pem';
-
-const claimsToReveal = constants.claimsToReveal;
 
 const ARTIFACTS_DIR = "./artifacts";
 const PROJ_NAME = "zklogin";
@@ -60,16 +58,16 @@ async function zkOpenIDProve(
     const [header, payload, signature] = jwt.split('.');
     const input = header + '.' + payload;
 
-    const maxContentLen = constants.maxContentLen;
-    const maxExtClaimLen = constants.maxExtClaimLen;
-    const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
-    const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
+    const I : WalletInputs = {
+        unsigned_jwt: input,
+        eph_public_key: ephPK,
+        max_epoch: maxEpoch,
+        jwt_rand: jwtRand,
+        user_pin: userPIN,
+        key_claim_name: keyClaim
+    };
 
-    var [inputs, auxiliary_inputs] = await circuit.genJwtProofUAInputs(
-        input, maxContentLen, maxExtClaimLen, maxKeyClaimNameLen, maxKeyClaimValueLen, keyClaim,
-        claimsToReveal, ephPK, maxEpoch, jwtRand, userPIN
-    );
-    auxiliary_inputs.jwt_signature = signature;
+    var [inputs, auxiliary_inputs] = await circuit.genZKLoginInputs(I, P);
 
     // Generate ZKP
     console.log("Generating ZKP...");
@@ -108,8 +106,7 @@ const zkOpenIDVerify = async (proof: PartialZKLoginSig) => {
     await groth16Verify(zkproof, public_inputs, VKEY_FILE_PATH);
     console.timeEnd('zk verify');
 
-    const maxContentLen = constants.maxContentLen;
-    verifier.verifyOpenIDProof(public_inputs, auxiliary_inputs, maxContentLen);
+    verifier.verifyAuxInputs(auxiliary_inputs, P.max_padded_unsigned_jwt_len);
 }
 
 type CliArgs = {

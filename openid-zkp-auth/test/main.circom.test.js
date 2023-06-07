@@ -12,54 +12,38 @@ const verify = require('../js/src/verify');
 
 const testutils = require("./testutils");
 
-async function genCircuit(
-    maxContentLen = constants.maxContentLen,
-    maxExtClaimLen = constants.maxExtClaimLen,
-    maxKeyClaimNameLen = constants.maxKeyClaimNameLen,
-) {
+const circuit_constants = require('../js/src/common').circuit_params;
+const dev_inputs = {
+    unsigned_jwt: "",
+    eph_public_key: constants.dev.ephPK,
+    max_epoch: constants.dev.maxEpoch,
+    jwt_rand: constants.dev.jwtRand,
+    user_pin: constants.dev.pin,
+    key_claim_name : "sub",
+}
+
+async function genCircuit(params = circuit_constants) {
     return await testutils.genMain(
-        path.join(__dirname, "../circuits", "jwt_proof_ua.circom"), "JwtProofUA", [
-            maxContentLen,
-            maxExtClaimLen,
-            maxKeyClaimNameLen
+        path.join(__dirname, "../circuits", "zklogin.circom"), "ZKLogin", [
+            params.max_padded_unsigned_jwt_len,
+            params.max_extended_key_claim_len,
+            params.max_key_claim_name_len
         ]
     );
 }
 
 async function genProof(
-    circuit, jwt, keyClaimName = "sub",
-    maxContentLen = constants.maxContentLen, maxExtClaimLen = constants.maxExtClaimLen,
-    maxKeyClaimNameLen = constants.maxKeyClaimNameLen, maxKeyClaimValueLen = constants.maxKeyClaimValueLen,
-    claimsToReveal = constants.claimsToReveal, ephPK = devVars.ephPK,
-    maxEpoch = devVars.maxEpoch, jwtRand = devVars.jwtRand, userPIN = devVars.pin
+    circuit, I, P = circuit_constants
 ) {
-    const [header, payload, _] = jwt.split('.');
-    const input = header + '.' + payload;
-    var [inputs, auxiliary_inputs] = await circuitutils.genJwtProofUAInputs(
-        input, 
-        maxContentLen,
-        maxExtClaimLen,
-        maxKeyClaimNameLen,
-        maxKeyClaimValueLen,
-        keyClaimName,
-        claimsToReveal,
-        ephPK, 
-        maxEpoch,
-        jwtRand,
-        userPIN
-    );
+    var [inputs, auxiliary_inputs] = await circuitutils.genZKLoginInputs(I, P);
     utils.writeJSONToFile(inputs, "inputs.json");
 
     const w = await circuit.calculateWitness(inputs, true);
     await circuit.checkConstraints(w);
 
-    const masked_content = utils.applyMask(inputs["content"], inputs["mask"]);
-    verify.checkMaskedContent(
-        masked_content,
-        inputs["num_sha2_blocks"],
-        inputs["payload_start_index"],
-        inputs["payload_len"],
-        maxContentLen
+    verify.verifyAuxInputs(
+        auxiliary_inputs,
+        P.max_padded_unsigned_jwt_len
     );
 
     return [inputs, auxiliary_inputs];
@@ -80,27 +64,29 @@ describe("JWT Proof", function() {
         }
     }
 
-    for (const [provider, constants] of Object.entries(test_vectors)) {
+    for (const [provider, values] of Object.entries(test_vectors)) {
         describe(provider, async function() {
             it.skip("Verify JWT with JWK", async function() {
-                verify.verifyJwt(constants["jwt"], constants["jwk"]);
+                verify.verifyJwt(values["jwt"], values["jwk"]);
             });
 
             it("Prove w/ sub", async function() {
                 const circuit = await genCircuit();
-                await genProof(
-                    circuit,
-                    constants["jwt"]
-                );
+                const I = {
+                    ...dev_inputs,
+                    unsigned_jwt: jwtutils.removeSig(values["jwt"])
+                }
+                await genProof(circuit, I);
             });
 
             it("Prove w/ email", async function() {
                 const circuit = await genCircuit();
-                await genProof(
-                    circuit,
-                    constants["jwt"],
-                    "email"
-                );
+                const I = {
+                    ...dev_inputs,
+                    unsigned_jwt: jwtutils.removeSig(values["jwt"]),
+                    key_claim_name: "email" 
+                }
+                await genProof(circuit, I);
             });
         });
     }
@@ -143,35 +129,41 @@ describe("Tests with crafted JWTs", () => {
     };
 
     const jwt = constructJWT(header, payload);
-    const maxContentLen = 64 * 6;
-    const maxExtClaimLen = constants.maxExtClaimLen;
-    const maxKeyClaimNameLen = constants.maxKeyClaimNameLen;
-    const maxKeyClaimValueLen = constants.maxKeyClaimValueLen;
+    const unsigned_jwt = jwtutils.removeSig(jwt);
 
-    const seed_sub = '3933397123257831927251308270714554907807704888576094124721682124818019353989';
-    const seed_email = '1973999242154691951111604273911528395925144468932358877866874679764640280443';
+    const test_params = {
+        ...circuit_constants,
+        "max_padded_unsigned_jwt_len": 64 * 6,
+    }
+
+    const seed_sub = 3933397123257831927251308270714554907807704888576094124721682124818019353989n;
+    const seed_email = 1973999242154691951111604273911528395925144468932358877866874679764640280443n;
 
     before(async () => {
         expect(jwtutils.getExtendedClaim(JSON.stringify(payload), "sub")).equals(claim_string);
-        expect(claim_string.length).at.most(maxExtClaimLen);
+        expect(claim_string.length).at.most(test_params.max_extended_key_claim_len);
         expect(await circuitutils.computeNonce()).equals(nonce);
-        expect(payload.sub.length).at.most(maxKeyClaimValueLen);
-        expect(await utils.deriveAddrSeed(payload.sub, pin, maxKeyClaimValueLen)).equals(BigInt(seed_sub));
-        expect(payload.email.length).at.most(maxKeyClaimValueLen);
-        expect(await utils.deriveAddrSeed(payload.email, pin, maxKeyClaimValueLen)).equals(BigInt(seed_email));
+        expect(payload.sub.length).at.most(test_params.max_key_claim_value_len);
+        expect(await utils.deriveAddrSeed(payload.sub, pin, test_params.max_key_claim_value_len)).equals(seed_sub);
+        expect(payload.email.length).at.most(test_params.max_key_claim_value_len);
+        expect(await utils.deriveAddrSeed(payload.email, pin, test_params.max_key_claim_value_len)).equals(seed_email);
         console.log("JWT: ", jwt);
     });
 
     beforeEach(async () => {
-        circuit = await genCircuit(maxContentLen, maxExtClaimLen, maxKeyClaimNameLen);
+        circuit = await genCircuit(test_params);
     });
 
     it("No change", async function() {
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: unsigned_jwt,
+        };
+        console.log("Inputs: ", inputs);
         const [_, aux] = await genProof(
             circuit,
-            jwt,
-            "sub",
-            maxContentLen
+            inputs,
+            test_params
         );
         expect(aux["addr_seed"]).equals(seed_sub);
     });
@@ -188,11 +180,14 @@ describe("Tests with crafted JWTs", () => {
             jti: 'a8a0728a'
         };
         const new_jwt = constructJWT(header, new_payload);
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: jwtutils.removeSig(new_jwt),
+        };
         const [_, aux] = await genProof(
             circuit,
-            new_jwt,
-            "sub",
-            maxContentLen
+            inputs,
+            test_params
         );
         expect(aux["addr_seed"]).equals(seed_sub);
     });
@@ -209,11 +204,14 @@ describe("Tests with crafted JWTs", () => {
             sub: '4840061'
         };
         const new_jwt = constructJWT(header, new_payload);
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: jwtutils.removeSig(new_jwt),
+        };
         const [_, aux] = await genProof(
             circuit,
-            new_jwt,
-            "sub",
-            maxContentLen
+            inputs,
+            test_params
         );
         expect(aux["addr_seed"]).equals(seed_sub);
     });
@@ -230,11 +228,14 @@ describe("Tests with crafted JWTs", () => {
             nonce: nonce,
         };
         const new_jwt = constructJWT(header, new_payload);
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: jwtutils.removeSig(new_jwt),
+        };
         const [_, aux] = await genProof(
             circuit,
-            new_jwt,
-            "sub",
-            maxContentLen
+            inputs,
+            test_params
         );
         expect(aux["addr_seed"]).equals(seed_sub);
     });
@@ -252,22 +253,17 @@ describe("Tests with crafted JWTs", () => {
         };
         const new_jwt = constructJWT(header, new_payload);
         try {
-            const [b64header, b64payload,] = new_jwt.split('.');
-            var [inputs, ] = await circuitutils.genJwtProofUAInputs(
-                b64header + '.' + b64payload, 
-                maxContentLen, 
-                maxExtClaimLen,
-                maxKeyClaimNameLen,
-                maxKeyClaimValueLen,
-                "sub",
-                constants.claimsToReveal, 
-                devVars.ephPK, 
-                devVars.maxEpoch, 
-                devVars.jwtRand, 
-                devVars.pin,
+            const inputs = {
+                ...dev_inputs,
+                unsigned_jwt: jwtutils.removeSig(new_jwt),
+            }
+
+            var [zk_inputs, ] = await circuitutils.genZKLoginInputs(
+                inputs,
+                test_params,
                 false // set to false to turn off JS sanity checks
             );
-            await circuit.calculateWitness(inputs, true);
+            await circuit.calculateWitness(zk_inputs, true);
         } catch (error) {
             assert.include(error.message, 'Error in template NonceChecker');
         }
@@ -275,11 +271,15 @@ describe("Tests with crafted JWTs", () => {
 
     // TODO: Test with an email of length 50
     it("No change w/ email", async function() {
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: jwtutils.removeSig(jwt),
+            key_claim_name: "email",
+        };
         const [_, aux] = await genProof(
             circuit,
-            jwt,
-            "email",
-            maxContentLen
+            inputs,
+            test_params
         );
         expect(aux["addr_seed"]).equals(seed_email);
     });

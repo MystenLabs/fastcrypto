@@ -2,7 +2,7 @@ import * as jwt from "jsonwebtoken";
 import jwkToPem, { JWK } from "jwk-to-pem";
 import * as jwtutils from './jwtutils';
 import { toBigIntBE } from "bigint-buffer";
-import { AuxInputs } from "./common";
+import { PartialAuxInputs } from "./common";
 
 // JWT Token, JWK Public Key
 const verifyJwt = (token: string, jwkPublicKey: JWK) => {
@@ -23,7 +23,7 @@ const verifyJwt = (token: string, jwkPublicKey: JWK) => {
 };
 
 // A partial implementation of the on-chain proof verification logic. Only checks the masked_content.
-const verifyOpenIDProof = (public_inputs: any, auxiliary_inputs: AuxInputs, MAX_JWT_LENGTH: number) => {
+const verifyAuxInputs = (auxiliary_inputs: PartialAuxInputs, MAX_JWT_LENGTH: number) => {
     checkMaskedContent(
         auxiliary_inputs["masked_content"],
         auxiliary_inputs["num_sha2_blocks"],
@@ -116,7 +116,6 @@ function extractClaims(maskedPayload: string) {
 
 export {
     verifyJwt, 
-    verifyOpenIDProof,
-    checkMaskedContent, 
+    verifyAuxInputs,
     extractClaims
 };

@@ -1,3 +1,11 @@
+function removeSig(jwt: string): string {
+    const parts = jwt.split('.');
+    if (parts.length != 3) {
+        throw new Error("Invalid JWT: " + jwt);
+    }
+    return parts[0] + "." + parts[1];
+}
+
 function getClaimValue(decoded_payload: string, claim: string): any {
     const json_input = JSON.parse(decoded_payload);
     if (!json_input.hasOwnProperty(claim)) {
@@ -277,6 +285,7 @@ function decodeBase64URL(s: string, i: number): string {
 }
 
 export {
+    removeSig,
     getClaimValue,
     getExtendedClaim,
     indicesOfB64,

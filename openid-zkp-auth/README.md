@@ -1,13 +1,13 @@
 # zkLogin circuits
 
-Install via `npm install`
+Install via `tsc` and `npm install`
 
 ## Filetree Description
 
 ```bash
 circuits/
-    jwt_proof_ua.circom # Main circuit code
-    zklogin.circom # Circom runner
+    zklogin.circom # Main circuit code
+    zklogin_wrapper.circom # Circom runner
     helpers/
         base64.circom
         hasher.circom
@@ -15,20 +15,20 @@ circuits/
         misc.circom
         sha256.circom
         strings.circom
-js/
-    circuitutils.js # Circuit utilities
-    constants.js # Circuit params
-    decideparams.js # A script to decide circuit params based on real JWTs
-    jwtutils.js # JWT utilities
-    prove.js # Helper script to run the ZKP using a given zkey, vkey, JWT
-    utils.js # Generic utilities
-    verify.js
+src/
+    circuitutils.ts # Circuit utilities
+    constants.ts # Circuit params
+    decideparams.ts # A script to decide circuit params based on real JWTs
+    jwtutils.ts # JWT utilities
+    prove.ts # Helper script to run the ZKP using a given zkey, vkey, JWT
+    utils.ts # Generic utilities
+    verify.ts
 test/
     testutils.js # Test utilities
     xyz.circom.test.js # testing circom code
     abc.test.js # testing js code
 testvectors/
-    realJWTs.js # Real JWTs
+    realJWTs.ts # Real JWTs
     sampleWalletInputs.json
     sampleZKPInputs.json
 ```
@@ -66,7 +66,7 @@ It generates three files: the zk proof (`zkp.proof`), auxiliary inputs to the ve
 
 ## Tests
 
-``npm test``
+``tsc; npm test``
 
 # Steps to create a back-end service that returns zkLogin proofs
 
