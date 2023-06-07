@@ -68,27 +68,15 @@ It generates three files: the zk proof (`zkp.proof`), auxiliary inputs to the ve
 
 ``tsc; npm test``
 
-# Steps to create a back-end service that returns zkLogin proofs
-
-1. Follow the instructions given at https://github.com/mskd12/rapidsnark#compile-prover-in-server-mode  and https://github.com/mskd12/rapidsnark#launch-prover-in-server-mode. You'd also need to copy the zklogin.dat file along with the binary to the `build` folder.
-
-2. Currently, the code above assumes that fastcrypto is cloned at `~`. (See https://github.com/mskd12/rapidsnark/blob/main/src/fullprover.cpp#L120)
-
-3. Set LD_LIBRARY_PATH appropriately before running the `proverServer` binary. The required file is in depends. So if rapidsnark was installed at `~`, then you'd need to set `export LD_LIBRARY_PATH=/home/ubuntu/rapidsnark/depends/pistache/build/src/` and then run `export $LD_LIBRARY_PATH`
-
 # Steps to access the back-end
 
-After installing the module, simply run the command: `node tools/request.js <walletInputs.json> zklogin`. The inputs JSON file has the following format:
+The back-end takes `WalletInputs` as input and returns `PartialZKLoginSig`. Both these structs are defined in `src/common.ts`.
+
+## Example via cURL
 
 ```
-struct {
-    jwt: String,
-    eph_public_key: String,
-    max_epoch: Number,
-    jwt_rand: String,
-    user_pin: String,
-    key_claim_name: String
-}
+1. cd testvectors
+2. curl -X POST -H "Content-Type: application/json" -d @./sampleWalletInputs.json http://185.209.177.123:8000/zkp
 ```
 
-An example is in `testvectors/sampleWalletInputs.json`.
+Note that the command reads the `WalletInputs` from the JSON file `testvectors/sampleWalletInputs.json`.
