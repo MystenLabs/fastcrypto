@@ -24,7 +24,7 @@ const dev_inputs = {
 
 async function genCircuit(params = circuit_constants) {
     return await testutils.genMain(
-        path.join(__dirname, "../circuits", "zklogin.circom"), "ZKLogin", [
+        path.join(__dirname, "../circuits", "zkloginMain.circom"), "ZKLogin", [
             params.max_padded_unsigned_jwt_len,
             params.max_extended_key_claim_len,
             params.max_key_claim_name_len
@@ -159,7 +159,6 @@ describe("Tests with crafted JWTs", () => {
             ...dev_inputs,
             unsigned_jwt: unsigned_jwt,
         };
-        console.log("Inputs: ", inputs);
         const [_, aux] = await genProof(
             circuit,
             inputs,
@@ -283,4 +282,24 @@ describe("Tests with crafted JWTs", () => {
         );
         expect(aux["addr_seed"]).equals(seed_email);
     });
+
+    it.skip("With spaces and tabs", async function () {
+        const payload = `{"iss":"google.com","azp":"example.com","aud":"example.com",		"sub":  "4840061"   
+        ,"email":"example@gmail.com","nonce":"GCwq2zCuqtsa1BhaAc2SElwUoYv8jKhE6vs6Vmepu2M","iat":4,"exp":4,"jti":"a8a0728a"}`;
+        expect(JSON.parse(payload).sub).to.equal("4840061"); // the spaces don't matter
+
+        const b64header = Buffer.from(JSON.stringify(header)).toString('base64url');
+        const b64payload = Buffer.from(payload).toString('base64url');
+
+        const inputs = {
+            ...dev_inputs,
+            unsigned_jwt: `${b64header}.${b64payload}`,
+        };
+        const [_, aux] = await genProof(
+            circuit,
+            inputs,
+            test_params
+        );
+        expect(aux["addr_seed"]).equals(seed_sub);
+    })
 });

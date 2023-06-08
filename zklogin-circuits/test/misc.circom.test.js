@@ -1,6 +1,7 @@
 const chai = require("chai");
 const path = require("path");
 const assert = chai.assert;
+const expect = chai.expect;
 
 const utils = require("../js/src/utils");
 
@@ -447,5 +448,50 @@ describe("RangeCheck", () => {
                 }
             }
         });
+    });
+});
+
+describe("mapToField", () => {
+    var circuit;
+    const maxStrLen = 20;
+
+    before(async () => {
+        circuit = await testutils.genMain(
+            path.join(__dirname, "../circuits/helpers", "misc.circom"), "MapToField", [maxStrLen]
+        );
+        await circuit.loadSymbols();
+    });
+
+    it("Normal string", async () => {
+        const str = 'abracadabra';
+        const witness = await circuit.calculateWitness({
+            "str": utils.strToVec(str, maxStrLen)
+        }, true);
+        await circuit.checkConstraints(witness);
+
+        const x = testutils.getWitnessValue(witness, circuit.symbols, "main.str_F");
+        expect(x).equals(await utils.mapToField(str, maxStrLen));
+    });
+
+    it("empty string", async () => {
+        const str = '';
+        const witness = await circuit.calculateWitness({
+            "str": utils.strToVec(str, maxStrLen)
+        }, true);
+        await circuit.checkConstraints(witness);
+
+        const x = testutils.getWitnessValue(witness, circuit.symbols, "main.str_F");
+        expect(x).equals(await utils.mapToField(str, maxStrLen));
+    });
+
+    it("String length == maxLen", async () => {
+        const str = 'a'.repeat(maxStrLen);
+        const witness = await circuit.calculateWitness({
+            "str": utils.strToVec(str, maxStrLen)
+        }, true);
+        await circuit.checkConstraints(witness);
+
+        const x = testutils.getWitnessValue(witness, circuit.symbols, "main.str_F");
+        expect(x).equals(await utils.mapToField(str, maxStrLen));
     });
 });

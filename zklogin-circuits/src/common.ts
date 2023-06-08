@@ -16,6 +16,9 @@ export interface KCCheckInputs {
     "claim_length_b64": number;
     "subject_pin": bigint;
     "key_claim_name_length": number;
+    "key_claim_colon_index": number;
+    "key_claim_value_start": number;
+    "key_claim_value_length": number;
 }
 
 export interface NonceCheckInputs {
@@ -43,6 +46,9 @@ export class ZKInputs implements KCCheckInputs, NonceCheckInputs {
     "claim_length_b64": number;
     "subject_pin": bigint;
     "key_claim_name_length": number;
+    "key_claim_colon_index": number;
+    "key_claim_value_start": number;
+    "key_claim_value_length": number;
 
     // NonceCheckInputs
     "extended_nonce": number[];

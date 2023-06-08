@@ -75,6 +75,12 @@ function padWithZeroes<T>(inArr: T[], outCount: number) {
     return arr_padded;
 }
 
+// A helper function to convert a string into a format that can be fed into the circuit
+function strToVec(str: string, maxLen: number): number[] {
+    const arr = Array.from(str).map(c => c.charCodeAt(0));
+    return padWithZeroes(arr, maxLen);
+}
+
 // Poseidon is marked as any because circomlibjs does not have typescript definitions
 function poseidonHash(inputs: bigint[], poseidon: any) {
     if (inputs.length == 1) {
@@ -147,6 +153,7 @@ export {
     bigIntArray2Buffer,
     applyMask,
     padWithZeroes,
+    strToVec,
     pack,
     deriveAddrSeed,
     poseidonHash,

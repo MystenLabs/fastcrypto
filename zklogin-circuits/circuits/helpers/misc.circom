@@ -5,6 +5,8 @@ include "../../node_modules/circomlib/circuits/gates.circom";
 include "../../node_modules/circomlib/circuits/mux2.circom";
 include "../../node_modules/circomlib/circuits/multiplexer.circom";
 
+include "hasher.circom";
+
 /**
 DivideMod2Power: Returns quotient (in / 2^p) and remainder (in % 2^p)
 
@@ -311,5 +313,26 @@ template ConvertBase(inWidth, inCount, outWidth, outCount) {
 
     for(var i = 0; i < outCount; i++) {
         out[i] <== compressor[i].out;
+    }
+}
+
+template MapToField(maxLen) {
+    var inWidth = 8;
+    var packWidth = 248; // smallest multiple of 8 less than 256
+    signal input str[maxLen];
+
+    var outCount = getBaseConvertedOutputSize(maxLen * inWidth, packWidth);
+    signal packed[outCount] <== ConvertBase(inWidth, maxLen, packWidth, outCount)(str);
+    signal output str_F <== Hasher(outCount)(packed);
+}
+
+template vectorAND(n) {
+    signal input a[n];
+    signal input b[n];
+
+    signal output out[n];
+
+    for (var i = 0; i < n; i++) {
+        out[i] <== a[i] * b[i];
     }
 }

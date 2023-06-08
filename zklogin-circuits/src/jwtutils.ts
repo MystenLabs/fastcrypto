@@ -14,6 +14,29 @@ function getClaimValue(decoded_payload: string, claim: string): any {
     return json_input[claim];
 }
 
+// A copy of getExtendedClaim but returns more things. TODO: Refactor and merge the two.
+function parseClaim(decoded_payload: string, claim_name: string) {
+    const raw_value = JSON.stringify(getClaimValue(decoded_payload, claim_name));
+    const kv_pair = `"${claim_name}":${raw_value}`;
+    const claimStart = decoded_payload.indexOf(`"${claim_name}"`);
+    const kv_pair_expanded = kv_pair + decoded_payload[claimStart + kv_pair.length];
+
+    if (!decoded_payload.includes(kv_pair_expanded)) {
+        throw new Error("Unimplemented. The string " + kv_pair_expanded + " is not found in " + decoded_payload);
+    }
+
+    var lastchar = kv_pair_expanded[kv_pair_expanded.length - 1];
+    if (!(lastchar == '}' || lastchar == ',')) {
+        throw new Error("Something is wrong with the decoded payload");
+    }
+    return {
+        "raw_value": raw_value,
+        "extended_claim": kv_pair_expanded,
+        "colon_index": kv_pair_expanded.indexOf(":"),
+        "value_index": kv_pair_expanded.indexOf(raw_value), // index of value in the extended claim
+    };
+}
+
 /**
  * Returns a claim as it appears in the decoded JWT.
  * We take a conservative approach, e.g., assume that the claim value does not have spaces. 
@@ -287,6 +310,7 @@ function decodeBase64URL(s: string, i: number): string {
 export {
     removeSig,
     getClaimValue,
+    parseClaim,
     getExtendedClaim,
     indicesOfB64,
     b64Len,

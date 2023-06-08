@@ -4,79 +4,108 @@ include "strings.circom";
 include "misc.circom";
 include "hasher.circom";
 
+template StringChecker(maxLen) {
+    signal input str[maxLen];
+    signal input len;
+
+    // first char is a quote
+    str[0] === 34; // '"'
+
+    // last char is a quote
+    signal last_quote <== SingleMultiplexer(maxLen)(str, len - 1);
+    last_quote === 34; // '"'
+
+    // str[i] == 0 for all i >= len
+    signal sigt[maxLen] <== GTBitVector(maxLen)(len - 1);
+    for (var i = 0; i < maxLen; i++) {
+        sigt[i] * str[i] === 0;
+    }
+}
+
+template isWhitespace() {
+    signal input c;
+
+    signal is_space <== IsEqual()([c, 0x20]); // 0x20 = decimal 32
+    signal is_tab <== IsEqual()([c, 0x09]); // 0x09 = decimal 9
+    signal is_newline <== IsEqual()([c, 0x0A]); // 0x0A = decimal 10 
+    signal is_carriage_return <== IsEqual()([c, 0x0D]); // 0x0D = decimal 13
+
+    signal output is_whitespace <== is_space + is_tab + is_newline + is_carriage_return;
+}
+
 /**
-KeyClaimChecker: Checks that the extended claim string representing a key claim is valid.
-    a) extended_claim[0] == '"'
-    b) Return extended_claim[1:1+name_len] as claim_name (mapped to a field element)
-    c) extended_claim[name_len+1] == '"'
-    d) extended_claim[name_len+2] == ':'
-    e) extended_claim[name_len+3] == '"'
-    f) Return extended_claim[name_len+4:extended_claim_len-2] as claim_value (mapped to a field element)
-    g) extended_claim[extended_claim_len-2] == '"'
-    h) extended_claim[extended_claim_len-1] == ',' or '}'
-    i) extended_claim[i] == 0 for all i >= extended_claim_len
+ExtendedClaimParser
 
-E.g., extended_claim = '"sub":"123456",00000', extended_claim_len = 15, name_len = 3
+string ws : ws value ws E
+     |    |    |   |    |
+     n    c    vs  ve   l => n = name_len, c = ':', vs = value_start, ve = value_end, l = length
 **/
-template KeyClaimChecker(maxExtLength, maxClaimNameLen, maxClaimValueLen, packWidth) {
-    assert(maxExtLength > 0);
-    assert(maxClaimNameLen > 0);
-    assert(maxClaimValueLen > 0);
-    assert(packWidth > 0);
-    assert(maxExtLength == maxClaimNameLen + maxClaimValueLen + 6); // four '"', one ':' and one ',' / '}'
+template ExtendedClaimParser(maxExtendedClaimLen, maxKeyClaimNameLen, maxKeyClaimValueLen) {
+    assert(maxExtendedClaimLen > 0);
+    assert(maxKeyClaimNameLen > 0);
+    assert(maxKeyClaimValueLen > 0);
+    assert(maxExtendedClaimLen == maxKeyClaimNameLen + maxKeyClaimValueLen + 2); // +2 for colon and comma/brace
 
-    var inWidth = 8;
+    // TODO: Add range checks for all inputs
+    signal input extended_claim[maxExtendedClaimLen];
+    signal input length;
 
-    signal input extended_claim[maxExtLength];
-    signal input extended_claim_len;
     signal input name_len;
+    signal input colon_index;
+    signal input value_start;
+    signal input value_len;
 
-    // Checks on the first char
-    extended_claim[0] === 34; // '"'
-
-    // Extract claim name
-    signal name[maxClaimNameLen] <== Slice(maxExtLength, maxClaimNameLen)(
-        in <== extended_claim,
-        index <== 1,
-        length <== name_len
+    signal output name[maxKeyClaimNameLen] <== Slice(maxExtendedClaimLen, maxKeyClaimNameLen)(
+        extended_claim,
+        0,
+        name_len
     );
-    var nameOutCount = getBaseConvertedOutputSize(maxClaimNameLen * inWidth, packWidth);
-    signal packed_claim_name[nameOutCount] <== ConvertBase(inWidth, maxClaimNameLen, packWidth, nameOutCount)(name);
-    signal output claim_name_F <== Hasher(nameOutCount)(packed_claim_name);
+    // Is name a valid JSON string? (All JSON keys are strings)
+    StringChecker(maxKeyClaimNameLen)(name, name_len); 
 
-    // Checks on middle
-    signal middle[3] <== SliceFixed(maxExtLength, 3)(
-        in <== extended_claim,
-        index <== name_len + 1
+    signal output value[maxKeyClaimValueLen] <== Slice(maxExtendedClaimLen, maxKeyClaimValueLen)(
+        extended_claim,
+        value_start,
+        value_len
     );
-    middle[0] === 34; // '"'
-    middle[1] === 58; // ':'
-    middle[2] === 34; // '"'
+    // Is value a valid JSON string?
+    StringChecker(maxKeyClaimValueLen)(value, value_len);
+    // NOTE: In theory, JSON values need not be strings. But we only use this parser for parsing strings, so this is fine.
 
-    // Extract claim value
-    signal value[maxClaimValueLen];
-    value <== Slice(maxExtLength, maxClaimValueLen)(
-        in <== extended_claim,
-        index <== name_len + 4,
-        length <== extended_claim_len - name_len - 6
-    );
-    var valueOutCount = getBaseConvertedOutputSize(maxClaimValueLen * inWidth, packWidth);
-    signal packed_claim_value[valueOutCount] <== ConvertBase(inWidth, maxClaimValueLen, packWidth, valueOutCount)(value);
-    signal output claim_value_F <== Hasher(valueOutCount)(packed_claim_value);
-
-    // extended_claim[i] == 0 for all i >= extended_claim_len
-    signal sigt[maxExtLength] <== GTBitVector(maxExtLength)(extended_claim_len - 1);
-    for (var i = 0; i < maxExtLength; i++) {
-        sigt[i] * extended_claim[i] === 0;
+    // Whitespaces
+    signal is_whitespace[maxExtendedClaimLen];
+    for (var i = 0; i < maxExtendedClaimLen; i++) {
+        is_whitespace[i] <== isWhitespace()(extended_claim[i]);
     }
 
-    // Checks on last two chars
-    signal end[2] <== SliceFixed(maxExtLength, 2)(
-        in <== extended_claim,
-        index <== extended_claim_len - 2
-    );
-    end[0] === 34; // '"'
-    (end[1] - 44) * (end[1] - 125) === 0; // lastchar = ',' or '}'
+    signal is_gt_n[maxExtendedClaimLen] <== GTBitVector(maxExtendedClaimLen)(name_len - 1);
+    signal is_lt_c[maxExtendedClaimLen] <== LTBitVector(maxExtendedClaimLen)(colon_index);
+    signal selector1[maxExtendedClaimLen] <== vectorAND(maxExtendedClaimLen)(is_gt_n, is_lt_c);
+    for (var i = 0; i < maxExtendedClaimLen; i++) {
+        selector1[i] * (1 - is_whitespace[i]) === 0;
+    }
+
+    signal is_gt_c[maxExtendedClaimLen] <== GTBitVector(maxExtendedClaimLen)(colon_index);
+    signal is_lt_vs[maxExtendedClaimLen] <== LTBitVector(maxExtendedClaimLen)(value_start);
+    signal selector2[maxExtendedClaimLen] <== vectorAND(maxExtendedClaimLen)(is_gt_c, is_lt_vs);
+    for (var i = 0; i < maxExtendedClaimLen; i++) {
+        selector2[i] * (1 - is_whitespace[i]) === 0;
+    }
+
+    signal is_gt_ve[maxExtendedClaimLen] <== GTBitVector(maxExtendedClaimLen)(value_start + value_len - 1);
+    signal is_lt_l[maxExtendedClaimLen] <== LTBitVector(maxExtendedClaimLen)(length - 1);
+    signal selector3[maxExtendedClaimLen] <== vectorAND(maxExtendedClaimLen)(is_gt_ve, is_lt_l);
+    for (var i = 0; i < maxExtendedClaimLen; i++) {
+        selector3[i] * (1 - is_whitespace[i]) === 0;
+    }
+
+    // Colon is at index colon_index
+    signal colon <== SingleMultiplexer(maxExtendedClaimLen)(extended_claim, colon_index);
+    colon === 58; // ':'
+
+    // Last char is either end-brace or comma
+    signal last_char <== SingleMultiplexer(maxExtendedClaimLen)(extended_claim, length - 1);
+    (last_char - 125) * (last_char - 44) === 0; // '}' or ','
 }
 
 /**
@@ -86,42 +115,29 @@ NonceChecker: Checks that the extended claim string representing nonce is valid.
     c) The chars in between are base64url encoded bits of the nonce
 
 Construction Params:
-    extNonceLength: length of the extended claim string representing nonce
+    nonceValueLength: length of the extended claim string representing nonce
     nonceBitLen: length of the nonce in bits
 **/
-template NonceChecker(extNonceLength, nonceBitLen) {
-    assert(extNonceLength > 0);
+template NonceChecker(nonceValueLength, nonceBitLen) {
+    assert(nonceValueLength > 0);
     assert(nonceBitLen > 0);
 
     signal input expected_nonce;
     signal expected_bits[nonceBitLen] <== Num2BitsBE(nonceBitLen)(expected_nonce);
 
-    signal input actual_extended_nonce[extNonceLength];
+    signal input actual_nonce[nonceValueLength];
 
-    // Checks on prefix (first 9 chars)
-    actual_extended_nonce[0] === 34; // '"'
-    actual_extended_nonce[1] === 110; // 'n'
-    actual_extended_nonce[2] === 111; // 'o'
-    actual_extended_nonce[3] === 110; // 'n'
-    actual_extended_nonce[4] === 99; // 'c'
-    actual_extended_nonce[5] === 101; // 'e'
-    actual_extended_nonce[6] === 34; // '"'
-    actual_extended_nonce[7] === 58; // ':'
-    actual_extended_nonce[8] === 34; // '"'
+    // first char is a quote
+    actual_nonce[0] === 34; // '"'
 
-    // Checks on last but one char
-    var lastbutone = actual_extended_nonce[extNonceLength - 2];
-    lastbutone === 34; // '"'
-
-    // Checks on last char
-    var lastchar = actual_extended_nonce[extNonceLength - 1];
-    (lastchar - 44) * (lastchar - 125) === 0; // lastchar = ',' or '}'
+    // last char is a quote
+    actual_nonce[nonceValueLength - 1] === 34; // '"'
 
     // Remove the 9 character prefix and two character suffix to get the actual nonce
-    var nonceLength = extNonceLength - 11;
+    var nonceLength = nonceValueLength - 2;
     var value[nonceLength];
     for (var i = 0; i < nonceLength; i++) {
-        value[i] = actual_extended_nonce[i + 9];
+        value[i] = actual_nonce[i + 1];
     }
 
     // Convert the base64url encoded nonce to bits

@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Verify OIDC JWT with SNARKs",
   "scripts": {
-    "test": "mocha --max-old-space-size=16000 -t 10000s",
+    "test": "tsc; mocha --max-old-space-size=16000 -t 10000s",
     "prove": "node js/prove.js"
   },
   "bin": {

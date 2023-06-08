@@ -1,71 +1,74 @@
 const chai = require("chai");
 const path = require("path");
-const expect = chai.expect;
+const assert = chai.assert;
 
-const constants = require('../js/src/common').circuit_params;
+const params = require('../js/src/common').circuit_params;
 const utils = require('../js/src/utils');
 const testutils = require("./testutils");
+const circuitutils = require("../js/src/circuitutils");
 
-describe("Key claim checks", () => {
-    var circuit;
-    const maxExtLength = constants.max_extended_key_claim_len;
-    const maxKeyClaimNameLen = constants.max_key_claim_name_len;
-    const maxKeyClaimValueLen = constants.max_key_claim_value_len;
-
-    before(async () => {
-        circuit = await testutils.genMain(
-            path.join(__dirname, "../circuits/helpers", "jwtchecks.circom"), "KeyClaimChecker", [
-                maxExtLength, maxKeyClaimNameLen, maxKeyClaimValueLen, 248
+describe("Extended claim parser", () => {
+    it("Without any whitespaces", async () => {
+        const maxKeyClaimNameLenWithQuotes = 20;
+        const maxKeyClaimValueLenWithQuotes = 30;
+        const maxExtendedClaimLen = maxKeyClaimNameLenWithQuotes + maxKeyClaimValueLenWithQuotes + 2;
+        const circuit = await testutils.genMain(
+            path.join(__dirname, "../circuits/helpers", "jwtchecks.circom"), "ExtendedClaimParser", [
+                maxExtendedClaimLen, maxKeyClaimNameLenWithQuotes, maxKeyClaimValueLenWithQuotes
             ]
         );
         await circuit.loadSymbols();
+
+        const payload = JSON.stringify({
+            'sub': '1234',
+            'email': 'abcd@example.com',
+            'name': 'John Doe'
+        });
+
+        const inputs = circuitutils.genExtClaimParserInputs(payload, "email", maxExtendedClaimLen);
+        const witness = await circuit.calculateWitness(inputs, true);
+
+        const parsed_name = testutils.getWitnessArray(witness, circuit.symbols, "main.name").map(Number);
+        const parsed_value = testutils.getWitnessArray(witness, circuit.symbols, "main.value").map(Number);
+
+        assert.deepEqual(parsed_name, utils.strToVec('"email"', maxKeyClaimNameLenWithQuotes));
+        assert.deepEqual(parsed_value, utils.strToVec('"abcd@example.com"', maxKeyClaimValueLenWithQuotes));
     });
 
-    it("Sub", async () => {
-        const keyClaimName = "sub";
-        const keyClaimValue = "1234";
-        const keyClaimExt = `"${keyClaimName}":"${keyClaimValue}",`;
-        console.log(keyClaimExt);
+    it("With whitespaces, newlines and tabs", async () => {
+        const maxKeyClaimNameLenWithQuotes = 20;
+        const maxKeyClaimValueLenWithQuotes = 30;
+        const maxExtendedClaimLen = maxKeyClaimNameLenWithQuotes + maxKeyClaimValueLenWithQuotes + 2;
+        const circuit = await testutils.genMain(
+            path.join(__dirname, "../circuits/helpers", "jwtchecks.circom"), "ExtendedClaimParser", [
+                maxExtendedClaimLen, maxKeyClaimNameLenWithQuotes, maxKeyClaimValueLenWithQuotes
+            ]
+        );
+        await circuit.loadSymbols();
 
+        const name = '"email"'; // name.length <= maxKeyClaimNameLenWithQuotes
+        const value = '"abcd@example.com"'; // value.length <= maxKeyClaimValueLenWithQuotes
+        const extended_claim = name + '   :   \n\t ' + value + '    ,';
+        assert.isAtMost(extended_claim.length, maxExtendedClaimLen);
         const inputs = {
-            "extended_claim": utils.padWithZeroes(keyClaimExt.split('').map(c => c.charCodeAt()), maxExtLength),
-            "extended_claim_len": keyClaimExt.length,
-            "name_len": keyClaimName.length,
+            "extended_claim": utils.padWithZeroes(extended_claim.split('').map(c => c.charCodeAt()), maxExtendedClaimLen),
+            "name_len": name.length,
+            "colon_index": extended_claim.indexOf(':'),
+            "value_start": extended_claim.indexOf(value),
+            "value_len": value.length,
+            "length": extended_claim.length,
         };
 
         const witness = await circuit.calculateWitness(inputs, true);
         await circuit.checkConstraints(witness);
 
-        const x = testutils.getWitnessValue(witness, circuit.symbols, "main.claim_name_F");
-        const y = testutils.getWitnessValue(witness, circuit.symbols, "main.claim_value_F");
+        const parsed_name = testutils.getWitnessArray(witness, circuit.symbols, "main.name").map(Number);
+        const parsed_value = testutils.getWitnessArray(witness, circuit.symbols, "main.value").map(Number);
 
-        expect(x).equals(await utils.mapToField(keyClaimName, maxKeyClaimNameLen, constants.packWidth));
-        expect(y).equals(await utils.mapToField(keyClaimValue, maxKeyClaimValueLen, constants.packWidth));
-    })
-
-    it("Email", async () => {
-        const keyClaimName = "email";
-        const keyClaimValue = "abcdefgh@gmail.com";
-        const keyClaimExt = `"${keyClaimName}":"${keyClaimValue}"}`;
-        console.log(keyClaimExt);
-
-        const inputs = {
-            "extended_claim": utils.padWithZeroes(keyClaimExt.split('').map(c => c.charCodeAt()), maxExtLength),
-            "extended_claim_len": keyClaimExt.length,
-            "name_len": keyClaimName.length,
-        };
-
-        const witness = await circuit.calculateWitness(inputs, true);
-        await circuit.checkConstraints(witness);
-
-        const x = testutils.getWitnessValue(witness, circuit.symbols, "main.claim_name_F");
-        const y = testutils.getWitnessValue(witness, circuit.symbols, "main.claim_value_F");
-
-        expect(x).equals(await utils.mapToField(keyClaimName, maxKeyClaimNameLen, constants.packWidth));
-        expect(y).equals(await utils.mapToField(keyClaimValue, maxKeyClaimValueLen, constants.packWidth));
-    })
+        assert.deepEqual(parsed_name, utils.strToVec('"email"', maxKeyClaimNameLenWithQuotes));
+        assert.deepEqual(parsed_value, utils.strToVec('"abcd@example.com"', maxKeyClaimValueLenWithQuotes));
+    });
 
     // TODO: Add failing tests
-
     // TODO: Add tests for corner cases: extended_claim_len = maxExtLength, ...
-})
+});

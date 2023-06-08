@@ -119,22 +119,39 @@ async function genKeyClaimCheckInputs(
     keyClaimName = "sub"
 ): Promise<KCCheckInputs> {
     const decoded_payload = Buffer.from(payload, 'base64url').toString();
-    const ext_key_claim = jwtutils.getExtendedClaim(decoded_payload, keyClaimName);
+    const parse_inputs = genExtClaimParserInputs(decoded_payload, keyClaimName, maxExtClaimLen);
+
     const [start, len] = jwtutils.indicesOfB64(payload, keyClaimName);
 
-    if (ext_key_claim.length > maxExtClaimLen) {
-        throw new Error(`The claim ${ext_key_claim} exceeds the maximum length of ${maxExtClaimLen} characters`);
-    }
-
-    const padded_ext_key_claim = utils.padWithZeroes(ext_key_claim.split('').map(c => c.charCodeAt(0)), maxExtClaimLen);
     return {
-        "extended_key_claim": padded_ext_key_claim,
-        "claim_length_ascii": ext_key_claim.length,
+        "extended_key_claim": parse_inputs.extended_claim,
+        "claim_length_ascii": parse_inputs.length,
         "claim_index_b64": start + payloadIndex,
         "claim_length_b64": len,
         "subject_pin": userPIN,
-        "key_claim_name_length": keyClaimName.length
+        "key_claim_name_length": parse_inputs.name_len,
+        "key_claim_colon_index": parse_inputs.colon_index,
+        "key_claim_value_start": parse_inputs.value_start,
+        "key_claim_value_length": parse_inputs.value_len
     };
+}
+
+function genExtClaimParserInputs(
+    payload: string,
+    claim_name: string,
+    max_extended_claim_length: number
+) {
+    const output = jwtutils.parseClaim(payload, claim_name);
+    const extended_claim = output.extended_claim;
+
+    return {
+        "extended_claim": utils.strToVec(extended_claim, max_extended_claim_length),
+        "length": extended_claim.length,
+        "name_len": claim_name.length + 2, // +2 for the quotes
+        "colon_index": output.colon_index,
+        "value_start": output.value_index,
+        "value_len": output.raw_value.length
+    }
 }
 
 async function sanityChecks(
@@ -194,6 +211,9 @@ async function genZKLoginInputs(
     zk_inputs.claim_length_b64 = key_claim_inputs.claim_length_b64;
     zk_inputs.subject_pin = key_claim_inputs.subject_pin;
     zk_inputs.key_claim_name_length = key_claim_inputs.key_claim_name_length;
+    zk_inputs.key_claim_colon_index = key_claim_inputs.key_claim_colon_index;
+    zk_inputs.key_claim_value_start = key_claim_inputs.key_claim_value_start;
+    zk_inputs.key_claim_value_length = key_claim_inputs.key_claim_value_length;
 
     // set hash
     const hash = BigInt("0x" + crypto.createHash("sha256").update(unsigned_jwt).digest("hex"));
@@ -271,5 +291,6 @@ export {
     genJwtMask,
     genSha256Inputs,
     genZKLoginInputs,
+    genExtClaimParserInputs,
     computeNonce
 }
