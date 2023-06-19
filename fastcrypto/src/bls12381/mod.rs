@@ -56,7 +56,6 @@ macro_rules! define_bls12381 {
 /// are:
 /// * Validated by calling [BLS12381PublicKey::validate]), and,
 /// * Proof-of-Possession (PoP) is performed on them as a protection against rough key attacks.
-///
 #[readonly::make]
 #[derive(Clone)]
 pub struct BLS12381PublicKey {
@@ -631,6 +630,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 
+    // This function assumes that that all public keys were verified using a proof of possession.
+    // See comment above [BLS12381PublicKey].
     fn verify(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
@@ -652,6 +653,7 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
     }
 
     // This function assumes that that all public keys were verified using a proof of possession.
+    // See comment above [BLS12381PublicKey].
     fn verify_different_msg(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
