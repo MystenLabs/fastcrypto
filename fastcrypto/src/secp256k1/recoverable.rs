@@ -60,13 +60,15 @@ impl ToFromBytes for Secp256k1RecoverableSignature {
                 SECP256K1_RECOVERABLE_SIGNATURE_SIZE,
             ));
         }
-        RecoveryId::from_i32(bytes[64] as i32)
+        RecoveryId::from_i32(bytes[SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1] as i32)
             .and_then(|rec_id| {
-                ExternalRecoverableSignature::from_compact(&bytes[..64], rec_id).map(|sig| {
-                    Secp256k1RecoverableSignature {
-                        sig,
-                        bytes: OnceCell::new(),
-                    }
+                ExternalRecoverableSignature::from_compact(
+                    &bytes[..(SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1)],
+                    rec_id,
+                )
+                .map(|sig| Secp256k1RecoverableSignature {
+                    sig,
+                    bytes: OnceCell::new(),
                 })
             })
             .map_err(|_| FastCryptoError::InvalidInput)
@@ -75,15 +77,13 @@ impl ToFromBytes for Secp256k1RecoverableSignature {
 
 impl AsRef<[u8]> for Secp256k1RecoverableSignature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                let mut bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
-                let (recovery_id, sig) = self.sig.serialize_compact();
-                bytes[..64].copy_from_slice(&sig);
-                bytes[64] = recovery_id.to_i32() as u8;
-                Ok(bytes)
-            })
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| {
+            let mut bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
+            let (recovery_id, sig) = self.sig.serialize_compact();
+            bytes[..(SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1)].copy_from_slice(&sig);
+            bytes[(SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1)] = recovery_id.to_i32() as u8;
+            bytes
+        })
     }
 }
 
@@ -95,7 +95,7 @@ impl std::hash::Hash for Secp256k1RecoverableSignature {
 
 impl PartialEq for Secp256k1RecoverableSignature {
     fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
+        self.sig == other.sig
     }
 }
 

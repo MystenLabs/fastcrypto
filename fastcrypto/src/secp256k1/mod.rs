@@ -141,9 +141,7 @@ impl Secp256k1PublicKey {
 
 impl AsRef<[u8]> for Secp256k1PublicKey {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.serialize()))
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| self.pubkey.serialize())
     }
 }
 
@@ -207,9 +205,7 @@ serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey, SECP256K1_PRIVATE
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.privkey.secret_bytes()))
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| self.privkey.secret_bytes())
     }
 }
 
@@ -263,9 +259,7 @@ impl Authenticator for Secp256k1Signature {
 
 impl AsRef<[u8]> for Secp256k1Signature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.serialize_compact()))
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| self.sig.serialize_compact())
     }
 }
 
