@@ -1,0 +1,10 @@
+[package]
+name = "fastcrypto-data"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rs_merkle = "1.4.1"
+fastcrypto = "0.1.5"
