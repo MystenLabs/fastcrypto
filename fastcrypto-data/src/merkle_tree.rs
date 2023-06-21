@@ -1,6 +1,27 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains an implementation of a Merkle Tree (see Merkle, R.C. (1988): A Digital Signature
+//! Based on a Conventional Encryption Function). Any hash function can be used and we use the method
+//! from section 2.1 in RFC9162 to avoid second pre-image attacks.
+//!
+//! An arbitrary number of elements of a given type can be added as leaves to the tree and we can then
+//! construct proofs logarithmic in the number of leaves that a certain leaf has a given value.
+//!
+//! # Example
+//! ```rust
+//! # use fastcrypto::hash::Sha256;
+//! use fastcrypto_data::merkle_tree::*;
+//! let elements = [[1u8], [2u8], [3u8]];
+//! let mut tree = MerkleTree::<32, Sha256, [u8; 1]>::new();
+//! tree.insert_elements(elements.iter());
+//!
+//! let index = 1;
+//! let proof = tree.prove(index);
+//!
+//! let verifier = tree.create_verifier().unwrap();
+//! assert!(verifier.verify_with_element(index, &elements[index], &proof));
+//! ```
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
