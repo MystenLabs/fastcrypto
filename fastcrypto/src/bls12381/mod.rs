@@ -51,6 +51,11 @@ macro_rules! define_bls12381 {
 ) => {
 
 /// BLS 12-381 public key.
+///
+/// For optimizing performance, throughout this module we assume that before being used, public keys
+/// are:
+/// * Validated by calling [BLS12381PublicKey::validate]), and,
+/// * Proof-of-Possession (PoP) is performed on them as a protection against rough key attacks.
 #[readonly::make]
 #[derive(Clone)]
 pub struct BLS12381PublicKey {
@@ -130,8 +135,7 @@ impl Debug for BLS12381PublicKey {
 impl AsRef<[u8]> for BLS12381PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.to_bytes()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| self.pubkey.to_bytes())
     }
 }
 
@@ -279,7 +283,7 @@ fn get_random_scalar<Rng: AllowedRng>(rng: &mut Rng) -> blst_scalar {
         vals[1] = rng.next_u64();
 
         // Reject zero as it is used for multiplication.
-        let vals1_lsb = vals[1] & ((1 << (BLS_BATCH_RANDOM_SCALAR_LENGTH - 64)) - 1);
+        let vals1_lsb = vals[1] & (((1u128 << (BLS_BATCH_RANDOM_SCALAR_LENGTH - 64)) - 1) as u64);
         if vals[0] | vals1_lsb != 0 {
             break;
         }
@@ -303,6 +307,9 @@ fn get_one() -> blst_scalar {
 
 // Always generates 128bit numbers though not all the bits must be used.
 fn get_random_scalars(n: usize) -> Vec<blst_scalar> {
+    if n == 0 {
+        return Vec::new();
+    }
     let mut rands: Vec<blst_scalar> = Vec::with_capacity(n);
     // The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
     rands.push(get_one());
@@ -341,8 +348,7 @@ impl Drop for BLS12381PrivateKey {
 impl AsRef<[u8]> for BLS12381PrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.privkey.to_bytes()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| self.privkey.to_bytes())
     }
 }
 
@@ -385,7 +391,7 @@ impl Signer<BLS12381Signature> for BLS12381PrivateKey {
 
 impl PartialEq for BLS12381Signature {
     fn eq(&self, other: &Self) -> bool {
-        self.as_ref() == other.as_ref()
+        self.sig == other.sig
     }
 }
 
@@ -400,8 +406,7 @@ impl std::hash::Hash for BLS12381Signature {
 impl AsRef<[u8]> for BLS12381Signature {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| self.sig.to_bytes())
     }
 }
 
@@ -553,8 +558,7 @@ impl Default for BLS12381AggregateSignature {
 impl AsRef<[u8]> for BLS12381AggregateSignature {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| self.sig.to_bytes())
     }
 }
 
@@ -626,6 +630,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 
+    // This function assumes that that all public keys were verified using a proof of possession.
+    // See comment above [BLS12381PublicKey].
     fn verify(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
@@ -646,6 +652,8 @@ impl AggregateAuthenticator for BLS12381AggregateSignature {
         Ok(())
     }
 
+    // This function assumes that that all public keys were verified using a proof of possession.
+    // See comment above [BLS12381PublicKey].
     fn verify_different_msg(
         &self,
         pks: &[<Self::Sig as Authenticator>::PubKey],
