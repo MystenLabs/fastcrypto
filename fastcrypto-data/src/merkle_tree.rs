@@ -1,19 +1,16 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains an implementation of a Merkle Tree (see Merkle, R.C. (1988): A Digital Signature
-//! Based on a Conventional Encryption Function). Any hash function can be used and we use the method
-//! from section 2.1 in RFC9162 to avoid second pre-image attacks.
-//!
-//! An arbitrary number of elements of a given type `T` can be added as leaves to the tree and we can then
-//! construct proofs logarithmic in the number of leaves that a certain leaf has a given value. Such
-//! proofs can be constructed by a small [MerkleTreeVerifier] which only needs to know the root of the
-//! tree.
+//! This module contains an implementation of a Merkle Tree data structure (Merkle, R.C. (1988): A Digital Signature
+//! Based on a Conventional Encryption Function) which is a data structure that allows an arbitrary
+//! number of elements of a given type `T` to be added as leaves to the tree and we can then construct
+//! proofs logarithmic in the number of leaves that a certain leaf has a given value. Such proofs can
+//! be verified by a small verifier which only needs to know the root of the tree.
 //!
 //! # Example
 //! ```rust
 //! # use fastcrypto::hash::Sha256;
-//! use fastcrypto_data::merkle_tree::*;
+//! # use fastcrypto_data::merkle_tree::*;
 //! let elements = [[1u8], [2u8], [3u8]];
 //! let mut tree = MerkleTree::<32, Sha256, [u8; 1]>::new();
 //! tree.insert_elements(elements.iter());
