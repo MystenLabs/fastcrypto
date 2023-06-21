@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 use fastcrypto::error::FastCryptoError;
@@ -82,11 +83,11 @@ impl<const DIGEST_LENGTH: usize, H: HashFunction<DIGEST_LENGTH>, T: AsRef<[u8]>>
         self.tree.leaves_len() - 1
     }
 
-    /// Insert element in this tree and return the index of the last element.
-    pub fn insert_all(&mut self, elements: &[T]) -> usize {
+    /// Insert all elements in the iterator into this tree. The elements are given consecutive indices
+    /// and the return value is the index of the last element.
+    pub fn insert_all<S: Borrow<T>>(&mut self, elements: impl Iterator<Item = S>) -> usize {
         let mut hashes = elements
-            .into_iter()
-            .map(|element| LeafHasher::<DIGEST_LENGTH, H>::hash(element.as_ref()))
+            .map(|element| LeafHasher::<DIGEST_LENGTH, H>::hash(element.borrow().as_ref()))
             .collect();
         self.tree.append(&mut hashes).commit();
         self.tree.leaves_len() - 1
@@ -179,26 +180,27 @@ mod tests {
         let mut tree = MerkleTree::<32, Sha256, Vec<u8>>::new();
 
         let elements = [vec![1u8], vec![2u8], vec![3u8]];
+        let index = 1;
+        let element = &elements[index];
+
         assert_eq!(0, tree.number_of_leaves());
-        tree.insert_all(&elements);
+        tree.insert_all(elements.iter());
         assert_eq!(3, tree.number_of_leaves());
 
         let root = tree.root();
 
         // Generate proof for a given element
-        let index = 1;
-        let element = &elements[index];
 
         let proof = tree.prove(index);
 
         let verifier = tree.create_verifier().unwrap();
-        assert!(verifier.verify_with_element(index, element, &proof));
+        assert!(verifier.verify_with_element(index, &element, &proof));
 
         // Adding
         tree.insert(&vec![4u8]);
         assert_ne!(root, tree.root());
 
         let verifier = tree.create_verifier().unwrap();
-        assert!(!verifier.verify_with_element(index, element, &proof));
+        assert!(!verifier.verify_with_element(index, &element, &proof));
     }
 }
