@@ -91,12 +91,7 @@ impl<const DIGEST_LENGTH: usize, H: HashFunction<DIGEST_LENGTH>, T: AsRef<[u8]>>
 
     /// Verify a [Proof] that an element was at this index of this tree at the time this verifier was
     /// created.
-    pub fn verify(
-        &self,
-        index: usize,
-        element: &T,
-        proof: &Proof<DIGEST_LENGTH, H, T>,
-    ) -> bool {
+    pub fn verify(&self, index: usize, element: &T, proof: &Proof<DIGEST_LENGTH, H, T>) -> bool {
         self.verify_with_hash(
             index,
             LeafHasher::<DIGEST_LENGTH, H>::hash(element.as_ref()),

@@ -12,4 +12,4 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 rs_merkle = "1.4.1"
-fastcrypto = "0.1.5"
+fastcrypto = { path = "../fastcrypto" }
