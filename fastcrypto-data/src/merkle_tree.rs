@@ -13,13 +13,13 @@
 //! # use fastcrypto_data::merkle_tree::*;
 //! let elements = [[1u8], [2u8], [3u8]];
 //! let mut tree = MerkleTree::<32, Sha256, [u8; 1]>::new();
-//! tree.insert_elements(elements.iter());
+//! tree.insert_all(elements.iter());
 //!
 //! let index = 1;
 //! let proof = tree.prove(index);
 //!
 //! let verifier = tree.create_verifier().unwrap();
-//! assert!(verifier.verify_with_element(index, &elements[index], &proof));
+//! assert!(verifier.verify(index, &elements[index], &proof));
 //! ```
 
 use std::borrow::Borrow;
@@ -78,7 +78,7 @@ impl<const DIGEST_LENGTH: usize, H: HashFunction<DIGEST_LENGTH>, T: AsRef<[u8]>>
 {
     /// Verify a [Proof] that an element with the given hash was at this index of this tree at the time
     /// this verifier was created.
-    pub fn verify_with_hash(
+    fn verify_with_hash(
         &self,
         index: usize,
         leaf_hash: [u8; DIGEST_LENGTH],
@@ -91,7 +91,7 @@ impl<const DIGEST_LENGTH: usize, H: HashFunction<DIGEST_LENGTH>, T: AsRef<[u8]>>
 
     /// Verify a [Proof] that an element was at this index of this tree at the time this verifier was
     /// created.
-    pub fn verify_with_element(
+    pub fn verify(
         &self,
         index: usize,
         element: &T,
@@ -130,13 +130,13 @@ impl<const DIGEST_LENGTH: usize, H: HashFunction<DIGEST_LENGTH>, T: AsRef<[u8]>>
     }
 
     /// Insert element in this tree and return the index of the newly inserted element.
-    pub fn insert_element(&mut self, element: &T) -> usize {
+    pub fn insert(&mut self, element: &T) -> usize {
         self.insert_hash(Self::hash(element))
     }
 
     /// Insert all elements in the iterator into this tree. The elements are given consecutive indices
     /// and the return value is the index of the last element.
-    pub fn insert_elements(&mut self, elements: impl Iterator<Item = impl Borrow<T>>) -> usize {
+    pub fn insert_all(&mut self, elements: impl Iterator<Item = impl Borrow<T>>) -> usize {
         self.insert_hashes(elements.map(|element| Self::hash(element.borrow())))
     }
 
@@ -219,9 +219,11 @@ type LeafHasher<const DIGEST_LENGTH: usize, H> = PrefixedHasher<0x00, DIGEST_LEN
 
 #[cfg(test)]
 mod tests {
-    use fastcrypto::hash::Sha256;
-
-    use crate::merkle_tree::MerkleTree;
+    use crate::merkle_tree::{LeafHasher, MerkleTree, MerkleTreeVerifier, Proof};
+    use fastcrypto::hash::{HashFunction, Sha256};
+    use rs_merkle::proof_serializers::ReverseHashesOrder;
+    use rs_merkle::{Hasher, MerkleProof};
+    use std::marker::PhantomData;
 
     #[test]
     fn test_merkle_tree() {
@@ -237,21 +239,65 @@ mod tests {
 
         // Adding elements should change the number of leaves
         assert_eq!(0, tree.number_of_leaves());
-        assert_eq!(elements.len() - 1, tree.insert_elements(elements.iter()));
+        assert_eq!(elements.len() - 1, tree.insert_all(elements.iter()));
         assert_eq!(elements.len(), tree.number_of_leaves());
 
         // Generate proof for a given element and verify
         let proof = tree.prove(index);
         let verifier = tree.create_verifier().unwrap();
-        assert!(verifier.verify_with_element(index, element, &proof));
-        assert!(!verifier.verify_with_element(index, &elements[index - 1], &proof));
+        assert!(verifier.verify(index, element, &proof));
+        assert!(!verifier.verify(index, &elements[index - 1], &proof));
 
         // Adding another element changes the root and the old proof should no longer verify
         let root = tree.root().unwrap();
-        tree.insert_element(&vec![4u8]);
+        tree.insert(&vec![4u8]);
         let new_root = tree.root().unwrap();
         assert_ne!(root, new_root);
         let new_verifier = tree.create_verifier().unwrap();
-        assert!(!new_verifier.verify_with_element(index, element, &proof));
+        assert!(!new_verifier.verify(index, element, &proof));
+    }
+
+    #[test]
+    fn test_preimage_attack() {
+        let mut tree = MerkleTree::<32, Sha256, Vec<u8>>::new();
+        let elements = [vec![0u8], vec![1u8], vec![2u8], vec![3u8]];
+        tree.insert_all(elements.iter());
+
+        // Create a proof for the first element in the tree and verify
+        let proof = tree.prove(0);
+        let verifier = tree.create_verifier().unwrap();
+        assert!(verifier.verify(0, &elements[0], &proof));
+        assert!(verifier.verify_with_hash(0, LeafHasher::<32, Sha256>::hash(&elements[0]), &proof));
+
+        // Create a modified proof where the nodes in the layer below the leaves are seen as leaves
+        let modified_proof = Proof {
+            proof: MerkleProof::from_bytes(&proof.proof.serialize::<ReverseHashesOrder>()[0..32])
+                .unwrap(),
+            _type: PhantomData::default(),
+        };
+
+        // Compute the leaf hash of this new modified tree. This is equal to the hash of the first
+        // internal node in the layer just below the nodes:
+        let mut hasher = Sha256::default();
+        hasher.update([1u8]);
+        hasher.update(LeafHasher::<32, Sha256>::hash(&elements[0]));
+        hasher.update(LeafHasher::<32, Sha256>::hash(&elements[1]));
+        let hash = hasher.finalize().digest;
+
+        // This modified proof should fail against the actual tree because the number of hashes does
+        // not match the depth of the tree.
+        assert!(!verifier.verify_with_hash(0, hash, &modified_proof));
+
+        // If we modify the verifier to think that the tree only has two elements instead of four, the
+        // modified proof verifies. This is avoided if we either a) uses the MerkleTreeVerifier struct
+        // to verify proofs or b) uses the verify instead where we need to provide the element instead
+        // of the hash.
+        let modified_verifier = MerkleTreeVerifier::<32, Sha256, Vec<u8>> {
+            root: tree.tree.root().unwrap(),
+            number_of_leaves: 2,
+            _hash_function: Default::default(),
+            _type: Default::default(),
+        };
+        assert!(modified_verifier.verify_with_hash(0, hash, &modified_proof));
     }
 }
