@@ -5,8 +5,10 @@
 //! Based on a Conventional Encryption Function). Any hash function can be used and we use the method
 //! from section 2.1 in RFC9162 to avoid second pre-image attacks.
 //!
-//! An arbitrary number of elements of a given type can be added as leaves to the tree and we can then
-//! construct proofs logarithmic in the number of leaves that a certain leaf has a given value.
+//! An arbitrary number of elements of a given type `T` can be added as leaves to the tree and we can then
+//! construct proofs logarithmic in the number of leaves that a certain leaf has a given value. Such
+//! proofs can be constructed by a small [MerkleTreeVerifier] which only needs to know the root of the
+//! tree.
 //!
 //! # Example
 //! ```rust
@@ -22,6 +24,7 @@
 //! let verifier = tree.create_verifier().unwrap();
 //! assert!(verifier.verify_with_element(index, &elements[index], &proof));
 //! ```
+
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
