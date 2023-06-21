@@ -76,9 +76,9 @@ impl<const DIGEST_LEN: usize> From<Digest<DIGEST_LEN>> for [u8; DIGEST_LEN] {
 }
 
 /// Trait implemented by hash functions providing a output of fixed length
-pub trait HashFunction<const DIGEST_LENGTH: usize>: Default {
-    /// The length of this hash functions digests in bytes.
-    const OUTPUT_SIZE: usize = DIGEST_LENGTH;
+pub trait HashFunction: Default {
+    // The output type
+    type Output;
 
     /// Create a new hash function of the given type
     fn new() -> Self {
@@ -89,17 +89,17 @@ pub trait HashFunction<const DIGEST_LENGTH: usize>: Default {
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data);
 
     /// Retrieve result and consume hash function.
-    fn finalize(self) -> Digest<DIGEST_LENGTH>;
+    fn finalize(self) -> Self::Output;
 
     /// Compute the digest of the given data and consume the hash function.
-    fn digest<Data: AsRef<[u8]>>(data: Data) -> Digest<DIGEST_LENGTH> {
+    fn digest<Data: AsRef<[u8]>>(data: Data) -> Self::Output {
         let mut h = Self::default();
         h.update(data);
         h.finalize()
     }
 
     /// Compute a single digest from all slices in the iterator in order and consume the hash function.
-    fn digest_iterator<K: AsRef<[u8]>, I: Iterator<Item = K>>(iter: I) -> Digest<DIGEST_LENGTH> {
+    fn digest_iterator<K: AsRef<[u8]>, I: Iterator<Item = K>>(iter: I) -> Self::Output {
         let mut h = Self::default();
         iter.into_iter().for_each(|chunk| h.update(chunk.as_ref()));
         h.finalize()
@@ -118,6 +118,12 @@ pub trait Hash<const DIGEST_LEN: usize> {
 #[derive(Default)]
 pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
 
+impl<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>
+    HashFunctionWrapper<Variant, DIGEST_LEN>
+{
+    pub(crate) const OUTPUT_SIZE_IN_BYTES: usize = DIGEST_LEN;
+}
+
 /// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 pub trait ReverseWrapper {
     type Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser;
@@ -131,9 +137,11 @@ impl<
     type Variant = Variant;
 }
 
-impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashFunction<DIGEST_LEN>
+impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashFunction
     for HashFunctionWrapper<Variant, DIGEST_LEN>
 {
+    type Output = Digest<DIGEST_LEN>;
+
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.0.update(data);
     }
@@ -183,7 +191,9 @@ pub struct Blake3 {
     instance: blake3::Hasher,
 }
 
-impl HashFunction<32> for Blake3 {
+impl HashFunction for Blake3 {
+    type Output = Digest<32>;
+
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.instance.update(data.as_ref());
     }

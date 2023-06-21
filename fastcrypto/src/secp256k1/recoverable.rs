@@ -17,7 +17,7 @@
 //! assert_eq!(&signature.recover(message).unwrap(), kp.public());
 //! ```
 
-use crate::hash::HashFunction;
+use crate::hash::{Digest, HashFunction};
 use crate::secp256k1::{DefaultHash, Secp256k1KeyPair, Secp256k1PublicKey, Secp256k1Signature};
 use crate::traits::{RecoverableSignature, RecoverableSigner, VerifyRecoverable};
 use crate::{
@@ -137,7 +137,7 @@ impl RecoverableSignature for Secp256k1RecoverableSignature {
     type DefaultHash = DefaultHash;
 
     /// Recover public key from signature using the given hash function to hash the message.
-    fn recover_with_hash<H: HashFunction<32>>(
+    fn recover_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
     ) -> Result<Secp256k1PublicKey, FastCryptoError> {
@@ -156,7 +156,7 @@ impl RecoverableSigner for Secp256k1KeyPair {
     type Sig = Secp256k1RecoverableSignature;
 
     /// Create a new recoverable signature over the given message. The hash function `H` is used to hash the message.
-    fn sign_recoverable_with_hash<H: HashFunction<32>>(
+    fn sign_recoverable_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
     ) -> Secp256k1RecoverableSignature {

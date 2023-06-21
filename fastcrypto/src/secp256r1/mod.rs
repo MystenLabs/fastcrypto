@@ -49,7 +49,7 @@ use crate::groups::multiplier::windowed::WindowedScalarMultiplier;
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1;
 use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
-use crate::hash::{HashFunction, Sha256};
+use crate::hash::{Digest, HashFunction, Sha256};
 use crate::secp256r1::conversion::{
     affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
     get_affine_x_coordinate, reduce_bytes,
@@ -171,7 +171,7 @@ generate_bytes_representation!(
 );
 impl Secp256r1PublicKey {
     /// Verify the signature using the given hash function to hash the message.
-    pub fn verify_with_hash<H: HashFunction<32>>(
+    pub fn verify_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
         signature: &Secp256r1Signature,
@@ -390,7 +390,10 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Sign a message using the given hash function and return the signature and the elliptic curve
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
-    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
+    fn sign_common<H: HashFunction<Output = Digest<32>>>(
+        &self,
+        msg: &[u8],
+    ) -> (Signature, ark_secp256r1::Affine) {
         // Hash message
         let z = H::digest(msg).digest;
 
@@ -436,7 +439,10 @@ impl Secp256r1KeyPair {
     }
 
     /// Create a new signature using the given hash function to hash the message.
-    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+    pub fn sign_with_hash<H: HashFunction<Output = Digest<32>>>(
+        &self,
+        msg: &[u8],
+    ) -> Secp256r1Signature {
         let (signature, _) = self.sign_common::<H>(msg);
 
         // Normalize signature

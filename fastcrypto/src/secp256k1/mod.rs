@@ -17,7 +17,7 @@
 
 pub mod recoverable;
 
-use crate::hash::{HashFunction, Sha256};
+use crate::hash::{Digest, HashFunction, Sha256};
 use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::serde_helpers::BytesRepresentation;
 use crate::traits::Signer;
@@ -125,7 +125,7 @@ impl VerifyingKey for Secp256k1PublicKey {
 
 impl Secp256k1PublicKey {
     /// Verify the signature using the given hash function to hash the message.
-    pub fn verify_with_hash<H: HashFunction<32>>(
+    pub fn verify_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
         signature: &Secp256k1Signature,
@@ -356,7 +356,10 @@ impl FromStr for Secp256k1KeyPair {
 
 impl Secp256k1KeyPair {
     /// Create a new signature using the given hash function to hash the message.
-    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256k1Signature {
+    pub fn sign_with_hash<H: HashFunction<Output = Digest<32>>>(
+        &self,
+        msg: &[u8],
+    ) -> Secp256k1Signature {
         let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
         // Creates a 64-bytes signature of shape [r, s].

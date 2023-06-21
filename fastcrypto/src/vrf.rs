@@ -109,11 +109,11 @@ pub mod ecvrf {
             >::expand_message(
                 &[&self.0.compress(), alpha_string],
                 &[DST],
-                H::OUTPUT_SIZE,
+                H::OUTPUT_SIZE_IN_BYTES,
             )
             .unwrap();
 
-            let mut bytes = [0u8; H::OUTPUT_SIZE];
+            let mut bytes = [0u8; H::OUTPUT_SIZE_IN_BYTES];
             expanded_message.fill_bytes(&mut bytes);
             RistrettoPoint::from_uniform_bytes(&bytes)
         }

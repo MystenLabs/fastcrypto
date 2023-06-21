@@ -6,7 +6,7 @@
 
 use crate::error::FastCryptoResult;
 use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
-use crate::hash::Sha512;
+use crate::hash::{Digest, Sha512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use crate::{
@@ -39,7 +39,7 @@ impl RistrettoPoint {
     }
 
     /// Construct a RistrettoPoint from the given data using a given hash function.
-    pub fn map_to_point<H: HashFunction<64>>(bytes: &[u8]) -> Self {
+    pub fn map_to_point<H: HashFunction<Output = Digest<64>>>(bytes: &[u8]) -> Self {
         Self::from_uniform_bytes(&H::digest(bytes).digest)
     }
 

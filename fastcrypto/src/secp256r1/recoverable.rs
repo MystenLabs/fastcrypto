@@ -21,7 +21,7 @@
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1;
 use crate::groups::secp256r1::ProjectivePoint;
-use crate::hash::HashFunction;
+use crate::hash::{Digest, HashFunction};
 use crate::secp256r1::conversion::{
     affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fq_arkworks_to_p256,
     fr_p256_to_arkworks, reduce_bytes,
@@ -162,7 +162,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
     type PubKey = Secp256r1PublicKey;
     type Sig = Secp256r1RecoverableSignature;
 
-    fn sign_recoverable_with_hash<H: HashFunction<32>>(
+    fn sign_recoverable_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
     ) -> Secp256r1RecoverableSignature {
@@ -189,7 +189,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
     type Signer = Secp256r1KeyPair;
     type DefaultHash = DefaultHash;
 
-    fn recover_with_hash<H: HashFunction<32>>(
+    fn recover_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
     ) -> Result<Secp256r1PublicKey, FastCryptoError> {

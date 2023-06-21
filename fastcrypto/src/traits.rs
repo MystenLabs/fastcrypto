@@ -1,6 +1,7 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::hash::Digest;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
@@ -226,7 +227,10 @@ pub trait RecoverableSigner {
     /// Sign as a recoverable signature using the given hash function.
     ///
     /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
-    fn sign_recoverable_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Self::Sig;
+    fn sign_recoverable_with_hash<H: HashFunction<Output = Digest<32>>>(
+        &self,
+        msg: &[u8],
+    ) -> Self::Sig;
 }
 
 pub trait VerifyRecoverable: Eq + Sized {
@@ -241,7 +245,7 @@ pub trait VerifyRecoverable: Eq + Sized {
     /// The recovery is using the given hash function.
     ///
     /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
-    fn verify_recoverable_with_hash<H: HashFunction<32>>(
+    fn verify_recoverable_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
         signature: &Self::Sig,
@@ -257,7 +261,7 @@ pub trait VerifyRecoverable: Eq + Sized {
 pub trait RecoverableSignature: Sized {
     type PubKey;
     type Signer: RecoverableSigner<Sig = Self, PubKey = Self::PubKey>;
-    type DefaultHash: HashFunction<32>;
+    type DefaultHash: HashFunction<Output = Digest<32>>;
 
     /// Recover the public key from this signature.
     fn recover(&self, msg: &[u8]) -> Result<Self::PubKey, FastCryptoError> {
@@ -267,7 +271,7 @@ pub trait RecoverableSignature: Sized {
     /// Recover the public key from this signature. Assuming that the given hash function was used for signing.
     ///
     /// Note: This is currently only used for Secp256r1 and Secp256k1 where the hash function must have 32 byte output.
-    fn recover_with_hash<H: HashFunction<32>>(
+    fn recover_with_hash<H: HashFunction<Output = Digest<32>>>(
         &self,
         msg: &[u8],
     ) -> Result<Self::PubKey, FastCryptoError>;
