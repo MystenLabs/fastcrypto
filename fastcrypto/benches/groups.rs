@@ -6,7 +6,8 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
-    use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
+    use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement, Scalar as BLSScalar};
+    use fastcrypto::groups::multiplier::bgmw::BGMWScalarMultiplier;
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -84,6 +85,42 @@ mod group_benches {
             WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32, 5>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
+
+        scale_single_precomputed::<
+            G1Element,
+            BGMWScalarMultiplier<G1Element, BLSScalar, 16, 64, 32>,
+            _,
+        >("BGMW BLS-G1 (1024)", &mut group);
+
+        scale_single_precomputed::<
+            G1Element,
+            BGMWScalarMultiplier<G1Element, BLSScalar, 32, 64, 32>,
+            _,
+        >("BGMW BLS-G1 (2048)", &mut group);
+
+        scale_single_precomputed::<
+            G1Element,
+            BGMWScalarMultiplier<G1Element, BLSScalar, 64, 64, 32>,
+            _,
+        >("BGMW BLS-G1 (4096)", &mut group);
+
+        scale_single_precomputed::<
+            G2Element,
+            BGMWScalarMultiplier<G2Element, BLSScalar, 16, 64, 32>,
+            _,
+        >("BGMW BLS-G2 (1024)", &mut group);
+
+        scale_single_precomputed::<
+            G2Element,
+            BGMWScalarMultiplier<G2Element, BLSScalar, 32, 64, 32>,
+            _,
+        >("BGMW BLS-G2 (2048)", &mut group);
+
+        scale_single_precomputed::<
+            G2Element,
+            BGMWScalarMultiplier<G2Element, BLSScalar, 16, 64, 32>,
+            _,
+        >("BGMW BLS-G2 (4096)", &mut group);
     }
 
     fn double_scale_single<G: GroupElement, Mul: ScalarMultiplier<G>, M: Measurement>(
