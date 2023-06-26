@@ -21,7 +21,9 @@ impl OutputSizeUser for XXH3Unsecure {
     type OutputSize = typenum::U8;
 }
 
-impl HashFunction<8> for XXH3Unsecure {
+impl HashFunction for XXH3Unsecure {
+    type Output = Digest<8>;
+
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.instance.write(data.as_ref());
     }
@@ -45,7 +47,9 @@ impl OutputSizeUser for XXH128Unsecure {
     type OutputSize = typenum::U16;
 }
 
-impl HashFunction<16> for XXH128Unsecure {
+impl HashFunction for XXH128Unsecure {
+    type Output = Digest<16>;
+
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.instance.write(data.as_ref());
     }
@@ -70,7 +74,9 @@ impl OutputSizeUser for Fast256HashUnsecure {
     type OutputSize = typenum::U32;
 }
 
-impl HashFunction<32> for Fast256HashUnsecure {
+impl HashFunction for Fast256HashUnsecure {
+    type Output = Digest<32>;
+
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
         self.instance.write(data.as_ref());
     }

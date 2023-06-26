@@ -37,6 +37,7 @@ pub const PUBLIC_KEY_LENGTH: usize = 96;
 pub const SIGNATURE_LENGTH: usize = 48;
 
 type DefaultHashFunction = Fast256HashUnsecure;
+pub const DIGEST_LENGTH: usize = 32;
 
 #[readonly::make]
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Ord, PartialOrd)]
@@ -72,7 +73,7 @@ pub struct UnsecureAggregateSignature(#[serde(with = "BigArray")] pub [u8; SIGNA
 
 /// Signatures are implemented as H(pubkey || msg) where H is the non-cryptographic hash function, XXHash
 fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
-    let copies = (SIGNATURE_LENGTH - 1) / DefaultHashFunction::OUTPUT_SIZE + 1;
+    let copies = (SIGNATURE_LENGTH - 1) / DIGEST_LENGTH + 1;
     let mut hash = DefaultHashFunction::default();
     hash.update(pk);
     hash.update(msg);

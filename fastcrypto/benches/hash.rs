@@ -11,7 +11,7 @@ mod hash_benches {
     use fastcrypto::hash::*;
 
     fn hash_single<
-        H: HashFunction<DIGEST_SIZE>,
+        H: HashFunction<Output = Digest<DIGEST_SIZE>>,
         const DIGEST_SIZE: usize,
         M: measurement::Measurement,
     >(
