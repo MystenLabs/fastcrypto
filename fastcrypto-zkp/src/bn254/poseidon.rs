@@ -41,8 +41,8 @@ impl PoseidonWrapper {
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
+    use crate::bn254::zk_login::to_poseidon_hash;
     use crate::bn254::zk_login::Bn254Fr;
-    use crate::bn254::zk_login::{calculate_merklized_hash, to_poseidon_hash};
     use ark_bn254::Fr;
     use std::str::FromStr;
 
@@ -79,33 +79,33 @@ mod test {
         );
     }
     #[test]
-    fn test_merklized_hash() {
-        let masked_content = b"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.=yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC===========================================================================================================CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC==========================================================================================================================================================================================================================================================================================================\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xd8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+    fn test_to_poseidon_hash() {
         assert_eq!(
-            calculate_merklized_hash(masked_content).unwrap(),
-            "14900420995580824499222150327925943524564997104405553289134597516335134742309"
-        );
-
-        assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1])).unwrap(),
+            to_poseidon_hash(to_bigint_arr(vec![1]))
+                .unwrap()
+                .to_string(),
             "18586133768512220936620570745912940619677854269274689475585506675881198879027"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1, 2])).unwrap(),
+            to_poseidon_hash(to_bigint_arr(vec![1, 2]))
+                .unwrap()
+                .to_string(),
             "7853200120776062878684798364095072458815029376092732009249414926327459813530"
         );
         assert_eq!(
             to_poseidon_hash(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
             ]))
-            .unwrap(),
+            .unwrap()
+            .to_string(),
             "4203130618016961831408770638653325366880478848856764494148034853759773445968"
         );
         assert_eq!(
             to_poseidon_hash(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
             ]))
-            .unwrap(),
+            .unwrap()
+            .to_string(),
             "13895998335546007571506436905298853781676311844723695580596383169075721618652"
         );
         assert_eq!(
@@ -113,7 +113,8 @@ mod test {
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29
             ]))
-            .unwrap(),
+            .unwrap()
+            .to_string(),
             "14023706212980258922092162104379517008998397500440232747089120702484714603058"
         );
     }
