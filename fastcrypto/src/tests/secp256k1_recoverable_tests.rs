@@ -518,8 +518,8 @@ fn test_recoverable_id_gt_1() {
     const MESSAGE: &[u8] = b"Hello, world!";
 
     for (pk_str, sig_str) in TESTCASES {
-        let signature_bytes = Base64::decode(&sig_str).unwrap();
-        let pk_bytes = Base64::decode(&pk_str).unwrap();
+        let signature_bytes = Base64::decode(sig_str).unwrap();
+        let pk_bytes = Base64::decode(pk_str).unwrap();
         let recoverable_signature =
             Secp256k1RecoverableSignature::from_bytes(signature_bytes.as_slice()).unwrap();
         let pk = Secp256k1PublicKey::from_bytes(pk_bytes.as_slice()).unwrap();
@@ -527,7 +527,7 @@ fn test_recoverable_id_gt_1() {
         let generated_recoverable_signature =
             Secp256k1RecoverableSignature::try_from_nonrecoverable(&signature, &pk, MESSAGE)
                 .unwrap();
-        let generated_pk = recoverable_signature.recover(&MESSAGE).unwrap();
+        let generated_pk = recoverable_signature.recover(MESSAGE).unwrap();
 
         pk.verify_recoverable(MESSAGE, &recoverable_signature)
             .unwrap();
