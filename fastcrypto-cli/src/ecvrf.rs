@@ -114,7 +114,7 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid public key."))?;
             if public_key_bytes.len()!=32
             {
-              return Err(Error::new(ErrorKind::Other, "Public key length must be 32 bytes."));
+              return Err(Error::new(ErrorKind::InvalidInput, "Public key length must be 32 bytes."));
             }
             let alpha_string = hex::decode(arguments.input)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input string."))?;
