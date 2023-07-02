@@ -251,9 +251,7 @@ impl ToFromBytes for Ed25519Signature {
 
 impl AsRef<[u8]> for Ed25519Signature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.sig.to_bytes()))
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| self.sig.to_bytes())
     }
 }
 
@@ -409,16 +407,13 @@ impl Display for Ed25519AggregateSignature {
 
 impl AsRef<[u8]> for Ed25519AggregateSignature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                Ok(self
-                    .sigs
-                    .iter()
-                    .map(|s| s.to_bytes())
-                    .collect::<Vec<[u8; ED25519_SIGNATURE_LENGTH]>>()
-                    .concat())
-            })
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| {
+            self.sigs
+                .iter()
+                .map(|s| s.to_bytes())
+                .collect::<Vec<[u8; ED25519_SIGNATURE_LENGTH]>>()
+                .concat()
+        })
     }
 }
 

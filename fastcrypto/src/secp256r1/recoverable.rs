@@ -88,15 +88,13 @@ impl ToFromBytes for Secp256r1RecoverableSignature {
 
 impl AsRef<[u8]> for Secp256r1RecoverableSignature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
-                bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1]
-                    .copy_from_slice(self.sig.to_bytes().as_slice());
-                bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1] = self.recovery_id;
-                Ok(bytes)
-            })
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| {
+            let mut bytes = [0u8; SECP256R1_RECOVERABLE_SIGNATURE_LENGTH];
+            bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1]
+                .copy_from_slice(self.sig.to_bytes().as_slice());
+            bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1] = self.recovery_id;
+            bytes
+        })
     }
 }
 
