@@ -1592,6 +1592,7 @@ name = "fastcrypto-cli"
 version = "0.1.0"
 dependencies = [
  "assert_cmd",
+ "bcs",
  "bincode",
  "clap 4.1.8",
  "exitcode",
