@@ -74,7 +74,7 @@ pub struct Secp256k1PublicKey {
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256k1PrivateKey {
     pub privkey: SecretKey,
-    pub bytes: OnceCell<[u8; SECP256K1_PRIVATE_KEY_LENGTH]>,
+    pub bytes: OnceCell<zeroize::Zeroizing<[u8; SECP256K1_PRIVATE_KEY_LENGTH]>>,
 }
 
 /// Secp256k1 ECDSA signature.
@@ -205,7 +205,9 @@ serialize_deserialize_with_to_from_bytes!(Secp256k1PrivateKey, SECP256K1_PRIVATE
 
 impl AsRef<[u8]> for Secp256k1PrivateKey {
     fn as_ref(&self) -> &[u8] {
-        self.bytes.get_or_init::<_>(|| self.privkey.secret_bytes())
+        self.bytes
+            .get_or_init::<_>(|| zeroize::Zeroizing::new(self.privkey.secret_bytes()))
+            .as_ref()
     }
 }
 

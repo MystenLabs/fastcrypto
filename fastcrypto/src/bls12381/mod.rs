@@ -68,7 +68,7 @@ pub struct BLS12381PublicKey {
 #[derive(SilentDebug, SilentDisplay)]
 pub struct BLS12381PrivateKey {
     pub privkey: blst::SecretKey,
-    pub bytes: OnceCell<[u8; BLS_PRIVATE_KEY_LENGTH]>,
+    pub bytes: OnceCell<zeroize::Zeroizing<[u8; BLS_PRIVATE_KEY_LENGTH]>>,
 }
 
 /// BLS 12-381 key pair.
@@ -348,7 +348,7 @@ impl Drop for BLS12381PrivateKey {
 impl AsRef<[u8]> for BLS12381PrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_init::<_>(|| self.privkey.to_bytes())
+            .get_or_init::<_>(|| zeroize::Zeroizing::new(self.privkey.to_bytes())).as_ref()
     }
 }
 

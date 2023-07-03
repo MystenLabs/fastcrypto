@@ -15,6 +15,7 @@ hex = "0.4.3"
 bincode.workspace = true
 rand.workspace = true
 exitcode = "1.1.2"
+bcs.workspace = true
 
 [dev-dependencies]
 assert_cmd = "2.0.0"

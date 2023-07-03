@@ -69,11 +69,11 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
         Command::Keygen => {
             let keypair = ECVRFKeyPair::generate(&mut thread_rng());
             let sk_string =
-                hex::encode(bincode::serialize(&keypair.sk).map_err(|_| {
+                hex::encode(bcs::to_bytes(&keypair.sk).map_err(|_| {
                     Error::new(ErrorKind::Other, "Failed to serialize secret key.")
                 })?);
             let pk_string =
-                hex::encode(bincode::serialize(&keypair.pk).map_err(|_| {
+                hex::encode(bcs::to_bytes(&keypair.pk).map_err(|_| {
                     Error::new(ErrorKind::Other, "Failed to serialize public key.")
                 })?);
 
@@ -92,13 +92,13 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input string."))?;
 
             // Create keypair from the secret key bytes
-            let secret_key = bincode::deserialize::<ECVRFPrivateKey>(&secret_key_bytes)
+            let secret_key = bcs::from_bytes::<ECVRFPrivateKey>(&secret_key_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Failed to parse private key."))?;
             let kp = ECVRFKeyPair::from(secret_key);
 
             // Generate proof
             let proof = kp.prove(&alpha_string);
-            let proof_string = hex::encode(bincode::serialize(&proof).unwrap());
+            let proof_string = hex::encode(bcs::to_bytes(&proof).unwrap());
             let proof_hash = hex::encode(proof.to_hash());
 
             let mut result = "Proof:  ".to_string();
@@ -124,9 +124,9 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
 
             // Create public key and proof from parsed bytes
             let public_key: ECVRFPublicKey =
-                bincode::deserialize::<ECVRFPublicKey>(&public_key_bytes)
+                bcs::from_bytes::<ECVRFPublicKey>(&public_key_bytes)
                     .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid public key."))?;
-            let proof: ECVRFProof = bincode::deserialize::<ECVRFProof>(&proof_bytes)
+            let proof: ECVRFProof = bcs::from_bytes::<ECVRFProof>(&proof_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Unable to parse proof."))?;
 
             if proof

@@ -100,7 +100,7 @@ pub struct Secp256r1PublicKey {
 #[derive(SilentDebug, SilentDisplay)]
 pub struct Secp256r1PrivateKey {
     pub privkey: ExternalSecretKey,
-    pub bytes: OnceCell<[u8; SECP256R1_PRIVATE_KEY_LENGTH]>,
+    pub bytes: OnceCell<zeroize::Zeroizing<[u8; SECP256R1_PRIVATE_KEY_LENGTH]>>,
 }
 
 /// Secp256r1 signature.
@@ -226,8 +226,7 @@ impl Secp256r1PublicKey {
 impl AsRef<[u8]> for Secp256r1PublicKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.pubkey.as_ref().to_bytes().into()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| self.pubkey.as_ref().to_bytes().into())
     }
 }
 
@@ -271,11 +270,11 @@ impl ToFromBytes for Secp256r1PrivateKey {
         match ExternalSecretKey::try_from(bytes) {
             Ok(privkey) => Ok(Secp256r1PrivateKey {
                 privkey,
-                bytes: OnceCell::with_value(
+                bytes: OnceCell::with_value(zeroize::Zeroizing::new(
                     <[u8; SECP256R1_PRIVATE_KEY_LENGTH]>::try_from(bytes).map_err(|_| {
                         FastCryptoError::InputLengthWrong(SECP256R1_PRIVATE_KEY_LENGTH)
                     })?,
-                ),
+                )),
             }),
             Err(_) => Err(FastCryptoError::InvalidInput),
         }
@@ -293,8 +292,8 @@ impl Eq for Secp256r1PrivateKey {}
 impl AsRef<[u8]> for Secp256r1PrivateKey {
     fn as_ref(&self) -> &[u8] {
         self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| Ok(self.privkey.to_bytes().into()))
-            .expect("OnceCell invariant violated")
+            .get_or_init::<_>(|| zeroize::Zeroizing::new(self.privkey.to_bytes().into()))
+            .as_ref()
     }
 }
 
@@ -344,14 +343,9 @@ impl Authenticator for Secp256r1Signature {
 
 impl AsRef<[u8]> for Secp256r1Signature {
     fn as_ref(&self) -> &[u8] {
-        self.bytes
-            .get_or_try_init::<_, eyre::Report>(|| {
-                Ok(
-                    <[u8; SECP256R1_SIGNATURE_LENTH]>::try_from(self.sig.to_bytes().as_slice())
-                        .unwrap(),
-                )
-            })
-            .expect("OnceCell invariant violated")
+        self.bytes.get_or_init::<_>(|| {
+            <[u8; SECP256R1_SIGNATURE_LENTH]>::try_from(self.sig.to_bytes().as_slice()).unwrap()
+        })
     }
 }
 
