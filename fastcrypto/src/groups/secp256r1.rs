@@ -9,7 +9,7 @@ use crate::groups::{GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use ark_ec::Group;
-use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
+use ark_ff::{Field, One, UniformRand, Zero};
 use ark_secp256r1::{Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
@@ -108,7 +108,10 @@ impl ScalarTrait for Scalar {
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
-        Ok(Scalar(Fr::deserialize_uncompressed(bytes)?))
+        Ok(Scalar(
+            Fr::deserialize_uncompressed(bytes.as_slice())
+                .map_err(|_| FastCryptoError::InvalidInput)?,
+        ))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
