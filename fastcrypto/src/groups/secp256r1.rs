@@ -9,7 +9,7 @@ use crate::groups::{GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use ark_ec::Group;
-use ark_ff::{Field, One, PrimeField, Zero};
+use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_secp256r1::{Fr, Projective};
 use ark_serialize::CanonicalSerialize;
 use derive_more::{Add, From, Neg, Sub};
@@ -96,9 +96,7 @@ impl From<u64> for Scalar {
 
 impl ScalarTrait for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; SCALAR_SIZE_IN_BYTES];
-        rng.fill_bytes(&mut bytes);
-        Scalar(Fr::from_be_bytes_mod_order(&bytes))
+        Scalar(Fr::rand(rng))
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {
