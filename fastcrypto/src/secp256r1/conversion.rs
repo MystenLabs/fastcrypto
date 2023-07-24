@@ -53,11 +53,15 @@ pub(crate) fn reduce_bytes(bytes: &[u8; 32]) -> ark_secp256r1::Fr {
     ark_secp256r1::Fr::from_be_bytes_mod_order(bytes)
 }
 
-/// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order)
-pub(crate) fn arkworks_fq_to_fr(scalar: &ark_secp256r1::Fq) -> ark_secp256r1::Fr {
+/// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order). Thie also
+/// returns a boolean indicating whether a modular reduction was performed.
+pub(crate) fn arkworks_fq_to_fr(scalar: &ark_secp256r1::Fq) -> (ark_secp256r1::Fr, bool) {
     let mut bytes = [0u8; 32];
     scalar.serialize_uncompressed(&mut bytes[..]).unwrap();
-    ark_secp256r1::Fr::from_le_bytes_mod_order(&bytes)
+    (
+        ark_secp256r1::Fr::from_le_bytes_mod_order(&bytes),
+        scalar.0.ge(&ark_secp256r1::Fr::MODULUS),
+    )
 }
 
 /// Converts an arkworks affine point to a p256 affine point.
@@ -176,7 +180,7 @@ mod tests {
     #[test]
     fn test_arkworks_fq_to_fr() {
         let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
-        let s_fr = arkworks_fq_to_fr(&s);
+        let s_fr = arkworks_fq_to_fr(&s).0;
         let p256_s = fq_arkworks_to_p256(&s);
         let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
         assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);

@@ -164,7 +164,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         &self,
         msg: &[u8],
     ) -> Secp256r1RecoverableSignature {
-        let (signature, big_r) = self.sign_common::<H>(msg);
+        let (signature, big_r, reduced) = self.sign_common::<H>(msg);
 
         // Compute recovery id and normalize signature
         let y = fq_arkworks_to_p256(big_r.y().expect("R is zero"));
@@ -172,7 +172,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let is_s_high = signature.s().is_high();
         let is_y_odd = is_r_odd ^ is_s_high;
         let normalized_signature = signature.normalize_s().unwrap_or(signature);
-        let recovery_id = RecoveryId::new(is_y_odd.into(), false);
+        let recovery_id = RecoveryId::new(is_y_odd.into(), reduced);
 
         Secp256r1RecoverableSignature {
             sig: normalized_signature,

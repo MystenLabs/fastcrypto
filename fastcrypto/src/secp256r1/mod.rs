@@ -216,7 +216,7 @@ impl Secp256r1PublicKey {
 
         // Note that x is none if and only if p is zero, in which case the signature is invalid. See
         // step 5 in section 4.1.4 in "SEC 1: Elliptic Curve Cryptography".
-        if x.is_some() && arkworks_fq_to_fr(&x.unwrap()) == r {
+        if x.is_some() && arkworks_fq_to_fr(&x.unwrap()).0 == r {
             return Ok(());
         }
         Err(FastCryptoError::InvalidSignature)
@@ -384,7 +384,10 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Sign a message using the given hash function and return the signature and the elliptic curve
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
-    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
+    fn sign_common<H: HashFunction<32>>(
+        &self,
+        msg: &[u8],
+    ) -> (Signature, ark_secp256r1::Affine, bool) {
         // Hash message
         let z = H::digest(msg).digest;
 
@@ -414,7 +417,7 @@ impl Secp256r1KeyPair {
         let big_r = MULTIPLIER.mul(&secp256r1::Scalar(k)).0.into_affine();
 
         // Lift x-coordinate of R and reduce it into an element of the scalar field
-        let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
+        let (r, reduced) = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
 
         // Compute s as a signature over r and z.
         let s = k_inv * (z + (r * x));
@@ -426,12 +429,12 @@ impl Secp256r1KeyPair {
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let signature = Signature::from_scalars(r, s).expect("r or s is zero");
 
-        (signature, big_r)
+        (signature, big_r, reduced)
     }
 
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
-        let (signature, _) = self.sign_common::<H>(msg);
+        let (signature, _, _) = self.sign_common::<H>(msg);
 
         // Normalize signature
         let normalized_signature = signature.normalize_s().unwrap_or(signature);
