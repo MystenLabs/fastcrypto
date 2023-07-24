@@ -23,8 +23,7 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
-    affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fq_arkworks_to_p256,
-    fr_p256_to_arkworks, reduce_bytes,
+    affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fr_p256_to_arkworks, reduce_bytes,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
@@ -37,8 +36,8 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
-use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::{BigInteger, Field};
+use ark_ec::CurveGroup;
+use ark_ff::Field;
 use ark_secp256r1::Projective;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
