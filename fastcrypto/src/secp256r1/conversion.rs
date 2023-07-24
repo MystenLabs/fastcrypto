@@ -58,10 +58,7 @@ pub(crate) fn reduce_bytes(bytes: &[u8; 32]) -> ark_secp256r1::Fr {
 pub(crate) fn arkworks_fq_to_fr(scalar: &ark_secp256r1::Fq) -> (ark_secp256r1::Fr, bool) {
     let mut bytes = [0u8; 32];
     scalar.serialize_uncompressed(&mut bytes[..]).unwrap();
-    (
-        ark_secp256r1::Fr::from_le_bytes_mod_order(&bytes),
-        scalar.0.ge(&ark_secp256r1::Fr::MODULUS),
-    )
+    (ark_secp256r1::Fr::from_le_bytes_mod_order(&bytes), false)
 }
 
 /// Converts an arkworks affine point to a p256 affine point.

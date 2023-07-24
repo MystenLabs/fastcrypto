@@ -38,7 +38,7 @@ use crate::{
 };
 use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::Field;
+use ark_ff::{BigInteger, Field};
 use ark_secp256r1::Projective;
 use ecdsa::elliptic_curve::scalar::IsHigh;
 use ecdsa::elliptic_curve::subtle::Choice;
@@ -167,12 +167,9 @@ impl RecoverableSigner for Secp256r1KeyPair {
         let (signature, big_r, reduced) = self.sign_common::<H>(msg);
 
         // Compute recovery id and normalize signature
-        let y = fq_arkworks_to_p256(big_r.y().expect("R is zero"));
-        let is_r_odd = y.is_odd();
-        let is_s_high = signature.s().is_high();
-        let is_y_odd = is_r_odd ^ is_s_high;
+        let is_y_odd = big_r.y().expect("R is zero").0.is_odd();
         let normalized_signature = signature.normalize_s().unwrap_or(signature);
-        let recovery_id = RecoveryId::new(is_y_odd.into(), reduced);
+        let recovery_id = RecoveryId::new(is_y_odd, reduced);
 
         Secp256r1RecoverableSignature {
             sig: normalized_signature,
