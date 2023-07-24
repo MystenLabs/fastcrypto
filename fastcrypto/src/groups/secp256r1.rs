@@ -11,7 +11,7 @@ use crate::traits::AllowedRng;
 use ark_ec::Group;
 use ark_ff::{Field, One, PrimeField, UniformRand, Zero};
 use ark_secp256r1::{Fr, Projective};
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Div, Mul};
@@ -108,7 +108,7 @@ impl ScalarTrait for Scalar {
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
-        Ok(Scalar(Fr::from_le_bytes_mod_order(bytes)))
+        Ok(Scalar(Fr::deserialize_uncompressed(bytes)?))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
