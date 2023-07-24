@@ -27,7 +27,7 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::Field;
+use ark_ff::{BigInteger, Field};
 use ark_secp256r1::Projective;
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
 use lazy_static::lazy_static;
@@ -384,10 +384,7 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Sign a message using the given hash function and return the signature and the elliptic curve
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
-    fn sign_common<H: HashFunction<32>>(
-        &self,
-        msg: &[u8],
-    ) -> (Signature, ark_secp256r1::Affine, bool) {
+    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, bool, bool) {
         // Hash message
         let z = H::digest(msg).digest;
 
@@ -417,7 +414,10 @@ impl Secp256r1KeyPair {
         let big_r = MULTIPLIER.mul(&secp256r1::Scalar(k)).0.into_affine();
 
         // Lift x-coordinate of R and reduce it into an element of the scalar field
-        let (r, reduced) = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
+        let (r, is_x_reduced) = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
+
+        // The parity of the y coordinate is needed for computing the recovery id.
+        let is_y_odd = big_r.y().expect("R should not be zero").0.is_odd();
 
         // Compute s as a signature over r and z.
         let s = k_inv * (z + (r * x));
@@ -429,18 +429,18 @@ impl Secp256r1KeyPair {
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let signature = Signature::from_scalars(r, s).expect("r or s is zero");
 
-        (signature, big_r, reduced)
+        // Normalize signature
+        let normalized_signature = signature.normalize_s().unwrap_or(signature);
+
+        (normalized_signature, is_y_odd, is_x_reduced)
     }
 
     /// Create a new signature using the given hash function to hash the message.
     pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
         let (signature, _, _) = self.sign_common::<H>(msg);
 
-        // Normalize signature
-        let normalized_signature = signature.normalize_s().unwrap_or(signature);
-
         Secp256r1Signature {
-            sig: normalized_signature,
+            sig: signature,
             bytes: OnceCell::new(),
         }
     }

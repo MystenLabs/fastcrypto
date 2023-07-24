@@ -29,11 +29,12 @@ pub(crate) fn fr_arkworks_to_p256(scalar: &ark_secp256r1::Fr) -> p256::Scalar {
 }
 
 /// Convert an arkworks field element to a p256 field element.
-pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> p256::Scalar {
+pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> FieldBytes {
     // This implementation is taken from bls_fq_to_blst_fp in fastcrypto-zkp.
     let mut bytes = [0u8; 32];
     scalar.serialize_uncompressed(&mut bytes[..]).unwrap();
-    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::from(bytes)))
+    bytes.reverse();
+    p256::FieldBytes::from(bytes)
 }
 
 /// Convert an p256 affine point to an arkworks affine point.
@@ -67,8 +68,8 @@ pub(crate) fn affine_pt_arkworks_to_p256(point: &ark_secp256r1::Affine) -> p256:
         return p256::AffinePoint::IDENTITY;
     }
     let encoded_point = p256::EncodedPoint::from_affine_coordinates(
-        &fq_arkworks_to_p256(point.x().expect("The point should not be zero")).to_bytes(),
-        &fq_arkworks_to_p256(point.y().expect("The point should not be zero")).to_bytes(),
+        &fq_arkworks_to_p256(point.x().expect("The point should not be zero")),
+        &fq_arkworks_to_p256(point.y().expect("The point should not be zero")),
         false,
     );
     p256::AffinePoint::from_encoded_point(&encoded_point).unwrap()
@@ -179,15 +180,15 @@ mod tests {
         let s = ark_secp256r1::Fq::rand(&mut rand::thread_rng());
         let s_fr = arkworks_fq_to_fr(&s).0;
         let p256_s = fq_arkworks_to_p256(&s);
-        let reduced_s = p256::Scalar::reduce_bytes(&p256_s.to_bytes());
+        let reduced_s = p256::Scalar::reduce_bytes(&p256_s);
         assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
-        assert_eq!(reduce_bytes(&p256_s.to_bytes().try_into().unwrap()), s_fr);
+        assert_eq!(reduce_bytes(&p256_s.try_into().unwrap()), s_fr);
     }
 
     #[test]
     fn test_fq_arkworks_to_p256() {
         let arkworks_seven = ark_secp256r1::Fq::from(7u32);
-        let p256_seven = p256::Scalar::from(7u32);
+        let p256_seven = p256::FieldBytes::from(p256::Scalar::from(7u32));
 
         let actual_p256_seven = fq_arkworks_to_p256(&arkworks_seven);
         assert_eq!(actual_p256_seven, p256_seven);
