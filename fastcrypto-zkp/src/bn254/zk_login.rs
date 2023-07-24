@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use fastcrypto::error::FastCryptoResult;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
@@ -16,12 +17,13 @@ use fastcrypto::{
     error::FastCryptoError,
     rsa::{Base64UrlUnpadded, Encoding},
 };
-use num_bigint::BigUint;
+use num_bigint::{BigInt, BigUint, Sign};
 use once_cell::sync::Lazy;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
+type ParsedJWKs = Vec<((String, String), OAuthProviderContent)>;
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
@@ -67,7 +69,8 @@ pub enum OAuthProvider {
 /// Struct that contains all the OAuth provider information. A list of them can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>)
 /// and published on the bulletin along with a trusted party's signature.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+// #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OAuthProviderContent {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
     pub kty: String,
@@ -77,6 +80,81 @@ pub struct OAuthProviderContent {
     pub n: String,
     /// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
     pub alg: String,
+    /// kid
+    kid: String,
+}
+
+/// Reader struct to parse all fields.
+// #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OAuthProviderContentReader {
+    e: String,
+    n: String,
+    #[serde(rename = "use")]
+    my_use: String,
+    kid: String,
+    kty: String,
+    alg: String,
+}
+
+impl OAuthProviderContent {
+    /// Get the kid string.
+    pub fn kid(&self) -> &str {
+        &self.kid
+    }
+
+    /// Parse OAuthProviderContent from the reader struct.
+    pub fn from_reader(reader: OAuthProviderContentReader) -> FastCryptoResult<Self> {
+        if reader.alg != "RS256" || reader.my_use != "sig" || reader.kty != "RSA" {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(Self {
+            kty: reader.kty,
+            kid: reader.kid,
+            e: trim(reader.e),
+            n: trim(reader.n),
+            alg: reader.alg,
+        })
+    }
+
+    /// Parse OAuthProviderContent from the reader struct.
+    pub fn validate(&self) -> FastCryptoResult<()> {
+        if self.alg != "RS256" || self.kty != "RSA" || self.e != "AQAB" {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(())
+    }
+}
+
+/// Trim trailing '=' so that it is considered a valid base64 url encoding string by base64ct library.
+fn trim(str: String) -> String {
+    str.trim_end_matches(|c: char| c == '=').to_owned()
+}
+
+/// Parse the JWK bytes received from the oauth provider keys endpoint into a map from kid to
+/// OAuthProviderContent.
+pub fn parse_jwks(
+    json_bytes: &[u8],
+    provider: OAuthProvider,
+) -> Result<ParsedJWKs, FastCryptoError> {
+    let json_str = String::from_utf8_lossy(json_bytes);
+    let parsed_list: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&json_str);
+    if let Ok(parsed_list) = parsed_list {
+        if let Some(keys) = parsed_list["keys"].as_array() {
+            let mut ret = Vec::new();
+            for k in keys {
+                let parsed: OAuthProviderContentReader = serde_json::from_value(k.clone())
+                    .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
+
+                ret.push((
+                    (parsed.kid.clone(), provider.get_config().0.to_owned()),
+                    OAuthProviderContent::from_reader(parsed)?,
+                ));
+            }
+            return Ok(ret);
+        }
+    }
+    Err(FastCryptoError::GeneralError("JWK not found".to_string()))
 }
 
 impl OAuthProvider {
@@ -128,7 +206,6 @@ pub struct AuxInputs {
     claims: Vec<Claim>,
     header_base64: String,
     addr_seed: String,
-    eph_public_key: Vec<String>,
     max_epoch: u64,
     key_claim_name: String,
     modulus: String,
@@ -186,11 +263,20 @@ impl AuxInputs {
     }
 
     /// Calculate the poseidon hash from 10 selected fields in the aux inputs.
-    pub fn calculate_all_inputs_hash(&self) -> Result<String, FastCryptoError> {
+    pub fn calculate_all_inputs_hash(
+        &self,
+        eph_pubkey_bytes: &[u8],
+    ) -> Result<String, FastCryptoError> {
         let mut poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.addr_seed)?;
-        let eph_public_key_0 = to_field(&self.eph_public_key[0])?;
-        let eph_public_key_1 = to_field(&self.eph_public_key[1])?;
+
+        let (first_half, second_half) = eph_pubkey_bytes.split_at(eph_pubkey_bytes.len() / 2);
+        let first_bigint = BigInt::from_bytes_be(Sign::Plus, first_half);
+        let second_bigint = BigInt::from_bytes_be(Sign::Plus, second_half);
+
+        let eph_public_key_0 = to_field(&first_bigint.to_string())?;
+        let eph_public_key_1 = to_field(&second_bigint.to_string())?;
+
         let max_epoch = to_field(&self.max_epoch.to_string())?;
         let key_claim_name_f = to_field(
             SUPPORTED_KEY_CLAIM_TO_FIELD
@@ -582,18 +668,24 @@ fn pack(
 fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
     let mut bitarray: Vec<u8> = Vec::new();
     for num in arr {
-        let mut padded = Vec::new();
         let val = num.to_radix_be(2);
-
         let extra_bits = if val.len() < int_size {
             int_size - val.len()
         } else {
             0
         };
 
-        padded.extend(vec![0; extra_bits]);
+        let mut padded = vec![0; extra_bits];
         padded.extend(val);
         bitarray.extend(padded)
     }
     bitarray
+}
+
+/// Convert a big int string to a big endian bytearray.
+pub fn big_int_str_to_bytes(value: &str) -> Vec<u8> {
+    BigInt::from_str(value)
+        .expect("Invalid big int string")
+        .to_bytes_be()
+        .1
 }

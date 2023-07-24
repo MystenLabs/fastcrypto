@@ -3,12 +3,12 @@
 
 use ark_crypto_primitives::snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
+use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
-use std::collections::HashMap;
 
 use super::verifier::process_vk_special;
 use super::zk_login::{
-    AuxInputs, OAuthProvider, OAuthProviderContent, PublicInputs, SupportedKeyClaim, ZkLoginProof,
+    AuxInputs, OAuthProviderContent, PublicInputs, SupportedKeyClaim, ZkLoginProof,
 };
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::{
@@ -24,8 +24,7 @@ use once_cell::sync::Lazy;
 
 static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey> = Lazy::new(global_pvk);
 
-/// Load a fixed verifying key from zklogin.vkey output from setup
-/// https://github.com/MystenLabs/fastcrypto/blob/2a704431e4d2685625c0cc06d19fd7d08a4aafa4/openid-zkp-auth/README.md
+/// Load a fixed verifying key from zklogin.vkey output from trusted setup
 fn global_pvk() -> PreparedVerifyingKey {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     let vk_alpha_1 = g1_affine_from_str_projective(vec![
@@ -111,73 +110,43 @@ fn global_pvk() -> PreparedVerifyingKey {
     process_vk_special(&Bn254VerifyingKey(vk))
 }
 
-/// A whitelist of client_ids (i.e. the value of "aud" in claims) for each provider.
-pub static DEFAULT_WHITELIST: Lazy<HashMap<&str, Vec<&str>>> = Lazy::new(|| {
-    let mut map = HashMap::new();
-    map.insert(
-        OAuthProvider::Google.get_config().0,
-        vec!["946731352276-pk5glcg8cqo38ndb39h7j093fpsphusu.apps.googleusercontent.com"],
-    );
-    map.insert(
-        OAuthProvider::Twitch.get_config().0,
-        vec!["d31icql6l8xzpa7ef31ztxyss46ock"],
-    );
-    // TODO: remove this for prod, this is for testing only.
-    map.insert(
-        OAuthProvider::Google.get_config().0,
-        vec!["575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com"],
-    );
-    map
-});
-
 /// Entry point for the ZkLogin API.
 pub fn verify_zk_login(
     proof: &ZkLoginProof,
     public_inputs: &PublicInputs,
     aux_inputs: &AuxInputs,
-    curr_epoch: u64,
-    all_jwk: HashMap<(&str, &str), OAuthProviderContent>,
+    eph_pubkey_bytes: &[u8],
+    all_jwk: &ImHashMap<(String, String), OAuthProviderContent>,
 ) -> Result<(), FastCryptoError> {
     if !is_claim_supported(aux_inputs.get_key_claim_name()) {
         return Err(FastCryptoError::GeneralError(
             "Unsupported claim found".to_string(),
         ));
     }
-    // Verify the max epoch in aux inputs is <= the current epoch of authority.
-    if aux_inputs.get_max_epoch() <= curr_epoch {
-        return Err(FastCryptoError::GeneralError(
-            "Invalid max epoch".to_string(),
-        ));
-    }
 
     let jwk = all_jwk
-        .get(&(aux_inputs.get_kid(), aux_inputs.get_iss()))
-        .ok_or_else(|| FastCryptoError::GeneralError("kid not found".to_string()))?;
+        .get(&(
+            aux_inputs.get_kid().to_string(),
+            aux_inputs.get_iss().to_string(),
+        ))
+        .ok_or_else(|| FastCryptoError::GeneralError("JWK not found".to_string()))?;
     let jwk_modulus =
         BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
             FastCryptoError::GeneralError("Invalid Base64 encoded jwk.n".to_string())
         })?);
 
-    if jwk_modulus.to_string() != aux_inputs.get_mod()
-        || jwk.e != "AQAB"
-        || jwk.kty != "RSA"
-        || jwk.alg != "RS256"
-    {
+    if jwk_modulus.to_string() != aux_inputs.get_mod() || jwk.validate().is_err() {
         return Err(FastCryptoError::GeneralError("Invalid modulus".to_string()));
     }
 
-    // Verify the JWT signature against one of OAuth provider public keys in the bulletin.
-    // Since more than one JWKs are available in the bulletin, iterate and find the one with
-    // matching kid, iss and verify the signature against it.
-    if !DEFAULT_WHITELIST
-        .get(aux_inputs.get_iss())
-        .ok_or_else(|| FastCryptoError::GeneralError("iss not in whitelist".to_string()))?
-        .contains(&aux_inputs.get_aud())
+    if aux_inputs.calculate_all_inputs_hash(eph_pubkey_bytes)?
+        != public_inputs.get_all_inputs_hash()?
     {
         return Err(FastCryptoError::GeneralError(
-            "aud not in whitelist".to_string(),
+            "Invalid all inputs hash".to_string(),
         ));
     }
+
     match verify_zk_login_proof_with_fixed_vk(proof, public_inputs) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(
