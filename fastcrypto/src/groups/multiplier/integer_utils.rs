@@ -29,13 +29,17 @@ pub fn compute_base_2w_expansion<const N: usize>(
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
 #[inline]
 fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
-    assert!(start <= end && end < 8);
+    assert!(start <= end && end - start < 32);
     byte >> start & ((1 << (end - start)) - 1) as u8
 }
 
 /// Compute ceil(numerator / denominator).
 pub(crate) fn div_ceil(numerator: usize, denominator: usize) -> usize {
-    (numerator + denominator - 1) / denominator
+    assert!(denominator > 0);
+    if numerator == 0 {
+        return 0;
+    }
+    1 + ((numerator - 1) / denominator)
 }
 
 /// Get the integer represented by a given range of bits of a an integer represented by a little-endian
