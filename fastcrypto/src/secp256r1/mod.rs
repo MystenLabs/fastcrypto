@@ -150,13 +150,13 @@ impl VerifyingKey for Secp256r1PublicKey {
 lazy_static! {
     static ref MULTIPLIER: WindowedScalarMultiplier<
         ProjectivePoint,
-        crate::groups::secp256r1::Scalar,
+        <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
     > = WindowedScalarMultiplier::<
         ProjectivePoint,
-        crate::groups::secp256r1::Scalar,
+        <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
