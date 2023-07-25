@@ -73,11 +73,16 @@ impl ToFromBytes for Secp256r1RecoverableSignature {
             ));
         }
 
+        let recovery_id = bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1];
+        if recovery_id > 3 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
         ExternalSignature::try_from(&bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1])
             .map(|sig| Secp256r1RecoverableSignature {
                 sig,
-                recovery_id: bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1],
+                recovery_id,
                 bytes: OnceCell::new(),
             })
             .map_err(|_| FastCryptoError::InvalidInput)
