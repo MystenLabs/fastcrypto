@@ -38,7 +38,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::{FieldBytes, NistP256, Scalar};
+use p256::{NistP256, Scalar};
 use std::fmt::{self, Debug};
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -399,7 +399,7 @@ impl Secp256r1KeyPair {
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
                 &x.to_bytes(),
                 &NistP256::ORDER.encode_field_bytes(),
-                &fr_arkworks_to_p256(&z).to_bytes(),
+                &fr_arkworks_to_p256(z).to_bytes(),
                 &[],
             ))
             .unwrap(),
