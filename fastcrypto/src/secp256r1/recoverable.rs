@@ -169,7 +169,7 @@ impl RecoverableSigner for Secp256r1KeyPair {
     ) -> Secp256r1RecoverableSignature {
         let (signature, is_y_odd, is_x_reduced) = self.sign_common::<H>(msg);
 
-        // Compute recovery id and normalize signature
+        // Compute recovery id
         let recovery_id = RecoveryId::new(is_y_odd, is_x_reduced);
 
         Secp256r1RecoverableSignature {
