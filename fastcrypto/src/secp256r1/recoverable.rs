@@ -23,7 +23,8 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
-    affine_pt_arkworks_to_p256, affine_pt_p256_to_projective_arkworks, fr_p256_to_arkworks, reduce_bytes,
+    affine_pt_arkworks_to_p256, affine_pt_p256_to_projective_arkworks, fr_p256_to_arkworks,
+    reduce_bytes,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,

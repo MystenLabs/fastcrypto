@@ -38,7 +38,9 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> FieldBytes {
 }
 
 /// Convert an p256 affine point to an arkworks affine point.
-pub(crate) fn affine_pt_p256_to_projective_arkworks(point: &p256::AffinePoint) -> ark_secp256r1::Projective {
+pub(crate) fn affine_pt_p256_to_projective_arkworks(
+    point: &p256::AffinePoint,
+) -> ark_secp256r1::Projective {
     if point.is_identity().into() {
         return ark_secp256r1::Projective::zero();
     }
@@ -172,7 +174,9 @@ mod tests {
         let random_s = p256::Scalar::random(&mut rand::thread_rng());
         assert_eq!(
             (ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
-            affine_pt_p256_to_projective_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
+            affine_pt_p256_to_projective_arkworks(
+                &(p256::AffinePoint::generator() * random_s).to_affine()
+            )
         );
     }
 

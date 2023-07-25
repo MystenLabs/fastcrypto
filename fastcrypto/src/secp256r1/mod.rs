@@ -50,8 +50,8 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
-    affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
-    get_affine_x_coordinate, reduce_bytes,
+    affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256,
+    fr_p256_to_arkworks, get_affine_x_coordinate, reduce_bytes,
 };
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
