@@ -388,7 +388,7 @@ impl Secp256r1KeyPair {
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
     fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, bool, bool) {
         // Hash message
-        let z = H::digest(msg).digest;
+        let z = &reduce_bytes(&H::digest(msg).digest);
 
         // Private key as scalar
         let x = self.secret.privkey.as_nonzero_scalar();
@@ -399,7 +399,7 @@ impl Secp256r1KeyPair {
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
                 &x.to_bytes(),
                 &NistP256::ORDER.encode_field_bytes(),
-                &FieldBytes::from(z),
+                &fr_arkworks_to_p256(&z).to_bytes(),
                 &[],
             ))
             .unwrap(),
@@ -407,7 +407,6 @@ impl Secp256r1KeyPair {
 
         // Convert secret key and message to arkworks scalars.
         let x = fr_p256_to_arkworks(x);
-        let z = reduce_bytes(&z);
 
         // Compute scalar inversion of k
         let k_inv = k.inverse().expect("k should not be zero");
@@ -422,7 +421,7 @@ impl Secp256r1KeyPair {
         let is_y_odd = big_r.y().expect("R should not be zero").0.is_odd();
 
         // Compute s as a signature over r and z.
-        let s = k_inv * (z + (r * x));
+        let s = k_inv * (z + &(r * x));
 
         // Convert to p256 format
         let s = fr_arkworks_to_p256(&s).to_bytes();
