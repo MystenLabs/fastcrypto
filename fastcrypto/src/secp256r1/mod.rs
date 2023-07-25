@@ -211,11 +211,12 @@ impl Secp256r1PublicKey {
             )
             .0;
 
-        let x = get_affine_x_coordinate(&p);
-
         // Note that x is none if and only if p is zero, in which case the signature is invalid. See
         // step 5 in section 4.1.4 in "SEC 1: Elliptic Curve Cryptography".
-        if x.is_some() && arkworks_fq_to_fr(&x.unwrap()).0 == r {
+        let x = get_affine_x_coordinate(&p).ok_or(FastCryptoError::InvalidSignature)?;
+
+        let (x_reduced, _) = arkworks_fq_to_fr(&x);
+        if x_reduced == r {
             return Ok(());
         }
         Err(FastCryptoError::InvalidSignature)
