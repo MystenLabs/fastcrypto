@@ -50,7 +50,7 @@ impl<G: GroupElement> Nodes<G> {
         for n in &self.nodes {
             if curr_share_id <= share_id.get() && share_id.get() < curr_share_id + (n.weight as u32)
             {
-                return Ok(&n);
+                return Ok(n);
             }
             curr_share_id += n.weight as u32;
         }

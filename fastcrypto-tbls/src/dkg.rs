@@ -68,7 +68,7 @@ pub struct Confirmation<EG: GroupElement> {
 }
 
 /// Mapping from node id to the shares received from that sender.
-pub type SharesMap<G: GroupElement> = HashMap<PartyId, Vec<Share<G::ScalarType>>>;
+pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
 
 /// [Output] is the final output of the DKG protocol in case it runs
 /// successfully. It can be used later with [ThresholdBls], see examples in tests.
@@ -162,7 +162,7 @@ where
         &self,
         message: &Message<G, EG>,
         rng: &mut R,
-    ) -> FastCryptoResult<(SharesMap<G>, Confirmation<EG>)> {
+    ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
         let mut shares = HashMap::new(); // Will include only valid shares.
         let mut next_message = Confirmation {
             sender: self.id,
@@ -181,13 +181,13 @@ where
         for share_id in &my_share_ids {
             let offset = (share_id.get() - 1) as usize;
             let encrypted_share = &message.encrypted_shares[offset];
-            let share = Self::decrypt_and_get_share(&self.ecies_sk, &encrypted_share);
+            let share = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_share);
             if share.is_err() {
                 next_message.complaints.push(Complaint {
                     encryption_sender: message.sender,
                     share_id: *share_id,
                     package: self.ecies_sk.create_recovery_package(
-                        &encrypted_share,
+                        encrypted_share,
                         &self.random_oracle.extend("ecies"),
                         rng,
                     ),
@@ -210,7 +210,7 @@ where
                         encryption_sender: message.sender,
                         share_id: share.index,
                         package: self.ecies_sk.create_recovery_package(
-                            &encrypted_share,
+                            encrypted_share,
                             &self.random_oracle.extend("ecies"),
                             rng,
                         ),
@@ -230,8 +230,8 @@ where
     /// 6. Merge results from multiple process_message calls so only one message needs to be sent.
     pub fn merge(
         &self,
-        processed_messages: &[(SharesMap<G>, Confirmation<EG>)],
-    ) -> (SharesMap<G>, Confirmation<EG>) {
+        processed_messages: &[(SharesMap<G::ScalarType>, Confirmation<EG>)],
+    ) -> (SharesMap<G::ScalarType>, Confirmation<EG>) {
         // TODO: verify we have messages from more than t weights
         // TODO: verify unique senders
         // let num_of_unique_senders =
@@ -243,7 +243,7 @@ where
         //     return Err(FastCryptoError::InputTooShort(num_of_unique_senders));
         // }
 
-        let mut shares: SharesMap<G> = HashMap::new();
+        let mut shares = HashMap::new();
         let mut conf = Confirmation {
             sender: self.id,
             complaints: Vec::new(),
@@ -266,9 +266,9 @@ where
         &self,
         messages: &[Message<G, EG>],
         confirmations: &[Confirmation<EG>],
-        shares: SharesMap<G>,
+        shares: SharesMap<G::ScalarType>,
         _minimal_threshold: usize,
-    ) -> Result<SharesMap<G>, FastCryptoError> {
+    ) -> Result<SharesMap<G::ScalarType>, FastCryptoError> {
         // TODO: update next line's checks to check the weights
         // if messages.len() != self.t as usize || confirmations.len() < minimal_threshold {
         //     return Err(FastCryptoError::InvalidInput);
@@ -332,7 +332,7 @@ where
     pub fn aggregate(
         &self,
         first_messages: &[Message<G, EG>],
-        shares: SharesMap<G>,
+        shares: SharesMap<G::ScalarType>,
     ) -> Output<G, EG> {
         let id_to_m1: HashMap<_, _> = first_messages.iter().map(|m| (m.sender, m)).collect();
         let mut vss_pk = PublicPoly::<G>::zero();

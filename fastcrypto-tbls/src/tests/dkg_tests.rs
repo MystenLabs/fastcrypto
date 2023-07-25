@@ -7,7 +7,7 @@ use crate::nodes::{Node, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
-use fastcrypto::groups::bls12381::{G1Element, G2Element};
+use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use rand::thread_rng;
 use std::collections::HashMap;
@@ -77,7 +77,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
 
     let (shares0, conf0) = r1_all
         .iter()
-        .map(|m| d0.process_message(&m, &mut thread_rng()).unwrap())
+        .map(|m| d0.process_message(m, &mut thread_rng()).unwrap())
         .fold(
             (
                 HashMap::new(),
@@ -91,7 +91,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
 
     let (shares1, conf1) = r1_all
         .iter()
-        .map(|m| d1.process_message(&m, &mut thread_rng()).unwrap())
+        .map(|m| d1.process_message(m, &mut thread_rng()).unwrap())
         .fold(
             (
                 HashMap::new(),
@@ -107,7 +107,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     // shares and post complaints.
     let (shares3, conf3) = r1_all
         .iter()
-        .map(|m| d3.process_message(&m, &mut thread_rng()).unwrap())
+        .map(|m| d3.process_message(m, &mut thread_rng()).unwrap())
         .fold(
             (
                 HashMap::new(),
