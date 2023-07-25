@@ -38,15 +38,15 @@ pub(crate) fn fq_arkworks_to_p256(scalar: &ark_secp256r1::Fq) -> FieldBytes {
 }
 
 /// Convert an p256 affine point to an arkworks affine point.
-pub(crate) fn affine_pt_p256_to_arkworks(point: &p256::AffinePoint) -> ark_secp256r1::Affine {
+pub(crate) fn affine_pt_p256_to_projective_arkworks(point: &p256::AffinePoint) -> ark_secp256r1::Projective {
     if point.is_identity().into() {
-        return ark_secp256r1::Affine::zero();
+        return ark_secp256r1::Projective::zero();
     }
     let encoded_point = point.to_encoded_point(false);
-    ark_secp256r1::Affine::new_unchecked(
+    ark_secp256r1::Projective::from(ark_secp256r1::Affine::new_unchecked(
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.x().unwrap()),
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.y().unwrap()),
-    )
+    ))
 }
 
 /// Reduce a big-endian integer representation modulo the subgroup order in arkworks representation.
@@ -150,29 +150,29 @@ mod tests {
     fn test_pt_p256_to_arkworks() {
         // 0
         assert_eq!(
-            ark_secp256r1::Affine::zero(),
-            affine_pt_p256_to_arkworks(&p256::AffinePoint::IDENTITY)
+            ark_secp256r1::Projective::zero(),
+            affine_pt_p256_to_projective_arkworks(&p256::AffinePoint::IDENTITY)
         );
 
         // G
         assert_eq!(
-            ark_secp256r1::Affine::generator() * ark_secp256r1::Fr::from(7u32),
-            affine_pt_p256_to_arkworks(
+            ark_secp256r1::Projective::generator() * ark_secp256r1::Fr::from(7u32),
+            affine_pt_p256_to_projective_arkworks(
                 &(p256::AffinePoint::generator() * p256::Scalar::from(7u32)).to_affine()
             )
         );
 
         // 7G
         assert_eq!(
-            ark_secp256r1::Affine::generator(),
-            affine_pt_p256_to_arkworks(&p256::AffinePoint::generator())
+            ark_secp256r1::Projective::generator(),
+            affine_pt_p256_to_projective_arkworks(&p256::AffinePoint::generator())
         );
 
         // sG, random s
         let random_s = p256::Scalar::random(&mut rand::thread_rng());
         assert_eq!(
-            (ark_secp256r1::Affine::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
-            affine_pt_p256_to_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
+            (ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(&random_s)).into_affine(),
+            affine_pt_p256_to_projective_arkworks(&(p256::AffinePoint::generator() * random_s).to_affine())
         );
     }
 

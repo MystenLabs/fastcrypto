@@ -23,7 +23,7 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
-    affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fr_p256_to_arkworks, reduce_bytes,
+    affine_pt_arkworks_to_p256, affine_pt_p256_to_projective_arkworks, fr_p256_to_arkworks, reduce_bytes,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
@@ -38,7 +38,6 @@ use crate::{
 use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
 use ark_ec::CurveGroup;
 use ark_ff::Field;
-use ark_secp256r1::Projective;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
@@ -215,7 +214,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
         let z = reduce_bytes(&H::digest(msg).digest);
-        let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
+        let big_r = affine_pt_p256_to_projective_arkworks(&big_r.unwrap());
 
         // Compute inverse of r. This fails if r is zero which is checked in deserialization and in
         // split_scalars called above, but we avoid an unwrap here to be safe.
@@ -228,7 +227,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let pk = MULTIPLIER
             .two_scalar_mul(
                 &secp256r1::Scalar(u1),
-                &ProjectivePoint(Projective::from(big_r)),
+                &ProjectivePoint(big_r),
                 &secp256r1::Scalar(u2),
             )
             .0;

@@ -28,7 +28,6 @@ use crate::{
 };
 use ark_ec::{AffineRepr, CurveGroup};
 use ark_ff::{BigInteger, Field, PrimeField};
-use ark_secp256r1::Projective;
 use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField as OtherPrimeField};
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
@@ -51,7 +50,7 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
-    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
+    affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
     get_affine_x_coordinate, reduce_bytes,
 };
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
@@ -193,7 +192,7 @@ impl Secp256r1PublicKey {
         // Convert scalars to arkworks representation
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
-        let q = affine_pt_p256_to_arkworks(self.pubkey.as_affine());
+        let q = affine_pt_p256_to_projective_arkworks(self.pubkey.as_affine());
 
         // Compute inverse of s. This fails if s is zero which is checked in deserialization and in
         // split_scalars above, but we avoid an unwrap here to be safe.
@@ -207,7 +206,7 @@ impl Secp256r1PublicKey {
         let p = MULTIPLIER
             .two_scalar_mul(
                 &secp256r1::Scalar(u1),
-                &ProjectivePoint(Projective::from(q)),
+                &ProjectivePoint(q),
                 &secp256r1::Scalar(u2),
             )
             .0;
