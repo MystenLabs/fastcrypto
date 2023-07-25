@@ -29,7 +29,7 @@ pub fn compute_base_2w_expansion<const N: usize>(
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
 #[inline]
 fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
-    assert!(start <= end);
+    assert!(start <= end && end < 8);
     byte >> start & ((1 << (end - start)) - 1) as u8
 }
 
