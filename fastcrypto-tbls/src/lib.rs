@@ -16,8 +16,10 @@
 #[path = ""]
 mod tbls_modules {
     pub mod dkg;
+    pub mod dl_verification;
     pub mod ecies;
     pub mod mocked_dkg;
+    pub mod nodes;
     pub mod polynomial;
     pub mod random_oracle;
     pub mod tbls;

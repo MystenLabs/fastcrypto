@@ -140,6 +140,11 @@ impl<C: GroupElement> Poly<C> {
     pub fn c0(&self) -> &C {
         &self.0[0]
     }
+
+    /// Returns the coefficients of the polynomial.
+    pub fn as_vec(&self) -> &Vec<C> {
+        &self.0
+    }
 }
 
 //// Scalar operations.
