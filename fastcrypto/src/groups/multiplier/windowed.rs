@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::iter::successors;
 
-use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, test_bit};
+use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
@@ -54,10 +54,16 @@ impl<
     for WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
 {
     fn new(base_element: G) -> Self {
+        if !is_power_of_2(CACHE_SIZE) {
+            panic!("CACHE_SIZE must be a power of two");
+        }
+
         let mut cache = [G::zero(); CACHE_SIZE];
-        cache[1] = base_element;
-        for i in 2..CACHE_SIZE {
-            cache[i] = cache[i - 1] + base_element;
+        if CACHE_SIZE > 1 {
+            cache[1] = base_element;
+            for i in 2..CACHE_SIZE {
+                cache[i] = cache[i - 1] + base_element;
+            }
         }
         Self { cache }
     }

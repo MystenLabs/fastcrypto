@@ -91,6 +91,14 @@ pub const fn log2(x: usize) -> usize {
     (usize::BITS - x.leading_zeros() - 1) as usize
 }
 
+/// Return true iff the given number is a power of 2.
+pub fn is_power_of_2(x: usize) -> bool {
+    if x == 0 {
+        return false;
+    }
+    x & (x - 1) == 0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,5 +160,18 @@ mod tests {
         assert_eq!(1, get_bits_from_bytes(&bytes, 16, 17));
         assert_eq!(0, get_bits_from_bytes(&bytes, 17, 23));
         assert_eq!(1, get_bits_from_bytes(&bytes, 23, 100));
+    }
+
+    #[test]
+    fn test_is_power_of_two() {
+        assert!(!is_power_of_2(0));
+        assert!(is_power_of_2(1));
+        assert!(is_power_of_2(2));
+        assert!(!is_power_of_2(3));
+        assert!(is_power_of_2(4));
+        assert!(!is_power_of_2(511));
+        assert!(is_power_of_2(512));
+        assert!(!is_power_of_2(513));
+        assert!(is_power_of_2(4096));
     }
 }
