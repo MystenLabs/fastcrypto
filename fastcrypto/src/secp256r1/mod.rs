@@ -27,9 +27,9 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::{BigInteger, Field};
+use ark_ff::{BigInteger, Field, PrimeField};
 use ark_secp256r1::Projective;
-use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
+use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField as OtherPrimeField};
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
@@ -417,9 +417,6 @@ impl Secp256r1KeyPair {
         // Lift x-coordinate of R and reduce it into an element of the scalar field
         let (r, is_x_reduced) = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
 
-        // The parity of the y coordinate is needed for computing the recovery id.
-        let is_y_odd = big_r.y().expect("R should not be zero").0.is_odd();
-
         // Compute s as a signature over r and z.
         let s = k_inv * (z + r * x);
 
@@ -429,6 +426,11 @@ impl Secp256r1KeyPair {
 
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let signature = Signature::from_scalars(r, s).expect("r or s is zero");
+
+        // The parity of the y coordinate is needed for computing the recovery id.
+        let is_r_odd = big_r.y().expect("R is zero").into_bigint().is_odd();
+        let is_s_high: bool = signature.s().is_high().into();
+        let is_y_odd = is_r_odd ^ is_s_high;
 
         // Normalize signature
         let normalized_signature = signature.normalize_s().unwrap_or(signature);
