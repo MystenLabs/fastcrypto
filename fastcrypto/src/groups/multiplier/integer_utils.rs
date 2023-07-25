@@ -27,9 +27,16 @@ pub fn compute_base_2w_expansion<const N: usize>(
 }
 
 /// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
+/// Both the start and end parameter may be greater than 8, in which case the remaining bits of the
+/// byte will be assumed to be zero.
 #[inline]
 fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
-    assert!(start <= end && end - start < 32);
+    assert!(start <= end);
+    if start > 7 {
+        return 0;
+    } else if end > 8 {
+        return get_lendian_from_substring(byte, start, 8);
+    }
     byte >> start & ((1 << (end - start)) - 1) as u8
 }
 
@@ -130,6 +137,9 @@ mod tests {
         assert_eq!(129, get_lendian_from_substring(&byte, 0, 8));
         assert_eq!(64, get_lendian_from_substring(&byte, 1, 8));
         assert_eq!(16, get_lendian_from_substring(&byte, 3, 8));
+        assert_eq!(129, get_lendian_from_substring(&byte, 0, 100));
+        assert_eq!(1, get_lendian_from_substring(&byte, 7, 8));
+        assert_eq!(0, get_lendian_from_substring(&byte, 8, 8));
     }
 
     #[test]
