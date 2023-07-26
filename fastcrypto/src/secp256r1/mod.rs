@@ -296,7 +296,8 @@ impl AsRef<[u8]> for Secp256r1PrivateKey {
     }
 }
 
-// All fields support ZeroizeOnDrop
+// All fields impl zeroize::ZeroizeOnDrop directly or indirectly (OnceCell's drop will call
+// ZeroizeOnDrop).
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);

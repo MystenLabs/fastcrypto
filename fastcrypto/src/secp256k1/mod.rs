@@ -214,6 +214,7 @@ impl zeroize::ZeroizeOnDrop for Secp256k1PrivateKey {}
 
 impl Drop for Secp256k1PrivateKey {
     fn drop(&mut self) {
+        // bytes is zeroized on drop indirectly via OnceCell
         self.privkey.non_secure_erase();
     }
 }

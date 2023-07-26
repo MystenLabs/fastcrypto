@@ -329,6 +329,8 @@ impl PartialEq for BLS12381PrivateKey {
 
 impl Eq for BLS12381PrivateKey {}
 
+// All fields impl zeroize::ZeroizeOnDrop directly or indirectly (OnceCell's drop will call
+// ZeroizeOnDrop).
 impl zeroize::ZeroizeOnDrop for BLS12381PrivateKey {}
 
 impl AsRef<[u8]> for BLS12381PrivateKey {
