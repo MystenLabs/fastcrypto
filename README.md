@@ -23,7 +23,7 @@
 
 Furthermore, we extend the selected libraries with additional features:
 - Robust testing framework: [Wycheproof tests](https://github.com/google/wycheproof) and [prop tests](https://altsysrq.github.io/proptest-book/intro.html) are added when possible to protect against arbitrary inputs and crafted edge cases.
-- Zeroization: Sensitive private key materials are cleared from memory securely and proactively when it goes out of scope using the [zeroize](https://docs.rs/zeroize/latest/zeroize/) trait.
+- Zeroization: Sensitive private key materials are cleared from memory when it goes out of scope using the [zeroize](https://docs.rs/zeroize/latest/zeroize/) trait. Note that this is *best effort* and does not guarantee that all sensitive data is cleared from memory as data may be copied or moved around by the compiler, FFI, etc. 
 - Serialization: Effective and standardized serialization are required.
 
 This library will be continuously updated with more schemes and faster implementations based on benchmarking results, RFC updates, new research and auditor inputs.
