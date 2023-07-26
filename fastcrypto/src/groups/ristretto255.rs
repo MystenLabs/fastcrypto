@@ -22,6 +22,7 @@ use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
+use zeroize::Zeroize;
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
 const RISTRETTO_SCALAR_BYTE_LENGTH: usize = 32;
@@ -129,7 +130,7 @@ impl ToFromByteArray<RISTRETTO_POINT_BYTE_LENGTH> for RistrettoPoint {
 serialize_deserialize_with_to_from_byte_array!(RistrettoPoint);
 
 /// Represents a scalar.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, Div, GroupOpsExtend, Zeroize)]
 pub struct RistrettoScalar(ExternalRistrettoScalar);
 
 impl RistrettoScalar {

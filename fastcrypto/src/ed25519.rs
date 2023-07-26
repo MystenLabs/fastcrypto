@@ -39,7 +39,7 @@ use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::ZeroizeOnDrop;
 
 #[cfg(any(test, feature = "experimental"))]
 use crate::traits::AggregateAuthenticator;
@@ -70,7 +70,7 @@ pub const ED25519_KEYPAIR_LENGTH: usize = ED25519_PRIVATE_KEY_LENGTH;
 pub struct Ed25519PublicKey(pub ed25519_consensus::VerificationKey);
 
 /// Ed25519 private key.
-#[derive(SilentDebug, SilentDisplay, AsRef, Zeroize, ZeroizeOnDrop)]
+#[derive(SilentDebug, SilentDisplay, AsRef, ZeroizeOnDrop)]
 #[as_ref(forward)]
 pub struct Ed25519PrivateKey(pub ed25519_consensus::SigningKey);
 

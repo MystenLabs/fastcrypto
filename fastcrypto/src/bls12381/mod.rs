@@ -34,7 +34,6 @@ use std::{
     mem::MaybeUninit,
     str::FromStr,
 };
-use zeroize::Zeroize;
 
 /// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
 /// and of the second using 96 bytes. BLS supports two modes:
@@ -330,20 +329,7 @@ impl PartialEq for BLS12381PrivateKey {
 
 impl Eq for BLS12381PrivateKey {}
 
-impl zeroize::Zeroize for BLS12381PrivateKey {
-    fn zeroize(&mut self) {
-        self.bytes.take().zeroize();
-        self.privkey.zeroize();
-    }
-}
-
 impl zeroize::ZeroizeOnDrop for BLS12381PrivateKey {}
-
-impl Drop for BLS12381PrivateKey {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
 
 impl AsRef<[u8]> for BLS12381PrivateKey {
     fn as_ref(&self) -> &[u8] {

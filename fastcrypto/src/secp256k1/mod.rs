@@ -41,7 +41,6 @@ use std::{
     fmt::{self, Debug},
     str::FromStr,
 };
-use zeroize::Zeroize;
 
 pub static SECP256K1: Lazy<Secp256k1<All>> = Lazy::new(rust_secp256k1::Secp256k1::new);
 
@@ -211,20 +210,11 @@ impl AsRef<[u8]> for Secp256k1PrivateKey {
     }
 }
 
-impl zeroize::Zeroize for Secp256k1PrivateKey {
-    fn zeroize(&mut self) {
-        // Unwrap is safe here because we are using a constant and it has been tested
-        // (see fastcrypto/src/tests/secp256k1_tests::test_sk_zeroization_on_drop)
-        self.privkey = SecretKey::from_slice(&constants::ONE).unwrap();
-        self.bytes.take().zeroize();
-    }
-}
-
 impl zeroize::ZeroizeOnDrop for Secp256k1PrivateKey {}
 
 impl Drop for Secp256k1PrivateKey {
     fn drop(&mut self) {
-        self.zeroize();
+        self.privkey.non_secure_erase();
     }
 }
 

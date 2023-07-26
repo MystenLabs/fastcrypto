@@ -82,7 +82,7 @@ pub trait AuthenticatedCipher {
 }
 
 /// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
-#[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay)]
+#[derive(Clone, Serialize, Deserialize, SilentDebug, SilentDisplay, ZeroizeOnDrop)]
 #[serde(bound = "N: ArrayLength<u8>")]
 pub struct GenericByteArray<N: ArrayLength<u8>> {
     // We use GenericArrays because they are used by the underlying crates.
@@ -132,17 +132,6 @@ where
         self.bytes.zeroize();
     }
 }
-
-impl<N> Drop for GenericByteArray<N>
-where
-    N: ArrayLength<u8>,
-{
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
-impl<N> ZeroizeOnDrop for GenericByteArray<N> where N: ArrayLength<u8> + Debug {}
 
 /// A key of `N` bytes used with AES ciphers.
 pub type AesKey<N> = GenericByteArray<N>;

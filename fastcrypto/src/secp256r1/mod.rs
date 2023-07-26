@@ -40,7 +40,6 @@ use p256::elliptic_curve::scalar::IsHigh;
 use p256::{NistP256, Scalar};
 use std::fmt::{self, Debug};
 use std::str::FromStr;
-use zeroize::Zeroize;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
@@ -297,21 +296,7 @@ impl AsRef<[u8]> for Secp256r1PrivateKey {
     }
 }
 
-impl zeroize::Zeroize for Secp256r1PrivateKey {
-    fn zeroize(&mut self) {
-        // Unwrap is safe here because we are using a constant and it has been tested
-        // (see fastcrypto/src/tests/secp256r1_tests::test_sk_zeroization_on_drop)
-        self.privkey = ExternalSecretKey::from_bytes(&Scalar::ONE.to_bytes()).unwrap();
-        self.bytes.take().zeroize();
-    }
-}
-
-impl Drop for Secp256r1PrivateKey {
-    fn drop(&mut self) {
-        self.zeroize();
-    }
-}
-
+// All fields support ZeroizeOnDrop
 impl zeroize::ZeroizeOnDrop for Secp256r1PrivateKey {}
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);

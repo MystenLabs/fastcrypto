@@ -72,6 +72,7 @@ pub mod ecvrf {
     use crate::vrf::{VRFKeyPair, VRFPrivateKey, VRFProof, VRFPublicKey};
     use elliptic_curve::hash2curve::{ExpandMsg, Expander};
     use serde::{Deserialize, Serialize};
+    use zeroize::ZeroizeOnDrop;
 
     /// draft-irtf-cfrg-vrf-15 specifies suites for suite-strings 0x00-0x04 and notes that future
     /// designs should specify a different suite_string constant, so we use "sui_vrf" here.
@@ -125,7 +126,7 @@ pub mod ecvrf {
         }
     }
 
-    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
+    #[derive(Serialize, Deserialize, PartialEq, Eq, Debug, ZeroizeOnDrop)]
     pub struct ECVRFPrivateKey(RistrettoScalar);
 
     impl VRFPrivateKey for ECVRFPrivateKey {
