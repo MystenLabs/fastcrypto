@@ -25,6 +25,7 @@ pub struct Nodes<G: GroupElement> {
 }
 
 impl<G: GroupElement> Nodes<G> {
+    /// Create a new set of nodes.
     pub fn new(nodes: Vec<Node<G>>) -> FastCryptoResult<Self> {
         let mut nodes = nodes;
         nodes.sort_by_key(|n| n.id);
@@ -37,16 +38,19 @@ impl<G: GroupElement> Nodes<G> {
         Ok(Self { nodes, n })
     }
 
+    /// Total weight of the nodes.
     pub fn n(&self) -> u32 {
         self.n
     }
 
+    /// Get an iterator on the share ids.
     pub fn share_ids_iter(&self) -> Map<RangeInclusive<u32>, fn(u32) -> ShareIndex> {
         (1..=self.n)
             .into_iter()
             .map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
+    /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
         // TODO: [perf opt] Cache this
         let mut curr_share_id = 1;
@@ -60,6 +64,7 @@ impl<G: GroupElement> Nodes<G> {
         Err(FastCryptoError::InvalidInput)
     }
 
+    /// Get the share ids of a node.
     pub fn share_ids_of(&self, id: PartyId) -> HashSet<ShareIndex> {
         // TODO: [perf opt] Cache this
         self.share_ids_iter()
@@ -67,6 +72,7 @@ impl<G: GroupElement> Nodes<G> {
             .collect::<HashSet<_>>()
     }
 
+    /// Get an iterator on the nodes.
     pub fn iter(&self) -> impl Iterator<Item = &Node<G>> {
         self.nodes.iter()
     }

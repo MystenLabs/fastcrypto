@@ -29,11 +29,15 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
         .iter()
         .map(|e| G::ScalarType::from(e.index.get().into()))
         .collect::<Vec<_>>();
-    for _ in 0..poly.as_vec().len() {
+    for i in 0..poly.as_vec().len() {
         let sum = multiplies
             .iter()
             .fold(G::ScalarType::zero(), |acc, r| acc + *r);
         coeffs.push(sum);
+        if i == poly.as_vec().len() - 1 {
+            // Save some computation since we don't need multiplies anymore
+            break;
+        }
         multiplies = multiplies
             .iter()
             .zip(evals_as_scalars.iter())
