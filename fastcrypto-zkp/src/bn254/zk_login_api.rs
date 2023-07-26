@@ -4,12 +4,9 @@
 use ark_crypto_primitives::snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use im::hashmap::HashMap as ImHashMap;
-use num_bigint::BigUint;
 
 use super::verifier::process_vk_special;
-use super::zk_login::{
-    AuxInputs, OAuthProviderContent, PublicInputs, SupportedKeyClaim, ZkLoginProof,
-};
+use super::zk_login::{OAuthProviderContent, SupportedKeyClaim, ZkLoginInputs};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::{
     bn254::verifier::PreparedVerifyingKey,
@@ -82,16 +79,16 @@ fn global_pvk() -> PreparedVerifyingKey {
     let mut vk_gamma_abc_g1 = Vec::new();
     for e in vec![
         vec![
-            "4646159977885290315333074199003995943497097760119603432786031341328349612779"
+            "7601221783497382045435100727010102844416767995017297605284115099608422303035"
                 .to_string(),
-            "16883660321018397536550988255072623983427868378088223250291094422460916984531"
+            "8749785198598536603958085261928419291825402152367782685067088145065090991309"
                 .to_string(),
             "1".to_string(),
         ],
         vec![
-            "6837327174314649334165592796561910467712597348860761363984054398343874430321"
+            "2844107402968053321142842260538249836495213364133637503989930436252095154777"
                 .to_string(),
-            "8986010922336065169810776007712346238931454905016238478271450397492184507492"
+            "6671443994502368977962577284247390754840595243304510253358092664535353826787"
                 .to_string(),
             "1".to_string(),
         ],
@@ -112,42 +109,22 @@ fn global_pvk() -> PreparedVerifyingKey {
 
 /// Entry point for the ZkLogin API.
 pub fn verify_zk_login(
-    proof: &ZkLoginProof,
-    public_inputs: &PublicInputs,
-    aux_inputs: &AuxInputs,
+    input: &ZkLoginInputs,
+    max_epoch: u64,
     eph_pubkey_bytes: &[u8],
     all_jwk: &ImHashMap<(String, String), OAuthProviderContent>,
 ) -> Result<(), FastCryptoError> {
-    if !is_claim_supported(aux_inputs.get_key_claim_name()) {
-        return Err(FastCryptoError::GeneralError(
-            "Unsupported claim found".to_string(),
-        ));
-    }
-
     let jwk = all_jwk
-        .get(&(
-            aux_inputs.get_kid().to_string(),
-            aux_inputs.get_iss().to_string(),
-        ))
+        .get(&(input.get_kid().to_string(), input.get_iss().to_string()))
         .ok_or_else(|| FastCryptoError::GeneralError("JWK not found".to_string()))?;
-    let jwk_modulus =
-        BigUint::from_bytes_be(&Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
-            FastCryptoError::GeneralError("Invalid Base64 encoded jwk.n".to_string())
-        })?);
+    let modulus = Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
+        FastCryptoError::GeneralError("Invalid Base64 encoded jwk modulus".to_string())
+    })?;
 
-    if jwk_modulus.to_string() != aux_inputs.get_mod() || jwk.validate().is_err() {
-        return Err(FastCryptoError::GeneralError("Invalid modulus".to_string()));
-    }
-
-    if aux_inputs.calculate_all_inputs_hash(eph_pubkey_bytes)?
-        != public_inputs.get_all_inputs_hash()?
-    {
-        return Err(FastCryptoError::GeneralError(
-            "Invalid all inputs hash".to_string(),
-        ));
-    }
-
-    match verify_zk_login_proof_with_fixed_vk(proof, public_inputs) {
+    match verify_zk_login_proof_with_fixed_vk(
+        input,
+        &input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch)?,
+    ) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(
             "Groth16 proof verify failed".to_string(),
@@ -157,13 +134,13 @@ pub fn verify_zk_login(
 
 /// Verify a zk login proof using the fixed verifying key.
 fn verify_zk_login_proof_with_fixed_vk(
-    proof: &ZkLoginProof,
-    public_inputs: &PublicInputs,
+    input: &ZkLoginInputs,
+    public_inputs: &[Bn254Fr],
 ) -> Result<bool, FastCryptoError> {
     Groth16::<Bn254>::verify_with_processed_vk(
         &GLOBAL_VERIFYING_KEY.as_arkworks_pvk(),
-        &public_inputs.as_arkworks()?,
-        &proof.as_arkworks(),
+        public_inputs,
+        &input.get_proof().as_arkworks(),
     )
     .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
