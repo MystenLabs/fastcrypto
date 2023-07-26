@@ -308,12 +308,11 @@ fn test_sk_zeroization_on_drop() {
         assert_eq!(sk_memory, &sk_bytes[..]);
     }
 
-    // Check that self.privkey is set to ONE_KEY (workaround to all zero SecretKey considered as invalid)
+    // Check that self.privkey is set to 1 (see DUMMY_KEYPAIR)
     unsafe {
-        for i in 0..constants::SECRET_KEY_SIZE - 1 {
-            assert_eq!(*ptr.add(i), 0);
+        for i in 0..constants::SECRET_KEY_SIZE {
+            assert_eq!(*ptr.add(i), 1);
         }
-        assert_eq!(*ptr.add(constants::SECRET_KEY_SIZE - 1), 1);
     }
 
     // Check that self.bytes is zeroized
