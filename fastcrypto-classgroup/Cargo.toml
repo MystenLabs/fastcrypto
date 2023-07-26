@@ -1,0 +1,15 @@
+[package]
+name = "fastcrypto-classgroup"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
+publish = ["crates-io"]
+description = "zk-proof library used at Mysten Labs"
+repository = "https://github.com/MystenLabs/fastcrypto"
+
+[dependencies]
+num-bigint = "0.4.3"
+num = "0.4.1"
+
+[features]
