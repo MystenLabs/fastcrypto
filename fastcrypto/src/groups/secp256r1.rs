@@ -9,9 +9,9 @@ use crate::groups::{GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use ark_ec::Group;
-use ark_ff::{Field, One, PrimeField, Zero};
+use ark_ff::{Field, One, UniformRand, Zero};
 use ark_secp256r1::{Fr, Projective};
-use ark_serialize::CanonicalSerialize;
+use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use std::ops::{Div, Mul};
@@ -96,9 +96,7 @@ impl From<u64> for Scalar {
 
 impl ScalarTrait for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        let mut bytes = [0u8; SCALAR_SIZE_IN_BYTES];
-        rng.fill_bytes(&mut bytes);
-        Scalar(Fr::from_be_bytes_mod_order(&bytes))
+        Scalar(Fr::rand(rng))
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {
@@ -110,7 +108,10 @@ impl ScalarTrait for Scalar {
 
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
-        Ok(Scalar(Fr::from_le_bytes_mod_order(bytes)))
+        Ok(Scalar(
+            Fr::deserialize_uncompressed(bytes.as_slice())
+                .map_err(|_| FastCryptoError::InvalidInput)?,
+        ))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {

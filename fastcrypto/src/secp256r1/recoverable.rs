@@ -23,8 +23,8 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::HashFunction;
 use crate::secp256r1::conversion::{
-    affine_pt_arkworks_to_p256, affine_pt_p256_to_arkworks, fq_arkworks_to_p256,
-    fr_p256_to_arkworks, reduce_bytes,
+    affine_pt_arkworks_to_p256, affine_pt_p256_to_projective_arkworks, fr_p256_to_arkworks,
+    reduce_bytes,
 };
 use crate::secp256r1::{
     DefaultHash, Secp256r1KeyPair, Secp256r1PublicKey, Secp256r1Signature, MULTIPLIER,
@@ -37,10 +37,8 @@ use crate::{
     traits::{EncodeDecodeBase64, ToFromBytes},
 };
 use crate::{impl_base64_display_fmt, serialize_deserialize_with_to_from_bytes};
-use ark_ec::{AffineRepr, CurveGroup};
+use ark_ec::CurveGroup;
 use ark_ff::Field;
-use ark_secp256r1::Projective;
-use ecdsa::elliptic_curve::scalar::IsHigh;
 use ecdsa::elliptic_curve::subtle::Choice;
 use ecdsa::RecoveryId;
 use once_cell::sync::OnceCell;
@@ -75,11 +73,16 @@ impl ToFromBytes for Secp256r1RecoverableSignature {
             ));
         }
 
+        let recovery_id = bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1];
+        if recovery_id > 3 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         // This fails if either r or s are zero: https://docs.rs/ecdsa/0.16.6/src/ecdsa/lib.rs.html#209-219.
         ExternalSignature::try_from(&bytes[..SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1])
             .map(|sig| Secp256r1RecoverableSignature {
                 sig,
-                recovery_id: bytes[SECP256R1_RECOVERABLE_SIGNATURE_LENGTH - 1],
+                recovery_id,
                 bytes: OnceCell::new(),
             })
             .map_err(|_| FastCryptoError::InvalidInput)
@@ -164,18 +167,13 @@ impl RecoverableSigner for Secp256r1KeyPair {
         &self,
         msg: &[u8],
     ) -> Secp256r1RecoverableSignature {
-        let (signature, big_r) = self.sign_common::<H>(msg);
+        let (signature, is_y_odd, is_x_reduced) = self.sign_common::<H>(msg);
 
-        // Compute recovery id and normalize signature
-        let y = fq_arkworks_to_p256(big_r.y().expect("R is zero"));
-        let is_r_odd = y.is_odd();
-        let is_s_high = signature.s().is_high();
-        let is_y_odd = is_r_odd ^ is_s_high;
-        let normalized_signature = signature.normalize_s().unwrap_or(signature);
-        let recovery_id = RecoveryId::new(is_y_odd.into(), false);
+        // Compute recovery id
+        let recovery_id = RecoveryId::new(is_y_odd, is_x_reduced);
 
         Secp256r1RecoverableSignature {
-            sig: normalized_signature,
+            sig: signature,
             bytes: OnceCell::new(),
             recovery_id: recovery_id.to_byte(),
         }
@@ -217,7 +215,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
         let z = reduce_bytes(&H::digest(msg).digest);
-        let big_r = affine_pt_p256_to_arkworks(&big_r.unwrap());
+        let big_r = affine_pt_p256_to_projective_arkworks(&big_r.unwrap());
 
         // Compute inverse of r. This fails if r is zero which is checked in deserialization and in
         // split_scalars called above, but we avoid an unwrap here to be safe.
@@ -230,7 +228,7 @@ impl RecoverableSignature for Secp256r1RecoverableSignature {
         let pk = MULTIPLIER
             .two_scalar_mul(
                 &secp256r1::Scalar(u1),
-                &ProjectivePoint(Projective::from(big_r)),
+                &ProjectivePoint(big_r),
                 &secp256r1::Scalar(u2),
             )
             .0;

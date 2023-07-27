@@ -27,9 +27,8 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use ark_ec::{AffineRepr, CurveGroup};
-use ark_ff::Field;
-use ark_secp256r1::Projective;
-use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
+use ark_ff::{BigInteger, Field, PrimeField};
+use elliptic_curve::{Curve, FieldBytesEncoding, PrimeField as OtherPrimeField};
 use lazy_static::lazy_static;
 use once_cell::sync::OnceCell;
 use p256::ecdsa::{
@@ -38,7 +37,7 @@ use p256::ecdsa::{
 };
 use p256::elliptic_curve::group::GroupEncoding;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::{FieldBytes, NistP256, Scalar};
+use p256::{NistP256, Scalar};
 use std::fmt::{self, Debug};
 use std::str::FromStr;
 use zeroize::Zeroize;
@@ -51,8 +50,8 @@ use crate::groups::secp256r1;
 use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
-    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
-    get_affine_x_coordinate, reduce_bytes,
+    affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256,
+    fr_p256_to_arkworks, get_affine_x_coordinate, reduce_bytes,
 };
 use crate::secp256r1::recoverable::Secp256r1RecoverableSignature;
 use crate::traits::Signer;
@@ -119,13 +118,13 @@ impl std::hash::Hash for Secp256r1PublicKey {
 
 impl PartialOrd for Secp256r1PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
+        self.pubkey.partial_cmp(&other.pubkey)
     }
 }
 
 impl Ord for Secp256r1PublicKey {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.as_ref().cmp(other.as_ref())
+        self.pubkey.cmp(&other.pubkey)
     }
 }
 
@@ -150,13 +149,13 @@ impl VerifyingKey for Secp256r1PublicKey {
 lazy_static! {
     static ref MULTIPLIER: WindowedScalarMultiplier<
         ProjectivePoint,
-        crate::groups::secp256r1::Scalar,
+        <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
     > = WindowedScalarMultiplier::<
         ProjectivePoint,
-        crate::groups::secp256r1::Scalar,
+        <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
@@ -193,7 +192,7 @@ impl Secp256r1PublicKey {
         // Convert scalars to arkworks representation
         let r = fr_p256_to_arkworks(&r);
         let s = fr_p256_to_arkworks(&s);
-        let q = affine_pt_p256_to_arkworks(self.pubkey.as_affine());
+        let q = affine_pt_p256_to_projective_arkworks(self.pubkey.as_affine());
 
         // Compute inverse of s. This fails if s is zero which is checked in deserialization and in
         // split_scalars above, but we avoid an unwrap here to be safe.
@@ -207,16 +206,17 @@ impl Secp256r1PublicKey {
         let p = MULTIPLIER
             .two_scalar_mul(
                 &secp256r1::Scalar(u1),
-                &ProjectivePoint(Projective::from(q)),
+                &ProjectivePoint(q),
                 &secp256r1::Scalar(u2),
             )
             .0;
 
-        let x = get_affine_x_coordinate(&p);
-
         // Note that x is none if and only if p is zero, in which case the signature is invalid. See
         // step 5 in section 4.1.4 in "SEC 1: Elliptic Curve Cryptography".
-        if x.is_some() && arkworks_fq_to_fr(&x.unwrap()) == r {
+        let x = get_affine_x_coordinate(&p).ok_or(FastCryptoError::InvalidSignature)?;
+
+        let (x_reduced, _) = arkworks_fq_to_fr(&x);
+        if x_reduced == r {
             return Ok(());
         }
         Err(FastCryptoError::InvalidSignature)
@@ -299,14 +299,16 @@ impl AsRef<[u8]> for Secp256r1PrivateKey {
 
 impl zeroize::Zeroize for Secp256r1PrivateKey {
     fn zeroize(&mut self) {
+        // Unwrap is safe here because we are using a constant and it has been tested
+        // (see fastcrypto/src/tests/secp256r1_tests::test_sk_zeroization_on_drop)
+        self.privkey = ExternalSecretKey::from_bytes(&Scalar::ONE.to_bytes()).unwrap();
         self.bytes.take().zeroize();
-        // SigningKey from the p256 crate implements zeroize on drop, so we do not need to zeroize it here.
     }
 }
 
 impl Drop for Secp256r1PrivateKey {
     fn drop(&mut self) {
-        self.bytes.take().zeroize();
+        self.zeroize();
     }
 }
 
@@ -384,9 +386,9 @@ pub struct Secp256r1KeyPair {
 impl Secp256r1KeyPair {
     /// Sign a message using the given hash function and return the signature and the elliptic curve
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
-    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, ark_secp256r1::Affine) {
+    fn sign_common<H: HashFunction<32>>(&self, msg: &[u8]) -> (Signature, bool, bool) {
         // Hash message
-        let z = H::digest(msg).digest;
+        let z = reduce_bytes(&H::digest(msg).digest);
 
         // Private key as scalar
         let x = self.secret.privkey.as_nonzero_scalar();
@@ -397,7 +399,7 @@ impl Secp256r1KeyPair {
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
                 &x.to_bytes(),
                 &NistP256::ORDER.encode_field_bytes(),
-                &FieldBytes::from(z),
+                &fr_arkworks_to_p256(&z).to_bytes(),
                 &[],
             ))
             .unwrap(),
@@ -405,7 +407,6 @@ impl Secp256r1KeyPair {
 
         // Convert secret key and message to arkworks scalars.
         let x = fr_p256_to_arkworks(x);
-        let z = reduce_bytes(&z);
 
         // Compute scalar inversion of k
         let k_inv = k.inverse().expect("k should not be zero");
@@ -414,10 +415,10 @@ impl Secp256r1KeyPair {
         let big_r = MULTIPLIER.mul(&secp256r1::Scalar(k)).0.into_affine();
 
         // Lift x-coordinate of R and reduce it into an element of the scalar field
-        let r = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
+        let (r, is_x_reduced) = arkworks_fq_to_fr(big_r.x().expect("R should not be zero"));
 
         // Compute s as a signature over r and z.
-        let s = k_inv * (z + (r * x));
+        let s = k_inv * (z + r * x);
 
         // Convert to p256 format
         let s = fr_arkworks_to_p256(&s).to_bytes();
@@ -426,18 +427,23 @@ impl Secp256r1KeyPair {
         // This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         let signature = Signature::from_scalars(r, s).expect("r or s is zero");
 
-        (signature, big_r)
-    }
-
-    /// Create a new signature using the given hash function to hash the message.
-    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
-        let (signature, _) = self.sign_common::<H>(msg);
+        // The parity of the y coordinate is needed for computing the recovery id.
+        let is_r_odd = big_r.y().expect("R is zero").into_bigint().is_odd();
+        let is_s_high: bool = signature.s().is_high().into();
+        let is_y_odd = is_r_odd ^ is_s_high;
 
         // Normalize signature
         let normalized_signature = signature.normalize_s().unwrap_or(signature);
 
+        (normalized_signature, is_y_odd, is_x_reduced)
+    }
+
+    /// Create a new signature using the given hash function to hash the message.
+    pub fn sign_with_hash<H: HashFunction<32>>(&self, msg: &[u8]) -> Secp256r1Signature {
+        let (signature, _, _) = self.sign_common::<H>(msg);
+
         Secp256r1Signature {
-            sig: normalized_signature,
+            sig: signature,
             bytes: OnceCell::new(),
         }
     }

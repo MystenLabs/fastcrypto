@@ -4,7 +4,7 @@
 use std::collections::HashMap;
 use std::iter::successors;
 
-use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, test_bit};
+use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
 use crate::groups::GroupElement;
 use crate::serde_helpers::ToFromByteArray;
@@ -14,7 +14,7 @@ use crate::serde_helpers::ToFromByteArray;
 /// `double_mul`, is NOT constant time. However, the single multiplication method `mul` is constant
 /// time if the group operations for `G` are constant time.
 ///
-/// The `CACHE_SIZE` should be a power of two. The `SCALAR_SIZE` is the number of bytes in the byte
+/// The `CACHE_SIZE` should be a power of two > 1. The `SCALAR_SIZE` is the number of bytes in the byte
 /// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
 /// the scalar in little-endian format.
 ///
@@ -54,6 +54,9 @@ impl<
     for WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
 {
     fn new(base_element: G) -> Self {
+        if !is_power_of_2(CACHE_SIZE) || CACHE_SIZE <= 1 {
+            panic!("CACHE_SIZE must be a power of two greater than 1");
+        }
         let mut cache = [G::zero(); CACHE_SIZE];
         cache[1] = base_element;
         for i in 2..CACHE_SIZE {
@@ -212,8 +215,8 @@ pub fn multi_scalar_mul<
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
 fn compute_multiples<G: GroupElement>(base_element: &G, window_size: usize) -> Vec<G> {
     assert!(window_size > 0, "Window size must be strictly positive.");
-    let mut smallest_multiple = base_element.double();
-    for _ in 2..window_size {
+    let mut smallest_multiple = *base_element;
+    for _ in 1..window_size {
         smallest_multiple = smallest_multiple.double();
     }
     successors(Some(smallest_multiple), |g| Some(*g + base_element))
@@ -278,19 +281,13 @@ mod tests {
         for scalar in scalars {
             let expected = ProjectivePoint::generator() * scalar;
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 15, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 32, 4>::new(
                 ProjectivePoint::generator(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
             let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 32, 4>::new(
-                ProjectivePoint::generator(),
-            );
-            let actual = multiplier.mul(&scalar);
-            assert_eq!(expected, actual);
-
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 17, 32, 4>::new(
                 ProjectivePoint::generator(),
             );
             let actual = multiplier.mul(&scalar);
