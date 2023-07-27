@@ -1616,11 +1616,13 @@ dependencies = [
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
+ "bcs",
  "bincode",
  "criterion 0.4.0",
  "digest 0.10.6",
  "fastcrypto",
  "fastcrypto-derive",
+ "itertools",
  "rand",
  "serde",
  "sha3 0.10.6",

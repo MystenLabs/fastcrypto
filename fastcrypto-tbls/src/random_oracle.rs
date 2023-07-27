@@ -36,7 +36,7 @@ impl RandomOracle {
             .expect("prefix length should be less than u32::MAX, tested when set");
         hasher.update(len.to_be_bytes());
         hasher.update(&self.prefix);
-        let serialized = bincode::serialize(obj).expect("serialize should never fail");
+        let serialized = bcs::to_bytes(obj).expect("serialize should never fail");
         hasher.update(&serialized);
         hasher.finalize().into()
     }
