@@ -6,7 +6,6 @@ members = [
     "fastcrypto-tbls",
     "fastcrypto-zkp",
     "fastcrypto-cli",
-    "fastcrypto-classgroup"
 ]
 
 # Dependencies that should be kept in sync through the whole workspace
