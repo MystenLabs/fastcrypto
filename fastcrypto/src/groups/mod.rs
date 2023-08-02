@@ -8,8 +8,8 @@ use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
 pub mod bls12381;
+pub mod classgroup;
 pub mod ristretto255;
-
 pub mod secp256r1;
 
 pub mod multiplier;
