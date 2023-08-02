@@ -4,7 +4,7 @@
 use std::cmp::min;
 use std::ops::{Add, Mul, Neg};
 
-use class_group::{BinaryQF, pari_init};
+use class_group::{pari_init, BinaryQF};
 use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, One, Primes, Roots, Zero};
 use curv::BigInt;
 
@@ -13,37 +13,77 @@ use crate::hash::HashFunction;
 use crate::hash::Sha256;
 use crate::vdf::CompressedQuadraticForm::Nontrivial;
 
+/// The size of a compressed quadratic form in bytes.
 pub const COMPRESSED_SIZE: usize = 100;
-pub const B_BITS: usize = 264;
 
-pub trait WesolowskiVDF {
+/// Size of the random prime modulus B used in proving and verification.
+const B_BITS: usize = 264;
+
+/// This represents a Verifiable Delay Function (VDF) over a given group.
+pub trait VDF {
     type GroupElement;
 
-    // TODO: impl prove
-    // fn prove(&self, discriminant: &BigInt, input: Self::T, discriminant_size: usize, iterations: u64) -> FastCryptoResult<VDFOutput<Self::T>>;
+    /// Evaluate this VDF and return the output and proof of correctness.
+    fn prove(
+        &self,
+        input: Self::GroupElement,
+        iterations: u64,
+    ) -> FastCryptoResult<VDFOutput<Self::GroupElement>>;
 
-    fn verify(&self, input: Self::GroupElement, output: &Self::GroupElement, proof: &Self::GroupElement, iterations: u64) -> FastCryptoResult<bool>;
+    /// Verify the output and proof from a VDF.
+    fn verify(
+        &self,
+        input: Self::GroupElement,
+        output: &Self::GroupElement,
+        proof: &Self::GroupElement,
+        iterations: u64,
+    ) -> FastCryptoResult<bool>;
 }
 
+/// An implementation of the Wesolowski VDF construction over ideal class groups. The implementation
+/// is compatible with chiavdf.
 pub struct ClassgroupVDF {
-    _discriminant: BigInt,
+    discriminant: BigInt,
 }
 
 impl ClassgroupVDF {
-    fn new(discriminant: BigInt) -> Self {
+    pub fn new(discriminant: BigInt) -> Self {
         unsafe {
             pari_init(1000000000, 2);
         }
-        Self {
-            _discriminant: discriminant
-        }
+        Self { discriminant }
+    }
+
+    pub fn from_challenge(challenge: &[u8], discriminant_size_in_bits: usize) -> Self {
+        Self::new(get_discriminant(challenge, discriminant_size_in_bits))
     }
 }
 
-impl WesolowskiVDF for ClassgroupVDF {
+impl VDF for ClassgroupVDF {
     type GroupElement = CompressedQuadraticForm;
 
-    fn verify(&self, input: Self::GroupElement, output: &Self::GroupElement, proof: &Self::GroupElement, iterations: u64) -> FastCryptoResult<bool> {
+    fn prove(
+        &self,
+        input: Self::GroupElement,
+        iterations: u64,
+    ) -> FastCryptoResult<VDFOutput<Self::GroupElement>> {
+        todo!()
+    }
+
+    fn verify(
+        &self,
+        input: Self::GroupElement,
+        output: &Self::GroupElement,
+        proof: &Self::GroupElement,
+        iterations: u64,
+    ) -> FastCryptoResult<bool> {
+        if input.discriminant() != &self.discriminant
+            || output.discriminant() != &self.discriminant
+            || proof.discriminant() != &self.discriminant
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         let input_bytes = input.serialize()?;
         let input_uncompressed = input.decompress()?;
 
@@ -97,6 +137,7 @@ impl Add<&QuadraticForm> for QuadraticForm {
 }
 
 impl QuadraticForm {
+    /// Create a new quadratic form given only the a and b coordinate and the discriminant.
     fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &BigInt) -> Self {
         let c = ((&b * &b) - discriminant) / (BigInt::from(4) * &a);
         Self(BinaryQF { a, b, c })
@@ -105,29 +146,35 @@ impl QuadraticForm {
     /// Return the identity element in a class group with a given discriminant, eg. (1, 1, X) where
     /// X is determined from the discriminant.
     fn zero(discriminant: &BigInt) -> Self {
-        Self::from_a_b_discriminant(
-            BigInt::one(),
-            BigInt::one(),
-            discriminant,
-        )
+        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group
     /// with a given discriminant. We use the element (2, 1, X) where X is determined from the discriminant.
     fn generator(discriminant: &BigInt) -> Self {
-        Self::from_a_b_discriminant(
-            BigInt::from(2),
-            BigInt::one(),
-            discriminant,
-        )
+        Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
     }
 }
 
 impl CompressedQuadraticForm {
+    /// Return the discriminant of this form.
+    fn discriminant(&self) -> &BigInt {
+        match self {
+            CompressedQuadraticForm::Identity(discriminant) => discriminant,
+            CompressedQuadraticForm::Generator(discriminant) => discriminant,
+            Nontrivial(form) => &form.discriminant,
+        }
+    }
+
+    /// Return this as a QuadraticForm.
     fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
         match self {
-            CompressedQuadraticForm::Identity(discriminant) => Ok(QuadraticForm::zero(&discriminant)),
-            CompressedQuadraticForm::Generator(discriminant) => Ok(QuadraticForm::generator(&discriminant)),
+            CompressedQuadraticForm::Identity(discriminant) => {
+                Ok(QuadraticForm::zero(&discriminant))
+            }
+            CompressedQuadraticForm::Generator(discriminant) => {
+                Ok(QuadraticForm::generator(&discriminant))
+            }
             Nontrivial(form) => {
                 let CompressedFormat {
                     a_prime,
@@ -156,7 +203,8 @@ impl CompressedQuadraticForm {
                     return Err(FastCryptoError::InvalidInput);
                 }
 
-                let mut t_inv = BigInt::mod_inv(&t, a_prime).ok_or(FastCryptoError::InvalidInput)?;
+                let mut t_inv =
+                    BigInt::mod_inv(&t, a_prime).ok_or(FastCryptoError::InvalidInput)?;
                 if t_inv < BigInt::zero() {
                     t_inv += a_prime;
                 }
@@ -225,30 +273,11 @@ impl CompressedQuadraticForm {
         }
     }
 
+    /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &BigInt) -> FastCryptoResult<Self> {
         if bytes.len() != COMPRESSED_SIZE {
             return Err(FastCryptoError::InputLengthWrong(COMPRESSED_SIZE));
         }
-
-        /*
-         * Serialization format for compressed quadratic forms:
-         *
-         * Size (bytes)            Description
-         * 1                       Sign bits and flags for special forms:
-         *                         bit0 - b sign; bit1 - t sign;
-         *                         bit2 - is identity form; bit3 - is generator form
-         *
-         * 1                       Size of 'g' in bytes minus 1 (g_size)
-         *
-         * d_bits / 16 - g_size    a' = a / g
-         * d_bits / 32 - g_size    t' = t / g, where t satisfies (a*x + b*t < sqrt(a))
-         * g_size + 1              g = gcd(a, t)
-         * g_size + 1              b0 = b / a' (truncating division)
-         *
-         * Notes: 'd_bits' is the bit length of the discriminant, which is rounded up
-         * to the next multiple of 32. Serialization of special forms (identity or
-         * generator) takes only 1 byte.
-         */
 
         let is_identity = bytes[0] & 0x04 != 0;
         let is_generator = bytes[0] & 0x08 != 0;
@@ -259,7 +288,11 @@ impl CompressedQuadraticForm {
             return Ok(CompressedQuadraticForm::Generator(discriminant.clone()));
         }
 
+        // The bit length of the discriminant, which is rounded up to the next multiple of 32.
+        // Serialization of special forms (identity or generator) takes only 1 byte.
         let d_bits = (discriminant.bit_length() + 31) & !31;
+
+        // Size of g in bytes minus 1 (g_size)
         let g_size = bytes[1] as usize;
         if g_size >= d_bits / 32 {
             return Err(FastCryptoError::InvalidInput);
@@ -270,18 +303,26 @@ impl CompressedQuadraticForm {
 
         let mut offset = 2;
         let length = d_bits / 16 - g_size;
+
+        // a' = a / g
         let a_prime = bigint_import(&bytes[offset..offset + length]);
         offset += length;
         let length = d_bits / 32 - g_size;
+
+        // t' = t / g, where t satisfies (a*x + b*t < sqrt(a))
         let mut t_prime = bigint_import(&bytes[offset..offset + length]);
         if t_sign {
             t_prime = -t_prime;
         }
         offset += length;
         let length = g_size + 1;
+
+        // g = gcd(a, t)
         let g = bigint_import(&bytes[offset..offset + length]);
         offset += length;
         let length = g_size + 1;
+
+        // b0 = b / a'
         let b0 = bigint_import(&bytes[offset..offset + length]);
 
         return Ok(Nontrivial(CompressedFormat {
@@ -297,7 +338,7 @@ impl CompressedQuadraticForm {
 
 /// Import function for curv::BigInt aligned with chiavdf.
 fn bigint_import(bytes: &[u8]) -> BigInt {
-    // TODO: Copy is not really needed
+    // TODO: The copying done in to_vec is not really needed
     let mut reversed = bytes.to_vec();
     reversed.reverse();
     BigInt::from_bytes(&reversed)
@@ -323,6 +364,8 @@ fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u
     Ok(bytes)
 }
 
+/// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction to make
+/// the Wesolowski VDF non-interactive.
 fn get_b(x: &[u8], y: &[u8]) -> BigInt {
     let mut seed = vec![];
     seed.extend_from_slice(x);
@@ -331,7 +374,7 @@ fn get_b(x: &[u8], y: &[u8]) -> BigInt {
 }
 
 /// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
-/// Generates a random psuedoprime using the hash and check method:
+/// Generates a random pseudo-prime using the hash and check method:
 /// Randomly chooses x with bit-length `length`, then applies a mask
 ///   (for b in bitmask) { x |= (1 << b) }.
 /// Then return x if it is a psuedoprime, otherwise repeat.
@@ -367,13 +410,13 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> BigInt {
     }
 }
 
-fn get_discriminant(challenge: &[u8], length: usize) -> BigInt {
-    hash_prime(challenge, length, &[0, 1, 2, length - 1]).neg()
+/// Compute a discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
+fn get_discriminant(seed: &[u8], length: usize) -> BigInt {
+    hash_prime(seed, length, &[0, 1, 2, length - 1]).neg()
 }
 
 #[test]
 fn test_verify_chia_vdf_proof() {
-
     // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
     let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
     let difficulty = 100000u64;
@@ -386,13 +429,22 @@ fn test_verify_chia_vdf_proof() {
     assert_eq!(discriminant, get_discriminant(&challenge, 512));
 
     let result_bytes = hex::decode(result_hex).unwrap();
-    let result_compressed = CompressedQuadraticForm::deserialize(&result_bytes, &discriminant).unwrap();
+    let result_compressed =
+        CompressedQuadraticForm::deserialize(&result_bytes, &discriminant).unwrap();
 
     let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof_compressed = CompressedQuadraticForm::deserialize(&proof_bytes, &discriminant).unwrap();
+    let proof_compressed =
+        CompressedQuadraticForm::deserialize(&proof_bytes, &discriminant).unwrap();
 
     let vdf = ClassgroupVDF::new(discriminant.clone());
-    assert!(vdf.verify(CompressedQuadraticForm::Generator(discriminant), &result_compressed, &proof_compressed, difficulty).unwrap());
+    assert!(vdf
+        .verify(
+            CompressedQuadraticForm::Generator(discriminant),
+            &result_compressed,
+            &proof_compressed,
+            difficulty
+        )
+        .unwrap());
 }
 
 #[test]
