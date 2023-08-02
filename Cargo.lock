@@ -1816,14 +1816,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fastcrypto-classgroup"
-version = "0.1.0"
-dependencies = [
- "num",
- "num-bigint 0.4.3",
-]
-
-[[package]]
 name = "fastcrypto-cli"
 version = "0.1.0"
 dependencies = [
