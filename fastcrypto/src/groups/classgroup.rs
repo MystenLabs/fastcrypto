@@ -64,13 +64,24 @@ impl QuadraticForm {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
     }
 
+    /// Serialize this quadratic form. The format follows that of chiavdf and is COMPACT_SIZE bytes long.
+    pub fn serialize(&self) -> FastCryptoResult<[u8; COMPRESSED_SIZE]> {
+        self.compress().serialize()
+    }
+
+    /// Deserialize bytes into a quadratic form. The format follows that of chiavdf and the bytes array
+    /// should be COMPACT_SIZE bytes long.
+    pub fn deserialize(bytes: &[u8], discriminant: &BigInt) -> FastCryptoResult<Self> {
+        CompressedQuadraticForm::deserialize(bytes, discriminant)?.decompress()
+    }
+
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
     pub fn discriminant(&self) -> BigInt {
         self.0.discriminant()
     }
 
     /// Return a compressed representation of this quadratic form. See See https://eprint.iacr.org/2020/196.pdf.
-    pub fn compress(&self) -> CompressedQuadraticForm {
+    fn compress(&self) -> CompressedQuadraticForm {
         if self.0.a == BigInt::one() && self.0.b == BigInt::one() {
             return Identity(self.discriminant());
         } else if self.0.a == BigInt::from(2) && self.0.b == BigInt::one() {
@@ -122,15 +133,15 @@ impl QuadraticForm {
 }
 
 /// A quadratic form in compressed representation. See https://eprint.iacr.org/2020/196.pdf.
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub enum CompressedQuadraticForm {
+#[derive(PartialEq, Eq, Debug)]
+enum CompressedQuadraticForm {
     Identity(BigInt),
     Generator(BigInt),
     Nontrivial(CompressedFormat),
 }
 
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct CompressedFormat {
+#[derive(PartialEq, Eq, Debug)]
+struct CompressedFormat {
     a_prime: BigInt,
     t_prime: BigInt,
     g: BigInt,
@@ -140,17 +151,8 @@ pub struct CompressedFormat {
 }
 
 impl CompressedQuadraticForm {
-    /// Return the discriminant of this form.
-    pub fn discriminant(&self) -> &BigInt {
-        match self {
-            Identity(discriminant) => discriminant,
-            Generator(discriminant) => discriminant,
-            Nontrivial(form) => &form.discriminant,
-        }
-    }
-
     /// Return this as a QuadraticForm.
-    pub fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
+    fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
         match self {
             Identity(discriminant) => Ok(QuadraticForm::identity(&discriminant)),
             Generator(discriminant) => Ok(QuadraticForm::generator(&discriminant)),
@@ -216,7 +218,7 @@ impl CompressedQuadraticForm {
     }
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
-    pub fn serialize(&self) -> FastCryptoResult<[u8; COMPRESSED_SIZE]> {
+    fn serialize(&self) -> FastCryptoResult<[u8; COMPRESSED_SIZE]> {
         match self {
             Identity(_) => {
                 let mut bytes = [0u8; COMPRESSED_SIZE];
@@ -258,7 +260,7 @@ impl CompressedQuadraticForm {
     }
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
-    pub(crate) fn deserialize(bytes: &[u8], discriminant: &BigInt) -> FastCryptoResult<Self> {
+    fn deserialize(bytes: &[u8], discriminant: &BigInt) -> FastCryptoResult<Self> {
         if bytes.len() != COMPRESSED_SIZE {
             return Err(FastCryptoError::InputLengthWrong(COMPRESSED_SIZE));
         }
