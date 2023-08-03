@@ -1,13 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains an implementation of imaginary class groups. Elements are represented by
+//! binary quadratic forms which forms a group under composition. Here we use additive notation
+//! for the composition.
+//!
+//! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
+
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::classgroup::CompressedQuadraticForm::{Generator, Identity, Nontrivial};
 use class_group::BinaryQF;
 use curv::arithmetic::{BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero};
 use curv::BigInt;
+use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, Mul, Neg};
+use std::ops::{Add, Mul};
 
 /// The size of a compressed quadratic form in bytes.
 // TODO: It is not clear if this size is used only by the tests in chiavdf or if it's more widely used. The size should depend on the discriminant size, so it's perhaps chosen as an upper limit for commonly used discriminant sizes.
@@ -34,11 +41,11 @@ impl Mul<&BigInt> for &QuadraticForm {
     }
 }
 
-impl Add<&QuadraticForm> for QuadraticForm {
-    type Output = Self;
+impl Add<&QuadraticForm> for &QuadraticForm {
+    type Output = QuadraticForm;
 
     fn add(self, rhs: &QuadraticForm) -> Self::Output {
-        Self(self.0.compose(&rhs.0).reduce())
+        QuadraticForm(self.0.compose(&rhs.0).reduce())
     }
 }
 
@@ -114,15 +121,14 @@ impl QuadraticForm {
         let (_, _, mut t_prime) = partial_xgcd(&a, &b_abs);
         let g = a.gcd(&t_prime);
 
-        let a_prime: BigInt;
+        let mut a_prime = a;
         let mut b0: BigInt;
 
         if g.is_one() {
-            a_prime = a.clone();
             b0 = BigInt::zero();
         } else {
-            a_prime = a / &g;
-            t_prime = t_prime / &g;
+            a_prime /= &g;
+            t_prime /= &g;
 
             // Compute b / a_prime with truncation towards zero similar to mpz_tdiv_q from the GMP library.
             b0 = b_abs.div_floor(&a_prime);
@@ -164,8 +170,8 @@ impl CompressedQuadraticForm {
     /// Return this as a QuadraticForm.
     fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
         match self {
-            Identity(discriminant) => Ok(QuadraticForm::identity(&discriminant)),
-            Generator(discriminant) => Ok(QuadraticForm::generator(&discriminant)),
+            Identity(discriminant) => Ok(QuadraticForm::identity(discriminant)),
+            Generator(discriminant) => Ok(QuadraticForm::generator(discriminant)),
             Nontrivial(form) => {
                 let CompressedFormat {
                     a_prime,
@@ -180,7 +186,7 @@ impl CompressedQuadraticForm {
                     return Ok(QuadraticForm::from_a_b_discriminant(
                         a_prime.clone(),
                         a_prime.clone(),
-                        &discriminant,
+                        discriminant,
                     ));
                 }
 
@@ -217,7 +223,7 @@ impl CompressedQuadraticForm {
                 Ok(QuadraticForm::from_a_b_discriminant(
                     out_a,
                     out_b,
-                    &discriminant,
+                    discriminant,
                 ))
             }
         }
@@ -272,11 +278,12 @@ impl CompressedQuadraticForm {
         }
 
         let is_identity = bytes[0] & 0x04 != 0;
-        let is_generator = bytes[0] & 0x08 != 0;
-
         if is_identity {
             return Ok(Identity(discriminant.clone()));
-        } else if is_generator {
+        }
+
+        let is_generator = bytes[0] & 0x08 != 0;
+        if is_generator {
             return Ok(Generator(discriminant.clone()));
         }
 
@@ -316,19 +323,19 @@ impl CompressedQuadraticForm {
         let b0 = bigint_import(&bytes[offset..offset + length]);
         let b_sign = bytes[0] & 0x01 != 0;
 
-        return Ok(Nontrivial(CompressedFormat {
+        Ok(Nontrivial(CompressedFormat {
             a_prime,
             t_prime,
             g,
             b0,
             b_sign,
             discriminant: discriminant.clone(),
-        }));
+        }))
     }
 }
 
 /// Import function for curv::BigInt aligned with chiavdf.
-pub(crate) fn bigint_import(bytes: &[u8]) -> BigInt {
+fn bigint_import(bytes: &[u8]) -> BigInt {
     // TODO: The copying done in to_vec is not needed
     let mut reversed = bytes.to_vec();
     reversed.reverse();
@@ -336,23 +343,24 @@ pub(crate) fn bigint_import(bytes: &[u8]) -> BigInt {
 }
 
 /// Export function for curv::BigInt aligned with chiavdf.
-pub(crate) fn bigint_export(n: &BigInt) -> Vec<u8> {
+fn bigint_export(n: &BigInt) -> Vec<u8> {
     let mut bytes = n.to_bytes();
     bytes.reverse();
     bytes
 }
 
-/// Export a curv::BigInt to a byte array of the given size. If the number is too large, an error is returned.
+/// Export a curv::BigInt to a byte array of the given size. Zeroes are padded to the end if the number
+/// serializes to fewer bits than `target_size`. If the serialization is too large, an error is returned.
 fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u8>> {
-    let mut bytes = bigint_export(&number);
-    if bytes.len() > target_size {
-        return Err(FastCryptoError::InputTooLong(bytes.len()));
-    } else if bytes.len() < target_size {
-        let mut new_bytes = vec![0u8; target_size - bytes.len()];
-        new_bytes.append(&mut bytes);
-        bytes = new_bytes;
+    let mut bytes = bigint_export(number);
+    match bytes.len().cmp(&target_size) {
+        Ordering::Less => {
+            bytes.append(&mut vec![0u8; target_size - bytes.len()]);
+            Ok(bytes)
+        }
+        Ordering::Equal => Ok(bytes),
+        Ordering::Greater => Err(FastCryptoError::InputTooLong(bytes.len())),
     }
-    Ok(bytes)
 }
 
 /// Takes `a`and `b`  with `a > b > 0` and returns `(r, s, t)` such that `r = s a + t b` with `|r|, |t| < sqrt(a)`.
@@ -390,7 +398,7 @@ fn test_bigint_import() {
 #[test]
 fn test_compression() {
     let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
-    let discriminant = BigInt::from_hex(discriminant_hex).unwrap().neg();
+    let discriminant = -BigInt::from_hex(discriminant_hex).unwrap();
     let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let compressed =
         CompressedQuadraticForm::deserialize(&hex::decode(compressed_hex).unwrap(), &discriminant)
@@ -403,7 +411,7 @@ fn test_compression() {
 #[test]
 fn test_serialize_deserialize() {
     let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
-    let discriminant = BigInt::from_hex(discriminant_hex).unwrap().neg();
+    let discriminant = -BigInt::from_hex(discriminant_hex).unwrap();
     let compressed_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let compressed_bytes = hex::decode(compressed_hex).unwrap();
     let compressed =

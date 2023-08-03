@@ -1,6 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
+//! construction with ideal class groups.
+
 use std::cmp::min;
 use std::ops::Neg;
 
@@ -47,19 +50,21 @@ pub struct ClassgroupVDF {
 }
 
 impl ClassgroupVDF {
+    /// Create a new Wesolowski VDF construction using a class group with the given discriminant.
+    /// Ideally, the discriminant should be a negative prime equal to 1 mod 4.
     pub fn new(discriminant: BigInt) -> Self {
         unsafe {
-            pari_init(100000000000, 2);
+            // The parameters here are the number of bytes allocated to the pari stack + initial list of precomputed primes
+            pari_init(100_000_000_000, 0);
         }
         Self { discriminant }
     }
 
-    pub fn from_challenge(
-        challenge: &[u8],
-        discriminant_size_in_bits: usize,
-    ) -> FastCryptoResult<Self> {
+    /// Create a new Wesolowski VDF construction with a random discriminant of the given size sampled
+    /// from a seed.
+    pub fn from_seed(seed: &[u8], discriminant_size_in_bits: usize) -> FastCryptoResult<Self> {
         Ok(Self::new(get_discriminant(
-            challenge,
+            seed,
             discriminant_size_in_bits,
         )?))
     }
@@ -89,7 +94,7 @@ impl VDF for ClassgroupVDF {
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         for _ in 0..iterations {
             quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&b);
-            proof = proof.double() + &(input * &quotient_remainder.0);
+            proof = &proof.double() + &(input * &quotient_remainder.0);
         }
 
         Ok((output, proof))
@@ -117,7 +122,7 @@ impl VDF for ClassgroupVDF {
         let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(iterations), &b);
         let f2 = input * &r;
 
-        Ok(f1 + &f2 == *output)
+        Ok(&f1 + &f2 == *output)
     }
 }
 
