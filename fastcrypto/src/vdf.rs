@@ -5,12 +5,11 @@ use std::cmp::min;
 use std::ops::Neg;
 
 use class_group::pari_init;
-use curv::arithmetic::{BitManipulation, Converter, Modulo, Primes};
+use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, One, Primes};
 use curv::BigInt;
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::classgroup;
-use crate::groups::classgroup::CompressedQuadraticForm;
+use crate::groups::classgroup::{CompressedQuadraticForm, QuadraticForm};
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
 
@@ -24,27 +23,24 @@ pub trait VDF {
     /// Evaluate this VDF and return the output and proof of correctness.
     fn prove(
         &self,
-        input: Self::GroupElement,
+        input: &Self::GroupElement,
         iterations: u64,
-    ) -> FastCryptoResult<VDFOutput<Self::GroupElement>>;
+    ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)>;
 
     /// Verify the output and proof from a VDF.
     fn verify(
         &self,
-        input: Self::GroupElement,
+        input: &Self::GroupElement,
         output: &Self::GroupElement,
         proof: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<bool>;
 }
 
-pub struct VDFOutput<T> {
-    output: T,
-    proof: T,
-}
-
 /// An implementation of the Wesolowski VDF construction over ideal class groups. The implementation
 /// is compatible with chiavdf.
+///
+/// TODO: Note that the evaluation phase is significantly slower than other implementations, so estimates on how long it takes to evaluate a VDF should currently be based on other implementations.
 pub struct ClassgroupVDF {
     discriminant: BigInt,
 }
@@ -52,7 +48,7 @@ pub struct ClassgroupVDF {
 impl ClassgroupVDF {
     pub fn new(discriminant: BigInt) -> Self {
         unsafe {
-            pari_init(1000000000, 2);
+            pari_init(100000000000, 2);
         }
         Self { discriminant }
     }
@@ -67,15 +63,45 @@ impl VDF for ClassgroupVDF {
 
     fn prove(
         &self,
-        input: Self::GroupElement,
+        input: &Self::GroupElement,
         iterations: u64,
-    ) -> FastCryptoResult<VDFOutput<Self::GroupElement>> {
-        todo!()
+    ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)> {
+        let mut y = input.decompress().unwrap();
+        let input_decompressed = y.clone();
+
+        let mut i = 0;
+
+        while i < iterations {
+            y = y * &BigInt::from(2);
+            i += 1;
+        }
+
+        let input_bytes = &input.serialize()?;
+        let output_bytes = &y.compress().serialize()?;
+
+        let b = get_b(input_bytes, output_bytes);
+
+        i = 0;
+        let mut q: BigInt;
+        let mut r = BigInt::one();
+        let mut r2: BigInt;
+        let mut pi = QuadraticForm::identity(&self.discriminant);
+
+        // Algorithm from https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
+        while i < iterations {
+            r2 = &r * BigInt::from(2);
+            q = r2.div_floor(&b);
+            r = r2.mod_floor(&b);
+            pi = pi * &BigInt::from(2) + &(&input_decompressed * &q);
+            i += 1;
+        }
+
+        Ok((y.compress(), pi.compress()))
     }
 
     fn verify(
         &self,
-        input: Self::GroupElement,
+        input: &Self::GroupElement,
         output: &Self::GroupElement,
         proof: &Self::GroupElement,
         iterations: u64,
@@ -158,15 +184,18 @@ fn get_discriminant(seed: &[u8], length: usize) -> BigInt {
 #[test]
 fn test_verify_chia_vdf_proof() {
     // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
-    let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
-    let difficulty = 100000u64;
     let challenge_hex = "dd4d3fe6791fffb1b335";
+    let difficulty = 100000u64;
+    let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
     let result_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let proof_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
-    let discriminant = BigInt::from_hex(discriminant_hex).unwrap().neg();
     let challenge = hex::decode(challenge_hex).unwrap();
-    assert_eq!(discriminant, get_discriminant(&challenge, 512));
+    let discriminant = get_discriminant(&challenge, 512);
+    assert_eq!(
+        discriminant,
+        BigInt::from_hex(discriminant_hex).unwrap().neg()
+    );
 
     let result_bytes = hex::decode(result_hex).unwrap();
     let result_compressed =
@@ -179,7 +208,7 @@ fn test_verify_chia_vdf_proof() {
     let vdf = ClassgroupVDF::new(discriminant.clone());
     assert!(vdf
         .verify(
-            CompressedQuadraticForm::Generator(discriminant),
+            &CompressedQuadraticForm::Generator(discriminant),
             &result_compressed,
             &proof_compressed,
             difficulty
@@ -188,9 +217,18 @@ fn test_verify_chia_vdf_proof() {
 }
 
 #[test]
-fn test_bigint_import() {
-    let x = BigInt::from_hex("d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf").unwrap();
-    let bytes = classgroup::bigint_export(&x);
-    let reconstructed = classgroup::bigint_import(&bytes);
-    assert_eq!(x, reconstructed);
+fn test_prove_and_verify() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let discriminant = get_discriminant(&challenge, 512);
+    let difficulty = 1000u64;
+    let vdf = ClassgroupVDF::new(discriminant.clone());
+
+    let g = CompressedQuadraticForm::Generator(discriminant);
+    let (output, proof) = vdf.prove(&g, difficulty).unwrap();
+
+    assert!(vdf.verify(&g, &output, &proof, difficulty).unwrap());
+
+    // Check that output is the same as chiavdf.
+    assert_eq!(output.serialize().unwrap().to_vec(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
+    assert_eq!(proof.serialize().unwrap().to_vec(), hex::decode("0300782f9457b76e600b6491c76a9f068dc55ecfabb8e6897e94565771db29493c1d3173e238135268b849a2eda5c7c409350100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
 }
