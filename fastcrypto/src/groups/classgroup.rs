@@ -46,6 +46,11 @@ impl Add<&QuadraticForm> for QuadraticForm {
 }
 
 impl QuadraticForm {
+    /// Create a new quadratic form with the given coordinates.
+    pub fn from_a_b_c(a: BigInt, b: BigInt, c: BigInt) -> Self {
+        Self(BinaryQF { a, b, c })
+    }
+
     /// Create a new quadratic form given only the a and b coordinate and the discriminant.
     pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &BigInt) -> Self {
         let c = ((&b * &b) - discriminant) / (BigInt::from(4) * &a);
