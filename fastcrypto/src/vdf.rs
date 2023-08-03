@@ -40,7 +40,8 @@ pub trait VDF {
 /// An implementation of the Wesolowski VDF construction over ideal class groups. The implementation
 /// is compatible with chiavdf.
 ///
-/// TODO: Note that the evaluation phase is significantly slower than other implementations, so estimates on how long it takes to evaluate a VDF should currently be based on other implementations.
+/// Note that the evaluation phase is currently significantly slower than other implementations, so
+/// estimates on how long it takes to evaluate a VDF should currently be used cautiously.
 pub struct ClassgroupVDF {
     discriminant: BigInt,
 }
@@ -53,8 +54,14 @@ impl ClassgroupVDF {
         Self { discriminant }
     }
 
-    pub fn from_challenge(challenge: &[u8], discriminant_size_in_bits: usize) -> Self {
-        Self::new(get_discriminant(challenge, discriminant_size_in_bits))
+    pub fn from_challenge(
+        challenge: &[u8],
+        discriminant_size_in_bits: usize,
+    ) -> FastCryptoResult<Self> {
+        Ok(Self::new(get_discriminant(
+            challenge,
+            discriminant_size_in_bits,
+        )?))
     }
 }
 
@@ -66,34 +73,26 @@ impl VDF for ClassgroupVDF {
         input: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)> {
-        let mut y = input.clone();
-        let mut i = 0;
-        while i < iterations {
-            y = y * &BigInt::from(2);
-            i += 1;
+        let mut output = input.clone();
+        for _ in 0..iterations {
+            output = output.double();
         }
 
         let input_bytes = &input.serialize()?;
-        let output_bytes = &y.serialize()?;
-
+        let output_bytes = &output.serialize()?;
         let b = get_b(input_bytes, output_bytes);
 
-        i = 0;
-        let mut q: BigInt;
-        let mut r = BigInt::one();
-        let mut r2: BigInt;
-        let mut pi = QuadraticForm::identity(&self.discriminant);
+        let mut quotient_remainder = (BigInt::one(), BigInt::one());
+        let mut proof = QuadraticForm::identity(&self.discriminant);
+        let two = BigInt::from(2);
 
-        // Algorithm from https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
-        while i < iterations {
-            r2 = &r * BigInt::from(2);
-            q = r2.div_floor(&b);
-            r = r2.mod_floor(&b);
-            pi = pi * &BigInt::from(2) + &(input * &q);
-            i += 1;
+        // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
+        for _ in 0..iterations {
+            quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&b);
+            proof = proof.double() + &(input * &quotient_remainder.0);
         }
 
-        Ok((y, pi))
+        Ok((output, proof))
     }
 
     fn verify(
@@ -111,11 +110,10 @@ impl VDF for ClassgroupVDF {
         }
 
         let input_bytes = input.serialize()?;
-
         let output_bytes = output.serialize()?;
-
         let b = get_b(&input_bytes, &output_bytes);
         let f1 = proof * &b;
+
         let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(iterations), &b);
         let f2 = input * &r;
 
@@ -129,23 +127,27 @@ fn get_b(x: &[u8], y: &[u8]) -> BigInt {
     let mut seed = vec![];
     seed.extend_from_slice(x);
     seed.extend_from_slice(y);
-    hash_prime(&seed, B_BITS, &[B_BITS - 1])
+    hash_prime(&seed, B_BITS, &[B_BITS - 1]).expect("The length should be a multiple of 8")
 }
 
 /// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
 /// Generates a random pseudo-prime using the hash and check method:
 /// Randomly chooses x with bit-length `length`, then applies a mask
 ///   (for b in bitmask) { x |= (1 << b) }.
-/// Then return x if it is a psuedoprime, otherwise repeat.
-fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> BigInt {
-    assert_eq!(length % 8, 0);
+/// Then return x if it is a pseudo-prime, otherwise repeat.
+///
+/// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
+fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult<BigInt> {
+    if length % 8 != 0 {
+        return Err(FastCryptoError::InvalidInput);
+    }
 
     let mut sprout: Vec<u8> = vec![];
     sprout.extend_from_slice(seed);
 
     loop {
         let mut blob = vec![];
-        while (blob.len() * 8) < length {
+        while blob.len() * 8 < length {
             for i in (0..sprout.len()).rev() {
                 sprout[i] = sprout[i].wrapping_add(1);
                 if sprout[i] != 0 {
@@ -155,8 +157,6 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> BigInt {
             let hash = Sha256::digest(&sprout).digest;
             blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
         }
-
-        assert_eq!(blob.len() * 8, length);
         let mut x = BigInt::from_bytes(&blob);
         for b in bitmask {
             x.set_bit(*b, true);
@@ -164,14 +164,14 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> BigInt {
         // Note that the implementation used here is very similar to the one used in chiavdf, but it
         // could theoretically return something different.
         if x.is_probable_prime(100) {
-            return x;
+            return Ok(x);
         }
     }
 }
 
 /// Compute a discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-fn get_discriminant(seed: &[u8], length: usize) -> BigInt {
-    hash_prime(seed, length, &[0, 1, 2, length - 1]).neg()
+fn get_discriminant(seed: &[u8], length: usize) -> FastCryptoResult<BigInt> {
+    Ok(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
 }
 
 #[test]
@@ -184,7 +184,7 @@ fn test_verify_chia_vdf_proof() {
     let proof_hex = "0300e500d6c3f2e7e2109a261d762c460cf9c2138d47338060e6936771eabb35a9122724318e2b28258882cb453f2f4bf00d0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
     let challenge = hex::decode(challenge_hex).unwrap();
-    let discriminant = get_discriminant(&challenge, 512);
+    let discriminant = get_discriminant(&challenge, 512).unwrap();
     assert_eq!(
         discriminant,
         BigInt::from_hex(discriminant_hex).unwrap().neg()
@@ -210,7 +210,7 @@ fn test_verify_chia_vdf_proof() {
 #[test]
 fn test_prove_and_verify() {
     let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let discriminant = get_discriminant(&challenge, 512);
+    let discriminant = get_discriminant(&challenge, 512).unwrap();
     let difficulty = 1000u64;
     let vdf = ClassgroupVDF::new(discriminant.clone());
 

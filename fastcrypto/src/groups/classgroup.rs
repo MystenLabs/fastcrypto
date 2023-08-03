@@ -10,8 +10,7 @@ use std::mem::swap;
 use std::ops::{Add, Mul, Neg};
 
 /// The size of a compressed quadratic form in bytes.
-///
-/// TODO: It is not clear if this is just used by the tests in chiavdf or if it's more widely used. It should depend on the discriminant size.
+// TODO: It is not clear if this size is used only by the tests in chiavdf or if it's more widely used. The size should depend on the discriminant size, so it's perhaps chosen as an upper limit for commonly used discriminant sizes.
 pub const COMPRESSED_SIZE: usize = 100;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
@@ -21,7 +20,7 @@ pub struct QuadraticForm(BinaryQF);
 impl Mul<&BigInt> for QuadraticForm {
     type Output = Self;
 
-    // TODO: The BigInt type should perhaps be wrapped or replaced with a more commonly used BigInt implementation.
+    // TODO: The current BigInt implementations is curv's wrapper of num-biginteger, but it should be wrapped or replaced with a more widely used BigInt implementation.
     fn mul(self, rhs: &BigInt) -> Self::Output {
         Self(self.0.exp(rhs))
     }
@@ -44,6 +43,11 @@ impl Add<&QuadraticForm> for QuadraticForm {
 }
 
 impl QuadraticForm {
+    /// Compute self + self.
+    pub fn double(&self) -> Self {
+        self * &BigInt::from(2)
+    }
+
     /// Create a new quadratic form with the given coordinates.
     pub fn from_a_b_c(a: BigInt, b: BigInt, c: BigInt) -> Self {
         Self(BinaryQF { a, b, c })
@@ -105,20 +109,23 @@ impl QuadraticForm {
         }
 
         let b_sign = b < BigInt::zero();
-        let (_, _, mut t_prime) = partial_xgcd(&a, &b.abs());
+        let b_abs = b.abs();
+
+        let (_, _, mut t_prime) = partial_xgcd(&a, &b_abs);
+        let g = a.gcd(&t_prime);
 
         let a_prime: BigInt;
         let mut b0: BigInt;
-        let g = a.gcd(&t_prime);
-        if g == BigInt::one() {
+
+        if g.is_one() {
             a_prime = a.clone();
             b0 = BigInt::zero();
         } else {
             a_prime = a / &g;
             t_prime = t_prime / &g;
 
-            // Compute a / a_prime with truncation towards zero similar to mpz_tdiv_q from the GMP library.
-            b0 = b.abs().div_floor(&a_prime);
+            // Compute b / a_prime with truncation towards zero similar to mpz_tdiv_q from the GMP library.
+            b0 = b_abs.div_floor(&a_prime);
             if b_sign {
                 b0 = -b0;
             }
@@ -177,36 +184,32 @@ impl CompressedQuadraticForm {
                     ));
                 }
 
+                if a_prime.is_zero() {
+                    return Err(FastCryptoError::InvalidInput);
+                }
+
                 let mut t = t_prime.clone();
                 if t < BigInt::zero() {
                     t += a_prime;
                 }
 
-                if a_prime.is_zero() {
+                let t_inv = BigInt::mod_inv(&t, a_prime).ok_or(FastCryptoError::InvalidInput)?;
+                let d_mod_a = discriminant.modulus(a_prime);
+                let sqrt_input = (&t.pow(2) * &d_mod_a).modulus(a_prime);
+                let sqrt = sqrt_input.sqrt();
+                if &sqrt * &sqrt != sqrt_input {
                     return Err(FastCryptoError::InvalidInput);
                 }
 
-                let mut t_inv =
-                    BigInt::mod_inv(&t, a_prime).ok_or(FastCryptoError::InvalidInput)?;
-                if t_inv < BigInt::zero() {
-                    t_inv += a_prime;
-                }
-
-                let d = discriminant.modulus(a_prime);
-                let sqrt_input = (&t * &t * &d).modulus(a_prime);
-                let tmp = sqrt_input.sqrt();
-                assert_eq!(&tmp * &tmp, sqrt_input);
-
                 let mut out_a = a_prime.clone();
-                if *g != BigInt::one() {
+                if !g.is_one() {
                     out_a = a_prime * g;
                 }
 
-                let mut out_b = (tmp * t_inv).mod_floor(a_prime);
+                let mut out_b = (sqrt * t_inv).modulus(a_prime);
                 if b0 > &BigInt::zero() {
                     out_b += a_prime * b0;
                 }
-
                 if *b_sign {
                     out_b = -out_b;
                 }
