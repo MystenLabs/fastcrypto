@@ -9,7 +9,7 @@ use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, One, Primes}
 use curv::BigInt;
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::classgroup::{CompressedQuadraticForm, QuadraticForm};
+use crate::groups::classgroup::QuadraticForm;
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
 
@@ -59,25 +59,22 @@ impl ClassgroupVDF {
 }
 
 impl VDF for ClassgroupVDF {
-    type GroupElement = CompressedQuadraticForm;
+    type GroupElement = QuadraticForm;
 
     fn prove(
         &self,
         input: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)> {
-        let mut y = input.decompress().unwrap();
-        let input_decompressed = y.clone();
-
+        let mut y = input.clone();
         let mut i = 0;
-
         while i < iterations {
             y = y * &BigInt::from(2);
             i += 1;
         }
 
         let input_bytes = &input.serialize()?;
-        let output_bytes = &y.compress().serialize()?;
+        let output_bytes = &y.serialize()?;
 
         let b = get_b(input_bytes, output_bytes);
 
@@ -92,11 +89,11 @@ impl VDF for ClassgroupVDF {
             r2 = &r * BigInt::from(2);
             q = r2.div_floor(&b);
             r = r2.mod_floor(&b);
-            pi = pi * &BigInt::from(2) + &(&input_decompressed * &q);
+            pi = pi * &BigInt::from(2) + &(input * &q);
             i += 1;
         }
 
-        Ok((y.compress(), pi.compress()))
+        Ok((y, pi))
     }
 
     fn verify(
@@ -106,27 +103,23 @@ impl VDF for ClassgroupVDF {
         proof: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<bool> {
-        if input.discriminant() != &self.discriminant
-            || output.discriminant() != &self.discriminant
-            || proof.discriminant() != &self.discriminant
+        if input.discriminant() != self.discriminant
+            || output.discriminant() != self.discriminant
+            || proof.discriminant() != self.discriminant
         {
             return Err(FastCryptoError::InvalidInput);
         }
 
         let input_bytes = input.serialize()?;
-        let input_uncompressed = input.decompress()?;
 
         let output_bytes = output.serialize()?;
-        let output_decompressed = output.decompress()?;
-
-        let proof_decompressed = proof.decompress()?;
 
         let b = get_b(&input_bytes, &output_bytes);
-        let f1 = proof_decompressed * &b;
+        let f1 = proof * &b;
         let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(iterations), &b);
-        let f2 = input_uncompressed * &r;
+        let f2 = input * &r;
 
-        Ok(f1 + &f2 == output_decompressed)
+        Ok(f1 + &f2 == *output)
     }
 }
 
@@ -198,19 +191,17 @@ fn test_verify_chia_vdf_proof() {
     );
 
     let result_bytes = hex::decode(result_hex).unwrap();
-    let result_compressed =
-        CompressedQuadraticForm::deserialize(&result_bytes, &discriminant).unwrap();
+    let result = QuadraticForm::deserialize(&result_bytes, &discriminant).unwrap();
 
     let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof_compressed =
-        CompressedQuadraticForm::deserialize(&proof_bytes, &discriminant).unwrap();
+    let proof = QuadraticForm::deserialize(&proof_bytes, &discriminant).unwrap();
 
     let vdf = ClassgroupVDF::new(discriminant.clone());
     assert!(vdf
         .verify(
-            &CompressedQuadraticForm::Generator(discriminant),
-            &result_compressed,
-            &proof_compressed,
+            &QuadraticForm::generator(&discriminant),
+            &result,
+            &proof,
             difficulty
         )
         .unwrap());
@@ -223,7 +214,7 @@ fn test_prove_and_verify() {
     let difficulty = 1000u64;
     let vdf = ClassgroupVDF::new(discriminant.clone());
 
-    let g = CompressedQuadraticForm::Generator(discriminant);
+    let g = QuadraticForm::generator(&discriminant);
     let (output, proof) = vdf.prove(&g, difficulty).unwrap();
 
     assert!(vdf.verify(&g, &output, &proof, difficulty).unwrap());
