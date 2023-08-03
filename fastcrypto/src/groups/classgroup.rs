@@ -10,13 +10,11 @@ use std::mem::swap;
 use std::ops::{Add, Mul, Neg};
 
 /// The size of a compressed quadratic form in bytes.
+///
+/// TODO: It is not clear if this is just used by the tests in chiavdf or if it's more widely used. It should depend on the discriminant size.
 pub const COMPRESSED_SIZE: usize = 100;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
-///
-/// Quadratic forms with the same discriminant (b^2 - 4ac) form a group which is a representation of
-/// the ideal class group for an imaginary number field. See e.g. chapter 5 in Henri Cohen (2010),
-/// "A Course in Computational Algebraic Number Theory" for more details.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct QuadraticForm(BinaryQF);
 
@@ -195,9 +193,9 @@ impl CompressedQuadraticForm {
                 }
 
                 let d = discriminant.modulus(a_prime);
-                let tmp_debug = (&t * &t * &d).modulus(a_prime);
-                let tmp = tmp_debug.sqrt();
-                assert_eq!(&tmp * &tmp, tmp_debug);
+                let sqrt_input = (&t * &t * &d).modulus(a_prime);
+                let tmp = sqrt_input.sqrt();
+                assert_eq!(&tmp * &tmp, sqrt_input);
 
                 let mut out_a = a_prime.clone();
                 if *g != BigInt::one() {
