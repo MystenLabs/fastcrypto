@@ -22,15 +22,6 @@ pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct QuadraticForm(BinaryQF);
 
-impl Mul<&BigInt> for QuadraticForm {
-    type Output = Self;
-
-    // TODO: The current BigInt implementations is curv's wrapper of num-biginteger, but it should be wrapped or replaced with a more widely used BigInt implementation.
-    fn mul(self, rhs: &BigInt) -> Self::Output {
-        Self(self.0.exp(rhs))
-    }
-}
-
 impl Mul<&BigInt> for &QuadraticForm {
     type Output = QuadraticForm;
 
