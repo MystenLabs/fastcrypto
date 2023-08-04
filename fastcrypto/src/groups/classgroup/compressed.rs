@@ -50,7 +50,7 @@ impl QuadraticForm {
             return Generator(self.discriminant());
         }
 
-        let BinaryQF { a, b, c: _ } = self.0.clone();
+        let BinaryQF { a, b, c: _ } = &self.0;
 
         if a == b {
             return Nontrivial(CompressedFormat {
@@ -63,19 +63,20 @@ impl QuadraticForm {
             });
         }
 
-        let b_sign = b < BigInt::zero();
+        let b_sign = b < &BigInt::zero();
         let b_abs = b.abs();
 
-        let (_, _, mut t_prime) = partial_xgcd(&a, &b_abs);
+        let (_, _, mut t_prime) = partial_xgcd(a, &b_abs);
         let g = a.gcd(&t_prime);
 
-        let mut a_prime = a;
         let mut b0: BigInt;
+        let mut a_prime;
 
         if g.is_one() {
             b0 = BigInt::zero();
+            a_prime = a.clone();
         } else {
-            a_prime /= &g;
+            a_prime = a / &g;
             t_prime /= &g;
 
             // Compute b / a_prime with truncation towards zero similar to mpz_tdiv_q from the GMP library.
@@ -266,6 +267,8 @@ impl CompressedQuadraticForm {
 
 /// Import function for curv::BigInts using little-endian representation.
 fn bigint_from_bytes(bytes: &[u8]) -> BigInt {
+    // Note that to_vec copies the bytes which is not needed. However, this function is only used
+    // during deserialization so it's not an issue for performance.
     let mut reversed = bytes.to_vec();
     reversed.reverse();
     BigInt::from_bytes(&reversed)
