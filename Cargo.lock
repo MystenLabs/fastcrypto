@@ -24,7 +24,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c192eb8f11fc081b0fe4259ba5af04217d4e0faddd02417310a927911abd7c8"
 dependencies = [
  "crypto-common",
- "generic-array",
+ "generic-array 0.14.6",
 ]
 
 [[package]]
@@ -1326,13 +1326,13 @@ dependencies = [
  "hmac 0.11.0",
  "lazy_static",
  "merkle-cbt",
+ "num-bigint 0.4.3",
  "num-integer",
  "num-traits",
  "p256 0.11.1",
  "pairing-plus",
  "rand 0.6.5",
  "rand 0.7.3",
- "rust-gmp-kzen",
  "secp256k1 0.20.3",
  "serde",
  "serde_bytes",
@@ -1844,11 +1844,13 @@ dependencies = [
 name = "fastcrypto-tbls"
 version = "0.1.0"
 dependencies = [
+ "bcs",
  "bincode",
  "criterion 0.4.0",
  "digest 0.10.6",
  "fastcrypto",
  "fastcrypto-derive",
+ "itertools",
  "rand 0.8.5",
  "serde",
  "sha3 0.10.6",
@@ -2539,6 +2541,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
@@ -3393,17 +3396,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b313b91fcdc6719ad41fa2dad2b7e810b03833fae4bf911950e15529a5f04439"
 dependencies = [
  "num",
-]
-
-[[package]]
-name = "rust-gmp-kzen"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e654bb304958a567aefa09e83cc313251388202c40bfc245fac19a0e2dd8d08"
-dependencies = [
- "libc",
- "num-traits",
- "serde",
 ]
 
 [[package]]
