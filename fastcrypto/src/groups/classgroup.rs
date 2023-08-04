@@ -16,9 +16,9 @@ use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Mul};
 
-/// The size of a compressed quadratic form in bytes.
-// TODO: It is not clear if this size is used only by the tests in chiavdf or if it's more widely used. The size should depend on the discriminant size, so it's perhaps chosen as an upper limit for commonly used discriminant sizes.
-pub const COMPRESSED_SIZE: usize = 100;
+/// The size of a compressed quadratic form in bytes. We force all forms to have the same size (100 bytes)
+pub const MAX_D_BITS: usize = 1024;
+pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes. Taken from chiavdf.
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -79,7 +79,7 @@ impl QuadraticForm {
     }
 
     /// Serialize this quadratic form. The format follows that of chiavdf and is COMPACT_SIZE bytes long.
-    pub fn serialize(&self) -> FastCryptoResult<[u8; COMPRESSED_SIZE]> {
+    pub fn serialize(&self) -> FastCryptoResult<[u8; FORM_SIZE]> {
         self.compress().serialize()
     }
 
@@ -230,15 +230,15 @@ impl CompressedQuadraticForm {
     }
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
-    fn serialize(&self) -> FastCryptoResult<[u8; COMPRESSED_SIZE]> {
+    fn serialize(&self) -> FastCryptoResult<[u8; FORM_SIZE]> {
         match self {
             Identity(_) => {
-                let mut bytes = [0u8; COMPRESSED_SIZE];
+                let mut bytes = [0u8; FORM_SIZE];
                 bytes[0] = 0x04;
                 Ok(bytes)
             }
             Generator(_) => {
-                let mut bytes = [0u8; COMPRESSED_SIZE];
+                let mut bytes = [0u8; FORM_SIZE];
                 bytes[0] = 0x08;
                 Ok(bytes)
             }
@@ -255,16 +255,16 @@ impl CompressedQuadraticForm {
                 let g_size = (form.g.bit_length() + 7) / 8 - 1;
                 bytes.push(g_size as u8);
 
-                let length = d_bits / 16 - g_size;
-                bytes.extend_from_slice(&export_to_size(&form.a_prime, length)?);
-                let length = d_bits / 32 - g_size;
-                bytes.extend_from_slice(&export_to_size(&form.t_prime, length)?);
-                let length = g_size + 1;
-                bytes.extend_from_slice(&export_to_size(&form.g, length)?);
-                let length = g_size + 1;
-                bytes.extend_from_slice(&export_to_size(&form.b0, length)?);
+                let a_prime_length = d_bits / 16 - g_size;
+                let t_prime_length = d_bits / 32 - g_size;
+                let g_length = g_size + 1;
+                let b0_length = g_size + 1;
 
-                bytes.extend_from_slice(&vec![0u8; COMPRESSED_SIZE - bytes.len()]);
+                bytes.extend_from_slice(&export_to_size(&form.a_prime, a_prime_length)?);
+                bytes.extend_from_slice(&export_to_size(&form.t_prime, t_prime_length)?);
+                bytes.extend_from_slice(&export_to_size(&form.g, g_length)?);
+                bytes.extend_from_slice(&export_to_size(&form.b0, b0_length)?);
+                bytes.extend_from_slice(&vec![0u8; FORM_SIZE - bytes.len()]);
 
                 bytes.try_into().map_err(|_| FastCryptoError::InvalidInput)
             }
@@ -273,8 +273,8 @@ impl CompressedQuadraticForm {
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &BigInt) -> FastCryptoResult<Self> {
-        if bytes.len() != COMPRESSED_SIZE {
-            return Err(FastCryptoError::InputLengthWrong(COMPRESSED_SIZE));
+        if bytes.len() != FORM_SIZE {
+            return Err(FastCryptoError::InputLengthWrong(FORM_SIZE));
         }
 
         let is_identity = bytes[0] & 0x04 != 0;
@@ -298,29 +298,29 @@ impl CompressedQuadraticForm {
         }
 
         let mut offset = 2;
-        let length = d_bits / 16 - g_size;
+        let a_prime_length = d_bits / 16 - g_size;
+        let t_prime_length = d_bits / 32 - g_size;
+        let g_length = g_size + 1;
+        let b0_length = g_size + 1;
 
         // a' = a / g
-        let a_prime = bigint_import(&bytes[offset..offset + length]);
-        offset += length;
-        let length = d_bits / 32 - g_size;
+        let a_prime = bigint_from_bytes(&bytes[offset..offset + a_prime_length]);
+        offset += a_prime_length;
 
         // t' = t / g, where t satisfies (a*x + b*t < sqrt(a))
-        let mut t_prime = bigint_import(&bytes[offset..offset + length]);
+        let mut t_prime = bigint_from_bytes(&bytes[offset..offset + t_prime_length]);
         let t_sign = bytes[0] & 0x02 != 0;
         if t_sign {
             t_prime = -t_prime;
         }
-        offset += length;
-        let length = g_size + 1;
+        offset += t_prime_length;
 
         // g = gcd(a, t)
-        let g = bigint_import(&bytes[offset..offset + length]);
-        offset += length;
-        let length = g_size + 1;
+        let g = bigint_from_bytes(&bytes[offset..offset + g_length]);
+        offset += g_length;
 
         // b0 = b / a'
-        let b0 = bigint_import(&bytes[offset..offset + length]);
+        let b0 = bigint_from_bytes(&bytes[offset..offset + b0_length]);
         let b_sign = bytes[0] & 0x01 != 0;
 
         Ok(Nontrivial(CompressedFormat {
@@ -334,16 +334,15 @@ impl CompressedQuadraticForm {
     }
 }
 
-/// Import function for curv::BigInt aligned with chiavdf.
-fn bigint_import(bytes: &[u8]) -> BigInt {
-    // TODO: The copying done in to_vec is not needed
+/// Import function for curv::BigInts using little-endian representation.
+fn bigint_from_bytes(bytes: &[u8]) -> BigInt {
     let mut reversed = bytes.to_vec();
     reversed.reverse();
     BigInt::from_bytes(&reversed)
 }
 
-/// Export function for curv::BigInt aligned with chiavdf.
-fn bigint_export(n: &BigInt) -> Vec<u8> {
+/// Export function for curv::BigInts using little-endian representation.
+fn bigint_to_bytes(n: &BigInt) -> Vec<u8> {
     let mut bytes = n.to_bytes();
     bytes.reverse();
     bytes
@@ -352,7 +351,7 @@ fn bigint_export(n: &BigInt) -> Vec<u8> {
 /// Export a curv::BigInt to a byte array of the given size. Zeroes are padded to the end if the number
 /// serializes to fewer bits than `target_size`. If the serialization is too large, an error is returned.
 fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u8>> {
-    let mut bytes = bigint_export(number);
+    let mut bytes = bigint_to_bytes(number);
     match bytes.len().cmp(&target_size) {
         Ordering::Less => {
             bytes.append(&mut vec![0u8; target_size - bytes.len()]);
@@ -390,8 +389,8 @@ fn partial_xgcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
 #[test]
 fn test_bigint_import() {
     let x = BigInt::from_hex("d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf").unwrap();
-    let bytes = bigint_export(&x);
-    let reconstructed = bigint_import(&bytes);
+    let bytes = bigint_to_bytes(&x);
+    let reconstructed = bigint_from_bytes(&bytes);
     assert_eq!(x, reconstructed);
 }
 
@@ -419,7 +418,7 @@ fn test_serialize_deserialize() {
     let serialized = compressed.serialize().unwrap();
     assert_eq!(serialized.to_vec(), compressed_bytes);
 
-    let mut generator_serialized = [0u8; COMPRESSED_SIZE];
+    let mut generator_serialized = [0u8; FORM_SIZE];
     generator_serialized[0] = 0x08;
     assert_eq!(
         QuadraticForm::generator(&discriminant)
@@ -436,7 +435,7 @@ fn test_serialize_deserialize() {
             .unwrap()
     );
 
-    let mut identity_serialized = [0u8; COMPRESSED_SIZE];
+    let mut identity_serialized = [0u8; FORM_SIZE];
     identity_serialized[0] = 0x04;
     assert_eq!(
         QuadraticForm::identity(&discriminant)
