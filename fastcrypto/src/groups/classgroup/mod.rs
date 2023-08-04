@@ -16,7 +16,7 @@ mod compressed;
 
 /// The size of a compressed quadratic form in bytes. We force all forms to have the same size (100 bytes)
 pub const MAX_D_BITS: usize = 1024;
-pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes. Taken from chiavdf.
+pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 #[derive(PartialEq, Eq, Debug, Clone)]
