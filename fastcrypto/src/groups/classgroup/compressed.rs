@@ -160,7 +160,7 @@ impl CompressedQuadraticForm {
     }
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
-    pub(crate) fn serialize(&self) -> FastCryptoResult<[u8; FORM_SIZE]> {
+    fn serialize(&self) -> FastCryptoResult<[u8; FORM_SIZE]> {
         match self {
             Identity(_) => {
                 let mut bytes = [0u8; FORM_SIZE];
