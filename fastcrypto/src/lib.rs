@@ -105,6 +105,7 @@ pub mod secp256r1;
 pub mod serde_helpers;
 pub mod signature_service;
 pub mod utils;
+#[cfg(feature = "experimental")]
 pub mod vdf;
 pub mod vrf;
 
