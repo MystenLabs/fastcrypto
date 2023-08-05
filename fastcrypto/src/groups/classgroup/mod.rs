@@ -7,10 +7,12 @@
 //!
 //! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
 
+use crate::error::FastCryptoResult;
+use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use class_group::BinaryQF;
 use curv::arithmetic::One;
 use curv::BigInt;
-use std::ops::{Add, Mul};
+use std::ops::Add;
 
 mod compressed;
 
@@ -22,28 +24,15 @@ pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct QuadraticForm(BinaryQF);
 
-impl Mul<&BigInt> for &QuadraticForm {
+impl Add<QuadraticForm> for QuadraticForm {
     type Output = QuadraticForm;
 
-    fn mul(self, rhs: &BigInt) -> Self::Output {
-        QuadraticForm(self.0.exp(rhs))
-    }
-}
-
-impl Add<&QuadraticForm> for &QuadraticForm {
-    type Output = QuadraticForm;
-
-    fn add(self, rhs: &QuadraticForm) -> Self::Output {
+    fn add(self, rhs: QuadraticForm) -> Self::Output {
         QuadraticForm(self.0.compose(&rhs.0).reduce())
     }
 }
 
 impl QuadraticForm {
-    /// Compute self + self.
-    pub fn double(&self) -> Self {
-        self * &BigInt::from(2)
-    }
-
     /// Create a new quadratic form with the given coordinates.
     pub fn from_a_b_c(a: BigInt, b: BigInt, c: BigInt) -> Self {
         Self(BinaryQF { a, b, c })
@@ -53,12 +42,6 @@ impl QuadraticForm {
     pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &BigInt) -> Self {
         let c = ((&b * &b) - discriminant) / (BigInt::from(4) * &a);
         Self(BinaryQF { a, b, c })
-    }
-
-    /// Return the identity element in a class group with a given discriminant, eg. (1, 1, X) where
-    /// X is determined from the discriminant.
-    pub fn identity(discriminant: &BigInt) -> Self {
-        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group
@@ -72,3 +55,24 @@ impl QuadraticForm {
         self.0.discriminant()
     }
 }
+
+impl ParameterizedGroupElement for QuadraticForm {
+    /// Type of the discriminant.
+    type ParameterType = BigInt;
+
+    type ScalarType = BigInt;
+
+    fn zero(discriminant: &Self::ParameterType) -> Self {
+        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+    }
+
+    fn mul(&self, scale: &BigInt) -> Self {
+        Self(self.0.exp(scale))
+    }
+
+    fn to_byte_array(&self) -> FastCryptoResult<Vec<u8>> {
+        self.serialize().map(|array| array.to_vec())
+    }
+}
+
+impl UnknownOrderGroupElement for QuadraticForm {}
