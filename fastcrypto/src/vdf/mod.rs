@@ -4,20 +4,7 @@
 //! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
 //! construction with ideal class groups.
 
-#[cfg(test)]
-use class_group::pari_init;
-use std::cmp::min;
-use std::ops::Neg;
-
-use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, Primes};
-use curv::BigInt;
-
-use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::classgroup::{Discriminant, QuadraticForm};
-use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
 
 pub mod wesolowski;
 
