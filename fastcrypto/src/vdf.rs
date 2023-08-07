@@ -22,64 +22,64 @@ use crate::hash::Sha256;
 /// Size of the random prime modulus B used in proving and verification.
 const B_BITS: usize = 264;
 
-/// This represents a Verifiable Delay Function (VDF) construction over a given group.
+/// This represents a Verifiable Delay Function (VDF) construction.
 pub trait VDF {
-    type GroupElement: ParameterizedGroupElement;
+    /// The type of the input to the VDF.
+    type InputType;
+
+    /// The type of the output from the VDF.
+    type OutputType;
+
+    /// The type of the proof of correctness for this VDF.
     type ProofType;
 
-    fn new(
-        parameters: <<Self as VDF>::GroupElement as ParameterizedGroupElement>::ParameterType,
-    ) -> Self;
-
-    /// Evaluate this VDF and return the output and proof of correctness.
+    /// Evaluate this VDF and return the output and a proof of correctness.
     fn eval(
         &self,
-        input: &Self::GroupElement,
+        input: &Self::InputType,
         iterations: u64,
-    ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)>;
+    ) -> FastCryptoResult<(Self::OutputType, Self::ProofType)>;
 
     /// Verify the output and proof from a VDF.
     fn verify(
         &self,
-        input: &Self::GroupElement,
-        output: &Self::GroupElement,
+        input: &Self::InputType,
+        output: &Self::OutputType,
         proof: &Self::ProofType,
         iterations: u64,
     ) -> FastCryptoResult<()>;
 }
 
-pub struct WesolowskiVDF<G: ParameterizedGroupElement> {
-    parameters: G::ParameterType,
-}
-
-pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
-
-/// An implementation of the Wesolowski VDF construction over a parameterized group. The implementation
-/// is compatible with chiavdf (https://github.com/Chia-Network/chiavdf).
+/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
+/// unknown order. The implementation is compatible with chiavdf (https://github.com/Chia-Network/chiavdf).
 ///
 /// Note that the evaluation phase is currently significantly slower than other implementations, so
-/// estimates on how long it takes to evaluate a VDF should currently be used cautiously.
+/// estimates on how long it takes to evaluate a VDF should currently be used with caution.
+pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
+    group_parameter: G::ParameterType,
+}
+
+impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
+    /// Create a new VDF using group
+    fn from_group_parameter(group_parameter: G::ParameterType) -> Self {
+        Self { group_parameter }
+    }
+}
+
 impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement> VDF
     for WesolowskiVDF<G>
 {
-    type GroupElement = G;
+    type InputType = G;
+    type OutputType = G;
     type ProofType = G;
 
-    fn new(parameters: G::ParameterType) -> Self {
-        Self { parameters }
-    }
-
-    fn eval(
-        &self,
-        input: &Self::GroupElement,
-        iterations: u64,
-    ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)> {
-        if input.get_group_parameter() != self.parameters {
+    fn eval(&self, input: &G, iterations: u64) -> FastCryptoResult<(G, G)> {
+        if input.get_group_parameter() != self.group_parameter {
             return Err(InvalidInput);
         }
 
         if iterations == 0 {
-            return Ok((input.clone(), G::zero(&self.parameters)));
+            return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
 
         let mut output = input.double();
@@ -101,16 +101,10 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         Ok((output, proof))
     }
 
-    fn verify(
-        &self,
-        input: &Self::GroupElement,
-        output: &Self::GroupElement,
-        proof: &Self::GroupElement,
-        iterations: u64,
-    ) -> FastCryptoResult<()> {
-        if input.get_group_parameter() != self.parameters
-            || output.get_group_parameter() != self.parameters
-            || proof.get_group_parameter() != self.parameters
+    fn verify(&self, input: &G, output: &G, proof: &G, iterations: u64) -> FastCryptoResult<()> {
+        if input.get_group_parameter() != self.group_parameter
+            || output.get_group_parameter() != self.group_parameter
+            || proof.get_group_parameter() != self.group_parameter
         {
             return Err(InvalidInput);
         }
@@ -128,10 +122,13 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     }
 }
 
+/// Implementation of Wesolowski's VDF construction over imaginary class groups.
+pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
+
 impl WesolowskiVDF<QuadraticForm> {
     /// Create a new VDF over an imaginary class group where the discriminant is generated based on a seed.
     pub fn from_seed(seed: &[u8], discriminant_size_in_bits: usize) -> FastCryptoResult<Self> {
-        Ok(Self::new(Discriminant::from_seed(
+        Ok(Self::from_group_parameter(Discriminant::from_seed(
             seed,
             discriminant_size_in_bits,
         )?))
@@ -218,7 +215,7 @@ fn test_verify_chia_vdf_proof() {
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::new(discriminant);
+    let vdf = ClassGroupVDF::from_group_parameter(discriminant);
     assert!(vdf.verify(&input, &result, &proof, difficulty).is_ok());
 }
 
@@ -229,13 +226,13 @@ fn test_prove_and_verify() {
     }
 
     let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
     let difficulty = 1000u64;
-    let vdf = ClassGroupVDF::new(discriminant.clone());
+    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
 
     let g = QuadraticForm::generator(&discriminant);
-    let (output, proof) = vdf.eval(&g, difficulty).unwrap();
 
+    let vdf = ClassGroupVDF::from_group_parameter(discriminant);
+    let (output, proof) = vdf.eval(&g, difficulty).unwrap();
     assert!(vdf.verify(&g, &output, &proof, difficulty).is_ok());
 
     // Check that output is the same as chiavdf.
