@@ -50,7 +50,7 @@ pub trait VDF {
     ) -> FastCryptoResult<()>;
 }
 
-/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
+/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a group of
 /// unknown order. The implementation is compatible with chiavdf (https://github.com/Chia-Network/chiavdf).
 ///
 /// Note that the evaluation phase is currently significantly slower than other implementations, so
