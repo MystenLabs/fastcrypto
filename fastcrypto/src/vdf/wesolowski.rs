@@ -3,7 +3,7 @@
 
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::classgroup::{Discriminant, QuadraticForm};
+use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::hash::{HashFunction, Sha256};
 use crate::vdf::VDF;

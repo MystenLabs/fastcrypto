@@ -9,7 +9,7 @@ use std::ops::{AddAssign, SubAssign};
 
 pub mod bls12381;
 #[cfg(feature = "experimental")]
-pub mod classgroup;
+pub mod class_group;
 pub mod ristretto255;
 pub mod secp256r1;
 
