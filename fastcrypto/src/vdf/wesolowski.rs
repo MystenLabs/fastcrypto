@@ -16,8 +16,8 @@ use std::ops::Neg;
 /// Size of the random prime modulus B used in proving and verification.
 const B_BITS: usize = 264;
 
-/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a group of
-/// unknown order.
+/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
+/// group of unknown order.
 pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -102,9 +102,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
 pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
 
 impl WesolowskiVDF<QuadraticForm> {
-    /// Create a new VDF over an imaginary class group where the discriminant has a given size and is
-    /// generated based on a seed. The `iterations` parameters specifies the number of group operations
-    /// the evaluation function requires.
+    /// Create a new VDF over an imaginary class group where the discriminant has a given size and
+    /// is generated based on a seed. The `iterations` parameters specifies the number of group
+    /// operations the evaluation function requires.
     pub fn from_seed(
         seed: &[u8],
         discriminant_size_in_bits: usize,
@@ -117,8 +117,8 @@ impl WesolowskiVDF<QuadraticForm> {
     }
 }
 
-/// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction to make
-/// the Wesolowski VDF non-interactive.
+/// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
+/// to make the Wesolowski VDF non-interactive.
 fn get_b(x: &[u8], y: &[u8]) -> BigInt {
     let mut seed = vec![];
     seed.extend_from_slice(x);
