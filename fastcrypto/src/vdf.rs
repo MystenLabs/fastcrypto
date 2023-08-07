@@ -25,13 +25,14 @@ const B_BITS: usize = 264;
 /// This represents a Verifiable Delay Function (VDF) construction over a given group.
 pub trait VDF {
     type GroupElement: ParameterizedGroupElement;
+    type ProofType;
 
     fn new(
         parameters: <<Self as VDF>::GroupElement as ParameterizedGroupElement>::ParameterType,
     ) -> Self;
 
     /// Evaluate this VDF and return the output and proof of correctness.
-    fn prove(
+    fn eval(
         &self,
         input: &Self::GroupElement,
         iterations: u64,
@@ -42,7 +43,7 @@ pub trait VDF {
         &self,
         input: &Self::GroupElement,
         output: &Self::GroupElement,
-        proof: &Self::GroupElement,
+        proof: &Self::ProofType,
         iterations: u64,
     ) -> FastCryptoResult<()>;
 }
@@ -62,12 +63,13 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     for WesolowskiVDF<G>
 {
     type GroupElement = G;
+    type ProofType = G;
 
     fn new(parameters: G::ParameterType) -> Self {
         Self { parameters }
     }
 
-    fn prove(
+    fn eval(
         &self,
         input: &Self::GroupElement,
         iterations: u64,
@@ -232,7 +234,7 @@ fn test_prove_and_verify() {
     let vdf = ClassGroupVDF::new(discriminant.clone());
 
     let g = QuadraticForm::generator(&discriminant);
-    let (output, proof) = vdf.prove(&g, difficulty).unwrap();
+    let (output, proof) = vdf.eval(&g, difficulty).unwrap();
 
     assert!(vdf.verify(&g, &output, &proof, difficulty).is_ok());
 
