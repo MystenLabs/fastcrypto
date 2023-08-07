@@ -4,10 +4,10 @@
 //! Functionality to compress/decompress and serialize/deserialize quadratic forms.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::classgroup::compressed::CompressedQuadraticForm::{
+use crate::groups::class_group::compressed::CompressedQuadraticForm::{
     Generator, Identity, Nontrivial,
 };
-use crate::groups::classgroup::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
+use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
 use crate::groups::ParameterizedGroupElement;
 use class_group::BinaryQF;
 use curv::arithmetic::{BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero};
