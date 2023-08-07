@@ -23,16 +23,20 @@ const B_BITS: usize = 264;
 /// estimates on how long it takes to evaluate a VDF should currently be used with caution.
 pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     group_parameter: G::ParameterType,
+    iterations: u64,
 }
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
     /// Create a new VDF using the group defined by the given group parameter.
-    fn from_group_parameter(group_parameter: G::ParameterType) -> Self {
+    fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
         unsafe {
             pari_init(100_000_000_000, 0);
         }
 
-        Self { group_parameter }
+        Self {
+            group_parameter,
+            iterations,
+        }
     }
 }
 
@@ -43,17 +47,17 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     type OutputType = G;
     type ProofType = G;
 
-    fn eval(&self, input: &G, iterations: u64) -> FastCryptoResult<(G, G)> {
+    fn eval(&self, input: &G) -> FastCryptoResult<(G, G)> {
         if input.get_group_parameter() != self.group_parameter {
             return Err(InvalidInput);
         }
 
-        if iterations == 0 {
+        if self.iterations == 0 {
             return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
 
         let mut output = input.double();
-        for _ in 1..iterations {
+        for _ in 1..self.iterations {
             output = output.double();
         }
 
@@ -63,7 +67,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         let two = BigInt::from(2);
         let mut quotient_remainder = two.div_mod_floor(&b);
         let mut proof = input.mul(&quotient_remainder.0);
-        for _ in 1..iterations {
+        for _ in 1..self.iterations {
             quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&b);
             proof = proof.double() + input.mul(&quotient_remainder.0);
         }
@@ -71,7 +75,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         Ok((output, proof))
     }
 
-    fn verify(&self, input: &G, output: &G, proof: &G, iterations: u64) -> FastCryptoResult<()> {
+    fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
         if input.get_group_parameter() != self.group_parameter
             || output.get_group_parameter() != self.group_parameter
             || proof.get_group_parameter() != self.group_parameter
@@ -82,7 +86,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         let b = get_b(&input.as_bytes(), &output.as_bytes());
         let f1 = proof.mul(&b);
 
-        let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(iterations), &b);
+        let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(self.iterations), &b);
         let f2 = input.mul(&r);
 
         if f1 + f2 != *output {
@@ -97,11 +101,15 @@ pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
 
 impl WesolowskiVDF<QuadraticForm> {
     /// Create a new VDF over an imaginary class group where the discriminant is generated based on a seed.
-    pub fn from_seed(seed: &[u8], discriminant_size_in_bits: usize) -> FastCryptoResult<Self> {
-        Ok(Self::from_group_parameter(Discriminant::from_seed(
-            seed,
-            discriminant_size_in_bits,
-        )?))
+    pub fn from_seed(
+        seed: &[u8],
+        discriminant_size_in_bits: usize,
+        iterations: u64,
+    ) -> FastCryptoResult<Self> {
+        Ok(Self::new(
+            Discriminant::from_seed(seed, discriminant_size_in_bits)?,
+            iterations,
+        ))
     }
 }
 
@@ -166,7 +174,7 @@ impl Discriminant {
 fn test_verify_chia_vdf_proof() {
     // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
     let challenge_hex = "efa94dee46bd9404fb48";
-    let difficulty = 1000000u64;
+    let iterations = 1000000u64;
     let result_hex = "030043791356fc0d3c31cdcc1909371085313f00a43c260aabfd379b67f1d9a8790c07989723e37f6dcd900c3bfe732e661a0200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let proof_hex = "0300e500d6c3f2e7e2109a261d762c460cf9c2138d47338060e6936771eabb35a9122724318e2b28258882cb453f2f4bf00d0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
@@ -181,21 +189,21 @@ fn test_verify_chia_vdf_proof() {
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::from_group_parameter(discriminant);
-    assert!(vdf.verify(&input, &result, &proof, difficulty).is_ok());
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    assert!(vdf.verify(&input, &result, &proof).is_ok());
 }
 
 #[test]
 fn test_prove_and_verify() {
     let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let difficulty = 1000u64;
+    let iterations = 1000u64;
     let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
 
     let g = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::from_group_parameter(discriminant);
-    let (output, proof) = vdf.eval(&g, difficulty).unwrap();
-    assert!(vdf.verify(&g, &output, &proof, difficulty).is_ok());
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    let (output, proof) = vdf.eval(&g).unwrap();
+    assert!(vdf.verify(&g, &output, &proof).is_ok());
 
     // Check that output is the same as chiavdf.
     assert_eq!(output.as_bytes(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());

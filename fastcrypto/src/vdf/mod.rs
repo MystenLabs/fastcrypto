@@ -10,6 +10,7 @@ pub mod wesolowski;
 
 /// This represents a Verifiable Delay Function (VDF) construction.
 pub trait VDF {
+    
     /// The type of the input to the VDF.
     type InputType;
 
@@ -23,7 +24,6 @@ pub trait VDF {
     fn eval(
         &self,
         input: &Self::InputType,
-        iterations: u64,
     ) -> FastCryptoResult<(Self::OutputType, Self::ProofType)>;
 
     /// Verify the output and proof from a VDF.
@@ -32,6 +32,5 @@ pub trait VDF {
         input: &Self::InputType,
         output: &Self::OutputType,
         proof: &Self::ProofType,
-        iterations: u64,
     ) -> FastCryptoResult<()>;
 }
