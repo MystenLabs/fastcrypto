@@ -36,13 +36,13 @@ struct CompressedFormat {
 impl QuadraticForm {
     /// Serialize a quadratic form. The format follows that of chiavdf and the bytes array will be
     /// FORM_SIZE bytes long.
-    pub fn serialize(&self) -> [u8; FORM_SIZE] {
+    pub(super) fn serialize(&self) -> [u8; FORM_SIZE] {
         self.compress().serialize()
     }
 
     /// Deserialize bytes into a quadratic form. The format follows that of chiavdf and the bytes array
     /// should be FORM_SIZE bytes long.
-    pub fn from_byte_array(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
+    pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
         CompressedQuadraticForm::deserialize(bytes, discriminant)?.decompress()
     }
 

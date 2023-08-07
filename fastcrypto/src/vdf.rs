@@ -208,10 +208,10 @@ fn test_verify_chia_vdf_proof() {
     let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
 
     let result_bytes = hex::decode(result_hex).unwrap();
-    let result = QuadraticForm::from_byte_array(&result_bytes, &discriminant).unwrap();
+    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
 
     let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof = QuadraticForm::from_byte_array(&proof_bytes, &discriminant).unwrap();
+    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
 
     let input = QuadraticForm::generator(&discriminant);
 
@@ -236,5 +236,5 @@ fn test_prove_and_verify() {
     assert!(vdf.verify(&g, &output, &proof, difficulty).is_ok());
 
     // Check that output is the same as chiavdf.
-    assert_eq!(output.serialize().to_vec(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
+    assert_eq!(output.as_bytes(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
 }
