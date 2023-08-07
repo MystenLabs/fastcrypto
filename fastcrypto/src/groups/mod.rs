@@ -76,8 +76,8 @@ pub trait MultiScalarMul: GroupElement {
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
 pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + Eq {
-    /// The type of the parameter defining this group.
-    type ParameterType;
+    /// The type of the parameter which uniquely defines this group.
+    type ParameterType: Eq;
 
     /// Integer type used for multiplication.
     type ScalarType: From<u64>;
@@ -95,6 +95,9 @@ pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + 
 
     /// Serialize this group element.
     fn to_byte_array(&self) -> FastCryptoResult<Vec<u8>>;
+
+    /// Get the defining parameter(s) for this group element.
+    fn get_parameter(&self) -> Self::ParameterType;
 }
 
 /// Trait impl'd by elements of groups where the order is unknown.

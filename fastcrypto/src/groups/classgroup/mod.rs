@@ -73,6 +73,10 @@ impl ParameterizedGroupElement for QuadraticForm {
     fn to_byte_array(&self) -> FastCryptoResult<Vec<u8>> {
         self.serialize().map(|array| array.to_vec())
     }
+
+    fn get_parameter(&self) -> Self::ParameterType {
+        self.discriminant()
+    }
 }
 
 impl UnknownOrderGroupElement for QuadraticForm {}
