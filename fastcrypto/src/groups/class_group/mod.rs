@@ -20,8 +20,9 @@ mod compressed;
 /// The maximal size in bits we allow a discriminant to have.
 pub const MAX_DISCRIMINANT_SIZE_IN_BITS: usize = 1024;
 
-/// The size of a compressed quadratic form in bytes. We force all forms to have the same size (100 bytes).
-pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4; // = 100 bytes
+/// The size of a compressed quadratic form in bytes. We force all forms to have the same size,
+/// namely 100 bytes.
+pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -42,8 +43,9 @@ impl QuadraticForm {
         Self(BinaryQF { a, b, c })
     }
 
-    /// Return a generator (or, more precisely, an element with a presumed large order) in a class group
-    /// with a given discriminant. We use the element `(2, 1, x)` where `x` is determined from the discriminant.
+    /// Return a generator (or, more precisely, an element with a presumed large order) in a class
+    /// group with a given discriminant. We use the element `(2, 1, x)` where `x` is determined from
+    /// the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
     }
@@ -80,7 +82,8 @@ impl ParameterizedGroupElement for QuadraticForm {
 
 impl UnknownOrderGroupElement for QuadraticForm {}
 
-/// A discriminant for an imaginary class group. The discriminant is a negative integer which is equal to 1 mod 4.
+/// A discriminant for an imaginary class group. The discriminant is a negative integer which is
+/// equal to 1 mod 4.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Discriminant(BigInt);
 
