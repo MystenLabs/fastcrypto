@@ -27,7 +27,8 @@ pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement
 }
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
-    /// Create a new VDF using the group defined by the given group parameter.
+    /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
+    /// will require computing `2^iterations * input` which requires `iterations` group operations.
     fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
         unsafe {
             pari_init(100_000_000_000, 0);
@@ -100,7 +101,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
 pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
 
 impl WesolowskiVDF<QuadraticForm> {
-    /// Create a new VDF over an imaginary class group where the discriminant is generated based on a seed.
+    /// Create a new VDF over an imaginary class group where the discriminant has a given size and is
+    /// generated based on a seed. The `iterations` parameters specifies the number of group operations
+    /// the evaluation function requires.
     pub fn from_seed(
         seed: &[u8],
         discriminant_size_in_bits: usize,
