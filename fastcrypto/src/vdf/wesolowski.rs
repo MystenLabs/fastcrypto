@@ -17,10 +17,7 @@ use std::ops::Neg;
 const B_BITS: usize = 264;
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a group of
-/// unknown order. The implementation is compatible with chiavdf (https://github.com/Chia-Network/chiavdf).
-///
-/// Note that the evaluation phase is currently significantly slower than other implementations, so
-/// estimates on how long it takes to evaluate a VDF should currently be used with caution.
+/// unknown order.
 pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -97,7 +94,11 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     }
 }
 
-/// Implementation of Wesolowski's VDF construction over imaginary class groups.
+/// Implementation of Wesolowski's VDF construction over imaginary class groups. The implementation
+/// is compatible with chiavdf's implementation. (https://github.com/Chia-Network/chiavdf).
+///
+/// Note that the evaluation phase is currently significantly slower than other implementations, so
+/// estimates on how long it takes to evaluate a VDF should currently be used with caution.
 pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
 
 impl WesolowskiVDF<QuadraticForm> {
