@@ -7,7 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::classgroup::compressed::CompressedQuadraticForm::{
     Generator, Identity, Nontrivial,
 };
-use crate::groups::classgroup::{Discriminant, QuadraticForm, FORM_SIZE};
+use crate::groups::classgroup::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
 use crate::groups::ParameterizedGroupElement;
 use class_group::BinaryQF;
 use curv::arithmetic::{BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero};
@@ -36,7 +36,7 @@ struct CompressedFormat {
 impl QuadraticForm {
     /// Serialize a quadratic form. The format follows that of chiavdf and the bytes array will be
     /// FORM_SIZE bytes long.
-    pub(super) fn serialize(&self) -> [u8; FORM_SIZE] {
+    pub(super) fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
         self.compress().serialize()
     }
 
@@ -169,15 +169,15 @@ impl CompressedQuadraticForm {
     }
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
-    fn serialize(&self) -> [u8; FORM_SIZE] {
+    fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
         match self {
             Identity(_) => {
-                let mut bytes = [0u8; FORM_SIZE];
+                let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
                 bytes[0] = 0x04;
                 bytes
             }
             Generator(_) => {
-                let mut bytes = [0u8; FORM_SIZE];
+                let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
                 bytes[0] = 0x08;
                 bytes
             }
@@ -215,7 +215,7 @@ impl CompressedQuadraticForm {
                     &export_to_size(&form.b0, b0_length)
                         .expect("The size bound on the discriminant ensures that this is true"),
                 );
-                bytes.extend_from_slice(&vec![0u8; FORM_SIZE - bytes.len()]);
+                bytes.extend_from_slice(&vec![0u8; QUADRATIC_FORM_SIZE_IN_BYTES - bytes.len()]);
 
                 bytes
                     .try_into()
@@ -226,8 +226,10 @@ impl CompressedQuadraticForm {
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        if bytes.len() != FORM_SIZE {
-            return Err(FastCryptoError::InputLengthWrong(FORM_SIZE));
+        if bytes.len() != QUADRATIC_FORM_SIZE_IN_BYTES {
+            return Err(FastCryptoError::InputLengthWrong(
+                QUADRATIC_FORM_SIZE_IN_BYTES,
+            ));
         }
 
         let is_identity = bytes[0] & 0x04 != 0;
@@ -379,7 +381,7 @@ fn test_serialize_deserialize() {
     let serialized = compressed.serialize();
     assert_eq!(serialized.to_vec(), compressed_bytes);
 
-    let mut generator_serialized = [0u8; FORM_SIZE];
+    let mut generator_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
     generator_serialized[0] = 0x08;
     assert_eq!(
         QuadraticForm::generator(&discriminant)
@@ -395,7 +397,7 @@ fn test_serialize_deserialize() {
             .unwrap()
     );
 
-    let mut identity_serialized = [0u8; FORM_SIZE];
+    let mut identity_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
     identity_serialized[0] = 0x04;
     assert_eq!(
         QuadraticForm::zero(&discriminant).compress().serialize(),

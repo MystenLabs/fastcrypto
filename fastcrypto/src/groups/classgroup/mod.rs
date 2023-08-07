@@ -17,9 +17,11 @@ use std::ops::Add;
 
 mod compressed;
 
-/// The size of a compressed quadratic form in bytes. We force all forms to have the same size (100 bytes)
-pub const MAX_D_BITS: usize = 1024;
-pub const FORM_SIZE: usize = (MAX_D_BITS + 31) / 32 * 3 + 4; // = 100 bytes
+/// The maximal size in bits we allow a discriminant to have.
+pub const MAX_DISCRIMINANT_SIZE_IN_BITS: usize = 1024;
+
+/// The size of a compressed quadratic form in bytes. We force all forms to have the same size (100 bytes).
+pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4; // = 100 bytes
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 #[derive(PartialEq, Eq, Debug, Clone)]
@@ -90,7 +92,7 @@ impl TryFrom<BigInt> for Discriminant {
             return Err(InvalidInput);
         }
 
-        if value.bit_length() > MAX_D_BITS {
+        if value.bit_length() > MAX_DISCRIMINANT_SIZE_IN_BITS {
             return Err(InputTooLong(value.bit_length()));
         }
 
