@@ -26,7 +26,6 @@ pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement
 }
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
-
     /// Create a new VDF using the group defined by the given group parameter.
     fn from_group_parameter(group_parameter: G::ParameterType) -> Self {
         unsafe {
