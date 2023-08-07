@@ -5,12 +5,14 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::compressed::CompressedQuadraticForm::{
-    Generator, Identity, Nontrivial,
+    Generator, Nontrivial, Zero,
 };
 use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
 use crate::groups::ParameterizedGroupElement;
 use class_group::BinaryQF;
-use curv::arithmetic::{BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero};
+use curv::arithmetic::{
+    BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero as OtherZero,
+};
 use curv::BigInt;
 use std::cmp::Ordering;
 use std::mem::swap;
@@ -18,7 +20,7 @@ use std::mem::swap;
 /// A quadratic form in compressed representation. See https://eprint.iacr.org/2020/196.pdf.
 #[derive(PartialEq, Eq, Debug)]
 enum CompressedQuadraticForm {
-    Identity(Discriminant),
+    Zero(Discriminant),
     Generator(Discriminant),
     Nontrivial(CompressedFormat),
 }
@@ -49,7 +51,7 @@ impl QuadraticForm {
     /// Return a compressed representation of this quadratic form. See See https://eprint.iacr.org/2020/196.pdf.
     fn compress(&self) -> CompressedQuadraticForm {
         if self.0.a == BigInt::one() && self.0.b == BigInt::one() {
-            return Identity(self.discriminant());
+            return Zero(self.discriminant());
         } else if self.0.a == BigInt::from(2) && self.0.b == BigInt::one() {
             return Generator(self.discriminant());
         }
@@ -105,7 +107,7 @@ impl CompressedQuadraticForm {
     /// Return this as an uncompressed QuadraticForm.
     fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
         match self {
-            Identity(discriminant) => Ok(QuadraticForm::zero(discriminant)),
+            Zero(discriminant) => Ok(QuadraticForm::zero(discriminant)),
             Generator(discriminant) => Ok(QuadraticForm::generator(discriminant)),
             Nontrivial(form) => {
                 let CompressedFormat {
@@ -171,7 +173,7 @@ impl CompressedQuadraticForm {
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
     fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
         match self {
-            Identity(_) => {
+            Zero(_) => {
                 let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
                 bytes[0] = 0x04;
                 bytes
@@ -234,7 +236,7 @@ impl CompressedQuadraticForm {
 
         let is_identity = bytes[0] & 0x04 != 0;
         if is_identity {
-            return Ok(Identity(discriminant.clone()));
+            return Ok(Zero(discriminant.clone()));
         }
 
         let is_generator = bytes[0] & 0x08 != 0;
