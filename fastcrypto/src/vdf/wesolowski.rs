@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::classgroup::{Discriminant, QuadraticForm};
@@ -25,6 +28,10 @@ pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
     /// Create a new VDF using group
     fn from_group_parameter(group_parameter: G::ParameterType) -> Self {
+        unsafe {
+            pari_init(100_000_000_000, 0);
+        }
+
         Self { group_parameter }
     }
 }
@@ -157,10 +164,6 @@ impl Discriminant {
 
 #[test]
 fn test_verify_chia_vdf_proof() {
-    unsafe {
-        pari_init(100_000_000_000, 0);
-    }
-
     // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
     let challenge_hex = "efa94dee46bd9404fb48";
     let difficulty = 1000000u64;
@@ -184,10 +187,6 @@ fn test_verify_chia_vdf_proof() {
 
 #[test]
 fn test_prove_and_verify() {
-    unsafe {
-        pari_init(100_000_000_000, 0);
-    }
-
     let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
     let difficulty = 1000u64;
     let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
