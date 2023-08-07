@@ -1,54 +1,17 @@
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-//! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
-//! construction with ideal class groups.
-
-#[cfg(test)]
-use class_group::pari_init;
-use std::cmp::min;
-use std::ops::Neg;
-
-use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, Primes};
-use curv::BigInt;
-
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
 use crate::groups::classgroup::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
-use crate::hash::HashFunction;
-use crate::hash::Sha256;
+use crate::hash::{HashFunction, Sha256};
+use crate::vdf::VDF;
+use class_group::pari_init;
+use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, Primes};
+use curv::BigInt;
+use std::cmp::min;
+use std::ops::Neg;
 
 /// Size of the random prime modulus B used in proving and verification.
 const B_BITS: usize = 264;
-
-/// This represents a Verifiable Delay Function (VDF) construction.
-pub trait VDF {
-    /// The type of the input to the VDF.
-    type InputType;
-
-    /// The type of the output from the VDF.
-    type OutputType;
-
-    /// The type of the proof of correctness for this VDF.
-    type ProofType;
-
-    /// Evaluate this VDF and return the output and a proof of correctness.
-    fn eval(
-        &self,
-        input: &Self::InputType,
-        iterations: u64,
-    ) -> FastCryptoResult<(Self::OutputType, Self::ProofType)>;
-
-    /// Verify the output and proof from a VDF.
-    fn verify(
-        &self,
-        input: &Self::InputType,
-        output: &Self::OutputType,
-        proof: &Self::ProofType,
-        iterations: u64,
-    ) -> FastCryptoResult<()>;
-}
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a group of
 /// unknown order. The implementation is compatible with chiavdf (https://github.com/Chia-Network/chiavdf).
