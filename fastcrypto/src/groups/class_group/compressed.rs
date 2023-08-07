@@ -15,7 +15,6 @@ use curv::arithmetic::{
 };
 use curv::BigInt;
 use std::cmp::Ordering;
-use std::mem::swap;
 
 /// A quadratic form in compressed representation. See https://eprint.iacr.org/2020/196.pdf.
 #[derive(PartialEq, Eq, Debug)]
@@ -328,16 +327,16 @@ fn partial_xgcd(a: &BigInt, b: &BigInt, limit: &BigInt) -> (BigInt, BigInt, BigI
     let mut t = (BigInt::zero(), BigInt::one());
 
     while r.1 > *limit {
-        let q = &r.0 / &r.1;
-        let r1 = &r.0 - &q * &r.1;
-        let s1 = &s.0 - &q * &s.1;
-        let t1 = &t.0 - &q * &t.1;
-
-        swap(&mut r.0, &mut r.1);
+        let (q, r1) = r.0.div_rem(&r.1);
+        r.0 = r.1;
         r.1 = r1;
-        swap(&mut s.0, &mut s.1);
+
+        let s1 = &s.0 - &q * &s.1;
+        s.0 = s.1;
         s.1 = s1;
-        swap(&mut t.0, &mut t.1);
+
+        let t1 = &t.0 - &q * &t.1;
+        t.0 = t.1;
         t.1 = t1;
     }
 
