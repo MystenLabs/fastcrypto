@@ -7,10 +7,11 @@
 //!
 //! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
 
-use crate::error::FastCryptoResult;
+use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
+use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use class_group::BinaryQF;
-use curv::arithmetic::One;
+use curv::arithmetic::{BitManipulation, Modulo, One, Zero};
 use curv::BigInt;
 use std::ops::Add;
 
@@ -33,32 +34,28 @@ impl Add<QuadraticForm> for QuadraticForm {
 }
 
 impl QuadraticForm {
-    /// Create a new quadratic form with the given coordinates.
-    pub fn from_a_b_c(a: BigInt, b: BigInt, c: BigInt) -> Self {
-        Self(BinaryQF { a, b, c })
-    }
-
     /// Create a new quadratic form given only the a and b coordinate and the discriminant.
-    pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &BigInt) -> Self {
-        let c = ((&b * &b) - discriminant) / (BigInt::from(4) * &a);
+    pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &Discriminant) -> Self {
+        let c = ((&b * &b) - &discriminant.0) / (BigInt::from(4) * &a);
         Self(BinaryQF { a, b, c })
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group
     /// with a given discriminant. We use the element `(2, 1, x)` where `x` is determined from the discriminant.
-    pub fn generator(discriminant: &BigInt) -> Self {
+    pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
     }
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
-    pub fn discriminant(&self) -> BigInt {
-        self.0.discriminant()
+    pub fn discriminant(&self) -> Discriminant {
+        Discriminant::try_from(self.0.discriminant())
+            .expect("The discriminant is checked in the constructors")
     }
 }
 
 impl ParameterizedGroupElement for QuadraticForm {
     /// Type of the discriminant.
-    type ParameterType = BigInt;
+    type ParameterType = Discriminant;
 
     type ScalarType = BigInt;
 
@@ -70,13 +67,33 @@ impl ParameterizedGroupElement for QuadraticForm {
         Self(self.0.exp(scale))
     }
 
-    fn to_byte_array(&self) -> FastCryptoResult<Vec<u8>> {
-        self.serialize().map(|array| array.to_vec())
+    fn as_bytes(&self) -> Vec<u8> {
+        self.serialize().to_vec()
     }
 
-    fn get_parameter(&self) -> Self::ParameterType {
+    fn get_group_parameter(&self) -> Self::ParameterType {
         self.discriminant()
     }
 }
 
 impl UnknownOrderGroupElement for QuadraticForm {}
+
+/// A discriminant for an imaginary class group. The discriminant is a negative integer which is equal to 1 mod 4.
+#[derive(PartialEq, Eq, Debug, Clone)]
+pub struct Discriminant(BigInt);
+
+impl TryFrom<BigInt> for Discriminant {
+    type Error = FastCryptoError;
+
+    fn try_from(value: BigInt) -> FastCryptoResult<Self> {
+        if value >= BigInt::zero() || value.modulus(&BigInt::from(4)) != BigInt::from(1) {
+            return Err(InvalidInput);
+        }
+
+        if value.bit_length() > MAX_D_BITS {
+            return Err(InputTooLong(value.bit_length()));
+        }
+
+        Ok(Self(value))
+    }
+}

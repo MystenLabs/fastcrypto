@@ -94,10 +94,10 @@ pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + 
     fn mul(&self, scale: &Self::ScalarType) -> Self;
 
     /// Serialize this group element.
-    fn to_byte_array(&self) -> FastCryptoResult<Vec<u8>>;
+    fn as_bytes(&self) -> Vec<u8>;
 
     /// Get the defining parameter(s) for this group element.
-    fn get_parameter(&self) -> Self::ParameterType;
+    fn get_group_parameter(&self) -> Self::ParameterType;
 }
 
 /// Trait impl'd by elements of groups where the order is unknown.

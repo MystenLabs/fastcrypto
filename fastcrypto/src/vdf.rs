@@ -14,7 +14,7 @@ use curv::BigInt;
 
 use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
 use crate::error::FastCryptoResult;
-use crate::groups::classgroup::QuadraticForm;
+use crate::groups::classgroup::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::hash::HashFunction;
 use crate::hash::Sha256;
@@ -72,7 +72,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         input: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<(Self::GroupElement, Self::GroupElement)> {
-        if input.get_parameter() != self.parameters {
+        if input.get_group_parameter() != self.parameters {
             return Err(InvalidInput);
         }
 
@@ -85,9 +85,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             output = output.double();
         }
 
-        let input_bytes = input.to_byte_array()?;
-        let output_bytes = output.to_byte_array()?;
-        let b = get_b(&input_bytes, &output_bytes);
+        let b = get_b(&input.as_bytes(), &output.as_bytes());
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let two = BigInt::from(2);
@@ -108,16 +106,14 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         proof: &Self::GroupElement,
         iterations: u64,
     ) -> FastCryptoResult<()> {
-        if input.get_parameter() != self.parameters
-            || output.get_parameter() != self.parameters
-            || proof.get_parameter() != self.parameters
+        if input.get_group_parameter() != self.parameters
+            || output.get_group_parameter() != self.parameters
+            || proof.get_group_parameter() != self.parameters
         {
             return Err(InvalidInput);
         }
 
-        let input_bytes = input.to_byte_array()?;
-        let output_bytes = output.to_byte_array()?;
-        let b = get_b(&input_bytes, &output_bytes);
+        let b = get_b(&input.as_bytes(), &output.as_bytes());
         let f1 = proof.mul(&b);
 
         let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(iterations), &b);
@@ -133,7 +129,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
 impl WesolowskiVDF<QuadraticForm> {
     /// Create a new VDF over an imaginary class group where the discriminant is generated based on a seed.
     pub fn from_seed(seed: &[u8], discriminant_size_in_bits: usize) -> FastCryptoResult<Self> {
-        Ok(Self::new(get_discriminant(
+        Ok(Self::new(Discriminant::from_seed(
             seed,
             discriminant_size_in_bits,
         )?))
@@ -190,9 +186,11 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
     }
 }
 
-/// Compute a discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-fn get_discriminant(seed: &[u8], length: usize) -> FastCryptoResult<BigInt> {
-    Ok(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
+impl Discriminant {
+    /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
+    fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
+        Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
+    }
 }
 
 #[test]
@@ -204,16 +202,11 @@ fn test_verify_chia_vdf_proof() {
     // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
     let challenge_hex = "efa94dee46bd9404fb48";
     let difficulty = 1000000u64;
-    let discriminant_hex = "a110cf23134d6a4f3439c087ce79fcd53f23b460106d7e2789aeb846dee5e8518f59b1fd3fe9f4c42da8f5936f917d4cc122fda673c6ca784e9de561c8a6a12f";
     let result_hex = "030043791356fc0d3c31cdcc1909371085313f00a43c260aabfd379b67f1d9a8790c07989723e37f6dcd900c3bfe732e661a0200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
     let proof_hex = "0300e500d6c3f2e7e2109a261d762c460cf9c2138d47338060e6936771eabb35a9122724318e2b28258882cb453f2f4bf00d0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
 
     let challenge = hex::decode(challenge_hex).unwrap();
-    let discriminant = get_discriminant(&challenge, 512).unwrap();
-    assert_eq!(
-        discriminant,
-        BigInt::from_hex(discriminant_hex).unwrap().neg()
-    );
+    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
 
     let result_bytes = hex::decode(result_hex).unwrap();
     let result = QuadraticForm::from_byte_array(&result_bytes, &discriminant).unwrap();
@@ -221,15 +214,10 @@ fn test_verify_chia_vdf_proof() {
     let proof_bytes = hex::decode(proof_hex).unwrap();
     let proof = QuadraticForm::from_byte_array(&proof_bytes, &discriminant).unwrap();
 
-    let vdf = ClassGroupVDF::from_seed(&challenge, 512).unwrap();
-    assert!(vdf
-        .verify(
-            &QuadraticForm::generator(&discriminant),
-            &result,
-            &proof,
-            difficulty
-        )
-        .is_ok());
+    let input = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant);
+    assert!(vdf.verify(&input, &result, &proof, difficulty).is_ok());
 }
 
 #[test]
@@ -239,7 +227,7 @@ fn test_prove_and_verify() {
     }
 
     let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let discriminant = get_discriminant(&challenge, 512).unwrap();
+    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
     let difficulty = 1000u64;
     let vdf = ClassGroupVDF::new(discriminant.clone());
 
@@ -249,5 +237,5 @@ fn test_prove_and_verify() {
     assert!(vdf.verify(&g, &output, &proof, difficulty).is_ok());
 
     // Check that output is the same as chiavdf.
-    assert_eq!(output.to_byte_array().unwrap().to_vec(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
+    assert_eq!(output.serialize().to_vec(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
 }
