@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Functionality to compress/decompress and serialize/deserialize quadratic forms.
+
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::classgroup::compressed::CompressedQuadraticForm::{
     Generator, Identity, Nontrivial,
