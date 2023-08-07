@@ -68,7 +68,7 @@ impl QuadraticForm {
         let b_sign = b < &BigInt::zero();
         let b_abs = b.abs();
 
-        let (_, _, mut t_prime) = partial_xgcd(a, &b_abs);
+        let (_, _, mut t_prime) = partial_xgcd(a, &b_abs, &a.sqrt());
         let g = a.gcd(&t_prime);
 
         let mut b0: BigInt;
@@ -316,13 +316,12 @@ fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u
 }
 
 /// Takes `a`and `b`  with `a > b > 0` and returns `(r, s, t)` such that `r = s a + t b` with `|r|, |t| < sqrt(a)`.
-fn partial_xgcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
+fn partial_xgcd(a: &BigInt, b: &BigInt, limit: &BigInt) -> (BigInt, BigInt, BigInt) {
     let mut r = (a.clone(), b.clone());
     let mut s = (BigInt::one(), BigInt::zero());
     let mut t = (BigInt::zero(), BigInt::one());
 
-    let a_sqrt = a.sqrt();
-    while r.1 > a_sqrt {
+    while r.1 > *limit {
         let q = &r.0 / &r.1;
         let r1 = &r.0 - &q * &r.1;
         let s1 = &s.0 - &q * &s.1;
