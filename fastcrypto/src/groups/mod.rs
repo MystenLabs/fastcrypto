@@ -96,7 +96,7 @@ pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + 
     /// Serialize this group element.
     fn as_bytes(&self) -> Vec<u8>;
 
-    /// Get the defining parameter(s) for this group element.
+    /// Get the defining parameter for this group element.
     fn get_group_parameter(&self) -> Self::ParameterType;
 }
 
