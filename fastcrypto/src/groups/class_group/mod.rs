@@ -129,7 +129,7 @@ impl Add<QuadraticForm> for QuadraticForm {
             let dx = (&bx * &capital_dy - w2) / &capital_by;
             u3 = &by * &capital_cy;
             w3 = &bx * &cx - &g * &dx;
-            v3 = v2 - BigInt::from(2) * &q;
+            v3 = v2 - (&q << 1);
         } else {
             let cx = (&capital_cy * &bx - &m * &x) / &capital_by;
             let q1 = &by * &cx;
