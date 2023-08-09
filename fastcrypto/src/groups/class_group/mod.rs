@@ -347,7 +347,7 @@ fn test_add() {
     unsafe {
         pari_init(1000000, 0);
     }
-    let iterations = 2;
+    let iterations = 1000;
 
     let mut sum1 = QuadraticForm::generator(&d);
     let mut sum2 = QuadraticForm::generator(&d).form;
