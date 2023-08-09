@@ -49,13 +49,13 @@ impl QuadraticForm {
 
     /// Return a compressed representation of this quadratic form. See See https://eprint.iacr.org/2020/196.pdf.
     fn compress(&self) -> CompressedQuadraticForm {
-        if self.0.a == BigInt::one() && self.0.b == BigInt::one() {
+        if self.form.a == BigInt::one() && self.form.b == BigInt::one() {
             return Zero(self.discriminant());
-        } else if self.0.a == BigInt::from(2) && self.0.b == BigInt::one() {
+        } else if self.form.a == BigInt::from(2) && self.form.b == BigInt::one() {
             return Generator(self.discriminant());
         }
 
-        let BinaryQF { a, b, c: _ } = &self.0;
+        let BinaryQF { a, b, c: _ } = &self.form;
 
         if a == b {
             return Nontrivial(CompressedFormat {
