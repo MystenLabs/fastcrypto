@@ -94,36 +94,30 @@ impl Add<QuadraticForm> for QuadraticForm {
             capital_bx = &b * (&m / &h) + &l * (&capital_by / &h);
         }
 
-        let mut bx = capital_bx.modulus(&capital_by);
-        let mut by = capital_by.clone();
+        // 3. (partial xgcd)
+        let PartialEuclideanAlgorithmOutput {
+            a: bx,
+            b: by,
+            x,
+            y,
+            did_iterate: z,
+        } = partial_euclidan_algorithm(
+            capital_bx.modulus(&capital_by),
+            capital_by.clone(),
+            &self.partial_gcd_limit,
+        );
 
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while &by.abs() > &self.partial_gcd_limit && !bx.is_zero() {
-            let (q, mut t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            t = &y - &q * &x;
-            y = x;
-            x = t;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
-
-        let ax = &g * &x;
-        let ay = &g * &y;
+        let (ax, ay) = if g.is_one() {
+            (x.clone(), y.clone())
+        } else {
+            (&g * &x, &g * &y)
+        };
 
         let u3: BigInt;
         let w3: BigInt;
         let v3: BigInt;
 
-        if z.is_zero() {
+        if !z {
             let q = &capital_cy * &bx;
             let cx = (&q - &m) / &capital_by;
             let dx = (&bx * &capital_dy - w2) / &capital_by;
@@ -218,34 +212,20 @@ impl ParameterizedGroupElement for QuadraticForm {
         let capital_bx = (w * &y).modulus(&capital_by);
 
         // 3. (partial xgcd)
-        let mut bx = capital_bx;
-        let mut by = capital_by.clone();
-
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while &by.abs() > &self.partial_gcd_limit && !bx.is_zero() {
-            let (q, mut t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            t = &y - &q * &x;
-            y = x;
-            x = t;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        let PartialEuclideanAlgorithmOutput {
+            a: bx,
+            b: by,
+            mut x,
+            mut y,
+            did_iterate: z,
+        } = partial_euclidan_algorithm(capital_bx, capital_by.clone(), &self.partial_gcd_limit);
 
         // 4. / 5.
         let mut u3 = by.pow(2);
         let mut w3 = bx.pow(2);
         let mut v3 = -(&bx * &by).shl(1);
 
-        if z.is_zero() {
+        if !z {
             // 4.
             let mut dx = (&bx * &capital_dy - w) / &capital_by;
             v3 += v;
@@ -315,6 +295,50 @@ impl TryFrom<BigInt> for Discriminant {
         }
 
         Ok(Self(value))
+    }
+}
+
+struct PartialEuclideanAlgorithmOutput {
+    a: BigInt,
+    b: BigInt,
+    x: BigInt,
+    y: BigInt,
+    did_iterate: bool,
+}
+
+fn partial_euclidan_algorithm(
+    a: BigInt,
+    b: BigInt,
+    limit: &BigInt,
+) -> PartialEuclideanAlgorithmOutput {
+    let mut x = BigInt::one();
+    let mut y = BigInt::zero();
+    let mut z = 0u32;
+
+    let mut bx = a;
+    let mut by = b;
+
+    while &by.abs() > limit && !bx.is_zero() {
+        let (q, t) = by.div_rem(&bx);
+        by = bx;
+        bx = t;
+        let tmp = &y - &q * &x;
+        y = x;
+        x = tmp;
+        z += 1;
+    }
+
+    if z.is_odd() {
+        by = -by;
+        y = -y;
+    }
+
+    PartialEuclideanAlgorithmOutput {
+        a: bx,
+        b: by,
+        x,
+        y,
+        did_iterate: z > 0,
     }
 }
 
