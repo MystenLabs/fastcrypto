@@ -7,7 +7,6 @@ use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::hash::{HashFunction, Sha256};
 use crate::vdf::VDF;
-use class_group::pari_init;
 use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, Primes};
 use curv::BigInt;
 use std::cmp::min;
@@ -27,10 +26,6 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
     fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
-        unsafe {
-            pari_init(100_000_000_000, 0);
-        }
-
         Self {
             group_parameter,
             iterations,
@@ -54,9 +49,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
 
-        let mut output = input.double();
-        for _ in 1..self.iterations {
-            output = output.double();
+        let mut output = input.clone();
+        for _ in 0..self.iterations {
+            output = output.clone() + output.clone();
         }
 
         let b = get_b(&input.as_bytes(), &output.as_bytes());
