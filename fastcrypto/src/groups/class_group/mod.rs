@@ -35,6 +35,7 @@ pub struct QuadraticForm {
     partial_gcd_limit: BigInt,
 }
 
+// TODO: Borrow RHS
 impl Add<QuadraticForm> for QuadraticForm {
     type Output = QuadraticForm;
 
@@ -59,7 +60,7 @@ impl Add<QuadraticForm> for QuadraticForm {
         let m = v2 - &s;
 
         // 2.
-        let xgcd = BigInt::extended_gcd(&u2, &u1);
+        let xgcd = BigInt::extended_gcd(u2, u1);
         let f = xgcd.gcd;
         let b = xgcd.x;
         let c = xgcd.y;
@@ -289,7 +290,7 @@ impl ParameterizedGroupElement for QuadraticForm {
         } else if scale.is_even() {
             return (self.clone() + self.clone()).mul(&(scale >> 1));
         }
-        return self.clone() + (self.clone() + self.clone()).mul(&((scale - BigInt::one()) >> 1));
+        self.clone() + (self.clone() + self.clone()).mul(&((scale - BigInt::one()) >> 1))
     }
 
     fn as_bytes(&self) -> Vec<u8> {
