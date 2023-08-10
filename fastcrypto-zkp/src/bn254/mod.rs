@@ -18,7 +18,7 @@ pub mod poseidon;
 /// Zk login structs and utilities
 pub mod zk_login;
 
-/// api
+/// Zk login entrypoints
 pub mod zk_login_api;
 
 /// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.

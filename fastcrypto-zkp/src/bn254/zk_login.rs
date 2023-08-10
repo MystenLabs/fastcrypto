@@ -3,7 +3,6 @@
 
 use fastcrypto::error::FastCryptoResult;
 use serde_json::Value;
-use std::fmt;
 
 use super::poseidon::PoseidonWrapper;
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
@@ -35,12 +34,14 @@ const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 
 /// Supported OAuth providers. Must contain "openid" in "scopes_supported"
 /// and "public" for "subject_types_supported" instead of "pairwise".
-#[derive(Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum OAuthProvider {
     /// See https://accounts.google.com/.well-known/openid-configuration
     Google,
     /// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
     Twitch,
+    /// See https://www.facebook.com/.well-known/openid-configuration/
+    Facebook,
 }
 
 /// Struct that contains all the OAuth provider information. A list of them can
@@ -57,7 +58,7 @@ pub struct OAuthProviderContent {
     pub n: String,
     /// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
     pub alg: String,
-    /// kid
+    /// Key ID that identifies a JWK in a JWK set, https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
     kid: String,
 }
 
@@ -105,7 +106,7 @@ impl OAuthProviderContent {
 
 /// Trim trailing '=' so that it is considered a valid base64 url encoding string by base64ct library.
 fn trim(str: String) -> String {
-    str.trim_end_matches(|c: char| c == '=').to_owned()
+    str.trim_end_matches('=').to_owned()
 }
 
 /// Parse the JWK bytes received from the oauth provider keys endpoint into a map from kid to
@@ -131,11 +132,13 @@ pub fn parse_jwks(
             return Ok(ret);
         }
     }
-    Err(FastCryptoError::GeneralError("JWK not found".to_string()))
+    Err(FastCryptoError::GeneralError(
+        "Invalid JWK response".to_string(),
+    ))
 }
 
 impl OAuthProvider {
-    /// Returns a tuple of iss string and JWK endpoint string for the given provider.
+    /// Returns a tuple of iss string and the JWK url string for the given provider.
     pub fn get_config(&self) -> (&str, &str) {
         match self {
             OAuthProvider::Google => (
@@ -146,25 +149,10 @@ impl OAuthProvider {
                 "https://id.twitch.tv/oauth2",
                 "https://id.twitch.tv/oauth2/keys",
             ),
-        }
-    }
-}
-
-/// The claims in the body signed by OAuth provider that must
-/// be locally unique to the provider and cannot be reassigned.
-#[derive(Debug)]
-pub enum SupportedKeyClaim {
-    /// Subject id representing an unique account for provider.
-    Sub,
-    /// Email string representing an unique account for provider.
-    Email,
-}
-
-impl fmt::Display for SupportedKeyClaim {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            SupportedKeyClaim::Email => write!(f, "email"),
-            SupportedKeyClaim::Sub => write!(f, "sub"),
+            OAuthProvider::Facebook => (
+                "https://www.facebook.com",
+                "https://www.facebook.com/.well-known/oauth/openid/jwks/",
+            ),
         }
     }
 }
@@ -321,7 +309,7 @@ impl ZkLoginInputs {
         let mut poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
 
-        let (first_half, second_half) = eph_pubkey_bytes.split_at(eph_pubkey_bytes.len() / 2);
+        let (first_half, second_half) = eph_pubkey_bytes.split_at(16);
         let first_bigint = BigInt::from_bytes_be(Sign::Plus, first_half);
         let second_bigint = BigInt::from_bytes_be(Sign::Plus, second_half);
 
@@ -490,7 +478,7 @@ fn base64_to_bitarray(input: &str) -> Vec<u8> {
         .collect()
 }
 
-/// Convert a bitarray to a bytearray by taking each 8 bits as a byte.
+/// Convert a bitarray (each bit is represented by u8) to a bytearray by taking each 8 bits as a byte.
 fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     let mut current_byte: u8 = 0;
@@ -552,11 +540,11 @@ fn map_bytes_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoErr
         .map(|c| BigUint::from_slice(&([c as u32])))
         .collect();
 
-    let str_padded = pad_with_zeros(in_arr, max_size)?;
+    let str_padded = pad_with_zeroes(in_arr, max_size)?;
     map_to_field(&str_padded, 8)
 }
 
-fn pad_with_zeros(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
@@ -568,7 +556,10 @@ fn pad_with_zeros(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, 
     Ok(padded)
 }
 
-/// Parse the input to a big int array and calculate the poseidon hash after packing.
+/// Maps a stream of bigints to a single field element. First we convert the base from
+/// inWidth to packWidth. Then we compute the poseidon hash of the "packed" input.
+/// input is the input vector containing equal-width big ints. inWidth is the width of
+/// each input element.
 fn map_to_field(input: &[BigUint], in_width: u16) -> Result<Bn254Fr, FastCryptoError> {
     let num_elements = (input.len() * in_width as usize) / PACK_WIDTH as usize + 1;
     let packed = pack2(input, in_width, PACK_WIDTH, num_elements)?;
