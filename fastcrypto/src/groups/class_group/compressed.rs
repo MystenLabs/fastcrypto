@@ -9,7 +9,6 @@ use crate::groups::class_group::compressed::CompressedQuadraticForm::{
 };
 use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
 use crate::groups::ParameterizedGroupElement;
-use class_group::BinaryQF;
 use curv::arithmetic::{
     BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero as OtherZero,
 };
@@ -49,13 +48,18 @@ impl QuadraticForm {
 
     /// Return a compressed representation of this quadratic form. See See https://eprint.iacr.org/2020/196.pdf.
     fn compress(&self) -> CompressedQuadraticForm {
-        if self.form.a == BigInt::one() && self.form.b == BigInt::one() {
+        let Self {
+            a,
+            b,
+            c: _,
+            partial_gcd_limit: _,
+        } = &self;
+
+        if a == &BigInt::one() && b == &BigInt::one() {
             return Zero(self.discriminant());
-        } else if self.form.a == BigInt::from(2) && self.form.b == BigInt::one() {
+        } else if a == &BigInt::from(2) && b == &BigInt::one() {
             return Generator(self.discriminant());
         }
-
-        let BinaryQF { a, b, c: _ } = &self.form;
 
         if a == b {
             return Nontrivial(CompressedFormat {

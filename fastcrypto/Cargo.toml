@@ -59,7 +59,6 @@ ark-ec = "0.4.1"
 ark-ff = "0.4.1"
 ark-serialize = "0.4.1"
 lazy_static = "1.4.0"
-class_group = { version = "0.6.1", default-features = false }
 curv-kzen = { version = "0.10", default-features = false, features = ["num-bigint"] }
 fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.3" }
 
