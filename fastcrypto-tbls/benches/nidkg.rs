@@ -103,7 +103,6 @@ mod nidkg_benches {
             for n in SIZES {
                 let t = (n / 2) as u32;
                 let keys = gen_ecies_keys(n);
-                let d0 = setup_party(0, t, &keys);
                 let d1 = setup_party(1, t, &keys);
 
                 verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {

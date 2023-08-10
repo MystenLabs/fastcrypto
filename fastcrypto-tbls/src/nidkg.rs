@@ -271,8 +271,7 @@ where
                     .nodes
                     .share_id_to_node(&share_id)
                     .expect("valid share id");
-                for i in 0..NUM_OF_ENCRYPTIONS_PER_SHARE {
-                    let enc = &encryptions.values[i];
+                for (i, enc) in encryptions.values.iter().enumerate() {
                     // Some of the checks are verified as a batch below, using MSM.
                     match (chal[i], &proc_encryptions.infos[i]) {
                         (true, EncryptionInfo::ForVerification { k_x_g }) => {
@@ -314,7 +313,7 @@ where
             .map(|n| (n.id, n.weight))
             .collect::<HashMap<_, _>>();
         let sum = messages
-            .into_iter()
+            .iter()
             .map(|m| id_to_weight[&m.sender] as u32)
             .sum::<u32>();
         if sum < self.t {
