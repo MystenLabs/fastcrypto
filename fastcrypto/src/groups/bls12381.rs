@@ -7,6 +7,8 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarType,
 };
+use crate::hash::HashFunction;
+use crate::hash::Sha512;
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -123,7 +125,6 @@ impl Mul<Scalar> for G1Element {
 
         // Count the number of bytes to be multiplied.
         let bytes = size_in_bytes(&scalar);
-
         if bytes == 0 {
             return G1Element::zero();
         }
@@ -646,6 +647,22 @@ impl ScalarType for Scalar {
             blst_fr_inverse(&mut ret, &self.0);
         }
         Ok(Self::from(ret))
+    }
+}
+
+impl HashToGroupElement for Scalar {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
+        let hashed = Sha512::digest(msg).digest;
+        let mut ret = blst_fr::default();
+        let mut bytes = [0u8; SCALAR_LENGTH];
+        bytes.copy_from_slice(&hashed[..SCALAR_LENGTH]);
+        // TODO: is there an overflow?
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
+        }
+        Scalar::from(ret)
     }
 }
 

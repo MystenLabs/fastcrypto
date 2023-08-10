@@ -92,6 +92,10 @@ where
         Encryption::<G>::encrypt(&self.0, msg, rng)
     }
 
+    pub fn deterministic_encrypt(&self, msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
+        Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g)
+    }
+
     pub fn decrypt_with_recovery_package(
         &self,
         pkg: &RecoveryPackage<G>,
@@ -102,20 +106,29 @@ where
             .verify(&enc.0, &self.0, &pkg.ephemeral_key, random_oracle)?;
         Ok(enc.decrypt_from_partial_decryption(&pkg.ephemeral_key))
     }
+
+    pub fn as_element(&self) -> &G {
+        &self.0
+    }
 }
 
 impl<G: GroupElement + Serialize> Encryption<G> {
-    fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {
-        let r = G::ScalarType::rand(rng);
-        let r_g = G::generator() * r;
-        let r_x_g = *x_g * r;
+    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
         let hkdf_result = Self::hkdf(&r_x_g);
+        // TODO: Should we just xor with the hkdf output and append with hmac?
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
                 .expect("New shouldn't fail as use fixed size key is used"),
         );
         let encrypted_message = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
-        Self(r_g, encrypted_message)
+        Self(r_g.clone(), encrypted_message)
+    }
+
+    fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {
+        let r = G::ScalarType::rand(rng);
+        let r_g = G::generator() * r;
+        let r_x_g = *x_g * r;
+        Self::deterministic_encrypt(msg, &r_g, &r_x_g)
     }
 
     fn decrypt(&self, sk: &G::ScalarType) -> Vec<u8> {
@@ -123,7 +136,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
         self.decrypt_from_partial_decryption(&partial_key)
     }
 
-    fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
+    pub fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
         let hkdf_result = Self::hkdf(partial_key);
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
@@ -132,6 +145,10 @@ impl<G: GroupElement + Serialize> Encryption<G> {
         cipher
             .decrypt(&Self::fixed_zero_nonce(), &self.1)
             .expect("Decrypt should never fail for CTR mode")
+    }
+
+    pub fn ephemeral_key(&self) -> &G {
+        &self.0
     }
 
     fn hkdf(e: &G) -> Vec<u8> {
