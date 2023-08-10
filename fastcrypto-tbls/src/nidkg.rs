@@ -211,9 +211,7 @@ where
                 .into_iter()
                 .map(|i| {
                     if chal[i] {
-                        EncryptionInfo::ForVerification {
-                            k_x_g: values[i].1.clone(),
-                        }
+                        EncryptionInfo::ForVerification { k_x_g: values[i].1 }
                     } else {
                         EncryptionInfo::ForEvaluation {
                             diff: share - values[i].0,
@@ -227,11 +225,10 @@ where
         })
         .collect();
 
-        let msg_after = Message {
+        Message {
             processed_encryptions: processed_pairs,
             ..msg_before_fiat_shamir
-        };
-        msg_after
+        }
     }
 
     /// 5. Verify messages (and store the valid ones elsewhere).
@@ -297,7 +294,7 @@ where
                         }
                     }
                 }
-                return true;
+                true
             },
         );
 

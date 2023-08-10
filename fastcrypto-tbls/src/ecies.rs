@@ -114,14 +114,14 @@ where
 
 impl<G: GroupElement + Serialize> Encryption<G> {
     fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
-        let hkdf_result = Self::hkdf(&r_x_g);
+        let hkdf_result = Self::hkdf(r_x_g);
         // TODO: Should we just xor with the hkdf output and append with hmac?
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
                 .expect("New shouldn't fail as use fixed size key is used"),
         );
         let encrypted_message = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
-        Self(r_g.clone(), encrypted_message)
+        Self(*r_g, encrypted_message)
     }
 
     fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {

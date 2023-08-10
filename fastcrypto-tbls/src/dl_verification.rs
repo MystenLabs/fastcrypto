@@ -81,7 +81,7 @@ pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     // Compute r1*H1 + r2*H2 + ... + rn*Hn
     let rhs = G::multi_scalar_mul(
         &rs[..],
-        &pairs.iter().map(|(_, g)| g.clone()).collect::<Vec<_>>()[..],
+        &pairs.iter().map(|(_, g)| *g).collect::<Vec<_>>()[..],
     )
     .expect("valid sizes");
 
@@ -113,19 +113,13 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     // Compute r1*k1*G1 + r2*k2*G2 + ... + rn*kn*Gn
     let lhs = G::multi_scalar_mul(
         &lhs_coeffs[..],
-        &triplets
-            .iter()
-            .map(|(_, b, _)| b.clone())
-            .collect::<Vec<_>>()[..],
+        &triplets.iter().map(|(_, b, _)| *b).collect::<Vec<_>>()[..],
     )
     .expect("valid sizes");
     // Compute r1*H1 + r2*H2 + ... + rn*Hn
     let rhs = G::multi_scalar_mul(
         &rs[..],
-        &triplets
-            .iter()
-            .map(|(_, _, k_b)| k_b.clone())
-            .collect::<Vec<_>>()[..],
+        &triplets.iter().map(|(_, _, k_b)| *k_b).collect::<Vec<_>>()[..],
     )
     .expect("valid sizes");
 
@@ -141,7 +135,7 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     deg_f: u32,
     values: &[G],
-    precomputed_dual_code_coefficients: &Vec<G::ScalarType>,
+    precomputed_dual_code_coefficients: &[G::ScalarType],
     rng: &mut R,
 ) -> FastCryptoResult<()> {
     let poly_f = PrivatePoly::<G>::rand(deg_f, rng);

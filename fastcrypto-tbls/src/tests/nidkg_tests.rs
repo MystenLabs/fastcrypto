@@ -79,9 +79,9 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     let final_pks1 = d1.compute_final_pks(&verified);
     assert_eq!(final_pks0, final_pks1);
 
-    let (share0, complaints0) = d2.process_message(&m0, &mut rng);
-    let (share1, complaints1) = d2.process_message(&m1, &mut rng);
-    let (share2, complaints2) = d2.process_message(&m2, &mut rng);
+    let (_share0, _complaints0) = d2.process_message(&m0, &mut rng);
+    let (_share1, _complaints1) = d2.process_message(&m1, &mut rng);
+    let (_share2, _complaints2) = d2.process_message(&m2, &mut rng);
     // TODO: tests complaints, etc
 
     let partial_pks_in_g2 = d0.create_partial_pks_in_g2();

@@ -57,7 +57,6 @@ mod nidkg_benches {
                 let t = (n / 2) as u32;
                 let keys = gen_ecies_keys(n);
                 let d0 = setup_party(0, t, &keys);
-                let d1 = setup_party(1, t, &keys);
 
                 create.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| d0.create_message(&mut thread_rng()))
@@ -106,7 +105,6 @@ mod nidkg_benches {
                 let keys = gen_ecies_keys(n);
                 let d0 = setup_party(0, t, &keys);
                 let d1 = setup_party(1, t, &keys);
-                let m = d0.create_message(&mut thread_rng());
 
                 verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| d1.create_partial_pks_in_g2())
@@ -125,7 +123,6 @@ mod nidkg_benches {
                     "pks_in_g2 size: {}",
                     bcs::to_bytes(&pks_in_g2).unwrap().len()
                 );
-                let d1 = setup_party(1, t, &keys);
                 let m = d0.create_message(&mut thread_rng());
 
                 verify.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
