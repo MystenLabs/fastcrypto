@@ -41,7 +41,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     type ProofType = G;
 
     fn eval(&self, input: &G) -> FastCryptoResult<(G, G)> {
-        if input.get_group_parameter() != self.group_parameter {
+        if !input.has_group_parameter(&self.group_parameter) {
             return Err(InvalidInput);
         }
 
@@ -69,9 +69,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     }
 
     fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if input.get_group_parameter() != self.group_parameter
-            || output.get_group_parameter() != self.group_parameter
-            || proof.get_group_parameter() != self.group_parameter
+        if !input.has_group_parameter(&self.group_parameter)
+            || !output.has_group_parameter(&self.group_parameter)
+            || !proof.has_group_parameter(&self.group_parameter)
         {
             return Err(InvalidInput);
         }

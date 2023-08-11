@@ -263,8 +263,8 @@ impl ParameterizedGroupElement for QuadraticForm {
         self.serialize().to_vec()
     }
 
-    fn get_group_parameter(&self) -> Self::ParameterType {
-        self.discriminant()
+    fn has_group_parameter(&self, parameter: &Self::ParameterType) -> bool {
+        self.discriminant() == *parameter
     }
 }
 

@@ -98,8 +98,8 @@ pub trait ParameterizedGroupElement:
     /// Serialize this group element.
     fn as_bytes(&self) -> Vec<u8>;
 
-    /// Get the defining parameter for this group element.
-    fn get_group_parameter(&self) -> Self::ParameterType;
+    /// Check whether this group element is a member of a group with a given parameter.
+    fn has_group_parameter(&self, parameter: &Self::ParameterType) -> bool;
 }
 
 /// Trait impl'd by elements of groups where the order is unknown.
