@@ -12,6 +12,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use curv::arithmetic::{BasicOps, BitManipulation, Integer, Modulo, One, Roots, Zero};
 use curv::BigInt;
+use std::cmp::Ordering;
 use std::ops::{Add, Neg};
 
 mod compressed;
@@ -48,7 +49,6 @@ impl Neg for QuadraticForm {
     }
 }
 
-// TODO: Borrow RHS
 impl Add<&QuadraticForm> for QuadraticForm {
     type Output = QuadraticForm;
 
@@ -153,14 +153,13 @@ impl Add<&QuadraticForm> for QuadraticForm {
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
-        let mut out = Self {
+        Self {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit,
-        };
-        out.reduce();
-        out
+        }
+        .reduce()
     }
 }
 
@@ -172,7 +171,7 @@ impl QuadraticForm {
             a,
             b,
             c,
-            // This limit is used for the partial_xgcd algorithm
+            // This limit is used for the partial_xgcd algorithm in the add method.
             partial_gcd_limit: discriminant.0.abs().sqrt().sqrt(),
         }
     }
@@ -190,34 +189,54 @@ impl QuadraticForm {
             .expect("The discriminant is checked in the constructors")
     }
 
+    /// Return true if this form is in normal form: -a < b <= a.
     fn is_normal(&self) -> bool {
         self.b <= self.a && self.b > -(&self.a)
     }
 
-    fn normalize(&mut self) {
+    /// Return a normalized form equivalent to this quadratic form.
+    fn normalize(self) -> Self {
         if self.is_normal() {
-            return;
+            return self;
         }
         let r = (&self.a - &self.b).div_floor(&(&self.a * 2));
         let ra = &r * &self.a;
-        self.c += (&ra + &self.b) * &r;
-        self.b += &ra * 2;
-    }
-
-    pub fn is_reduced(&self) -> bool {
-        self.is_normal() && self.a <= self.c && !(self.a == self.c && self.b < BigInt::zero())
-    }
-
-    fn reduce(&mut self) {
-        self.normalize();
-        while !self.is_reduced() {
-            let s = (&self.b + &self.c).div_floor(&(&self.c * 2));
-            let old_a = self.a.clone();
-            let old_b = self.b.clone();
-            self.a = self.c.clone();
-            self.b = -&self.b + &s * &self.c * 2;
-            self.c = (&self.c * &s - &old_b) * &s + &old_a;
+        let c = self.c + (&ra + &self.b) * &r;
+        let b = self.b + &ra * 2;
+        Self {
+            a: self.a,
+            b,
+            c,
+            partial_gcd_limit: self.partial_gcd_limit,
         }
+    }
+
+    /// Return true if this form is reduced: A form is reduced if it is normal (see [`is_normal`])
+    /// and  a <= c and if a == c then b >= 0.
+    fn is_reduced(&self) -> bool {
+        if !self.is_normal() {
+            return false;
+        }
+
+        match self.a.cmp(&self.c) {
+            Ordering::Less => true,
+            Ordering::Equal => self.b >= BigInt::zero(),
+            Ordering::Greater => false,
+        }
+    }
+
+    /// Return a reduced form (see [is_reduced]) equivalent to this quadratic form.
+    fn reduce(self) -> Self {
+        let mut form = self.normalize();
+        while !form.is_reduced() {
+            let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
+            let old_a = form.a.clone();
+            let old_b = form.b.clone();
+            form.a = form.c.clone();
+            form.b = -&form.b + &s * &form.c * 2;
+            form.c = (&form.c * &s - &old_b) * &s + &old_a;
+        }
+        form
     }
 }
 
@@ -337,14 +356,14 @@ fn test_normalization_and_reduction() {
         QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
     assert_eq!(quadratic_form.c, BigInt::from(55));
 
-    quadratic_form.normalize();
+    quadratic_form = quadratic_form.normalize();
 
     // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
     assert_eq!(quadratic_form.a, BigInt::from(11));
     assert_eq!(quadratic_form.b, BigInt::from(5));
     assert_eq!(quadratic_form.c, BigInt::from(1));
 
-    quadratic_form.reduce();
+    quadratic_form = quadratic_form.reduce();
 
     // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
     assert_eq!(quadratic_form.a, BigInt::from(1));

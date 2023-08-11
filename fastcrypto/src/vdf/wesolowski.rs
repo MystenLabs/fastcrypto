@@ -188,7 +188,7 @@ fn test_verify_chia_vdf_proof() {
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    let vdf = ClassGroupVDF::from_seed(&challenge, 512, iterations).unwrap();
     assert!(vdf.verify(&input, &result, &proof).is_ok());
 }
 
