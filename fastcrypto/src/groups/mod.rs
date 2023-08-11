@@ -89,7 +89,7 @@ pub trait ParameterizedGroupElement:
 
     /// Compute 2 * Self. May be overwritten by implementations that have a fast doubling operation.
     fn double(&self) -> Self {
-        self.clone().add(&self)
+        self.clone().add(self)
     }
 
     /// Compute scale * self.
