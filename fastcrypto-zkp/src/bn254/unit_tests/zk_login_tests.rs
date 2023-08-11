@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bn254::utils::get_nonce;
 use crate::bn254::zk_login::{
     big_int_str_to_bytes, decode_base64_url, map_bytes_to_field, parse_jwks, trim,
     verify_extended_claim, Claim, JWTDetails, JWTHeader,
@@ -11,6 +12,10 @@ use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
+use fastcrypto::traits::KeyPair;
+use ark_std::rand::SeedableRng;
+use ark_std::rand::rngs::StdRng;
+use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use im::hashmap::HashMap as ImHashMap;
@@ -383,4 +388,13 @@ async fn test_get_jwks() {
     let res = fetch_jwks().await;
     assert!(res.is_ok());
     assert!(!res.unwrap().is_empty());
+}
+
+#[test]
+fn test_get_nonce() {
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pk_bytes = vec![0x00];
+    eph_pk_bytes.extend(kp.public().as_ref());
+    let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117");
+    assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
 }

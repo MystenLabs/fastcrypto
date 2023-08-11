@@ -1670,6 +1670,7 @@ dependencies = [
  "ark-relations",
  "ark-serialize",
  "ark-std",
+ "bcs",
  "blake2",
  "blst",
  "byte-slice-cast",
