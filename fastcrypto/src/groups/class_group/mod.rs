@@ -12,7 +12,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use curv::arithmetic::{BasicOps, BitManipulation, Integer, Modulo, One, Roots, Zero};
 use curv::BigInt;
-use std::ops::Add;
+use std::ops::{Add, Neg};
 
 mod compressed;
 
@@ -35,11 +35,24 @@ pub struct QuadraticForm {
     partial_gcd_limit: BigInt,
 }
 
+impl Neg for QuadraticForm {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            a: self.a,
+            b: self.b.neg(),
+            c: self.c,
+            partial_gcd_limit: self.partial_gcd_limit,
+        }
+    }
+}
+
 // TODO: Borrow RHS
-impl Add<QuadraticForm> for QuadraticForm {
+impl Add<&QuadraticForm> for QuadraticForm {
     type Output = QuadraticForm;
 
-    fn add(self, rhs: QuadraticForm) -> Self::Output {
+    fn add(self, rhs: &QuadraticForm) -> Self::Output {
         // Slightly optimised version of Algorithm 1 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
@@ -54,7 +67,7 @@ impl Add<QuadraticForm> for QuadraticForm {
 
         // 1.
         if w1 < w2 {
-            return rhs + self;
+            return rhs.clone() + &self;
         }
         let s = (v1 + v2) >> 1;
         let m = v2 - &s;
@@ -99,7 +112,7 @@ impl Add<QuadraticForm> for QuadraticForm {
             x,
             y,
             did_iterate: z,
-        } = partial_euclidan_algorithm(
+        } = partial_euclidean_algorithm(
             capital_bx.modulus(&capital_by),
             capital_by.clone(),
             &self.partial_gcd_limit,
@@ -218,79 +231,13 @@ impl ParameterizedGroupElement for QuadraticForm {
         Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
-    // TODO: Coefficients explode
-    // fn double(&self) -> Self {
-    //     // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
-    //     // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
-    //     // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
-    //     // The paragraph numbers and variable names follow the paper.
-    //
-    //     let Self { a: u, b: v, c: w, partial_gcd_limit: _ } = &self;
-    //
-    //     // 1.
-    //     let xgcd = BigInt::extended_gcd(&u, &v);
-    //     let g = xgcd.gcd;
-    //     //let y = xgcd.y;
-    //     let (capital_by, capital_dy) = (u / &g, v / &g);
-    //
-    //     // 2.
-    //     let capital_bx = (w * &xgcd.y).modulus(&capital_by);
-    //
-    //     // 3. (partial xgcd)
-    //     let PartialEuclideanAlgorithmOutput {
-    //         a: bx,
-    //         b: by,
-    //         mut x,
-    //         mut y,
-    //         did_iterate: z,
-    //     } = partial_euclidan_algorithm(capital_bx, capital_by.clone(), &self.partial_gcd_limit);
-    //
-    //     // 4. / 5.
-    //     let mut u3 = by.pow(2);
-    //     let mut w3 = bx.pow(2);
-    //     let mut v3 = -(&bx * &by).shl(1);
-    //
-    //     if !z {
-    //         // 4.
-    //         let mut dx = (&bx * &capital_dy - w) / &capital_by;
-    //         v3 += v;
-    //         if !g.is_one() {
-    //             dx *= &g;
-    //         }
-    //         w3 -= &dx;
-    //     } else {
-    //         // 5.
-    //         let dx = (&bx * &capital_dy - w * &x) / &capital_by;
-    //         let q1 = &dx * &y;
-    //         let dy = (&q1 + &capital_dy) / &x;
-    //         v3 += &g * (&dy + &q1);
-    //
-    //         if !g.is_one() {
-    //             x *= &g;
-    //             y *= &g;
-    //         }
-    //         u3 -= &y * &dy;
-    //         w3 -= &x * &dx;
-    //     }
-    //
-    //     let mut out = Self {
-    //             a: u3,
-    //             b: v3,
-    //             c: w3,
-    //         partial_gcd_limit: self.partial_gcd_limit.clone(),
-    //     };
-    //     out.reduce();
-    //     out
-    // }
-
     fn mul(&self, scale: &BigInt) -> Self {
-        // TODO: Use double method once implemented
         if scale.is_zero() {
             return Self::zero(&self.discriminant());
         } else if scale.is_even() {
-            return (self.clone() + self.clone()).mul(&(scale >> 1));
+            return self.double().mul(&(scale >> 1));
         }
-        self.clone() + (self.clone() + self.clone()).mul(&((scale - BigInt::one()) >> 1))
+        (self.double()).mul(&((scale - BigInt::one()) >> 1)) + self
     }
 
     fn as_bytes(&self) -> Vec<u8> {
@@ -325,6 +272,7 @@ impl TryFrom<BigInt> for Discriminant {
     }
 }
 
+/// The output of [`partial_euclidean_algorithm`].
 struct PartialEuclideanAlgorithmOutput {
     a: BigInt,
     b: BigInt,
@@ -333,7 +281,9 @@ struct PartialEuclideanAlgorithmOutput {
     did_iterate: bool,
 }
 
-fn partial_euclidan_algorithm(
+/// Compute the extended Euclidean algorithm for two integers `a` and `b` but quit early if the
+/// Bezout parameters are smaller than `limit`.
+fn partial_euclidean_algorithm(
     a: BigInt,
     b: BigInt,
     limit: &BigInt,
@@ -366,5 +316,16 @@ fn partial_euclidan_algorithm(
         x,
         y,
         did_iterate: z > 0,
+    }
+}
+
+#[test]
+fn test_multiplication() {
+    let discriminant = Discriminant::try_from(BigInt::from(-7)).unwrap();
+    let generator = QuadraticForm::generator(&discriminant);
+    let mut current = QuadraticForm::zero(&discriminant);
+    for i in 0..100 {
+        assert_eq!(current, generator.mul(&BigInt::from(i)));
+        current = current + &generator;
     }
 }
