@@ -329,3 +329,50 @@ fn test_multiplication() {
         current = current + &generator;
     }
 }
+
+#[test]
+fn test_normalization_and_reduction() {
+    let discriminant = Discriminant::try_from(BigInt::from(-19)).unwrap();
+    let mut quadratic_form =
+        QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
+    assert_eq!(quadratic_form.c, BigInt::from(55));
+
+    quadratic_form.normalize();
+
+    // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
+    assert_eq!(quadratic_form.a, BigInt::from(11));
+    assert_eq!(quadratic_form.b, BigInt::from(5));
+    assert_eq!(quadratic_form.c, BigInt::from(1));
+
+    quadratic_form.reduce();
+
+    // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
+    assert_eq!(quadratic_form.a, BigInt::from(1));
+    assert_eq!(quadratic_form.b, BigInt::from(1));
+    assert_eq!(quadratic_form.c, BigInt::from(5));
+}
+
+#[test]
+fn test_composition() {
+    // Test vector computed with PARI/GP
+
+    let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
+    let g = QuadraticForm::generator(&discriminant);
+    let b = QuadraticForm::from_a_b_discriminant(BigInt::from(3), BigInt::from(-1), &discriminant);
+    let a1 = g.clone();
+
+    let a2 = a1 + &g;
+    assert_eq!(a2, b);
+
+    let a3 = a2 + &g;
+    assert_eq!(a3, b.neg());
+
+    let a4 = a3 + &g;
+    assert_eq!(a4, g.clone().neg());
+
+    let a5 = a4 + &g;
+    assert_eq!(a5, QuadraticForm::zero(&discriminant));
+
+    let a6 = a5 + &g;
+    assert_eq!(a6, g);
+}
