@@ -33,6 +33,7 @@ serde_json = "1.0.93"
 once_cell = "1.16"
 poseidon-ark = { git = "https://github.com/MystenLabs/poseidon-ark.git", rev = "39844046ded0c4aa7a247e8545e131b59a330a9c" }
 im = "15"
+reqwest = { version = "0.11.18", default_features= false, features = ["blocking", "json", "rustls-tls"] }
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
@@ -46,3 +47,4 @@ criterion = "0.4.0"
 hex = "0.4.3"
 proptest = "1.1.0"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
+tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }

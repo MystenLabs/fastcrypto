@@ -19,7 +19,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-type ParsedJWKs = Vec<((String, String), OAuthProviderContent)>;
+type ParsedJWKs = Vec<((String, String), JWK)>;
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
@@ -32,10 +32,9 @@ const NUM_EXTRACTABLE_STRINGS: u8 = 5;
 const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
 const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 
-/// Supported OAuth providers. Must contain "openid" in "scopes_supported"
-/// and "public" for "subject_types_supported" instead of "pairwise".
+/// Supported OAuth providers.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
-pub enum OAuthProvider {
+pub enum OIDCProvider {
     /// See https://accounts.google.com/.well-known/openid-configuration
     Google,
     /// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
@@ -48,8 +47,8 @@ pub enum OAuthProvider {
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>)
 /// and published on the bulletin along with a trusted party's signature.
 // #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OAuthProviderContent {
+#[derive(Hash, Debug, Clone, Serialize, Deserialize)]
+pub struct JWK {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
     pub kty: String,
     /// RSA public exponent, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
@@ -58,14 +57,12 @@ pub struct OAuthProviderContent {
     pub n: String,
     /// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
     pub alg: String,
-    /// Key ID that identifies a JWK in a JWK set, https://datatracker.ietf.org/doc/html/rfc7517#section-4.5
-    kid: String,
 }
 
 /// Reader struct to parse all fields.
 // #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct OAuthProviderContentReader {
+pub struct JWKReader {
     e: String,
     n: String,
     #[serde(rename = "use")]
@@ -75,32 +72,23 @@ pub struct OAuthProviderContentReader {
     alg: String,
 }
 
-impl OAuthProviderContent {
-    /// Get the kid string.
-    pub fn kid(&self) -> &str {
-        &self.kid
-    }
-
-    /// Parse OAuthProviderContent from the reader struct.
-    pub fn from_reader(reader: OAuthProviderContentReader) -> FastCryptoResult<Self> {
-        if reader.alg != "RS256" || reader.my_use != "sig" || reader.kty != "RSA" {
+impl JWK {
+    /// Parse JWK from the reader struct.
+    pub fn from_reader(reader: JWKReader) -> FastCryptoResult<Self> {
+        let trimmed_e = trim(reader.e);
+        if reader.alg != "RS256"
+            || reader.my_use != "sig"
+            || reader.kty != "RSA"
+            || trimmed_e != "AQAB"
+        {
             return Err(FastCryptoError::InvalidInput);
         }
         Ok(Self {
             kty: reader.kty,
-            kid: reader.kid,
-            e: trim(reader.e),
+            e: trimmed_e,
             n: trim(reader.n),
             alg: reader.alg,
         })
-    }
-
-    /// Parse OAuthProviderContent from the reader struct.
-    pub fn validate(&self) -> FastCryptoResult<()> {
-        if self.alg != "RS256" || self.kty != "RSA" || self.e != "AQAB" {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        Ok(())
     }
 }
 
@@ -109,11 +97,35 @@ fn trim(str: String) -> String {
     str.trim_end_matches('=').to_owned()
 }
 
+/// Fetch JWKs from all supported OAuth providers and return the list as ((iss, kid), JWK)
+pub async fn fetch_jwks() -> Result<ParsedJWKs, FastCryptoError> {
+    let client = reqwest::Client::new();
+    let mut res = Vec::new();
+    // We currently support three providers: Google, Facebook, and Twitch.
+    for provider in [
+        OIDCProvider::Google,
+        OIDCProvider::Facebook,
+        OIDCProvider::Twitch,
+    ] {
+        let response = client
+            .get(provider.get_config().1)
+            .send()
+            .await
+            .map_err(|_| FastCryptoError::GeneralError("Failed to get JWK".to_string()))?;
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|_| FastCryptoError::GeneralError("Failed to get bytes".to_string()))?;
+        res.append(&mut parse_jwks(&bytes, provider)?)
+    }
+    Ok(res)
+}
+
 /// Parse the JWK bytes received from the oauth provider keys endpoint into a map from kid to
-/// OAuthProviderContent.
+/// JWK.
 pub fn parse_jwks(
     json_bytes: &[u8],
-    provider: OAuthProvider,
+    provider: OIDCProvider,
 ) -> Result<ParsedJWKs, FastCryptoError> {
     let json_str = String::from_utf8_lossy(json_bytes);
     let parsed_list: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&json_str);
@@ -121,12 +133,12 @@ pub fn parse_jwks(
         if let Some(keys) = parsed_list["keys"].as_array() {
             let mut ret = Vec::new();
             for k in keys {
-                let parsed: OAuthProviderContentReader = serde_json::from_value(k.clone())
+                let parsed: JWKReader = serde_json::from_value(k.clone())
                     .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
 
                 ret.push((
                     (parsed.kid.clone(), provider.get_config().0.to_owned()),
-                    OAuthProviderContent::from_reader(parsed)?,
+                    JWK::from_reader(parsed)?,
                 ));
             }
             return Ok(ret);
@@ -137,19 +149,19 @@ pub fn parse_jwks(
     ))
 }
 
-impl OAuthProvider {
+impl OIDCProvider {
     /// Returns a tuple of iss string and the JWK url string for the given provider.
     pub fn get_config(&self) -> (&str, &str) {
         match self {
-            OAuthProvider::Google => (
+            OIDCProvider::Google => (
                 "https://accounts.google.com",
                 "https://www.googleapis.com/oauth2/v2/certs",
             ),
-            OAuthProvider::Twitch => (
+            OIDCProvider::Twitch => (
                 "https://id.twitch.tv/oauth2",
                 "https://id.twitch.tv/oauth2/keys",
             ),
-            OAuthProvider::Facebook => (
+            OIDCProvider::Facebook => (
                 "https://www.facebook.com",
                 "https://www.facebook.com/.well-known/oauth/openid/jwks/",
             ),
@@ -192,14 +204,14 @@ impl JWTHeader {
 
 /// A structed of all parsed and validated values from the masked content bytes.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub struct ParsedMaskedContent {
+pub struct JWTDetails {
     kid: String,
     header: String,
     iss: String,
     aud: String,
 }
 
-impl ParsedMaskedContent {
+impl JWTDetails {
     /// Read a list of Claims and header string and parse them into fields
     /// header, iss, iss_index, aud, aud_index.
     pub fn new(header_base64: &str, claims: &[Claim]) -> Result<Self, FastCryptoError> {
@@ -224,7 +236,7 @@ impl ParsedMaskedContent {
         }
         let ext_aud = decode_base64_url(&claim_2.value_base64, &claim_2.index_mod_4)?;
 
-        Ok(ParsedMaskedContent {
+        Ok(JWTDetails {
             kid: header.kid,
             header: header_base64.to_string(),
             iss: verify_extended_claim(&ext_iss, ISS)?,
@@ -241,7 +253,7 @@ pub struct ZkLoginInputs {
     claims: Vec<Claim>,
     header_base64: String,
     #[serde(skip)]
-    parsed_masked_content: ParsedMaskedContent,
+    parsed_masked_content: JWTDetails,
     #[serde(skip)]
     all_inputs_hash: Vec<Bn254Fr>,
 }
@@ -254,9 +266,9 @@ impl ZkLoginInputs {
         Ok(inputs)
     }
 
-    /// Initialize ParsedMaskedContent
+    /// Initialize JWTDetails
     pub fn init(&mut self) -> Result<Self, FastCryptoError> {
-        self.parsed_masked_content = ParsedMaskedContent::new(&self.header_base64, &self.claims)?;
+        self.parsed_masked_content = JWTDetails::new(&self.header_base64, &self.claims)?;
         Ok(self.to_owned())
     }
 
@@ -348,7 +360,7 @@ impl ZkLoginInputs {
                 .collect::<Vec<_>>(),
         )?;
         let header_f = map_bytes_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
-        let modulus_f = map_to_field(&[BigUint::from_bytes_be(modulus)], 2048)?;
+        let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048)?;
         Ok(vec![poseidon.hash(vec![
             eph_public_key_0,
             eph_public_key_1,
@@ -418,8 +430,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         ));
     }
     let mut bits = base64_to_bitarray(s);
-    let first_char_offset = i % 4;
-    match first_char_offset {
+    match i {
         0 => {}
         1 => {
             bits.drain(..2);
@@ -457,7 +468,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
     }
 
     Ok(std::str::from_utf8(&bitarray_to_bytearray(&bits))
-        .map_err(|_| FastCryptoError::GeneralError("Invalid masked content".to_string()))?
+        .map_err(|_| FastCryptoError::GeneralError("Invalid UTF8 string".to_string()))?
         .to_owned())
 }
 
@@ -541,7 +552,7 @@ fn map_bytes_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoErr
         .collect();
 
     let str_padded = pad_with_zeroes(in_arr, max_size)?;
-    map_to_field(&str_padded, 8)
+    hash_to_field(&str_padded, 8)
 }
 
 fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
@@ -560,7 +571,7 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
 /// inWidth to packWidth. Then we compute the poseidon hash of the "packed" input.
 /// input is the input vector containing equal-width big ints. inWidth is the width of
 /// each input element.
-fn map_to_field(input: &[BigUint], in_width: u16) -> Result<Bn254Fr, FastCryptoError> {
+fn hash_to_field(input: &[BigUint], in_width: u16) -> Result<Bn254Fr, FastCryptoError> {
     let num_elements = (input.len() * in_width as usize) / PACK_WIDTH as usize + 1;
     let packed = pack2(input, in_width, PACK_WIDTH, num_elements)?;
     to_poseidon_hash(packed)

@@ -1,14 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::zk_login::OAuthProvider;
 use crate::bn254::zk_login::{
     big_int_str_to_bytes, decode_base64_url, map_bytes_to_field, parse_jwks, trim,
-    verify_extended_claim, Claim, JWTHeader, ParsedMaskedContent,
+    verify_extended_claim, Claim, JWTDetails, JWTHeader,
 };
+use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::Environment;
 use crate::bn254::{
-    zk_login::{OAuthProviderContent, ZkLoginInputs},
+    zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
 use fastcrypto::error::FastCryptoError;
@@ -74,7 +74,7 @@ const BAD_JWK_BYTES: &[u8] = r#"{
       }"#.as_bytes();
 
 #[test]
-fn test_verify_groth16_in_bytes_google() {
+fn test_verify_zk_login_google() {
     use crate::bn254::zk_login_api::Bn254Fr;
     use std::str::FromStr;
 
@@ -90,7 +90,7 @@ fn test_verify_groth16_in_bytes_google() {
     );
     assert_eq!(
         zklogin_inputs.get_iss(),
-        OAuthProvider::Google.get_config().0.to_string()
+        OIDCProvider::Google.get_config().0.to_string()
     );
     assert_eq!(
         zklogin_inputs.get_aud(),
@@ -102,13 +102,12 @@ fn test_verify_groth16_in_bytes_google() {
     );
     assert_eq!(
         zklogin_inputs.get_address_params().iss,
-        OAuthProvider::Google.get_config().0.to_string()
+        OIDCProvider::Google.get_config().0.to_string()
     );
 
     let mut map = ImHashMap::new();
-    let content = OAuthProviderContent {
+    let content = JWK {
         kty: "RSA".to_string(),
-        kid: "911e39e27928ae9f1e9d1e21646de92d19351b44".to_string(),
         e: "AQAB".to_string(),
         n: "4kGxcWQdTW43aszLmftsGswmwDDKdfcse-lKeT_zjZTB2KGw9E6LVY6IThJVxzYF6mcyU-Z5_jDAW_yi7D_gXep2rxchZvoFayXynbhxyfjK6RtJ6_k30j-WpsXCSAiNAkupYHUyDIBNocvUcrDJsC3U65l8jl1I3nW98X6d-IlAfEb2In2f0fR6d-_lhIQZjXLupjymJduPjjA8oXCUZ9bfAYPhGYj3ZELUHkAyDpZNrnSi8hFVMSUSnorAt9F7cKMUJDM4-Uopzaqcl_f-HxeKvxN7NjiLSiIYaHdgtTpCEuNvsch6q6JTsllJNr3c__BxrG4UMlJ3_KsPxbcvXw".to_string(),
         alg: "RS256".to_string(),
@@ -117,7 +116,7 @@ fn test_verify_groth16_in_bytes_google() {
     map.insert(
         (
             "911e39e27928ae9f1e9d1e21646de92d19351b44".to_string(),
-            OAuthProvider::Google.get_config().0.to_string(),
+            OIDCProvider::Google.get_config().0.to_string(),
         ),
         content.clone(),
     );
@@ -136,7 +135,7 @@ fn test_verify_groth16_in_bytes_google() {
 }
 
 #[test]
-fn test_verify_groth16_in_bytes_twitch() {
+fn test_verify_zk_login_facebook() {
     let eph_pubkey = big_int_str_to_bytes(
         "84029355920633174015103288781128426107680789454168570548782290541079926444544",
     );
@@ -144,7 +143,7 @@ fn test_verify_groth16_in_bytes_twitch() {
     assert_eq!(zklogin_inputs.get_kid(), "1".to_string());
     assert_eq!(
         zklogin_inputs.get_iss(),
-        OAuthProvider::Twitch.get_config().0.to_string()
+        OIDCProvider::Twitch.get_config().0.to_string()
     );
     assert_eq!(
         zklogin_inputs.get_aud(),
@@ -164,9 +163,8 @@ fn test_verify_groth16_in_bytes_twitch() {
     );
 
     let mut map = ImHashMap::new();
-    map.insert(("1".to_string(), OAuthProvider::Twitch.get_config().0.to_string()), OAuthProviderContent {
+    map.insert(("1".to_string(), OIDCProvider::Twitch.get_config().0.to_string()), JWK {
         kty: "RSA".to_string(),
-        kid: "1".to_string(),
         e: "AQAB".to_string(),
         n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
         alg: "RS256".to_string(),
@@ -190,13 +188,13 @@ fn test_parsed_masked_content() {
 
     // iss not found
     assert_eq!(
-        ParsedMaskedContent::new(VALID_HEADER, &[]).unwrap_err(),
+        JWTDetails::new(VALID_HEADER, &[]).unwrap_err(),
         FastCryptoError::GeneralError("Invalid claim".to_string())
     );
 
     // missing claim
     assert_eq!(
-        ParsedMaskedContent::new(
+        JWTDetails::new(
             VALID_HEADER,
             &[Claim {
                 name: "iss".to_string(),
@@ -210,7 +208,7 @@ fn test_parsed_masked_content() {
 
     // unknown claim name
     assert_eq!(
-        ParsedMaskedContent::new(
+        JWTDetails::new(
             VALID_HEADER,
             &[Claim {
                 name: "unknown".to_string(),
@@ -224,7 +222,7 @@ fn test_parsed_masked_content() {
 
     // bad index_mod_4
     assert_eq!(
-        ParsedMaskedContent::new(
+        JWTDetails::new(
             VALID_HEADER,
             &[
                 Claim {
@@ -241,12 +239,12 @@ fn test_parsed_masked_content() {
             ]
         )
         .unwrap_err(),
-        FastCryptoError::GeneralError("Invalid masked content".to_string())
+        FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
     );
 
     // first claim is not iss
     assert_eq!(
-        ParsedMaskedContent::new(
+        JWTDetails::new(
             VALID_HEADER,
             &[Claim {
                 name: "aud".to_string(),
@@ -260,7 +258,7 @@ fn test_parsed_masked_content() {
 
     // second claim is not aud
     assert_eq!(
-        ParsedMaskedContent::new(
+        JWTDetails::new(
             VALID_HEADER,
             &[
                 Claim {
@@ -293,7 +291,7 @@ fn test_decode_base64() {
     assert!(decode_base64_url("yJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLC", &1).is_ok());
     assert_eq!(
         decode_base64_url("yJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLC", &2).unwrap_err(),
-        FastCryptoError::GeneralError("Invalid masked content".to_string())
+        FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
     );
     assert_eq!(
         decode_base64_url("yJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLC", &3).unwrap_err(),
@@ -327,7 +325,7 @@ fn test_verify_extended_claim() {
 }
 
 #[test]
-fn test_map_to_field() {
+fn test_hash_to_field() {
     // Test generated against typescript implementation.
     assert!(map_bytes_to_field("sub", 2).is_err());
     assert_eq!(
@@ -347,48 +345,42 @@ fn test_jwk_parse() {
         "wYvSKSQYKnGNV72_uVc9jbyUeTMsMbUgZPP0uVQX900To7A8a0XA3O17wuImgOG_BwGkpZrIRXF_RRYSK8IOH8N_ViTWh1vyEYSYwr_jfCpDoedJT0O6TZpBhBSmimtmO8ZBCkhZJ4w0AFNIMDPhMokbxwkEapjMA5zio_06dKfb3OBNmrwedZY86W1204-Pfma9Ih15Dm4o8SNFo5Sl0NNO4Ithvj2bbg1Bz1ydE4lMrXdSQL5C2uM9JYRJLnIjaYopBENwgf2Egc9CdVY8tr8jED-WQB6bcUBhDV6lJLZbpBlTHLkF1RlEMnIV2bDo02CryjThnz8l_-6G_7pJww"
     );
 
-    parse_jwks(GOOGLE_JWK_BYTES, OAuthProvider::Google)
+    parse_jwks(GOOGLE_JWK_BYTES, OIDCProvider::Google)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .0, content.1.kid());
-            assert_eq!(content.0 .1, OAuthProvider::Google.get_config().0);
+            assert_eq!(content.0 .1, OIDCProvider::Google.get_config().0);
         });
 
-    parse_jwks(TWITCH_JWK_BYTES, OAuthProvider::Twitch)
+    parse_jwks(TWITCH_JWK_BYTES, OIDCProvider::Twitch)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .0, content.1.kid());
-            assert_eq!(content.0 .1, OAuthProvider::Twitch.get_config().0);
+            assert_eq!(content.0 .1, OIDCProvider::Twitch.get_config().0);
         });
 
-    parse_jwks(FACEBOOK_JWK_BYTES, OAuthProvider::Facebook)
+    parse_jwks(FACEBOOK_JWK_BYTES, OIDCProvider::Facebook)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .0, content.1.kid());
-            assert_eq!(content.0 .1, OAuthProvider::Facebook.get_config().0);
+            assert_eq!(content.0 .1, OIDCProvider::Facebook.get_config().0);
         });
 
-    assert!(parse_jwks(BAD_JWK_BYTES, OAuthProvider::Twitch).is_err());
-
-    assert!(OAuthProviderContent {
-        kty: "RSA".to_string(),
-        e: "something".to_string(),
-        n: "".to_string(),
-        alg: "RS256".to_string(),
-        kid: "".to_string(),
-    }
-    .validate()
-    .is_err());
+    assert!(parse_jwks(BAD_JWK_BYTES, OIDCProvider::Twitch).is_err());
 
     assert!(parse_jwks(
         r#"{
         "something":[]
       }"#
         .as_bytes(),
-        OAuthProvider::Twitch
+        OIDCProvider::Twitch
     )
     .is_err());
+}
+
+#[tokio::test]
+async fn test_get_jwks() {
+    let res = fetch_jwks().await;
+    assert!(res.is_ok());
+    assert!(!res.unwrap().is_empty());
 }

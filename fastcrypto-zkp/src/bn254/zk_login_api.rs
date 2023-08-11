@@ -6,7 +6,7 @@ use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use im::hashmap::HashMap as ImHashMap;
 
 use super::verifier::process_vk_special;
-use super::zk_login::{OAuthProviderContent, ZkLoginInputs};
+use super::zk_login::{ZkLoginInputs, JWK};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
@@ -122,7 +122,7 @@ pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
-    all_jwk: &ImHashMap<(String, String), OAuthProviderContent>,
+    all_jwk: &ImHashMap<(String, String), JWK>,
     usage: Environment,
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (kid, iss).
