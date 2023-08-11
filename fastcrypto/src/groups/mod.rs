@@ -75,7 +75,9 @@ pub trait MultiScalarMul: GroupElement {
 
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
-pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + Eq {
+pub trait ParameterizedGroupElement:
+    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Neg + Eq
+{
     /// The type of the parameter which uniquely defines this group.
     type ParameterType: Eq;
 
@@ -87,7 +89,7 @@ pub trait ParameterizedGroupElement: Sized + Clone + Add<Self, Output = Self> + 
 
     /// Compute 2 * Self. May be overwritten by implementations that have a fast doubling operation.
     fn double(&self) -> Self {
-        self.mul(&Self::ScalarType::from(2))
+        self.clone().add(&self)
     }
 
     /// Compute scale * self.

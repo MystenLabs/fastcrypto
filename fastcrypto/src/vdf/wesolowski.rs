@@ -51,7 +51,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
 
         let mut output = input.clone();
         for _ in 0..self.iterations {
-            output = output.clone() + output.clone();
+            output = output.clone() + &output;
         }
 
         let b = get_b(&input.as_bytes(), &output.as_bytes());
@@ -62,7 +62,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         let mut proof = input.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
             quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&b);
-            proof = proof.double() + input.mul(&quotient_remainder.0);
+            proof = proof.double() + &input.mul(&quotient_remainder.0);
         }
 
         Ok((output, proof))
@@ -82,7 +82,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(self.iterations), &b);
         let f2 = input.mul(&r);
 
-        if f1 + f2 != *output {
+        if f1 + &f2 != *output {
             return Err(InvalidProof);
         }
         Ok(())
