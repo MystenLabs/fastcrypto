@@ -2432,8 +2432,8 @@ dependencies = [
 
 [[package]]
 name = "poseidon-ark"
-version = "0.0.1"
-source = "git+https://github.com/arnaucube/poseidon-ark.git?rev=bf96de3b946e8b343c6b65412bae92f8d32251ad#bf96de3b946e8b343c6b65412bae92f8d32251ad"
+version = "0.0.10"
+source = "git+https://github.com/MystenLabs/poseidon-ark.git?rev=39844046ded0c4aa7a247e8545e131b59a330a9c#39844046ded0c4aa7a247e8545e131b59a330a9c"
 dependencies = [
  "ark-bn254",
  "ark-ff",
