@@ -13,6 +13,7 @@ use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use curv::arithmetic::{BasicOps, BitManipulation, Integer, Modulo, One, Roots, Zero};
 use curv::BigInt;
 use std::cmp::Ordering;
+use std::mem::swap;
 use std::ops::{Add, Neg};
 
 mod compressed;
@@ -67,7 +68,7 @@ impl Add<&QuadraticForm> for QuadraticForm {
 
         // 1.
         if w1 < w2 {
-            return rhs.clone() + &self;
+            swap(&mut (u1, v1, w1), &mut (u2, v2, w2));
         }
         let s = (v1 + v2) >> 1;
         let m = v2 - &s;
