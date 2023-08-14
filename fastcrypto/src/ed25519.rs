@@ -295,7 +295,7 @@ impl Debug for Ed25519PublicKey {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)] // ed25519_consensus's PartialEq is compatible
+#[allow(clippy::derived_hash_with_manual_eq)] // ed25519_consensus's PartialEq is compatible
 impl std::hash::Hash for Ed25519PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.as_bytes().hash(state);
@@ -421,7 +421,6 @@ impl ToFromBytes for Ed25519AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let sigs = bytes
             .chunks_exact(ED25519_SIGNATURE_LENGTH)
-            .into_iter()
             .map(|chunk| <Ed25519Signature as traits::ToFromBytes>::from_bytes(chunk).unwrap())
             .map(|s| s.sig)
             .collect();

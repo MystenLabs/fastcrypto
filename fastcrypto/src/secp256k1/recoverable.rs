@@ -81,7 +81,7 @@ impl AsRef<[u8]> for Secp256k1RecoverableSignature {
             let mut bytes = [0u8; SECP256K1_RECOVERABLE_SIGNATURE_SIZE];
             let (recovery_id, sig) = self.sig.serialize_compact();
             bytes[..(SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1)].copy_from_slice(&sig);
-            bytes[(SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1)] = recovery_id.to_i32() as u8;
+            bytes[SECP256K1_RECOVERABLE_SIGNATURE_SIZE - 1] = recovery_id.to_i32() as u8;
             bytes
         })
     }

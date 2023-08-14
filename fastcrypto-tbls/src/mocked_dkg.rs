@@ -56,10 +56,7 @@ pub fn generate_share_and_public_keys(
     id: ShareIndex,
 ) -> (Share, PublicBlsKey, PublicVssKey) {
     // The private polynomial is c_0 = epoch and c_i = 1.
-    let mut coefficients: Vec<Scalar> = (0..threshold)
-        .into_iter()
-        .map(|_| Scalar::generator())
-        .collect();
+    let mut coefficients: Vec<Scalar> = (0..threshold).map(|_| Scalar::generator()).collect();
     *coefficients.get_mut(0).unwrap() = get_private_key(epoch);
     let private_poly = PrivatePoly::<Scalar>::from(coefficients);
     let public_poly: PublicPoly<PublicBlsKey> = private_poly.commit();

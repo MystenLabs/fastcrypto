@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-///! This module contains test vectors for all signature schemes supported by the sigs_cli tool.
+//! This module contains test vectors for all signature schemes supported by the sigs_cli tool.
 pub mod sigs_cli_test_vectors {
 
     /// A test vector containing a signature over MSG encoded as a hex string.
