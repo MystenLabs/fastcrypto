@@ -4,7 +4,10 @@
 use fastcrypto::error::FastCryptoResult;
 use serde_json::Value;
 
-use super::poseidon::{to_poseidon_hash, PoseidonWrapper};
+use super::{
+    poseidon::{to_poseidon_hash, PoseidonWrapper},
+    utils::split_to_two_frs,
+};
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
@@ -14,7 +17,7 @@ use fastcrypto::{
     error::FastCryptoError,
     rsa::{Base64UrlUnpadded, Encoding},
 };
-use num_bigint::{BigInt, BigUint, Sign};
+use num_bigint::BigUint;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -310,7 +313,7 @@ impl ZkLoginInputs {
     /// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
     pub fn calculate_all_inputs_hash(
         &self,
-        eph_pubkey_bytes: &[u8],
+        eph_pk_bytes: &[u8],
         modulus: &[u8],
         max_epoch: u64,
     ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
@@ -320,12 +323,8 @@ impl ZkLoginInputs {
 
         let mut poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
-        let (first_half, second_half) = eph_pubkey_bytes.split_at(17);
-        let first_bigint = BigInt::from_bytes_be(Sign::Plus, first_half);
-        let second_bigint = BigInt::from_bytes_be(Sign::Plus, second_half);
+        let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let eph_public_key_0 = to_field(&first_bigint.to_string())?;
-        let eph_public_key_1 = to_field(&second_bigint.to_string())?;
         let max_epoch = to_field(&max_epoch.to_string())?;
         let mut padded_claims = self.claims.clone();
         for _ in self.claims.len()..NUM_EXTRACTABLE_STRINGS as usize {
@@ -361,8 +360,8 @@ impl ZkLoginInputs {
         let header_f = map_bytes_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048)?;
         Ok(vec![poseidon.hash(vec![
-            eph_public_key_0,
-            eph_public_key_1,
+            first,
+            second,
             addr_seed,
             max_epoch,
             extracted_claims_hash,
@@ -617,13 +616,6 @@ fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
         bitarray.extend(padded)
     }
     bitarray
-}
-
-/// Convert a big int string to a big endian bytearray.
-pub fn big_int_str_to_bytes(value: &str) -> Vec<u8> {
-    BigInt::from_str(value)
-        .expect("Invalid big int string")
-        .to_signed_bytes_be()
 }
 
 /// Parameters for generating an address.

@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use crate::bn254::utils::get_nonce;
 use crate::bn254::zk_login::{
-    big_int_str_to_bytes, decode_base64_url, map_bytes_to_field, parse_jwks, trim,
-    verify_extended_claim, Claim, JWTDetails, JWTHeader,
+    decode_base64_url, map_bytes_to_field, parse_jwks, trim, verify_extended_claim, Claim,
+    JWTDetails, JWTHeader,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::Environment;
@@ -20,7 +20,6 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use fastcrypto::traits::KeyPair;
-use num_bigint::BigInt;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
     "keys": [
@@ -85,9 +84,10 @@ fn test_verify_zk_login_google() {
     use crate::bn254::zk_login_api::Bn254Fr;
     use std::str::FromStr;
 
-    let eph_pubkey = big_int_str_to_bytes(
-        "84029355920633174015103288781128426107680789454168570548782290541079926444544",
-    );
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+
     assert!(ZkLoginInputs::from_json("{\"something\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").is_err());
 
     let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
@@ -143,9 +143,10 @@ fn test_verify_zk_login_google() {
 
 #[test]
 fn test_verify_zk_login_twitch() {
-    let eph_pubkey = big_int_str_to_bytes(
-        "84029355920633174015103288781128426107680789454168570548782290541079926444544",
-    );
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+
     let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"13091564805270242091988535637094928145526962426048248457544204014146120848061\",\"16720184877774297257067413263271993886875650921635894599271213076438028149121\",\"1\"],\"pi_b\":[[\"10315437641058147137376024432028897182269999873576264368551692657896041757048\",\"1508628913652029422583835336497010615341442910432485486157510667573899391209\"],[\"2615204984444202339450727742801445002386326248143849542511762200103437621802\",\"5849486215298305357746845827664545444623657491883886014999288709074461992087\"],[\"1\",\"0\"]],\"pi_c\":[\"14195277018213067909432749083395103683618329379082932858378933760763589481512\",\"15923172920578108290608652430421506204931592172775947506845238271513931833500\",\"1\"]},\"address_seed\":\"8309251037759855865804524144086603991988043161256515070528758422897128118794\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
     assert_eq!(zklogin_inputs.get_kid(), "1".to_string());
     assert_eq!(
@@ -402,11 +403,6 @@ fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pk_bytes = vec![0x00];
     eph_pk_bytes.extend(kp.public().as_ref());
-    let pk_bigint = BigInt::from_bytes_be(num_bigint::Sign::Plus, &eph_pk_bytes);
-    assert_eq!(
-        pk_bigint.to_string(),
-        "84029355920633174015103288781128426107680789454168570548782290541079926444544"
-    );
-    let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117");
+    let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117").unwrap();
     assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
 }
