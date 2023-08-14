@@ -1,6 +1,8 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use crate::bn254::utils::get_nonce;
 use crate::bn254::zk_login::{
     big_int_str_to_bytes, decode_base64_url, map_bytes_to_field, parse_jwks, trim,
@@ -18,7 +20,6 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use fastcrypto::traits::KeyPair;
-use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigInt;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
@@ -111,7 +112,7 @@ fn test_verify_zk_login_google() {
         OIDCProvider::Google.get_config().0.to_string()
     );
 
-    let mut map = ImHashMap::new();
+    let mut map = HashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
@@ -168,7 +169,7 @@ fn test_verify_zk_login_twitch() {
         "8309251037759855865804524144086603991988043161256515070528758422897128118794"
     );
 
-    let mut map = ImHashMap::new();
+    let mut map = HashMap::new();
     map.insert(("1".to_string(), OIDCProvider::Twitch.get_config().0.to_string()), JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),

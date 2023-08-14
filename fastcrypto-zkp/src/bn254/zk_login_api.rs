@@ -1,9 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::HashMap;
+
 use ark_crypto_primitives::snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
-use im::hashmap::HashMap as ImHashMap;
 
 use super::verifier::process_vk_special;
 use super::zk_login::{ZkLoginInputs, JWK};
@@ -122,7 +123,7 @@ pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
-    all_jwk: &ImHashMap<(String, String), JWK>,
+    all_jwk: &HashMap<(String, String), JWK>,
     usage: Environment,
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (kid, iss).
