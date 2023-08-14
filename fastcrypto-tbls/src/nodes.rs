@@ -74,4 +74,36 @@ impl<G: GroupElement> Nodes<G> {
     pub fn iter(&self) -> impl Iterator<Item = &Node<G>> {
         self.nodes.iter()
     }
+
+    /// Reduce weights up to an allowed delta in the original total weight.
+    /// Finds the largest d such that:
+    /// - The new threshold is ceil(t / d)
+    /// - The new weights are all divided by d (floor division)
+    /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
+    ///   the allowed delta
+    /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+    pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
+        let n = self.n;
+        let mut max_d = 1;
+        for d in 2..=50 {
+            let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
+            if sum <= allowed_delta {
+                max_d = d;
+            } else {
+                break;
+            }
+        }
+        let nodes = self
+            .nodes
+            .iter()
+            .map(|n| Node {
+                id: n.id,
+                pk: n.pk.clone(),
+                weight: n.weight / max_d,
+            })
+            .collect::<Vec<_>>();
+        let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        let new_t = t / max_d + (t % max_d != 0) as u16;
+        (Self { nodes, n }, new_t)
+    }
 }
