@@ -28,7 +28,7 @@ fn test_reduce() {
         assert_eq!(t, new_t);
 
         // 10% gap
-        let (new_nodes, new_t) = nodes.reduce(t, (nodes.n() / 10) as u16);
+        let (new_nodes, _new_t) = nodes.reduce(t, (nodes.n() / 10) as u16);
         // Estimate the real factor d
         let d = nodes.iter().last().unwrap().weight / new_nodes.iter().last().unwrap().weight;
         // The loss per node is on average (d - 1) / 2
