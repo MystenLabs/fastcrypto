@@ -4,7 +4,7 @@
 use fastcrypto::error::FastCryptoResult;
 use serde_json::Value;
 
-use super::poseidon::PoseidonWrapper;
+use super::poseidon::{to_poseidon_hash, PoseidonWrapper};
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
@@ -320,7 +320,6 @@ impl ZkLoginInputs {
 
         let mut poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
-
         let (first_half, second_half) = eph_pubkey_bytes.split_at(17);
         let first_bigint = BigInt::from_bytes_be(Sign::Plus, first_half);
         let second_bigint = BigInt::from_bytes_be(Sign::Plus, second_half);
@@ -514,28 +513,6 @@ fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
     bytes
 }
 
-/// Calculate the poseidon hash of the field element inputs.
-pub fn to_poseidon_hash(inputs: Vec<Bn254Fr>) -> Result<Bn254Fr, FastCryptoError> {
-    if inputs.len() <= 16 {
-        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        poseidon1.hash(inputs)
-    } else if inputs.len() <= 32 {
-        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        let hash1 = poseidon1.hash(inputs[0..16].to_vec())?;
-
-        let mut poseidon2 = PoseidonWrapper::new();
-        let hash2 = poseidon2.hash(inputs[16..].to_vec())?;
-
-        let mut poseidon3 = PoseidonWrapper::new();
-        poseidon3.hash([hash1, hash2].to_vec())
-    } else {
-        Err(FastCryptoError::GeneralError(format!(
-            "Yet to implement: Unable to hash a vector of length {}",
-            inputs.len()
-        )))
-    }
-}
-
 /// Convert a bigint string to a field element.
 fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
     Bn254Fr::from_str(val).map_err(|_| FastCryptoError::InvalidInput)
@@ -646,8 +623,7 @@ fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
 pub fn big_int_str_to_bytes(value: &str) -> Vec<u8> {
     BigInt::from_str(value)
         .expect("Invalid big int string")
-        .to_bytes_be()
-        .1
+        .to_signed_bytes_be()
 }
 
 /// Parameters for generating an address.

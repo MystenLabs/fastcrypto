@@ -38,11 +38,34 @@ impl PoseidonWrapper {
             .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
+/// Calculate the poseidon hash of the field element inputs. If the input
+/// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
+pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    if inputs.len() <= 16 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        poseidon1.hash(inputs)
+    } else if inputs.len() <= 32 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        let hash1 = poseidon1.hash(inputs[0..16].to_vec())?;
+
+        let mut poseidon2 = PoseidonWrapper::new();
+        let hash2 = poseidon2.hash(inputs[16..].to_vec())?;
+
+        let mut poseidon3 = PoseidonWrapper::new();
+        poseidon3.hash([hash1, hash2].to_vec())
+    } else {
+        Err(FastCryptoError::GeneralError(format!(
+            "Yet to implement: Unable to hash a vector of length {}",
+            inputs.len()
+        )))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
-    use crate::bn254::zk_login::to_poseidon_hash;
-    use crate::bn254::zk_login::Bn254Fr;
+    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use std::str::FromStr;
 

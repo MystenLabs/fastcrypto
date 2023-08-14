@@ -1,5 +1,6 @@
-// Copyright (c) Mysten Labs, Inc.
+// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
 use crate::bn254::poseidon::PoseidonWrapper;
 use crate::bn254::zk_login::big_int_str_to_bytes;
 use crate::bn254::zk_login::AddressParams;
