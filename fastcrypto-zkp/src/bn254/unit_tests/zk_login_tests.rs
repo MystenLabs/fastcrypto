@@ -12,13 +12,14 @@ use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
-use fastcrypto::traits::KeyPair;
-use ark_std::rand::SeedableRng;
 use ark_std::rand::rngs::StdRng;
+use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
+use fastcrypto::traits::KeyPair;
 use im::hashmap::HashMap as ImHashMap;
+use num_bigint::BigInt;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
     "keys": [
@@ -395,6 +396,11 @@ fn test_get_nonce() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pk_bytes = vec![0x00];
     eph_pk_bytes.extend(kp.public().as_ref());
+    let pk_bigint = BigInt::from_bytes_be(num_bigint::Sign::Plus, &eph_pk_bytes);
+    assert_eq!(
+        pk_bigint.to_string(),
+        "84029355920633174015103288781128426107680789454168570548782290541079926444544"
+    );
     let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117");
     assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
 }

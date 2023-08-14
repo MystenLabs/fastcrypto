@@ -321,7 +321,7 @@ impl ZkLoginInputs {
         let mut poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
 
-        let (first_half, second_half) = eph_pubkey_bytes.split_at(16);
+        let (first_half, second_half) = eph_pubkey_bytes.split_at(17);
         let first_bigint = BigInt::from_bytes_be(Sign::Plus, first_half);
         let second_bigint = BigInt::from_bytes_be(Sign::Plus, second_half);
 
