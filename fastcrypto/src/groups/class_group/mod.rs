@@ -70,6 +70,7 @@ impl QuadraticForm {
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
     fn normalize(self) -> Self {
+        // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         if self.is_normal() {
             return self;
         }
@@ -86,7 +87,7 @@ impl QuadraticForm {
     }
 
     /// Return true if this form is reduced: A form is reduced if it is normal (see
-    /// [`QuadraticForm::is_normal`]) and  a <= c and if a == c then b >= 0.
+    /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
     fn is_reduced(&self) -> bool {
         if !self.is_normal() {
             return false;
@@ -101,6 +102,7 @@ impl QuadraticForm {
 
     /// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
     fn reduce(self) -> Self {
+        // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         let mut form = self.normalize();
         while !form.is_reduced() {
             let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
