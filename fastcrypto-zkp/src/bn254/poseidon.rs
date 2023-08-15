@@ -38,11 +38,34 @@ impl PoseidonWrapper {
             .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
+
+/// Calculate the poseidon hash of the field element inputs. If the input
+/// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
+pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    if inputs.len() <= 16 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        poseidon1.hash(inputs)
+    } else if inputs.len() <= 32 {
+        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
+        let hash1 = poseidon1.hash(inputs[0..16].to_vec())?;
+
+        let mut poseidon2 = PoseidonWrapper::new();
+        let hash2 = poseidon2.hash(inputs[16..].to_vec())?;
+
+        let mut poseidon3 = PoseidonWrapper::new();
+        poseidon3.hash([hash1, hash2].to_vec())
+    } else {
+        Err(FastCryptoError::GeneralError(format!(
+            "Yet to implement: Unable to hash a vector of length {}",
+            inputs.len()
+        )))
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
-    use crate::bn254::zk_login::Bn254Fr;
-    use crate::bn254::zk_login::{calculate_merklized_hash, to_poseidon_hash};
+    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use std::str::FromStr;
 
@@ -54,13 +77,6 @@ mod test {
 
     #[test]
     fn poseidon_test() {
-        // TODO (joyqvq): add more test vectors here from circom.js
-        // Test vector generated from circom.js
-        // Poseidon([134696963602902907403122104327765350261n,
-        // 17932473587154777519561053972421347139n,
-        // 10000,
-        // 50683480294434968413708503290439057629605340925620961559740848568164438166n])
-        // = 2272550810841985018139126931041192927190568084082399473943239080305281957330n
         let mut poseidon = PoseidonWrapper::new();
         let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
         let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
@@ -79,43 +95,50 @@ mod test {
         );
     }
     #[test]
-    fn test_merklized_hash() {
-        let masked_content = b"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ.=yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC===========================================================================================================CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC==========================================================================================================================================================================================================================================================================================================\x80\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x14\xd8\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00";
+    fn test_to_poseidon_hash() {
         assert_eq!(
-            calculate_merklized_hash(masked_content).unwrap(),
-            "14900420995580824499222150327925943524564997104405553289134597516335134742309"
-        );
-
-        assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1])).unwrap(),
+            to_poseidon_hash(to_bigint_arr(vec![1]))
+                .unwrap()
+                .to_string(),
             "18586133768512220936620570745912940619677854269274689475585506675881198879027"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1, 2])).unwrap(),
+            to_poseidon_hash(to_bigint_arr(vec![1, 2]))
+                .unwrap()
+                .to_string(),
             "7853200120776062878684798364095072458815029376092732009249414926327459813530"
         );
         assert_eq!(
             to_poseidon_hash(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
             ]))
-            .unwrap(),
+            .unwrap()
+            .to_string(),
             "4203130618016961831408770638653325366880478848856764494148034853759773445968"
         );
         assert_eq!(
             to_poseidon_hash(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
             ]))
-            .unwrap(),
-            "13895998335546007571506436905298853781676311844723695580596383169075721618652"
+            .unwrap()
+            .to_string(),
+            "9989051620750914585850546081941653841776809718687451684622678807385399211877"
         );
         assert_eq!(
             to_poseidon_hash(to_bigint_arr(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29
             ]))
-            .unwrap(),
-            "14023706212980258922092162104379517008998397500440232747089120702484714603058"
+            .unwrap()
+            .to_string(),
+            "4123755143677678663754455867798672266093104048057302051129414708339780424023"
         );
+
+        assert!(to_poseidon_hash(to_bigint_arr(vec![
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31, 32
+        ]))
+        .is_err());
     }
 
     #[test]
