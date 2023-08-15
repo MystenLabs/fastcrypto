@@ -47,7 +47,7 @@ fn eval_regression() {
 #[test]
 fn poly_degree() {
     let s: u32 = 5;
-    let p = Poly::<RistrettoScalar>::rand(s as u32, &mut thread_rng());
+    let p = Poly::<RistrettoScalar>::rand(s, &mut thread_rng());
     assert_eq!(p.degree(), s);
 }
 

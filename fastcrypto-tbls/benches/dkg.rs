@@ -15,7 +15,6 @@ type EG = ristretto255::RistrettoPoint;
 
 fn gen_ecies_keys(n: u16) -> Vec<(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)> {
     (0..n)
-        .into_iter()
         .map(|id| {
             let sk = ecies::PrivateKey::<EG>::new(&mut thread_rng());
             let pk = ecies::PublicKey::<EG>::from_private_key(&sk);

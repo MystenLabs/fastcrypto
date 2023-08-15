@@ -91,7 +91,6 @@ mod mskr_benches {
 
     fn verify_dabo_single<
         KP: KeyPair + Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
-        A: AggregateAuthenticator<Sig = KP::Sig, PrivKey = KP::PrivKey, PubKey = KP::PubKey>,
         S,
         H: HashToScalar<S>,
         const PUBKEY_LENGTH: usize,
@@ -148,7 +147,6 @@ mod mskr_benches {
         for size in batch_sizes {
             verify_dabo_single::<
                 min_sig::BLS12381KeyPair,
-                min_sig::BLS12381AggregateSignature,
                 blst_fr,
                 min_sig::mskr::BLS12381Hash,
                 { <min_sig::BLS12381PublicKey as VerifyingKey>::LENGTH },
@@ -157,7 +155,6 @@ mod mskr_benches {
 
             verify_dabo_single::<
                 min_pk::BLS12381KeyPair,
-                min_pk::BLS12381AggregateSignature,
                 blst_fr,
                 min_pk::mskr::BLS12381Hash,
                 { <min_pk::BLS12381PublicKey as VerifyingKey>::LENGTH },
@@ -168,7 +165,6 @@ mod mskr_benches {
 
     fn keygen_single<
         KP: KeyPair + Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
-        A: AggregateAuthenticator<Sig = KP::Sig, PrivKey = KP::PrivKey, PubKey = KP::PubKey>,
         S,
         H: HashToScalar<S>,
         const PUBKEY_LENGTH: usize,
@@ -200,7 +196,6 @@ mod mskr_benches {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Keygen");
         keygen_single::<
             min_sig::BLS12381KeyPair,
-            min_sig::BLS12381AggregateSignature,
             blst_fr,
             min_sig::mskr::BLS12381Hash,
             { <min_sig::BLS12381PublicKey as VerifyingKey>::LENGTH },
@@ -209,7 +204,6 @@ mod mskr_benches {
 
         keygen_single::<
             min_pk::BLS12381KeyPair,
-            min_pk::BLS12381AggregateSignature,
             blst_fr,
             min_pk::mskr::BLS12381Hash,
             { <min_pk::BLS12381PublicKey as VerifyingKey>::LENGTH },
@@ -219,7 +213,6 @@ mod mskr_benches {
 
     fn sign_single<
         KP: KeyPair + Randomize<KP::PubKey, S, H, PUBKEY_LENGTH>,
-        A: AggregateAuthenticator<Sig = KP::Sig, PrivKey = KP::PrivKey, PubKey = KP::PubKey>,
         S,
         H: HashToScalar<S>,
         const PUBKEY_LENGTH: usize,
@@ -245,7 +238,6 @@ mod mskr_benches {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("MSKR Sign");
         sign_single::<
             min_sig::BLS12381KeyPair,
-            min_sig::BLS12381AggregateSignature,
             blst_fr,
             min_sig::mskr::BLS12381Hash,
             { <min_sig::BLS12381PublicKey as VerifyingKey>::LENGTH },
@@ -254,7 +246,6 @@ mod mskr_benches {
 
         sign_single::<
             min_pk::BLS12381KeyPair,
-            min_pk::BLS12381AggregateSignature,
             blst_fr,
             min_pk::mskr::BLS12381Hash,
             { <min_pk::BLS12381PublicKey as VerifyingKey>::LENGTH },

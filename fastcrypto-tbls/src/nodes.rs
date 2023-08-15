@@ -45,9 +45,7 @@ impl<G: GroupElement> Nodes<G> {
 
     /// Get an iterator on the share ids.
     pub fn share_ids_iter(&self) -> Map<RangeInclusive<u32>, fn(u32) -> ShareIndex> {
-        (1..=self.n)
-            .into_iter()
-            .map(|i| ShareIndex::new(i).expect("nonzero"))
+        (1..=self.n).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
     /// Get the node corresponding to a share id.

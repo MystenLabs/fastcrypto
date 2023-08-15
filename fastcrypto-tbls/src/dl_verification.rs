@@ -58,7 +58,6 @@ pub fn get_random_scalars<G: GroupElement, R: AllowedRng>(
 ) -> Vec<<G as GroupElement>::ScalarType> {
     // TODO: can use 40 bits instead of 64 ("& 0x000F_FFFF_FFFF_FFFF" below)
     (0..n)
-        .into_iter()
         .map(|_| G::ScalarType::from(rng.next_u64()))
         .collect::<Vec<_>>()
 }

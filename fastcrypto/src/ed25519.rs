@@ -421,7 +421,6 @@ impl ToFromBytes for Ed25519AggregateSignature {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         let sigs = bytes
             .chunks_exact(ED25519_SIGNATURE_LENGTH)
-            .into_iter()
             .map(|chunk| <Ed25519Signature as traits::ToFromBytes>::from_bytes(chunk).unwrap())
             .map(|s| s.sig)
             .collect();

@@ -42,7 +42,7 @@ mod polynomial_benches {
                 let vss_sk = Poly::<bls12381::Scalar>::rand(t as u32, &mut thread_rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
-                        (1u32..=(n as u32)).into_iter().for_each(|i| {
+                        (1u32..=(n as u32)).for_each(|i| {
                             vss_sk.eval(NonZeroU32::new(i).unwrap());
                         })
                     })
@@ -64,7 +64,7 @@ mod polynomial_benches {
                     format!("n={}, t={}, k={}", n, t, k).as_str(),
                     |b| {
                         b.iter(|| {
-                            (1u32..=(k as u32)).into_iter().for_each(|i| {
+                            (1u32..=(k as u32)).for_each(|i| {
                                 vss_pk.eval(NonZeroU32::new(i).unwrap());
                             })
                         })
