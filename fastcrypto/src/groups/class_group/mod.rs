@@ -258,10 +258,16 @@ impl ParameterizedGroupElement for QuadraticForm {
     fn mul(&self, scale: &BigInt) -> Self {
         if scale.is_zero() {
             return Self::zero(&self.discriminant());
-        } else if scale.is_even() {
-            return self.double().mul(&(scale >> 1));
         }
-        (self.double()).mul(&((scale - BigInt::one()) >> 1)) + self
+
+        let mut result = self.clone();
+        for i in (0..scale.bit_length() - 1).rev() {
+            result = result.double();
+            if scale.test_bit(i) {
+                result = result + self;
+            }
+        }
+        result
     }
 
     fn as_bytes(&self) -> Vec<u8> {
