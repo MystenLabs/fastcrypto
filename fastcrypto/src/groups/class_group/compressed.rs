@@ -77,7 +77,7 @@ impl QuadraticForm {
         let b_sign = b < &BigInt::zero();
         let b_abs = b.abs();
 
-        let (_, _, mut t_prime) = partial_xgcd(a, &b_abs);
+        let (_, mut t_prime) = partial_xgcd(a, &b_abs).expect("a must be positive and b non-zero");
         let g = a.gcd(&t_prime);
 
         let mut b0: BigInt;
@@ -329,28 +329,34 @@ fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u
     }
 }
 
-/// Takes `a`and `b`  with `a > b > 0` and returns `(r, s, t)` such that `r = s a + t b` with `|r|, |t| < sqrt(a)`.
-/// This is algorithm 1 from https://arxiv.org/pdf/2211.16128.pdf.
-fn partial_xgcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
-    let mut r = (a.clone(), b.clone());
-    let mut s = (BigInt::one(), BigInt::zero());
-    let mut t = (BigInt::zero(), BigInt::one());
-
-    while r.1 >= a.sqrt() {
-        let (quotient, residue) = r.0.div_rem(&r.1);
-        r.0 = r.1;
-        r.1 = residue;
-
-        let s1 = &s.0 - &quotient * &s.1;
-        s.0 = s.1;
-        s.1 = s1;
-
-        let t1 = &t.0 - &quotient * &t.1;
-        t.0 = t.1;
-        t.1 = t1;
+/// Takes `a`and `b` and returns `(s, t)` such that `s = b t (mod a)` with `0 <= s < sqrt(a) and |t|
+/// <= sqrt(a)`. This is algorithm 1 from https://arxiv.org/pdf/2211.16128.pdf.
+fn partial_xgcd(a: &BigInt, b: &BigInt) -> FastCryptoResult<(BigInt, BigInt)> {
+    if a <= b {
+        let (s, t) = partial_xgcd(b, a)?;
+        return Ok((t, s));
     }
 
-    (r.1, s.1, t.1)
+    if b <= &BigInt::zero() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+
+    let mut s = (b.clone(), a.clone());
+    let mut t = (BigInt::one(), BigInt::zero());
+
+    while s.0 >= a.sqrt() {
+        let q = s.1.div_floor(&s.0);
+
+        let s_tmp = &s.1 - &q * &s.0;
+        s.1 = s.0;
+        s.0 = s_tmp;
+
+        let t_tmp = &t.1 - &q * &t.0;
+        t.1 = t.0;
+        t.0 = t_tmp;
+    }
+
+    Ok((s.0, t.0))
 }
 
 #[test]
