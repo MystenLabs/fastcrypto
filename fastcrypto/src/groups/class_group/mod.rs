@@ -169,18 +169,28 @@ impl QuadraticForm {
             capital_bx = &b * (&m / &h) + &l * (&capital_by / &h);
         }
 
-        // 3. (partial xgcd)
-        let PartialEuclideanAlgorithmOutput {
-            a: bx,
-            b: by,
-            x,
-            y,
-            did_iterate: z,
-        } = partial_euclidean_algorithm(
-            capital_bx.modulus(&capital_by),
-            capital_by.clone(),
-            &self.partial_gcd_limit,
-        );
+        // 5. (partial xgcd)
+        let mut bx = capital_bx.modulus(&capital_by);
+        let mut by = capital_by.clone();
+
+        let mut x = BigInt::one();
+        let mut y = BigInt::zero();
+        let mut z = 0u32;
+
+        while &by.abs() > &self.partial_gcd_limit && !bx.is_zero() {
+            let (q, t) = by.div_rem(&bx);
+            by = bx;
+            bx = t;
+            let tmp = &y - &q * &x;
+            y = x;
+            x = tmp;
+            z += 1;
+        }
+
+        if z.is_odd() {
+            by = -by;
+            y = -y;
+        }
 
         let (ax, ay) = if g.is_one() {
             (x.clone(), y.clone())
@@ -192,7 +202,8 @@ impl QuadraticForm {
         let w3: BigInt;
         let v3: BigInt;
 
-        if !z {
+        if z == 0 {
+            // 6.
             let q = &capital_cy * &bx;
             let cx = (&q - &m) / &capital_by;
             let dx = (&bx * &capital_dy - w2) / &capital_by;
@@ -200,6 +211,7 @@ impl QuadraticForm {
             w3 = &bx * &cx - &g * &dx;
             v3 = v2 - (&q << 1);
         } else {
+            // 7.
             let cx = (&capital_cy * &bx - &m * &x) / &capital_by;
             let q1 = &by * &cx;
             let q2 = &q1 + &m;
@@ -316,53 +328,6 @@ impl TryFrom<BigInt> for Discriminant {
         }
 
         Ok(Self(value))
-    }
-}
-
-/// The output of [`partial_euclidean_algorithm`].
-struct PartialEuclideanAlgorithmOutput {
-    a: BigInt,
-    b: BigInt,
-    x: BigInt,
-    y: BigInt,
-    did_iterate: bool,
-}
-
-/// Compute the extended Euclidean algorithm for two integers `a` and `b` but quit early if the
-/// Bezout parameters becomes smaller than the given `limit`.
-fn partial_euclidean_algorithm(
-    a: BigInt,
-    b: BigInt,
-    limit: &BigInt,
-) -> PartialEuclideanAlgorithmOutput {
-    let mut x = BigInt::one();
-    let mut y = BigInt::zero();
-    let mut z = 0u32;
-
-    let mut bx = a;
-    let mut by = b;
-
-    while &by.abs() > limit && !bx.is_zero() {
-        let (q, t) = by.div_rem(&bx);
-        by = bx;
-        bx = t;
-        let tmp = &y - &q * &x;
-        y = x;
-        x = tmp;
-        z += 1;
-    }
-
-    if z.is_odd() {
-        by = -by;
-        y = -y;
-    }
-
-    PartialEuclideanAlgorithmOutput {
-        a: bx,
-        b: by,
-        x,
-        y,
-        did_iterate: z > 0,
     }
 }
 
