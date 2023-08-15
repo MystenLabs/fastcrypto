@@ -34,20 +34,22 @@ struct CompressedFormat {
 }
 
 impl QuadraticForm {
-    /// Serialize a quadratic form. The format follows that of chiavdf and the bytes array will be
-    /// FORM_SIZE bytes long.
+    /// Serialize a quadratic form. The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245)
+    /// and the result will be exactly [`QUADRATIC_FORM_SIZE_IN_BYTES`] bytes long.
     pub(super) fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
         self.compress().serialize()
     }
 
-    /// Deserialize bytes into a quadratic form. The format follows that of chiavdf and the bytes array
-    /// should be FORM_SIZE bytes long.
+    /// Deserialize bytes into a quadratic form. The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287)
+    /// and the bytes array must be exactly [`QUADRATIC_FORM_SIZE_IN_BYTES`] bytes long.
     pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
         CompressedQuadraticForm::deserialize(bytes, discriminant)?.decompress()
     }
 
-    /// Return a compressed representation of this quadratic form. See See https://eprint.iacr.org/2020/196.pdf.
+    /// Return a compressed representation of this quadratic form. See https://eprint.iacr.org/2020/196.pdf for a definition of the compression.
     fn compress(&self) -> CompressedQuadraticForm {
+        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L6-L50.
+
         let Self {
             a,
             b,
@@ -107,8 +109,9 @@ impl QuadraticForm {
 }
 
 impl CompressedQuadraticForm {
-    /// Return this as an uncompressed QuadraticForm.
+    /// Return this as an uncompressed QuadraticForm. See https://eprint.iacr.org/2020/196.pdf for a definition of the compression.
     fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
+        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L52-L116.
         match self {
             Zero(discriminant) => Ok(QuadraticForm::zero(discriminant)),
             Generator(discriminant) => Ok(QuadraticForm::generator(discriminant)),
@@ -175,6 +178,7 @@ impl CompressedQuadraticForm {
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
     fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
+        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245.
         match self {
             Zero(_) => {
                 let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
@@ -231,6 +235,7 @@ impl CompressedQuadraticForm {
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
+        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287.
         if bytes.len() != QUADRATIC_FORM_SIZE_IN_BYTES {
             return Err(FastCryptoError::InputLengthWrong(
                 QUADRATIC_FORM_SIZE_IN_BYTES,
@@ -327,25 +332,25 @@ fn export_to_size(number: &BigInt, target_size: usize) -> FastCryptoResult<Vec<u
 /// Takes `a`and `b`  with `a > b > 0` and returns `(r, s, t)` such that `r = s a + t b` with `|r|, |t| < sqrt(a)`.
 /// This is algorithm 1 from https://arxiv.org/pdf/2211.16128.pdf.
 fn partial_xgcd(a: &BigInt, b: &BigInt) -> (BigInt, BigInt, BigInt) {
-    let mut s = (a.clone(), b.clone());
-    let mut t = (BigInt::one(), BigInt::zero());
-    let mut u = (BigInt::zero(), BigInt::one());
+    let mut r = (a.clone(), b.clone());
+    let mut s = (BigInt::one(), BigInt::zero());
+    let mut t = (BigInt::zero(), BigInt::one());
 
-    while s.1 >= a.sqrt() {
-        let (q, r) = s.0.div_rem(&s.1);
+    while r.1 >= a.sqrt() {
+        let (quotient, residue) = r.0.div_rem(&r.1);
+        r.0 = r.1;
+        r.1 = residue;
+
+        let s1 = &s.0 - &quotient * &s.1;
         s.0 = s.1;
-        s.1 = r;
+        s.1 = s1;
 
-        let s1 = &t.0 - &q * &t.1;
+        let t1 = &t.0 - &quotient * &t.1;
         t.0 = t.1;
-        t.1 = s1;
-
-        let t1 = &u.0 - &q * &u.1;
-        u.0 = u.1;
-        u.1 = t1;
+        t.1 = t1;
     }
 
-    (s.1, t.1, u.1)
+    (r.1, s.1, t.1)
 }
 
 #[test]

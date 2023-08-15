@@ -27,7 +27,7 @@ pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (MAX_DISCRIMINANT_SIZE_IN_BITS +
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
-/// The `partial_gcd_limit` variable is equal to `|discriminant|^{1/4}` and is used to speed up
+/// The `partial_gcd_limit` variable must be equal to `|discriminant|^{1/4}` and is used to speed up
 /// the composition algorithm.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct QuadraticForm {
@@ -37,27 +37,90 @@ pub struct QuadraticForm {
     partial_gcd_limit: BigInt,
 }
 
-impl Neg for QuadraticForm {
-    type Output = Self;
+impl QuadraticForm {
+    /// Create a new quadratic form given only the a and b coefficients and the discriminant.
+    pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &Discriminant) -> Self {
+        let c = ((&b * &b) - &discriminant.0) / (BigInt::from(4) * &a);
+        Self {
+            a,
+            b,
+            c,
+            // This limit is used by `partial_euclidean_algorithm` in the add method.
+            partial_gcd_limit: discriminant.0.abs().sqrt().sqrt(),
+        }
+    }
 
-    fn neg(self) -> Self::Output {
+    /// Return a generator (or, more precisely, an element with a presumed large order) in a class
+    /// group with a given discriminant. We use the element `(2, 1, c)` where `c` is determined from
+    /// the discriminant.
+    pub fn generator(discriminant: &Discriminant) -> Self {
+        Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
+    }
+
+    /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
+    pub fn discriminant(&self) -> Discriminant {
+        Discriminant::try_from(self.b.pow(2) - (BigInt::from(4) * &self.a * &self.c))
+            .expect("The discriminant is checked in the constructors")
+    }
+
+    /// Return true if this form is in normal form: -a < b <= a.
+    fn is_normal(&self) -> bool {
+        self.b <= self.a && self.b > -(&self.a)
+    }
+
+    /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
+    fn normalize(self) -> Self {
+        if self.is_normal() {
+            return self;
+        }
+        let r = (&self.a - &self.b).div_floor(&(&self.a * 2));
+        let ra = &r * &self.a;
+        let c = self.c + (&ra + &self.b) * &r;
+        let b = self.b + &ra * 2;
         Self {
             a: self.a,
-            b: self.b.neg(),
-            c: self.c,
+            b,
+            c,
             partial_gcd_limit: self.partial_gcd_limit,
         }
     }
-}
 
-impl Add<&QuadraticForm> for QuadraticForm {
-    type Output = QuadraticForm;
+    /// Return true if this form is reduced: A form is reduced if it is normal (see
+    /// [`QuadraticForm::is_normal`]) and  a <= c and if a == c then b >= 0.
+    fn is_reduced(&self) -> bool {
+        if !self.is_normal() {
+            return false;
+        }
 
-    fn add(self, rhs: &QuadraticForm) -> Self::Output {
+        match self.a.cmp(&self.c) {
+            Ordering::Less => true,
+            Ordering::Equal => self.b >= BigInt::zero(),
+            Ordering::Greater => false,
+        }
+    }
+
+    /// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
+    fn reduce(self) -> Self {
+        let mut form = self.normalize();
+        while !form.is_reduced() {
+            let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
+            let old_a = form.a.clone();
+            let old_b = form.b.clone();
+            form.a = form.c.clone();
+            form.b = -&form.b + &s * &form.c * 2;
+            form.c = (&form.c * &s - &old_b) * &s + &old_a;
+        }
+        form
+    }
+
+    /// Compute the composition of this quadratic form with another quadratic form.
+    pub fn compose(&self, rhs: &QuadraticForm) -> QuadraticForm {
         // Slightly optimised version of Algorithm 1 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
+
+        // TODO: Add implementation of NUDPL (fast doubling) from the same paper.
 
         let u1 = &self.a;
         let v1 = &self.b;
@@ -154,101 +217,28 @@ impl Add<&QuadraticForm> for QuadraticForm {
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
-        Self {
+        QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
-            partial_gcd_limit: self.partial_gcd_limit,
+            partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
         .reduce()
     }
 }
 
-impl QuadraticForm {
-    /// Create a new quadratic form given only the a and b coefficients and the discriminant.
-    pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &Discriminant) -> Self {
-        let c = ((&b * &b) - &discriminant.0) / (BigInt::from(4) * &a);
-        Self {
-            a,
-            b,
-            c,
-            // This limit is used for the partial_xgcd algorithm in the add method.
-            partial_gcd_limit: discriminant.0.abs().sqrt().sqrt(),
-        }
-    }
-
-    /// Return a generator (or, more precisely, an element with a presumed large order) in a class
-    /// group with a given discriminant. We use the element `(2, 1, x)` where `x` is determined from
-    /// the discriminant.
-    pub fn generator(discriminant: &Discriminant) -> Self {
-        Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
-    }
-
-    /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
-    pub fn discriminant(&self) -> Discriminant {
-        Discriminant::try_from(self.b.pow(2) - (BigInt::from(4) * &self.a * &self.c))
-            .expect("The discriminant is checked in the constructors")
-    }
-
-    /// Return true if this form is in normal form: -a < b <= a.
-    fn is_normal(&self) -> bool {
-        self.b <= self.a && self.b > -(&self.a)
-    }
-
-    /// Return a normalized form equivalent to this quadratic form.
-    fn normalize(self) -> Self {
-        if self.is_normal() {
-            return self;
-        }
-        let r = (&self.a - &self.b).div_floor(&(&self.a * 2));
-        let ra = &r * &self.a;
-        let c = self.c + (&ra + &self.b) * &r;
-        let b = self.b + &ra * 2;
-        Self {
-            a: self.a,
-            b,
-            c,
-            partial_gcd_limit: self.partial_gcd_limit,
-        }
-    }
-
-    /// Return true if this form is reduced: A form is reduced if it is normal (see [`is_normal`])
-    /// and  a <= c and if a == c then b >= 0.
-    fn is_reduced(&self) -> bool {
-        if !self.is_normal() {
-            return false;
-        }
-
-        match self.a.cmp(&self.c) {
-            Ordering::Less => true,
-            Ordering::Equal => self.b >= BigInt::zero(),
-            Ordering::Greater => false,
-        }
-    }
-
-    /// Return a reduced form (see [is_reduced]) equivalent to this quadratic form.
-    fn reduce(self) -> Self {
-        let mut form = self.normalize();
-        while !form.is_reduced() {
-            let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
-            let old_a = form.a.clone();
-            let old_b = form.b.clone();
-            form.a = form.c.clone();
-            form.b = -&form.b + &s * &form.c * 2;
-            form.c = (&form.c * &s - &old_b) * &s + &old_a;
-        }
-        form
-    }
-}
-
 impl ParameterizedGroupElement for QuadraticForm {
-    /// Type of the discriminant.
+    /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
 
     type ScalarType = BigInt;
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+    }
+
+    fn double(&self) -> Self {
+        self.compose(self)
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
@@ -266,6 +256,43 @@ impl ParameterizedGroupElement for QuadraticForm {
 
     fn has_group_parameter(&self, parameter: &Self::ParameterType) -> bool {
         self.discriminant() == *parameter
+    }
+}
+
+impl Add<&QuadraticForm> for QuadraticForm {
+    type Output = QuadraticForm;
+
+    fn add(self, rhs: &QuadraticForm) -> Self::Output {
+        self.compose(rhs)
+    }
+}
+
+impl Add<QuadraticForm> for QuadraticForm {
+    type Output = QuadraticForm;
+
+    fn add(self, rhs: QuadraticForm) -> Self::Output {
+        self.compose(&rhs)
+    }
+}
+
+impl Add<&QuadraticForm> for &QuadraticForm {
+    type Output = QuadraticForm;
+
+    fn add(self, rhs: &QuadraticForm) -> Self::Output {
+        self.compose(rhs)
+    }
+}
+
+impl Neg for QuadraticForm {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            a: self.a,
+            b: self.b.neg(),
+            c: self.c,
+            partial_gcd_limit: self.partial_gcd_limit,
+        }
     }
 }
 
@@ -302,7 +329,7 @@ struct PartialEuclideanAlgorithmOutput {
 }
 
 /// Compute the extended Euclidean algorithm for two integers `a` and `b` but quit early if the
-/// Bezout parameters are smaller than `limit`.
+/// Bezout parameters becomes smaller than the given `limit`.
 fn partial_euclidean_algorithm(
     a: BigInt,
     b: BigInt,

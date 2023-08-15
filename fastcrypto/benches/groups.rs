@@ -6,12 +6,17 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
+    use curv::arithmetic::Converter;
+    use curv::BigInt;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
+    use fastcrypto::groups::class_group::{Discriminant, QuadraticForm};
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{secp256r1, GroupElement, HashToGroupElement, Pairing, Scalar};
+    use fastcrypto::groups::{
+        secp256r1, GroupElement, HashToGroupElement, Pairing, ParameterizedGroupElement, Scalar,
+    };
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
@@ -181,6 +186,19 @@ mod group_benches {
         }
     }
 
+    fn class_group_ops(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Class Group Operation");
+        let d = Discriminant::try_from(BigInt::from_str_radix("-9458193260787340859710210783898414376413627187338129653105774703043377776905956484932486183722303201135571583745806165441941755833466966188398807387661571", 10).unwrap()).unwrap();
+        let x = QuadraticForm::generator(&d).mul(&BigInt::from(1234));
+        let y = QuadraticForm::generator(&d).mul(&BigInt::from(4321));
+        group.bench_function("Compose (512 bit discriminant)", move |b| b.iter(|| x.compose(&y)));
+
+        let d = Discriminant::try_from(BigInt::from_str_radix("-173197108158285529655099692042166386683260486655764503111574151459397279244340625070436917386670107433539464870917173822190635872887684166173874718269704667936351650895772937202272326332043347073303124000059154982400685660701006453457007094026343973435157790533480400962985543272080923974737725172126369794019", 10).unwrap()).unwrap();
+        let x = QuadraticForm::generator(&d).mul(&BigInt::from(1234));
+        let y = QuadraticForm::generator(&d).mul(&BigInt::from(4321));
+        group.bench_function("Compose (1024 bit discriminant)", move |b| b.iter(|| x.compose(&y)));
+    }
+
     criterion_group! {
         name = group_benches;
         config = Criterion::default().sample_size(100);
@@ -190,6 +208,7 @@ mod group_benches {
             hash_to_group,
             pairing,
             double_scale,
+            class_group_ops,
     }
 }
 
