@@ -135,8 +135,8 @@ fn test_verify_zk_login_google() {
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
     assert_eq!(
         zklogin_inputs
-    .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
-    .unwrap(),
+            .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
+            .unwrap(),
         vec![Bn254Fr::from_str(
             "9496323448584064558296338231676268184078052204097371080436367115432777673272"
         )
