@@ -177,7 +177,7 @@ impl QuadraticForm {
         let mut y = BigInt::zero();
         let mut z = 0u32;
 
-        while &by.abs() > &self.partial_gcd_limit && !bx.is_zero() {
+        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
