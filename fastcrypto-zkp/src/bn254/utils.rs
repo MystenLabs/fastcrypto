@@ -68,7 +68,7 @@ pub fn get_nonce(
 pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastCryptoError> {
     // Split the bytes deterministically such that the first element contains the first 128
     // bits of the hash, and the second element contains the latter ones.
-    let (first_half, second_half) = eph_pk_bytes.split_at(17);
+    let (first_half, second_half) = eph_pk_bytes.split_at(eph_pk_bytes.len() - 16);
     let first_bigint = BigUint::from_bytes_be(first_half);
     let second_bigint = BigUint::from_bytes_be(second_half);
 

@@ -2,11 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::str::FromStr;
 
 use crate::bn254::utils::get_nonce;
 use crate::bn254::zk_login::{
-    decode_base64_url, map_bytes_to_field, parse_jwks, trim, verify_extended_claim, Claim,
-    JWTDetails, JWTHeader,
+    decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
+    verify_extended_claim, Claim, JWTDetails, JWTHeader,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::Environment;
@@ -20,6 +21,7 @@ use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 use fastcrypto::traits::KeyPair;
+use num_bigint::BigUint;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
     "keys": [
@@ -90,10 +92,10 @@ fn test_verify_zk_login_google() {
 
     assert!(ZkLoginInputs::from_json("{\"something\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").is_err());
 
-    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
+    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"19787893228347416264175863455553559620428641614896993159007341506168718628112\",\"9525429549286657723959098685731622393483997723182834572003815901856723580461\",\"1\"],\"pi_b\":[[\"3493347571535213714356485688393536339935225306901617492672730508554674104240\",\"16985532751431776840148620485065973908539904507322892849232044565343489766128\"],[\"13893319072314620992397619679873669034526557780388381368678976150917704243179\",\"640742494801049238290284649145440140989242166770354858908399041461288677398\"],[\"1\",\"0\"]],\"pi_c\":[\"21862480547331092832339784749917351442633352096270524226556828302437894726278\",\"12611981741824395163083120319401608319346495925967864800017660949138781692880\",\"1\"]},\"address_seed\":\"15909817818955140159551330044992054478592339431921061309213971300613403932293\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjOWM3OGUzYjAwZTFiYjA5MmQyNDZjODg3YjExMjIwYzg3YjdkMjAiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
     assert_eq!(
         zklogin_inputs.get_kid(),
-        "911e39e27928ae9f1e9d1e21646de92d19351b44".to_string()
+        "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string()
     );
     assert_eq!(
         zklogin_inputs.get_iss(),
@@ -111,18 +113,21 @@ fn test_verify_zk_login_google() {
         zklogin_inputs.get_address_params().iss,
         OIDCProvider::Google.get_config().0.to_string()
     );
-
+    assert_eq!(
+        zklogin_inputs.get_address_seed(),
+        "15909817818955140159551330044992054478592339431921061309213971300613403932293"
+    );
     let mut map = HashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
-        n: "4kGxcWQdTW43aszLmftsGswmwDDKdfcse-lKeT_zjZTB2KGw9E6LVY6IThJVxzYF6mcyU-Z5_jDAW_yi7D_gXep2rxchZvoFayXynbhxyfjK6RtJ6_k30j-WpsXCSAiNAkupYHUyDIBNocvUcrDJsC3U65l8jl1I3nW98X6d-IlAfEb2In2f0fR6d-_lhIQZjXLupjymJduPjjA8oXCUZ9bfAYPhGYj3ZELUHkAyDpZNrnSi8hFVMSUSnorAt9F7cKMUJDM4-Uopzaqcl_f-HxeKvxN7NjiLSiIYaHdgtTpCEuNvsch6q6JTsllJNr3c__BxrG4UMlJ3_KsPxbcvXw".to_string(),
+        n: "pGMz603XOzO71r-LpW555Etbn2dXAtY4xToNE_Upr1EHxkHFnVnGPsbOeWzP8xU1IpAL56S3sTsbpCR_Ci_PYq8s4I3VWQM0u9w1D_e45S1KJTSex_aiMQ_cjTXb3Iekc00JIkMJhUaNnbsEt7PlOmnyFqvN-G3ZXVDfTuL2Wsn4tRMYf7YU3jgTVN2M_p7bcZYHhkEB-jzNeK7ub-6mOMkKdYWnk0jIoRfV63d32bub0pQpWv8sVmflgK2xKUSJVMZ7CM0FvJYJgF7y42KBPYc6Gm_UWE0uHazDgZgAvQQoNyEF_TRjVfGiihjPFYCPqvFcfLK4773JTD2fLZTgOQ".to_string(),
         alg: "RS256".to_string(),
     };
 
     map.insert(
         (
-            "911e39e27928ae9f1e9d1e21646de92d19351b44".to_string(),
+            "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string(),
             OIDCProvider::Google.get_config().0.to_string(),
         ),
         content.clone(),
@@ -130,14 +135,14 @@ fn test_verify_zk_login_google() {
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
     assert_eq!(
         zklogin_inputs
-            .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10000)
-            .unwrap(),
+    .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
+    .unwrap(),
         vec![Bn254Fr::from_str(
-            "16145454131073363668578485057126520560259092161919376662788533820152738424329"
+            "9496323448584064558296338231676268184078052204097371080436367115432777673272"
         )
         .unwrap()]
     );
-    let res = verify_zk_login(&zklogin_inputs, 10000, &eph_pubkey, &map, Environment::Test);
+    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, Environment::Test);
     assert!(res.is_ok());
 }
 
@@ -147,7 +152,7 @@ fn test_verify_zk_login_twitch() {
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
 
-    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"13091564805270242091988535637094928145526962426048248457544204014146120848061\",\"16720184877774297257067413263271993886875650921635894599271213076438028149121\",\"1\"],\"pi_b\":[[\"10315437641058147137376024432028897182269999873576264368551692657896041757048\",\"1508628913652029422583835336497010615341442910432485486157510667573899391209\"],[\"2615204984444202339450727742801445002386326248143849542511762200103437621802\",\"5849486215298305357746845827664545444623657491883886014999288709074461992087\"],[\"1\",\"0\"]],\"pi_c\":[\"14195277018213067909432749083395103683618329379082932858378933760763589481512\",\"15923172920578108290608652430421506204931592172775947506845238271513931833500\",\"1\"]},\"address_seed\":\"8309251037759855865804524144086603991988043161256515070528758422897128118794\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
+    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"13051843614423432670927014216106415297302637061714876201698143724579485057433\",\"4502868464003469408525038047182455632737577658719986979336848385442638461715\",\"1\"],\"pi_b\":[[\"3766376969677702623227635810414794209012765519614143648451277080679068806865\",\"15274848924865252629859978623879023835428524488301134035498591572116063831502\"],[\"7946138017363758578225489333393267390091071305689481146893911497411367587561\",\"2088365154316551099212086738010689343716611426876233601699514012876088160321\"],[\"1\",\"0\"]],\"pi_c\":[\"5241274211994340733749437701839810664498991243102320350483342489924082173589\",\"15038895168244503564969393433273344359013838973322340723065298413943589759359\",\"1\"]},\"address_seed\":\"15454157267374145582481438333218897413377268576773635507925280300337575904853\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
     assert_eq!(zklogin_inputs.get_kid(), "1".to_string());
     assert_eq!(
         zklogin_inputs.get_iss(),
@@ -167,7 +172,7 @@ fn test_verify_zk_login_twitch() {
     );
     assert_eq!(
         zklogin_inputs.get_address_seed(),
-        "8309251037759855865804524144086603991988043161256515070528758422897128118794"
+        "15454157267374145582481438333218897413377268576773635507925280300337575904853"
     );
 
     let mut map = HashMap::new();
@@ -338,17 +343,33 @@ fn test_verify_extended_claim() {
 }
 
 #[test]
-fn test_hash_to_field() {
+fn test_hash_ascii_str_to_field() {
     // Test generated against typescript implementation.
-    assert!(map_bytes_to_field("sub", 2).is_err());
     assert_eq!(
-        map_bytes_to_field("yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC", 133)
+        hash_ascii_str_to_field("test@gmail.com", 30)
             .unwrap()
             .to_string(),
-        "19198909745930267855439585988170070469004479286780644790990940640914248274464"
+        "13606676331558803166736332982602687405662978305929711411606106012181987145625"
     );
-    assert_eq!(map_bytes_to_field("CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC", 133).unwrap().to_string(), "6914089902564896687047107167562960781243311797290496295481879371814854678998");
-    assert_eq!(map_bytes_to_field("eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ", 150).unwrap().to_string(), "11195180390614794854381992733393925748746563026948577817495625199891112836762");
+}
+
+#[test]
+fn test_hash_to_field() {
+    // Test generated against typescript implementation.
+    assert_eq!(
+        hash_to_field(
+            &[
+                BigUint::from_str("32").unwrap(),
+                BigUint::from_str("25").unwrap(),
+                BigUint::from_str("73").unwrap()
+            ],
+            8,
+            16
+        )
+        .unwrap()
+        .to_string(),
+        "11782828208033177576380997957942702678240059658740659662920410026149313654840".to_string()
+    );
 }
 
 #[test]

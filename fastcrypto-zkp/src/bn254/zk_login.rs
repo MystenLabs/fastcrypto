@@ -342,7 +342,7 @@ impl ZkLoginInputs {
                     "Invalid claim length".to_string(),
                 ));
             }
-            claim_f.push(map_bytes_to_field(
+            claim_f.push(hash_ascii_str_to_field(
                 &padded_claims[i as usize].value_base64,
                 MAX_EXTRACTABLE_STR_LEN_B64,
             )?);
@@ -357,8 +357,8 @@ impl ZkLoginInputs {
                 .map(|c| to_field(&c.index_mod_4.to_string()).unwrap())
                 .collect::<Vec<_>>(),
         )?;
-        let header_f = map_bytes_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
-        let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048)?;
+        let header_f = hash_ascii_str_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
+        let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
         Ok(vec![poseidon.hash(vec![
             first,
             second,
@@ -518,17 +518,17 @@ fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
 }
 
 /// Pads a stream of bytes and maps it to a field element
-fn map_bytes_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoError> {
-    if str.len() > max_size as usize {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    let in_arr: Vec<BigUint> = str
+fn hash_ascii_str_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoError> {
+    let str_padded = str_to_padded_char_codes(str, max_size)?;
+    hash_to_field(&str_padded, 8, PACK_WIDTH)
+}
+
+fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+    let arr: Vec<BigUint> = str
         .chars()
         .map(|c| BigUint::from_slice(&([c as u32])))
         .collect();
-
-    let str_padded = pad_with_zeroes(in_arr, max_size)?;
-    hash_to_field(&str_padded, 8)
+    pad_with_zeroes(arr, max_len)
 }
 
 fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
@@ -547,57 +547,30 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
 /// inWidth to packWidth. Then we compute the poseidon hash of the "packed" input.
 /// input is the input vector containing equal-width big ints. inWidth is the width of
 /// each input element.
-fn hash_to_field(input: &[BigUint], in_width: u16) -> Result<Bn254Fr, FastCryptoError> {
-    let num_elements = (input.len() * in_width as usize) / PACK_WIDTH as usize + 1;
-    let packed = pack2(input, in_width, PACK_WIDTH, num_elements)?;
+fn hash_to_field(
+    input: &[BigUint],
+    in_width: u16,
+    pack_width: u16,
+) -> Result<Bn254Fr, FastCryptoError> {
+    let packed = convert_base(input, in_width, pack_width)?;
     to_poseidon_hash(packed)
 }
 
-/// Helper function to pack into exactly outCount chunks of outWidth bits each.
-fn pack2(
+/// Helper function to pack field elements from big ints.
+fn convert_base(
     in_arr: &[BigUint],
     in_width: u16,
     out_width: u16,
-    out_count: usize,
 ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
-    let packed = pack(in_arr, in_width as usize, out_width as usize)?;
-    if packed.len() > out_count as usize {
-        return Err(FastCryptoError::InvalidInput);
+    let bits = big_int_array_to_bits(in_arr, in_width as usize);
+    let packed: Vec<Bn254Fr> = bits
+        .chunks(out_width as usize)
+        .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
+        .collect();
+    match packed.len() != in_arr.len() * in_width as usize / out_width as usize + 1 {
+        true => Err(FastCryptoError::InvalidInput),
+        false => Ok(packed),
     }
-    let mut padded = packed.clone();
-    padded.extend(vec![
-        to_field("0")?;
-        out_count as usize - packed.len() as usize
-    ]);
-    Ok(padded)
-}
-
-/// Helper function to pack field elements from big ints.
-fn pack(
-    in_arr: &[BigUint],
-    in_width: usize,
-    out_width: usize,
-) -> Result<Vec<Bn254Fr>, FastCryptoError> {
-    let bits = big_int_array_to_bits(in_arr, in_width);
-    let extra_bits = if bits.len() % out_width == 0 {
-        0
-    } else {
-        out_width - (bits.len() % out_width)
-    };
-    let mut bits_padded = bits;
-    bits_padded.extend(vec![0; extra_bits]);
-
-    if bits_padded.len() % out_width != 0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-
-    Ok(bits_padded
-        .chunks(out_width)
-        .map(|chunk| {
-            let st = BigUint::from_radix_be(chunk, 2).unwrap().to_string();
-            Bn254Fr::from_str(&st).unwrap()
-        })
-        .collect())
 }
 
 /// Convert a big int array to a bit array with 0 paddings.
