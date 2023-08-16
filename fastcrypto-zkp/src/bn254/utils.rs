@@ -15,12 +15,12 @@ use std::str::FromStr;
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_enoki_address(address_seed: String, param: AddressParams) -> [u8; 32] {
+pub fn get_enoki_address(address_seed: &str, param: AddressParams) -> [u8; 32] {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
     // unwrap is safe here
     hasher.update(bcs::to_bytes(&AddressParams::new(param.iss, param.aud)).unwrap());
-    hasher.update(big_int_str_to_bytes(&address_seed));
+    hasher.update(big_int_str_to_bytes(address_seed));
     hasher.finalize().digest
 }
 

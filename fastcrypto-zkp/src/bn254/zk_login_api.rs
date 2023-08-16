@@ -19,11 +19,17 @@ use once_cell::sync::Lazy;
 
 /// Enum to specify the environment to use for verifying keys.
 #[derive(Debug)]
-pub enum Environment {
+pub enum ZkLoginEnv {
     /// Use the secure global verifying key derived from ceremony.
-    Production,
+    Prod,
     /// Use the insecure global verifying key.
     Test,
+}
+
+impl Default for ZkLoginEnv {
+    fn default() -> Self {
+        Self::Prod
+    }
 }
 
 // TODO: Replace after ceremony.
@@ -124,12 +130,13 @@ pub fn verify_zk_login(
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
     all_jwk: &HashMap<(String, String), JWK>,
-    usage: Environment,
+    usage: ZkLoginEnv,
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (kid, iss).
-    let jwk = all_jwk
-        .get(&(input.get_kid().to_string(), input.get_iss().to_string()))
-        .ok_or_else(|| FastCryptoError::GeneralError("JWK not found".to_string()))?;
+    let (kid, iss) = (input.get_kid().to_string(), input.get_iss().to_string());
+    let jwk = all_jwk.get(&(kid.clone(), iss.clone())).ok_or_else(|| {
+        FastCryptoError::GeneralError(format!("JWK not found ({} - {})", kid, iss))
+    })?;
 
     // Decode modulus to bytes.
     let modulus = Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
@@ -151,13 +158,13 @@ pub fn verify_zk_login(
 
 /// Verify a proof against its public inputs using the fixed verifying key.
 fn verify_zk_login_proof_with_fixed_vk(
-    usage: Environment,
+    usage: ZkLoginEnv,
     proof: Proof<Bn254>,
     public_inputs: &[Bn254Fr],
 ) -> Result<bool, FastCryptoError> {
     let pvk = match usage {
-        Environment::Production => &GLOBAL_VERIFYING_KEY,
-        Environment::Test => &INSECURE_GLOBAL_VERIFYING_KEY,
+        ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY,
+        ZkLoginEnv::Test => &INSECURE_GLOBAL_VERIFYING_KEY,
     };
     Groth16::<Bn254>::verify_with_processed_vk(pvk, public_inputs, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
