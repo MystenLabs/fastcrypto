@@ -478,10 +478,10 @@ fn base64_to_bitarray(input: &str) -> Vec<u8> {
     input
         .chars()
         .flat_map(|c| {
-            let index = base64_url_character_set.find(c).unwrap();
+            let index = base64_url_character_set.find(c).unwrap() as u8;
             let mut bits = Vec::<u8>::new();
             for i in (0..6).rev() {
-                bits.push((index >> i & 1) as u8);
+                bits.push(index >> i & 1);
             }
             bits
         })
