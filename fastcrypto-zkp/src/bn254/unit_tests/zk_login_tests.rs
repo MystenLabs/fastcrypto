@@ -153,8 +153,12 @@ fn test_verify_zk_login_google() {
         )
         .unwrap()]
     );
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, ZkLoginEnv::Test);
+    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
+
+    // Do not verify against the prod vk.
+    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    assert!(res1.is_err());
 }
 
 #[test]
@@ -201,8 +205,12 @@ fn test_verify_zk_login_twitch() {
         n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
         alg: "RS256".to_string(),
     });
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, ZkLoginEnv::Test);
+    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
+
+    // Do not verify against the prod vk.
+    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    assert!(res1.is_err());
 }
 
 #[test]
@@ -250,12 +258,16 @@ fn test_verify_zk_login_facebook() {
         n: "-GuAIboTsRYNprJQOkdmuKXRx8ARnKXOC9Pajg4KxHHPt3OY8rXRmVeDxTj1-m9TfW6V-wJa_8ncBbbFE-aV-eBi_XeuIToBBvLZp1-UPIjitS8WCDrUhHiJnbvkIZf1B1YBIq_Ua81fzxhtjQ0jDftV2m5aavmJG4_94VG3Md7noQjjUKzxJyUNl4v_joMA6pIRCeeamvfIZorjcR4wVf-wR8NiZjjRbcjKBpc7ztc7Gm778h34RSe9-DLH6uicTROSYNa99pUwhn3XVfAv4hTFpLIcgHYadLZjsHfUvivr76uiYbxDZx6UTkK5jmi51b87u1b6iYmijDIMztzrIQ".to_string(),
         alg: "RS256".to_string(),
     });
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, ZkLoginEnv::Test);
+    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
+
+    // Do not verify against the prod vk.
+    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    assert!(res1.is_err());
 }
 
 #[test]
-fn test_parsed_masked_content() {
+fn test_parse_jwt_details() {
     let header = JWTHeader::new("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ").unwrap();
     assert_eq!(header.alg, "RS256");
     assert_eq!(header.typ, "JWT");

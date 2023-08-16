@@ -48,6 +48,19 @@ pub enum OIDCProvider {
     Facebook,
 }
 
+impl FromStr for OIDCProvider {
+    type Err = FastCryptoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Google" => Ok(Self::Google),
+            "Twitch" => Ok(Self::Twitch),
+            "Facebook" => Ok(Self::Facebook),
+            _ => Err(FastCryptoError::InvalidInput),
+        }
+    }
+}
+
 /// Struct that contains all the OIDC provider's JWK. A list of them can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>)
 /// and published on the bulletin along with a trusted party's signature.
@@ -161,6 +174,16 @@ impl OIDCProvider {
                 "https://www.facebook.com",
                 "https://www.facebook.com/.well-known/oauth/openid/jwks/",
             ),
+        }
+    }
+
+    /// Returns the OIDCProvider for the given iss string.
+    pub fn from_iss(iss: &str) -> Result<Self, FastCryptoError> {
+        match iss {
+            "https://accounts.google.com" => Ok(Self::Google),
+            "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
+            "https://www.facebook.com" => Ok(Self::Facebook),
+            _ => Err(FastCryptoError::InvalidInput),
         }
     }
 }
