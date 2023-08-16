@@ -84,12 +84,10 @@ impl<G: GroupElement> Nodes<G> {
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
     pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
         let mut max_d = 1;
-        for d in 2..=50 {
+        for d in 2..=40 {
             let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if sum <= allowed_delta {
                 max_d = d;
-            } else {
-                break;
             }
         }
         let nodes = self
