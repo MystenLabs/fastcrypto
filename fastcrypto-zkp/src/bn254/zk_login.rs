@@ -525,7 +525,7 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
-    let mut padded = in_arr.clone();
+    let mut padded = in_arr;
     padded.resize(out_count as usize, BigUint::zero());
     Ok(padded)
 }
