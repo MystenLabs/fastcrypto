@@ -11,6 +11,7 @@ use super::{
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
+use ark_ff::Zero;
 use ark_groth16::Proof;
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::{
@@ -477,38 +478,23 @@ fn base64_to_bitarray(input: &str) -> Vec<u8> {
     input
         .chars()
         .flat_map(|c| {
-            let index = base64_url_character_set.find(c).unwrap();
-            let mut bits = Vec::new();
-            for i in 0..6 {
-                bits.push(u8::from((index >> (5 - i)) & 1 == 1));
-            }
-            bits
+            let index = base64_url_character_set.find(c).unwrap() as u8;
+            (0..6).rev().map(move |i| index >> i & 1)
         })
         .collect()
 }
 
-/// Convert a bitarray (each bit is represented by u8) to a bytearray by taking each 8 bits as a byte.
+/// Convert a bitarray (each bit is represented by u8) to a byte array by taking each 8 bits as a
+/// byte in big-endian format.
 fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
-    let mut current_byte: u8 = 0;
-    let mut bits_remaining: u8 = 8;
-
-    for bit in bits.iter() {
-        if bit == &1 {
-            current_byte |= 1 << (bits_remaining - 1);
+    for bits in bits.chunks(8) {
+        let mut byte = 0u8;
+        for (i, bit) in bits.iter().rev().enumerate() {
+            byte |= bit << i;
         }
-        bits_remaining -= 1;
-        if bits_remaining == 0 {
-            bytes.push(current_byte);
-            current_byte = 0;
-            bits_remaining = 8;
-        }
+        bytes.push(byte);
     }
-
-    if bits_remaining < 8 {
-        bytes.push(current_byte);
-    }
-
     bytes
 }
 
@@ -535,11 +521,8 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
-    let mut padded = in_arr.clone();
-    padded.extend(vec![
-        BigUint::from_str("0").unwrap();
-        out_count as usize - in_arr.len() as usize
-    ]);
+    let mut padded = in_arr;
+    padded.resize(out_count as usize, BigUint::zero());
     Ok(padded)
 }
 
