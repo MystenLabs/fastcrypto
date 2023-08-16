@@ -488,14 +488,14 @@ fn base64_to_bitarray(input: &str) -> Vec<u8> {
         .collect()
 }
 
-/// Convert a bitarray (each bit is represented by u8) to a bytearray by taking each 8 bits as a byte
-/// in big-endian format.
+/// Convert a bitarray (each bit is represented by u8) to a byte array by taking each 8 bits as a
+/// byte in big-endian format.
 fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
     let mut bytes: Vec<u8> = Vec::new();
     for bits in bits.chunks(8) {
         let mut byte = 0u8;
-        for (i, bit) in bits.iter().enumerate() {
-            byte |= bit << (7 - i);
+        for (i, bit) in bits.iter().rev().enumerate() {
+            byte |= bit << i;
         }
         bytes.push(byte);
     }
@@ -526,10 +526,7 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
     let mut padded = in_arr.clone();
-    padded.extend(vec![
-        BigUint::zero();
-        out_count as usize - in_arr.len() as usize
-    ]);
+    padded.resize(out_count as usize, BigUint::zero());
     Ok(padded)
 }
 
