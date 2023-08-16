@@ -54,14 +54,14 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             output = output.clone() + &output;
         }
 
-        let b = get_b(&input.as_bytes(), &output.as_bytes());
+        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes());
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let two = BigInt::from(2);
-        let mut quotient_remainder = two.div_mod_floor(&b);
+        let mut quotient_remainder = two.div_mod_floor(&challenge);
         let mut proof = input.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
-            quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&b);
+            quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&challenge);
             proof = proof.double() + &input.mul(&quotient_remainder.0);
         }
 
@@ -76,10 +76,10 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             return Err(InvalidInput);
         }
 
-        let b = get_b(&input.as_bytes(), &output.as_bytes());
-        let f1 = proof.mul(&b);
+        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes());
+        let f1 = proof.mul(&challenge);
 
-        let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(self.iterations), &b);
+        let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
         let f2 = input.mul(&r);
 
         if f1 + &f2 != *output {
@@ -114,7 +114,7 @@ impl WesolowskiVDF<QuadraticForm> {
 
 /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
 /// to make the Wesolowski VDF non-interactive.
-fn get_b(x: &[u8], y: &[u8]) -> BigInt {
+fn get_challenge(x: &[u8], y: &[u8]) -> BigInt {
     let mut seed = vec![];
     seed.extend_from_slice(x);
     seed.extend_from_slice(y);
