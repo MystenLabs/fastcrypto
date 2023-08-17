@@ -207,4 +207,10 @@ fn test_prove_and_verify() {
 
     // Check that output is the same as chiavdf.
     assert_eq!(output.as_bytes(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
+
+    // A modified output or proof fails to verify
+    let modified_output = output.mul(&BigInt::from(2));
+    let modified_proof = proof.mul(&BigInt::from(2));
+    assert!(vdf.verify(&g, &modified_output, &proof).is_err());
+    assert!(vdf.verify(&g, &output, &modified_proof).is_err());
 }
