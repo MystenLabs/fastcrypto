@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashMap;
 use std::str::FromStr;
 
 use crate::bn254::utils::{get_enoki_address, get_nonce};
@@ -23,6 +22,7 @@ use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as OtherEncoding};
 use fastcrypto::traits::KeyPair;
+use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
 
 const GOOGLE_JWK_BYTES: &[u8] = r#"{
@@ -125,7 +125,7 @@ fn test_verify_zk_login_google() {
         Hex::decode("0x7bf6145cfe0592c0428ed8ce9612077b9ca1e5bc60308a90990bc952d13ccce8").unwrap()
     );
 
-    let mut map = HashMap::new();
+    let mut map = ImHashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
@@ -196,7 +196,7 @@ fn test_verify_zk_login_twitch() {
         Hex::decode("0x18642facd3dcc683f24490f5adb576eb02fc12073c46c9006dbe854cdbfbb899").unwrap()
     );
 
-    let mut map = HashMap::new();
+    let mut map = ImHashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
@@ -268,7 +268,7 @@ fn test_verify_zk_login_facebook() {
         Hex::decode("0x5e3733bf03f715a87b641553fce0f8b22bcb6385ce78cc05ddecd55929a5a304").unwrap()
     );
 
-    let mut map = HashMap::new();
+    let mut map = ImHashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
