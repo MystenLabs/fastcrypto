@@ -9,11 +9,11 @@ use crate::groups::class_group::compressed::CompressedQuadraticForm::{
 };
 use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
 use crate::groups::ParameterizedGroupElement;
-use curv::arithmetic::{
-    BasicOps, BitManipulation, Converter, Integer, Modulo, One, Roots, Zero as OtherZero,
-};
-use curv::BigInt;
+use num_bigint::{BigInt, Sign};
+use num_integer::{ExtendedGcd, Integer};
+use num_traits::{One, Signed, Zero as OtherZero};
 use std::cmp::Ordering;
+use std::ops::Mul;
 
 /// A quadratic form in compressed representation. See https://eprint.iacr.org/2020/196.pdf.
 #[derive(PartialEq, Eq, Debug)]
@@ -143,8 +143,11 @@ impl CompressedQuadraticForm {
                     t_prime.clone()
                 };
 
-                let d_mod_a = discriminant.0.modulus(a_prime);
-                let sqrt_input = BigInt::mod_mul(&t.pow(2).modulus(a_prime), &d_mod_a, a_prime);
+                let d_mod_a = discriminant.0.mod_floor(a_prime);
+                let sqrt_input = t
+                    .modpow(&BigInt::from(2), a_prime)
+                    .mul(&d_mod_a)
+                    .mod_floor(a_prime);
                 let sqrt = sqrt_input.sqrt();
 
                 // Ensure square root is exact
@@ -158,8 +161,8 @@ impl CompressedQuadraticForm {
                     a_prime.clone()
                 };
 
-                let t_inv = BigInt::mod_inv(&t, a_prime).ok_or(FastCryptoError::InvalidInput)?;
-                let mut out_b = BigInt::mod_mul(&sqrt, &t_inv, a_prime);
+                let t_inv = mod_inverse(&t, a_prime)?;
+                let mut out_b = sqrt.mul(&t_inv).mod_floor(a_prime);
                 if b0 > &BigInt::zero() {
                     out_b += a_prime * b0;
                 }
@@ -197,10 +200,10 @@ impl CompressedQuadraticForm {
 
                 // The bit length of the discriminant, which is rounded up to the next multiple of 32.
                 // Serialization of special forms (identity or generator) takes only 1 byte.
-                let d_bits = (form.discriminant.0.bit_length() + 31) & !31;
+                let d_bits = (form.discriminant.0.bits() as usize + 31) & !31;
 
                 // Size of g in bytes minus 1 (g_size)
-                let g_size = (form.g.bit_length() + 7) / 8 - 1;
+                let g_size = (form.g.bits() as usize + 7) / 8 - 1;
                 bytes.push(g_size as u8);
 
                 let a_prime_length = d_bits / 16 - g_size;
@@ -254,7 +257,7 @@ impl CompressedQuadraticForm {
 
         // The bit length of the discriminant, which is rounded up to the next multiple of 32.
         // Serialization of special forms (identity or generator) takes only 1 byte.
-        let d_bits = (discriminant.0.bit_length() + 31) & !31;
+        let d_bits = (discriminant.0.bits() as usize + 31) & !31;
 
         // Size of g in bytes minus 1 (g_size)
         let g_size = bytes[1] as usize;
@@ -299,19 +302,28 @@ impl CompressedQuadraticForm {
     }
 }
 
-/// Import function for curv::BigInts using little-endian representation.
-fn bigint_from_bytes(bytes: &[u8]) -> BigInt {
-    // Note that to_vec copies the bytes which is not needed. However, this function is only used
-    // during deserialization so it's not an issue for performance.
-    let mut reversed = bytes.to_vec();
-    reversed.reverse();
-    BigInt::from_bytes(&reversed)
+/// Return the modular inverse of a modulo m or an error if a is not invertible modulo m.
+fn mod_inverse(a: &BigInt, m: &BigInt) -> FastCryptoResult<BigInt> {
+    if m <= &BigInt::one() || a.is_zero() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+
+    let ExtendedGcd::<BigInt> { gcd, x, y: _ } = a.extended_gcd(m);
+
+    if !gcd.is_one() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    Ok(x.mod_floor(m))
 }
 
-/// Export function for curv::BigInts using little-endian representation.
+/// Import function for BigInts using little-endian representation.
+fn bigint_from_bytes(bytes: &[u8]) -> BigInt {
+    BigInt::from_bytes_le(Sign::Plus, bytes)
+}
+
+/// Export function for BigInts using little-endian representation.
 fn bigint_to_bytes(n: &BigInt) -> Vec<u8> {
-    let mut bytes = n.to_bytes();
-    bytes.reverse();
+    let (_, bytes) = n.to_bytes_le();
     bytes
 }
 
@@ -359,72 +371,85 @@ fn partial_xgcd(a: &BigInt, b: &BigInt) -> FastCryptoResult<(BigInt, BigInt)> {
     Ok((s.0, t.0))
 }
 
-#[test]
-fn test_bigint_import() {
-    let bytes = hex::decode("0102").unwrap();
-    let bigint = bigint_from_bytes(&bytes);
+#[cfg(test)]
+mod tests {
+    use crate::groups::class_group::compressed::{
+        bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm,
+    };
+    use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
+    use crate::groups::ParameterizedGroupElement;
+    use num_bigint::BigInt;
+    use num_traits::Num;
 
-    // We expect little endian, e.g. 0x02 * 256 + 0x01 = 513.
-    let expected = BigInt::from_str_radix("513", 10).unwrap();
-    assert_eq!(bigint, expected);
+    #[test]
+    fn test_bigint_import() {
+        let bytes = hex::decode("0102").unwrap();
+        let bigint = bigint_from_bytes(&bytes);
 
-    let reconstructed = bigint_to_bytes(&bigint);
-    assert_eq!(bytes, reconstructed);
-}
+        // We expect little endian, e.g. 0x02 * 256 + 0x01 = 513.
+        let expected = BigInt::from_str_radix("513", 10).unwrap();
+        assert_eq!(bigint, expected);
 
-#[test]
-fn test_compression() {
-    let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
-    let discriminant =
-        Discriminant::try_from(-BigInt::from_hex(discriminant_hex).unwrap()).unwrap();
-    let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-    let compressed =
-        CompressedQuadraticForm::deserialize(&hex::decode(compressed_hex).unwrap(), &discriminant)
-            .unwrap();
-    let decompressed = compressed.decompress().unwrap();
-    let recompressed = decompressed.compress();
-    assert_eq!(compressed, recompressed);
-}
+        let reconstructed = bigint_to_bytes(&bigint);
+        assert_eq!(bytes, reconstructed);
+    }
 
-#[test]
-fn test_serialize_deserialize() {
-    let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
-    let discriminant =
-        Discriminant::try_from(-BigInt::from_hex(discriminant_hex).unwrap()).unwrap();
-    let compressed_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-    let compressed_bytes = hex::decode(compressed_hex).unwrap();
-    let compressed =
-        CompressedQuadraticForm::deserialize(&compressed_bytes, &discriminant).unwrap();
-    let serialized = compressed.serialize();
-    assert_eq!(serialized.to_vec(), compressed_bytes);
+    #[test]
+    fn test_compression() {
+        let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
+        let discriminant =
+            Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, 16).unwrap()).unwrap();
+        let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let compressed = CompressedQuadraticForm::deserialize(
+            &hex::decode(compressed_hex).unwrap(),
+            &discriminant,
+        )
+        .unwrap();
+        let decompressed = compressed.decompress().unwrap();
+        let recompressed = decompressed.compress();
+        assert_eq!(compressed, recompressed);
+    }
 
-    let mut generator_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
-    generator_serialized[0] = 0x08;
-    assert_eq!(
-        QuadraticForm::generator(&discriminant)
-            .compress()
-            .serialize(),
-        generator_serialized
-    );
-    assert_eq!(
-        QuadraticForm::generator(&discriminant),
-        CompressedQuadraticForm::deserialize(&generator_serialized, &discriminant)
-            .unwrap()
-            .decompress()
-            .unwrap()
-    );
+    #[test]
+    fn test_serialize_deserialize() {
+        let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
+        let discriminant =
+            Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, 16).unwrap()).unwrap();
+        let compressed_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let compressed_bytes = hex::decode(compressed_hex).unwrap();
+        let compressed =
+            CompressedQuadraticForm::deserialize(&compressed_bytes, &discriminant).unwrap();
+        let serialized = compressed.serialize();
+        assert_eq!(serialized.to_vec(), compressed_bytes);
 
-    let mut identity_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
-    identity_serialized[0] = 0x04;
-    assert_eq!(
-        QuadraticForm::zero(&discriminant).compress().serialize(),
-        identity_serialized
-    );
-    assert_eq!(
-        QuadraticForm::zero(&discriminant),
-        CompressedQuadraticForm::deserialize(&identity_serialized, &discriminant)
-            .unwrap()
-            .decompress()
-            .unwrap()
-    );
+        let mut generator_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
+        generator_serialized[0] = 0x08;
+        assert_eq!(
+            QuadraticForm::generator(&discriminant)
+                .compress()
+                .serialize(),
+            generator_serialized
+        );
+        assert_eq!(
+            QuadraticForm::generator(&discriminant),
+            CompressedQuadraticForm::deserialize(&generator_serialized, &discriminant)
+                .unwrap()
+                .decompress()
+                .unwrap()
+        );
+
+        let mut identity_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
+        identity_serialized[0] = 0x04;
+        assert_eq!(
+            QuadraticForm::zero(&discriminant).compress().serialize(),
+            identity_serialized
+        );
+        assert_eq!(
+            QuadraticForm::zero(&discriminant),
+            CompressedQuadraticForm::deserialize(&identity_serialized, &discriminant)
+                .unwrap()
+                .decompress()
+                .unwrap()
+        );
+    }
 }

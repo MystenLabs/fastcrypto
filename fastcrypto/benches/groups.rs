@@ -6,8 +6,6 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
-    use curv::arithmetic::Converter;
-    use curv::BigInt;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
     use fastcrypto::groups::class_group::{Discriminant, QuadraticForm};
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
@@ -17,6 +15,8 @@ mod group_benches {
     use fastcrypto::groups::{
         secp256r1, GroupElement, HashToGroupElement, Pairing, ParameterizedGroupElement, Scalar,
     };
+    use num_bigint::BigInt;
+    use num_traits::Num;
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(

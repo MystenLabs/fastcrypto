@@ -7,8 +7,9 @@ use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::hash::{HashFunction, Sha256};
 use crate::vdf::VDF;
-use curv::arithmetic::{BitManipulation, Converter, Integer, Modulo, Primes};
-use curv::BigInt;
+use num_bigint::{BigInt, Sign};
+use num_integer::Integer;
+use num_prime::nt_funcs::is_prime;
 use std::cmp::min;
 use std::ops::Neg;
 
@@ -79,7 +80,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
         let challenge = get_challenge(&input.as_bytes(), &output.as_bytes());
         let f1 = proof.mul(&challenge);
 
-        let r = BigInt::mod_pow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
+        let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
         let f2 = input.mul(&r);
 
         if f1 + &f2 != *output {
@@ -148,15 +149,15 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
             let hash = Sha256::digest(&sprout).digest;
             blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
         }
-        let mut x = BigInt::from_bytes(&blob);
+        let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
         for b in bitmask {
-            x.set_bit(*b, true);
+            x.set_bit(*b as u64, true);
         }
 
         // The implementations of the primality test used below might be slightly different from the
         // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
         // is not an issue.
-        if x.is_probable_prime(100) {
+        if is_prime(&x.to_biguint().unwrap(), None).probably() {
             return Ok(x);
         }
     }

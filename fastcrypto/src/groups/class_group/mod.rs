@@ -10,8 +10,9 @@
 use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
-use curv::arithmetic::{BasicOps, BitManipulation, Integer, Modulo, One, Roots, Zero};
-use curv::BigInt;
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Neg};
@@ -19,11 +20,12 @@ use std::ops::{Add, Neg};
 mod compressed;
 
 /// The maximal size in bits we allow a discriminant to have.
-pub const MAX_DISCRIMINANT_SIZE_IN_BITS: usize = 1024;
+pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
 
 /// The size of a compressed quadratic form in bytes. We force all forms to have the same size,
 /// namely 100 bytes.
-pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4;
+pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize =
+    ((MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4) as usize;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -65,7 +67,7 @@ impl QuadraticForm {
 
     /// Return true if this form is in normal form: -a < b <= a.
     fn is_normal(&self) -> bool {
-        self.b <= self.a && self.b > -(&self.a)
+        self.b <= self.a && self.b > (&self.a).neg()
     }
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
@@ -95,7 +97,7 @@ impl QuadraticForm {
 
         match self.a.cmp(&self.c) {
             Ordering::Less => true,
-            Ordering::Equal => self.b >= BigInt::zero(),
+            Ordering::Equal => !self.b.is_negative(),
             Ordering::Greater => false,
         }
     }
@@ -135,7 +137,7 @@ impl QuadraticForm {
         if w1 < w2 {
             swap(&mut (u1, v1, w1), &mut (u2, v2, w2));
         }
-        let s = (v1 + v2) >> 1;
+        let s: BigInt = (v1 + v2) >> 1;
         let m = v2 - &s;
 
         // 2.
@@ -167,12 +169,12 @@ impl QuadraticForm {
             capital_dy = &s / &g;
 
             // 4.
-            let l = (&y * (&b * (w1.modulus(&h)) + &c * (w2.modulus(&h)))).modulus(&h);
+            let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
             capital_bx = &b * (&m / &h) + &l * (&capital_by / &h);
         }
 
         // 5. (partial xgcd)
-        let mut bx = capital_bx.modulus(&capital_by);
+        let mut bx = capital_bx.mod_floor(&capital_by);
         let mut by = capital_by.clone();
 
         let mut x = BigInt::one();
@@ -261,9 +263,9 @@ impl ParameterizedGroupElement for QuadraticForm {
         }
 
         let mut result = self.clone();
-        for i in (0..scale.bit_length() - 1).rev() {
+        for i in (0..scale.bits() - 1).rev() {
             result = result.double();
-            if scale.test_bit(i) {
+            if scale.bit(i) {
                 result = result + self;
             }
         }
@@ -327,72 +329,66 @@ impl TryFrom<BigInt> for Discriminant {
     type Error = FastCryptoError;
 
     fn try_from(value: BigInt) -> FastCryptoResult<Self> {
-        if value >= BigInt::zero() || value.modulus(&BigInt::from(4)) != BigInt::from(1) {
+        if !value.is_negative() || value.mod_floor(&BigInt::from(4)) != BigInt::from(1) {
             return Err(InvalidInput);
         }
 
-        if value.bit_length() > MAX_DISCRIMINANT_SIZE_IN_BITS {
-            return Err(InputTooLong(value.bit_length()));
+        if value.bits() > MAX_DISCRIMINANT_SIZE_IN_BITS {
+            return Err(InputTooLong(value.bits() as usize));
         }
 
         Ok(Self(value))
     }
 }
 
-#[test]
-fn test_multiplication() {
-    let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
-    let generator = QuadraticForm::generator(&discriminant);
-    let mut current = QuadraticForm::zero(&discriminant);
-    for i in 0..100 {
-        assert_eq!(current, generator.mul(&BigInt::from(i)));
-        current = current + &generator;
+#[cfg(test)]
+mod tests {
+    use crate::groups::class_group::{Discriminant, QuadraticForm};
+    use crate::groups::ParameterizedGroupElement;
+    use num_bigint::BigInt;
+
+    #[test]
+    fn test_multiplication() {
+        let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
+        let generator = QuadraticForm::generator(&discriminant);
+        let mut current = QuadraticForm::zero(&discriminant);
+        for i in 0..100 {
+            assert_eq!(current, generator.mul(&BigInt::from(i)));
+            current = current + &generator;
+        }
     }
-}
 
-#[test]
-fn test_normalization_and_reduction() {
-    let discriminant = Discriminant::try_from(BigInt::from(-19)).unwrap();
-    let mut quadratic_form =
-        QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
-    assert_eq!(quadratic_form.c, BigInt::from(55));
+    #[test]
+    fn test_normalization_and_reduction() {
+        let discriminant = Discriminant::try_from(BigInt::from(-19)).unwrap();
+        let mut quadratic_form =
+            QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
+        assert_eq!(quadratic_form.c, BigInt::from(55));
 
-    quadratic_form = quadratic_form.normalize();
+        quadratic_form = quadratic_form.normalize();
 
-    // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-    assert_eq!(quadratic_form.a, BigInt::from(11));
-    assert_eq!(quadratic_form.b, BigInt::from(5));
-    assert_eq!(quadratic_form.c, BigInt::from(1));
+        // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
+        assert_eq!(quadratic_form.a, BigInt::from(11));
+        assert_eq!(quadratic_form.b, BigInt::from(5));
+        assert_eq!(quadratic_form.c, BigInt::from(1));
 
-    quadratic_form = quadratic_form.reduce();
+        quadratic_form = quadratic_form.reduce();
 
-    // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-    assert_eq!(quadratic_form.a, BigInt::from(1));
-    assert_eq!(quadratic_form.b, BigInt::from(1));
-    assert_eq!(quadratic_form.c, BigInt::from(5));
-}
+        // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
+        assert_eq!(quadratic_form.a, BigInt::from(1));
+        assert_eq!(quadratic_form.b, BigInt::from(1));
+        assert_eq!(quadratic_form.c, BigInt::from(5));
+    }
 
-#[test]
-fn test_composition() {
-    // Test vector computed with PARI/GP
+    #[test]
+    fn test_composition() {
+        // The order of the class group (the class number) for -223 is 7 (see https://mathworld.wolfram.com/ClassNumber.html).
+        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
+        let g = QuadraticForm::generator(&discriminant);
 
-    let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
-    let g = QuadraticForm::generator(&discriminant);
-    let b = QuadraticForm::from_a_b_discriminant(BigInt::from(3), BigInt::from(-1), &discriminant);
-    let a1 = g.clone();
-
-    let a2 = a1 + &g;
-    assert_eq!(a2, b);
-
-    let a3 = a2 + &g;
-    assert_eq!(a3, b.neg());
-
-    let a4 = a3 + &g;
-    assert_eq!(a4, g.clone().neg());
-
-    let a5 = a4 + &g;
-    assert_eq!(a5, QuadraticForm::zero(&discriminant));
-
-    let a6 = a5 + &g;
-    assert_eq!(a6, g);
+        for i in 1..=6 {
+            assert_ne!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(i)));
+        }
+        assert_eq!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(7)));
+    }
 }
