@@ -41,7 +41,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     type OutputType = G;
     type ProofType = G;
 
-    fn eval(&self, input: &G) -> FastCryptoResult<(G, G)> {
+    fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
         if !input.has_group_parameter(&self.group_parameter) {
             return Err(InvalidInput);
         }
@@ -202,7 +202,7 @@ fn test_prove_and_verify() {
     let g = QuadraticForm::generator(&discriminant);
 
     let vdf = ClassGroupVDF::new(discriminant, iterations);
-    let (output, proof) = vdf.eval(&g).unwrap();
+    let (output, proof) = vdf.evaluate(&g).unwrap();
     assert!(vdf.verify(&g, &output, &proof).is_ok());
 
     // Check that output is the same as chiavdf.

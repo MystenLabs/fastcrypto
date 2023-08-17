@@ -20,7 +20,7 @@ pub trait VDF {
     type ProofType;
 
     /// Evaluate this VDF and return the output and a proof of correctness.
-    fn eval(
+    fn evaluate(
         &self,
         input: &Self::InputType,
     ) -> FastCryptoResult<(Self::OutputType, Self::ProofType)>;
