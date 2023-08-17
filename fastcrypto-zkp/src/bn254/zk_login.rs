@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoResult;
+use reqwest::Client;
 use serde_json::Value;
 
 use super::{
@@ -36,7 +37,7 @@ const NUM_EXTRACTABLE_STRINGS: u8 = 5;
 const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
 const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 
-/// Supported OAuth providers.
+/// Supported OIDC providers.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum OIDCProvider {
     /// See https://accounts.google.com/.well-known/openid-configuration
@@ -47,10 +48,22 @@ pub enum OIDCProvider {
     Facebook,
 }
 
-/// Struct that contains all the OAuth provider information. A list of them can
+impl FromStr for OIDCProvider {
+    type Err = FastCryptoError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "Google" => Ok(Self::Google),
+            "Twitch" => Ok(Self::Twitch),
+            "Facebook" => Ok(Self::Facebook),
+            _ => Err(FastCryptoError::InvalidInput),
+        }
+    }
+}
+
+/// Struct that contains all the OIDC provider's JWK. A list of them can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>)
 /// and published on the bulletin along with a trusted party's signature.
-// #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
 #[derive(Hash, Debug, Clone, Serialize, Deserialize)]
 pub struct JWK {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
@@ -63,8 +76,7 @@ pub struct JWK {
     pub alg: String,
 }
 
-/// Reader struct to parse all fields.
-// #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
+/// Reader struct to parse all fields in a JWK from JSON.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct JWKReader {
     e: String,
@@ -101,35 +113,28 @@ fn trim(str: String) -> String {
     str.trim_end_matches('=').to_owned()
 }
 
-/// Fetch JWKs from all supported OAuth providers and return the list as ((iss, kid), JWK)
-pub async fn fetch_jwks() -> Result<ParsedJWKs, FastCryptoError> {
-    let client = reqwest::Client::new();
-    let mut res = Vec::new();
-    // We currently support three providers: Google, Facebook, and Twitch.
-    for provider in [
-        OIDCProvider::Google,
-        OIDCProvider::Facebook,
-        OIDCProvider::Twitch,
-    ] {
-        let response = client
-            .get(provider.get_config().1)
-            .send()
-            .await
-            .map_err(|_| FastCryptoError::GeneralError("Failed to get JWK".to_string()))?;
-        let bytes = response
-            .bytes()
-            .await
-            .map_err(|_| FastCryptoError::GeneralError("Failed to get bytes".to_string()))?;
-        res.append(&mut parse_jwks(&bytes, provider)?)
-    }
-    Ok(res)
+/// Fetch JWKs from the given provider and return the list as ((iss, kid), JWK)
+pub async fn fetch_jwks(
+    provider: &OIDCProvider,
+    client: &Client,
+) -> Result<ParsedJWKs, FastCryptoError> {
+    let response = client
+        .get(provider.get_config().1)
+        .send()
+        .await
+        .map_err(|_| FastCryptoError::GeneralError("Failed to get JWK".to_string()))?;
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|_| FastCryptoError::GeneralError("Failed to get bytes".to_string()))?;
+    parse_jwks(&bytes, provider)
 }
 
 /// Parse the JWK bytes received from the oauth provider keys endpoint into a map from kid to
 /// JWK.
 pub fn parse_jwks(
     json_bytes: &[u8],
-    provider: OIDCProvider,
+    provider: &OIDCProvider,
 ) -> Result<ParsedJWKs, FastCryptoError> {
     let json_str = String::from_utf8_lossy(json_bytes);
     let parsed_list: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&json_str);
@@ -169,6 +174,16 @@ impl OIDCProvider {
                 "https://www.facebook.com",
                 "https://www.facebook.com/.well-known/oauth/openid/jwks/",
             ),
+        }
+    }
+
+    /// Returns the OIDCProvider for the given iss string.
+    pub fn from_iss(iss: &str) -> Result<Self, FastCryptoError> {
+        match iss {
+            "https://accounts.google.com" => Ok(Self::Google),
+            "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
+            "https://www.facebook.com" => Ok(Self::Facebook),
+            _ => Err(FastCryptoError::InvalidInput),
         }
     }
 }
