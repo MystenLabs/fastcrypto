@@ -5,7 +5,7 @@ use ark_crypto_primitives::snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
 use super::verifier::process_vk_special;
-use super::zk_login::{ZkLoginInputs, JWK};
+use super::zk_login::{JwkId, ZkLoginInputs, JWK};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
@@ -217,14 +217,16 @@ pub fn verify_zk_login(
     input: &ZkLoginInputs,
     max_epoch: u64,
     eph_pubkey_bytes: &[u8],
-    all_jwk: &ImHashMap<(String, String), JWK>,
+    all_jwk: &ImHashMap<JwkId, JWK>,
     env: &ZkLoginEnv,
 ) -> Result<(), FastCryptoError> {
-    // Load the expected JWK based on (kid, iss).
-    let (kid, iss) = (input.get_kid().to_string(), input.get_iss().to_string());
-    let jwk = all_jwk.get(&(kid.clone(), iss.clone())).ok_or_else(|| {
-        FastCryptoError::GeneralError(format!("JWK not found ({} - {})", kid, iss))
-    })?;
+    // Load the expected JWK based on (iss, kid).
+    let (iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
+    let jwk = all_jwk
+        .get(&JwkId::new(iss.clone(), kid.clone()))
+        .ok_or_else(|| {
+            FastCryptoError::GeneralError(format!("JWK not found ({} - {})", iss, kid))
+        })?;
 
     // Decode modulus to bytes.
     let modulus = Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {
