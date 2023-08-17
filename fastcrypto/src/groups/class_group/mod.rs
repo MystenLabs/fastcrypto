@@ -341,7 +341,7 @@ impl TryFrom<BigInt> for Discriminant {
 
 #[test]
 fn test_multiplication() {
-    let discriminant = Discriminant::try_from(BigInt::from(-7)).unwrap();
+    let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
     let generator = QuadraticForm::generator(&discriminant);
     let mut current = QuadraticForm::zero(&discriminant);
     for i in 0..100 {
