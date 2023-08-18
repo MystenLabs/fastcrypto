@@ -10,9 +10,16 @@ use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::rsa::Base64UrlUnpadded;
 use fastcrypto::rsa::Encoding;
 use num_bigint::BigUint;
+use reqwest::Client;
+use serde::Deserialize;
+use serde_json::json;
 use std::str::FromStr;
 
+use super::zk_login::ZkLoginInputs;
+
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
+const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
+const PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
 
 /// Calculate the Sui address based on address seed and address params.
 pub fn get_enoki_address(address_seed: &str, param: AddressParams) -> [u8; 32] {
@@ -62,6 +69,66 @@ pub fn get_nonce(
     Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
         .unwrap()
         .to_string())
+}
+
+/// A response struct for the salt server.
+#[derive(Deserialize, Debug)]
+pub struct GetSaltResponse {
+    /// The salt in BigInt string.
+    salt: String,
+}
+
+/// Call the salt server for the given jwt_token and return the salt.
+pub async fn get_salt(jwt_token: &str) -> Result<String, FastCryptoError> {
+    let client = Client::new();
+    let body = json!({ "token": jwt_token });
+    let response = client
+        .post(SALT_SERVER_URL)
+        .json(&body)
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let full_bytes = response
+        .bytes()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let res: GetSaltResponse =
+        serde_json::from_slice(&full_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+    Ok(res.salt)
+}
+
+/// Call the prover backend to get the zkLogin inputs based on jwt_token, max_epoch, jwt_randomness, eph_pubkey and salt.
+pub async fn get_proof(
+    jwt_token: &str,
+    max_epoch: u64,
+    jwt_randomness: &str,
+    eph_pubkey: &str,
+    salt: &str,
+) -> Result<ZkLoginInputs, FastCryptoError> {
+    let client = Client::new();
+    let body = json!({
+        "jwt": jwt_token,
+        "eph_public_key": eph_pubkey,
+        "max_epoch": max_epoch,
+        "jwt_randomness": jwt_randomness,
+        "subject_pin": salt,
+        "key_claim_name": "sub"
+    });
+    let response = client
+        .post(PROVER_SERVER_URL.to_string())
+        .header("Content-Type", "application/json")
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let full_bytes = response
+        .bytes()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let get_proof_response: ZkLoginInputs =
+        serde_json::from_slice(&full_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+    Ok(get_proof_response)
 }
 
 /// Given a 33-byte public key bytes (flag || pk_bytes), returns the two Bn254Fr split at the 128 bit index.

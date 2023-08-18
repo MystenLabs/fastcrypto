@@ -124,7 +124,7 @@ fn random_pvk() -> PreparedVerifyingKey<Bn254> {
     process_vk_special(&Bn254VerifyingKey(vk)).as_arkworks_pvk()
 }
 
-/// Load a fixed verifying key from zklogin.vkey output. This is based on a local setup and should not use in production.
+/// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
 fn global_pvk() -> PreparedVerifyingKey<Bn254> {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     let vk_alpha_1 = g1_affine_from_str_projective(vec![
