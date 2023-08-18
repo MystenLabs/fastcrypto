@@ -6,7 +6,7 @@ use std::str::FromStr;
 use crate::bn254::utils::{get_enoki_address, get_nonce};
 use crate::bn254::zk_login::{
     decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
-    verify_extended_claim, Claim, JWTDetails, JWTHeader,
+    verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::Bn254Fr;
@@ -134,9 +134,9 @@ fn test_verify_zk_login_google() {
     };
 
     map.insert(
-        (
-            "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string(),
+        JwkId::new(
             OIDCProvider::Google.get_config().0.to_string(),
+            "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string(),
         ),
         content.clone(),
     );
@@ -206,9 +206,9 @@ fn test_verify_zk_login_twitch() {
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
 
     map.insert(
-        (
-            "1".to_string(),
+        JwkId::new(
             OIDCProvider::Twitch.get_config().0.to_string(),
+            "1".to_string(),
         ),
         content,
     );
@@ -287,9 +287,9 @@ fn test_verify_zk_login_facebook() {
     );
 
     map.insert(
-        (
-            "5931701331165f07f550ac5f0194942d54f9c249".to_string(),
+        JwkId::new(
             OIDCProvider::Facebook.get_config().0.to_string(),
+            "5931701331165f07f550ac5f0194942d54f9c249".to_string(),
         ),
         content,
     );
@@ -493,21 +493,21 @@ fn test_jwk_parse() {
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .1, OIDCProvider::Google.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Google.get_config().0);
         });
 
     parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .1, OIDCProvider::Twitch.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Twitch.get_config().0);
         });
 
     parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0 .1, OIDCProvider::Facebook.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Facebook.get_config().0);
         });
 
     assert!(parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch).is_err());
@@ -533,7 +533,7 @@ async fn test_get_jwks() {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
         res.unwrap().iter().for_each(|e| {
-            assert_eq!(e.0 .1, p.get_config().0);
+            assert_eq!(e.0.iss, p.get_config().0);
             assert_eq!(e.1.alg, "RS256".to_string());
         });
     }

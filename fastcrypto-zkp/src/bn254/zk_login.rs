@@ -24,7 +24,6 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
-type ParsedJWKs = Vec<((String, String), JWK)>;
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
@@ -36,6 +35,22 @@ const AUD: &str = "aud";
 const NUM_EXTRACTABLE_STRINGS: u8 = 5;
 const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
 const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
+
+/// Key to identify a JWK, consists of iss and kid.
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+pub struct JwkId {
+    /// iss string that identifies the OIDC provider.
+    pub iss: String,
+    /// kid string that identifies the JWK.
+    pub kid: String,
+}
+
+impl JwkId {
+    /// Create a new JwkId.
+    pub fn new(iss: String, kid: String) -> Self {
+        Self { iss, kid }
+    }
+}
 
 /// Supported OIDC providers.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
@@ -117,7 +132,7 @@ fn trim(str: String) -> String {
 pub async fn fetch_jwks(
     provider: &OIDCProvider,
     client: &Client,
-) -> Result<ParsedJWKs, FastCryptoError> {
+) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
     let response = client
         .get(provider.get_config().1)
         .send()
@@ -135,7 +150,7 @@ pub async fn fetch_jwks(
 pub fn parse_jwks(
     json_bytes: &[u8],
     provider: &OIDCProvider,
-) -> Result<ParsedJWKs, FastCryptoError> {
+) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
     let json_str = String::from_utf8_lossy(json_bytes);
     let parsed_list: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&json_str);
     if let Ok(parsed_list) = parsed_list {
@@ -146,7 +161,7 @@ pub fn parse_jwks(
                     .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
 
                 ret.push((
-                    (parsed.kid.clone(), provider.get_config().0.to_owned()),
+                    JwkId::new(provider.get_config().0.to_owned(), parsed.kid.clone()),
                     JWK::from_reader(parsed)?,
                 ));
             }
