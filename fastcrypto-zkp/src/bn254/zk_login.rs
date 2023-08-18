@@ -52,6 +52,25 @@ impl JwkId {
     }
 }
 
+/// The provider config consists of iss and jwk endpoint.
+#[derive(Debug)]
+pub struct ProviderConfig {
+    /// iss string that identifies the OIDC provider.
+    pub iss: String,
+    /// The JWK url string for the given provider.
+    pub jwk_endpoint: String,
+}
+
+impl ProviderConfig {
+    /// Create a new provider config.
+    pub fn new(iss: &str, jwk_endpoint: &str) -> Self {
+        Self {
+            iss: iss.to_string(),
+            jwk_endpoint: jwk_endpoint.to_string(),
+        }
+    }
+}
+
 /// Supported OIDC providers.
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub enum OIDCProvider {
@@ -76,9 +95,39 @@ impl FromStr for OIDCProvider {
     }
 }
 
-/// Struct that contains all the OIDC provider's JWK. A list of them can
-/// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>)
-/// and published on the bulletin along with a trusted party's signature.
+impl OIDCProvider {
+    /// Returns the provider config consisting of iss and jwk endpoint.
+    pub fn get_config(&self) -> ProviderConfig {
+        match self {
+            OIDCProvider::Google => ProviderConfig::new(
+                "https://accounts.google.com",
+                "https://www.googleapis.com/oauth2/v2/certs",
+            ),
+            OIDCProvider::Twitch => ProviderConfig::new(
+                "https://id.twitch.tv/oauth2",
+                "https://id.twitch.tv/oauth2/keys",
+            ),
+            OIDCProvider::Facebook => ProviderConfig::new(
+                "https://www.facebook.com",
+                "https://www.facebook.com/.well-known/oauth/openid/jwks/",
+            ),
+        }
+    }
+
+    /// Returns the OIDCProvider for the given iss string.
+    pub fn from_iss(iss: &str) -> Result<Self, FastCryptoError> {
+        match iss {
+            "https://accounts.google.com" => Ok(Self::Google),
+            "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
+            "https://www.facebook.com" => Ok(Self::Facebook),
+            _ => Err(FastCryptoError::InvalidInput),
+        }
+    }
+}
+
+/// Struct that contains info for a JWK. A list of them for different kids can
+/// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
+/// The JWK is used to verify the JWT token.
 #[derive(Hash, Debug, Clone, Serialize, Deserialize)]
 pub struct JWK {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
@@ -128,13 +177,13 @@ fn trim(str: String) -> String {
     str.trim_end_matches('=').to_owned()
 }
 
-/// Fetch JWKs from the given provider and return the list as ((iss, kid), JWK)
+/// Fetch JWKs from the given provider and return a list of JwkId -> JWK.
 pub async fn fetch_jwks(
     provider: &OIDCProvider,
     client: &Client,
 ) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
     let response = client
-        .get(provider.get_config().1)
+        .get(provider.get_config().jwk_endpoint)
         .send()
         .await
         .map_err(|_| FastCryptoError::GeneralError("Failed to get JWK".to_string()))?;
@@ -145,8 +194,7 @@ pub async fn fetch_jwks(
     parse_jwks(&bytes, provider)
 }
 
-/// Parse the JWK bytes received from the oauth provider keys endpoint into a map from kid to
-/// JWK.
+/// Parse the JWK bytes received from the given provider and return a list of JwkId -> JWK.
 pub fn parse_jwks(
     json_bytes: &[u8],
     provider: &OIDCProvider,
@@ -161,7 +209,7 @@ pub fn parse_jwks(
                     .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
 
                 ret.push((
-                    JwkId::new(provider.get_config().0.to_owned(), parsed.kid.clone()),
+                    JwkId::new(provider.get_config().iss, parsed.kid.clone()),
                     JWK::from_reader(parsed)?,
                 ));
             }
@@ -171,36 +219,6 @@ pub fn parse_jwks(
     Err(FastCryptoError::GeneralError(
         "Invalid JWK response".to_string(),
     ))
-}
-
-impl OIDCProvider {
-    /// Returns a tuple of iss string and the JWK url string for the given provider.
-    pub fn get_config(&self) -> (&str, &str) {
-        match self {
-            OIDCProvider::Google => (
-                "https://accounts.google.com",
-                "https://www.googleapis.com/oauth2/v2/certs",
-            ),
-            OIDCProvider::Twitch => (
-                "https://id.twitch.tv/oauth2",
-                "https://id.twitch.tv/oauth2/keys",
-            ),
-            OIDCProvider::Facebook => (
-                "https://www.facebook.com",
-                "https://www.facebook.com/.well-known/oauth/openid/jwks/",
-            ),
-        }
-    }
-
-    /// Returns the OIDCProvider for the given iss string.
-    pub fn from_iss(iss: &str) -> Result<Self, FastCryptoError> {
-        match iss {
-            "https://accounts.google.com" => Ok(Self::Google),
-            "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
-            "https://www.facebook.com" => Ok(Self::Facebook),
-            _ => Err(FastCryptoError::InvalidInput),
-        }
-    }
 }
 
 /// Necessary value for claim.

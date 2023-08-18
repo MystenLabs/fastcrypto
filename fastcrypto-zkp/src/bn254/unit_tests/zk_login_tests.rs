@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use crate::bn254::utils::{get_enoki_address, get_nonce};
+use crate::bn254::utils::{get_enoki_address, get_nonce, get_proof, get_salt};
 use crate::bn254::zk_login::{
     decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
     verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
@@ -91,35 +91,35 @@ fn test_verify_zk_login_google() {
 
     assert!(ZkLoginInputs::from_json("{\"something\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").is_err());
 
-    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16082379985244139257081251352758755486156282972982603863007685291104503933311\",\"924319019028863167372401695750240170246182797458677233202254140761845272417\",\"1\"],\"pi_b\":[[\"13577250540115265266613311991485643078228707057086458534580175835039018572685\",\"12376053001358370647205175062199127322673512803490888228095245375811974804326\"],[\"14035295319062970519340182968766274788478314052702678112524794155602573477951\",\"21275817745084002159703389733799570288229406275961853650678828923527832512195\"],[\"1\",\"0\"]],\"pi_c\":[\"21768939217356454092644810716610021526414672327340826974534017558007065128740\",\"19849276141337612251288394025918481446172401959982365719577887942308529252632\",\"1\"]},\"address_seed\":\"21150353671819850968488494085061363586427266461520959449438048630829862383214\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjOWM3OGUzYjAwZTFiYjA5MmQyNDZjODg3YjExMjIwYzg3YjdkMjAiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16082379985244139257081251352758755486156282972982603863007685291104503933311\",\"924319019028863167372401695750240170246182797458677233202254140761845272417\",\"1\"],\"pi_b\":[[\"13577250540115265266613311991485643078228707057086458534580175835039018572685\",\"12376053001358370647205175062199127322673512803490888228095245375811974804326\"],[\"14035295319062970519340182968766274788478314052702678112524794155602573477951\",\"21275817745084002159703389733799570288229406275961853650678828923527832512195\"],[\"1\",\"0\"]],\"pi_c\":[\"21768939217356454092644810716610021526414672327340826974534017558007065128740\",\"19849276141337612251288394025918481446172401959982365719577887942308529252632\",\"1\"]},\"address_seed\":\"21150353671819850968488494085061363586427266461520959449438048630829862383214\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjOWM3OGUzYjAwZTFiYjA5MmQyNDZjODg3YjExMjIwYzg3YjdkMjAiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
     assert_eq!(
-        zklogin_inputs.get_kid(),
+        zk_login_inputs.get_kid(),
         "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_iss(),
-        OIDCProvider::Google.get_config().0.to_string()
+        zk_login_inputs.get_iss(),
+        OIDCProvider::Google.get_config().iss
     );
     assert_eq!(
-        zklogin_inputs.get_aud(),
+        zk_login_inputs.get_aud(),
         "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_address_params().aud,
+        zk_login_inputs.get_address_params().aud,
         "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_address_params().iss,
-        OIDCProvider::Google.get_config().0.to_string()
+        zk_login_inputs.get_address_params().iss,
+        OIDCProvider::Google.get_config().iss
     );
     assert_eq!(
-        zklogin_inputs.get_address_seed(),
+        zk_login_inputs.get_address_seed(),
         "21150353671819850968488494085061363586427266461520959449438048630829862383214"
     );
     assert_eq!(
         get_enoki_address(
-            zklogin_inputs.get_address_seed(),
-            zklogin_inputs.get_address_params()
+            zk_login_inputs.get_address_seed(),
+            zk_login_inputs.get_address_params()
         )
         .to_vec(),
         Hex::decode("0x7bf6145cfe0592c0428ed8ce9612077b9ca1e5bc60308a90990bc952d13ccce8").unwrap()
@@ -135,7 +135,7 @@ fn test_verify_zk_login_google() {
 
     map.insert(
         JwkId::new(
-            OIDCProvider::Google.get_config().0.to_string(),
+            OIDCProvider::Google.get_config().iss,
             "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string(),
         ),
         content.clone(),
@@ -143,7 +143,7 @@ fn test_verify_zk_login_google() {
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
 
     assert_eq!(
-        zklogin_inputs
+        zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
         vec![Bn254Fr::from_str(
@@ -151,11 +151,11 @@ fn test_verify_zk_login_google() {
         )
         .unwrap()]
     );
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
 
     // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res1.is_err());
 }
 
@@ -165,32 +165,32 @@ fn test_verify_zk_login_twitch() {
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
 
-    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"2639684184680217707167754014000719722348206659392422133035933088167295844621\",\"15411697389380103098050765723042580180772223011905582881833041447034179685161\",\"1\"],\"pi_b\":[[\"18356546416649273600365508068279984662879338153955858345242905260545040887165\",\"14180424108251071134157931909030745068063443512539428703047837797454965825626\"],[\"13156473667176810581893653079638435272252026941153836815590225135710650196382\",\"21239978751364084281206642892186667820382067271473352046319441969708281386102\"],[\"1\",\"0\"]],\"pi_c\":[\"10224668151896969767148853455746517578322339166888897843411999928700401320418\",\"10920763695594894441298491254988284677195769983974208707015444852382653532723\",\"1\"]},\"address_seed\":\"21483285397923302977910340636259412155696585453250993383687293995976400590480\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
-    assert_eq!(zklogin_inputs.get_kid(), "1".to_string());
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"2639684184680217707167754014000719722348206659392422133035933088167295844621\",\"15411697389380103098050765723042580180772223011905582881833041447034179685161\",\"1\"],\"pi_b\":[[\"18356546416649273600365508068279984662879338153955858345242905260545040887165\",\"14180424108251071134157931909030745068063443512539428703047837797454965825626\"],[\"13156473667176810581893653079638435272252026941153836815590225135710650196382\",\"21239978751364084281206642892186667820382067271473352046319441969708281386102\"],[\"1\",\"0\"]],\"pi_c\":[\"10224668151896969767148853455746517578322339166888897843411999928700401320418\",\"10920763695594894441298491254988284677195769983974208707015444852382653532723\",\"1\"]},\"address_seed\":\"21483285397923302977910340636259412155696585453250993383687293995976400590480\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
+    assert_eq!(zk_login_inputs.get_kid(), "1".to_string());
     assert_eq!(
-        zklogin_inputs.get_iss(),
-        OIDCProvider::Twitch.get_config().0.to_string()
+        zk_login_inputs.get_iss(),
+        OIDCProvider::Twitch.get_config().iss
     );
     assert_eq!(
-        zklogin_inputs.get_aud(),
+        zk_login_inputs.get_aud(),
         "rs1bh065i9ya4ydvifixl4kss0uhpt".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_address_params().aud,
+        zk_login_inputs.get_address_params().aud,
         "rs1bh065i9ya4ydvifixl4kss0uhpt".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_address_params().iss,
-        zklogin_inputs.get_iss()
+        zk_login_inputs.get_address_params().iss,
+        zk_login_inputs.get_iss()
     );
     assert_eq!(
-        zklogin_inputs.get_address_seed(),
+        zk_login_inputs.get_address_seed(),
         "21483285397923302977910340636259412155696585453250993383687293995976400590480"
     );
     assert_eq!(
         get_enoki_address(
-            zklogin_inputs.get_address_seed(),
-            zklogin_inputs.get_address_params()
+            zk_login_inputs.get_address_seed(),
+            zk_login_inputs.get_address_params()
         )
         .to_vec(),
         Hex::decode("0x18642facd3dcc683f24490f5adb576eb02fc12073c46c9006dbe854cdbfbb899").unwrap()
@@ -206,15 +206,12 @@ fn test_verify_zk_login_twitch() {
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
 
     map.insert(
-        JwkId::new(
-            OIDCProvider::Twitch.get_config().0.to_string(),
-            "1".to_string(),
-        ),
+        JwkId::new(OIDCProvider::Twitch.get_config().iss, "1".to_string()),
         content,
     );
 
     assert_eq!(
-        zklogin_inputs
+        zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
         vec![Bn254Fr::from_str(
@@ -222,11 +219,11 @@ fn test_verify_zk_login_twitch() {
         )
         .unwrap()]
     );
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
 
     // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res1.is_err());
 }
 
@@ -236,33 +233,33 @@ fn test_verify_zk_login_facebook() {
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
 
-    let zklogin_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16500559452186857499124905145218965727454398652759898506130123782737180551024\",\"1403037760258969546586768446760882646660554376880919683180395342618686906382\",\"1\"],\"pi_b\":[[\"12463789295781828009345316567938834871413393951281528901930690034950665391292\",\"16301756414332383815173890006998407782812302695665089990395506495445072039950\"],[\"19728141070117461173622838505925353541939789875408954541048815956055929576938\",\"21239411122885193204521373031249830589601614530017004204270959331789128729582\"],[\"1\",\"0\"]],\"pi_c\":[\"16094781461241847235951763701104954579675913864156691777860223519371049858114\",\"7705218318167899339727292541697723794048510769012014737743407264594062927068\",\"1\"]},\"address_seed\":\"1487011095754058868957639998432654337555495215275691418230823914445177483005\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczpcL1wvd3d3LmZhY2Vib29rLmNvbSIs\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"ImF1ZCI6IjIzMzMwNzE1NjM1MjkxNyIs\",\"index_mod_4\":0}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjU5MzE3MDEzMzExNjVmMDdmNTUwYWM1ZjAxOTQ5NDJkNTRmOWMyNDkifQ\"}").unwrap().init().unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16500559452186857499124905145218965727454398652759898506130123782737180551024\",\"1403037760258969546586768446760882646660554376880919683180395342618686906382\",\"1\"],\"pi_b\":[[\"12463789295781828009345316567938834871413393951281528901930690034950665391292\",\"16301756414332383815173890006998407782812302695665089990395506495445072039950\"],[\"19728141070117461173622838505925353541939789875408954541048815956055929576938\",\"21239411122885193204521373031249830589601614530017004204270959331789128729582\"],[\"1\",\"0\"]],\"pi_c\":[\"16094781461241847235951763701104954579675913864156691777860223519371049858114\",\"7705218318167899339727292541697723794048510769012014737743407264594062927068\",\"1\"]},\"address_seed\":\"1487011095754058868957639998432654337555495215275691418230823914445177483005\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczpcL1wvd3d3LmZhY2Vib29rLmNvbSIs\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"ImF1ZCI6IjIzMzMwNzE1NjM1MjkxNyIs\",\"index_mod_4\":0}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjU5MzE3MDEzMzExNjVmMDdmNTUwYWM1ZjAxOTQ5NDJkNTRmOWMyNDkifQ\"}").unwrap().init().unwrap();
     assert_eq!(
-        zklogin_inputs.get_kid(),
+        zk_login_inputs.get_kid(),
         "5931701331165f07f550ac5f0194942d54f9c249".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_iss(),
-        OIDCProvider::Facebook.get_config().0.to_string()
+        zk_login_inputs.get_iss(),
+        OIDCProvider::Facebook.get_config().iss
     );
-    assert_eq!(zklogin_inputs.get_aud(), "233307156352917".to_string());
+    assert_eq!(zk_login_inputs.get_aud(), "233307156352917".to_string());
     assert_eq!(
-        zklogin_inputs.get_address_params().aud,
+        zk_login_inputs.get_address_params().aud,
         "233307156352917".to_string()
     );
     assert_eq!(
-        zklogin_inputs.get_address_params().iss,
-        zklogin_inputs.get_iss()
+        zk_login_inputs.get_address_params().iss,
+        zk_login_inputs.get_iss()
     );
     assert_eq!(
-        zklogin_inputs.get_address_seed(),
+        zk_login_inputs.get_address_seed(),
         "1487011095754058868957639998432654337555495215275691418230823914445177483005"
     );
 
     assert_eq!(
         get_enoki_address(
-            zklogin_inputs.get_address_seed(),
-            zklogin_inputs.get_address_params()
+            zk_login_inputs.get_address_seed(),
+            zk_login_inputs.get_address_params()
         )
         .to_vec(),
         Hex::decode("0x5e3733bf03f715a87b641553fce0f8b22bcb6385ce78cc05ddecd55929a5a304").unwrap()
@@ -277,7 +274,7 @@ fn test_verify_zk_login_facebook() {
     };
     let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
     assert_eq!(
-        zklogin_inputs
+        zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
         vec![Bn254Fr::from_str(
@@ -288,16 +285,16 @@ fn test_verify_zk_login_facebook() {
 
     map.insert(
         JwkId::new(
-            OIDCProvider::Facebook.get_config().0.to_string(),
+            OIDCProvider::Facebook.get_config().iss,
             "5931701331165f07f550ac5f0194942d54f9c249".to_string(),
         ),
         content,
     );
-    let res = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
 
     // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zklogin_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res1.is_err());
 }
 
@@ -493,21 +490,21 @@ fn test_jwk_parse() {
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0.iss, OIDCProvider::Google.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Google.get_config().iss);
         });
 
     parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0.iss, OIDCProvider::Twitch.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Twitch.get_config().iss);
         });
 
     parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook)
         .unwrap()
         .iter()
         .for_each(|content| {
-            assert_eq!(content.0.iss, OIDCProvider::Facebook.get_config().0);
+            assert_eq!(content.0.iss, OIDCProvider::Facebook.get_config().iss);
         });
 
     assert!(parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch).is_err());
@@ -533,7 +530,7 @@ async fn test_get_jwks() {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
         res.unwrap().iter().for_each(|e| {
-            assert_eq!(e.0.iss, p.get_config().0);
+            assert_eq!(e.0.iss, p.get_config().iss);
             assert_eq!(e.1.alg, "RS256".to_string());
         });
     }
@@ -546,4 +543,72 @@ fn test_get_nonce() {
     eph_pk_bytes.extend(kp.public().as_ref());
     let nonce = get_nonce(&eph_pk_bytes, 10, "100681567828351849884072155819400689117").unwrap();
     assert_eq!(nonce, "hTPpgF7XAKbW37rEUS6pEVZqmoI");
+}
+
+#[test]
+fn test_get_provider() {
+    for p in [
+        OIDCProvider::Google,
+        OIDCProvider::Twitch,
+        OIDCProvider::Facebook,
+    ] {
+        assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
+    }
+    assert!(OIDCProvider::from_iss("Amazon").is_err());
+}
+
+#[tokio::test]
+async fn test_end_to_end() {
+    // Use a fixed Twitch token obtained with nonce hTPpgF7XAKbW37rEUS6pEVZqmoI
+    // Derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
+    let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE2OTIyODQzMzQsImlhdCI6MTY5MjI4MzQzNCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.M54Sgs6aDu5Mprs_CgXeRbgiErC7oehj-h9oEcBqZFDADwd09zs9hbfDPqUjaNBB-_I6G7kn9e-zwPov8PUecI68kr3oyiCMWhKD-3h1FEu13MZv71B6jhIDMu1_UgI-RSrOQMRvdI8eL3qqD-KsvJuJH1Sz0w56PnB0xupUg-eSvgnMBAo6iTa0t1grX9qGy7U00i_oqn9J4jVGVVEbMhUWROJMjowWdOogJ4_VNqm67JHd_rMZ3xtjLabP6Nk1Gx-VjUbYceNADWUr5xpJveRtvb1FJvd0HSN4mab51zuSUnavCQw2OXbyoH8j6uuQAAKVhG-_Ht1hCvReycGXKw";
+    let max_epoch = 10;
+    let jwt_randomness = "100681567828351849884072155819400689117";
+
+    // Get salt based on the Twitch token.
+    let user_salt = get_salt(parsed_token).await.unwrap();
+
+    // Generate an ephermeral key pair.
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(kp.public().as_ref());
+    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
+
+    // Get a proof from endpoint and serialize it.
+    let zk_login_inputs = get_proof(
+        parsed_token,
+        max_epoch,
+        jwt_randomness,
+        &kp_bigint,
+        &user_salt,
+    )
+    .await
+    .unwrap()
+    .init()
+    .unwrap();
+
+    // Make a map of jwk ids to jwks just for Twitch.
+    let mut map = ImHashMap::new();
+    map.insert(
+        JwkId::new(
+            OIDCProvider::Twitch.get_config().iss,
+            "1".to_string(),
+        ),
+        JWK {
+            kty: "RSA".to_string(),
+            e: "AQAB".to_string(),
+            n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
+            alg: "RS256".to_string(),
+        },
+    );
+
+    // Verify it against test vk.
+    let res = verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Test,
+    );
+    assert!(res.is_ok());
 }
