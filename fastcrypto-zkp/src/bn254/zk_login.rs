@@ -128,7 +128,7 @@ impl OIDCProvider {
 /// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
 /// The JWK is used to verify the JWT token.
-#[derive(Hash, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize)]
 pub struct JWK {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
     pub kty: String,
