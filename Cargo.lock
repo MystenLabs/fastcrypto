@@ -1643,6 +1643,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "fastcrypto-data"
+version = "0.1.0"
+dependencies = [
+ "fastcrypto",
+ "rs_merkle",
+]
+
+[[package]]
 name = "fastcrypto-derive"
 version = "0.1.3"
 dependencies = [
@@ -3149,6 +3157,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "rs_merkle"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "05225752ca6ede4cb1b73aa37ce3904affd042e98f28246f56f438ebfd47a810"
+dependencies = [
+ "sha2 0.10.6",
 ]
 
 [[package]]

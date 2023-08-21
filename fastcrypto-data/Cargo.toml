@@ -1,0 +1,15 @@
+[package]
+name = "fastcrypto-data"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+readme = "../README.md"
+description = "Collection of useful cryptographic data structures"
+repository = "https://github.com/MystenLabs/fastcrypto"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rs_merkle = "1.4.1"
+fastcrypto = { path = "../fastcrypto" }
