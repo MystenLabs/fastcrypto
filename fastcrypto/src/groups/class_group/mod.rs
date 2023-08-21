@@ -24,8 +24,15 @@ pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
 
 /// The size of a compressed quadratic form in bytes. We force all forms to have the same size,
 /// namely 100 bytes.
-pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize =
-    ((MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32 * 3 + 4) as usize;
+pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (
+    // The number of 32 bit words needed to represent the discriminant rounded up,
+    (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32
+        * 3 // a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
+        + 1 // Flags for special forms (identity or generator) and the sign of b and t'.
+        + 1 // The size of g - 1 = g_size.
+        // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
+        + 2
+) as usize;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -155,14 +162,17 @@ impl QuadraticForm {
         if s.is_multiple_of(&f) {
             g = f;
             capital_bx = &m * &b;
+            // TODO: capital_by and capital_cy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
             capital_by = u1 / &g;
             capital_cy = u2 / &g;
+            // TODO: is_multiple_of called above computes the division of s and f = g so there is no need to compute this again.
             capital_dy = &s / &g;
         } else {
             // 3.
             let xgcd = BigInt::extended_gcd(&f, &s);
             g = xgcd.gcd;
             let y = xgcd.y;
+            // TODO: h and capital_dy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
             let h = &f / &g;
             capital_by = u1 / &g;
             capital_cy = u2 / &g;
@@ -174,6 +184,7 @@ impl QuadraticForm {
         }
 
         // 5. (partial xgcd)
+        // TODO: capital_bx is not used later, so the modular reduction may be done earlier.
         let mut bx = capital_bx.mod_floor(&capital_by);
         let mut by = capital_by.clone();
 
@@ -276,8 +287,8 @@ impl ParameterizedGroupElement for QuadraticForm {
         self.serialize().to_vec()
     }
 
-    fn has_group_parameter(&self, parameter: &Self::ParameterType) -> bool {
-        self.discriminant() == *parameter
+    fn same_group(&self, other: &Self) -> bool {
+        self.discriminant() == other.discriminant()
     }
 }
 

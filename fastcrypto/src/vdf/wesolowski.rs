@@ -42,20 +42,17 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     type ProofType = G;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
-        if !input.has_group_parameter(&self.group_parameter) {
-            return Err(InvalidInput);
-        }
-
         if self.iterations == 0 {
             return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
 
+        // Compute output = 2^iterations * input
         let mut output = input.clone();
         for _ in 0..self.iterations {
-            output = output.clone() + &output;
+            output = output.double();
         }
 
-        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes());
+        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes(), B_BITS);
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let two = BigInt::from(2);
@@ -70,14 +67,11 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     }
 
     fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if !input.has_group_parameter(&self.group_parameter)
-            || !output.has_group_parameter(&self.group_parameter)
-            || !proof.has_group_parameter(&self.group_parameter)
-        {
+        if !input.same_group(output) || !input.same_group(proof) {
             return Err(InvalidInput);
         }
 
-        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes());
+        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes(), B_BITS);
         let f1 = proof.mul(&challenge);
 
         let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
@@ -115,11 +109,11 @@ impl WesolowskiVDF<QuadraticForm> {
 
 /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
 /// to make the Wesolowski VDF non-interactive.
-fn get_challenge(x: &[u8], y: &[u8]) -> BigInt {
+fn get_challenge(x: &[u8], y: &[u8], bit_length: usize) -> BigInt {
     let mut seed = vec![];
     seed.extend_from_slice(x);
     seed.extend_from_slice(y);
-    hash_prime(&seed, B_BITS, &[B_BITS - 1]).expect("The length should be a multiple of 8")
+    hash_prime(&seed, bit_length, &[bit_length - 1]).expect("The length should be a multiple of 8")
 }
 
 /// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):

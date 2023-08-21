@@ -374,9 +374,9 @@ fn partial_xgcd(a: &BigInt, b: &BigInt) -> FastCryptoResult<(BigInt, BigInt)> {
 #[cfg(test)]
 mod tests {
     use crate::groups::class_group::compressed::{
-        bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm,
+        bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES,
     };
-    use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
+    use crate::groups::class_group::{Discriminant, QuadraticForm};
     use crate::groups::ParameterizedGroupElement;
     use num_bigint::BigInt;
     use num_traits::Num;
