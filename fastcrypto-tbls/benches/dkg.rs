@@ -52,7 +52,7 @@ mod dkg_benches {
 
     fn dkg(c: &mut Criterion) {
         const SIZES: [u16; 1] = [100];
-        const WEIGHTS: [u16; 2] = [20, 33];
+        const WEIGHTS: [u16; 3] = [10, 20, 33];
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("DKG create");

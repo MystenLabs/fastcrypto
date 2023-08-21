@@ -44,7 +44,6 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     /// The commitment of the secret polynomial created by the sender.
     // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
-    // TODO: [comm opt] Encrypt all shares for a single receiver with 1 ECIES and AES.
     /// The encrypted shares created by the sender.
     pub encrypted_shares: Vec<ecies::Encryption<EG>>,
 }
@@ -54,7 +53,6 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
 #[derive(Clone, PartialEq, Eq)]
 pub struct Complaint<EG: GroupElement> {
     encryption_sender: PartyId,
-    share_id: ShareIndex,
     package: RecoveryPackage<EG>,
 }
 
@@ -89,7 +87,7 @@ impl<G: GroupElement, EG: GroupElement> Party<G, EG>
 where
     <G as GroupElement>::ScalarType: Serialize + DeserializeOwned,
     EG: Serialize,
-    G: MultiScalarMul,
+    G: MultiScalarMul + DeserializeOwned,
     <EG as GroupElement>::ScalarType: HashToGroupElement,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
@@ -135,15 +133,14 @@ where
     pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
         let encrypted_shares = self
             .nodes
-            .share_ids_iter()
-            .map(|share_id| {
-                let share = self.vss_sk.eval(share_id);
-                let node = self
-                    .nodes
-                    .share_id_to_node(&share_id)
-                    .expect("valid share id");
-                let buff =
-                    bcs::to_bytes(&share.value).expect("serialize of a share should never fail");
+            .iter()
+            .map(|node| {
+                let share_ids = self.nodes.share_ids_of(node.id);
+                let mut shares = Vec::new();
+                for share_id in share_ids {
+                    shares.push(self.vss_sk.eval(share_id).value);
+                }
+                let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 node.pk.encrypt(&buff, rng)
             })
             .collect();
@@ -172,58 +169,51 @@ where
         let my_share_ids = self.nodes.share_ids_of(self.id);
         // Ignore if invalid (and other honest parties will ignore as well).
         if (message.vss_pk.degree() != self.t - 1)
-            || (message.encrypted_shares.len() != self.nodes.n() as usize)
+            || (message.encrypted_shares.len() != self.nodes.num_nodes() as usize)
         {
             return Err(FastCryptoError::InvalidProof);
         }
 
-        let mut decrypted_shares = Vec::new();
-        for share_id in &my_share_ids {
-            let offset = (share_id.get() - 1) as usize;
-            let encrypted_share = &message.encrypted_shares[offset];
-            let share = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_share);
-            if share.is_err() {
-                next_message.complaints.push(Complaint {
-                    encryption_sender: message.sender,
-                    share_id: *share_id,
-                    package: self.ecies_sk.create_recovery_package(
-                        encrypted_share,
-                        &self.random_oracle.extend("ecies"),
-                        rng,
-                    ),
-                });
-                return Ok((shares, next_message)); // 1 complaint per message is enough
-            }
-            decrypted_shares.push(Eval {
-                index: *share_id,
-                value: share.unwrap(),
+        let encrypted_shares = &message.encrypted_shares[self.id as usize];
+        let decrypted_shares = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_shares).ok();
+
+        if decrypted_shares.is_none()
+            || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()
+        {
+            next_message.complaints.push(Complaint {
+                encryption_sender: message.sender,
+                package: self.ecies_sk.create_recovery_package(
+                    encrypted_shares,
+                    &self.random_oracle.extend("ecies"),
+                    rng,
+                ),
             });
+            return Ok((shares, next_message)); // 1 complaint per message is enough
         }
 
-        // Check the batch and fallback to individual checks if needed.
+        let decrypted_shares = decrypted_shares
+            .unwrap()
+            .iter()
+            .zip(my_share_ids)
+            .map(|(s, i)| Eval {
+                index: i,
+                value: *s,
+            })
+            .collect::<Vec<_>>();
+
         if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
-            for share in &decrypted_shares {
-                if !message.vss_pk.is_valid_share(share.index, &share.value) {
-                    let offset = (share.index.get() - 1) as usize;
-                    let encrypted_share = &message.encrypted_shares[offset];
-                    next_message.complaints.push(Complaint {
-                        encryption_sender: message.sender,
-                        share_id: share.index,
-                        package: self.ecies_sk.create_recovery_package(
-                            encrypted_share,
-                            &self.random_oracle.extend("ecies"),
-                            rng,
-                        ),
-                    });
-                    return Ok((shares, next_message)); // 1 complaint per message is enough
-                }
-            }
-            return Err(FastCryptoError::GeneralError(
-                "Batch verification failed but individual verification succeeded".to_string(),
-            ));
+            next_message.complaints.push(Complaint {
+                encryption_sender: message.sender,
+                package: self.ecies_sk.create_recovery_package(
+                    encrypted_shares,
+                    &self.random_oracle.extend("ecies"),
+                    rng,
+                ),
+            });
+            return Ok((shares, next_message)); // 1 complaint per message is enough
         }
 
-        shares.insert(message.sender, decrypted_shares);
+        shares.insert(message.sender, decrypted_shares.into());
         Ok((shares, next_message))
     }
 
@@ -262,12 +252,13 @@ where
     ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
     ///    application dependent but in most cases it should be at least t+f to guarantee that at
     ///    least t honest nodes have valid shares.
-    pub fn process_confirmations(
+    pub fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &[Message<G, EG>],
         confirmations: &[Confirmation<EG>],
         shares: SharesMap<G::ScalarType>,
         _minimal_threshold: usize,
+        rng: &mut R,
     ) -> Result<SharesMap<G::ScalarType>, FastCryptoError> {
         // TODO: update next line's checks to check the weights
         // if messages.len() != self.t as usize || confirmations.len() < minimal_threshold {
@@ -295,16 +286,17 @@ where
                 // If the claim refers to a non existing message, it's an invalid complaint.
                 // TODO: check the share id is in the range, etc
                 let valid_complaint = related_m1.is_some() && {
-                    let encrypted_share = &related_m1
+                    let encrypted_shares = &related_m1
                         .expect("checked above that is not None")
-                        .encrypted_shares[(complaint.share_id.get() - 1) as usize];
+                        .encrypted_shares[(accuser) as usize];
                     Self::check_delegated_key_and_share(
                         &complaint.package,
                         accuser_pk,
-                        &complaint.share_id,
+                        &self.nodes.share_ids_of(accuser),
                         &related_m1.expect("checked above that is not None").vss_pk,
-                        encrypted_share,
+                        encrypted_shares,
                         &self.random_oracle.extend("ecies"),
+                        rng,
                     )
                     .is_err()
                 };
@@ -368,27 +360,38 @@ where
 
     fn decrypt_and_get_share(
         sk: &ecies::PrivateKey<EG>,
-        encrypted_share: &ecies::Encryption<EG>,
-    ) -> FastCryptoResult<G::ScalarType> {
-        let buffer = sk.decrypt(encrypted_share);
+        encrypted_shares: &ecies::Encryption<EG>,
+    ) -> FastCryptoResult<Vec<G::ScalarType>> {
+        let buffer = sk.decrypt(encrypted_shares);
         bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)
     }
 
-    fn check_delegated_key_and_share(
+    fn check_delegated_key_and_share<R: AllowedRng>(
         recovery_pkg: &RecoveryPackage<EG>,
         ecies_pk: &ecies::PublicKey<EG>,
-        id: &ShareIndex,
+        share_ids: &[ShareIndex],
         vss_pk: &PublicPoly<G>,
         encrypted_share: &ecies::Encryption<EG>,
         random_oracle: &RandomOracle,
+        rng: &mut R,
     ) -> FastCryptoResult<()> {
         let buffer =
             ecies_pk.decrypt_with_recovery_package(recovery_pkg, random_oracle, encrypted_share)?;
-        let share =
+        let decrypted_shares: Vec<G::ScalarType> =
             bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)?;
-        if !vss_pk.is_valid_share(*id, &share) {
-            return Err(FastCryptoError::InvalidProof);
+        if decrypted_shares.len() != share_ids.len() {
+            return Err(FastCryptoError::InvalidInput);
         }
-        Ok(())
+
+        let decrypted_shares = decrypted_shares
+            .into_iter()
+            .zip(share_ids)
+            .map(|(s, i)| Eval {
+                index: *i,
+                value: s,
+            })
+            .collect::<Vec<_>>();
+
+        verify_poly_evals(&decrypted_shares, vss_pk, rng)
     }
 }
