@@ -252,6 +252,86 @@ impl QuadraticForm {
         }
         .reduce()
     }
+
+    fn double(&self) -> Self {
+        // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
+        // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
+        // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
+        // The paragraph numbers and variable names follow the paper.
+
+        let u = &self.a;
+        let v = &self.b;
+        let w = &self.c;
+
+        let xgcd = BigInt::extended_gcd(u, v);
+        let g = xgcd.gcd;
+        let y = xgcd.y;
+
+        let capital_by = u / &g;
+        let capital_dy = v / &g;
+        let capital_bx = (&y * w).mod_floor(&capital_by);
+
+        let mut bx = capital_bx.clone();
+        let mut by = capital_by.clone();
+
+        let mut x = BigInt::one();
+        let mut y = BigInt::zero();
+        let mut z = 0u32;
+
+        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
+            let (q, t) = by.div_rem(&bx);
+            by = bx;
+            bx = t;
+            let tmp = &y - &q * &x;
+            y = x;
+            x = tmp;
+            z += 1;
+        }
+
+        if z.is_odd() {
+            by = -by;
+            y = -y;
+        }
+
+        let (ax, ay) = if g.is_one() {
+            (x.clone(), y.clone())
+        } else {
+            (&g * &x, &g * &y)
+        };
+
+        let mut u3: BigInt;
+        let mut w3: BigInt;
+        let mut v3: BigInt;
+
+        if z == 0 {
+            let dx = (&bx * &capital_dy - w) / &capital_by;
+            u3 = &by * &by;
+            w3 = &bx * &bx;
+            let s = &bx + &by;
+            v3 = v - &s * &s + &u3 + &w3;
+            w3 = &w3 - &g * &dx;
+        } else {
+            let dx = (&bx * &capital_dy - w * &x) / &capital_by;
+            let q1 = &dx * &y;
+            let mut dy = &q1 + &capital_dy;
+            v3 = &g * (&dy + &q1);
+            dy = &dy / &x;
+            u3 = &by * &by;
+            w3 = &bx * &bx;
+            let s = &bx + &by;
+            v3 = &v3 - &s * &s + &u3 + &w3;
+            u3 = &u3 - &ay * &dy;
+            w3 = &w3 - &ax * &dx;
+        }
+
+        QuadraticForm {
+            a: u3,
+            b: v3,
+            c: w3,
+            partial_gcd_limit: self.partial_gcd_limit.clone(),
+        }
+        .reduce()
+    }
 }
 
 impl ParameterizedGroupElement for QuadraticForm {
