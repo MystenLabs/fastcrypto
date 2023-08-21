@@ -213,7 +213,7 @@ where
             return Ok((shares, next_message)); // 1 complaint per message is enough
         }
 
-        shares.insert(message.sender, decrypted_shares.into());
+        shares.insert(message.sender, decrypted_shares);
         Ok((shares, next_message))
     }
 
