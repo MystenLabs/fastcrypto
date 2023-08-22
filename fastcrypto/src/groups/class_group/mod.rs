@@ -16,8 +16,10 @@ use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Neg};
+use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 
 mod compressed;
+mod bigint_utils;
 
 /// The maximal size in bits we allow a discriminant to have.
 pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
@@ -131,8 +133,6 @@ impl QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        // TODO: Add implementation of NUDPL (fast doubling) from the same paper.
-
         let u1 = &self.a;
         let v1 = &self.b;
         let w1 = &self.c;
@@ -148,7 +148,7 @@ impl QuadraticForm {
         let m = v2 - &s;
 
         // 2.
-        let xgcd = BigInt::extended_gcd(u2, u1);
+        let xgcd = extended_euclidean_algorithm(u2, u1);
         let f = xgcd.gcd;
         let b = xgcd.x;
         let c = xgcd.y;
@@ -159,24 +159,22 @@ impl QuadraticForm {
         let capital_cy: BigInt;
         let capital_dy: BigInt;
 
-        if s.is_multiple_of(&f) {
+        let (q,r) = s.div_rem(&f);
+        if r.is_zero() {
             g = f;
             capital_bx = &m * &b;
-            // TODO: capital_by and capital_cy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
-            capital_by = u1 / &g;
-            capital_cy = u2 / &g;
-            // TODO: is_multiple_of called above computes the division of s and f = g so there is no need to compute this again.
-            capital_dy = &s / &g;
+            capital_by = xgcd.b_divided_by_gcd;
+            capital_cy = xgcd.a_divided_by_gcd;
+            capital_dy = q;
         } else {
             // 3.
-            let xgcd = BigInt::extended_gcd(&f, &s);
-            g = xgcd.gcd;
-            let y = xgcd.y;
-            // TODO: h and capital_dy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
-            let h = &f / &g;
-            capital_by = u1 / &g;
-            capital_cy = u2 / &g;
-            capital_dy = &s / &g;
+            let xgcd_prime = extended_euclidean_algorithm(&f, &s);
+            g = xgcd_prime.gcd;
+            let y = xgcd_prime.y;
+            capital_by = &xgcd.b_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
+            capital_cy = &xgcd.a_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
+            capital_dy = xgcd_prime.b_divided_by_gcd;
+            let h = xgcd_prime.a_divided_by_gcd;
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);

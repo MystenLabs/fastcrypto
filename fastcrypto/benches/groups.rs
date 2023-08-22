@@ -185,21 +185,28 @@ mod group_benches {
             self.0 * scalar
         }
     }
-
     fn class_group_ops(c: &mut Criterion) {
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("Class Group Operation");
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Class Group");
         let d = Discriminant::try_from(BigInt::from_str_radix("-9458193260787340859710210783898414376413627187338129653105774703043377776905956484932486183722303201135571583745806165441941755833466966188398807387661571", 10).unwrap()).unwrap();
         let x = QuadraticForm::generator(&d).mul(&BigInt::from(1234));
         let y = QuadraticForm::generator(&d).mul(&BigInt::from(4321));
+        let z = x.clone();
         group.bench_function("Compose (512 bit discriminant)", move |b| {
             b.iter(|| x.compose(&y))
+        });
+        group.bench_function("Double (512 bit discriminant)", move |b| {
+            b.iter(|| z.double())
         });
 
         let d = Discriminant::try_from(BigInt::from_str_radix("-173197108158285529655099692042166386683260486655764503111574151459397279244340625070436917386670107433539464870917173822190635872887684166173874718269704667936351650895772937202272326332043347073303124000059154982400685660701006453457007094026343973435157790533480400962985543272080923974737725172126369794019", 10).unwrap()).unwrap();
         let x = QuadraticForm::generator(&d).mul(&BigInt::from(1234));
         let y = QuadraticForm::generator(&d).mul(&BigInt::from(4321));
+        let z = x.clone();
         group.bench_function("Compose (1024 bit discriminant)", move |b| {
             b.iter(|| x.compose(&y))
+        });
+        group.bench_function("Double (1024 bit discriminant)", move |b| {
+            b.iter(|| z.double())
         });
     }
 
