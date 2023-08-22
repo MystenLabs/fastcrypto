@@ -77,7 +77,9 @@ pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     let lhs = G::generator()
         * rs.iter()
             .zip(pairs.iter())
-            .fold(G::ScalarType::zero(), |acc, (r, (k, _))| acc + *r * *k);
+            .map(|(r, (k, _))| *r * *k)
+            .reduce(|a, b| a + b)
+            .expect("Iterators are non-empty");
     // Compute r1*H1 + r2*H2 + ... + rn*Hn
     let rhs = G::multi_scalar_mul(
         &rs[..],
@@ -154,16 +156,16 @@ pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 /// Checks if vectors v1=(a1*G1, ..., an*G1) and v2=(a1'*G2, ..., an'*G2) use ai = ai' for all i, by
 /// computing <v1, e> and <v2, e> for a random e and checking if they are equal using pairing.
 pub fn verify_equal_exponents<R: AllowedRng>(
-    g1: &[bls12381::G1Element],
-    g2: &[bls12381::G2Element],
+    v1: &[bls12381::G1Element],
+    v2: &[bls12381::G2Element],
     rng: &mut R,
 ) -> FastCryptoResult<()> {
-    if g1.len() != g2.len() {
+    if v1.len() != v2.len() {
         return Err(FastCryptoError::InvalidProof);
     }
-    let rs = get_random_scalars::<bls12381::G1Element, R>(g1.len() as u32, rng);
-    let lhs = bls12381::G1Element::multi_scalar_mul(&rs[..], g1).expect("sizes match");
-    let rhs = bls12381::G2Element::multi_scalar_mul(&rs[..], g2).expect("sizes match");
+    let rs = get_random_scalars::<bls12381::G1Element, R>(v1.len() as u32, rng);
+    let lhs = bls12381::G1Element::multi_scalar_mul(&rs[..], v1).expect("sizes match");
+    let rhs = bls12381::G2Element::multi_scalar_mul(&rs[..], v2).expect("sizes match");
 
     if lhs.pairing(&bls12381::G2Element::generator())
         != bls12381::G1Element::generator().pairing(&rhs)
