@@ -261,15 +261,13 @@ impl QuadraticForm {
         let v = &self.b;
         let w = &self.c;
 
-        let xgcd = BigInt::extended_gcd(u, v);
+        let xgcd = extended_euclidean_algorithm(u, v);
         let g = xgcd.gcd;
         let y = xgcd.y;
 
-        let capital_by = u / &g;
-        let capital_dy = v / &g;
-        let capital_bx = (&y * w).mod_floor(&capital_by);
-
-        let mut bx = capital_bx.clone();
+        let capital_by = xgcd.a_divided_by_gcd;
+        let capital_dy = xgcd.b_divided_by_gcd;
+        let mut bx = (&y * w).mod_floor(&capital_by);
         let mut by = capital_by.clone();
 
         let mut x = BigInt::one();
