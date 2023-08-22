@@ -48,3 +48,7 @@ pub mod random_oracle_tests;
 #[cfg(test)]
 #[path = "tests/dkg_tests.rs"]
 pub mod dkg_tests;
+
+#[cfg(test)]
+#[path = "tests/nodes_tests.rs"]
+pub mod nodes_tests;
