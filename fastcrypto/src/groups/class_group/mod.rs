@@ -9,6 +9,7 @@
 
 use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
 use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -16,10 +17,9 @@ use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Neg};
-use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 
-mod compressed;
 mod bigint_utils;
+mod compressed;
 
 /// The maximal size in bits we allow a discriminant to have.
 pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
@@ -76,7 +76,11 @@ impl QuadraticForm {
 
     /// Return true if this form is in normal form: -a < b <= a.
     fn is_normal(&self) -> bool {
-        self.b <= self.a && self.b > (&self.a).neg()
+        match self.b.magnitude().cmp(self.a.magnitude()) {
+            Ordering::Less => true,
+            Ordering::Equal => !self.b.is_negative(),
+            Ordering::Greater => false,
+        }
     }
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
@@ -100,10 +104,6 @@ impl QuadraticForm {
     /// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
     fn is_reduced(&self) -> bool {
-        if !self.is_normal() {
-            return false;
-        }
-
         match self.a.cmp(&self.c) {
             Ordering::Less => true,
             Ordering::Equal => !self.b.is_negative(),
@@ -117,11 +117,12 @@ impl QuadraticForm {
         let mut form = self.normalize();
         while !form.is_reduced() {
             let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
+            let cs = &form.c * &s;
             let old_a = form.a.clone();
             let old_b = form.b.clone();
             form.a = form.c.clone();
-            form.b = -&form.b + &s * &form.c * 2;
-            form.c = (&form.c * &s - &old_b) * &s + &old_a;
+            form.c = (&cs - &old_b) * &s + &old_a;
+            form.b = &cs * 2 - &form.b;
         }
         form
     }
@@ -159,7 +160,7 @@ impl QuadraticForm {
         let capital_cy: BigInt;
         let capital_dy: BigInt;
 
-        let (q,r) = s.div_rem(&f);
+        let (q, r) = s.div_rem(&f);
         if r.is_zero() {
             g = f;
             capital_bx = &m * &b;
@@ -439,7 +440,7 @@ mod tests {
         let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
         let generator = QuadraticForm::generator(&discriminant);
         let mut current = QuadraticForm::zero(&discriminant);
-        for i in 0..100 {
+        for i in 0..10000 {
             assert_eq!(current, generator.mul(&BigInt::from(i)));
             current = current + &generator;
         }

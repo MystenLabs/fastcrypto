@@ -1,11 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::mem;
-use std::ops::Neg;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Zero};
+use std::mem;
+use std::ops::Neg;
 
 pub struct EuclideanAlgorithmOutput {
     pub gcd: BigInt,
@@ -15,18 +15,18 @@ pub struct EuclideanAlgorithmOutput {
     pub b_divided_by_gcd: BigInt,
 }
 
-/// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coeffients x
-/// and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
+/// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
+/// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
     let mut s = (BigInt::zero(), BigInt::one());
     let mut t = (BigInt::one(), BigInt::zero());
     let mut r = (a.clone(), b.clone());
 
     while !r.0.is_zero() {
-        let q = r.1.clone() / r.0.clone();
+        let q = &r.1 / &r.0;
         let f = |mut r: (BigInt, BigInt)| {
             mem::swap(&mut r.0, &mut r.1);
-            r.0 = r.0 - q.clone() * r.1.clone();
+            r.0 = r.0 - &q * &r.1;
             r
         };
         r = f(r);
@@ -82,5 +82,4 @@ fn test_xgcd() {
     assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
     assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
     assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
-
 }
