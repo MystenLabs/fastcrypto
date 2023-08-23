@@ -37,7 +37,7 @@ fn setup_party(
         .map(|(id, _sk, pk)| Node::<EG> {
             id: *id,
             pk: pk.clone(),
-            weight: 1,
+            weight: 2,
         })
         .collect();
     Party::<G, EG>::new(
@@ -131,13 +131,13 @@ fn test_dkg_e2e_4_parties_threshold_2() {
 
     let r2_all = vec![conf0, conf1, conf3];
     let shares0 = d1
-        .process_confirmations(&r1_all, &r2_all, shares0, 3)
+        .process_confirmations(&r1_all, &r2_all, shares0, 3, &mut thread_rng())
         .unwrap();
     let shares1 = d1
-        .process_confirmations(&r1_all, &r2_all, shares1, 3)
+        .process_confirmations(&r1_all, &r2_all, shares1, 3, &mut thread_rng())
         .unwrap();
     let shares3 = d3
-        .process_confirmations(&r1_all, &r2_all, shares3, 3)
+        .process_confirmations(&r1_all, &r2_all, shares3, 3, &mut thread_rng())
         .unwrap();
 
     // Only the first message of d0 passed all tests -> only one vss is used.

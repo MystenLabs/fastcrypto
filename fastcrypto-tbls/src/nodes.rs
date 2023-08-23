@@ -5,7 +5,6 @@ use crate::ecies;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
-use std::collections::HashSet;
 use std::iter::Map;
 use std::ops::RangeInclusive;
 
@@ -43,6 +42,11 @@ impl<G: GroupElement> Nodes<G> {
         self.n
     }
 
+    /// Number of nodes.
+    pub fn num_nodes(&self) -> usize {
+        self.nodes.len()
+    }
+
     /// Get an iterator on the share ids.
     pub fn share_ids_iter(&self) -> Map<RangeInclusive<u32>, fn(u32) -> ShareIndex> {
         (1..=self.n).map(|i| ShareIndex::new(i).expect("nonzero"))
@@ -63,11 +67,11 @@ impl<G: GroupElement> Nodes<G> {
     }
 
     /// Get the share ids of a node.
-    pub fn share_ids_of(&self, id: PartyId) -> HashSet<ShareIndex> {
+    pub fn share_ids_of(&self, id: PartyId) -> Vec<ShareIndex> {
         // TODO: [perf opt] Cache this
         self.share_ids_iter()
             .filter(|node_id| self.share_id_to_node(node_id).expect("valid ids").id == id)
-            .collect::<HashSet<_>>()
+            .collect::<Vec<_>>()
     }
 
     /// Get an iterator on the nodes.
