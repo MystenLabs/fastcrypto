@@ -118,10 +118,9 @@ impl QuadraticForm {
         while !form.is_reduced() {
             let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
             let cs = &form.c * &s;
-            let old_a = form.a.clone();
-            let old_b = form.b.clone();
-            form.a = form.c.clone();
-            form.c = (&cs - &old_b) * &s + &old_a;
+            let old_c = form.c.clone();
+            form.c = (&cs - &form.b) * &s + &form.a;
+            form.a = old_c;
             form.b = &cs * 2 - &form.b;
         }
         form

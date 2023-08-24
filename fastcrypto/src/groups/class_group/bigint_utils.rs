@@ -3,7 +3,7 @@
 
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{One, Zero};
+use num_traits::{One, Signed, Zero};
 use std::mem;
 use std::ops::Neg;
 
@@ -23,22 +23,32 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
     let mut r = (a.clone(), b.clone());
 
     while !r.0.is_zero() {
-        let q = &r.1 / &r.0;
+        let (q, r_prime) = r.1.div_rem(&r.0);
+        r.1 = r.0;
+        r.0 = r_prime;
+
         let f = |mut r: (BigInt, BigInt)| {
             mem::swap(&mut r.0, &mut r.1);
-            r.0 = r.0 - &q * &r.1;
+            r.0 -= &q * &r.1;
             r
         };
-        r = f(r);
         s = f(s);
         t = f(t);
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    let a_divided_by_gcd = if a.sign() != s.0.sign() { -s.0 } else { s.0 };
-    let b_divided_by_gcd = if b.sign() != t.0.sign() { -t.0 } else { t.0 };
+    let a_divided_by_gcd = if a.sign() != s.0.sign() {
+        s.0.neg()
+    } else {
+        s.0
+    };
+    let b_divided_by_gcd = if b.sign() != t.0.sign() {
+        t.0.neg()
+    } else {
+        t.0
+    };
 
-    if r.1 >= BigInt::zero() {
+    if !r.1.is_negative() {
         EuclideanAlgorithmOutput {
             gcd: r.1,
             x: t.1,
