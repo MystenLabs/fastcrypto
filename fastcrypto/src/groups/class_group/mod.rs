@@ -194,9 +194,8 @@ impl QuadraticForm {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
-            let tmp = &y - &q * &x;
-            y = x;
-            x = tmp;
+            swap(&mut x, &mut y);
+            x -= &q * &y;
             z += 1;
         }
 
@@ -278,9 +277,8 @@ impl QuadraticForm {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
-            let tmp = &y - &q * &x;
-            y = x;
-            x = tmp;
+            swap(&mut x, &mut y);
+            x -= &q * &y;
             z += 1;
         }
 
