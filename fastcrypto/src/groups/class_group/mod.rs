@@ -204,12 +204,6 @@ impl QuadraticForm {
             y = -y;
         }
 
-        let (ax, ay) = if g.is_one() {
-            (x.clone(), y.clone())
-        } else {
-            (&g * &x, &g * &y)
-        };
-
         let u3: BigInt;
         let w3: BigInt;
         let v3: BigInt;
@@ -236,8 +230,15 @@ impl QuadraticForm {
             } else {
                 (&cx * &dy - w1) / &dx
             };
-            u3 = &by * &cy - &ay * &dy;
-            w3 = &bx * &cx - &ax * &dx;
+
+            let (ax_dx, ay_dy) = if g.is_one() {
+                (&x * &dx, &y * &dy)
+            } else {
+                (&g * &x * &dx, &g * &y * &dy)
+            };
+
+            u3 = &by * &cy - &ay_dy;
+            w3 = &bx * &cx - &ax_dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
@@ -287,12 +288,6 @@ impl QuadraticForm {
             y = -y;
         }
 
-        let (ax, ay) = if g.is_one() {
-            (x.clone(), y.clone())
-        } else {
-            (&g * &x, &g * &y)
-        };
-
         let mut u3: BigInt;
         let mut w3: BigInt;
         let mut v3: BigInt;
@@ -314,8 +309,15 @@ impl QuadraticForm {
             w3 = &bx * &bx;
             let s = &bx + &by;
             v3 = &v3 - &s * &s + &u3 + &w3;
-            u3 = &u3 - &ay * &dy;
-            w3 = &w3 - &ax * &dx;
+
+            let (ax_dx, ay_dy) = if g.is_one() {
+                (&x * &dx, &y * &dy)
+            } else {
+                (&g * &x * &dx, &g * &y * &dy)
+            };
+
+            u3 = &u3 - &ay_dy;
+            w3 = &w3 - &ax_dx;
         }
 
         QuadraticForm {
@@ -339,7 +341,7 @@ impl ParameterizedGroupElement for QuadraticForm {
     }
 
     fn double(&self) -> Self {
-        self.compose(self)
+        self.double()
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
