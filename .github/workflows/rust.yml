@@ -93,4 +93,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
-      - uses: EmbarkStudios/cargo-deny-action@e0a440755b184aa50374330fa75cca0f84fcb59a # pin@v1
+      - uses: EmbarkStudios/cargo-deny-action@a50c7d5f86370e02fae8472c398f15a36e517bb8 # pin@v1
