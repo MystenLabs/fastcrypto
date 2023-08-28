@@ -7,7 +7,7 @@
 //!
 //! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
 
-use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
+use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
@@ -20,21 +20,6 @@ use std::ops::{Add, Neg};
 
 mod bigint_utils;
 mod compressed;
-
-/// The maximal size in bits we allow a discriminant to have.
-pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
-
-/// The size of a compressed quadratic form in bytes. We force all forms to have the same size,
-/// namely 100 bytes.
-pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (
-    // The number of 32 bit words needed to represent the discriminant rounded up,
-    (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32
-        * 3 // a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
-        + 1 // Flags for special forms (identity or generator) and the sign of b and t'.
-        + 1 // The size of g - 1 = g_size.
-        // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
-        + 2
-) as usize;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -419,12 +404,13 @@ impl TryFrom<BigInt> for Discriminant {
         if !value.is_negative() || value.mod_floor(&BigInt::from(4)) != BigInt::from(1) {
             return Err(InvalidInput);
         }
-
-        if value.bits() > MAX_DISCRIMINANT_SIZE_IN_BITS {
-            return Err(InputTooLong(value.bits() as usize));
-        }
-
         Ok(Self(value))
+    }
+}
+
+impl From<&Discriminant> for BigInt {
+    fn from(discriminant: &Discriminant) -> Self {
+        discriminant.0.clone()
     }
 }
 
