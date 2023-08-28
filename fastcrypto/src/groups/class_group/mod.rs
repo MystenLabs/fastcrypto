@@ -235,6 +235,17 @@ impl QuadraticForm {
         }
         .reduce()
     }
+}
+
+impl ParameterizedGroupElement for QuadraticForm {
+    /// The discriminant of a quadratic form defines the class group.
+    type ParameterType = Discriminant;
+
+    type ScalarType = BigInt;
+
+    fn zero(discriminant: &Self::ParameterType) -> Self {
+        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+    }
 
     fn double(&self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
@@ -312,21 +323,6 @@ impl QuadraticForm {
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
         .reduce()
-    }
-}
-
-impl ParameterizedGroupElement for QuadraticForm {
-    /// The discriminant of a quadratic form defines the class group.
-    type ParameterType = Discriminant;
-
-    type ScalarType = BigInt;
-
-    fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
-    }
-
-    fn double(&self) -> Self {
-        self.double()
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
