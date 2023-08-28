@@ -205,7 +205,7 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
 
 impl Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    pub(crate) fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
+    fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
         Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
     }
 }
