@@ -8,6 +8,7 @@ use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
+use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use typenum::consts::{U16, U32};
 
@@ -33,8 +34,11 @@ pub struct Encryption<G: GroupElement>(G, Vec<u8>);
 /// A recovery package that allows decrypting a *specific* ECIES Encryption.
 /// It also includes a NIZK proof of correctness.
 // TODO: add Serialize, Deserialize.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RecoveryPackage<G: GroupElement> {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoveryPackage<G: GroupElement>
+where
+    G::ScalarType: Serialize + DeserializeOwned,
+{
     ephemeral_key: G,
     proof: DdhTupleNizk<G>,
 }
@@ -52,7 +56,7 @@ struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 impl<G> PrivateKey<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
 {
     pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
         Self(G::ScalarType::rand(rng))
@@ -81,8 +85,8 @@ where
 
 impl<G> PublicKey<G>
 where
-    G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    G: GroupElement + Serialize + DeserializeOwned,
+    <G as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
 {
     pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
         Self(G::generator() * sk.0)

@@ -23,8 +23,12 @@ use std::collections::HashMap;
 /// for the group of the ECIES public key.
 
 /// Party in the DKG protocol.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Party<G: GroupElement, EG: GroupElement> {
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Party<G: GroupElement, EG: GroupElement>
+where
+    G::ScalarType: Serialize + DeserializeOwned,
+    EG::ScalarType: Serialize + DeserializeOwned,
+{
     id: PartyId,
     nodes: Nodes<EG>,
     t: u32,
@@ -49,46 +53,36 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
-// TODO: add Serialize & Deserialize.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Complaint<EG: GroupElement> {
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Complaint<EG: GroupElement>
+where
+    EG::ScalarType: Serialize + DeserializeOwned,
+{
     encryption_sender: PartyId,
     package: RecoveryPackage<EG>,
 }
 
 /// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
 /// created by receiver of invalid encrypted shares.
-#[derive(Clone, PartialEq, Eq)]
-pub struct Confirmation<EG: GroupElement> {
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Confirmation<EG: GroupElement>
+where
+    EG::ScalarType: Serialize + DeserializeOwned,
+{
     pub sender: PartyId,
     /// List of complaints against other parties. Empty if there are none.
     pub complaints: Vec<Complaint<EG>>,
 }
-
-/// Mapping from node id to the shares received from that sender.
-pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
-
-/// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
-#[derive(Clone, Debug)]
-pub struct Output<G: GroupElement, EG: GroupElement> {
-    pub nodes: Nodes<EG>,
-    pub vss_pk: Poly<G>,
-    pub shares: Vec<Share<G::ScalarType>>,
-}
-
-// TODO: [comm & perf opt] Run the DKG with G1Curve and add another round in which parties send
-// their partial pk in G2. This will reduce communication but will add another round.
 
 /// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
 impl<G: GroupElement, EG: GroupElement> Party<G, EG>
 where
+    G: MultiScalarMul + Serialize + DeserializeOwned,
+    EG: Serialize + DeserializeOwned,
     <G as GroupElement>::ScalarType: Serialize + DeserializeOwned,
-    EG: Serialize,
-    G: MultiScalarMul + DeserializeOwned,
-    <EG as GroupElement>::ScalarType: HashToGroupElement,
+    <EG as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After all parties have sent their ECIES public keys, create the set of nodes.
@@ -394,4 +388,19 @@ where
 
         verify_poly_evals(&decrypted_shares, vss_pk, rng)
     }
+}
+
+/// Mapping from node id to the shares received from that sender.
+pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
+
+/// [Output] is the final output of the DKG protocol in case it runs
+/// successfully. It can be used later with [ThresholdBls], see examples in tests.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Output<G: GroupElement, EG: GroupElement>
+where
+    G::ScalarType: Serialize + DeserializeOwned,
+{
+    pub nodes: Nodes<EG>,
+    pub vss_pk: Poly<G>,
+    pub shares: Vec<Share<G::ScalarType>>,
 }

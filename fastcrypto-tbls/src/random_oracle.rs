@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use digest::Digest;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha3::Sha3_512;
 
 /// Random Oracle from Sha3.
@@ -13,7 +13,7 @@ use sha3::Sha3_512;
 ///   "-". The caller must make sure to choose distinct prefix & extension strings.
 ///     E.g., RandomOracle::new("abc-").extend("def") = RandomOracle::new("abc-def")
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomOracle {
     prefix: String,
 }
