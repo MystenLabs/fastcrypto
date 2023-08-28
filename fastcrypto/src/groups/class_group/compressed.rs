@@ -203,12 +203,12 @@ impl CompressedQuadraticForm {
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245.
         match self {
             Zero(d) => {
-                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.bits())];
                 bytes[0] = 0x04;
                 bytes
             }
             Generator(d) => {
-                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.bits())];
                 bytes[0] = 0x08;
                 bytes
             }
@@ -219,7 +219,7 @@ impl CompressedQuadraticForm {
 
                 // The bit length of the discriminant, which is rounded up to the next multiple of 32.
                 // Serialization of special forms (identity or generator) takes only 1 byte.
-                let d_bits = (form.discriminant.0.bits() as usize + 31) & !31;
+                let d_bits = (form.discriminant.bits() + 31) & !31;
 
                 // Size of g in bytes minus 1 (g_size)
                 let g_size = (form.g.bits() as usize + 7) / 8 - 1;
@@ -249,7 +249,7 @@ impl CompressedQuadraticForm {
                 bytes.extend_from_slice(&vec![
                     0u8;
                     QuadraticForm::serialized_length(
-                        form.discriminant.0.bits() as usize
+                        form.discriminant.bits()
                     ) - bytes.len()
                 ]);
                 bytes
@@ -259,7 +259,7 @@ impl CompressedQuadraticForm {
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        if bytes.len() != QuadraticForm::serialized_length(discriminant.0.bits() as usize) {
+        if bytes.len() != QuadraticForm::serialized_length(discriminant.bits()) {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -276,7 +276,7 @@ impl CompressedQuadraticForm {
 
         // The bit length of the discriminant, which is rounded up to the next multiple of 32.
         // Serialization of special forms (identity or generator) takes only 1 byte.
-        let d_bits = (discriminant.0.bits() as usize + 31) & !31;
+        let d_bits = (discriminant.bits() + 31) & !31;
 
         // Size of g in bytes minus 1 (g_size)
         let g_size = bytes[1] as usize;
@@ -442,7 +442,7 @@ mod tests {
         let serialized = compressed.serialize();
         assert_eq!(serialized.to_vec(), compressed_bytes);
 
-        let length = QuadraticForm::serialized_length(discriminant.0.bits() as usize);
+        let length = QuadraticForm::serialized_length(discriminant.bits());
 
         let mut generator_serialized = vec![0x08];
         generator_serialized.extend_from_slice(&vec![0u8; length - 1]);

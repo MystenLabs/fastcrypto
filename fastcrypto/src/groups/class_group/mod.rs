@@ -414,6 +414,13 @@ impl From<&Discriminant> for BigInt {
     }
 }
 
+impl Discriminant {
+    /// Return the number of bits needed to represent this discriminant, not including the sign bit.
+    pub fn bits(&self) -> usize {
+        self.0.bits() as usize
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::groups::class_group::{Discriminant, QuadraticForm};
