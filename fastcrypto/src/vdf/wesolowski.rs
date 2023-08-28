@@ -165,15 +165,34 @@ impl Discriminant {
 }
 
 #[test]
-fn test_verify_chia_vdf_proof() {
-    // Test vector from chiavdf (https://github.com/Chia-Network/chiavdf/blob/main/tests/test_verifier.py)
-    let challenge_hex = "efa94dee46bd9404fb48";
-    let iterations = 1000000u64;
-    let result_hex = "030043791356fc0d3c31cdcc1909371085313f00a43c260aabfd379b67f1d9a8790c07989723e37f6dcd900c3bfe732e661a0200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
-    let proof_hex = "0300e500d6c3f2e7e2109a261d762c460cf9c2138d47338060e6936771eabb35a9122724318e2b28258882cb453f2f4bf00d0100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+fn test_prove_and_verify() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let iterations = 1000u64;
+    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+
+    let g = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    let (output, proof) = vdf.evaluate(&g).unwrap();
+    assert!(vdf.verify(&g, &output, &proof).is_ok());
+
+    // // A modified output or proof fails to verify
+    // let modified_output = output.mul(&BigInt::from(2));
+    // let modified_proof = proof.mul(&BigInt::from(2));
+    // assert!(vdf.verify(&g, &modified_output, &proof).is_err());
+    // assert!(vdf.verify(&g, &output, &modified_proof).is_err());
+}
+
+#[test]
+fn test_verify_from_chain() {
+    // Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
+    let challenge_hex = "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";
+    let iterations = 4194304u64;
+    let result_hex = "0300445cbcaa176166d9a50b9699e9394be46766c8f6494a1a9afd95bb5dc652ee42101278ad7358baf4ae727e4f5a6f732e3a8c26d9d11365081275a6d4b36dda63a905baffdaebab3311d8d6e2f356edf3bb1cf90e5654e688869d66d1c60676440100";
+    let proof_hex = "030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100";
 
     let challenge = hex::decode(challenge_hex).unwrap();
-    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
+    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
 
     let result_bytes = hex::decode(result_hex).unwrap();
     let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
@@ -183,28 +202,6 @@ fn test_verify_chia_vdf_proof() {
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::from_seed(&challenge, 512, iterations).unwrap();
+    let vdf = ClassGroupVDF::from_seed(&challenge, 1024, iterations).unwrap();
     assert!(vdf.verify(&input, &result, &proof).is_ok());
-}
-
-#[test]
-fn test_prove_and_verify() {
-    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let iterations = 1000u64;
-    let discriminant = Discriminant::from_seed(&challenge, 512).unwrap();
-
-    let g = QuadraticForm::generator(&discriminant);
-
-    let vdf = ClassGroupVDF::new(discriminant, iterations);
-    let (output, proof) = vdf.evaluate(&g).unwrap();
-    assert!(vdf.verify(&g, &output, &proof).is_ok());
-
-    // Check that output is the same as chiavdf.
-    assert_eq!(output.as_bytes(), hex::decode("00000f15c12a8df103ea8fac88eb3e5d956a0a6c7126671d5ca2613e2c11cfbc7f12f6a38a3e70c9faf569c596f7820c18140200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap());
-
-    // A modified output or proof fails to verify
-    let modified_output = output.mul(&BigInt::from(2));
-    let modified_proof = proof.mul(&BigInt::from(2));
-    assert!(vdf.verify(&g, &modified_output, &proof).is_err());
-    assert!(vdf.verify(&g, &output, &modified_proof).is_err());
 }

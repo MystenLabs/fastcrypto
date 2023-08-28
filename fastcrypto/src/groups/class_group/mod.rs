@@ -9,6 +9,7 @@
 
 use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
 use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -17,6 +18,7 @@ use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Neg};
 
+mod bigint_utils;
 mod compressed;
 
 /// The maximal size in bits we allow a discriminant to have.
@@ -74,7 +76,11 @@ impl QuadraticForm {
 
     /// Return true if this form is in normal form: -a < b <= a.
     fn is_normal(&self) -> bool {
-        self.b <= self.a && self.b > (&self.a).neg()
+        match self.b.magnitude().cmp(self.a.magnitude()) {
+            Ordering::Less => true,
+            Ordering::Equal => !self.b.is_negative(),
+            Ordering::Greater => false,
+        }
     }
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
@@ -98,10 +104,6 @@ impl QuadraticForm {
     /// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
     fn is_reduced(&self) -> bool {
-        if !self.is_normal() {
-            return false;
-        }
-
         match self.a.cmp(&self.c) {
             Ordering::Less => true,
             Ordering::Equal => !self.b.is_negative(),
@@ -115,11 +117,11 @@ impl QuadraticForm {
         let mut form = self.normalize();
         while !form.is_reduced() {
             let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
-            let old_a = form.a.clone();
-            let old_b = form.b.clone();
-            form.a = form.c.clone();
-            form.b = -&form.b + &s * &form.c * 2;
-            form.c = (&form.c * &s - &old_b) * &s + &old_a;
+            let cs = &form.c * &s;
+            let old_c = form.c.clone();
+            form.c = (&cs - &form.b) * &s + &form.a;
+            form.a = old_c;
+            form.b = &cs * 2 - &form.b;
         }
         form
     }
@@ -130,8 +132,6 @@ impl QuadraticForm {
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
-
-        // TODO: Add implementation of NUDPL (fast doubling) from the same paper.
 
         let u1 = &self.a;
         let v1 = &self.b;
@@ -148,7 +148,7 @@ impl QuadraticForm {
         let m = v2 - &s;
 
         // 2.
-        let xgcd = BigInt::extended_gcd(u2, u1);
+        let xgcd = extended_euclidean_algorithm(u2, u1);
         let f = xgcd.gcd;
         let b = xgcd.x;
         let c = xgcd.y;
@@ -159,24 +159,22 @@ impl QuadraticForm {
         let capital_cy: BigInt;
         let capital_dy: BigInt;
 
-        if s.is_multiple_of(&f) {
+        let (q, r) = s.div_rem(&f);
+        if r.is_zero() {
             g = f;
             capital_bx = &m * &b;
-            // TODO: capital_by and capital_cy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
-            capital_by = u1 / &g;
-            capital_cy = u2 / &g;
-            // TODO: is_multiple_of called above computes the division of s and f = g so there is no need to compute this again.
-            capital_dy = &s / &g;
+            capital_by = xgcd.b_divided_by_gcd;
+            capital_cy = xgcd.a_divided_by_gcd;
+            capital_dy = q;
         } else {
             // 3.
-            let xgcd = BigInt::extended_gcd(&f, &s);
-            g = xgcd.gcd;
-            let y = xgcd.y;
-            // TODO: h and capital_dy are computed in the last step of the extended euclidean algorithm but is not available in the function currently used.
-            let h = &f / &g;
-            capital_by = u1 / &g;
-            capital_cy = u2 / &g;
-            capital_dy = &s / &g;
+            let xgcd_prime = extended_euclidean_algorithm(&f, &s);
+            g = xgcd_prime.gcd;
+            let y = xgcd_prime.y;
+            capital_by = &xgcd.b_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
+            capital_cy = &xgcd.a_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
+            capital_dy = xgcd_prime.b_divided_by_gcd;
+            let h = xgcd_prime.a_divided_by_gcd;
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
@@ -196,9 +194,8 @@ impl QuadraticForm {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
-            let tmp = &y - &q * &x;
-            y = x;
-            x = tmp;
+            swap(&mut x, &mut y);
+            x -= &q * &y;
             z += 1;
         }
 
@@ -206,12 +203,6 @@ impl QuadraticForm {
             by = -by;
             y = -y;
         }
-
-        let (ax, ay) = if g.is_one() {
-            (x.clone(), y.clone())
-        } else {
-            (&g * &x, &g * &y)
-        };
 
         let u3: BigInt;
         let w3: BigInt;
@@ -239,9 +230,94 @@ impl QuadraticForm {
             } else {
                 (&cx * &dy - w1) / &dx
             };
-            u3 = &by * &cy - &ay * &dy;
-            w3 = &bx * &cx - &ax * &dx;
+
+            let (ax_dx, ay_dy) = if g.is_one() {
+                (&x * &dx, &y * &dy)
+            } else {
+                (&g * &x * &dx, &g * &y * &dy)
+            };
+
+            u3 = &by * &cy - &ay_dy;
+            w3 = &bx * &cx - &ax_dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
+        }
+
+        QuadraticForm {
+            a: u3,
+            b: v3,
+            c: w3,
+            partial_gcd_limit: self.partial_gcd_limit.clone(),
+        }
+        .reduce()
+    }
+
+    fn double(&self) -> Self {
+        // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
+        // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
+        // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
+        // The paragraph numbers and variable names follow the paper.
+
+        let u = &self.a;
+        let v = &self.b;
+        let w = &self.c;
+
+        let xgcd = extended_euclidean_algorithm(u, v);
+        let g = xgcd.gcd;
+        let y = xgcd.y;
+
+        let capital_by = xgcd.a_divided_by_gcd;
+        let capital_dy = xgcd.b_divided_by_gcd;
+        let mut bx = (&y * w).mod_floor(&capital_by);
+        let mut by = capital_by.clone();
+
+        let mut x = BigInt::one();
+        let mut y = BigInt::zero();
+        let mut z = 0u32;
+
+        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
+            let (q, t) = by.div_rem(&bx);
+            by = bx;
+            bx = t;
+            swap(&mut x, &mut y);
+            x -= &q * &y;
+            z += 1;
+        }
+
+        if z.is_odd() {
+            by = -by;
+            y = -y;
+        }
+
+        let mut u3: BigInt;
+        let mut w3: BigInt;
+        let mut v3: BigInt;
+
+        if z == 0 {
+            let dx = (&bx * &capital_dy - w) / &capital_by;
+            u3 = &by * &by;
+            w3 = &bx * &bx;
+            let s = &bx + &by;
+            v3 = v - &s * &s + &u3 + &w3;
+            w3 = &w3 - &g * &dx;
+        } else {
+            let dx = (&bx * &capital_dy - w * &x) / &capital_by;
+            let q1 = &dx * &y;
+            let mut dy = &q1 + &capital_dy;
+            v3 = &g * (&dy + &q1);
+            dy = &dy / &x;
+            u3 = &by * &by;
+            w3 = &bx * &bx;
+            let s = &bx + &by;
+            v3 = &v3 - &s * &s + &u3 + &w3;
+
+            let (ax_dx, ay_dy) = if g.is_one() {
+                (&x * &dx, &y * &dy)
+            } else {
+                (&g * &x * &dx, &g * &y * &dy)
+            };
+
+            u3 = &u3 - &ay_dy;
+            w3 = &w3 - &ax_dx;
         }
 
         QuadraticForm {
@@ -265,7 +341,7 @@ impl ParameterizedGroupElement for QuadraticForm {
     }
 
     fn double(&self) -> Self {
-        self.compose(self)
+        self.double()
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
@@ -363,7 +439,7 @@ mod tests {
         let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
         let generator = QuadraticForm::generator(&discriminant);
         let mut current = QuadraticForm::zero(&discriminant);
-        for i in 0..100 {
+        for i in 0..10000 {
             assert_eq!(current, generator.mul(&BigInt::from(i)));
             current = current + &generator;
         }
