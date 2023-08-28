@@ -44,7 +44,7 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     /// The commitment of the secret polynomial created by the sender.
     // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
-    /// The encrypted shares created by the sender.
+    /// The encrypted shares created by the sender. Sorted according to the receivers.
     pub encrypted_shares: Vec<ecies::Encryption<EG>>,
 }
 
@@ -62,6 +62,24 @@ pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
     /// List of complaints against other parties. Empty if there are none.
     pub complaints: Vec<Complaint<EG>>,
+}
+
+pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
+    message: Message<G, EG>,
+    shares: Vec<Share<G::ScalarType>>, //possibly empty
+    complaint: Option<Complaint<EG>>,
+}
+
+/// Mapping from node id to the shares received from that sender.
+pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
+
+/// [Output] is the final output of the DKG protocol in case it runs
+/// successfully. It can be used later with [ThresholdBls], see examples in tests.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Output<G: GroupElement, EG: GroupElement> {
+    pub nodes: Nodes<EG>,
+    pub vss_pk: Poly<G>,
+    pub shares: Vec<Share<G::ScalarType>>,
 }
 
 /// A dealer in the DKG ceremony.
@@ -90,8 +108,7 @@ where
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
         let nodes = Nodes::new(nodes)?;
-        let n = nodes.n();
-        if t >= n {
+        if t >= nodes.n() {
             return Err(FastCryptoError::InvalidInput);
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -119,10 +136,10 @@ where
             .iter()
             .map(|node| {
                 let share_ids = self.nodes.share_ids_of(node.id);
-                let mut shares = Vec::new();
-                for share_id in share_ids {
-                    shares.push(self.vss_sk.eval(share_id).value);
-                }
+                let shares = share_ids
+                    .iter()
+                    .map(|share_id| self.vss_sk.eval(*share_id).value)
+                    .collect::<Vec<_>>();
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 node.pk.encrypt(&buff, rng)
             })
@@ -135,50 +152,52 @@ where
         }
     }
 
+    fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
+        self.nodes.node_id_to_node(msg.sender)?;
+        if self.t != msg.vss_pk.degree() + 1 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if self.nodes.num_nodes() != msg.encrypted_shares.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(())
+    }
+
     /// 5. Process a message and create the second message to be broadcasted.
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
     pub fn process_message<R: AllowedRng>(
         &self,
-        message: &Message<G, EG>,
+        message: Message<G, EG>,
         rng: &mut R,
-    ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
-        let mut shares = HashMap::new(); // Will include only valid shares.
-        let mut next_message = Confirmation {
-            sender: self.id,
-            complaints: Vec::new(),
-        };
-
-        if self.nodes.node_id_to_node(message.sender).is_err() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let my_share_ids = self.nodes.share_ids_of(self.id);
+    ) -> FastCryptoResult<ProcessedMessage<G, EG>> {
         // Ignore if invalid (and other honest parties will ignore as well).
-        if (message.vss_pk.degree() != self.t - 1)
-            || (message.encrypted_shares.len() != self.nodes.num_nodes() as usize)
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
+        self.sanity_check_message(&message)?;
 
+        let my_share_ids = self.nodes.share_ids_of(self.id);
         let encrypted_shares = &message.encrypted_shares[self.id as usize];
         let decrypted_shares = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_shares).ok();
 
         if decrypted_shares.is_none()
             || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()
         {
-            next_message.complaints.push(Complaint {
+            let complaint = Complaint {
                 encryption_sender: message.sender,
                 package: self.ecies_sk.create_recovery_package(
                     encrypted_shares,
                     &self.random_oracle.extend("ecies"),
                     rng,
                 ),
+            };
+            return Ok(ProcessedMessage {
+                message,
+                shares: vec![],
+                complaint: Some(complaint),
             });
-            return Ok((shares, next_message)); // 1 complaint per message is enough
         }
 
         let decrypted_shares = decrypted_shares
-            .unwrap()
+            .expect("checked above")
             .iter()
             .zip(my_share_ids)
             .map(|(s, i)| Eval {
@@ -188,34 +207,40 @@ where
             .collect::<Vec<_>>();
 
         if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
-            next_message.complaints.push(Complaint {
+            let complaint = Complaint {
                 encryption_sender: message.sender,
                 package: self.ecies_sk.create_recovery_package(
                     encrypted_shares,
                     &self.random_oracle.extend("ecies"),
                     rng,
                 ),
+            };
+            return Ok(ProcessedMessage {
+                message,
+                shares: vec![],
+                complaint: Some(complaint),
             });
-            return Ok((shares, next_message)); // 1 complaint per message is enough
         }
 
-        shares.insert(message.sender, decrypted_shares);
-        Ok((shares, next_message))
+        Ok(ProcessedMessage {
+            message,
+            shares: decrypted_shares,
+            complaint: None,
+        })
     }
 
     /// 6. Merge results from multiple process_message calls so only one message needs to be sent.
     ///    Returns InputTooShort if the threshold t is not met.
     pub fn merge(
         &self,
-        processed_messages: &[(SharesMap<G::ScalarType>, Confirmation<EG>)],
+        processed_messages: &[ProcessedMessage<G, EG>],
     ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
-        // Verify unique and valid senders
-        let num_of_unique_senders = processed_messages
+        // Verify unique senders
+        let senders = processed_messages
             .iter()
-            .map(|m| m.1.sender)
-            .collect::<HashSet<_>>()
-            .len();
-        if num_of_unique_senders != processed_messages.len() {
+            .map(|m| m.message.sender)
+            .collect::<HashSet<_>>();
+        if senders.len() != processed_messages.len() {
             return Err(FastCryptoError::InvalidInput);
         }
         // Verify we have enough messages
@@ -223,7 +248,7 @@ where
             .iter()
             .map(|m| {
                 self.nodes
-                    .node_id_to_node(m.1.sender)
+                    .node_id_to_node(m.message.sender)
                     .expect("checked in process_message")
                     .weight as u32
             })
@@ -238,9 +263,11 @@ where
             complaints: Vec::new(),
         };
         for m in processed_messages {
-            assert_eq!(self.id, m.1.sender);
-            shares.extend(m.0.clone().into_iter());
-            conf.complaints.extend(m.1.complaints.clone().into_iter());
+            shares.insert(m.message.sender, m.shares.clone());
+            if m.complaint.is_some() {
+                let complaint = m.complaint.clone().unwrap();
+                conf.complaints.push(complaint);
+            }
         }
         Ok((shares, conf))
     }
@@ -251,18 +278,36 @@ where
     ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
     ///    application dependent but in most cases it should be at least t+f to guarantee that at
     ///    least t honest nodes have valid shares.
+    ///    Returns InputTooShort if the threshold minimal_threshold is not met.
     pub fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &[Message<G, EG>],
         confirmations: &[Confirmation<EG>],
         shares: SharesMap<G::ScalarType>,
-        _minimal_threshold: usize,
+        minimal_threshold: u32,
         rng: &mut R,
     ) -> Result<SharesMap<G::ScalarType>, FastCryptoError> {
-        // TODO: update next line's checks to check the weights
-        // if messages.len() != self.t as usize || confirmations.len() < minimal_threshold {
-        //     return Err(FastCryptoError::InvalidInput);
-        // }
+        if minimal_threshold < self.t {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Ignore confirmations with invalid sender
+        let confirmations = confirmations
+            .iter()
+            .filter(|c| self.nodes.node_id_to_node(c.sender).is_ok())
+            .collect::<Vec<_>>();
+        // Verify we have enough confirmations
+        let total_weight = confirmations
+            .iter()
+            .map(|c| {
+                self.nodes
+                    .node_id_to_node(c.sender)
+                    .expect("checked above")
+                    .weight as u32
+            })
+            .sum::<u32>();
+        if total_weight < minimal_threshold {
+            return Err(FastCryptoError::InputTooShort(minimal_threshold as usize));
+        }
 
         // Two hash maps for faster access in the main loop below.
         let id_to_pk: HashMap<PartyId, &ecies::PublicKey<EG>> =
@@ -279,11 +324,11 @@ where
                     continue 'inner;
                 }
                 let accuser = m2.sender;
-                // TODO: check that current accuser is in nodes (and thus in id_to_pk).
-                let accuser_pk = id_to_pk.get(&accuser).unwrap();
+                let accuser_pk = id_to_pk
+                    .get(&accuser)
+                    .expect("checked above that accuser is valid id");
                 let related_m1 = id_to_m1.get(&accused);
                 // If the claim refers to a non existing message, it's an invalid complaint.
-                // TODO: check the share id is in the range, etc
                 let valid_complaint = related_m1.is_some() && {
                     let encrypted_shares = &related_m1
                         .expect("checked above that is not None")
@@ -393,16 +438,4 @@ where
 
         verify_poly_evals(&decrypted_shares, vss_pk, rng)
     }
-}
-
-/// Mapping from node id to the shares received from that sender.
-pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
-
-/// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Output<G: GroupElement, EG: GroupElement> {
-    pub nodes: Nodes<EG>,
-    pub vss_pk: Poly<G>,
-    pub shares: Vec<Share<G::ScalarType>>,
 }
