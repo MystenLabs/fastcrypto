@@ -15,9 +15,25 @@ pub struct EuclideanAlgorithmOutput {
     pub b_divided_by_gcd: BigInt,
 }
 
+impl EuclideanAlgorithmOutput {
+    fn flip(self) -> Self {
+        Self {
+            gcd: self.gcd,
+            x: self.y,
+            y: self.x,
+            a_divided_by_gcd: self.b_divided_by_gcd,
+            b_divided_by_gcd: self.a_divided_by_gcd,
+        }
+    }
+}
+
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
+    if b < a {
+        return extended_euclidean_algorithm(b, a).flip();
+    }
+
     let mut s = (BigInt::zero(), BigInt::one());
     let mut t = (BigInt::one(), BigInt::zero());
     let mut r = (a.clone(), b.clone());
@@ -27,10 +43,10 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
         r.1 = r.0;
         r.0 = r_prime;
 
-        let f = |mut r: (BigInt, BigInt)| {
-            mem::swap(&mut r.0, &mut r.1);
-            r.0 -= &q * &r.1;
-            r
+        let f = |mut x: (BigInt, BigInt)| {
+            mem::swap(&mut x.0, &mut x.1);
+            x.0 -= &q * &x.1;
+            x
         };
         s = f(s);
         t = f(t);
