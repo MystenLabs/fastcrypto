@@ -408,16 +408,15 @@ impl TryFrom<BigInt> for Discriminant {
     }
 }
 
-impl From<&Discriminant> for BigInt {
-    fn from(discriminant: &Discriminant) -> Self {
-        discriminant.0.clone()
-    }
-}
-
 impl Discriminant {
     /// Return the number of bits needed to represent this discriminant, not including the sign bit.
     pub fn bits(&self) -> usize {
         self.0.bits() as usize
+    }
+
+    /// Returns the big-endian byte representation of the absolute value of this discriminant.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes_be().1
     }
 }
 

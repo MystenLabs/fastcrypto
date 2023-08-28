@@ -155,7 +155,7 @@ impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        seed.extend_from_slice(&BigInt::from(&vdf.group_parameter).to_bytes_be().1);
+        seed.extend_from_slice(&vdf.group_parameter.to_bytes());
         seed.extend_from_slice(&vdf.iterations.to_be_bytes());
         hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
