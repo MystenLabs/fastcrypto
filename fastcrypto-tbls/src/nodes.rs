@@ -3,6 +3,7 @@
 
 use crate::ecies;
 use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use serde::{Deserialize, Serialize};
@@ -65,6 +66,14 @@ impl<G: GroupElement> Nodes<G> {
             curr_share_id += n.weight as u32;
         }
         Err(FastCryptoError::InvalidInput)
+    }
+
+    pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
+        if party_id as usize >= self.nodes.len() {
+            Err(InvalidInput)
+        } else {
+            Ok(&self.nodes[party_id as usize])
+        }
     }
 
     /// Get the share ids of a node.

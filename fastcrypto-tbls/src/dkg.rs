@@ -17,7 +17,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
@@ -79,7 +79,7 @@ where
     pub fn new<R: AllowedRng>(
         ecies_sk: ecies::PrivateKey<EG>,
         nodes: Vec<Node<EG>>,
-        t: u32, // The number of parties that are needed to reconstruct the full signature.
+        t: u32, // The number of parties that are needed to reconstruct the full key/signature.
         random_oracle: RandomOracle,
         rng: &mut R,
     ) -> Result<Self, FastCryptoError> {
@@ -149,12 +149,15 @@ where
             complaints: Vec::new(),
         };
 
+        if self.nodes.node_id_to_node(message.sender).is_err() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let my_share_ids = self.nodes.share_ids_of(self.id);
         // Ignore if invalid (and other honest parties will ignore as well).
         if (message.vss_pk.degree() != self.t - 1)
             || (message.encrypted_shares.len() != self.nodes.num_nodes() as usize)
         {
-            return Err(FastCryptoError::InvalidProof);
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let encrypted_shares = &message.encrypted_shares[self.id as usize];
@@ -201,20 +204,33 @@ where
     }
 
     /// 6. Merge results from multiple process_message calls so only one message needs to be sent.
+    ///    Returns InputTooShort if the threshold t is not met.
     pub fn merge(
         &self,
         processed_messages: &[(SharesMap<G::ScalarType>, Confirmation<EG>)],
-    ) -> (SharesMap<G::ScalarType>, Confirmation<EG>) {
-        // TODO: verify we have messages from more than t weights
-        // TODO: verify unique senders
-        // let num_of_unique_senders =
-        //     .iter()
-        //     .map(|m| m.sender)
-        //     .collect::<HashSet<_>>()
-        //     .len();
-        // if num_of_unique_senders != messages.len() {
-        //     return Err(FastCryptoError::InputTooShort(num_of_unique_senders));
-        // }
+    ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
+        // Verify unique and valid senders
+        let num_of_unique_senders = processed_messages
+            .iter()
+            .map(|m| m.1.sender)
+            .collect::<HashSet<_>>()
+            .len();
+        if num_of_unique_senders != processed_messages.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Verify we have enough messages
+        let total_weight = processed_messages
+            .iter()
+            .map(|m| {
+                self.nodes
+                    .node_id_to_node(m.1.sender)
+                    .expect("checked in process_message")
+                    .weight as u32
+            })
+            .sum::<u32>();
+        if total_weight < self.t {
+            return Err(FastCryptoError::InputTooShort(self.t as usize));
+        }
 
         let mut shares = HashMap::new();
         let mut conf = Confirmation {
@@ -226,7 +242,7 @@ where
             shares.extend(m.0.clone().into_iter());
             conf.complaints.extend(m.1.complaints.clone().into_iter());
         }
-        (shares, conf)
+        Ok((shares, conf))
     }
 
     /// 7. Process all confirmations, check all complaints, and update the local set of

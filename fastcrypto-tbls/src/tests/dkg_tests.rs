@@ -85,7 +85,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
                     complaints: Vec::new(),
                 },
             ),
-            |acc, x| d0.merge(&[acc, x]),
+            |acc, x| d0.merge(&[acc, x]).unwrap(),
         );
 
     let (shares1, conf1) = r1_all
@@ -99,7 +99,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
                     complaints: Vec::new(),
                 },
             ),
-            |acc, x| d1.merge(&[acc, x]),
+            |acc, x| d1.merge(&[acc, x]).unwrap(),
         );
 
     // Note that d3's first round message is not included but it should still be able to receive
@@ -115,7 +115,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
                     complaints: Vec::new(),
                 },
             ),
-            |acc, x| d3.merge(&[acc, x]),
+            |acc, x| d3.merge(&[acc, x]).unwrap(),
         );
 
     // There should be some complaints on the first messages of d1.
