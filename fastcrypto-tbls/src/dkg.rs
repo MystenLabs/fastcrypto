@@ -24,11 +24,7 @@ use std::collections::HashMap;
 
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Party<G: GroupElement, EG: GroupElement>
-where
-    G::ScalarType: Serialize + DeserializeOwned,
-    EG::ScalarType: Serialize + DeserializeOwned,
-{
+pub struct Party<G: GroupElement, EG: GroupElement> {
     id: PartyId,
     nodes: Nodes<EG>,
     t: u32,
@@ -54,10 +50,7 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Complaint<EG: GroupElement>
-where
-    EG::ScalarType: Serialize + DeserializeOwned,
-{
+pub struct Complaint<EG: GroupElement> {
     encryption_sender: PartyId,
     package: RecoveryPackage<EG>,
 }
@@ -65,10 +58,7 @@ where
 /// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
 /// created by receiver of invalid encrypted shares.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Confirmation<EG: GroupElement>
-where
-    EG::ScalarType: Serialize + DeserializeOwned,
-{
+pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
     /// List of complaints against other parties. Empty if there are none.
     pub complaints: Vec<Complaint<EG>>,
@@ -81,8 +71,7 @@ impl<G: GroupElement, EG: GroupElement> Party<G, EG>
 where
     G: MultiScalarMul + Serialize + DeserializeOwned,
     EG: Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: Serialize + DeserializeOwned,
-    <EG as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
+    <EG as GroupElement>::ScalarType: HashToGroupElement,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After all parties have sent their ECIES public keys, create the set of nodes.
@@ -396,10 +385,7 @@ pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
 /// [Output] is the final output of the DKG protocol in case it runs
 /// successfully. It can be used later with [ThresholdBls], see examples in tests.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Output<G: GroupElement, EG: GroupElement>
-where
-    G::ScalarType: Serialize + DeserializeOwned,
-{
+pub struct Output<G: GroupElement, EG: GroupElement> {
     pub nodes: Nodes<EG>,
     pub vss_pk: Poly<G>,
     pub shares: Vec<Share<G::ScalarType>>,

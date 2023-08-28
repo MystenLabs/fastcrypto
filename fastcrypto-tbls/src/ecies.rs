@@ -33,12 +33,8 @@ pub struct Encryption<G: GroupElement>(G, Vec<u8>);
 
 /// A recovery package that allows decrypting a *specific* ECIES Encryption.
 /// It also includes a NIZK proof of correctness.
-// TODO: add Serialize, Deserialize.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RecoveryPackage<G: GroupElement>
-where
-    G::ScalarType: Serialize + DeserializeOwned,
-{
+pub struct RecoveryPackage<G: GroupElement> {
     ephemeral_key: G,
     proof: DdhTupleNizk<G>,
 }
@@ -56,7 +52,7 @@ struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 impl<G> PrivateKey<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
+    <G as GroupElement>::ScalarType: HashToGroupElement,
 {
     pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
         Self(G::ScalarType::rand(rng))
@@ -86,7 +82,7 @@ where
 impl<G> PublicKey<G>
 where
     G: GroupElement + Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: HashToGroupElement + Serialize + DeserializeOwned,
+    <G as GroupElement>::ScalarType: HashToGroupElement,
 {
     pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
         Self(G::generator() * sk.0)

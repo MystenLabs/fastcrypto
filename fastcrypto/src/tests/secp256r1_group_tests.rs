@@ -25,3 +25,5 @@ fn test_arithmetic() {
     assert_eq!(two_p, p * s);
     assert_eq!(p, two_p * (Scalar::generator() / s).unwrap());
 }
+
+// TODO: add serde tests & regression
