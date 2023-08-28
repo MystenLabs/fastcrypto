@@ -176,11 +176,11 @@ fn test_prove_and_verify() {
     let (output, proof) = vdf.evaluate(&g).unwrap();
     assert!(vdf.verify(&g, &output, &proof).is_ok());
 
-    // // A modified output or proof fails to verify
-    // let modified_output = output.mul(&BigInt::from(2));
-    // let modified_proof = proof.mul(&BigInt::from(2));
-    // assert!(vdf.verify(&g, &modified_output, &proof).is_err());
-    // assert!(vdf.verify(&g, &output, &modified_proof).is_err());
+    // A modified output or proof fails to verify
+    let modified_output = output.mul(&BigInt::from(2));
+    let modified_proof = proof.mul(&BigInt::from(2));
+    assert!(vdf.verify(&g, &modified_output, &proof).is_err());
+    assert!(vdf.verify(&g, &output, &modified_proof).is_err());
 }
 
 #[test]
