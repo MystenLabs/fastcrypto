@@ -260,7 +260,7 @@ impl CompressedQuadraticForm {
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
         if bytes.len() != QuadraticForm::serialized_length(discriminant.bits()) {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InputLengthWrong(bytes.len()));
         }
 
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287.
@@ -419,7 +419,7 @@ mod tests {
         let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
         let discriminant =
             Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, 16).unwrap()).unwrap();
-        let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605";
         let compressed = CompressedQuadraticForm::deserialize(
             &hex::decode(compressed_hex).unwrap(),
             &discriminant,
