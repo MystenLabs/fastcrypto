@@ -37,7 +37,7 @@ const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
 const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 
 /// Key to identify a JWK, consists of iss and kid.
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct JwkId {
     /// iss string that identifies the OIDC provider.
     pub iss: String,
@@ -128,7 +128,7 @@ impl OIDCProvider {
 /// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
 /// The JWK is used to verify the JWT token.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize, PartialOrd, Ord)]
 pub struct JWK {
     /// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
     pub kty: String,
