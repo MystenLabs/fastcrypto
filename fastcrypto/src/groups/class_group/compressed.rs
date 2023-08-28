@@ -34,7 +34,6 @@ struct CompressedFormat {
 }
 
 impl QuadraticForm {
-
     /// Return the length of the serialization in bytes of a quadratic form with a given discriminant
     /// length in bits.
     pub fn serialized_length(discriminant_in_bits: usize) -> usize {
@@ -63,10 +62,6 @@ impl QuadraticForm {
     /// The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287)
     /// if the discriminant is 1024 bits.
     pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        if bytes.len() != QuadraticForm::serialized_length(discriminant.0.bits() as usize)
-        {
-            return Err(FastCryptoError::InvalidInput);
-        }
         CompressedQuadraticForm::deserialize(bytes, discriminant)?.decompress()
     }
 
@@ -133,7 +128,6 @@ impl QuadraticForm {
 }
 
 impl CompressedQuadraticForm {
-
     /// Return this as an uncompressed QuadraticForm. See https://eprint.iacr.org/2020/196.pdf for a definition of the compression.
     fn decompress(&self) -> FastCryptoResult<QuadraticForm> {
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L52-L116.
@@ -209,14 +203,12 @@ impl CompressedQuadraticForm {
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245.
         match self {
             Zero(d) => {
-                let mut bytes =
-                    vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
                 bytes[0] = 0x04;
                 bytes
             }
             Generator(d) => {
-                let mut bytes =
-                    vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.0.bits() as usize)];
                 bytes[0] = 0x08;
                 bytes
             }
@@ -267,6 +259,10 @@ impl CompressedQuadraticForm {
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
+        if bytes.len() != QuadraticForm::serialized_length(discriminant.0.bits() as usize) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287.
         let is_identity = bytes[0] & 0x04 != 0;
         if is_identity {
