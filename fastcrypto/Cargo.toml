@@ -59,7 +59,7 @@ ark-ec = "0.4.1"
 ark-ff = "0.4.1"
 ark-serialize = "0.4.1"
 lazy_static = "1.4.0"
-num-bigint = "0.4.3"
+rug = "1.21.0"
 num-traits = "0.2.16"
 num-integer = "0.1.45"
 num-prime = { version = "0.4.3", features = ["big-int"] }

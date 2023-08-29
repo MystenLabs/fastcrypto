@@ -85,7 +85,7 @@ impl<C: GroupElement> Poly<C> {
     /// Given at least `t` polynomial evaluations, it will recover the polynomial's
     /// constant term
     pub fn recover_c0(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
-        if shares.len() < t.try_into().unwrap() {
+        if shares.len() < t as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 

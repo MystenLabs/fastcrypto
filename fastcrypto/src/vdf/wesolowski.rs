@@ -7,9 +7,11 @@ use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::hash::{HashFunction, Sha256};
 use crate::vdf::VDF;
-use num_bigint::{BigInt, Sign};
-use num_integer::Integer;
+use num_integer::Integer as IntegerTrait;
 use num_prime::nt_funcs::is_prime;
+use rug::integer::IsPrime;
+use rug::ops::DivRounding;
+use rug::{Complete, Integer};
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
@@ -35,7 +37,7 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G
 }
 
 impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        G: ParameterizedGroupElement<ScalarType = Integer> + UnknownOrderGroupElement,
         F: FiatShamir<G>,
     > VDF for WesolowskiVDF<G, F>
 {
@@ -57,11 +59,13 @@ impl<
         let challenge = F::compute_challenge(self, input, &output);
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
-        let two = BigInt::from(2);
-        let mut quotient_remainder = two.div_mod_floor(&challenge);
+        let two = Integer::from(2);
+        let mut quotient_remainder = two.div_rem_ref(&challenge).complete();
         let mut proof = input.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
-            quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&challenge);
+            quotient_remainder = Integer::from(&quotient_remainder.1 * &two)
+                .div_rem_ref(&challenge)
+                .complete();
             proof = proof.double() + &input.mul(&quotient_remainder.0);
         }
 
@@ -76,7 +80,9 @@ impl<
         let challenge = F::compute_challenge(self, input, output);
         let f1 = proof.mul(&challenge);
 
-        let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
+        let r = Integer::from(2)
+            .pow_mod(&Integer::from(self.iterations), &challenge)
+            .unwrap();
         let f2 = input.mul(&r);
 
         if f1 + &f2 != *output {
@@ -133,7 +139,7 @@ impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
         _vdf: &WesolowskiVDF<QuadraticForm, F>,
         input: &QuadraticForm,
         output: &QuadraticForm,
-    ) -> BigInt {
+    ) -> Integer {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
@@ -151,7 +157,7 @@ impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir
         vdf: &WesolowskiVDF<QuadraticForm, F>,
         input: &QuadraticForm,
         output: &QuadraticForm,
-    ) -> BigInt {
+    ) -> Integer {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
@@ -169,7 +175,7 @@ impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir
 /// Then return x if it is a pseudo-prime, otherwise repeat.
 ///
 /// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
-fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult<BigInt> {
+fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult<Integer> {
     if length % 8 != 0 {
         return Err(InvalidInput);
     }
@@ -189,15 +195,15 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
             let hash = Sha256::digest(&sprout).digest;
             blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
         }
-        let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
+        let mut x = Integer::from_digits(&blob, rug::integer::Order::Msf);
         for b in bitmask {
-            x.set_bit(*b as u64, true);
+            x.set_bit(*b as u32, true);
         }
 
         // The implementations of the primality test used below might be slightly different from the
         // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
         // is not an issue.
-        if is_prime(&x.to_biguint().unwrap(), None).probably() {
+        if x.is_probably_prime(30) != IsPrime::No {
             return Ok(x);
         }
     }
@@ -223,8 +229,8 @@ fn test_prove_and_verify() {
     assert!(vdf.verify(&g, &output, &proof).is_ok());
 
     // A modified output or proof fails to verify
-    let modified_output = output.mul(&BigInt::from(2));
-    let modified_proof = proof.mul(&BigInt::from(2));
+    let modified_output = output.mul(&Integer::from(2));
+    let modified_proof = proof.mul(&Integer::from(2));
     assert!(vdf.verify(&g, &modified_output, &proof).is_err());
     assert!(vdf.verify(&g, &output, &modified_proof).is_err());
 }
