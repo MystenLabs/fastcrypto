@@ -4,10 +4,12 @@
 // Some of the code below is based on code from https://github.com/celo-org/celo-threshold-bls-rs,
 // modified for our needs.
 
+use crate::dl_verification::{batch_coefficients, get_random_scalars};
 use crate::polynomial::Poly;
 use crate::types::IndexedValue;
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
+use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use fastcrypto::traits::AllowedRng;
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
@@ -16,9 +18,9 @@ pub type PartialSignature<S> = IndexedValue<S>;
 pub trait ThresholdBls {
     type Private: Scalar;
     /// `Public` represents the group over which the public keys are represented.
-    type Public: GroupElement<ScalarType = Self::Private>;
+    type Public: GroupElement<ScalarType = Self::Private> + MultiScalarMul;
     /// `Signature` represents the group over which the signatures are represented.
-    type Signature: GroupElement<ScalarType = Self::Private> + HashToGroupElement;
+    type Signature: GroupElement<ScalarType = Self::Private> + HashToGroupElement + MultiScalarMul;
 
     /// Curve dependent implementation of computing and comparing the pairings as part of the
     /// signature verification.
@@ -27,12 +29,6 @@ pub trait ThresholdBls {
         sig: &Self::Signature,
         msg: &[u8],
     ) -> Result<(), FastCryptoError>;
-
-    /// Sign a message using the private key.
-    fn sign(private: &Self::Private, msg: &[u8]) -> Self::Signature {
-        let h = Self::Signature::hash_to_group_element(msg);
-        h * private
-    }
 
     /// Verify a signature on a given message.
     fn verify(
@@ -45,10 +41,22 @@ pub trait ThresholdBls {
 
     /// Sign a message using the private share/partial key.
     fn partial_sign(share: &Share<Self::Private>, msg: &[u8]) -> PartialSignature<Self::Signature> {
-        PartialSignature {
-            index: share.index,
-            value: Self::sign(&share.value, msg),
-        }
+        Self::partial_sign_batch(&[share.clone()], msg)[0].clone()
+    }
+
+    /// Sign a message using one of more private share/partial keys.
+    fn partial_sign_batch(
+        shares: &[Share<Self::Private>],
+        msg: &[u8],
+    ) -> Vec<PartialSignature<Self::Signature>> {
+        let h = Self::Signature::hash_to_group_element(msg);
+        shares
+            .iter()
+            .map(|share| PartialSignature {
+                index: share.index,
+                value: h * share.value,
+            })
+            .collect()
     }
 
     /// Verify a signature done by a partial key holder.
@@ -59,6 +67,29 @@ pub trait ThresholdBls {
     ) -> Result<(), FastCryptoError> {
         let pk_i = vss_pk.eval(partial_sig.index);
         Self::verify(&pk_i.value, msg, &partial_sig.value)
+    }
+
+    /// Verify a set of signatures done by a partial key holder.
+    fn partial_verify_batch<R: AllowedRng>(
+        vss_pk: &Poly<Self::Public>,
+        msg: &[u8],
+        partial_sigs: &[PartialSignature<Self::Signature>],
+        rng: &mut R,
+    ) -> Result<(), FastCryptoError> {
+        let rs = get_random_scalars::<Self::Private, R>(partial_sigs.len() as u32, rng);
+        let evals_as_scalars = partial_sigs
+            .iter()
+            .map(|e| Self::Private::from(e.index.get().into()))
+            .collect::<Vec<_>>();
+        let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree());
+        let pk = Self::Public::multi_scalar_mul(&coeffs, vss_pk.as_vec()).expect("sizes match");
+        let aggregated_sig = Self::Signature::multi_scalar_mul(
+            &rs,
+            &partial_sigs.iter().map(|s| s.value).collect::<Vec<_>>(),
+        )
+        .expect("sizes match");
+
+        Self::verify(&pk, msg, &aggregated_sig)
     }
 
     /// Interpolate partial signatures to recover the full signature.
