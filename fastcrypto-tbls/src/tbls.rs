@@ -70,6 +70,8 @@ pub trait ThresholdBls {
     }
 
     /// Verify a set of signatures done by a partial key holder.
+    /// Randomly check if \sum r_i sig_i is a valid signature with public key \sum r_i p(i) G
+    /// where r_i are random scalars.
     fn partial_verify_batch<R: AllowedRng>(
         vss_pk: &Poly<Self::Public>,
         msg: &[u8],
