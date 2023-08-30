@@ -146,10 +146,10 @@ fn test_verify_zk_login_google() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "19190136882259072389509967010336890361732579901899057561984458564815999051862"
         )
-        .unwrap()]
+        .unwrap()
     );
     let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
@@ -214,10 +214,10 @@ fn test_verify_zk_login_twitch() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "5856188553771750715373571553753599041029773450105736907486194952973723348883"
         )
-        .unwrap()]
+        .unwrap()
     );
     let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
@@ -277,10 +277,10 @@ fn test_verify_zk_login_facebook() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "731385750760775862842838160347366432653065169777359995738835424407706939501"
         )
-        .unwrap()]
+        .unwrap()
     );
 
     map.insert(

@@ -313,9 +313,7 @@ pub struct ZkLoginInputs {
 impl ZkLoginInputs {
     /// Validate and parse masked content bytes into the struct and other json strings into the struct.
     pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        let inputs: ZkLoginInputs =
-            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(inputs)
+        serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidInput)
     }
 
     /// Initialize JWTDetails
@@ -365,7 +363,7 @@ impl ZkLoginInputs {
         eph_pk_bytes: &[u8],
         modulus: &[u8],
         max_epoch: u64,
-    ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
+    ) -> Result<Bn254Fr, FastCryptoError> {
         if self.header_base64.len() > MAX_HEADER_LEN as usize {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
@@ -396,11 +394,10 @@ impl ZkLoginInputs {
                 MAX_EXTRACTABLE_STR_LEN_B64,
             )?);
         }
-        let poseidon_claim = PoseidonWrapper::new();
-        let extracted_claims_hash = poseidon_claim.hash(claim_f)?;
+        let poseidon = PoseidonWrapper::new();
+        let extracted_claims_hash = poseidon.hash(claim_f)?;
 
-        let poseidon_index = PoseidonWrapper::new();
-        let extracted_index_hash = poseidon_index.hash(
+        let extracted_index_hash = poseidon.hash(
             padded_claims
                 .iter()
                 .map(|c| to_field(&c.index_mod_4.to_string()).unwrap())
@@ -408,7 +405,7 @@ impl ZkLoginInputs {
         )?;
         let header_f = hash_ascii_str_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        Ok(vec![poseidon.hash(vec![
+        poseidon.hash(vec![
             first,
             second,
             addr_seed,
@@ -417,7 +414,7 @@ impl ZkLoginInputs {
             extracted_index_hash,
             header_f,
             modulus_f,
-        ])?])
+        ])
     }
 }
 /// The zk login proof.
@@ -431,13 +428,12 @@ pub struct ZkLoginProof {
 impl ZkLoginProof {
     /// Parse the proof from a json string.
     pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        let proof: ZkLoginProof =
-            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?;
-        Ok(proof)
+        serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?
     }
 
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     pub fn as_arkworks(&self) -> Proof<Bn254> {
+        // TODO: panics if the inputs are invalid
         let a = g1_affine_from_str_projective(self.pi_a.clone());
         let b = g2_affine_from_str_projective(self.pi_b.clone());
         let c = g1_affine_from_str_projective(self.pi_c.clone());
@@ -526,7 +522,7 @@ fn base64_to_bitarray(input: &str) -> Vec<u8> {
     input
         .chars()
         .flat_map(|c| {
-            let index = base64_url_character_set.find(c).unwrap() as u8;
+            let index = base64_url_character_set.find(c).unwrap() as u8; // TODO: could panic
             (0..6).rev().map(move |i| index >> i & 1)
         })
         .collect()

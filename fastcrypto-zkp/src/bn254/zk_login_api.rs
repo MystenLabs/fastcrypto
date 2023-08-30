@@ -237,7 +237,7 @@ pub fn verify_zk_login(
     match verify_zk_login_proof_with_fixed_vk(
         env,
         &input.get_proof().as_arkworks(),
-        &input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch)?,
+        &[input.calculate_all_inputs_hash(eph_pubkey_bytes, &modulus, max_epoch)?],
     ) {
         Ok(true) => Ok(()),
         Ok(false) | Err(_) => Err(FastCryptoError::GeneralError(

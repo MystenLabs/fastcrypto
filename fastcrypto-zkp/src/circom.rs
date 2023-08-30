@@ -8,7 +8,7 @@ type CircomG1 = Vec<String>;
 type CircomG2 = Vec<Vec<String>>;
 
 pub fn g1_affine_from_str_projective(s: CircomG1) -> G1Affine {
-    assert!(s.len() == 3);
+    assert!(s.len() == 3); // TODO: why not define CircomG1 differently?
     G1Projective::new(
         s[0].parse::<Fq>().unwrap(),
         s[1].parse::<Fq>().unwrap(),
@@ -18,7 +18,7 @@ pub fn g1_affine_from_str_projective(s: CircomG1) -> G1Affine {
 }
 
 pub fn g2_affine_from_str_projective(s: CircomG2) -> G2Affine {
-    assert!(s.len() == 3);
+    assert!(s.len() == 3); // TODO: why not define CircomG2 differently?
     assert!(s[0].len() == 2);
     assert!(s[1].len() == 2);
     assert!(s[2].len() == 2);
@@ -52,7 +52,7 @@ pub fn read_proof(value: &str) -> Proof<Bn254> {
     // Deserialize the JSON file
     let proof: CircomProof = serde_json::from_str(value).unwrap();
 
-    assert!(proof.protocol == "groth16");
+    assert!(proof.protocol == "groth16"); // TODO: why not error?
 
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     let a = g1_affine_from_str_projective(proof.pi_a);
