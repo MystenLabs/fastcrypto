@@ -27,7 +27,7 @@ pub fn get_enoki_address(address_seed: &str, param: AddressParams) -> [u8; 32] {
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
     // unwrap is safe here
     hasher.update(bcs::to_bytes(&AddressParams::new(param.iss, param.aud)).unwrap());
-    hasher.update(big_int_str_to_bytes(address_seed));
+    hasher.update(big_int_str_to_bytes(address_seed)); // TODO: if address_seed is not a number, this will panic
     hasher.finalize().digest
 }
 
@@ -57,13 +57,15 @@ pub fn get_nonce(
     let poseidon = PoseidonWrapper::new();
     let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-    let max_epoch = Bn254Fr::from_str(&max_epoch.to_string()).unwrap();
-    let jwt_randomness = Bn254Fr::from_str(jwt_randomness).unwrap();
+    let max_epoch = Bn254Fr::from_str(&max_epoch.to_string())
+        .expect("max_epoch.to_string is always non empty string without trailing zeros");
+    let jwt_randomness =
+        Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
 
     let hash = poseidon
         .hash(vec![first, second, max_epoch, jwt_randomness])
-        .unwrap();
-    let data = big_int_str_to_bytes(&hash.to_string());
+        .expect("inputs is not too long");
+    let data = big_int_str_to_bytes(&hash.to_string()); // TODO: why do we convert it to num and not just take the first 20 bytes?
     let truncated = &data[data.len() - 20..];
     let mut buf = vec![0; Base64UrlUnpadded::encoded_len(truncated)];
     Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
@@ -137,6 +139,7 @@ pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastC
     // bits of the hash, and the second element contains the latter ones.
     let (first_half, second_half) = eph_pk_bytes.split_at(eph_pk_bytes.len() - 16);
     let first_bigint = BigUint::from_bytes_be(first_half);
+    // TODO: this is not safe if the buffer is large. Can we use a fixed size array for eph_pk_bytes?
     let second_bigint = BigUint::from_bytes_be(second_half);
 
     let eph_public_key_0 = Bn254Fr::from(first_bigint);
