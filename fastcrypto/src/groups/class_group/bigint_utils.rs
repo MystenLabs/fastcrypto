@@ -3,9 +3,10 @@
 
 use num_integer::Integer as IntegerTrait;
 use num_traits::{One, Signed, Zero};
-use rug::{Complete, Integer};
+use rug::ops::NegAssign;
+use rug::{Assign, Complete, Integer};
 use std::mem;
-use std::ops::Neg;
+use std::ops::{Neg, SubAssign};
 
 pub struct EuclideanAlgorithmOutput {
     pub gcd: Integer,
@@ -38,48 +39,41 @@ pub fn extended_euclidean_algorithm(a: &Integer, b: &Integer) -> EuclideanAlgori
     let mut t = (Integer::from(1), Integer::new());
     let mut r = (a.clone(), b.clone());
 
-    while !r.0.is_zero() {
-        let (q, r_prime) = r.1.div_rem_euc_ref(&r.0).complete();
-        r.1 = r.0;
-        r.0 = r_prime;
+    let mut q = Integer::new();
+    let mut r_prime = Integer::new();
 
-        let f = |mut x: (Integer, Integer)| {
-            mem::swap(&mut x.0, &mut x.1);
-            x.0 -= &q * &x.1;
-            x
-        };
-        s = f(s);
-        t = f(t);
+    while !r.0.is_zero() {
+        (&mut q, &mut r_prime).assign(r.1.div_rem_euc_ref(&r.0));
+        r.1.assign(&r.0);
+        r.0.assign(&r_prime);
+
+        mem::swap(&mut s.0, &mut s.1);
+        s.0.sub_assign(&q * &s.1);
+
+        mem::swap(&mut t.0, &mut t.1);
+        t.0.sub_assign(&q * &t.1);
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    let a_divided_by_gcd = if a.signum_ref().complete() != s.0.signum_ref().complete() {
-        s.0.neg()
-    } else {
-        s.0
-    };
-    let b_divided_by_gcd = if b.signum_ref().complete() != t.0.signum_ref().complete() {
-        t.0.neg()
-    } else {
-        t.0
-    };
+    if a.is_negative() != s.0.is_negative() {
+        s.0.neg_assign();
+    }
+    if b.is_negative() != t.0.is_negative() {
+        t.0.neg_assign();
+    }
 
-    if !r.1.is_negative() {
-        EuclideanAlgorithmOutput {
-            gcd: r.1,
-            x: t.1,
-            y: s.1,
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
-    } else {
-        EuclideanAlgorithmOutput {
-            gcd: r.1.neg(),
-            x: t.1.neg(),
-            y: s.1.neg(),
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+    if r.1.is_negative() {
+        r.1.neg_assign();
+        t.1.neg_assign();
+        s.1.neg_assign();
+    }
+
+    EuclideanAlgorithmOutput {
+        gcd: r.1,
+        x: t.1,
+        y: s.1,
+        a_divided_by_gcd: s.0,
+        b_divided_by_gcd: t.0,
     }
 }
 
@@ -109,3 +103,6 @@ fn test_xgcd() {
     assert_eq!(output.a_divided_by_gcd, (&a / &output.gcd).complete());
     assert_eq!(output.b_divided_by_gcd, (&b / &output.gcd).complete());
 }
+
+#[test]
+fn test_large_gcd() {}

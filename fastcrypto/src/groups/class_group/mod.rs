@@ -14,13 +14,14 @@ use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_integer::Integer as IntegerTrait;
 use num_traits::{One, Signed, Zero};
 use rug::integer::Order;
-use rug::ops::{DivRounding, Pow};
-use rug::{Complete, Integer};
+use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, Pow};
+use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
+use std::mem;
 use std::mem::swap;
-use std::ops::{Add, Neg};
+use std::ops::{Add, AddAssign, MulAssign, Neg, SubAssign};
 
-mod bigint_utils;
+pub mod bigint_utils;
 mod compressed;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
@@ -65,12 +66,7 @@ impl QuadraticForm {
 
     /// Return true if this form is in normal form: -a < b <= a.
     fn is_normal(&self) -> bool {
-        match self
-            .b
-            .abs_ref()
-            .complete()
-            .cmp(&self.a.abs_ref().complete())
-        {
+        match self.b.cmp_abs(&self.a) {
             Ordering::Less => true,
             Ordering::Equal => !self.b.is_negative(),
             Ordering::Greater => false,
@@ -78,22 +74,16 @@ impl QuadraticForm {
     }
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    fn normalize(self) -> Self {
+    fn normalize(&mut self) {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         if self.is_normal() {
-            return self;
+            return;
         }
         let divisor = Integer::from(&self.a * 2);
         let r = (&self.a - &self.b).complete().div_floor(divisor);
         let ra = Integer::from(&r * &self.a);
-        let c = self.c + Integer::from(&ra + &self.b) * &r;
-        let b = self.b + &ra * 2;
-        Self {
-            a: self.a,
-            b,
-            c,
-            partial_gcd_limit: self.partial_gcd_limit,
-        }
+        self.c.add_assign(Integer::from(&ra + &self.b) * &r);
+        self.b.add_assign(&ra * 2);
     }
 
     /// Return true if this form is reduced: A form is reduced if it is normal (see
@@ -107,20 +97,24 @@ impl QuadraticForm {
     }
 
     /// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    fn reduce(self) -> Self {
+    fn reduce(mut self) -> Self {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        let mut form = self.normalize();
-        while !form.is_reduced() {
-            let s = (&form.b + &form.c)
-                .complete()
-                .div_floor(Integer::from(&form.c * 2));
-            let cs = Integer::from(&form.c * &s);
-            let old_c = form.c.clone();
-            form.c = Integer::from(&cs - &form.b) * &s + &form.a;
-            form.a = old_c;
-            form.b = Integer::from(&cs * 2) - &form.b;
+        self.normalize();
+
+        let mut s = Integer::new();
+        let mut cs = Integer::new();
+
+        while !self.is_reduced() {
+            s.assign(&self.b + &self.c);
+            s.div_floor_assign(Integer::from(&self.c * 2));
+            cs.assign(&self.c * &s);
+            swap(&mut self.a, &mut self.c);
+            self.c.add_assign(Integer::from(&cs - &self.b) * &s);
+            self.b.neg_assign();
+            cs.mul_assign(2);
+            self.b.add_assign(&cs);
         }
-        form
+        self
     }
 
     /// Compute the composition of this quadratic form with another quadratic form.
@@ -281,39 +275,41 @@ impl ParameterizedGroupElement for QuadraticForm {
         let mut y = Integer::new();
         let mut z = 0u32;
 
-        while by.abs_ref().complete() > self.partial_gcd_limit && !bx.is_zero() {
-            let (q, t) = by.div_rem_ref(&bx).complete();
-            by = bx;
-            bx = t;
+        let (mut q, mut t) = (Integer::new(), Integer::new());
+
+        while by.cmp_abs(&self.partial_gcd_limit) == Ordering::Greater && !bx.is_zero() {
+            (&mut q, &mut t).assign(by.div_rem_euc_ref(&bx));
+            by.assign(&bx);
+            bx.assign(&t);
             swap(&mut x, &mut y);
-            x -= &q * &y;
+            x.sub_assign(&q * &y);
             z += 1;
         }
 
         if z.is_odd() {
-            by = -by;
-            y = -y;
+            by.neg_assign();
+            y.neg_assign();
         }
 
-        let mut u3: Integer;
-        let mut w3: Integer;
-        let mut v3: Integer;
+        let mut u3 = Integer::new();
+        let mut w3 = Integer::new();
+        let mut v3 = Integer::new();
 
         if z == 0 {
             let dx = (Integer::from(&bx * &capital_dy) - w) / &capital_by;
-            u3 = Integer::from(&by * &by);
-            w3 = Integer::from(&bx * &bx);
+            u3.assign(&by * &by);
+            w3.assign(&bx * &bx);
             let s = Integer::from(&bx + &by);
             v3 = v - Integer::from(&s * &s) + &u3 + &w3;
-            w3 = Integer::from(&w3 - &g * &dx);
+            w3.sub_assign(&g * &dx);
         } else {
             let dx = (Integer::from(&bx * &capital_dy) - w * &x) / &capital_by;
             let q1 = Integer::from(&dx * &y);
             let mut dy = Integer::from(&q1 + &capital_dy);
             v3 = &g * Integer::from(&dy + &q1);
             dy = Integer::from(&dy / &x);
-            u3 = Integer::from(&by * &by);
-            w3 = Integer::from(&bx * &bx);
+            u3.assign(&by * &by);
+            w3.assign(&bx * &bx);
             let s = Integer::from(&bx + &by);
             v3 = &v3 - Integer::from(&s * &s) + &u3 + &w3;
 
@@ -452,7 +448,7 @@ mod tests {
         );
         assert_eq!(quadratic_form.c, Integer::from(55));
 
-        quadratic_form = quadratic_form.normalize();
+        quadratic_form.normalize();
 
         // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
         assert_eq!(quadratic_form.a, Integer::from(11));
