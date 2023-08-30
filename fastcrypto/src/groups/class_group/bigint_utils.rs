@@ -33,12 +33,11 @@ pub fn extended_euclidean_algorithm(a: &Integer, b: &Integer) -> EuclideanAlgori
     let mut r = (a.clone(), b.clone());
 
     let mut q = Integer::new();
-    let mut r_prime = Integer::new();
 
     while !r.0.is_zero() {
-        (&mut q, &mut r_prime).assign(r.1.div_rem_euc_ref(&r.0));
-        r.1.assign(&r.0);
-        r.0.assign(&r_prime);
+        q.assign(&r.1 / &r.0);
+        mem::swap(&mut r.0, &mut r.1);
+        r.0.sub_assign(&q * &r.1);
 
         mem::swap(&mut s.0, &mut s.1);
         s.0.sub_assign(&q * &s.1);

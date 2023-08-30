@@ -276,12 +276,14 @@ impl ParameterizedGroupElement for QuadraticForm {
         let mut y = Integer::ZERO;
         let mut z = 0u32;
 
-        let (mut q, mut t) = (Integer::new(), Integer::new());
+        let mut q = Integer::new();
 
         while by.cmp_abs(&self.partial_gcd_limit) == Ordering::Greater && !bx.is_zero() {
-            (&mut q, &mut t).assign(by.div_rem_euc_ref(&bx));
-            by.assign(&bx);
-            bx.assign(&t);
+            q.assign(&by / &bx);
+
+            swap(&mut by, &mut bx);
+            bx.sub_assign(&q * &by);
+
             swap(&mut x, &mut y);
             x.sub_assign(&q * &y);
             z += 1;
