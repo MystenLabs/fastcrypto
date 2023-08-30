@@ -3,9 +3,11 @@
 
 use ark_bn254::Fr;
 use fastcrypto::error::FastCryptoError;
+use once_cell::sync::OnceCell;
 use poseidon_ark::Poseidon;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
 /// Wrapper struct for Poseidon hash instance.
 pub struct PoseidonWrapper {
     instance: Poseidon,
@@ -24,7 +26,7 @@ impl Default for PoseidonWrapper {
 }
 
 impl PoseidonWrapper {
-    /// Initialize a Poseidon hash function with the given size.
+    /// Initialize a Poseidon hash function.
     pub fn new() -> Self {
         Self {
             instance: Poseidon::new(),
@@ -32,7 +34,7 @@ impl PoseidonWrapper {
     }
 
     /// Calculate the hash of the given inputs.
-    pub fn hash(&mut self, inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    pub fn hash(&self, inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
         self.instance
             .hash(inputs)
             .map_err(|_| FastCryptoError::InvalidInput)
@@ -42,18 +44,14 @@ impl PoseidonWrapper {
 /// Calculate the poseidon hash of the field element inputs. If the input
 /// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
+    let poseidon_ref = POSEIDON.get_or_init(|| PoseidonWrapper::new());
     if inputs.len() <= 16 {
-        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        poseidon1.hash(inputs)
+        poseidon_ref.hash(inputs)
     } else if inputs.len() <= 32 {
-        let mut poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        let hash1 = poseidon1.hash(inputs[0..16].to_vec())?;
-
-        let mut poseidon2 = PoseidonWrapper::new();
-        let hash2 = poseidon2.hash(inputs[16..].to_vec())?;
-
-        let mut poseidon3 = PoseidonWrapper::new();
-        poseidon3.hash([hash1, hash2].to_vec())
+        let hash1 = poseidon_ref.hash(inputs[0..16].to_vec())?;
+        let hash2 = poseidon_ref.hash(inputs[16..].to_vec())?;
+        poseidon_ref.hash([hash1, hash2].to_vec())
     } else {
         Err(FastCryptoError::GeneralError(format!(
             "Yet to implement: Unable to hash a vector of length {}",
@@ -77,7 +75,7 @@ mod test {
 
     #[test]
     fn poseidon_test() {
-        let mut poseidon = PoseidonWrapper::new();
+        let poseidon = PoseidonWrapper::new();
         let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
         let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
         let input3 = Fr::from_str("10000").unwrap();
@@ -143,7 +141,7 @@ mod test {
 
     #[test]
     fn test_all_inputs_hash() {
-        let mut poseidon = PoseidonWrapper::new();
+        let poseidon = PoseidonWrapper::new();
         let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
         let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
         let masked_content_hash = Fr::from_str(

@@ -370,7 +370,7 @@ impl ZkLoginInputs {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let mut poseidon = PoseidonWrapper::new();
+        let poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
@@ -396,10 +396,10 @@ impl ZkLoginInputs {
                 MAX_EXTRACTABLE_STR_LEN_B64,
             )?);
         }
-        let mut poseidon_claim = PoseidonWrapper::new();
+        let poseidon_claim = PoseidonWrapper::new();
         let extracted_claims_hash = poseidon_claim.hash(claim_f)?;
 
-        let mut poseidon_index = PoseidonWrapper::new();
+        let poseidon_index = PoseidonWrapper::new();
         let extracted_index_hash = poseidon_index.hash(
             padded_claims
                 .iter()

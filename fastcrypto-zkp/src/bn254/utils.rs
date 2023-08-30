@@ -54,7 +54,7 @@ pub fn get_nonce(
     max_epoch: u64,
     jwt_randomness: &str,
 ) -> Result<String, FastCryptoError> {
-    let mut poseidon = PoseidonWrapper::new();
+    let poseidon = PoseidonWrapper::new();
     let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
     let max_epoch = Bn254Fr::from_str(&max_epoch.to_string()).unwrap();
