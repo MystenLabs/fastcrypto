@@ -88,7 +88,7 @@ pub trait ParameterizedGroupElement:
     fn zero(parameters: &Self::ParameterType) -> Self;
 
     /// Compute 2 * Self.
-    fn double(&self) -> Self;
+    fn double(self) -> Self;
 
     /// Compute scale * self.
     fn mul(&self, scale: &Self::ScalarType) -> Self;

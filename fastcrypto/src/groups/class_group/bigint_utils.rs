@@ -1,12 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-
-use num_integer::Integer as IntegerTrait;
-use num_traits::{One, Signed, Zero};
 use rug::ops::NegAssign;
 use rug::{Assign, Complete, Integer};
 use std::mem;
-use std::ops::{Neg, SubAssign};
+use std::ops::SubAssign;
 
 pub struct EuclideanAlgorithmOutput {
     pub gcd: Integer,
@@ -31,12 +28,8 @@ impl EuclideanAlgorithmOutput {
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 pub fn extended_euclidean_algorithm(a: &Integer, b: &Integer) -> EuclideanAlgorithmOutput {
-    if b < a {
-        return extended_euclidean_algorithm(b, a).flip();
-    }
-
-    let mut s = (Integer::new(), Integer::from(1));
-    let mut t = (Integer::from(1), Integer::new());
+    let mut s = (Integer::ZERO, Integer::ONE.to_owned());
+    let mut t = (Integer::ONE.to_owned(), Integer::ZERO);
     let mut r = (a.clone(), b.clone());
 
     let mut q = Integer::new();

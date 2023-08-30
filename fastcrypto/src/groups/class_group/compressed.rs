@@ -9,10 +9,8 @@ use crate::groups::class_group::compressed::CompressedQuadraticForm::{
 };
 use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::ParameterizedGroupElement;
-use num_integer::{ExtendedGcd, Integer as IntegerTrait};
-use num_traits::{One, Signed, Zero as OtherZero};
 use rug::integer::Order;
-use rug::ops::{DivRounding, Pow};
+use rug::ops::DivRounding;
 use rug::{Complete, Integer};
 use std::cmp::Ordering;
 use std::ops::Mul;
@@ -381,7 +379,6 @@ mod tests {
     };
     use crate::groups::class_group::{Discriminant, QuadraticForm};
     use crate::groups::ParameterizedGroupElement;
-    use num_traits::Num;
     use rug::Integer;
     use std::str::FromStr;
 

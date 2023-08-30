@@ -11,15 +11,13 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
-use num_integer::Integer as IntegerTrait;
-use num_traits::{One, Signed, Zero};
 use rug::integer::Order;
-use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, Pow};
+use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
-use std::mem;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, MulAssign, Neg, SubAssign};
+use num_integer::Integer as IntegerTrait;
 
 pub mod bigint_utils;
 mod compressed;
@@ -45,7 +43,7 @@ impl QuadraticForm {
             b,
             c,
             // This limit is used by `partial_euclidean_algorithm` in the add method.
-            partial_gcd_limit: discriminant.0.abs_ref().complete().sqrt().sqrt(),
+            partial_gcd_limit: discriminant.0.abs_ref().complete().root_ref(4).complete(),
         }
     }
 
@@ -65,6 +63,7 @@ impl QuadraticForm {
     }
 
     /// Return true if this form is in normal form: -a < b <= a.
+    #[inline]
     fn is_normal(&self) -> bool {
         match self.b.cmp_abs(&self.a) {
             Ordering::Less => true,
@@ -79,15 +78,17 @@ impl QuadraticForm {
         if self.is_normal() {
             return;
         }
-        let divisor = Integer::from(&self.a * 2);
-        let r = (&self.a - &self.b).complete().div_floor(divisor);
+        let mut r = (&self.a - &self.b).complete();
+        r.div_floor_assign(Integer::from(&self.a + &self.a));
         let ra = Integer::from(&r * &self.a);
-        self.c.add_assign(Integer::from(&ra + &self.b) * &r);
-        self.b.add_assign(&ra * 2);
+        self.b.add_assign(&ra);
+        self.c.add_assign(&self.b * &r);
+        self.b.add_assign(&ra);
     }
 
     /// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
+    #[inline]
     fn is_reduced(&self) -> bool {
         match self.a.cmp(&self.c) {
             Ordering::Less => true,
@@ -106,12 +107,13 @@ impl QuadraticForm {
 
         while !self.is_reduced() {
             s.assign(&self.b + &self.c);
-            s.div_floor_assign(Integer::from(&self.c * 2));
+            s.div_floor_assign(Integer::from(&self.c + &self.c));
             cs.assign(&self.c * &s);
             swap(&mut self.a, &mut self.c);
-            self.c.add_assign(Integer::from(&cs - &self.b) * &s);
             self.b.neg_assign();
-            cs.mul_assign(2);
+            self.b.add_assign(&cs);
+            s.mul_assign(&self.b);
+            self.c.add_assign(&s);
             self.b.add_assign(&cs);
         }
         self
@@ -252,27 +254,26 @@ impl ParameterizedGroupElement for QuadraticForm {
         Self::from_a_b_discriminant(Integer::from(1), Integer::from(1), discriminant)
     }
 
-    fn double(&self) -> Self {
+    fn double(mut self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        let u = &self.a;
-        let v = &self.b;
-        let w = &self.c;
-
-        let xgcd = extended_euclidean_algorithm(u, v);
+        let xgcd = extended_euclidean_algorithm(&self.b, &self.a);
         let g = xgcd.gcd;
-        let y = xgcd.y;
 
-        let capital_by = xgcd.a_divided_by_gcd;
-        let capital_dy = xgcd.b_divided_by_gcd;
-        let mut bx = Integer::from(&y * w).modulo(&capital_by);
-        let mut by = capital_by.clone();
+        let mut capital_by = xgcd.b_divided_by_gcd;
+        let mut capital_dy = xgcd.a_divided_by_gcd;
 
-        let mut x = Integer::from(1);
-        let mut y = Integer::new();
+        let mut bx = xgcd.x;
+        bx.mul_assign(&self.c);
+        bx.rem_floor_assign(&capital_by);
+
+        let mut by = Integer::from(&capital_by);
+
+        let mut x = Integer::ONE.to_owned();
+        let mut y = Integer::ZERO;
         let mut z = 0u32;
 
         let (mut q, mut t) = (Integer::new(), Integer::new());
@@ -291,41 +292,53 @@ impl ParameterizedGroupElement for QuadraticForm {
             y.neg_assign();
         }
 
-        let mut u3 = Integer::new();
-        let mut w3 = Integer::new();
-        let mut v3 = Integer::new();
-
         if z == 0 {
-            let dx = (Integer::from(&bx * &capital_dy) - w) / &capital_by;
-            u3.assign(&by * &by);
-            w3.assign(&bx * &bx);
-            let s = Integer::from(&bx + &by);
-            v3 = v - Integer::from(&s * &s) + &u3 + &w3;
-            w3.sub_assign(&g * &dx);
+            self.c.neg_assign();
+            self.c.add_assign(&bx * &capital_dy);
+            capital_by.div_exact_from(&self.c);
+            self.a.assign(by.square_ref());
+            self.c.assign(bx.square_ref());
+            self.b.add_assign(&self.a);
+            self.b.add_assign(&self.c);
+            self.b.sub_assign(Integer::from(&bx + &by).square_ref());
+            self.c.sub_assign(&g * &capital_by);
         } else {
-            let dx = (Integer::from(&bx * &capital_dy) - w * &x) / &capital_by;
-            let q1 = Integer::from(&dx * &y);
-            let mut dy = Integer::from(&q1 + &capital_dy);
-            v3 = &g * Integer::from(&dy + &q1);
-            dy = Integer::from(&dy / &x);
-            u3.assign(&by * &by);
-            w3.assign(&bx * &bx);
-            let s = Integer::from(&bx + &by);
-            v3 = &v3 - Integer::from(&s * &s) + &u3 + &w3;
+            self.c.mul_assign(&x);
+            self.c.neg_assign();
+            self.c.add_assign(&bx * &capital_dy);
+            // dx in paper
+            capital_by.div_exact_from(&self.c);
 
-            let (ax_dx, ay_dy) = (Integer::from(&g * &x) * &dx, Integer::from(&g * &y) * &dy);
+            let q1 = Integer::from(&capital_by * &y);
 
-            u3 = Integer::from(&u3 - &ay_dy);
-            w3 = Integer::from(&w3 - &ax_dx);
+            capital_dy.add_assign(&q1);
+
+            self.b.assign(&capital_dy);
+            self.b.add_assign(&q1);
+            self.b.mul_assign(&g);
+            capital_dy.div_exact_mut(&x);
+            self.a.assign(by.square_ref());
+            self.c.assign(bx.square_ref());
+
+            // s in paper
+            bx.add_assign(&by);
+            bx.square_mut();
+
+            self.b.sub_assign(&bx);
+            self.b.add_assign(&self.a);
+            self.b.add_assign(&self.c);
+
+            capital_by.mul_assign(&g);
+            capital_by.mul_assign(&x);
+
+            capital_dy.mul_assign(&g);
+            capital_dy.mul_assign(&y);
+
+            self.a.sub_assign(&capital_dy);
+            self.c.sub_assign(&capital_by);
         }
 
-        QuadraticForm {
-            a: u3,
-            b: v3,
-            c: w3,
-            partial_gcd_limit: self.partial_gcd_limit.clone(),
-        }
-        .reduce()
+        self.reduce()
     }
 
     fn mul(&self, scale: &Integer) -> Self {
@@ -432,7 +445,7 @@ mod tests {
         let discriminant = Discriminant::try_from(Integer::from(-47)).unwrap();
         let generator = QuadraticForm::generator(&discriminant);
         let mut current = QuadraticForm::zero(&discriminant);
-        for i in 0..10000 {
+        for i in 0..100000 {
             assert_eq!(current, generator.mul(&Integer::from(i)));
             current = current + &generator;
         }
