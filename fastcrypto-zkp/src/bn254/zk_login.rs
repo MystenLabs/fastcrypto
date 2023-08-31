@@ -9,7 +9,9 @@ use super::{
     poseidon::{to_poseidon_hash, PoseidonWrapper},
     utils::split_to_two_frs,
 };
-use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
+use crate::circom::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
+};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
 use ark_ff::Zero;
@@ -419,9 +421,9 @@ impl ZkLoginInputs {
 /// The zk login proof.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct ZkLoginProof {
-    pi_a: Vec<String>,
-    pi_b: Vec<Vec<String>>,
-    pi_c: Vec<String>,
+    pi_a: CircomG1,
+    pi_b: CircomG2,
+    pi_c: CircomG1,
 }
 
 impl ZkLoginProof {
