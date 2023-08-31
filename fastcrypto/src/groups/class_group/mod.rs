@@ -216,14 +216,8 @@ impl QuadraticForm {
                 (&cx * &dy - w1) / &dx
             };
 
-            let (ax_dx, ay_dy) = if g.is_one() {
-                (&x * &dx, &y * &dy)
-            } else {
-                (&g * &x * &dx, &g * &y * &dy)
-            };
-
-            u3 = &by * &cy - &ay_dy;
-            w3 = &bx * &cx - &ax_dx;
+            u3 = &by * &cy - &g * &y * &dy;
+            w3 = &bx * &cx - &g * &x * &dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
@@ -306,14 +300,8 @@ impl ParameterizedGroupElement for QuadraticForm {
             let s = &bx + &by;
             v3 = &v3 - &s * &s + &u3 + &w3;
 
-            let (ax_dx, ay_dy) = if g.is_one() {
-                (&x * &dx, &y * &dy)
-            } else {
-                (&g * &x * &dx, &g * &y * &dy)
-            };
-
-            u3 = &u3 - &ay_dy;
-            w3 = &w3 - &ax_dx;
+            u3 = &u3 - &g * &y * &dy;
+            w3 = &w3 - &g * &x * &dx;
         }
 
         QuadraticForm {
