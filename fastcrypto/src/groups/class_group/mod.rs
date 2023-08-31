@@ -12,12 +12,13 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_integer::Integer as IntegerTrait;
+use num_traits::cast;
 use rug::integer::Order;
-use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign};
+use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, MulAssign, Neg, ShlAssign, SubAssign};
+use std::ops::{Add, AddAssign, DivAssign, MulAssign, Neg, ShlAssign, SubAssign};
 
 pub mod bigint_utils;
 mod compressed;
@@ -142,7 +143,7 @@ impl QuadraticForm {
         let m = Integer::from(v2 - &s);
 
         // 2.
-        let xgcd = extended_euclidean_algorithm(u2, u1);
+        let mut xgcd = extended_euclidean_algorithm(u2, u1);
         let f = xgcd.gcd;
         let b = xgcd.x;
         let c = xgcd.y;
@@ -165,8 +166,13 @@ impl QuadraticForm {
             let xgcd_prime = extended_euclidean_algorithm(&f, &s);
             g = xgcd_prime.gcd;
             let y = xgcd_prime.y;
-            capital_by = Integer::from(&xgcd.b_divided_by_gcd * &xgcd_prime.a_divided_by_gcd);
-            capital_cy = Integer::from(&xgcd.a_divided_by_gcd * &xgcd_prime.a_divided_by_gcd);
+
+            xgcd.b_divided_by_gcd
+                .mul_assign(&xgcd_prime.a_divided_by_gcd);
+            capital_by = xgcd.b_divided_by_gcd;
+            xgcd.a_divided_by_gcd
+                .mul_assign(&xgcd_prime.a_divided_by_gcd);
+            capital_cy = xgcd.a_divided_by_gcd;
             capital_dy = xgcd_prime.b_divided_by_gcd;
             let h = xgcd_prime.a_divided_by_gcd;
 
@@ -204,38 +210,83 @@ impl QuadraticForm {
             y.neg_assign();
         }
 
-        let u3: Integer;
-        let w3: Integer;
-        let v3: Integer;
+        let mut u3: Integer;
+        let mut w3: Integer;
+        let mut v3: Integer;
 
         if z == 0 {
             // 6.
-            let q = Integer::from(&capital_cy * &bx);
-            let cx = Integer::from(&q - &m) / &capital_by;
-            let dx = (Integer::from(&bx * &capital_dy) - w2) / &capital_by;
-            u3 = Integer::from(&by * &capital_cy);
-            w3 = Integer::from(&bx * &cx) - &g * &dx;
-            v3 = Integer::from(v2 - Integer::from(&q << 1));
+            let mut q = Integer::from(&capital_cy);
+            q.mul_assign(&bx);
+
+            let mut cx = m;
+            cx.sub_from(&q);
+            cx.div_exact_mut(&capital_by);
+
+            let mut dx = Integer::from(&capital_dy);
+            dx.mul_assign(&bx);
+            dx.sub_assign(w2);
+            dx.div_exact_mut(&capital_by);
+
+            u3 = by;
+            u3.mul_assign(&capital_cy);
+
+            w3 = bx;
+            w3.mul_assign(&cx);
+            w3.sub_assign(&g * &dx);
+
+            v3 = q;
+            v3.mul_assign(2);
+            v3.sub_from(v2);
         } else {
             // 7.
-            let cx = (Integer::from(&capital_cy * &bx) - &m * &x) / &capital_by;
-            let q1 = Integer::from(&by * &cx);
-            let q2 = Integer::from(&q1 + &m);
-            let dx = (Integer::from(&capital_dy * &bx) - w2 * &x) / &capital_by;
-            let q3 = Integer::from(&y * &dx);
-            let q4 = Integer::from(&q3 + &capital_dy);
-            let dy = Integer::from(&q4 / &x);
+            let mut cx = capital_cy; //(Integer::from(&capital_cy * &bx) - &m * &x) / &capital_by;
+            cx.mul_assign(&bx);
+            cx.sub_assign(&m * &x);
+            cx.div_exact_mut(&capital_by);
+
+            let mut q1 = s; // Re-use value
+            q1.assign(&by * &cx);
+
+            let mut q2 = m;
+            q2.add_assign(&q1);
+
+            let mut dx = c; // Re-use value
+            dx.assign(&capital_dy * &bx);
+            dx.sub_assign(w2 * &x);
+            dx.div_exact_mut(&capital_by);
+
+            let mut q3 = Integer::from(&y * &dx);
+
+            let mut q4 = capital_dy;
+            q4.add_assign(&q3);
+
+            let mut dy = Integer::from(&q4);
+            dy.div_exact_mut(&x);
+
             let cy = if !b.is_zero() {
-                Integer::from(&q2 / &bx)
+                q2.div_exact_ref(&bx).complete()
             } else {
-                (Integer::from(&cx * &dy) - w1) / &dx
+                (Integer::from(&cx * &dy) - w1).div_exact(&dx)
             };
 
-            let (ax_dx, ay_dy) = (Integer::from(&g * &x) * &dx, Integer::from(&g * &y) * &dy);
+            let mut ax_dx = dx;
+            ax_dx.mul_assign(&g);
+            ax_dx.mul_assign(&x);
+            ax_dx.sub_from(&bx * &cx);
+            w3 = ax_dx;
 
-            u3 = Integer::from(&by * &cy) - &ay_dy;
-            w3 = Integer::from(&bx * &cx) - &ax_dx;
-            v3 = &g * Integer::from(&q3 + &q4) - &q1 - &q2;
+            let mut ay_dy = dy;
+            ay_dy.mul_assign(&g);
+            ay_dy.mul_assign(&y);
+            ay_dy.sub_from(&by * &cy);
+            u3 = ay_dy;
+
+            q3.add_assign(q4);
+            q3.mul_assign(&g);
+            q3.sub_assign(&q1);
+            q3.sub_assign(&q2);
+            v3 = q3;
         }
 
         QuadraticForm {
