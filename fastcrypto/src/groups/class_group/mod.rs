@@ -149,7 +149,7 @@ impl QuadraticForm {
         } else {
             // 3.
             let EuclideanAlgorithmOutput {
-                gcd,
+                gcd: g,
                 x: _,
                 y,
                 a_divided_by_gcd: h,
@@ -161,7 +161,7 @@ impl QuadraticForm {
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
             (
-                gcd,
+                g,
                 &b * (&m / &h) + &l * (&capital_by / &h),
                 b_divided_by_gcd,
             )
