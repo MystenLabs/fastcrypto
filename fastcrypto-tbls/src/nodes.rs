@@ -3,21 +3,23 @@
 
 use crate::ecies;
 use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
+use serde::{Deserialize, Serialize};
 use std::iter::Map;
 use std::ops::RangeInclusive;
 
 pub type PartyId = u16;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
     pub pk: ecies::PublicKey<G>,
     pub weight: u16,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>,
     n: u32, // share ids are 1..n
@@ -64,6 +66,14 @@ impl<G: GroupElement> Nodes<G> {
             curr_share_id += n.weight as u32;
         }
         Err(FastCryptoError::InvalidInput)
+    }
+
+    pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
+        if party_id as usize >= self.nodes.len() {
+            Err(InvalidInput)
+        } else {
+            Ok(&self.nodes[party_id as usize])
+        }
     }
 
     /// Get the share ids of a node.

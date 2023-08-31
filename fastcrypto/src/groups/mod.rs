@@ -4,6 +4,8 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
 use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
@@ -48,8 +50,12 @@ pub trait GroupElement:
     }
 }
 
+// TODO: Move Serialize + DeserializeOwned to GroupElement.
+
 /// Trait impl'd by scalars to be used with [GroupElement].
-pub trait Scalar: GroupElement<ScalarType = Self> + Copy + From<u64> + Sized + Debug {
+pub trait Scalar:
+    GroupElement<ScalarType = Self> + Copy + From<u64> + Sized + Debug + Serialize + DeserializeOwned
+{
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;
 }

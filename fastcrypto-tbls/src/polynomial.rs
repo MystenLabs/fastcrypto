@@ -127,8 +127,6 @@ impl<C: GroupElement> Poly<C> {
         Ok(acc)
     }
 
-    // TODO: Create a batch version of is_valid_share that checks a vector in O(n) instead of O(n^2).
-
     /// Checks if a given share is valid.
     pub fn is_valid_share(&self, idx: ShareIndex, share: &C::ScalarType) -> bool {
         let e = C::generator() * share;

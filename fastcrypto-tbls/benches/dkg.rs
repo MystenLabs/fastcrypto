@@ -79,7 +79,10 @@ mod dkg_benches {
                 println!("Message size: {}", bcs::to_bytes(&message).unwrap().len());
 
                 verify.bench_function(format!("n={}, w={}, t={}", n, w, t).as_str(), |b| {
-                    b.iter(|| d1.process_message(&message, &mut thread_rng()).unwrap())
+                    b.iter(|| {
+                        d1.process_message(message.clone(), &mut thread_rng())
+                            .unwrap()
+                    })
                 });
             }
         }
