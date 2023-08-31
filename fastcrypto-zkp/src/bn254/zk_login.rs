@@ -37,6 +37,7 @@ const AUD: &str = "aud";
 const NUM_EXTRACTABLE_STRINGS: u8 = 5;
 const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
 const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
+const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -436,7 +437,6 @@ impl ZkLoginProof {
 
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     pub fn as_arkworks(&self) -> Proof<Bn254> {
-        // TODO: panics if the inputs are invalid
         let a = g1_affine_from_str_projective(self.pi_a.clone());
         let b = g2_affine_from_str_projective(self.pi_b.clone());
         let c = g1_affine_from_str_projective(self.pi_c.clone());
@@ -520,12 +520,10 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
 
 /// Map a base64 string to a bit array by taking each char's index and covert it to binary form.
 fn base64_to_bitarray(input: &str) -> Vec<u8> {
-    let base64_url_character_set =
-        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
     input
         .chars()
         .flat_map(|c| {
-            let index = base64_url_character_set.find(c).unwrap() as u8; // TODO: could panic
+            let index = BASE64_URL_CHARSET.find(c).unwrap() as u8; // TODO: could panic
             (0..6).rev().map(move |i| index >> i & 1)
         })
         .collect()

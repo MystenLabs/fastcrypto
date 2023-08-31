@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use crate::bn254::utils::{get_enoki_address, get_nonce, get_proof, get_salt};
+use crate::bn254::utils::{get_nonce, get_proof, get_salt, get_zk_login_address};
 use crate::bn254::zk_login::{
     decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
     verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
@@ -117,7 +117,7 @@ fn test_verify_zk_login_google() {
         "21150353671819850968488494085061363586427266461520959449438048630829862383214"
     );
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
@@ -189,7 +189,7 @@ fn test_verify_zk_login_twitch() {
         "21483285397923302977910340636259412155696585453250993383687293995976400590480"
     );
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
@@ -259,7 +259,7 @@ fn test_verify_zk_login_facebook() {
     );
 
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )

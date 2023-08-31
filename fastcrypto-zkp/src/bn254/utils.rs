@@ -22,14 +22,16 @@ const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
 const PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_enoki_address(
+pub fn get_zk_login_address(
     address_seed: &str,
     param: AddressParams,
 ) -> Result<[u8; 32], FastCryptoError> {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
-    // unwrap is safe here
-    hasher.update(bcs::to_bytes(&AddressParams::new(param.iss, param.aud)).unwrap());
+    hasher.update(
+        bcs::to_bytes(&AddressParams::new(param.iss, param.aud))
+            .map_err(|_| FastCryptoError::InvalidInput)?,
+    );
     hasher.update(big_int_str_to_bytes(address_seed)?);
     Ok(hasher.finalize().digest)
 }
