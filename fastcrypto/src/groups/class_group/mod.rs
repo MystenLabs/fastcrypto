@@ -17,7 +17,7 @@ use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, MulAssign, Neg, SubAssign};
+use std::ops::{Add, AddAssign, MulAssign, Neg, ShlAssign, SubAssign};
 
 pub mod bigint_utils;
 mod compressed;
@@ -82,7 +82,8 @@ impl QuadraticForm {
         r.div_floor_assign(Integer::from(&self.a + &self.a));
         let ra = Integer::from(&r * &self.a);
         self.b.add_assign(&ra);
-        self.c.add_assign(&self.b * &r);
+        r.mul_assign(&self.b);
+        self.c.add_assign(&r);
         self.b.add_assign(&ra);
     }
 
@@ -178,26 +179,29 @@ impl QuadraticForm {
         }
 
         // 5. (partial xgcd)
-        // TODO: capital_bx is not used later, so the modular reduction may be done earlier.
         let mut bx = capital_bx.modulo(&capital_by);
         let mut by = capital_by.clone();
 
-        let mut x = Integer::from(1);
-        let mut y = Integer::new();
+        let mut x = Integer::ONE.to_owned();
+        let mut y = Integer::ZERO;
         let mut z = 0u32;
 
-        while by.abs_ref().complete() > self.partial_gcd_limit && !bx.is_zero() {
-            let (q, t) = by.div_rem_ref(&bx).complete();
-            by = bx;
-            bx = t;
+        let mut q = Integer::new();
+
+        while by.cmp_abs(&self.partial_gcd_limit) == Ordering::Greater && !bx.is_zero() {
+            q.assign(&by / &bx);
+
+            swap(&mut by, &mut bx);
+            bx.sub_assign(&q * &by);
+
             swap(&mut x, &mut y);
-            x -= &q * &y;
+            x.sub_assign(&q * &y);
             z += 1;
         }
 
         if z.is_odd() {
-            by = -by;
-            y = -y;
+            by.neg_assign();
+            y.neg_assign();
         }
 
         let u3: Integer;
@@ -300,9 +304,9 @@ impl ParameterizedGroupElement for QuadraticForm {
             capital_by.div_exact_from(&self.c);
             self.a.assign(by.square_ref());
             self.c.assign(bx.square_ref());
-            self.b.add_assign(&self.a);
-            self.b.add_assign(&self.c);
-            self.b.sub_assign(Integer::from(&bx + &by).square_ref());
+            bx.mul_assign(&by);
+            bx.mul_assign(2);
+            self.b.sub_assign(&bx);
             self.c.sub_assign(&g * &capital_by);
         } else {
             self.c.mul_assign(&x);
