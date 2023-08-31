@@ -368,7 +368,6 @@ impl ZkLoginInputs {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let poseidon = PoseidonWrapper::new();
         let addr_seed = to_field(&self.address_seed)?;
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
@@ -428,7 +427,9 @@ pub struct ZkLoginProof {
 impl ZkLoginProof {
     /// Parse the proof from a json string.
     pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?
+        let proof: ZkLoginProof =
+            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidProof)?;
+        Ok(proof)
     }
 
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT

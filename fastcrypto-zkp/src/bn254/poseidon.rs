@@ -45,7 +45,7 @@ impl PoseidonWrapper {
 /// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
-    let poseidon_ref = POSEIDON.get_or_init(|| PoseidonWrapper::new());
+    let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
     if inputs.len() <= 16 {
         poseidon_ref.hash(inputs)
     } else if inputs.len() <= 32 {

@@ -121,6 +121,7 @@ fn test_verify_zk_login_google() {
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x7bf6145cfe0592c0428ed8ce9612077b9ca1e5bc60308a90990bc952d13ccce8").unwrap()
     );
@@ -192,6 +193,7 @@ fn test_verify_zk_login_twitch() {
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x18642facd3dcc683f24490f5adb576eb02fc12073c46c9006dbe854cdbfbb899").unwrap()
     );
@@ -261,6 +263,7 @@ fn test_verify_zk_login_facebook() {
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x5e3733bf03f715a87b641553fce0f8b22bcb6385ce78cc05ddecd55929a5a304").unwrap()
     );

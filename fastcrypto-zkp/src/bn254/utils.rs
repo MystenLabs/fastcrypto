@@ -22,13 +22,16 @@ const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
 const PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_enoki_address(address_seed: &str, param: AddressParams) -> [u8; 32] {
+pub fn get_enoki_address(
+    address_seed: &str,
+    param: AddressParams,
+) -> Result<[u8; 32], FastCryptoError> {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
     // unwrap is safe here
     hasher.update(bcs::to_bytes(&AddressParams::new(param.iss, param.aud)).unwrap());
-    hasher.update(big_int_str_to_bytes(address_seed)); // TODO: if address_seed is not a number, this will panic
-    hasher.finalize().digest
+    hasher.update(big_int_str_to_bytes(address_seed)?);
+    Ok(hasher.finalize().digest)
 }
 
 /// Return the OIDC URL for the given parameters. Crucially the nonce is computed.
@@ -65,7 +68,7 @@ pub fn get_nonce(
     let hash = poseidon
         .hash(vec![first, second, max_epoch, jwt_randomness])
         .expect("inputs is not too long");
-    let data = big_int_str_to_bytes(&hash.to_string()); // TODO: why do we convert it to num and not just take the first 20 bytes?
+    let data = BigUint::from(hash).to_bytes_be();
     let truncated = &data[data.len() - 20..];
     let mut buf = vec![0; Base64UrlUnpadded::encoded_len(truncated)];
     Ok(Base64UrlUnpadded::encode(truncated, &mut buf)
@@ -148,8 +151,8 @@ pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastC
 }
 
 /// Convert a big int string to a big endian bytearray.
-pub fn big_int_str_to_bytes(value: &str) -> Vec<u8> {
-    BigUint::from_str(value)
-        .expect("Invalid big int string")
-        .to_bytes_be()
+pub fn big_int_str_to_bytes(value: &str) -> Result<Vec<u8>, FastCryptoError> {
+    Ok(BigUint::from_str(value)
+        .map_err(|_| FastCryptoError::InvalidInput)?
+        .to_bytes_be())
 }
