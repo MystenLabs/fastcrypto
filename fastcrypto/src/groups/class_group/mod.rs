@@ -11,13 +11,13 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use num_integer::Integer as IntegerTrait;
 use rug::integer::Order;
 use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, MulAssign, Neg, SubAssign};
-use num_integer::Integer as IntegerTrait;
 
 pub mod bigint_utils;
 mod compressed;
@@ -311,33 +311,31 @@ impl ParameterizedGroupElement for QuadraticForm {
             // dx in paper
             capital_by.div_exact_from(&self.c);
 
-            let q1 = Integer::from(&capital_by * &y);
+            q.assign(&capital_by * &y);
 
-            capital_dy.add_assign(&q1);
+            capital_dy.add_assign(&q);
 
             self.b.assign(&capital_dy);
-            self.b.add_assign(&q1);
+            self.b.add_assign(&q);
             self.b.mul_assign(&g);
-            capital_dy.div_exact_mut(&x);
+
             self.a.assign(by.square_ref());
             self.c.assign(bx.square_ref());
-
-            // s in paper
-            bx.add_assign(&by);
-            bx.square_mut();
-
-            self.b.sub_assign(&bx);
-            self.b.add_assign(&self.a);
-            self.b.add_assign(&self.c);
 
             capital_by.mul_assign(&g);
             capital_by.mul_assign(&x);
 
+            capital_dy.div_exact_mut(&x);
             capital_dy.mul_assign(&g);
             capital_dy.mul_assign(&y);
 
             self.a.sub_assign(&capital_dy);
             self.c.sub_assign(&capital_by);
+
+            // s in paper
+            bx.mul_assign(&by);
+            bx.mul_assign(2);
+            self.b.sub_assign(&bx);
         }
 
         self.reduce()
