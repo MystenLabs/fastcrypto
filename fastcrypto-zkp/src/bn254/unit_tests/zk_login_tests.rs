@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use crate::bn254::utils::{get_enoki_address, get_nonce, get_proof, get_salt};
+use crate::bn254::utils::{get_nonce, get_proof, get_salt, get_zk_login_address};
 use crate::bn254::zk_login::{
     decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
     verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
@@ -117,10 +117,11 @@ fn test_verify_zk_login_google() {
         "21150353671819850968488494085061363586427266461520959449438048630829862383214"
     );
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x7bf6145cfe0592c0428ed8ce9612077b9ca1e5bc60308a90990bc952d13ccce8").unwrap()
     );
@@ -146,10 +147,10 @@ fn test_verify_zk_login_google() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "19190136882259072389509967010336890361732579901899057561984458564815999051862"
         )
-        .unwrap()]
+        .unwrap()
     );
     let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
@@ -188,10 +189,11 @@ fn test_verify_zk_login_twitch() {
         "21483285397923302977910340636259412155696585453250993383687293995976400590480"
     );
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x18642facd3dcc683f24490f5adb576eb02fc12073c46c9006dbe854cdbfbb899").unwrap()
     );
@@ -214,10 +216,10 @@ fn test_verify_zk_login_twitch() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "5856188553771750715373571553753599041029773450105736907486194952973723348883"
         )
-        .unwrap()]
+        .unwrap()
     );
     let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
     assert!(res.is_ok());
@@ -257,10 +259,11 @@ fn test_verify_zk_login_facebook() {
     );
 
     assert_eq!(
-        get_enoki_address(
+        get_zk_login_address(
             zk_login_inputs.get_address_seed(),
             zk_login_inputs.get_address_params()
         )
+        .unwrap()
         .to_vec(),
         Hex::decode("0x5e3733bf03f715a87b641553fce0f8b22bcb6385ce78cc05ddecd55929a5a304").unwrap()
     );
@@ -277,10 +280,10 @@ fn test_verify_zk_login_facebook() {
         zk_login_inputs
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
-        vec![Bn254Fr::from_str(
+        Bn254Fr::from_str(
             "731385750760775862842838160347366432653065169777359995738835424407706939501"
         )
-        .unwrap()]
+        .unwrap()
     );
 
     map.insert(
