@@ -95,6 +95,10 @@ harness = false
 name = "hash"
 harness = false
 
+[[bench]]
+name = "vdf"
+harness = false
+
 [features]
 default = []
 copy_key = []

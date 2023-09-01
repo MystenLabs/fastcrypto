@@ -10,6 +10,7 @@ use crate::vdf::VDF;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_prime::nt_funcs::is_prime;
+use num_traits::{One, Zero};
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
@@ -25,7 +26,7 @@ pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
-    fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
+    pub fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
         Self {
             group_parameter,
             iterations,
@@ -74,6 +75,7 @@ impl<
         }
 
         let challenge = F::compute_challenge(self, input, output);
+
         let f1 = proof.mul(&challenge);
 
         let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
@@ -205,7 +207,7 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
 
 impl Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
+    pub fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
         Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
     }
 }
@@ -249,5 +251,47 @@ fn test_verify_from_chain() {
     let input = QuadraticForm::generator(&discriminant);
 
     let vdf = ChiaClassGroupVDF::from_seed(&challenge, 1024, iterations).unwrap();
+    assert!(vdf.verify(&input, &result, &proof).is_ok());
+}
+
+#[test]
+fn test_verify_1024() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let iterations = 1000u64;
+    let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
+    let proof_hex = "000075d043db5f619f5cb4e8ef7729c7cac154434c33d6e52dd086b90a52c7b1231890eda9d1365100e88993e332f0a99bb7763f215de2fb6b632445beeeff22b657dc90d4e110ed03eac10ec445117d211208c79dd4933ba58b8e17b4c54ef1824c0100";
+
+    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+
+    let result_bytes = hex::decode(result_hex).unwrap();
+    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+
+    let proof_bytes = hex::decode(proof_hex).unwrap();
+    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+
+    let input = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    assert!(vdf.verify(&input, &result, &proof).is_ok());
+}
+
+#[test]
+fn test_verify_2048() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let iterations = 1000u64;
+    let result_hex = "02001222c470df6df6e1321aa1c28279d0c64663c7f066888ff6cd854dcd5deb71f63dfe0b867675180fada390e0d7b1ff735b55fea2b88123a32d1e1239126b275578ea26a4a89e5ef290e2b7b8d072ab819d5b9422770339dc87fd4dc4ebf6add3e391067a557be4be5436355ab11035609d5a3dc71e95cf2a0dcbb228b85d9750a1dc670ac51822d7eff49b5cacd4a8cc485e53bbf7e44f95e7fd5ec55fca44eb91c4831b1e839d8b4c8453dce8be69698bc5cb8fa45120d201057e4d72a6746b0100";
+    let proof_hex = "03008b91b20ab570b701d394aa095d8c670d95a8a3b26af966e979a27acf417421360ea54014668a121139ab11fe92cc0a8d192a8a675f244f3016ed23a7a82d9dd70de089d5bcb5bb0c9535923b2656b19c8cf0cc6e0e4c800c44fc17e16a1b96572f6e0e0967709af259b854a51bec270e5cf73cc4efa93791ac6a84dc2ab77f02d0234ac60b2a04740644ac845204c67f9063ab139e9a0eb25c4417c892ca52299202d3854243d7eb58cc46a837745a1eb92699eb89138eec89467f7226380b040600";
+
+    let discriminant = Discriminant::from_seed(&challenge, 2048).unwrap();
+
+    let result_bytes = hex::decode(result_hex).unwrap();
+    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+
+    let proof_bytes = hex::decode(proof_hex).unwrap();
+    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+
+    let input = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
     assert!(vdf.verify(&input, &result, &proof).is_ok());
 }
