@@ -10,7 +10,6 @@ use crate::vdf::VDF;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_prime::nt_funcs::is_prime;
-use num_traits::{One, Zero};
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
