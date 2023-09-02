@@ -15,7 +15,9 @@ fn dot<S: Scalar>(v1: &[S], v2: &[S]) -> S {
         .fold(S::zero(), |acc, (a, b)| acc + *a * *b)
 }
 
-pub fn batch_coefficients<S: Scalar>(r: &[S], coeff: &[S], degree: u32) -> Vec<S> {
+/// Given a set of indexes <a1, a2, ..., an> and a vector of random scalars <r1, r2, ..., rn>,
+/// returns the vector v such that <v, c> = \sum ri * p(ai) for a polynomial p with coefficients c.
+pub fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u32) -> Vec<S> {
     let mut multiplies = r.to_vec();
     let mut res = Vec::<S>::new();
     for i in 0..=degree {
@@ -27,7 +29,7 @@ pub fn batch_coefficients<S: Scalar>(r: &[S], coeff: &[S], degree: u32) -> Vec<S
         }
         multiplies = multiplies
             .iter()
-            .zip(coeff.iter())
+            .zip(indexes.iter())
             .map(|(r, c)| *r * c)
             .collect::<Vec<_>>();
     }
