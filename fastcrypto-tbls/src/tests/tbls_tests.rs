@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::Poly;
+use crate::tbls::Share;
 use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::groups::bls12381;
 use rand::prelude::*;
@@ -39,6 +40,30 @@ fn test_tbls_e2e() {
     assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &full_sig).is_ok());
     assert_eq!(
         full_sig,
-        ThresholdBls12381MinSig::sign(private_poly.c0(), msg)
+        ThresholdBls12381MinSig::partial_sign(
+            &Share {
+                index: NonZeroU32::new(1234).unwrap(),
+                value: *private_poly.c0()
+            },
+            msg
+        )
+        .value
     );
+
+    // Check batches
+    let sigs = ThresholdBls12381MinSig::partial_sign_batch(&[share1, share2, share3], msg);
+    assert!(ThresholdBls12381MinSig::partial_verify_batch(
+        &public_poly,
+        msg,
+        &sigs,
+        &mut thread_rng()
+    )
+    .is_ok());
+    assert!(ThresholdBls12381MinSig::partial_verify_batch(
+        &public_poly,
+        b"other message",
+        &sigs,
+        &mut thread_rng()
+    )
+    .is_err());
 }
