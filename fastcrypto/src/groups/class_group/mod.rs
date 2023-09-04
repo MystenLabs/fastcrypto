@@ -321,7 +321,6 @@ impl ParameterizedGroupElement for QuadraticForm {
         let g = xgcd.gcd;
 
         let mut capital_by = xgcd.b_divided_by_gcd;
-        let mut capital_dy = xgcd.a_divided_by_gcd;
 
         let mut bx = xgcd.x;
         bx.mul_assign(&self.c);
@@ -359,34 +358,32 @@ impl ParameterizedGroupElement for QuadraticForm {
         }
 
         if z == 0 {
-            self.c.neg_assign();
-            self.c.add_assign(&bx * &capital_dy);
-            self.c.div_exact_mut(&capital_by);
             self.c.mul_assign(&g);
+            self.c.sub_from(&bx * &self.b);
+            self.c.div_exact_mut(&capital_by);
+            //self.c.mul_assign(&g);
             self.c.sub_from(bx.square_ref());
 
             self.a.assign(&by * &capital_by);
 
             bx.mul_assign(&by);
-            bx.mul_assign(2);
+            self.b.sub_assign(&bx);
             self.b.sub_assign(&bx);
         } else {
             self.c.mul_assign(&x);
             self.c.mul_assign(&g);
-            self.c.neg_assign();
-            self.c.add_assign(&bx * &self.b);
+            self.c.sub_from(&bx * &self.b);
             // dx in paper
             self.c.div_exact_mut(&capital_by);
 
-            capital_by.assign(&y * &self.c);
-            q.assign(&capital_by);
+            self.a.assign(&y * &self.c);
+            q.assign(&self.a);
 
-            capital_by.add_assign(&self.b);
-            capital_by.div_exact_mut(&x);
-            capital_by.mul_assign(&y);
+            self.a.add_assign(&self.b);
+            self.a.div_exact_mut(&x);
+            self.a.mul_assign(&y);
 
-            self.a.assign(by.square_ref());
-            self.a.sub_assign(&capital_by);
+            self.a.sub_from(by.square_ref());
 
             //self.c.mul_assign(&g);
             self.c.mul_assign(&x);
