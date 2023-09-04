@@ -154,10 +154,15 @@ impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir
         output: &QuadraticForm,
     ) -> BigInt {
         let mut seed = vec![];
+
+        // The inputs to the hash function have a 1:1 encoding because the size of all parameters are
+        // fixed per discriminant size. See serialized_length for the input and output, and iterations
+        // is always 8 bytes: https://doc.rust-lang.org/std/primitive.u64.html#method.to_be_bytes.
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
         seed.extend_from_slice(&vdf.iterations.to_be_bytes());
+
         hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
