@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use rug::ops::{NegAssign, SubFrom};
+use rug::ops::{DivRoundingAssign, NegAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::mem;
 use std::ops::{Mul, MulAssign, SubAssign};

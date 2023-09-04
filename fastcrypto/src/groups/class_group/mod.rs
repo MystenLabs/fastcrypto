@@ -9,12 +9,9 @@
 
 use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::class_group::bigint_utils::{
-    extended_euclidean_algorithm, extended_euclidean_algorithm_first,
-};
+use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_integer::Integer as IntegerTrait;
-use num_traits::cast;
 use rug::integer::Order;
 use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
@@ -317,20 +314,17 @@ impl ParameterizedGroupElement for QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        let xgcd = extended_euclidean_algorithm_first(&self.b, &mut self.a);
-        let g = xgcd.gcd;
+        let (g, mut bx, _) = Integer::extended_gcd_ref(&self.b, &self.a).complete();
+        self.a.div_exact_mut(&g);
 
-        let mut capital_by = xgcd.b_divided_by_gcd;
-
-        let mut bx = xgcd.x;
         bx.mul_assign(&self.c);
-        bx.rem_floor_assign(&capital_by);
+        bx.rem_floor_assign(&self.a);
 
-        let mut by = Integer::from(&capital_by);
+        let mut by = Integer::from(&self.a);
 
         let mut first = true;
-        let mut x = Integer::new(); // = Integer::ONE.to_owned();
-        let mut y = Integer::new(); // = Integer::ZERO;
+        let mut x = Integer::new();
+        let mut y = Integer::new();
         let mut z = 0u32;
 
         let mut q = Integer::new();
@@ -360,11 +354,10 @@ impl ParameterizedGroupElement for QuadraticForm {
         if z == 0 {
             self.c.mul_assign(&g);
             self.c.sub_from(&bx * &self.b);
-            self.c.div_exact_mut(&capital_by);
-            //self.c.mul_assign(&g);
+            self.c.div_exact_mut(&self.a);
             self.c.sub_from(bx.square_ref());
 
-            self.a.assign(&by * &capital_by);
+            self.a.mul_assign(&by);
 
             bx.mul_assign(&by);
             self.b.sub_assign(&bx);
@@ -373,8 +366,7 @@ impl ParameterizedGroupElement for QuadraticForm {
             self.c.mul_assign(&x);
             self.c.mul_assign(&g);
             self.c.sub_from(&bx * &self.b);
-            // dx in paper
-            self.c.div_exact_mut(&capital_by);
+            self.c.div_exact_mut(&self.a);
 
             self.a.assign(&y * &self.c);
             q.assign(&self.a);
@@ -382,17 +374,14 @@ impl ParameterizedGroupElement for QuadraticForm {
             self.a.add_assign(&self.b);
             self.a.div_exact_mut(&x);
             self.a.mul_assign(&y);
-
             self.a.sub_from(by.square_ref());
 
-            //self.c.mul_assign(&g);
             self.c.mul_assign(&x);
             self.c.sub_from(bx.square_ref());
 
             // s in paper
             bx.mul_assign(by);
             bx.sub_assign(&q);
-            //bx.mul_assign(2);
             self.b.sub_assign(&bx);
             self.b.sub_assign(bx);
         }
