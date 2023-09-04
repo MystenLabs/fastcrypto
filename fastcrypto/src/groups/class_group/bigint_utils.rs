@@ -77,11 +77,8 @@ pub fn extended_euclidean_algorithm_first(
     a: &Integer,
     b: &mut Integer,
 ) -> EuclideanAlgorithmOutput {
-    //    let mut s = (Integer::ZERO, Integer::ONE.to_owned());
     let mut t = (Integer::ONE.to_owned(), Integer::ZERO);
     let mut r = (a.clone(), b.clone());
-
-    //let mut q = Integer::new();
 
     while !r.0.is_zero() {
         b.assign(&r.1 / &r.0);
@@ -101,13 +98,11 @@ pub fn extended_euclidean_algorithm_first(
         t.1.neg_assign();
     }
 
-    let aq = a.div_exact_ref(&r.1).complete();
-
     EuclideanAlgorithmOutput {
         gcd: r.1,
         x: t.1,
-        y: r.0, // Not valid - but use an existing value
-        a_divided_by_gcd: aq,
+        y: Integer::new(), // Not valid - but use an existing value
+        a_divided_by_gcd: Integer::new(),
         b_divided_by_gcd: t.0,
     }
 }

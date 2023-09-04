@@ -361,13 +361,15 @@ impl ParameterizedGroupElement for QuadraticForm {
         if z == 0 {
             self.c.neg_assign();
             self.c.add_assign(&bx * &capital_dy);
+            self.c.div_exact_mut(&capital_by);
+            self.c.mul_assign(&g);
+            self.c.sub_from(bx.square_ref());
+
             self.a.assign(&by * &capital_by);
-            capital_by.div_exact_from(&self.c);
-            self.c.assign(bx.square_ref());
+
             bx.mul_assign(&by);
             bx.mul_assign(2);
             self.b.sub_assign(&bx);
-            self.c.sub_assign(&g * &capital_by);
         } else {
             self.c.mul_assign(&x);
             self.c.mul_assign(&g);
@@ -376,15 +378,15 @@ impl ParameterizedGroupElement for QuadraticForm {
             // dx in paper
             self.c.div_exact_mut(&capital_by);
 
-            capital_dy.assign(&y * &self.c);
-            q.assign(&capital_dy);
+            capital_by.assign(&y * &self.c);
+            q.assign(&capital_by);
 
-            capital_dy.add_assign(&self.b);
-            capital_dy.div_exact_mut(&x);
-            capital_dy.mul_assign(&y);
+            capital_by.add_assign(&self.b);
+            capital_by.div_exact_mut(&x);
+            capital_by.mul_assign(&y);
 
             self.a.assign(by.square_ref());
-            self.a.sub_assign(&capital_dy);
+            self.a.sub_assign(&capital_by);
 
             //self.c.mul_assign(&g);
             self.c.mul_assign(&x);
