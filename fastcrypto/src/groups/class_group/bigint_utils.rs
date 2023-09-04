@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use rug::ops::NegAssign;
+use rug::ops::{NegAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::mem;
-use std::ops::SubAssign;
+use std::ops::{Mul, MulAssign, SubAssign};
 
 pub struct EuclideanAlgorithmOutput {
     pub gcd: Integer,
@@ -65,6 +65,61 @@ pub fn extended_euclidean_algorithm(a: &Integer, b: &Integer) -> EuclideanAlgori
         x: t.1,
         y: s.1,
         a_divided_by_gcd: s.0,
+        b_divided_by_gcd: t.0,
+    }
+}
+
+/// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
+/// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
+///
+/// Does NOT compute the coefficient for the second argument.
+pub fn extended_euclidean_algorithm_first(a: &Integer, b: &Integer) -> EuclideanAlgorithmOutput {
+    let mut first = true;
+
+    //    let mut s = (Integer::ZERO, Integer::ONE.to_owned());
+    let mut t = (Integer::new(), Integer::new()); //(Integer::ONE.to_owned(), Integer::ZERO);
+    let mut r = (Integer::new(), Integer::new()); //(a.clone(), b.clone());
+
+    let mut q = Integer::new();
+
+    while first || !r.0.is_zero() {
+        if first {
+            r.1.assign(a);
+            r.0.assign(b / a);
+
+            t.1.assign(Integer::ONE);
+            t.0.assign(-&r.0);
+
+            r.0.mul_assign(a);
+            r.0.sub_from(b);
+
+            first = false;
+        } else {
+            q.assign(&r.1 / &r.0);
+
+            mem::swap(&mut r.0, &mut r.1);
+            r.0.sub_assign(&q * &r.1);
+
+            mem::swap(&mut t.0, &mut t.1);
+            t.0.sub_assign(&q * &t.1);
+        }
+    }
+
+    // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
+    t.0.abs_mut();
+
+    if r.1.is_negative() {
+        r.1.neg_assign();
+        t.1.neg_assign();
+    }
+
+    let aq = a.div_exact_ref(&r.1).complete();
+
+    EuclideanAlgorithmOutput {
+        gcd: r.1,
+        x: t.1,
+        y: r.0, // Not valid - but use an existing value
+        a_divided_by_gcd: aq,
         b_divided_by_gcd: t.0,
     }
 }
