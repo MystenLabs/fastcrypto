@@ -73,36 +73,24 @@ pub fn extended_euclidean_algorithm(a: &Integer, b: &Integer) -> EuclideanAlgori
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 ///
 /// Does NOT compute the coefficient for the second argument.
-pub fn extended_euclidean_algorithm_first(a: &Integer, b: &Integer) -> EuclideanAlgorithmOutput {
-    let mut first = true;
-
+pub fn extended_euclidean_algorithm_first(
+    a: &Integer,
+    b: &mut Integer,
+) -> EuclideanAlgorithmOutput {
     //    let mut s = (Integer::ZERO, Integer::ONE.to_owned());
-    let mut t = (Integer::new(), Integer::new()); //(Integer::ONE.to_owned(), Integer::ZERO);
-    let mut r = (Integer::new(), Integer::new()); //(a.clone(), b.clone());
+    let mut t = (Integer::ONE.to_owned(), Integer::ZERO);
+    let mut r = (a.clone(), b.clone());
 
-    let mut q = Integer::new();
+    //let mut q = Integer::new();
 
-    while first || !r.0.is_zero() {
-        if first {
-            r.1.assign(a);
-            r.0.assign(b / a);
+    while !r.0.is_zero() {
+        b.assign(&r.1 / &r.0);
 
-            t.1.assign(Integer::ONE);
-            t.0.assign(-&r.0);
+        mem::swap(&mut r.0, &mut r.1);
+        r.0.sub_assign((b as &Integer) * &r.1);
 
-            r.0.mul_assign(a);
-            r.0.sub_from(b);
-
-            first = false;
-        } else {
-            q.assign(&r.1 / &r.0);
-
-            mem::swap(&mut r.0, &mut r.1);
-            r.0.sub_assign(&q * &r.1);
-
-            mem::swap(&mut t.0, &mut t.1);
-            t.0.sub_assign(&q * &t.1);
-        }
+        mem::swap(&mut t.0, &mut t.1);
+        t.0.sub_assign(&t.1 * (b as &Integer));
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.

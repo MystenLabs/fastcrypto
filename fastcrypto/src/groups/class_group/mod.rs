@@ -317,7 +317,7 @@ impl ParameterizedGroupElement for QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        let xgcd = extended_euclidean_algorithm_first(&self.b, &self.a);
+        let xgcd = extended_euclidean_algorithm_first(&self.b, &mut self.a);
         let g = xgcd.gcd;
 
         let mut capital_by = xgcd.b_divided_by_gcd;
@@ -373,22 +373,22 @@ impl ParameterizedGroupElement for QuadraticForm {
             self.c.neg_assign();
             self.c.add_assign(&bx * &capital_dy);
             // dx in paper
-            capital_by.div_exact_from(&self.c);
+            self.c.div_exact_mut(&capital_by);
+            self.c.mul_assign(&g);
 
-            q.assign(&capital_by * &y);
-            capital_dy.add_assign(&q);
+            capital_dy.assign(&y * &self.c);
+            q.assign(&capital_dy);
+
+            capital_dy.add_assign(&self.b);
             capital_dy.div_exact_mut(&x);
-            capital_dy.mul_assign(&g);
             capital_dy.mul_assign(&y);
-
-            capital_by.mul_assign(&g);
-            capital_by.mul_assign(&x);
 
             self.a.assign(by.square_ref());
             self.a.sub_assign(&capital_dy);
 
-            self.c.assign(bx.square_ref());
-            self.c.sub_assign(&capital_by);
+            //self.c.mul_assign(&g);
+            self.c.mul_assign(&x);
+            self.c.sub_from(bx.square_ref());
 
             // s in paper
             bx.mul_assign(by);
