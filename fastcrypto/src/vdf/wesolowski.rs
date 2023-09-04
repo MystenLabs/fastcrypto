@@ -11,31 +11,33 @@ use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_prime::nt_funcs::is_prime;
 use std::cmp::min;
+use std::marker::PhantomData;
 use std::ops::Neg;
-
-/// Size of the random prime modulus B used in proving and verification.
-const B_BITS: usize = 264;
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
-pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
+pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> {
     group_parameter: G::ParameterType,
     iterations: u64,
+    _fiat_shamir: PhantomData<F>,
 }
 
-impl<G: ParameterizedGroupElement + UnknownOrderGroupElement> WesolowskiVDF<G> {
+impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
-    fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
+    pub fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
         Self {
             group_parameter,
             iterations,
+            _fiat_shamir: PhantomData::<F>,
         }
     }
 }
 
-impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement> VDF
-    for WesolowskiVDF<G>
+impl<
+        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        F: FiatShamir<G>,
+    > VDF for WesolowskiVDF<G, F>
 {
     type InputType = G;
     type OutputType = G;
@@ -52,7 +54,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             output = output.double();
         }
 
-        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes(), B_BITS);
+        let challenge = F::compute_challenge(self, input, &output);
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let two = BigInt::from(2);
@@ -71,7 +73,8 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
             return Err(InvalidInput);
         }
 
-        let challenge = get_challenge(&input.as_bytes(), &output.as_bytes(), B_BITS);
+        let challenge = F::compute_challenge(self, input, output);
+
         let f1 = proof.mul(&challenge);
 
         let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
@@ -84,14 +87,18 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElemen
     }
 }
 
-/// Implementation of Wesolowski's VDF construction over imaginary class groups. The implementation
-/// is compatible with chiavdf's implementation. (https://github.com/Chia-Network/chiavdf).
-///
-/// Note that the evaluation phase is currently significantly slower than other implementations, so
-/// estimates on how long it takes to evaluate a VDF should currently be used with caution.
-pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm>;
+/// Implementation of Wesolowski's VDF construction over imaginary class groups using a strong
+/// Fiat-Shamir implementation.
+pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm, StrongFiatShamir<B_BITS>>;
 
-impl WesolowskiVDF<QuadraticForm> {
+/// Implementation of Wesolowski's VDF construction over imaginary class groups compatible with chiavdf
+/// (https://github.com/Chia-Network/chiavdf).
+///
+/// Note that the evaluation phase is slower than chia's implementations, so estimates on how long it
+/// takes to evaluate the VDF should currently be used with caution.
+pub type ChiaClassGroupVDF = WesolowskiVDF<QuadraticForm, ChiaFiatShamir>;
+
+impl<F> WesolowskiVDF<QuadraticForm, F> {
     /// Create a new VDF over an imaginary class group where the discriminant has a given size and
     /// is generated based on a seed. The `iterations` parameters specifies the number of group
     /// operations the evaluation function requires.
@@ -107,13 +114,58 @@ impl WesolowskiVDF<QuadraticForm> {
     }
 }
 
-/// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
-/// to make the Wesolowski VDF non-interactive.
-fn get_challenge(x: &[u8], y: &[u8], bit_length: usize) -> BigInt {
-    let mut seed = vec![];
-    seed.extend_from_slice(x);
-    seed.extend_from_slice(y);
-    hash_prime(&seed, bit_length, &[bit_length - 1]).expect("The length should be a multiple of 8")
+pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
+    /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
+    /// to make the Wesolowski VDF non-interactive.
+    fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
+}
+
+/// Size of the random prime modulus B used in proving and verification.
+const B_BITS: usize = 264;
+
+/// Implementation of the Fiat-Shamir challenge generation compatible with chiavdf.
+/// Note that this implementation is weak, meaning that not all public parameters are used in the
+/// challenge generation. This is not secure if an adversary can influence the public parameters.
+/// See https://eprint.iacr.org/2023/691.
+pub struct ChiaFiatShamir;
+
+impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
+    fn compute_challenge<F>(
+        _vdf: &WesolowskiVDF<QuadraticForm, F>,
+        input: &QuadraticForm,
+        output: &QuadraticForm,
+    ) -> BigInt {
+        let mut seed = vec![];
+        seed.extend_from_slice(&input.as_bytes());
+        seed.extend_from_slice(&output.as_bytes());
+        hash_prime(&seed, B_BITS, &[B_BITS - 1]).expect("The length should be a multiple of 8")
+    }
+}
+
+/// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
+/// The implementation is strong, meaning that all public parameters are used in the challenge generation.
+/// See https://eprint.iacr.org/2023/691.
+pub struct StrongFiatShamir<const CHALLENGE_SIZE: usize>;
+
+impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir<CHALLENGE_SIZE> {
+    fn compute_challenge<F>(
+        vdf: &WesolowskiVDF<QuadraticForm, F>,
+        input: &QuadraticForm,
+        output: &QuadraticForm,
+    ) -> BigInt {
+        let mut seed = vec![];
+
+        // The inputs to the hash function have a 1:1 encoding because the size of all parameters are
+        // fixed per discriminant size. See serialized_length for the input and output, and iterations
+        // is always 8 bytes: https://doc.rust-lang.org/std/primitive.u64.html#method.to_be_bytes.
+        seed.extend_from_slice(&input.as_bytes());
+        seed.extend_from_slice(&output.as_bytes());
+        seed.extend_from_slice(&vdf.group_parameter.to_bytes());
+        seed.extend_from_slice(&vdf.iterations.to_be_bytes());
+
+        hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+            .expect("The length should be a multiple of 8")
+    }
 }
 
 /// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
@@ -159,7 +211,7 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
 
 impl Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
+    pub fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
         Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
     }
 }
@@ -202,6 +254,48 @@ fn test_verify_from_chain() {
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::from_seed(&challenge, 1024, iterations).unwrap();
+    let vdf = ChiaClassGroupVDF::from_seed(&challenge, 1024, iterations).unwrap();
+    assert!(vdf.verify(&input, &result, &proof).is_ok());
+}
+
+#[test]
+fn test_verify_1024() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let iterations = 1000u64;
+    let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
+    let proof_hex = "000075d043db5f619f5cb4e8ef7729c7cac154434c33d6e52dd086b90a52c7b1231890eda9d1365100e88993e332f0a99bb7763f215de2fb6b632445beeeff22b657dc90d4e110ed03eac10ec445117d211208c79dd4933ba58b8e17b4c54ef1824c0100";
+
+    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+
+    let result_bytes = hex::decode(result_hex).unwrap();
+    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+
+    let proof_bytes = hex::decode(proof_hex).unwrap();
+    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+
+    let input = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
+    assert!(vdf.verify(&input, &result, &proof).is_ok());
+}
+
+#[test]
+fn test_verify_2048() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let iterations = 1000u64;
+    let result_hex = "02001222c470df6df6e1321aa1c28279d0c64663c7f066888ff6cd854dcd5deb71f63dfe0b867675180fada390e0d7b1ff735b55fea2b88123a32d1e1239126b275578ea26a4a89e5ef290e2b7b8d072ab819d5b9422770339dc87fd4dc4ebf6add3e391067a557be4be5436355ab11035609d5a3dc71e95cf2a0dcbb228b85d9750a1dc670ac51822d7eff49b5cacd4a8cc485e53bbf7e44f95e7fd5ec55fca44eb91c4831b1e839d8b4c8453dce8be69698bc5cb8fa45120d201057e4d72a6746b0100";
+    let proof_hex = "03008b91b20ab570b701d394aa095d8c670d95a8a3b26af966e979a27acf417421360ea54014668a121139ab11fe92cc0a8d192a8a675f244f3016ed23a7a82d9dd70de089d5bcb5bb0c9535923b2656b19c8cf0cc6e0e4c800c44fc17e16a1b96572f6e0e0967709af259b854a51bec270e5cf73cc4efa93791ac6a84dc2ab77f02d0234ac60b2a04740644ac845204c67f9063ab139e9a0eb25c4417c892ca52299202d3854243d7eb58cc46a837745a1eb92699eb89138eec89467f7226380b040600";
+
+    let discriminant = Discriminant::from_seed(&challenge, 2048).unwrap();
+
+    let result_bytes = hex::decode(result_hex).unwrap();
+    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+
+    let proof_bytes = hex::decode(proof_hex).unwrap();
+    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+
+    let input = QuadraticForm::generator(&discriminant);
+
+    let vdf = ClassGroupVDF::new(discriminant, iterations);
     assert!(vdf.verify(&input, &result, &proof).is_ok());
 }

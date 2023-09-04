@@ -7,7 +7,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::class_group::compressed::CompressedQuadraticForm::{
     Generator, Nontrivial, Zero,
 };
-use crate::groups::class_group::{Discriminant, QuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES};
+use crate::groups::class_group::{Discriminant, QuadraticForm};
 use crate::groups::ParameterizedGroupElement;
 use num_bigint::{BigInt, Sign};
 use num_integer::{ExtendedGcd, Integer};
@@ -34,14 +34,33 @@ struct CompressedFormat {
 }
 
 impl QuadraticForm {
-    /// Serialize a quadratic form. The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245)
-    /// and the result will be exactly [`QUADRATIC_FORM_SIZE_IN_BYTES`] bytes long.
-    pub(super) fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
+    /// Return the length of the serialization in bytes of a quadratic form with a given discriminant
+    /// length in bits.
+    pub fn serialized_length(discriminant_in_bits: usize) -> usize {
+        // The number of 32 bit words needed to represent the discriminant rounded up,
+        ((discriminant_in_bits + 31) / 32
+            * 3 // a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
+            + 1 // Flags for special forms (identity or generator) and the sign of b and t'.
+            + 1 // The size of g - 1 = g_size.
+            // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
+            + 2) as usize
+    }
+
+    /// Serialize a quadratic form. The length of the serialization in bytes depends on the bit-length
+    /// of the discriminant and may be computed using [QuadraticForm::serialized_length].
+    ///
+    /// The format follows that of chiavdf (see
+    /// https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245)
+    /// if the discriminant is 1024 bits.
+    pub(super) fn serialize(&self) -> Vec<u8> {
         self.compress().serialize()
     }
 
-    /// Deserialize bytes into a quadratic form. The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287)
-    /// and the bytes array must be exactly [`QUADRATIC_FORM_SIZE_IN_BYTES`] bytes long.
+    /// Deserialize bytes into a quadratic form. The expected length of the serialization in bytes
+    /// depends on the bit-length of the discriminant and may be computed using [CompressedQuadraticForm::serialized_length].
+    ///
+    /// The format follows that of chiavdf (see https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287)
+    /// if the discriminant is 1024 bits.
     pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
         CompressedQuadraticForm::deserialize(bytes, discriminant)?.decompress()
     }
@@ -180,16 +199,16 @@ impl CompressedQuadraticForm {
     }
 
     /// Serialize a compressed binary form according to the format defined in the chiavdf library.
-    fn serialize(&self) -> [u8; QUADRATIC_FORM_SIZE_IN_BYTES] {
+    fn serialize(&self) -> Vec<u8> {
         // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L222-L245.
         match self {
-            Zero(_) => {
-                let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
+            Zero(d) => {
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.bits())];
                 bytes[0] = 0x04;
                 bytes
             }
-            Generator(_) => {
-                let mut bytes = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
+            Generator(d) => {
+                let mut bytes = vec![0x00; QuadraticForm::serialized_length(d.bits())];
                 bytes[0] = 0x08;
                 bytes
             }
@@ -200,7 +219,7 @@ impl CompressedQuadraticForm {
 
                 // The bit length of the discriminant, which is rounded up to the next multiple of 32.
                 // Serialization of special forms (identity or generator) takes only 1 byte.
-                let d_bits = (form.discriminant.0.bits() as usize + 31) & !31;
+                let d_bits = (form.discriminant.bits() + 31) & !31;
 
                 // Size of g in bytes minus 1 (g_size)
                 let g_size = (form.g.bits() as usize + 7) / 8 - 1;
@@ -227,24 +246,24 @@ impl CompressedQuadraticForm {
                     &export_to_size(&form.b0, b0_length)
                         .expect("The size bound on the discriminant ensures that this is true"),
                 );
-                bytes.extend_from_slice(&vec![0u8; QUADRATIC_FORM_SIZE_IN_BYTES - bytes.len()]);
-
+                bytes.extend_from_slice(&vec![
+                    0u8;
+                    QuadraticForm::serialized_length(
+                        form.discriminant.bits()
+                    ) - bytes.len()
+                ]);
                 bytes
-                    .try_into()
-                    .expect("The size bound on the discriminant ensures that this is true")
             }
         }
     }
 
     /// Deserialize a compressed binary form according to the format defined in the chiavdf library.
     fn deserialize(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287.
-        if bytes.len() != QUADRATIC_FORM_SIZE_IN_BYTES {
-            return Err(FastCryptoError::InputLengthWrong(
-                QUADRATIC_FORM_SIZE_IN_BYTES,
-            ));
+        if bytes.len() != QuadraticForm::serialized_length(discriminant.bits()) {
+            return Err(FastCryptoError::InputLengthWrong(bytes.len()));
         }
 
+        // This implementation follows https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/bqfc.c#L258-L287.
         let is_identity = bytes[0] & 0x04 != 0;
         if is_identity {
             return Ok(Zero(discriminant.clone()));
@@ -257,7 +276,7 @@ impl CompressedQuadraticForm {
 
         // The bit length of the discriminant, which is rounded up to the next multiple of 32.
         // Serialization of special forms (identity or generator) takes only 1 byte.
-        let d_bits = (discriminant.0.bits() as usize + 31) & !31;
+        let d_bits = (discriminant.bits() + 31) & !31;
 
         // Size of g in bytes minus 1 (g_size)
         let g_size = bytes[1] as usize;
@@ -374,12 +393,13 @@ fn partial_xgcd(a: &BigInt, b: &BigInt) -> FastCryptoResult<(BigInt, BigInt)> {
 #[cfg(test)]
 mod tests {
     use crate::groups::class_group::compressed::{
-        bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm, QUADRATIC_FORM_SIZE_IN_BYTES,
+        bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm,
     };
     use crate::groups::class_group::{Discriminant, QuadraticForm};
     use crate::groups::ParameterizedGroupElement;
     use num_bigint::BigInt;
     use num_traits::Num;
+    use std::str::FromStr;
 
     #[test]
     fn test_bigint_import() {
@@ -399,7 +419,7 @@ mod tests {
         let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
         let discriminant =
             Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, 16).unwrap()).unwrap();
-        let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let compressed_hex = "0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605";
         let compressed = CompressedQuadraticForm::deserialize(
             &hex::decode(compressed_hex).unwrap(),
             &discriminant,
@@ -415,15 +435,17 @@ mod tests {
         let discriminant_hex = "d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf";
         let discriminant =
             Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, 16).unwrap()).unwrap();
-        let compressed_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000";
+        let compressed_hex = "010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100";
         let compressed_bytes = hex::decode(compressed_hex).unwrap();
         let compressed =
             CompressedQuadraticForm::deserialize(&compressed_bytes, &discriminant).unwrap();
         let serialized = compressed.serialize();
         assert_eq!(serialized.to_vec(), compressed_bytes);
 
-        let mut generator_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
-        generator_serialized[0] = 0x08;
+        let length = QuadraticForm::serialized_length(discriminant.bits());
+
+        let mut generator_serialized = vec![0x08];
+        generator_serialized.extend_from_slice(&vec![0u8; length - 1]);
         assert_eq!(
             QuadraticForm::generator(&discriminant)
                 .compress()
@@ -432,24 +454,38 @@ mod tests {
         );
         assert_eq!(
             QuadraticForm::generator(&discriminant),
-            CompressedQuadraticForm::deserialize(&generator_serialized, &discriminant)
-                .unwrap()
-                .decompress()
-                .unwrap()
+            QuadraticForm::from_bytes(&generator_serialized, &discriminant).unwrap()
         );
 
-        let mut identity_serialized = [0u8; QUADRATIC_FORM_SIZE_IN_BYTES];
-        identity_serialized[0] = 0x04;
+        let mut identity_serialized = vec![0x04];
+        identity_serialized.extend_from_slice(&vec![0u8; length - 1]);
         assert_eq!(
             QuadraticForm::zero(&discriminant).compress().serialize(),
             identity_serialized
         );
         assert_eq!(
             QuadraticForm::zero(&discriminant),
-            CompressedQuadraticForm::deserialize(&identity_serialized, &discriminant)
-                .unwrap()
-                .decompress()
-                .unwrap()
+            QuadraticForm::from_bytes(&identity_serialized, &discriminant).unwrap()
         );
+    }
+
+    #[test]
+    fn test_serialize_roundtrip() {
+        // 512, 1024, 2048 and 4096 bits
+        let discriminants = [
+            "-9349344414767291113687223839476811112057517254984004685948091483948469540163634423565760143454771869645957446839582874595782298614481082568123251157411687",
+            "-133945061969889266637985327980602701669957743979382571436531763623415706276402737192009754195707000763534826528470478732951439968182253841713707751680514914997731717008973123373160242352119122869810833826423629802461890931457718412113596718805448770307254626415119526466550394593324563882174686655718775270447",
+            "-29502142669795498170664913925261110998320411268548537483129113540779280561083683352182517520690699478273319868447448049966824511039919308043747877951680827633851250876773921459982042061851444137132714948181860869206531105248168224678068701295818400875143336452362204697641282000514554237783258014492731972413087647918643222949297880308212892726925365719811319120311399853900323484711428931751287527191097875770471316418233180621991992577566395542854095151545112408782988736372758594134766939199932173978149654618994408144132349550563062288824293800449098318712711815821352232797398061624841110469260018248562843766511",
+            "-1007406630399371166205680828506843661949414311260040967856089339951193128060006822186578417382690035289449410666011850863693848919000628846349158715617084456083709831037163606319682672637324840187988607127103283149127943287978050624989555034830938436492975275987366038909474637467450001207425286269651430287955788923542179414542154414299977476302876585624737430226443723554486671958211612001960238001471273685967498771059733513459006129260882122390792571950782612040307833174744553353810400760504366039499327516985390664823589969989307911300950073410116630825901270255248406423708217095849457069056140995525605401875876118373137298999494339171538428290676256719705881706431651985194776829197614940001195992054408265445358913742096341471054976467547938020859817598310858507427495592930840526330743650698223650223475256616630888604670277950241581755495006259849435974983398554883297788462241826616412920690989472098631426747304873946834232860439878253783060639505051324901511090179582728174169603085475715057689175073017095753308275310776520002427239928789097518771962660619070493257590325261876957495417502288636882538000005279327607258660706478536265303230535024676764883243771806618176424548574077467727598718632427911394987209476759",
+        ].map(|s| BigInt::from_str(s).unwrap()).map(|p| Discriminant::try_from(p).unwrap());
+
+        for discriminant in discriminants {
+            let form = QuadraticForm::generator(&discriminant).mul(&BigInt::from(1234));
+            let serialized = form.serialize();
+            assert_eq!(
+                form,
+                QuadraticForm::from_bytes(&serialized, &discriminant).unwrap()
+            );
+        }
     }
 }

@@ -208,6 +208,17 @@ mod group_benches {
         group.bench_function("Double (1024 bit discriminant)", move |b| {
             b.iter(|| z.double())
         });
+
+        let d = Discriminant::try_from(BigInt::from_str_radix("-af0806241ecbc630fbbfd0c9d61c257c40a185e8cab313041cf029d6f070d58ecbc6c906df53ecf0dd4497b0753ccdbce2ebd9c80ae0032acce89096af642dd8c008403dd989ee5c1262545004fdcd7acf47908b983bc5fed17889030f0138e10787a8493e95ca86649ae8208e4a70c05772e25f9ac901a399529de12910a7a2c3376292be9dba600fd89910aeccc14432b6e45c0456f41c177bb736915cad3332a74e25b3993f3e44728dc2bd13180132c5fb88f0490aeb96b2afca655c13dd9ab8874035e26dab16b6aad2d584a2d35ae0eaf00df4e94ab39fe8a3d5837dcab204c46d7a7b97b0c702d8be98c50e1bf8b649b5b6194fc3bae6180d2dd24d9f", 16).unwrap()).unwrap();
+        let x = QuadraticForm::generator(&d).mul(&BigInt::from(1234));
+        let y = QuadraticForm::generator(&d).mul(&BigInt::from(4321));
+        let z = y.clone();
+        group.bench_function("Compose (2048 bit discriminant)", move |b| {
+            b.iter(|| x.compose(&y))
+        });
+        group.bench_function("Double (2048 bit discriminant)", move |b| {
+            b.iter(|| z.double())
+        });
     }
 
     criterion_group! {

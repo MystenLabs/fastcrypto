@@ -7,9 +7,11 @@
 //!
 //! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
 
-use crate::error::FastCryptoError::{InputTooLong, InvalidInput};
+use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::class_group::bigint_utils::extended_euclidean_algorithm;
+use crate::groups::class_group::bigint_utils::{
+    extended_euclidean_algorithm, EuclideanAlgorithmOutput,
+};
 use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -20,21 +22,6 @@ use std::ops::{Add, Neg};
 
 mod bigint_utils;
 mod compressed;
-
-/// The maximal size in bits we allow a discriminant to have.
-pub const MAX_DISCRIMINANT_SIZE_IN_BITS: u64 = 1024;
-
-/// The size of a compressed quadratic form in bytes. We force all forms to have the same size,
-/// namely 100 bytes.
-pub const QUADRATIC_FORM_SIZE_IN_BYTES: usize = (
-    // The number of 32 bit words needed to represent the discriminant rounded up,
-    (MAX_DISCRIMINANT_SIZE_IN_BITS + 31) / 32
-        * 3 // a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
-        + 1 // Flags for special forms (identity or generator) and the sign of b and t'.
-        + 1 // The size of g - 1 = g_size.
-        // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
-        + 2
-) as usize;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -148,41 +135,39 @@ impl QuadraticForm {
         let m = v2 - &s;
 
         // 2.
-        let xgcd = extended_euclidean_algorithm(u2, u1);
-        let f = xgcd.gcd;
-        let b = xgcd.x;
-        let c = xgcd.y;
-
-        let g: BigInt;
-        let capital_bx: BigInt;
-        let capital_by: BigInt;
-        let capital_cy: BigInt;
-        let capital_dy: BigInt;
+        let EuclideanAlgorithmOutput {
+            gcd: f,
+            x: b,
+            y: c,
+            a_divided_by_gcd: mut capital_cy,
+            b_divided_by_gcd: mut capital_by,
+        } = extended_euclidean_algorithm(u2, u1);
 
         let (q, r) = s.div_rem(&f);
-        if r.is_zero() {
-            g = f;
-            capital_bx = &m * &b;
-            capital_by = xgcd.b_divided_by_gcd;
-            capital_cy = xgcd.a_divided_by_gcd;
-            capital_dy = q;
+        let (g, capital_bx, capital_dy) = if r.is_zero() {
+            (f, &m * &b, q)
         } else {
             // 3.
-            let xgcd_prime = extended_euclidean_algorithm(&f, &s);
-            g = xgcd_prime.gcd;
-            let y = xgcd_prime.y;
-            capital_by = &xgcd.b_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
-            capital_cy = &xgcd.a_divided_by_gcd * &xgcd_prime.a_divided_by_gcd;
-            capital_dy = xgcd_prime.b_divided_by_gcd;
-            let h = xgcd_prime.a_divided_by_gcd;
+            let EuclideanAlgorithmOutput {
+                gcd: g,
+                x: _,
+                y,
+                a_divided_by_gcd: h,
+                b_divided_by_gcd,
+            } = extended_euclidean_algorithm(&f, &s);
+            capital_by *= &h;
+            capital_cy *= &h;
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
-            capital_bx = &b * (&m / &h) + &l * (&capital_by / &h);
-        }
+            (
+                g,
+                &b * (&m / &h) + &l * (&capital_by / &h),
+                b_divided_by_gcd,
+            )
+        };
 
         // 5. (partial xgcd)
-        // TODO: capital_bx is not used later, so the modular reduction may be done earlier.
         let mut bx = capital_bx.mod_floor(&capital_by);
         let mut by = capital_by.clone();
 
@@ -231,14 +216,8 @@ impl QuadraticForm {
                 (&cx * &dy - w1) / &dx
             };
 
-            let (ax_dx, ay_dy) = if g.is_one() {
-                (&x * &dx, &y * &dy)
-            } else {
-                (&g * &x * &dx, &g * &y * &dy)
-            };
-
-            u3 = &by * &cy - &ay_dy;
-            w3 = &bx * &cx - &ax_dx;
+            u3 = &by * &cy - &g * &y * &dy;
+            w3 = &bx * &cx - &g * &x * &dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
@@ -249,6 +228,17 @@ impl QuadraticForm {
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
         .reduce()
+    }
+}
+
+impl ParameterizedGroupElement for QuadraticForm {
+    /// The discriminant of a quadratic form defines the class group.
+    type ParameterType = Discriminant;
+
+    type ScalarType = BigInt;
+
+    fn zero(discriminant: &Self::ParameterType) -> Self {
+        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
     fn double(&self) -> Self {
@@ -261,12 +251,14 @@ impl QuadraticForm {
         let v = &self.b;
         let w = &self.c;
 
-        let xgcd = extended_euclidean_algorithm(u, v);
-        let g = xgcd.gcd;
-        let y = xgcd.y;
+        let EuclideanAlgorithmOutput {
+            gcd: g,
+            x: _,
+            y,
+            a_divided_by_gcd: capital_by,
+            b_divided_by_gcd: capital_dy,
+        } = extended_euclidean_algorithm(u, v);
 
-        let capital_by = xgcd.a_divided_by_gcd;
-        let capital_dy = xgcd.b_divided_by_gcd;
         let mut bx = (&y * w).mod_floor(&capital_by);
         let mut by = capital_by.clone();
 
@@ -307,17 +299,10 @@ impl QuadraticForm {
             dy = &dy / &x;
             u3 = &by * &by;
             w3 = &bx * &bx;
-            let s = &bx + &by;
-            v3 = &v3 - &s * &s + &u3 + &w3;
+            v3 = &v3 - (&bx + &by).pow(2) + &u3 + &w3;
 
-            let (ax_dx, ay_dy) = if g.is_one() {
-                (&x * &dx, &y * &dy)
-            } else {
-                (&g * &x * &dx, &g * &y * &dy)
-            };
-
-            u3 = &u3 - &ay_dy;
-            w3 = &w3 - &ax_dx;
+            u3 = &u3 - &g * &y * &dy;
+            w3 = &w3 - &g * &x * &dx;
         }
 
         QuadraticForm {
@@ -327,21 +312,6 @@ impl QuadraticForm {
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
         .reduce()
-    }
-}
-
-impl ParameterizedGroupElement for QuadraticForm {
-    /// The discriminant of a quadratic form defines the class group.
-    type ParameterType = Discriminant;
-
-    type ScalarType = BigInt;
-
-    fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
-    }
-
-    fn double(&self) -> Self {
-        self.double()
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
@@ -419,12 +389,19 @@ impl TryFrom<BigInt> for Discriminant {
         if !value.is_negative() || value.mod_floor(&BigInt::from(4)) != BigInt::from(1) {
             return Err(InvalidInput);
         }
-
-        if value.bits() > MAX_DISCRIMINANT_SIZE_IN_BITS {
-            return Err(InputTooLong(value.bits() as usize));
-        }
-
         Ok(Self(value))
+    }
+}
+
+impl Discriminant {
+    /// Return the number of bits needed to represent this discriminant, not including the sign bit.
+    pub fn bits(&self) -> usize {
+        self.0.bits() as usize
+    }
+
+    /// Returns the big-endian byte representation of the absolute value of this discriminant.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        self.0.to_bytes_be().1
     }
 }
 
