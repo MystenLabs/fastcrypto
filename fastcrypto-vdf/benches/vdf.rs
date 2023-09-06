@@ -43,7 +43,13 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 }
 
 fn verify(c: &mut Criterion) {
-    let mut group = c.benchmark_group("VDF verify");
+    #[cfg(not(feature = "gmp"))]
+        let dep = "num-bigint";
+
+    #[cfg(feature = "gmp")]
+        let dep = "gmp";
+
+    let mut group = c.benchmark_group(format!("VDF verify ({})", dep));
 
     // Note that the number of iterations are quite low, but this has very little influence on the benchmark results.
 
