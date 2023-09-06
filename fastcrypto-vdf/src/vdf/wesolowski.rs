@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(not(feature = "gmp"))]
 use crate::class_group::{Discriminant, QuadraticForm};
+#[cfg(feature = "gmp")]
+use crate::class_group_gmp::{Discriminant, QuadraticForm};
 use crate::vdf::VDF;
 use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};

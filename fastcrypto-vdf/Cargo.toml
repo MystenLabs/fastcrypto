@@ -14,7 +14,12 @@ fastcrypto = { path = "../fastcrypto" }
 num-bigint = "0.4.3"
 num-traits = "0.2.16"
 num-integer = "0.1.45"
+num-modular = "0.6.1"
 num-prime = { version = "0.4.3", features = ["big-int"] }
+rug = {version = "1.21.0", optional = true}
+
+[features]
+gmp = ["dep:rug"]
 
 [dev-dependencies]
 hex = "0.4.3"

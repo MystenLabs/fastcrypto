@@ -3,8 +3,12 @@
 
 use std::ops::{Add, Neg};
 
+#[cfg(not(feature = "gmp"))]
 pub mod class_group;
 pub mod vdf;
+
+#[cfg(feature = "gmp")]
+pub mod class_group_gmp;
 
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
@@ -21,7 +25,7 @@ pub trait ParameterizedGroupElement:
     fn zero(parameters: &Self::ParameterType) -> Self;
 
     /// Compute 2 * Self.
-    fn double(&self) -> Self;
+    fn double(self) -> Self;
 
     /// Compute scale * self.
     fn mul(&self, scale: &Self::ScalarType) -> Self;
