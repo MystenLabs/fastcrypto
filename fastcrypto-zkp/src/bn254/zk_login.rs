@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoResult;
+use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
 
@@ -30,14 +31,12 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-const MAX_HEADER_LEN: u16 = 500;
+const MAX_HEADER_LEN: u16 = 250;
 const PACK_WIDTH: u16 = 248;
 const ISS: &str = "iss";
-const AUD: &str = "aud";
-const NUM_EXTRACTABLE_STRINGS: u8 = 5;
-const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
-const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const MAX_EXT_ISS_LEN: u16 = 165;
+const MAX_ISS_LEN_B64: u16 = 4 * (1 + MAX_EXT_ISS_LEN / 3);
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -227,8 +226,7 @@ pub fn parse_jwks(
 /// Necessary value for claim.
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
 pub struct Claim {
-    name: String,
-    value_base64: String,
+    value: String,
     index_mod_4: u8,
 }
 
@@ -263,54 +261,32 @@ pub struct JWTDetails {
     kid: String,
     header: String,
     iss: String,
-    aud: String,
 }
 
 impl JWTDetails {
     /// Read a list of Claims and header string and parse them into fields
     /// header, iss, iss_index, aud, aud_index.
-    pub fn new(header_base64: &str, claims: &[Claim]) -> Result<Self, FastCryptoError> {
+    pub fn new(header_base64: &str, claim: &Claim) -> Result<Self, FastCryptoError> {
         let header = JWTHeader::new(header_base64)?;
-        let claim = claims
-            .get(0)
-            .ok_or_else(|| FastCryptoError::GeneralError("Invalid claim".to_string()))?;
-        if claim.name != ISS {
-            return Err(FastCryptoError::GeneralError(
-                "iss not found in claims".to_string(),
-            ));
-        }
-        let ext_iss = decode_base64_url(&claim.value_base64, &claim.index_mod_4)?;
-
-        let claim_2 = claims
-            .get(1)
-            .ok_or_else(|| FastCryptoError::GeneralError("Invalid claim".to_string()))?;
-        if claim_2.name != AUD {
-            return Err(FastCryptoError::GeneralError(
-                "aud not found in claims".to_string(),
-            ));
-        }
-        let ext_aud = decode_base64_url(&claim_2.value_base64, &claim_2.index_mod_4)?;
-
+        let ext_claim = decode_base64_url(&claim.value, &claim.index_mod_4)?;
         Ok(JWTDetails {
             kid: header.kid,
             header: header_base64.to_string(),
-            iss: verify_extended_claim(&ext_iss, ISS)?,
-            aud: verify_extended_claim(&ext_aud, AUD)?,
+            iss: verify_extended_claim(&ext_claim, ISS)?,
         })
     }
 }
 
 /// All inputs required for the zk login proof verification and other auxiliary inputs.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+
 pub struct ZkLoginInputs {
     proof_points: ZkLoginProof,
     address_seed: String,
-    claims: Vec<Claim>,
+    iss_base64_details: Claim,
     header_base64: String,
     #[serde(skip)]
     parsed_masked_content: JWTDetails,
-    #[serde(skip)]
-    all_inputs_hash: Vec<Bn254Fr>,
 }
 
 impl ZkLoginInputs {
@@ -321,7 +297,8 @@ impl ZkLoginInputs {
 
     /// Initialize JWTDetails
     pub fn init(&mut self) -> Result<Self, FastCryptoError> {
-        self.parsed_masked_content = JWTDetails::new(&self.header_base64, &self.claims)?;
+        self.parsed_masked_content =
+            JWTDetails::new(&self.header_base64, &self.iss_base64_details)?;
         Ok(self.to_owned())
     }
 
@@ -335,29 +312,14 @@ impl ZkLoginInputs {
         &self.parsed_masked_content.iss
     }
 
-    /// Get the parsed aud string.
-    pub fn get_aud(&self) -> &str {
-        &self.parsed_masked_content.aud
-    }
-
     /// Get zk login proof.
     pub fn get_proof(&self) -> &ZkLoginProof {
         &self.proof_points
     }
 
-    /// Get public inputs in arkworks format.
-    pub fn get_public_inputs(&self) -> &[Bn254Fr] {
-        &self.all_inputs_hash
-    }
-
     /// Get address seed string.
     pub fn get_address_seed(&self) -> &str {
         &self.address_seed
-    }
-
-    /// Get address seed string.
-    pub fn get_address_params(&self) -> AddressParams {
-        AddressParams::new(self.get_iss().to_owned(), self.get_aud().to_owned())
     }
 
     /// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
@@ -374,46 +336,23 @@ impl ZkLoginInputs {
         let addr_seed = to_field(&self.address_seed)?;
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let max_epoch = to_field(&max_epoch.to_string())?;
-        let mut padded_claims = self.claims.clone();
-        for _ in self.claims.len()..NUM_EXTRACTABLE_STRINGS as usize {
-            padded_claims.push(Claim {
-                name: "dummy".to_string(),
-                value_base64: "e".to_string(),
-                index_mod_4: 0,
-            });
-        }
-        let mut claim_f = Vec::new();
-        for i in 0..NUM_EXTRACTABLE_STRINGS {
-            let val = &padded_claims[i as usize].value_base64;
-            if val.len() > MAX_EXTRACTABLE_STR_LEN_B64 as usize {
-                return Err(FastCryptoError::GeneralError(
-                    "Invalid claim length".to_string(),
-                ));
-            }
-            claim_f.push(hash_ascii_str_to_field(
-                &padded_claims[i as usize].value_base64,
-                MAX_EXTRACTABLE_STR_LEN_B64,
-            )?);
-        }
-        let poseidon = PoseidonWrapper::new();
-        let extracted_claims_hash = poseidon.hash(claim_f)?;
+        let max_epoch_f = to_field(&max_epoch.to_string())?;
+        let index_mod_4_f = to_field(&self.iss_base64_details.index_mod_4.to_string())?;
 
-        let extracted_index_hash = poseidon.hash(
-            padded_claims
-                .iter()
-                .map(|c| to_field(&c.index_mod_4.to_string()).unwrap())
-                .collect::<Vec<_>>(),
-        )?;
-        let header_f = hash_ascii_str_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
+        static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
+        let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
+
+        let iss_base64_f =
+            hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
+        let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        poseidon.hash(vec![
+        poseidon_ref.hash(vec![
             first,
             second,
             addr_seed,
-            max_epoch,
-            extracted_claims_hash,
-            extracted_index_hash,
+            max_epoch_f,
+            iss_base64_f,
+            index_mod_4_f,
             header_f,
             modulus_f,
         ])
@@ -591,10 +530,11 @@ fn convert_base(
     out_width: u16,
 ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
     let bits = big_int_array_to_bits(in_arr, in_width as usize);
-    let packed: Vec<Bn254Fr> = bits
-        .chunks(out_width as usize)
+    let mut packed: Vec<Bn254Fr> = bits
+        .rchunks(out_width as usize)
         .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
         .collect();
+    packed.reverse();
     match packed.len() != in_arr.len() * in_width as usize / out_width as usize + 1 {
         true => Err(FastCryptoError::InvalidInput),
         false => Ok(packed),
@@ -617,20 +557,4 @@ fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
         bitarray.extend(padded)
     }
     bitarray
-}
-
-/// Parameters for generating an address.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AddressParams {
-    /// The issuer string.
-    pub iss: String,
-    /// The audience string.
-    pub aud: String,
-}
-
-impl AddressParams {
-    /// Create address params from iss and aud.
-    pub fn new(iss: String, aud: String) -> Self {
-        Self { iss, aud }
-    }
 }

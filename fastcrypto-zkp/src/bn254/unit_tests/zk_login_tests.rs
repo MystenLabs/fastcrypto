@@ -101,29 +101,17 @@ fn test_verify_zk_login_google() {
         OIDCProvider::Google.get_config().iss
     );
     assert_eq!(
-        zk_login_inputs.get_aud(),
-        "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_params().aud,
-        "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_params().iss,
-        OIDCProvider::Google.get_config().iss
-    );
-    assert_eq!(
         zk_login_inputs.get_address_seed(),
         "21150353671819850968488494085061363586427266461520959449438048630829862383214"
     );
     assert_eq!(
         get_zk_login_address(
             zk_login_inputs.get_address_seed(),
-            zk_login_inputs.get_address_params()
+            &OIDCProvider::Google.get_config().iss
         )
         .unwrap()
         .to_vec(),
-        Hex::decode("0x7bf6145cfe0592c0428ed8ce9612077b9ca1e5bc60308a90990bc952d13ccce8").unwrap()
+        Hex::decode("0x4fd596665718de024abf5221f3099da8ee6f7ea9b88419be847348abb37b4327").unwrap()
     );
 
     let mut map = ImHashMap::new();
@@ -173,29 +161,17 @@ fn test_verify_zk_login_twitch() {
         OIDCProvider::Twitch.get_config().iss
     );
     assert_eq!(
-        zk_login_inputs.get_aud(),
-        "rs1bh065i9ya4ydvifixl4kss0uhpt".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_params().aud,
-        "rs1bh065i9ya4ydvifixl4kss0uhpt".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_params().iss,
-        zk_login_inputs.get_iss()
-    );
-    assert_eq!(
         zk_login_inputs.get_address_seed(),
         "21483285397923302977910340636259412155696585453250993383687293995976400590480"
     );
     assert_eq!(
         get_zk_login_address(
             zk_login_inputs.get_address_seed(),
-            zk_login_inputs.get_address_params()
+            &OIDCProvider::Twitch.get_config().iss
         )
         .unwrap()
         .to_vec(),
-        Hex::decode("0x18642facd3dcc683f24490f5adb576eb02fc12073c46c9006dbe854cdbfbb899").unwrap()
+        Hex::decode("0x3e5992681be7f03e42700308607e5e6264a82a891ea14834b20f1bcba33f4c57").unwrap()
     );
 
     let mut map = ImHashMap::new();
@@ -244,15 +220,6 @@ fn test_verify_zk_login_facebook() {
         zk_login_inputs.get_iss(),
         OIDCProvider::Facebook.get_config().iss
     );
-    assert_eq!(zk_login_inputs.get_aud(), "233307156352917".to_string());
-    assert_eq!(
-        zk_login_inputs.get_address_params().aud,
-        "233307156352917".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_params().iss,
-        zk_login_inputs.get_iss()
-    );
     assert_eq!(
         zk_login_inputs.get_address_seed(),
         "1487011095754058868957639998432654337555495215275691418230823914445177483005"
@@ -261,11 +228,11 @@ fn test_verify_zk_login_facebook() {
     assert_eq!(
         get_zk_login_address(
             zk_login_inputs.get_address_seed(),
-            zk_login_inputs.get_address_params()
+            &OIDCProvider::Facebook.get_config().iss
         )
         .unwrap()
         .to_vec(),
-        Hex::decode("0x5e3733bf03f715a87b641553fce0f8b22bcb6385ce78cc05ddecd55929a5a304").unwrap()
+        Hex::decode("0x4fd596665718de024abf5221f3099da8ee6f7ea9b88419be847348abb37b4327").unwrap()
     );
 
     let mut map = ImHashMap::new();
@@ -281,7 +248,7 @@ fn test_verify_zk_login_facebook() {
             .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
             .unwrap(),
         Bn254Fr::from_str(
-            "731385750760775862842838160347366432653065169777359995738835424407706939501"
+            "11390113006865575339081924326351338450183577345236491797954194966702068326395"
         )
         .unwrap()
     );
@@ -316,7 +283,14 @@ fn test_parse_jwt_details() {
 
     // iss not found
     assert_eq!(
-        JWTDetails::new(VALID_HEADER, &[]).unwrap_err(),
+        JWTDetails::new(
+            VALID_HEADER,
+            &Claim {
+                value: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
+                index_mod_4: 2
+            }
+        )
+        .unwrap_err(),
         FastCryptoError::GeneralError("Invalid claim".to_string())
     );
 
@@ -324,85 +298,26 @@ fn test_parse_jwt_details() {
     assert_eq!(
         JWTDetails::new(
             VALID_HEADER,
-            &[Claim {
-                name: "iss".to_string(),
-                value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
+            &Claim {
+                value: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
                 index_mod_4: 2
-            }]
+            }
         )
         .unwrap_err(),
         FastCryptoError::GeneralError("Invalid claim".to_string())
-    );
-
-    // unknown claim name
-    assert_eq!(
-        JWTDetails::new(
-            VALID_HEADER,
-            &[Claim {
-                name: "unknown".to_string(),
-                value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                index_mod_4: 2
-            }]
-        )
-        .unwrap_err(),
-        FastCryptoError::GeneralError("iss not found in claims".to_string())
     );
 
     // bad index_mod_4
     assert_eq!(
         JWTDetails::new(
             VALID_HEADER,
-            &[
-                Claim {
-                    name: "iss".to_string(),
-                    value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                    index_mod_4: 2
-                },
-                Claim {
-                    name: "aud".to_string(),
-                    value_base64: "yJhdWQiOiJkMzFpY3FsNmw4eHpwYTdlZjMxenR4eXNzNDZvY2siLC"
-                        .to_string(),
-                    index_mod_4: 2
-                }
-            ]
+            &Claim {
+                value: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
+                index_mod_4: 2
+            }
         )
         .unwrap_err(),
         FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
-    );
-
-    // first claim is not iss
-    assert_eq!(
-        JWTDetails::new(
-            VALID_HEADER,
-            &[Claim {
-                name: "aud".to_string(),
-                value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                index_mod_4: 2
-            }]
-        )
-        .unwrap_err(),
-        FastCryptoError::GeneralError("iss not found in claims".to_string())
-    );
-
-    // second claim is not aud
-    assert_eq!(
-        JWTDetails::new(
-            VALID_HEADER,
-            &[
-                Claim {
-                    name: "iss".to_string(),
-                    value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                    index_mod_4: 2
-                },
-                Claim {
-                    name: "iss".to_string(),
-                    value_base64: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                    index_mod_4: 2
-                }
-            ]
-        )
-        .unwrap_err(),
-        FastCryptoError::GeneralError("aud not found in claims".to_string())
     );
 }
 
@@ -461,6 +376,13 @@ fn test_hash_ascii_str_to_field() {
             .to_string(),
         "13606676331558803166736332982602687405662978305929711411606106012181987145625"
     );
+
+    assert_eq!(
+        hash_ascii_str_to_field("test@gmail.com", 32)
+            .unwrap()
+            .to_string(),
+        "10404231015713323946367565043703223078961469658905861259850380980432751872181"
+    );
 }
 
 #[test]
@@ -478,7 +400,7 @@ fn test_hash_to_field() {
         )
         .unwrap()
         .to_string(),
-        "11782828208033177576380997957942702678240059658740659662920410026149313654840".to_string()
+        "19904721247081466064775016944536603990869066672076269915271149427650748384560".to_string()
     );
 }
 

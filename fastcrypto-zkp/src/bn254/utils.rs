@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::poseidon::PoseidonWrapper;
-use crate::bn254::zk_login::AddressParams;
 use crate::bn254::zk_login::OIDCProvider;
 use crate::bn254::zk_login_api::Bn254Fr;
 use fastcrypto::error::FastCryptoError;
@@ -16,22 +15,20 @@ use serde_json::json;
 use std::str::FromStr;
 
 use super::zk_login::ZkLoginInputs;
+use super::zk_login_api::ZkLoginEnv;
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
-const PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
+const PROVER_SERVER_URL: &str = "http://185.209.177.123:7000/zkp";
+const TEST_PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_zk_login_address(
-    address_seed: &str,
-    param: AddressParams,
-) -> Result<[u8; 32], FastCryptoError> {
+pub fn get_zk_login_address(address_seed: &str, iss: &str) -> Result<[u8; 32], FastCryptoError> {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
-    hasher.update(
-        bcs::to_bytes(&AddressParams::new(param.iss, param.aud))
-            .map_err(|_| FastCryptoError::InvalidInput)?,
-    );
+    let bytes = iss.as_bytes();
+    hasher.update([bytes.len() as u8]);
+    hasher.update(bytes);
     hasher.update(big_int_str_to_bytes(address_seed)?);
     Ok(hasher.finalize().digest)
 }
@@ -112,18 +109,23 @@ pub async fn get_proof(
     jwt_randomness: &str,
     eph_pubkey: &str,
     salt: &str,
+    env: ZkLoginEnv
 ) -> Result<ZkLoginInputs, FastCryptoError> {
+    let url = match env {
+        ZkLoginEnv::Prod => PROVER_SERVER_URL,
+        ZkLoginEnv::Test => TEST_PROVER_SERVER_URL
+    };
     let client = Client::new();
     let body = json!({
         "jwt": jwt_token,
         "eph_public_key": eph_pubkey,
         "max_epoch": max_epoch,
         "jwt_randomness": jwt_randomness,
-        "subject_pin": salt,
+        "salt": salt,
         "key_claim_name": "sub"
     });
     let response = client
-        .post(PROVER_SERVER_URL.to_string())
+        .post(url.to_string())
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
