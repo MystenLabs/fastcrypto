@@ -20,12 +20,12 @@ fn class_group_ops_single<M: Measurement>(
     let z = y.clone();
 
     group.bench_function(
-        format!("Compose/{}", discriminant_size.to_string()),
+        format!("Compose/{}", discriminant_size),
         move |b| b.iter(|| x.compose(&y)),
     );
 
     group.bench_function(
-        format!("Double/{}", discriminant_size.to_string()),
+        format!("Double/{}", discriminant_size),
         move |b| b.iter(|| z.double()),
     );
 }

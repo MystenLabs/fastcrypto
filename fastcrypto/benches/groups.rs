@@ -7,16 +7,11 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, Criterion};
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
-    use fastcrypto::groups::class_group::{Discriminant, QuadraticForm};
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{
-        secp256r1, GroupElement, HashToGroupElement, Pairing, ParameterizedGroupElement, Scalar,
-    };
-    use num_bigint::BigInt;
-    use num_traits::Num;
+    use fastcrypto::groups::{secp256r1, GroupElement, HashToGroupElement, Pairing, Scalar};
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
