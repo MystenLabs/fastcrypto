@@ -19,15 +19,13 @@ fn class_group_ops_single<M: Measurement>(
     let y = QuadraticForm::generator(&discriminant).mul(&BigInt::from(4321));
     let z = y.clone();
 
-    group.bench_function(
-        format!("Compose/{}", discriminant_size),
-        move |b| b.iter(|| x.compose(&y)),
-    );
+    group.bench_function(format!("Compose/{}", discriminant_size), move |b| {
+        b.iter(|| x.compose(&y))
+    });
 
-    group.bench_function(
-        format!("Double/{}", discriminant_size),
-        move |b| b.iter(|| z.double()),
-    );
+    group.bench_function(format!("Double/{}", discriminant_size), move |b| {
+        b.iter(|| z.double())
+    });
 }
 
 fn class_group_ops(c: &mut Criterion) {
