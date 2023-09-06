@@ -1,12 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::error::FastCryptoError::{InvalidInput, InvalidProof};
-use crate::error::FastCryptoResult;
-use crate::groups::class_group::{Discriminant, QuadraticForm};
-use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
-use crate::hash::{HashFunction, Sha256};
+use crate::class_group::{Discriminant, QuadraticForm};
 use crate::vdf::VDF;
+use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+use fastcrypto::error::FastCryptoResult;
+use fastcrypto::hash::HashFunction;
+use fastcrypto::hash::Sha256;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_prime::nt_funcs::is_prime;

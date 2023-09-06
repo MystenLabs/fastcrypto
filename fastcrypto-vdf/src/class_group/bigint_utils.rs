@@ -85,24 +85,14 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
 
 #[test]
 fn test_xgcd() {
-    let a = BigInt::from(240);
-    let b = BigInt::from(46);
-    let output = extended_euclidean_algorithm(&a, &b);
-    assert_eq!(output.gcd, a.gcd(&b));
-    assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
-    assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
-    assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
+    test_xgcd_single(BigInt::from(240), BigInt::from(46));
+    test_xgcd_single(BigInt::from(-240), BigInt::from(46));
+    test_xgcd_single(BigInt::from(240), BigInt::from(-46));
+    test_xgcd_single(BigInt::from(-240), BigInt::from(-46));
+}
 
-    let a = BigInt::from(240);
-    let b = BigInt::from(-46);
-    let output = extended_euclidean_algorithm(&a, &b);
-    assert_eq!(output.gcd, a.gcd(&b));
-    assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
-    assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
-    assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
-
-    let a = BigInt::from(-240);
-    let b = BigInt::from(-46);
+#[cfg(test)]
+fn test_xgcd_single(a: BigInt, b: BigInt) {
     let output = extended_euclidean_algorithm(&a, &b);
     assert_eq!(output.gcd, a.gcd(&b));
     assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
