@@ -105,8 +105,6 @@ pub mod secp256r1;
 pub mod serde_helpers;
 pub mod signature_service;
 pub mod utils;
-#[cfg(feature = "experimental")]
-pub mod vdf;
 pub mod vrf;
 
 /// This module contains unsecure cryptographic primitives. The purpose of this library is to allow seamless

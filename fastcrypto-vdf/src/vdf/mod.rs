@@ -4,7 +4,7 @@
 //! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
 //! construction with ideal class groups.
 
-use crate::error::FastCryptoResult;
+use fastcrypto::error::FastCryptoResult;
 
 pub mod wesolowski;
 

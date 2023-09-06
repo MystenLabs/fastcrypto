@@ -3,12 +3,10 @@
 
 //! Functionality to compress/decompress and serialize/deserialize quadratic forms.
 
-use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::class_group::compressed::CompressedQuadraticForm::{
-    Generator, Nontrivial, Zero,
-};
-use crate::groups::class_group::{Discriminant, QuadraticForm};
-use crate::groups::ParameterizedGroupElement;
+use crate::class_group::compressed::CompressedQuadraticForm::{Generator, Nontrivial, Zero};
+use crate::class_group::{Discriminant, QuadraticForm};
+use crate::ParameterizedGroupElement;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use num_bigint::{BigInt, Sign};
 use num_integer::{ExtendedGcd, Integer};
 use num_traits::{One, Signed, Zero as OtherZero};
@@ -392,11 +390,11 @@ fn partial_xgcd(a: &BigInt, b: &BigInt) -> FastCryptoResult<(BigInt, BigInt)> {
 
 #[cfg(test)]
 mod tests {
-    use crate::groups::class_group::compressed::{
+    use crate::class_group::compressed::{
         bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm,
     };
-    use crate::groups::class_group::{Discriminant, QuadraticForm};
-    use crate::groups::ParameterizedGroupElement;
+    use crate::class_group::{Discriminant, QuadraticForm};
+    use crate::ParameterizedGroupElement;
     use num_bigint::BigInt;
     use num_traits::Num;
     use std::str::FromStr;

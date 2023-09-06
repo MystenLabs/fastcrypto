@@ -7,12 +7,10 @@
 //!
 //! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
 
-use crate::error::FastCryptoError::InvalidInput;
-use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::class_group::bigint_utils::{
-    extended_euclidean_algorithm, EuclideanAlgorithmOutput,
-};
-use crate::groups::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use crate::class_group::bigint_utils::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
@@ -407,8 +405,8 @@ impl Discriminant {
 
 #[cfg(test)]
 mod tests {
-    use crate::groups::class_group::{Discriminant, QuadraticForm};
-    use crate::groups::ParameterizedGroupElement;
+    use crate::class_group::{Discriminant, QuadraticForm};
+    use crate::ParameterizedGroupElement;
     use num_bigint::BigInt;
 
     #[test]

@@ -1,0 +1,29 @@
+[package]
+name = "fastcrypto-vdf"
+version = "0.1.0"
+license = "Apache-2.0"
+authors = ["Mysten Labs <build@mystenlabs.com>"]
+edition = "2021"
+publish = ["crates-io"]
+description = "Verifiable delay functions"
+repository = "https://github.com/MystenLabs/fastcrypto"
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+fastcrypto = { path = "../fastcrypto" }
+num-bigint = "0.4.3"
+num-traits = "0.2.16"
+num-integer = "0.1.45"
+num-prime = { version = "0.4.3", features = ["big-int"] }
+
+[dev-dependencies]
+hex = "0.4.3"
+criterion = "0.5.1"
+
+[[bench]]
+name = "vdf"
+harness = false
+
+[[bench]]
+name = "class_group"
+harness = false
