@@ -14,7 +14,7 @@ use num_bigint::BigInt;
 use num_integer::Integer as IntegerTrait;
 use num_traits::{Signed, Zero};
 use rug::integer::Order;
-use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
+use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
@@ -138,47 +138,39 @@ impl QuadraticForm {
         if w1 < w2 {
             swap(&mut (u1, v1, w1), &mut (u2, v2, w2));
         }
-        let s: Integer = Integer::from(v1 + v2) >> 1;
+
+        let mut s: Integer = Integer::from(v1 + v2) >> 1;
         let m = Integer::from(v2 - &s);
 
         // 2.
-        let (f, b, c) = Integer::extended_gcd_ref(u2, u1).complete();
+        let (f, mut b, c) = Integer::extended_gcd_ref(u2, u1).complete();
 
-        let g: Integer;
-        let capital_bx: Integer;
-        let mut capital_by: Integer;
-        let mut capital_cy: Integer;
-        let capital_dy: Integer;
+        let mut capital_by = u1.div_exact_ref(&f).complete();
+        let mut capital_cy = u2.div_exact_ref(&f).complete();
 
         let (q, r) = s.div_rem_ref(&f).complete();
-        if r.is_zero() {
-            g = f;
-            capital_bx = Integer::from(&m * &b);
-            capital_by = u1.div_exact_ref(&g).complete();
-            capital_cy = u2.div_exact_ref(&g).complete();
-            capital_dy = q;
+
+        let (g, capital_bx, capital_dy) = if r.is_zero() {
+            (f, Integer::from(&b * &m), q)
         } else {
             // 3.
-            let (gcd, _, y) = Integer::extended_gcd_ref(&f, &s).complete();
-            g = gcd;
-
-            capital_by = u1.div_exact_ref(&f).complete();
-            capital_by.mul_assign(f.div_exact_ref(&g).complete());
-
-            capital_cy = u2.div_exact_ref(&f).complete();
-
-            capital_dy = s.div_exact_ref(&g).complete();
-
+            let (g, _, y) = Integer::extended_gcd_ref(&f, &s).complete();
             let h = f.div_exact(&g);
+
+            capital_by.mul_assign(&h);
             capital_cy.mul_assign(&h);
 
             // 4.
-            let l = (&y
+            let mut l = (&y
                 * (&b * (w1.modulo_ref(&h).complete()) + &c * (w2.modulo_ref(&h).complete())))
             .modulo(&h);
-            capital_bx = &b * (&m / &h).complete()
-                + &l * (&capital_by / &h).complete();
-        }
+
+            l.mul_assign(capital_by.div_exact_ref(&h).complete());
+            l.add_assign(&b * (&m / &h).complete());
+
+            s.div_exact_mut(&g);
+            (g, l, s)
+        };
 
         // 5. (partial xgcd)
         let mut bx = capital_bx.modulo(&capital_by);
@@ -236,12 +228,12 @@ impl QuadraticForm {
             v3.sub_from(v2);
         } else {
             // 7.
-            let mut cx = capital_cy; //(Integer::from(&capital_cy * &bx) - &m * &x) / &capital_by;
+            let mut cx = capital_cy;
             cx.mul_assign(&bx);
             cx.sub_assign(&m * &x);
             cx.div_exact_mut(&capital_by);
 
-            let mut q1 = s; // Re-use value
+            let mut q1 = Integer::new();
             q1.assign(&by * &cx);
 
             let mut q2 = m;
@@ -302,7 +294,11 @@ impl ParameterizedGroupElement for QuadraticForm {
     type ScalarType = BigInt;
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(Integer::ONE.to_owned(), Integer::ONE.to_owned(), discriminant)
+        Self::from_a_b_discriminant(
+            Integer::ONE.to_owned(),
+            Integer::ONE.to_owned(),
+            discriminant,
+        )
     }
 
     fn double(mut self) -> Self {
@@ -426,14 +422,6 @@ impl Add<QuadraticForm> for QuadraticForm {
     }
 }
 
-impl Add<&QuadraticForm> for &QuadraticForm {
-    type Output = QuadraticForm;
-
-    fn add(self, rhs: &QuadraticForm) -> Self::Output {
-        self.compose(rhs)
-    }
-}
-
 impl Neg for QuadraticForm {
     type Output = Self;
 
@@ -458,9 +446,7 @@ impl TryFrom<Integer> for Discriminant {
     type Error = FastCryptoError;
 
     fn try_from(value: Integer) -> FastCryptoResult<Self> {
-        if !value.is_negative()
-            || &value.modulo_ref(&Integer::from(4)).complete() != Integer::ONE
-        {
+        if !value.is_negative() || &value.modulo_ref(&Integer::from(4)).complete() != Integer::ONE {
             return Err(InvalidInput);
         }
         Ok(Self(value))

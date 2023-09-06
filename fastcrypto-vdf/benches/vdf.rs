@@ -44,10 +44,10 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 
 fn verify(c: &mut Criterion) {
     #[cfg(not(feature = "gmp"))]
-        let dep = "num-bigint";
+    let dep = "num-bigint";
 
     #[cfg(feature = "gmp")]
-        let dep = "gmp";
+    let dep = "gmp";
 
     let mut group = c.benchmark_group(format!("VDF verify ({})", dep));
 
