@@ -100,7 +100,7 @@ impl QuadraticForm {
         let mut b0: Integer;
         let a_prime;
 
-        if g == Integer::from(1) {
+        if &g == Integer::ONE {
             b0 = Integer::new();
             a_prime = a.clone();
         } else {
@@ -355,7 +355,7 @@ fn partial_xgcd(a: &Integer, b: &Integer) -> FastCryptoResult<(Integer, Integer)
     }
 
     let mut s = (b.clone(), a.clone());
-    let mut t = (Integer::from(1), Integer::new());
+    let mut t = (Integer::ONE.to_owned(), Integer::new());
 
     while s.0 >= a.sqrt_ref().complete() {
         let (q, r) = s.1.div_rem_ref(&s.0).complete();

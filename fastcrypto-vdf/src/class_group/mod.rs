@@ -239,7 +239,7 @@ impl ParameterizedGroupElement for QuadraticForm {
         Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
-    fn double(&self) -> Self {
+    fn double(self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)

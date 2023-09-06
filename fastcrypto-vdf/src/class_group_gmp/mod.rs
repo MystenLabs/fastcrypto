@@ -14,11 +14,11 @@ use num_bigint::BigInt;
 use num_integer::Integer as IntegerTrait;
 use num_traits::{Signed, Zero};
 use rug::integer::Order;
-use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
+use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Div, DivAssign, MulAssign, Neg, ShlAssign, SubAssign};
+use std::ops::{Add, AddAssign, MulAssign, Neg, SubAssign};
 
 mod compressed;
 
@@ -51,7 +51,7 @@ impl QuadraticForm {
     /// group with a given discriminant. We use the element `(2, 1, c)` where `c` is determined from
     /// the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
-        Self::from_a_b_discriminant(Integer::from(2), Integer::from(1), discriminant)
+        Self::from_a_b_discriminant(Integer::from(2), Integer::ONE.to_owned(), discriminant)
     }
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
@@ -176,8 +176,8 @@ impl QuadraticForm {
             let l = (&y
                 * (&b * (w1.modulo_ref(&h).complete()) + &c * (w2.modulo_ref(&h).complete())))
             .modulo(&h);
-            capital_bx = Integer::from(&b * (&m / &h).complete())
-                + Integer::from(&l * (&capital_by / &h).complete());
+            capital_bx = &b * (&m / &h).complete()
+                + &l * (&capital_by / &h).complete();
         }
 
         // 5. (partial xgcd)
@@ -302,7 +302,7 @@ impl ParameterizedGroupElement for QuadraticForm {
     type ScalarType = BigInt;
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(Integer::from(1), Integer::from(1), discriminant)
+        Self::from_a_b_discriminant(Integer::ONE.to_owned(), Integer::ONE.to_owned(), discriminant)
     }
 
     fn double(mut self) -> Self {
@@ -459,7 +459,7 @@ impl TryFrom<Integer> for Discriminant {
 
     fn try_from(value: Integer) -> FastCryptoResult<Self> {
         if !value.is_negative()
-            || value.modulo_ref(&Integer::from(4)).complete() != Integer::from(1)
+            || &value.modulo_ref(&Integer::from(4)).complete() != Integer::ONE
         {
             return Err(InvalidInput);
         }
