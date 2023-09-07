@@ -31,7 +31,7 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-const MAX_HEADER_LEN: u16 = 250;
+const MAX_HEADER_LEN: u16 = 248;
 const PACK_WIDTH: u16 = 248;
 const ISS: &str = "iss";
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
