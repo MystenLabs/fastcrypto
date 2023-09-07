@@ -3,9 +3,9 @@
 
 use std::str::FromStr;
 
-use crate::bn254::utils::{get_nonce, get_proof, get_salt, get_zk_login_address};
+use crate::bn254::utils::{gen_address_seed, get_nonce, get_proof, get_salt, get_zk_login_address};
 use crate::bn254::zk_login::{
-    decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
+    convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
     verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
@@ -20,7 +20,6 @@ use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::rsa::{Base64UrlUnpadded, Encoding as OtherEncoding};
 use fastcrypto::traits::KeyPair;
 use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
@@ -83,27 +82,36 @@ const BAD_JWK_BYTES: &[u8] = r#"{
         "keys":[{"alg":"RS256","e":"AQAB","kid":"1","kty":"RSA","n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw","use":"wrong usage"}]
       }"#.as_bytes();
 
-#[test]
-fn test_verify_zk_login_google() {
+#[tokio::test]
+async fn test_verify_zk_login_google() {
+    let user_salt = "6588741469050502421550140105345050859";
+
+    // Generate an ephermeral key pair.
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
 
-    assert!(ZkLoginInputs::from_json("{\"something\":{\"pi_a\":[\"17906300526443048714387222471528497388165567048979081127218444558531971001212\",\"16347093943573822555530932280098040740968368762067770538848146419225596827968\",\"1\"],\"pi_b\":[[\"604559992637298524596005947885439665413516028337069712707205304781687795569\",\"3442016989288172723305001983346837664894554996521317914830240702746056975984\"],[\"11525538739919950358574045244601652351196410355282682596092151863632911615318\",\"8054528381876103674715157136115660256860302241449545586065224275685056359825\"],[\"1\",\"0\"]],\"pi_c\":[\"12090542001353421590770702288155881067849038975293665701252531703168853963809\",\"8667909164654995486331191860419304610736366583628608454080754129255123340291\",\"1\"]},\"address_seed\":\"7577247629761003321376053963457717029490787816434302620024795358930497565155\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjkxMWUzOWUyNzkyOGFlOWYxZTlkMWUyMTY0NmRlOTJkMTkzNTFiNDQiLCJ0eXAiOiJKV1QifQ\"}").is_err());
+    // Get the address seed.
+    let address_seed = gen_address_seed(
+        user_salt,
+        "sub",
+        "106294049240999307923",
+        "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com",
+    )
+    .unwrap();
 
-    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16082379985244139257081251352758755486156282972982603863007685291104503933311\",\"924319019028863167372401695750240170246182797458677233202254140761845272417\",\"1\"],\"pi_b\":[[\"13577250540115265266613311991485643078228707057086458534580175835039018572685\",\"12376053001358370647205175062199127322673512803490888228095245375811974804326\"],[\"14035295319062970519340182968766274788478314052702678112524794155602573477951\",\"21275817745084002159703389733799570288229406275961853650678828923527832512195\"],[\"1\",\"0\"]],\"pi_c\":[\"21768939217356454092644810716610021526414672327340826974534017558007065128740\",\"19849276141337612251288394025918481446172401959982365719577887942308529252632\",\"1\"]},\"address_seed\":\"21150353671819850968488494085061363586427266461520959449438048630829862383214\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"CJhdWQiOiI1NzU1MTkyMDQyMzctbXNvcDllcDQ1dTJ1bzk4aGFwcW1uZ3Y4ZDg0cWRjOGsuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjOWM3OGUzYjAwZTFiYjA5MmQyNDZjODg3YjExMjIwYzg3YjdkMjAiLCJ0eXAiOiJKV1QifQ\"}").unwrap().init().unwrap();
+    // Get a proof from endpoint and serialize it.
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"2856853953075769800124894014261522454473628840903733396791436551678646353442\",\"4348380563251612781076847536132734724007250850537898584606264407881192024038\",\"1\"],\"b\":[[\"7104233243273112157690495334540581786527679292989961607293820809756711817804\",\"7316749226455433333548431623049338347566433057852078652116817664859892729141\"],[\"7958969331644439362228660274459003086243454411183553950363953885927343087881\",\"9141838677170549853312103207759293328734516367022724639309880085475013934164\"],[\"1\",\"0\"]],\"c\":[\"1072805970412254746706019205992636576449727696915026862715527704402621159155\",\"20831495984663317011121876045853230024971218945035273863127537706741828164445\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjgzOGMwNmM2MjA0NmMyZDk0OGFmZmUxMzdkZDUzMTAxMjlmNGQ1ZDEiLCJ0eXAiOiJKV1QifQ\"}", &address_seed).unwrap();
+
     assert_eq!(
         zk_login_inputs.get_kid(),
-        "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string()
+        "838c06c62046c2d948affe137dd5310129f4d5d1".to_string()
     );
     assert_eq!(
         zk_login_inputs.get_iss(),
         OIDCProvider::Google.get_config().iss
     );
-    assert_eq!(
-        zk_login_inputs.get_address_seed(),
-        "21150353671819850968488494085061363586427266461520959449438048630829862383214"
-    );
+    assert_eq!(zk_login_inputs.get_address_seed(), address_seed);
     assert_eq!(
         get_zk_login_address(
             zk_login_inputs.get_address_seed(),
@@ -111,152 +119,21 @@ fn test_verify_zk_login_google() {
         )
         .unwrap()
         .to_vec(),
-        Hex::decode("0x4fd596665718de024abf5221f3099da8ee6f7ea9b88419be847348abb37b4327").unwrap()
+        Hex::decode("0x1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b").unwrap()
     );
 
     let mut map = ImHashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
-        n: "pGMz603XOzO71r-LpW555Etbn2dXAtY4xToNE_Upr1EHxkHFnVnGPsbOeWzP8xU1IpAL56S3sTsbpCR_Ci_PYq8s4I3VWQM0u9w1D_e45S1KJTSex_aiMQ_cjTXb3Iekc00JIkMJhUaNnbsEt7PlOmnyFqvN-G3ZXVDfTuL2Wsn4tRMYf7YU3jgTVN2M_p7bcZYHhkEB-jzNeK7ub-6mOMkKdYWnk0jIoRfV63d32bub0pQpWv8sVmflgK2xKUSJVMZ7CM0FvJYJgF7y42KBPYc6Gm_UWE0uHazDgZgAvQQoNyEF_TRjVfGiihjPFYCPqvFcfLK4773JTD2fLZTgOQ".to_string(),
+        n: "hsYvCPtkUV7SIxwkOkJsJfhwV_CMdXU5i0UmY2QEs-Pa7v0-0y-s4EjEDtsQ8Yow6hc670JhkGBcMzhU4DtrqNGROXebyOse5FX0m0UvWo1qXqNTf28uBKB990mY42Icr8sGjtOw8ajyT9kufbmXi3eZKagKpG0TDGK90oBEfoGzCxoFT87F95liNth_GoyU5S8-G3OqIqLlQCwxkI5s-g2qvg_aooALfh1rhvx2wt4EJVMSrdnxtPQSPAtZBiw5SwCnVglc6OnalVNvAB2JArbqC9GAzzz9pApAk28SYg5a4hPiPyqwRv-4X1CXEK8bO5VesIeRX0oDf7UoM-pVAw".to_string(),
         alg: "RS256".to_string(),
     };
 
     map.insert(
         JwkId::new(
             OIDCProvider::Google.get_config().iss,
-            "7c9c78e3b00e1bb092d246c887b11220c87b7d20".to_string(),
-        ),
-        content.clone(),
-    );
-    let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
-
-    assert_eq!(
-        zk_login_inputs
-            .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
-            .unwrap(),
-        Bn254Fr::from_str(
-            "19190136882259072389509967010336890361732579901899057561984458564815999051862"
-        )
-        .unwrap()
-    );
-    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
-    assert!(res.is_ok());
-
-    // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
-    assert!(res1.is_err());
-}
-
-#[test]
-fn test_verify_zk_login_twitch() {
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
-    let mut eph_pubkey = vec![0x00];
-    eph_pubkey.extend(kp.public().as_ref());
-
-    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"2639684184680217707167754014000719722348206659392422133035933088167295844621\",\"15411697389380103098050765723042580180772223011905582881833041447034179685161\",\"1\"],\"pi_b\":[[\"18356546416649273600365508068279984662879338153955858345242905260545040887165\",\"14180424108251071134157931909030745068063443512539428703047837797454965825626\"],[\"13156473667176810581893653079638435272252026941153836815590225135710650196382\",\"21239978751364084281206642892186667820382067271473352046319441969708281386102\"],[\"1\",\"0\"]],\"pi_c\":[\"10224668151896969767148853455746517578322339166888897843411999928700401320418\",\"10920763695594894441298491254988284677195769983974208707015444852382653532723\",\"1\"]},\"address_seed\":\"21483285397923302977910340636259412155696585453250993383687293995976400590480\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw\",\"index_mod_4\":2},{\"name\":\"aud\",\"value_base64\":\"yJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLC\",\"index_mod_4\":1}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ\"}").unwrap().init().unwrap();
-    assert_eq!(zk_login_inputs.get_kid(), "1".to_string());
-    assert_eq!(
-        zk_login_inputs.get_iss(),
-        OIDCProvider::Twitch.get_config().iss
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_seed(),
-        "21483285397923302977910340636259412155696585453250993383687293995976400590480"
-    );
-    assert_eq!(
-        get_zk_login_address(
-            zk_login_inputs.get_address_seed(),
-            &OIDCProvider::Twitch.get_config().iss
-        )
-        .unwrap()
-        .to_vec(),
-        Hex::decode("0x3e5992681be7f03e42700308607e5e6264a82a891ea14834b20f1bcba33f4c57").unwrap()
-    );
-
-    let mut map = ImHashMap::new();
-    let content = JWK {
-        kty: "RSA".to_string(),
-        e: "AQAB".to_string(),
-        n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
-        alg: "RS256".to_string(),
-    };
-    let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
-
-    map.insert(
-        JwkId::new(OIDCProvider::Twitch.get_config().iss, "1".to_string()),
-        content,
-    );
-
-    assert_eq!(
-        zk_login_inputs
-            .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
-            .unwrap(),
-        Bn254Fr::from_str(
-            "5856188553771750715373571553753599041029773450105736907486194952973723348883"
-        )
-        .unwrap()
-    );
-    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
-    assert!(res.is_ok());
-
-    // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
-    assert!(res1.is_err());
-}
-
-#[test]
-fn test_verify_zk_login_facebook() {
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
-    let mut eph_pubkey = vec![0x00];
-    eph_pubkey.extend(kp.public().as_ref());
-
-    let zk_login_inputs = ZkLoginInputs::from_json("{\"proof_points\":{\"pi_a\":[\"16500559452186857499124905145218965727454398652759898506130123782737180551024\",\"1403037760258969546586768446760882646660554376880919683180395342618686906382\",\"1\"],\"pi_b\":[[\"12463789295781828009345316567938834871413393951281528901930690034950665391292\",\"16301756414332383815173890006998407782812302695665089990395506495445072039950\"],[\"19728141070117461173622838505925353541939789875408954541048815956055929576938\",\"21239411122885193204521373031249830589601614530017004204270959331789128729582\"],[\"1\",\"0\"]],\"pi_c\":[\"16094781461241847235951763701104954579675913864156691777860223519371049858114\",\"7705218318167899339727292541697723794048510769012014737743407264594062927068\",\"1\"]},\"address_seed\":\"1487011095754058868957639998432654337555495215275691418230823914445177483005\",\"claims\":[{\"name\":\"iss\",\"value_base64\":\"yJpc3MiOiJodHRwczpcL1wvd3d3LmZhY2Vib29rLmNvbSIs\",\"index_mod_4\":1},{\"name\":\"aud\",\"value_base64\":\"ImF1ZCI6IjIzMzMwNzE1NjM1MjkxNyIs\",\"index_mod_4\":0}],\"header_base64\":\"eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjU5MzE3MDEzMzExNjVmMDdmNTUwYWM1ZjAxOTQ5NDJkNTRmOWMyNDkifQ\"}").unwrap().init().unwrap();
-    assert_eq!(
-        zk_login_inputs.get_kid(),
-        "5931701331165f07f550ac5f0194942d54f9c249".to_string()
-    );
-    assert_eq!(
-        zk_login_inputs.get_iss(),
-        OIDCProvider::Facebook.get_config().iss
-    );
-    assert_eq!(
-        zk_login_inputs.get_address_seed(),
-        "1487011095754058868957639998432654337555495215275691418230823914445177483005"
-    );
-
-    assert_eq!(
-        get_zk_login_address(
-            zk_login_inputs.get_address_seed(),
-            &OIDCProvider::Facebook.get_config().iss
-        )
-        .unwrap()
-        .to_vec(),
-        Hex::decode("0x4fd596665718de024abf5221f3099da8ee6f7ea9b88419be847348abb37b4327").unwrap()
-    );
-
-    let mut map = ImHashMap::new();
-    let content = JWK {
-        kty: "RSA".to_string(),
-        e: "AQAB".to_string(),
-        n: "-GuAIboTsRYNprJQOkdmuKXRx8ARnKXOC9Pajg4KxHHPt3OY8rXRmVeDxTj1-m9TfW6V-wJa_8ncBbbFE-aV-eBi_XeuIToBBvLZp1-UPIjitS8WCDrUhHiJnbvkIZf1B1YBIq_Ua81fzxhtjQ0jDftV2m5aavmJG4_94VG3Md7noQjjUKzxJyUNl4v_joMA6pIRCeeamvfIZorjcR4wVf-wR8NiZjjRbcjKBpc7ztc7Gm778h34RSe9-DLH6uicTROSYNa99pUwhn3XVfAv4hTFpLIcgHYadLZjsHfUvivr76uiYbxDZx6UTkK5jmi51b87u1b6iYmijDIMztzrIQ".to_string(),
-        alg: "RS256".to_string(),
-    };
-    let modulus = Base64UrlUnpadded::decode_vec(&content.n).unwrap();
-    assert_eq!(
-        zk_login_inputs
-            .calculate_all_inputs_hash(&eph_pubkey, &modulus, 10)
-            .unwrap(),
-        Bn254Fr::from_str(
-            "11390113006865575339081924326351338450183577345236491797954194966702068326395"
-        )
-        .unwrap()
-    );
-
-    map.insert(
-        JwkId::new(
-            OIDCProvider::Facebook.get_config().iss,
-            "5931701331165f07f550ac5f0194942d54f9c249".to_string(),
+            "838c06c62046c2d948affe137dd5310129f4d5d1".to_string(),
         ),
         content,
     );
@@ -281,19 +158,6 @@ fn test_parse_jwt_details() {
     );
     const VALID_HEADER: &str = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ";
 
-    // iss not found
-    assert_eq!(
-        JWTDetails::new(
-            VALID_HEADER,
-            &Claim {
-                value: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                index_mod_4: 2
-            }
-        )
-        .unwrap_err(),
-        FastCryptoError::GeneralError("Invalid claim".to_string())
-    );
-
     // missing claim
     assert_eq!(
         JWTDetails::new(
@@ -303,8 +167,9 @@ fn test_parse_jwt_details() {
                 index_mod_4: 2
             }
         )
-        .unwrap_err(),
-        FastCryptoError::GeneralError("Invalid claim".to_string())
+        .unwrap()
+        .iss,
+        OIDCProvider::Twitch.get_config().iss
     );
 
     // bad index_mod_4
@@ -313,11 +178,11 @@ fn test_parse_jwt_details() {
             VALID_HEADER,
             &Claim {
                 value: "wiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiw".to_string(),
-                index_mod_4: 2
+                index_mod_4: 4
             }
         )
         .unwrap_err(),
-        FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
+        FastCryptoError::GeneralError("Invalid first_char_offset".to_string())
     );
 }
 
@@ -368,6 +233,105 @@ fn test_verify_extended_claim() {
 }
 
 #[test]
+fn test_convert_base() {
+    assert_eq!(
+        convert_base(
+            &[
+                BigUint::from_str("1").unwrap(),
+                BigUint::from_str("2").unwrap(),
+                BigUint::from_str("3").unwrap(),
+                BigUint::from_str("4").unwrap(),
+            ],
+            4,
+            4
+        )
+        .unwrap(),
+        vec![
+            Bn254Fr::from_str("1").unwrap(),
+            Bn254Fr::from_str("2").unwrap(),
+            Bn254Fr::from_str("3").unwrap(),
+            Bn254Fr::from_str("4").unwrap(),
+        ]
+    );
+
+    assert_eq!(
+        convert_base(
+            &[
+                BigUint::from_str("1").unwrap(),
+                BigUint::from_str("2").unwrap(),
+                BigUint::from_str("3").unwrap(),
+                BigUint::from_str("4").unwrap(),
+            ],
+            4,
+            8
+        )
+        .unwrap(),
+        vec![
+            Bn254Fr::from_str("18").unwrap(),
+            Bn254Fr::from_str("52").unwrap(),
+        ]
+    );
+
+    assert_eq!(
+        convert_base(
+            &[
+                BigUint::from_str("1").unwrap(),
+                BigUint::from_str("2").unwrap(),
+                BigUint::from_str("3").unwrap(),
+                BigUint::from_str("4").unwrap(),
+            ],
+            4,
+            16
+        )
+        .unwrap(),
+        vec![Bn254Fr::from_str("4660").unwrap(),]
+    );
+
+    assert_eq!(
+        convert_base(
+            &[
+                BigUint::from_str("1").unwrap(),
+                BigUint::from_str("2").unwrap(),
+                BigUint::from_str("3").unwrap(),
+                BigUint::from_str("4").unwrap(),
+            ],
+            4,
+            6
+        )
+        .unwrap(),
+        vec![
+            Bn254Fr::from_str("1").unwrap(),
+            Bn254Fr::from_str("8").unwrap(),
+            Bn254Fr::from_str("52").unwrap()
+        ]
+    );
+
+    assert_eq!(
+        convert_base(
+            &[
+                BigUint::from_str("7").unwrap(),
+                BigUint::from_str("1").unwrap(),
+                BigUint::from_str("8").unwrap(),
+                BigUint::from_str("2").unwrap(),
+            ],
+            4,
+            7
+        )
+        .unwrap(),
+        vec![
+            Bn254Fr::from_str("1").unwrap(),
+            Bn254Fr::from_str("99").unwrap(),
+            Bn254Fr::from_str("2").unwrap()
+        ]
+    );
+
+    assert_eq!(
+        convert_base(&[BigUint::from_str("1").unwrap(),], 1, 6).unwrap(),
+        vec![Bn254Fr::from_str("1").unwrap(),]
+    );
+}
+
+#[test]
 fn test_hash_ascii_str_to_field() {
     // Test generated against typescript implementation.
     assert_eq!(
@@ -383,24 +347,35 @@ fn test_hash_ascii_str_to_field() {
             .to_string(),
         "10404231015713323946367565043703223078961469658905861259850380980432751872181"
     );
+    assert_eq!(
+        hash_ascii_str_to_field("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ", 248)
+            .unwrap()
+            .to_string(),
+        "10859137172532636243875876865378218840892896099608302223608404291948352005840"
+    );
 }
 
 #[test]
 fn test_hash_to_field() {
-    // Test generated against typescript implementation.
+    let v = [
+        BigUint::from_str("32").unwrap(),
+        BigUint::from_str("25").unwrap(),
+        BigUint::from_str("73").unwrap(),
+    ];
+
     assert_eq!(
-        hash_to_field(
-            &[
-                BigUint::from_str("32").unwrap(),
-                BigUint::from_str("25").unwrap(),
-                BigUint::from_str("73").unwrap()
-            ],
-            8,
-            16
-        )
-        .unwrap()
-        .to_string(),
+        hash_to_field(&v, 8, 16).unwrap().to_string(),
         "19904721247081466064775016944536603990869066672076269915271149427650748384560".to_string()
+    );
+
+    assert_eq!(
+        hash_to_field(&v, 8, 24).unwrap().to_string(),
+        "12957933350199698616059824573728499566767221415248116668293168872342238553232".to_string()
+    );
+
+    assert_eq!(
+        hash_to_field(&v, 8, 248).unwrap().to_string(),
+        "12957933350199698616059824573728499566767221415248116668293168872342238553232".to_string()
     );
 }
 
@@ -482,8 +457,23 @@ fn test_get_provider() {
     assert!(OIDCProvider::from_iss("Amazon").is_err());
 }
 
+#[test]
+fn test_gen_seed() {
+    let address_seed = gen_address_seed(
+        "248191903847969014646285995941615069143",
+        "sub",
+        "904448692",
+        "rs1bh065i9ya4ydvifixl4kss0uhpt",
+    )
+    .unwrap();
+    assert_eq!(
+        address_seed,
+        "16657007263003735230240998439420301694514420923267872433517882233836276100450".to_string()
+    );
+}
+
 #[tokio::test]
-async fn test_end_to_end() {
+async fn test_end_to_end_twitch() {
     // Use a fixed Twitch token obtained with nonce hTPpgF7XAKbW37rEUS6pEVZqmoI
     // Derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
     let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE2OTIyODQzMzQsImlhdCI6MTY5MjI4MzQzNCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.M54Sgs6aDu5Mprs_CgXeRbgiErC7oehj-h9oEcBqZFDADwd09zs9hbfDPqUjaNBB-_I6G7kn9e-zwPov8PUecI68kr3oyiCMWhKD-3h1FEu13MZv71B6jhIDMu1_UgI-RSrOQMRvdI8eL3qqD-KsvJuJH1Sz0w56PnB0xupUg-eSvgnMBAo6iTa0t1grX9qGy7U00i_oqn9J4jVGVVEbMhUWROJMjowWdOogJ4_VNqm67JHd_rMZ3xtjLabP6Nk1Gx-VjUbYceNADWUr5xpJveRtvb1FJvd0HSN4mab51zuSUnavCQw2OXbyoH8j6uuQAAKVhG-_Ht1hCvReycGXKw";
@@ -500,7 +490,7 @@ async fn test_end_to_end() {
     let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
 
     // Get a proof from endpoint and serialize it.
-    let zk_login_inputs = get_proof(
+    let reader = get_proof(
         parsed_token,
         max_epoch,
         jwt_randomness,
@@ -508,10 +498,16 @@ async fn test_end_to_end() {
         &user_salt,
     )
     .await
-    .unwrap()
-    .init()
     .unwrap();
-
+    // Get the address seed.
+    let address_seed = gen_address_seed(
+        &user_salt,
+        "sub",
+        "904448692",
+        "rs1bh065i9ya4ydvifixl4kss0uhpt",
+    )
+    .unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     // Make a map of jwk ids to jwks just for Twitch.
     let mut map = ImHashMap::new();
     map.insert(
