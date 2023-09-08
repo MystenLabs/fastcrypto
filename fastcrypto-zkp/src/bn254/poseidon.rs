@@ -125,7 +125,6 @@ mod test {
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
-    use ark_ff::{BigInteger, PrimeField};
     use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
