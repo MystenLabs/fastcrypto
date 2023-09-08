@@ -67,17 +67,17 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
-/// Given a binary representation of a BN254 field element as an integer in big-endian encoding, this
+/// Given a binary representation of a BN254 field element as an integer in little-endian encoding, this
 /// function returns the corresponding field element. If the field element is not canonical (is larger
 /// than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
-fn from_canonical_be_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
+fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
-        Ordering::Less => Ok(Fr::from_be_bytes_mod_order(bytes)),
+        Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal => {
-            let field_element = Fr::from_be_bytes_mod_order(bytes);
+            let field_element = Fr::from_le_bytes_mod_order(bytes);
             // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction happened
             // without doing the extra work of serializing the field element again.
-            let reduced_bytes = field_element.into_bigint().to_bytes_be();
+            let reduced_bytes = field_element.into_bigint().to_bytes_le();
             if reduced_bytes != bytes {
                 return Err(InvalidInput);
             }
@@ -88,7 +88,7 @@ fn from_canonical_be_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryp
 }
 
 /// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field element
-/// assuming a big-endian encoding. The field elements are then hashed using the poseidon hash function
+/// assuming a little-endian encoding. The field elements are then hashed using the poseidon hash function
 /// ([to_poseidon_hash]).
 ///
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer
@@ -97,14 +97,14 @@ fn from_canonical_be_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryp
 pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
-        field_elements.push(from_canonical_be_bytes_to_field_element(input)?);
+        field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
     }
     to_poseidon_hash(field_elements)
 }
 
 /// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field element
-/// assuming a big-endian encoding. The field elements are then hashed using the poseidon hash function
-/// ([to_poseidon_hash]) and the result is serialized as a big-endian integer (32 bytes).
+/// assuming a little-endian encoding. The field elements are then hashed using the poseidon hash function
+/// ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32 bytes).
 ///
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer
 /// greater than the field size, an error is returned. Note that this cannot happen if the input is '
@@ -113,7 +113,7 @@ pub fn hash_to_bytes(
     inputs: &Vec<Vec<u8>>,
 ) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
     let field_element = hash_to_field_element(inputs)?;
-    let bytes = field_element.into_bigint().to_bytes_be();
+    let bytes = field_element.into_bigint().to_bytes_le();
     Ok(bytes
         .try_into()
         .expect("Leading zeros are added in to_bytes_be"))
@@ -248,22 +248,18 @@ mod test {
     fn test_hash_to_bytes() {
         let inputs: Vec<Vec<u8>> = vec![vec![1u8]];
         let hash = hash_to_bytes(&inputs).unwrap();
-        let expected = Fr::from_str(
-            "18586133768512220936620570745912940619677854269274689475585506675881198879027",
-        )
-        .unwrap()
-        .into_bigint()
-        .to_bytes_be();
+        // 18586133768512220936620570745912940619677854269274689475585506675881198879027 in decimal
+        let expected =
+            hex::decode("33018202c57d898b84338b16d1a4960e133c6a4d656cfec1bd62a9ea00611729")
+                .unwrap();
         assert_eq!(hash.as_slice(), &expected);
 
+        // 7853200120776062878684798364095072458815029376092732009249414926327459813530 in decimal
         let inputs: Vec<Vec<u8>> = vec![vec![1u8], vec![2u8]];
         let hash = hash_to_bytes(&inputs).unwrap();
-        let expected = Fr::from_str(
-            "7853200120776062878684798364095072458815029376092732009249414926327459813530",
-        )
-        .unwrap()
-        .into_bigint()
-        .to_bytes_be();
+        let expected =
+            hex::decode("9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11")
+                .unwrap();
         assert_eq!(hash.as_slice(), &expected);
 
         // Input larger than the modulus
