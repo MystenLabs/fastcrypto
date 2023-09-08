@@ -4,19 +4,16 @@
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
 use once_cell::sync::OnceCell;
 use poseidon_ark::Poseidon;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 
-/// The width of each of the inputs to the poseidon hash function in bytes. A field element in BN254
-/// is 254 bits long, so we can only fit 31 bytes = 248 bits into a single field element.
-pub const PACK_WIDTH_IN_BYTES: usize = 31;
-
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
-/// we can need 32 bytes to represent it as an integer.
-pub const DIGEST_SIZE_IN_BYTES: usize = 32;
+/// we need 32 bytes to represent it as an integer.
+pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
 /// Wrapper struct for Poseidon hash instance.
 pub struct PoseidonWrapper {
@@ -71,19 +68,20 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 }
 
 fn from_be_bytes_to_field_element_no_reduce(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
-    let field_element = Fr::from_be_bytes_mod_order(bytes);
-
-    // If bytes is smaller than 32 bytes, it cannot be greater than the modulus which iw 254 bits.
-    if bytes.len() == DIGEST_SIZE_IN_BYTES {
-        // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction happened
-        // without doing the extra work of serializing the field element again.
-        let reduced_bytes = field_element.into_bigint().to_bytes_be();
-        if &reduced_bytes != bytes {
-            return Err(InvalidInput);
+    match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
+        Ordering::Less => Ok(Fr::from_be_bytes_mod_order(bytes)),
+        Ordering::Equal => {
+            let field_element = Fr::from_be_bytes_mod_order(bytes);
+            // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction happened
+            // without doing the extra work of serializing the field element again.
+            let reduced_bytes = field_element.into_bigint().to_bytes_be();
+            if reduced_bytes != bytes {
+                return Err(InvalidInput);
+            }
+            Ok(field_element)
         }
+        Ordering::Greater => Err(InputTooLong(bytes.len())),
     }
-
-    Ok(field_element)
 }
 
 /// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field element
@@ -93,7 +91,7 @@ fn from_be_bytes_to_field_element_no_reduce(bytes: &[u8]) -> Result<Fr, FastCryp
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer
 /// greater than the field size, an error is returned. Note that this cannot happen if the input is '
 /// <= 31 bytes.
-pub fn hash_to_field_element(inputs: &Vec<&[u8]>) -> Result<Fr, FastCryptoError> {
+pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
         field_elements.push(from_be_bytes_to_field_element_no_reduce(input)?);
@@ -108,7 +106,9 @@ pub fn hash_to_field_element(inputs: &Vec<&[u8]>) -> Result<Fr, FastCryptoError>
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer
 /// greater than the field size, an error is returned. Note that this cannot happen if the input is '
 /// <= 31 bytes.
-pub fn hash_to_bytes(inputs: &Vec<&[u8]>) -> Result<[u8; DIGEST_SIZE_IN_BYTES], FastCryptoError> {
+pub fn hash_to_bytes(
+    inputs: &Vec<Vec<u8>>,
+) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
     let field_element = hash_to_field_element(inputs)?;
     let bytes = field_element.into_bigint().to_bytes_be();
     Ok(bytes
@@ -243,8 +243,7 @@ mod test {
 
     #[test]
     fn test_hash_to_bytes() {
-        let mut inputs: Vec<&[u8]> = Vec::new();
-        inputs.push(&[1u8]);
+        let inputs: Vec<Vec<u8>> = vec![vec![1u8]];
         let hash = hash_to_bytes(&inputs).unwrap();
         let expected = Fr::from_str(
             "18586133768512220936620570745912940619677854269274689475585506675881198879027",
@@ -254,9 +253,7 @@ mod test {
         .to_bytes_be();
         assert_eq!(hash.as_slice(), &expected);
 
-        let mut inputs: Vec<&[u8]> = Vec::new();
-        inputs.push(&[1u8]);
-        inputs.push(&[2u8]);
+        let inputs: Vec<Vec<u8>> = vec![vec![1u8], vec![2u8]];
         let hash = hash_to_bytes(&inputs).unwrap();
         let expected = Fr::from_str(
             "7853200120776062878684798364095072458815029376092732009249414926327459813530",
@@ -267,10 +264,7 @@ mod test {
         assert_eq!(hash.as_slice(), &expected);
 
         // Input larger than the modulus
-        let mut large_input: Vec<u8> = Vec::new();
-        for _ in 0..32 {
-            large_input.push(255u8);
-        }
-        assert!(hash_to_bytes(&vec![&large_input]).is_err());
+        let inputs = vec![vec![255; 32]];
+        assert!(hash_to_bytes(&inputs).is_err());
     }
 }
