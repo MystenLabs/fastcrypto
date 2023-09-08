@@ -67,7 +67,10 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
-fn from_be_bytes_to_field_element_no_reduce(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
+/// Given a binary representation of a BN254 field element as an integer in big-endian encoding, this
+/// function returns the corresponding field element. If the field element is not canonical (is larger
+/// than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
+fn from_canonical_be_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less => Ok(Fr::from_be_bytes_mod_order(bytes)),
         Ordering::Equal => {
@@ -94,7 +97,7 @@ fn from_be_bytes_to_field_element_no_reduce(bytes: &[u8]) -> Result<Fr, FastCryp
 pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
-        field_elements.push(from_be_bytes_to_field_element_no_reduce(input)?);
+        field_elements.push(from_canonical_be_bytes_to_field_element(input)?);
     }
     to_poseidon_hash(field_elements)
 }
