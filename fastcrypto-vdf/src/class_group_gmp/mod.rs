@@ -14,7 +14,7 @@ use num_bigint::BigInt;
 use num_integer::Integer as IntegerTrait;
 use num_traits::{Signed, Zero};
 use rug::integer::Order;
-use rug::ops::{DivRounding, DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
+use rug::ops::{DivRoundingAssign, NegAssign, RemRoundingAssign, SubFrom};
 use rug::{Assign, Complete, Integer};
 use std::cmp::Ordering;
 use std::mem::swap;
@@ -143,7 +143,7 @@ impl QuadraticForm {
         let m = Integer::from(v2 - &s);
 
         // 2.
-        let (f, mut b, c) = Integer::extended_gcd_ref(u2, u1).complete();
+        let (f, b, c) = Integer::extended_gcd_ref(u2, u1).complete();
 
         let mut capital_by = u1.div_exact_ref(&f).complete();
         let mut capital_cy = u2.div_exact_ref(&f).complete();
