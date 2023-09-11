@@ -55,7 +55,7 @@ impl Claims {
     }
 }
 
-// Parse and validate a JWT token, returns sub
+// Parse and validate a JWT token, returns sub and aud.
 pub fn parse_and_validate_jwt(token: &str) -> Result<(String, String), FastCryptoError> {
     // Check if the token contains 3 parts.
     let parts: Vec<&str> = token.split('.').collect();

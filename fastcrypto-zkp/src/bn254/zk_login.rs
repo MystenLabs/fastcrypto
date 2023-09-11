@@ -31,12 +31,12 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-const MAX_HEADER_LEN: u16 = 248;
-const PACK_WIDTH: u16 = 248;
+const MAX_HEADER_LEN: u8 = 248;
+const PACK_WIDTH: u8 = 248;
 const ISS: &str = "iss";
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
-const MAX_EXT_ISS_LEN: u16 = 165;
-const MAX_ISS_LEN_B64: u16 = 4 * (1 + MAX_EXT_ISS_LEN / 3);
+const MAX_EXT_ISS_LEN: u8 = 165;
+const MAX_ISS_LEN_B64: u8 = 4 * (1 + MAX_EXT_ISS_LEN / 3);
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -518,12 +518,12 @@ pub fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
 }
 
 /// Pads a stream of bytes and maps it to a field element
-pub fn hash_ascii_str_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoError> {
+pub fn hash_ascii_str_to_field(str: &str, max_size: u8) -> Result<Bn254Fr, FastCryptoError> {
     let str_padded = str_to_padded_char_codes(str, max_size)?;
     hash_to_field(&str_padded, 8, PACK_WIDTH)
 }
 
-fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+fn str_to_padded_char_codes(str: &str, max_len: u8) -> Result<Vec<BigUint>, FastCryptoError> {
     let arr: Vec<BigUint> = str
         .chars()
         .map(|c| BigUint::from_slice(&([c as u32])))
@@ -531,7 +531,7 @@ fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, Fas
     pad_with_zeroes(arr, max_len)
 }
 
-fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u8) -> Result<Vec<BigUint>, FastCryptoError> {
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
@@ -547,7 +547,7 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
 fn hash_to_field(
     input: &[BigUint],
     in_width: u16,
-    pack_width: u16,
+    pack_width: u8,
 ) -> Result<Bn254Fr, FastCryptoError> {
     let packed = convert_base(input, in_width, pack_width)?;
     to_poseidon_hash(packed)
@@ -566,7 +566,7 @@ fn div_ceil(dividend: usize, divisor: usize) -> Result<usize, FastCryptoError> {
 fn convert_base(
     in_arr: &[BigUint],
     in_width: u16,
-    out_width: u16,
+    out_width: u8,
 ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
     let bits = big_int_array_to_bits(in_arr, in_width as usize);
     let mut packed: Vec<Bn254Fr> = bits

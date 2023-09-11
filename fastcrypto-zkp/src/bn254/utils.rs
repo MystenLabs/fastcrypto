@@ -19,9 +19,9 @@ use super::zk_login::{hash_ascii_str_to_field, to_field};
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
 const PROVER_SERVER_URL: &str = "http://185.209.177.123:7000/zkp";
-const MAX_KEY_CLAIM_NAME_LENGTH: u16 = 32;
-const MAX_KEY_CLAIM_VALUE_LENGTH: u16 = 115;
-const MAX_AUD_VALUE_LENGTH: u16 = 145;
+const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
+const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
+const MAX_AUD_VALUE_LENGTH: u8 = 145;
 
 /// Calculate the Sui address based on address seed and address params.
 pub fn get_zk_login_address(address_seed: &str, iss: &str) -> Result<[u8; 32], FastCryptoError> {
@@ -42,13 +42,12 @@ pub fn gen_address_seed(
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
     let poseidon = PoseidonWrapper::new();
-    let poseidon_inner = PoseidonWrapper::new();
     Ok(poseidon
         .hash(vec![
             hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
             hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
             hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
-            poseidon_inner.hash(vec![to_field(salt)?])?,
+            poseidon.hash(vec![to_field(salt)?])?,
         ])?
         .to_string())
 }
