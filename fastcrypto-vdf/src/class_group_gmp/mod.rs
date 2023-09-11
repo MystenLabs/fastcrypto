@@ -154,7 +154,10 @@ impl QuadraticForm {
             (f, Integer::from(&b * &m), q)
         } else {
             // 3.
-            let (g, _, y) = Integer::extended_gcd_ref(&f, &s).complete();
+            // Using (q,r) = div_rem(s,f) computed above, we may skip the first iteration of the
+            // Euclidean algorithm of (f,s):
+            let (g, _, y) = Integer::extended_gcd_ref(&f, &r).complete();
+
             let h = f.div_exact(&g);
 
             capital_by.mul_assign(&h);
@@ -244,7 +247,7 @@ impl QuadraticForm {
             dx.sub_assign(w2 * &x);
             dx.div_exact_mut(&capital_by);
 
-            let mut q3 = Integer::from(&y * &dx);
+            let q3 = Integer::from(&y * &dx);
 
             let mut q4 = capital_dy;
             q4.add_assign(&q3);
@@ -258,23 +261,21 @@ impl QuadraticForm {
                 (Integer::from(&cx * &dy) - w1).div_exact(&dx)
             };
 
-            let mut ax_dx = dx;
-            ax_dx.mul_assign(&g);
-            ax_dx.mul_assign(&x);
-            ax_dx.sub_from(&bx * &cx);
-            w3 = ax_dx;
+            w3 = dx;
+            w3.mul_assign(&g);
+            w3.mul_assign(&x);
+            w3.sub_from(&bx * &cx);
 
-            let mut ay_dy = dy;
-            ay_dy.mul_assign(&g);
-            ay_dy.mul_assign(&y);
-            ay_dy.sub_from(&by * &cy);
-            u3 = ay_dy;
+            u3 = dy;
+            u3.mul_assign(&g);
+            u3.mul_assign(&y);
+            u3.sub_from(&by * &cy);
 
-            q3.add_assign(q4);
-            q3.mul_assign(&g);
-            q3.sub_assign(&q1);
-            q3.sub_assign(&q2);
             v3 = q3;
+            v3.add_assign(q4);
+            v3.mul_assign(&g);
+            v3.sub_assign(&q1);
+            v3.sub_assign(&q2);
         }
 
         QuadraticForm {
