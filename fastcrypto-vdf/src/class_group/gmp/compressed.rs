@@ -168,11 +168,11 @@ impl CompressedQuadraticForm {
                 .mul(&d_mod_a)
                 .modulo(a_prime);
                 let sqrt = sqrt_input.sqrt_ref().complete();
-                //
-                // // Ensure square root is exact
-                // if sqrt.pow(2) != sqrt_input {
-                //     return Err(FastCryptoError::InvalidInput);
-                // }
+
+                // Ensure square root is exact
+                if sqrt.pow(2) != sqrt_input {
+                    return Err(FastCryptoError::InvalidInput);
+                }
 
                 let out_a = a_prime * g;
 

@@ -1,12 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains an implementation of imaginary class groups. Elements are represented by
-//! binary quadratic forms which forms a group under composition. Here we use additive notation
-//! for the composition.
-//!
-//! Serialization is compatible with the chiavdf library (https://github.com/Chia-Network/chiavdf).
-
 use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
