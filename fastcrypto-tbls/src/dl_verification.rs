@@ -72,7 +72,7 @@ pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     }
     // Denote the inputs by (k1, H1), (k2, H2), ..., (kn, Hn)
     // Generate random r1, r2, ..., rn
-    let rs = get_random_scalars::<G, R>(pairs.len() as u32, rng);
+    let rs = get_random_scalars::<G::ScalarType, R>(pairs.len() as u32, rng);
     // Compute (r1*k1 + r2*k2 + ... + rn*kn)*G
     let lhs = G::generator()
         * rs.iter()
@@ -105,7 +105,7 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     }
     // Denote the inputs by (k1, G1, H1), (k2, G2, H2), ..., (kn, Gn, Hn)
     // Generate random r1, r2, ..., rn
-    let rs = get_random_scalars::<G, R>(triplets.len() as u32, rng);
+    let rs = get_random_scalars::<G::ScalarType, R>(triplets.len() as u32, rng);
     // Compute r1*k1, r2*k2, ..., rn*kn
     let lhs_coeffs = rs
         .iter()
@@ -163,7 +163,7 @@ pub fn verify_equal_exponents<R: AllowedRng>(
     if v1.len() != v2.len() {
         return Err(FastCryptoError::InvalidProof);
     }
-    let rs = get_random_scalars::<bls12381::G1Element, R>(v1.len() as u32, rng);
+    let rs = get_random_scalars::<bls12381::Scalar, R>(v1.len() as u32, rng);
     let lhs = bls12381::G1Element::multi_scalar_mul(&rs[..], v1).expect("sizes match");
     let rhs = bls12381::G2Element::multi_scalar_mul(&rs[..], v2).expect("sizes match");
 

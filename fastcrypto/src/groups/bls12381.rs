@@ -8,8 +8,6 @@ use crate::groups::{
     FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
     Scalar as ScalarType,
 };
-use crate::hash::HashFunction;
-use crate::hash::Sha512;
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;

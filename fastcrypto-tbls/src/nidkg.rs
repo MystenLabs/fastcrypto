@@ -79,18 +79,11 @@ pub struct Complaint<G: GroupElement> {
     package: RecoveryPackage<G>, // There is at most one with ForVerification encryption.
 }
 
-#[derive(Clone, PartialEq, Eq)]
-pub struct PartialShare<G: GroupElement> {
-    message_sender: u16,
-    share_id: ShareIndex,
-    value: G::ScalarType,
-}
-
 /// A dealer in the DKG protocol.
 impl<G> Party<G>
 where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
     <G as GroupElement>::ScalarType: Serialize + DeserializeOwned + FiatShamirChallenge,
-    G: GroupElement + MultiScalarMul + Serialize,
 {
     /// 1. Create a new private key and send the public key to all parties.
     ///
@@ -471,6 +464,13 @@ where
     pub fn modify_message_swap_partial_pks(message: &mut Message<G>, i: usize, j: usize) {
         message.partial_pks.swap(i, j);
     }
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub struct PartialShare<G: GroupElement> {
+    message_sender: u16,
+    share_id: ShareIndex,
+    value: G::ScalarType,
 }
 
 impl Party<bls12381::G1Element> {
