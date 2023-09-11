@@ -50,10 +50,8 @@ impl QuadraticForm {
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
     pub fn discriminant(&self) -> Discriminant {
-        Discriminant::try_from(
-            Integer::from(&self.b * &self.b) - (Integer::from(4) * &self.a * &self.c),
-        )
-        .expect("The discriminant is checked in the constructors")
+        Discriminant::try_from(self.b.square_ref() - (Integer::from(4) * &self.a * &self.c))
+            .expect("The discriminant is checked in the constructors")
     }
 
     /// Return true if this form is in normal form: -a < b <= a.

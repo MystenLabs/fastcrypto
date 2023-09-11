@@ -8,7 +8,7 @@ use crate::class_group::gmp::{Discriminant, QuadraticForm};
 use crate::ParameterizedGroupElement;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use rug::integer::Order;
-use rug::ops::DivRounding;
+use rug::ops::{DivRounding, NegAssign, Pow};
 use rug::{Complete, Integer};
 use std::cmp::Ordering;
 use std::ops::Mul;
@@ -91,7 +91,7 @@ impl QuadraticForm {
             });
         }
 
-        let b_sign = b < &Integer::new();
+        let b_sign = b.is_negative();
         let b_abs = b.abs_ref().complete();
 
         let (_, mut t_prime) = partial_xgcd(a, &b_abs).expect("a must be positive and b non-zero");
@@ -170,24 +170,24 @@ impl CompressedQuadraticForm {
                 let sqrt = sqrt_input.sqrt_ref().complete();
 
                 // Ensure square root is exact
-                if sqrt.pow(2) != sqrt_input {
+                if (&sqrt).pow(2).complete() != sqrt_input {
                     return Err(FastCryptoError::InvalidInput);
                 }
 
-                let out_a = a_prime * g;
+                let out_a = Integer::from(a_prime * g);
 
                 let t_inv =
                     Integer::from(t.invert_ref(a_prime).ok_or(FastCryptoError::InvalidInput)?);
                 let mut out_b = sqrt.mul(&t_inv).modulo(a_prime);
-                if b0 > &Integer::new() {
+                if !b0.is_negative() {
                     out_b += a_prime * b0;
                 }
                 if *b_sign {
-                    out_b = -out_b;
+                    out_b.neg_assign();
                 }
 
                 Ok(QuadraticForm::from_a_b_discriminant(
-                    out_a.complete(),
+                    out_a,
                     out_b,
                     discriminant,
                 ))
