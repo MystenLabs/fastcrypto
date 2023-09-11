@@ -403,12 +403,12 @@ impl ZkLoginProof {
     }
 
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    pub fn as_arkworks(&self) -> Proof<Bn254> {
-        Proof {
-            a: g1_affine_from_str_projective(self.a.clone()),
-            b: g2_affine_from_str_projective(self.b.clone()),
-            c: g1_affine_from_str_projective(self.c.clone()),
-        }
+    pub fn as_arkworks(&self) -> Result<Proof<Bn254>, FastCryptoError> {
+        Ok(Proof {
+            a: g1_affine_from_str_projective(self.a.clone())?,
+            b: g2_affine_from_str_projective(self.b.clone())?,
+            c: g1_affine_from_str_projective(self.c.clone())?,
+        })
     }
 }
 

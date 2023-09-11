@@ -98,6 +98,7 @@ pub mod error;
 pub mod groups;
 pub mod hash;
 pub mod hmac;
+pub mod jwt_utils;
 pub mod private_seed;
 pub mod rsa;
 pub mod secp256k1;

@@ -20,6 +20,7 @@ use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
+use fastcrypto::jwt_utils::parse_and_validate_jwt;
 use fastcrypto::traits::KeyPair;
 use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
@@ -499,14 +500,9 @@ async fn test_end_to_end_twitch() {
     )
     .await
     .unwrap();
+    let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
-    let address_seed = gen_address_seed(
-        &user_salt,
-        "sub",
-        "904448692",
-        "rs1bh065i9ya4ydvifixl4kss0uhpt",
-    )
-    .unwrap();
+    let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     // Make a map of jwk ids to jwks just for Twitch.
     let mut map = ImHashMap::new();
