@@ -16,31 +16,23 @@
 #[cfg(not(feature = "gmp"))]
 mod num_bigint;
 
+/// Implementation using the rug crate which is a wrapper around the GMP C++ library which is faster
+/// than the pure Rust implementation but requires the GMP library to be installed.
+#[cfg(feature = "gmp")]
+mod gmp;
+
+#[cfg(feature = "gmp")]
+pub use crate::class_group::gmp::Discriminant;
 /// A discriminant for an imaginary class group. The discriminant is a negative integer which is
 /// equal to 1 mod 4.
 #[cfg(not(feature = "gmp"))]
 pub use crate::class_group::num_bigint::Discriminant;
 
+#[cfg(feature = "gmp")]
+pub use crate::class_group::gmp::QuadraticForm;
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
 /// The `partial_gcd_limit` variable must be equal to `|discriminant|^{1/4}` and is used to speed up
 /// the composition algorithm.
 #[cfg(not(feature = "gmp"))]
 pub use crate::class_group::num_bigint::QuadraticForm;
-
-/// Implementation using the Rug crate which is a wrapper around the GMP C++ library which is faster
-/// than the pure Rust implementation but requires the GMP library to be installed.
-#[cfg(feature = "gmp")]
-mod gmp;
-
-/// A discriminant for an imaginary class group. The discriminant is a negative integer which is
-/// equal to 1 mod 4.
-#[cfg(feature = "gmp")]
-pub use crate::class_group::gmp::Discriminant;
-
-/// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
-///
-/// The `partial_gcd_limit` variable must be equal to `|discriminant|^{1/4}` and is used to speed up
-/// the composition algorithm.
-#[cfg(feature = "gmp")]
-pub use crate::class_group::gmp::QuadraticForm;
