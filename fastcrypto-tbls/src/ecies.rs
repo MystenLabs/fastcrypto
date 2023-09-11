@@ -5,7 +5,7 @@ use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G1Element;
-use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::de::DeserializeOwned;
@@ -52,7 +52,7 @@ struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 impl<G> PrivateKey<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
         Self(G::ScalarType::rand(rng))
@@ -82,7 +82,7 @@ where
 impl<G> PublicKey<G>
 where
     G: GroupElement + Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
         Self(G::generator() * sk.0)
@@ -172,7 +172,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
 impl<G: GroupElement> DdhTupleNizk<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn create<R: AllowedRng>(
         sk: &G::ScalarType,
@@ -226,7 +226,7 @@ where
         random_oracle: &RandomOracle,
     ) -> G::ScalarType {
         let output = random_oracle.evaluate(&(G1Element::generator(), e_g, sk_g, sk_e_g, a, b));
-        G::ScalarType::hash_to_group_element(&output)
+        G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
     }
 
     /// Checks if e1 + e2*c = z e3

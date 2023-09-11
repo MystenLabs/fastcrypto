@@ -12,7 +12,7 @@ use crate::polynomial::{Eval, Poly, PrivatePoly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{bls12381, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hmac::{hmac_sha3_256, HmacKey};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use itertools::izip;
@@ -89,7 +89,7 @@ pub struct PartialShare<G: GroupElement> {
 /// A dealer in the DKG protocol.
 impl<G> Party<G>
 where
-    <G as GroupElement>::ScalarType: Serialize + DeserializeOwned + HashToGroupElement,
+    <G as GroupElement>::ScalarType: Serialize + DeserializeOwned + FiatShamirChallenge,
     G: GroupElement + MultiScalarMul + Serialize,
 {
     /// 1. Create a new private key and send the public key to all parties.

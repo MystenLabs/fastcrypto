@@ -5,7 +5,9 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::error::FastCryptoResult;
-use crate::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use crate::groups::{
+    FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
+};
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -201,6 +203,12 @@ impl Scalar for RistrettoScalar {
 impl HashToGroupElement for RistrettoScalar {
     fn hash_to_group_element(bytes: &[u8]) -> Self {
         Self::from_bytes_mod_order_wide(&Sha512::digest(bytes).digest)
+    }
+}
+
+impl FiatShamirChallenge for RistrettoScalar {
+    fn fiat_shamir_reduction_to_group_element(msg: &[u8]) -> Self {
+        Self::hash_to_group_element(msg)
     }
 }
 

@@ -65,6 +65,13 @@ pub trait Pairing: GroupElement {
     fn pairing(&self, other: &Self::Other) -> <Self as Pairing>::Output;
 }
 
+/// Trait for groups that have a reduction from a random buffer to a group element that is secure
+/// when used for Fiat-Shamir. Note that the resulting group element is not guaranteed to be
+/// uniformly distributed, but only to have enough entropy to be used for Fiat-Shamir heuristic.
+pub trait FiatShamirChallenge {
+    fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self;
+}
+
 /// Trait for groups that have a standardized "hash_to_point"/"hash_to_curve" function (see
 /// [https://datatracker.ietf.org/doc/html/draft-irtf-cfrg-hash-to-curve#section-3].
 pub trait HashToGroupElement {

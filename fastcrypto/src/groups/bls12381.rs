@@ -5,7 +5,8 @@ use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
-    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarType,
+    FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+    Scalar as ScalarType,
 };
 use crate::hash::HashFunction;
 use crate::hash::Sha512;
@@ -650,13 +651,13 @@ impl ScalarType for Scalar {
     }
 }
 
-impl HashToGroupElement for Scalar {
-    fn hash_to_group_element(msg: &[u8]) -> Self {
-        let hashed = Sha512::digest(msg).digest;
+impl FiatShamirChallenge for Scalar {
+    fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
+        const INPUT_LENGTH: usize = SCALAR_LENGTH - 10; // Safe for our prime field
+        assert!(INPUT_LENGTH >= uniform_buffer.len());
+        let mut bytes = [0u8; INPUT_LENGTH];
+        bytes.copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
         let mut ret = blst_fr::default();
-        let mut bytes = [0u8; SCALAR_LENGTH];
-        bytes.copy_from_slice(&hashed[..SCALAR_LENGTH]);
-        // TODO: is there an overflow?
         unsafe {
             let mut scalar = blst_scalar::default();
             blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
