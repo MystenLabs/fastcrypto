@@ -38,13 +38,9 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
       - run: scripts/license_check.sh
 
-  test:
-    runs-on: ${{ matrix.os }}
+  test-ubuntu:
+    runs-on: ubuntu-ghcloud
     strategy:
-      matrix:
-        os:
-          - ubuntu-ghcloud
-          - windows-ghcloud
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings
@@ -52,8 +48,6 @@ jobs:
       - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
-      - uses: msys2/setup-msys2@v2
-        if: matrix.os == 'windows-ghcloud'
       # make sure benches don't bit-rot
       - name: build benches
         run: cargo build --benches --all-features
@@ -66,6 +60,32 @@ jobs:
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
 
+  test-windows:
+    runs-on: windows-ghcloud
+    strategy:
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
+      - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
+      - uses: msys2/setup-msys2@v2
+      # make sure benches don't bit-rot
+      - name: build benches
+        run: cargo build --benches --all-features
+      - name: cargo test
+        run: |
+          cargo nextest run --all-features
+      - name: Doctests
+        run: |
+          cargo test --doc --all-features
+      # Ensure there are no uncommitted changes in the repo after running tests
+      - run: scripts/changed-files.sh
+      
   clippy:
     runs-on: ubuntu-ghcloud
     steps:
