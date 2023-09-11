@@ -6,10 +6,10 @@ extern crate criterion;
 
 use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, Criterion};
-#[cfg(not(feature = "gmp"))]
-use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
 #[cfg(feature = "gmp")]
-use fastcrypto_vdf::class_group_gmp::{Discriminant, QuadraticForm};
+use fastcrypto_vdf::class_group::gmp::{Discriminant, QuadraticForm};
+#[cfg(not(feature = "gmp"))]
+use fastcrypto_vdf::class_group::num_bigint::{Discriminant, QuadraticForm};
 use fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
 use fastcrypto_vdf::vdf::VDF;
 use num_bigint::BigInt;

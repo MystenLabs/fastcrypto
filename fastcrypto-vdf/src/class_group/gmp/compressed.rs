@@ -3,8 +3,8 @@
 
 //! Functionality to compress/decompress and serialize/deserialize quadratic forms.
 
-use crate::class_group_gmp::compressed::CompressedQuadraticForm::{Generator, Nontrivial, Zero};
-use crate::class_group_gmp::{Discriminant, QuadraticForm};
+use crate::class_group::gmp::compressed::CompressedQuadraticForm::{Generator, Nontrivial, Zero};
+use crate::class_group::gmp::{Discriminant, QuadraticForm};
 use crate::ParameterizedGroupElement;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use rug::integer::Order;
@@ -372,10 +372,10 @@ fn partial_xgcd(a: &Integer, b: &Integer) -> FastCryptoResult<(Integer, Integer)
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group_gmp::compressed::{
+    use crate::class_group::gmp::compressed::{
         bigint_from_bytes, bigint_to_bytes, CompressedQuadraticForm,
     };
-    use crate::class_group_gmp::{Discriminant, QuadraticForm};
+    use crate::class_group::gmp::{Discriminant, QuadraticForm};
     use crate::ParameterizedGroupElement;
     use num_bigint::BigInt;
     use rug::Integer;

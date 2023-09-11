@@ -3,10 +3,10 @@
 
 use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Criterion};
-#[cfg(not(feature = "gmp"))]
-use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
 #[cfg(feature = "gmp")]
-use fastcrypto_vdf::class_group_gmp::{Discriminant, QuadraticForm};
+use fastcrypto_vdf::class_group::gmp::{Discriminant, QuadraticForm};
+#[cfg(not(feature = "gmp"))]
+use fastcrypto_vdf::class_group::num_bigint::{Discriminant, QuadraticForm};
 use fastcrypto_vdf::ParameterizedGroupElement;
 use num_bigint::BigInt;
 use num_traits::Num;

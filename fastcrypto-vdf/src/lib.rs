@@ -3,12 +3,8 @@
 
 use std::ops::{Add, Neg};
 
-#[cfg(not(feature = "gmp"))]
 pub mod class_group;
 pub mod vdf;
-
-#[cfg(feature = "gmp")]
-pub mod class_group_gmp;
 
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.

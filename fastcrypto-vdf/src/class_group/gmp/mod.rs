@@ -479,7 +479,7 @@ impl Discriminant {
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group_gmp::{Discriminant, QuadraticForm};
+    use crate::class_group::gmp::{Discriminant, QuadraticForm};
     use crate::ParameterizedGroupElement;
     use num_bigint::BigInt;
     use rug::Integer;
