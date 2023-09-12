@@ -28,7 +28,9 @@ criterion = "0.5.1"
 [[bench]]
 name = "vdf"
 harness = false
+required-features = ["experimental"]
 
 [[bench]]
 name = "class_group"
 harness = false
+required-features = ["experimental"]
