@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoResult;
+use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
 
@@ -30,14 +31,12 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-const MAX_HEADER_LEN: u16 = 500;
-const PACK_WIDTH: u16 = 248;
+const MAX_HEADER_LEN: u8 = 248;
+const PACK_WIDTH: u8 = 248;
 const ISS: &str = "iss";
-const AUD: &str = "aud";
-const NUM_EXTRACTABLE_STRINGS: u8 = 5;
-const MAX_EXTRACTABLE_STR_LEN: u16 = 150;
-const MAX_EXTRACTABLE_STR_LEN_B64: u16 = 4 * (1 + MAX_EXTRACTABLE_STR_LEN / 3);
 const BASE64_URL_CHARSET: &str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+const MAX_EXT_ISS_LEN: u8 = 165;
+const MAX_ISS_LEN_B64: u8 = 4 * (1 + MAX_EXT_ISS_LEN / 3);
 
 /// Key to identify a JWK, consists of iss and kid.
 #[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
@@ -55,7 +54,7 @@ impl JwkId {
     }
 }
 
-/// The provider config consists of iss and jwk endpoint.
+/// The provider config consists of iss string and jwk endpoint.
 #[derive(Debug)]
 pub struct ProviderConfig {
     /// iss string that identifies the OIDC provider.
@@ -224,11 +223,11 @@ pub fn parse_jwks(
     ))
 }
 
-/// Necessary value for claim.
+/// A claim consists of value and index_mod_4.
 #[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Claim {
-    name: String,
-    value_base64: String,
+    value: String,
     index_mod_4: u8,
 }
 
@@ -257,107 +256,98 @@ impl JWTHeader {
     }
 }
 
-/// A structed of all parsed and validated values from the masked content bytes.
+/// A structed of parsed JWT details, consists of kid, header, iss.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct JWTDetails {
     kid: String,
     header: String,
     iss: String,
-    aud: String,
 }
 
 impl JWTDetails {
-    /// Read a list of Claims and header string and parse them into fields
-    /// header, iss, iss_index, aud, aud_index.
-    pub fn new(header_base64: &str, claims: &[Claim]) -> Result<Self, FastCryptoError> {
+    /// Read in the Claim and header string. Parse and validate kid, header, iss as JWT details.
+    pub fn new(header_base64: &str, claim: &Claim) -> Result<Self, FastCryptoError> {
         let header = JWTHeader::new(header_base64)?;
-        let claim = claims
-            .get(0)
-            .ok_or_else(|| FastCryptoError::GeneralError("Invalid claim".to_string()))?;
-        if claim.name != ISS {
-            return Err(FastCryptoError::GeneralError(
-                "iss not found in claims".to_string(),
-            ));
-        }
-        let ext_iss = decode_base64_url(&claim.value_base64, &claim.index_mod_4)?;
-
-        let claim_2 = claims
-            .get(1)
-            .ok_or_else(|| FastCryptoError::GeneralError("Invalid claim".to_string()))?;
-        if claim_2.name != AUD {
-            return Err(FastCryptoError::GeneralError(
-                "aud not found in claims".to_string(),
-            ));
-        }
-        let ext_aud = decode_base64_url(&claim_2.value_base64, &claim_2.index_mod_4)?;
-
+        let ext_claim = decode_base64_url(&claim.value, &claim.index_mod_4)?;
         Ok(JWTDetails {
             kid: header.kid,
             header: header_base64.to_string(),
-            iss: verify_extended_claim(&ext_iss, ISS)?,
-            aud: verify_extended_claim(&ext_aud, AUD)?,
+            iss: verify_extended_claim(&ext_claim, ISS)?,
         })
     }
 }
 
-/// All inputs required for the zk login proof verification and other auxiliary inputs.
+/// All inputs required for the zk login proof verification and other public inputs.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+
 pub struct ZkLoginInputs {
     proof_points: ZkLoginProof,
+    iss_base64_details: Claim,
+    header_base64: String,
     address_seed: String,
-    claims: Vec<Claim>,
+    #[serde(skip)]
+    jwt_details: JWTDetails,
+}
+
+/// The reader struct for the proving service response.
+#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ZkLoginInputsReader {
+    proof_points: ZkLoginProof,
+    iss_base64_details: Claim,
     header_base64: String,
     #[serde(skip)]
-    parsed_masked_content: JWTDetails,
-    #[serde(skip)]
-    all_inputs_hash: Vec<Bn254Fr>,
+    jwt_details: JWTDetails,
 }
 
 impl ZkLoginInputs {
-    /// Validate and parse masked content bytes into the struct and other json strings into the struct.
-    pub fn from_json(value: &str) -> Result<Self, FastCryptoError> {
-        serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidInput)
+    /// Parse the proving service response and pass in the address seed. Initialize the jwt details struct.
+    pub fn from_json(value: &str, address_seed: &str) -> Result<Self, FastCryptoError> {
+        let reader: ZkLoginInputsReader =
+            serde_json::from_str(value).map_err(|_| FastCryptoError::InvalidInput)?;
+        Self::from_reader(reader, address_seed)
     }
 
-    /// Initialize JWTDetails
+    /// Initialize ZkLoginInputs from the
+    pub fn from_reader(
+        reader: ZkLoginInputsReader,
+        address_seed: &str,
+    ) -> Result<Self, FastCryptoError> {
+        ZkLoginInputs {
+            proof_points: reader.proof_points,
+            iss_base64_details: reader.iss_base64_details,
+            header_base64: reader.header_base64,
+            address_seed: address_seed.to_owned(),
+            jwt_details: reader.jwt_details,
+        }
+        .init()
+    }
+
+    /// Initialize JWTDetails by parsing header_base64 and iss_base64_details.
     pub fn init(&mut self) -> Result<Self, FastCryptoError> {
-        self.parsed_masked_content = JWTDetails::new(&self.header_base64, &self.claims)?;
+        self.jwt_details = JWTDetails::new(&self.header_base64, &self.iss_base64_details)?;
         Ok(self.to_owned())
     }
 
     /// Get the parsed kid string.
     pub fn get_kid(&self) -> &str {
-        &self.parsed_masked_content.kid
+        &self.jwt_details.kid
     }
 
     /// Get the parsed iss string.
     pub fn get_iss(&self) -> &str {
-        &self.parsed_masked_content.iss
+        &self.jwt_details.iss
     }
 
-    /// Get the parsed aud string.
-    pub fn get_aud(&self) -> &str {
-        &self.parsed_masked_content.aud
-    }
-
-    /// Get zk login proof.
+    /// Get the zk login proof.
     pub fn get_proof(&self) -> &ZkLoginProof {
         &self.proof_points
     }
 
-    /// Get public inputs in arkworks format.
-    pub fn get_public_inputs(&self) -> &[Bn254Fr] {
-        &self.all_inputs_hash
-    }
-
-    /// Get address seed string.
+    /// Get the address seed string.
     pub fn get_address_seed(&self) -> &str {
         &self.address_seed
-    }
-
-    /// Get address seed string.
-    pub fn get_address_params(&self) -> AddressParams {
-        AddressParams::new(self.get_iss().to_owned(), self.get_aud().to_owned())
     }
 
     /// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
@@ -374,57 +364,34 @@ impl ZkLoginInputs {
         let addr_seed = to_field(&self.address_seed)?;
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let max_epoch = to_field(&max_epoch.to_string())?;
-        let mut padded_claims = self.claims.clone();
-        for _ in self.claims.len()..NUM_EXTRACTABLE_STRINGS as usize {
-            padded_claims.push(Claim {
-                name: "dummy".to_string(),
-                value_base64: "e".to_string(),
-                index_mod_4: 0,
-            });
-        }
-        let mut claim_f = Vec::new();
-        for i in 0..NUM_EXTRACTABLE_STRINGS {
-            let val = &padded_claims[i as usize].value_base64;
-            if val.len() > MAX_EXTRACTABLE_STR_LEN_B64 as usize {
-                return Err(FastCryptoError::GeneralError(
-                    "Invalid claim length".to_string(),
-                ));
-            }
-            claim_f.push(hash_ascii_str_to_field(
-                &padded_claims[i as usize].value_base64,
-                MAX_EXTRACTABLE_STR_LEN_B64,
-            )?);
-        }
-        let poseidon = PoseidonWrapper::new();
-        let extracted_claims_hash = poseidon.hash(claim_f)?;
+        let max_epoch_f = to_field(&max_epoch.to_string())?;
+        let index_mod_4_f = to_field(&self.iss_base64_details.index_mod_4.to_string())?;
 
-        let extracted_index_hash = poseidon.hash(
-            padded_claims
-                .iter()
-                .map(|c| to_field(&c.index_mod_4.to_string()).unwrap())
-                .collect::<Vec<_>>(),
-        )?;
-        let header_f = hash_ascii_str_to_field(&self.parsed_masked_content.header, MAX_HEADER_LEN)?;
+        static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
+        let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
+
+        let iss_base64_f =
+            hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
+        let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        poseidon.hash(vec![
+        poseidon_ref.hash(vec![
             first,
             second,
             addr_seed,
-            max_epoch,
-            extracted_claims_hash,
-            extracted_index_hash,
+            max_epoch_f,
+            iss_base64_f,
+            index_mod_4_f,
             header_f,
             modulus_f,
         ])
     }
 }
-/// The zk login proof.
+/// The struct for zk login proof.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct ZkLoginProof {
-    pi_a: CircomG1,
-    pi_b: CircomG2,
-    pi_c: CircomG1,
+    a: CircomG1,
+    b: CircomG2,
+    c: CircomG1,
 }
 
 impl ZkLoginProof {
@@ -436,11 +403,12 @@ impl ZkLoginProof {
     }
 
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    pub fn as_arkworks(&self) -> Proof<Bn254> {
-        let a = g1_affine_from_str_projective(self.pi_a.clone());
-        let b = g2_affine_from_str_projective(self.pi_b.clone());
-        let c = g1_affine_from_str_projective(self.pi_c.clone());
-        Proof { a, b, c }
+    pub fn as_arkworks(&self) -> Result<Proof<Bn254>, FastCryptoError> {
+        Ok(Proof {
+            a: g1_affine_from_str_projective(self.a.clone())?,
+            b: g2_affine_from_str_projective(self.b.clone())?,
+            c: g1_affine_from_str_projective(self.c.clone())?,
+        })
     }
 }
 
@@ -544,17 +512,18 @@ fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
 }
 
 /// Convert a bigint string to a field element.
-fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
-    Bn254Fr::from_str(val).map_err(|_| FastCryptoError::InvalidInput)
+pub fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
+    Bn254Fr::from_str(val)
+        .map_err(|_| FastCryptoError::GeneralError("Convert to field error".to_string()))
 }
 
 /// Pads a stream of bytes and maps it to a field element
-fn hash_ascii_str_to_field(str: &str, max_size: u16) -> Result<Bn254Fr, FastCryptoError> {
+pub fn hash_ascii_str_to_field(str: &str, max_size: u8) -> Result<Bn254Fr, FastCryptoError> {
     let str_padded = str_to_padded_char_codes(str, max_size)?;
     hash_to_field(&str_padded, 8, PACK_WIDTH)
 }
 
-fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+fn str_to_padded_char_codes(str: &str, max_len: u8) -> Result<Vec<BigUint>, FastCryptoError> {
     let arr: Vec<BigUint> = str
         .chars()
         .map(|c| BigUint::from_slice(&([c as u32])))
@@ -562,7 +531,7 @@ fn str_to_padded_char_codes(str: &str, max_len: u16) -> Result<Vec<BigUint>, Fas
     pad_with_zeroes(arr, max_len)
 }
 
-fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>, FastCryptoError> {
+fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u8) -> Result<Vec<BigUint>, FastCryptoError> {
     if in_arr.len() > out_count as usize {
         return Err(FastCryptoError::GeneralError("in_arr too long".to_string()));
     }
@@ -578,24 +547,34 @@ fn pad_with_zeroes(in_arr: Vec<BigUint>, out_count: u16) -> Result<Vec<BigUint>,
 fn hash_to_field(
     input: &[BigUint],
     in_width: u16,
-    pack_width: u16,
+    pack_width: u8,
 ) -> Result<Bn254Fr, FastCryptoError> {
     let packed = convert_base(input, in_width, pack_width)?;
     to_poseidon_hash(packed)
+}
+
+fn div_ceil(dividend: usize, divisor: usize) -> Result<usize, FastCryptoError> {
+    if divisor == 0 {
+        // Handle division by zero as needed for your application.
+        return Err(FastCryptoError::InvalidInput);
+    }
+
+    Ok(1 + ((dividend - 1) / divisor))
 }
 
 /// Helper function to pack field elements from big ints.
 fn convert_base(
     in_arr: &[BigUint],
     in_width: u16,
-    out_width: u16,
+    out_width: u8,
 ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
     let bits = big_int_array_to_bits(in_arr, in_width as usize);
-    let packed: Vec<Bn254Fr> = bits
-        .chunks(out_width as usize)
+    let mut packed: Vec<Bn254Fr> = bits
+        .rchunks(out_width as usize)
         .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
         .collect();
-    match packed.len() != in_arr.len() * in_width as usize / out_width as usize + 1 {
+    packed.reverse();
+    match packed.len() != div_ceil(in_arr.len() * in_width as usize, out_width as usize).unwrap() {
         true => Err(FastCryptoError::InvalidInput),
         false => Ok(packed),
     }
@@ -617,20 +596,4 @@ fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
         bitarray.extend(padded)
     }
     bitarray
-}
-
-/// Parameters for generating an address.
-#[derive(Debug, Serialize, Deserialize)]
-pub struct AddressParams {
-    /// The issuer string.
-    pub iss: String,
-    /// The audience string.
-    pub aud: String,
-}
-
-impl AddressParams {
-    /// Create address params from iss and aud.
-    pub fn new(iss: String, aud: String) -> Self {
-        Self { iss, aud }
-    }
 }

@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::poseidon::PoseidonWrapper;
-use crate::bn254::zk_login::AddressParams;
-use crate::bn254::zk_login::OIDCProvider;
+use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::hash::{Blake2b256, HashFunction};
@@ -15,25 +14,42 @@ use serde::Deserialize;
 use serde_json::json;
 use std::str::FromStr;
 
-use super::zk_login::ZkLoginInputs;
+use super::zk_login::{hash_ascii_str_to_field, to_field};
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
-const PROVER_SERVER_URL: &str = "http://185.209.177.123:8000/test/zkp";
+const PROVER_SERVER_URL: &str = "http://185.209.177.123:7000/zkp";
+const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
+const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
+const MAX_AUD_VALUE_LENGTH: u8 = 145;
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_zk_login_address(
-    address_seed: &str,
-    param: AddressParams,
-) -> Result<[u8; 32], FastCryptoError> {
+pub fn get_zk_login_address(address_seed: &str, iss: &str) -> Result<[u8; 32], FastCryptoError> {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
-    hasher.update(
-        bcs::to_bytes(&AddressParams::new(param.iss, param.aud))
-            .map_err(|_| FastCryptoError::InvalidInput)?,
-    );
+    let bytes = iss.as_bytes();
+    hasher.update([bytes.len() as u8]);
+    hasher.update(bytes);
     hasher.update(big_int_str_to_bytes(address_seed)?);
     Ok(hasher.finalize().digest)
+}
+
+/// Calculate the Sui address based on address seed and address params.
+pub fn gen_address_seed(
+    salt: &str,
+    name: &str,  // i.e. "sub"
+    value: &str, // i.e. the sub value
+    aud: &str,   // i.e. the client ID
+) -> Result<String, FastCryptoError> {
+    let poseidon = PoseidonWrapper::new();
+    Ok(poseidon
+        .hash(vec![
+            hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
+            hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
+            hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
+            poseidon.hash(vec![to_field(salt)?])?,
+        ])?
+        .to_string())
 }
 
 /// Return the OIDC URL for the given parameters. Crucially the nonce is computed.
@@ -112,16 +128,16 @@ pub async fn get_proof(
     jwt_randomness: &str,
     eph_pubkey: &str,
     salt: &str,
-) -> Result<ZkLoginInputs, FastCryptoError> {
-    let client = Client::new();
+) -> Result<ZkLoginInputsReader, FastCryptoError> {
     let body = json!({
-        "jwt": jwt_token,
-        "eph_public_key": eph_pubkey,
-        "max_epoch": max_epoch,
-        "jwt_randomness": jwt_randomness,
-        "subject_pin": salt,
-        "key_claim_name": "sub"
+    "jwt": jwt_token,
+    "extendedEphemeralPublicKey": eph_pubkey,
+    "maxEpoch": max_epoch,
+    "jwtRandomness": jwt_randomness,
+    "salt": salt,
+    "keyClaimName": "sub",
     });
+    let client = Client::new();
     let response = client
         .post(PROVER_SERVER_URL.to_string())
         .header("Content-Type", "application/json")
@@ -133,7 +149,7 @@ pub async fn get_proof(
         .bytes()
         .await
         .map_err(|_| FastCryptoError::InvalidInput)?;
-    let get_proof_response: ZkLoginInputs =
+    let get_proof_response: ZkLoginInputsReader =
         serde_json::from_slice(&full_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
     Ok(get_proof_response)
 }

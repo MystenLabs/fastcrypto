@@ -23,6 +23,7 @@ pub mod zk_login_api;
 
 /// Zk login utils
 pub mod utils;
+
 /// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
 #[derive(Debug, From)]
 pub struct FieldElement(pub(crate) api::Bn254Fr);
