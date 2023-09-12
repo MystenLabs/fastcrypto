@@ -36,6 +36,11 @@ name = "dkg"
 harness = false
 required-features = ["experimental"]
 
+[[bench]]
+name = "nidkg"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = []
 experimental = []

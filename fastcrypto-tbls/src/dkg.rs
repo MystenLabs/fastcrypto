@@ -14,7 +14,7 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -89,7 +89,7 @@ impl<G: GroupElement, EG: GroupElement> Party<G, EG>
 where
     G: MultiScalarMul + Serialize + DeserializeOwned,
     EG: Serialize + DeserializeOwned,
-    <EG as GroupElement>::ScalarType: HashToGroupElement,
+    <EG as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After all parties have sent their ECIES public keys, create the set of nodes.

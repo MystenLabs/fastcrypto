@@ -5,7 +5,7 @@ use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G1Element;
-use fastcrypto::groups::{GroupElement, HashToGroupElement, Scalar};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::de::DeserializeOwned;
@@ -52,7 +52,7 @@ struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 impl<G> PrivateKey<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
         Self(G::ScalarType::rand(rng))
@@ -82,7 +82,7 @@ where
 impl<G> PublicKey<G>
 where
     G: GroupElement + Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
         Self(G::generator() * sk.0)
@@ -90,6 +90,10 @@ where
 
     pub fn encrypt<R: AllowedRng>(&self, msg: &[u8], rng: &mut R) -> Encryption<G> {
         Encryption::<G>::encrypt(&self.0, msg, rng)
+    }
+
+    pub fn deterministic_encrypt(&self, msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
+        Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g)
     }
 
     pub fn decrypt_with_recovery_package(
@@ -102,20 +106,29 @@ where
             .verify(&enc.0, &self.0, &pkg.ephemeral_key, random_oracle)?;
         Ok(enc.decrypt_from_partial_decryption(&pkg.ephemeral_key))
     }
+
+    pub fn as_element(&self) -> &G {
+        &self.0
+    }
 }
 
 impl<G: GroupElement + Serialize> Encryption<G> {
-    fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {
-        let r = G::ScalarType::rand(rng);
-        let r_g = G::generator() * r;
-        let r_x_g = *x_g * r;
-        let hkdf_result = Self::hkdf(&r_x_g);
+    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
+        let hkdf_result = Self::hkdf(r_x_g);
+        // TODO: Should we just xor with the hkdf output and append with hmac?
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
                 .expect("New shouldn't fail as use fixed size key is used"),
         );
         let encrypted_message = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
-        Self(r_g, encrypted_message)
+        Self(*r_g, encrypted_message)
+    }
+
+    fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {
+        let r = G::ScalarType::rand(rng);
+        let r_g = G::generator() * r;
+        let r_x_g = *x_g * r;
+        Self::deterministic_encrypt(msg, &r_g, &r_x_g)
     }
 
     fn decrypt(&self, sk: &G::ScalarType) -> Vec<u8> {
@@ -123,7 +136,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
         self.decrypt_from_partial_decryption(&partial_key)
     }
 
-    fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
+    pub fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
         let hkdf_result = Self::hkdf(partial_key);
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
@@ -132,6 +145,10 @@ impl<G: GroupElement + Serialize> Encryption<G> {
         cipher
             .decrypt(&Self::fixed_zero_nonce(), &self.1)
             .expect("Decrypt should never fail for CTR mode")
+    }
+
+    pub fn ephemeral_key(&self) -> &G {
+        &self.0
     }
 
     fn hkdf(e: &G) -> Vec<u8> {
@@ -155,7 +172,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
 impl<G: GroupElement> DdhTupleNizk<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: HashToGroupElement,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     pub fn create<R: AllowedRng>(
         sk: &G::ScalarType,
@@ -209,7 +226,7 @@ where
         random_oracle: &RandomOracle,
     ) -> G::ScalarType {
         let output = random_oracle.evaluate(&(G1Element::generator(), e_g, sk_g, sk_e_g, a, b));
-        G::ScalarType::hash_to_group_element(&output)
+        G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
     }
 
     /// Checks if e1 + e2*c = z e3

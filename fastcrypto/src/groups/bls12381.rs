@@ -5,7 +5,8 @@ use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
-    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarType,
+    FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+    Scalar as ScalarType,
 };
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
@@ -123,7 +124,6 @@ impl Mul<Scalar> for G1Element {
 
         // Count the number of bytes to be multiplied.
         let bytes = size_in_bytes(&scalar);
-
         if bytes == 0 {
             return G1Element::zero();
         }
@@ -646,6 +646,22 @@ impl ScalarType for Scalar {
             blst_fr_inverse(&mut ret, &self.0);
         }
         Ok(Self::from(ret))
+    }
+}
+
+impl FiatShamirChallenge for Scalar {
+    fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
+        const INPUT_LENGTH: usize = SCALAR_LENGTH - 10; // Safe for our prime field
+        assert!(INPUT_LENGTH >= uniform_buffer.len());
+        let mut bytes = [0u8; INPUT_LENGTH];
+        bytes.copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
+        let mut ret = blst_fr::default();
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
+        }
+        Scalar::from(ret)
     }
 }
 
