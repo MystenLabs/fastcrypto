@@ -3,7 +3,10 @@
 
 use std::ops::{Add, Neg};
 
+#[cfg(any(test, feature = "experimental"))]
 pub mod class_group;
+
+#[cfg(any(test, feature = "experimental"))]
 pub mod vdf;
 
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
