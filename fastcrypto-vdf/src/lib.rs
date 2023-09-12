@@ -3,7 +3,10 @@
 
 use std::ops::{Add, Neg};
 
+#[cfg(any(test, feature = "experimental"))]
 pub mod class_group;
+
+#[cfg(any(test, feature = "experimental"))]
 pub mod vdf;
 
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
@@ -21,7 +24,7 @@ pub trait ParameterizedGroupElement:
     fn zero(parameters: &Self::ParameterType) -> Self;
 
     /// Compute 2 * Self.
-    fn double(&self) -> Self;
+    fn double(self) -> Self;
 
     /// Compute scale * self.
     fn mul(&self, scale: &Self::ScalarType) -> Self;

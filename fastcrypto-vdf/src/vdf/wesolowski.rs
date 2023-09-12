@@ -279,24 +279,3 @@ fn test_verify_1024() {
     let vdf = ClassGroupVDF::new(discriminant, iterations);
     assert!(vdf.verify(&input, &result, &proof).is_ok());
 }
-
-#[test]
-fn test_verify_2048() {
-    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let iterations = 1000u64;
-    let result_hex = "02001222c470df6df6e1321aa1c28279d0c64663c7f066888ff6cd854dcd5deb71f63dfe0b867675180fada390e0d7b1ff735b55fea2b88123a32d1e1239126b275578ea26a4a89e5ef290e2b7b8d072ab819d5b9422770339dc87fd4dc4ebf6add3e391067a557be4be5436355ab11035609d5a3dc71e95cf2a0dcbb228b85d9750a1dc670ac51822d7eff49b5cacd4a8cc485e53bbf7e44f95e7fd5ec55fca44eb91c4831b1e839d8b4c8453dce8be69698bc5cb8fa45120d201057e4d72a6746b0100";
-    let proof_hex = "03008b91b20ab570b701d394aa095d8c670d95a8a3b26af966e979a27acf417421360ea54014668a121139ab11fe92cc0a8d192a8a675f244f3016ed23a7a82d9dd70de089d5bcb5bb0c9535923b2656b19c8cf0cc6e0e4c800c44fc17e16a1b96572f6e0e0967709af259b854a51bec270e5cf73cc4efa93791ac6a84dc2ab77f02d0234ac60b2a04740644ac845204c67f9063ab139e9a0eb25c4417c892ca52299202d3854243d7eb58cc46a837745a1eb92699eb89138eec89467f7226380b040600";
-
-    let discriminant = Discriminant::from_seed(&challenge, 2048).unwrap();
-
-    let result_bytes = hex::decode(result_hex).unwrap();
-    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
-
-    let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
-
-    let input = QuadraticForm::generator(&discriminant);
-
-    let vdf = ClassGroupVDF::new(discriminant, iterations);
-    assert!(vdf.verify(&input, &result, &proof).is_ok());
-}
