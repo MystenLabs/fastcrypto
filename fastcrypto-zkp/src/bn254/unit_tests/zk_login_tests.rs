@@ -6,10 +6,10 @@ use std::str::FromStr;
 use crate::bn254::utils::{gen_address_seed, get_nonce, get_proof, get_salt, get_zk_login_address};
 use crate::bn254::zk_login::{
     convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
-    verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
+    verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId, ZkLoginProof,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
-use crate::bn254::zk_login_api::Bn254Fr;
+use crate::bn254::zk_login_api::{Bn254Fr, verify_zk_login_proof_with_fixed_vk};
 use crate::bn254::zk_login_api::ZkLoginEnv;
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
@@ -528,4 +528,19 @@ async fn test_end_to_end_twitch() {
         &ZkLoginEnv::Test,
     );
     assert!(res.is_ok());
+}
+
+#[test]
+fn t() {
+    let proof = ZkLoginProof::from_json("{\"a\": [\"20465439191613114188886860275617361529841196997047177146874115160434831720893\", \"17567438341999355102075161529992538172958051402283156547130170227665065310884\", \"1\"], \"b\": [[\"14687049358196897320846505499618033141762122283460865610010122725581455287548\",\"11337490804607964315492830006220896087659263698364095959917068926797338043466\"],[\"3396207312825587039892302541826946249170643376586280236830150418370843860882\",\"21267525451390323774961461081982760496280642669692580724985850536046598649305\"],[\"1\",\"0\"]], \"c\": [\"4966735714504438530219311352767847582736169980803021887993543497734848749658\", \"19764951229365762660121593381925483686104446798512538529066509244283730317187\", \"1\"]}").unwrap();
+    
+    let public_inputs = [
+        Bn254Fr::from_str("16166728313693976183437212457742719491233046399559220663281127398789707760196").unwrap()
+];
+
+    let res = verify_zk_login_proof_with_fixed_vk(&ZkLoginEnv::Prod,
+        &proof.as_arkworks().unwrap(),
+        &public_inputs
+    );
+    println!("{:?}", res);
 }
