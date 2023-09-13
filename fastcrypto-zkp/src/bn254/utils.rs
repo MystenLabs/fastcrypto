@@ -29,6 +29,9 @@ pub fn get_zk_login_address(address_seed: &str, iss: &str) -> Result<[u8; 32], F
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
     let bytes = iss.as_bytes();
+    if bytes.len() > u8::MAX as usize {
+        return Err(FastCryptoError::InvalidInput);
+    }
     hasher.update([bytes.len() as u8]);
     hasher.update(bytes);
     hasher.update(big_int_str_to_bytes(address_seed)?);
