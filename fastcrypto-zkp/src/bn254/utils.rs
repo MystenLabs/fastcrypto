@@ -42,12 +42,24 @@ pub fn gen_address_seed(
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
     let poseidon = PoseidonWrapper::new();
+    let salt_hash = poseidon.hash(vec![to_field(salt)?])?;
+    gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
+}
+
+/// Same as [`gen_address_seed`] but takes the poseidon hash of the salt as input instead of the salt.
+pub(crate) fn gen_address_seed_with_salt_hash(
+    salt_hash: &str,
+    name: &str,  // i.e. "sub"
+    value: &str, // i.e. the sub value
+    aud: &str,   // i.e. the client ID
+) -> Result<String, FastCryptoError> {
+    let poseidon = PoseidonWrapper::new();
     Ok(poseidon
         .hash(vec![
             hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
             hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
             hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
-            poseidon.hash(vec![to_field(salt)?])?,
+            to_field(salt_hash)?,
         ])?
         .to_string())
 }

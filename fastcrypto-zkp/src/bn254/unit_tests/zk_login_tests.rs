@@ -3,13 +3,18 @@
 
 use std::str::FromStr;
 
-use crate::bn254::utils::{gen_address_seed, get_nonce, get_proof, get_salt, get_zk_login_address};
+use crate::bn254::poseidon::PoseidonWrapper;
+use crate::bn254::utils::{
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_proof, get_salt,
+    get_zk_login_address,
+};
 use crate::bn254::zk_login::{
-    convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, trim,
-    verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
+    convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
+    trim, verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
-use crate::bn254::zk_login_api::{Bn254Fr, ZkLoginEnv};
+use crate::bn254::zk_login_api::ZkLoginEnv;
+use crate::bn254::zk_login_api::{verify_zk_login_id, verify_zk_login_iss, Bn254Fr};
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
@@ -538,4 +543,26 @@ async fn test_end_to_end_twitch() {
         &ZkLoginEnv::Prod,
     );
     assert!(res.is_ok());
+}
+
+#[test]
+fn test_verify_zk_login() {
+    // Test vector from [test_verify_zk_login_google]
+    let address =
+        hex::decode("1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b").unwrap();
+    let name = "sub";
+    let value = "106294049240999307923";
+    let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
+    let salt = "6588741469050502421550140105345050859";
+    let iss = "https://accounts.google.com";
+    let poseidon = PoseidonWrapper::new();
+    let salt_hash = poseidon
+        .hash(vec![to_field(salt).unwrap()])
+        .unwrap()
+        .to_string();
+
+    assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).unwrap());
+
+    let address_seed = gen_address_seed_with_salt_hash(&salt_hash, name, value, aud).unwrap();
+    assert!(verify_zk_login_iss(&address, &address_seed, iss).unwrap());
 }

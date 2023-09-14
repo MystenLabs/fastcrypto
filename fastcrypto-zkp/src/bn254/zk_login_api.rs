@@ -6,13 +6,14 @@ use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
 use super::verifier::process_vk_special;
 use super::zk_login::{JwkId, ZkLoginInputs, JWK};
+use crate::bn254::utils::{gen_address_seed_with_salt_hash, get_zk_login_address};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
 use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use im::hashmap::HashMap as ImHashMap;
 use once_cell::sync::Lazy;
 
@@ -168,4 +169,28 @@ fn verify_zk_login_proof_with_fixed_vk(
 ) -> Result<bool, FastCryptoError> {
     Groth16::<Bn254>::verify_with_processed_vk(&GLOBAL_VERIFYING_KEY, public_inputs, proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+}
+
+/// Verify that the given parameters (name, value, aud, iss and salt_hash) were used to generate the
+/// given address.
+pub fn verify_zk_login_id(
+    address: &[u8],
+    name: &str,
+    value: &str,
+    aud: &str,
+    iss: &str,
+    salt_hash: &str,
+) -> FastCryptoResult<bool> {
+    let address_seed = gen_address_seed_with_salt_hash(salt_hash, name, value, aud)?;
+    verify_zk_login_iss(address, &address_seed, iss)
+}
+
+/// Verify that the given parameters (address_seed and iss) were used to generate the given address.
+pub fn verify_zk_login_iss(
+    address: &[u8],
+    address_seed: &str,
+    iss: &str,
+) -> FastCryptoResult<bool> {
+    let reconstructed_address = get_zk_login_address(address_seed, iss)?;
+    Ok(reconstructed_address == address)
 }
