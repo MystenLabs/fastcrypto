@@ -9,8 +9,7 @@ use crate::bn254::zk_login::{
     verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
-use crate::bn254::zk_login_api::Bn254Fr;
-use crate::bn254::zk_login_api::ZkLoginEnv;
+use crate::bn254::zk_login_api::{Bn254Fr, ZkLoginEnv};
 use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
@@ -85,28 +84,43 @@ const BAD_JWK_BYTES: &[u8] = r#"{
 
 #[tokio::test]
 async fn test_verify_zk_login_google() {
-    let user_salt = "6588741469050502421550140105345050859";
+    let user_salt = "206703048842351542647799591018316385612";
 
     // Generate an ephermeral key pair.
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
+    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
 
     // Get the address seed.
     let address_seed = gen_address_seed(
         user_salt,
         "sub",
         "106294049240999307923",
-        "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com",
+        "25769832374-famecqrhe2gkebt5fvqms2263046lj96.apps.googleusercontent.com",
     )
     .unwrap();
 
-    // Get a proof from endpoint and serialize it.
-    let zk_login_inputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"2856853953075769800124894014261522454473628840903733396791436551678646353442\",\"4348380563251612781076847536132734724007250850537898584606264407881192024038\",\"1\"],\"b\":[[\"7104233243273112157690495334540581786527679292989961607293820809756711817804\",\"7316749226455433333548431623049338347566433057852078652116817664859892729141\"],[\"7958969331644439362228660274459003086243454411183553950363953885927343087881\",\"9141838677170549853312103207759293328734516367022724639309880085475013934164\"],[\"1\",\"0\"]],\"c\":[\"1072805970412254746706019205992636576449727696915026862715527704402621159155\",\"20831495984663317011121876045853230024971218945035273863127537706741828164445\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjgzOGMwNmM2MjA0NmMyZDk0OGFmZmUxMzdkZDUzMTAxMjlmNGQ1ZDEiLCJ0eXAiOiJKV1QifQ\"}", &address_seed).unwrap();
+    let parsed_token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjMGI2OTEzZmUxMzgyMGEzMzMzOTlhY2U0MjZlNzA1MzVhOWEwYmYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIyNTc2OTgzMjM3NC1mYW1lY3FyaGUyZ2tlYnQ1ZnZxbXMyMjYzMDQ2bGo5Ni5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsImF1ZCI6IjI1NzY5ODMyMzc0LWZhbWVjcXJoZTJna2VidDVmdnFtczIyNjMwNDZsajk2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTA2Mjk0MDQ5MjQwOTk5MzA3OTIzIiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJuYmYiOjE2OTUwNTUyMjQsImlhdCI6MTY5NTA1NTUyNCwiZXhwIjoxNjk1MDU5MTI0LCJqdGkiOiJjYjVjYTRkYmI2M2MzOTNkOGE3Mjc3ZDQ2YzFhODg1NTY4NmViMGE2In0.LAhVUmNeH9JuD85f_5wy5t1p5hAKIC0n-zW4Bn4oMuzdwIckcZ0F2iuXKqf00JWX5SQFdUEXaSKK38dnhAwYbUUkl4o5_06PmQY4PnMfOh9bcBzybXfo_jBuL0LCi-9CJG_hU-tTQLqjUk9yUui_xOOeCHU0hH1DSKdm64c1oaAAmuHuu67-btc1ECtaqCF_-_IL_uNIhnzlc0XI3h0aMgind-duAUAaIeMBvSXrseOQ1g-kOufXP-0VW5Fvx8vha1xv0OHowLhr0V7eYG-5-3kbiQskE6h8J7mnN5FLHD6_uafb5FqJQnHaHCvqi_Nixypc9hDEqudSlhzW1h2afw";
 
+    let max_epoch = 10;
+    let jwt_randomness = "100681567828351849884072155819400689117";
+
+    // Get a proof from endpoint and serialize it.
+    let reader = get_proof(
+        parsed_token,
+        max_epoch,
+        jwt_randomness,
+        &kp_bigint,
+        user_salt,
+    )
+    .await
+    .unwrap();
+    // Get a proof from endpoint and serialize it.
+    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     assert_eq!(
         zk_login_inputs.get_kid(),
-        "838c06c62046c2d948affe137dd5310129f4d5d1".to_string()
+        "7c0b6913fe13820a333399ace426e70535a9a0bf".to_string()
     );
     assert_eq!(
         zk_login_inputs.get_iss(),
@@ -120,30 +134,26 @@ async fn test_verify_zk_login_google() {
         )
         .unwrap()
         .to_vec(),
-        Hex::decode("0x1c6b623a2f2c91333df730c98d220f11484953b391a3818680f922c264cc0c6b").unwrap()
+        Hex::decode("0xa64ae946d5efd2dea396cb2fe81837f028c32f2b2f211176b65a3a152deb35a2").unwrap()
     );
 
     let mut map = ImHashMap::new();
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
-        n: "hsYvCPtkUV7SIxwkOkJsJfhwV_CMdXU5i0UmY2QEs-Pa7v0-0y-s4EjEDtsQ8Yow6hc670JhkGBcMzhU4DtrqNGROXebyOse5FX0m0UvWo1qXqNTf28uBKB990mY42Icr8sGjtOw8ajyT9kufbmXi3eZKagKpG0TDGK90oBEfoGzCxoFT87F95liNth_GoyU5S8-G3OqIqLlQCwxkI5s-g2qvg_aooALfh1rhvx2wt4EJVMSrdnxtPQSPAtZBiw5SwCnVglc6OnalVNvAB2JArbqC9GAzzz9pApAk28SYg5a4hPiPyqwRv-4X1CXEK8bO5VesIeRX0oDf7UoM-pVAw".to_string(),
+        n: "lWXY0XOj_ikSIDIvGOhfuRhQJAAj6BWsbbZ6P-PXRclzV32-QLB4GZHPPcH37Lou5pQsTQPvTETAfCLnglIRSbP8x1zA5tUakRlm5RiGF4kcWh5k60x8u0Uslx-d6EueKuY-KLHUVDuMULlHkYAScIdYnXz-Cnr6PFZj8RQezzdPVPH53Q8a_Z9b-vpGzsMS5gszITb-72OQNokojXdPVctl5WzSx-JnWbJxPiwHx_dSWgmTnyiYrZLqrqfampGdroaamtIXy0W8CAe0uCqcD1LunpfX-Q-RD1IycxnEaXSuUKhNhCcxtHWrozEyeD23Zja2WlcvHdYuTzyrvrvS9Q".to_string(),
         alg: "RS256".to_string(),
     };
 
     map.insert(
         JwkId::new(
             OIDCProvider::Google.get_config().iss,
-            "838c06c62046c2d948affe137dd5310129f4d5d1".to_string(),
+            "7c0b6913fe13820a333399ace426e70535a9a0bf".to_string(),
         ),
         content,
     );
-    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Test);
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res.is_ok());
-
-    // Do not verify against the prod vk.
-    let res1 = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
-    assert!(res1.is_err());
 }
 
 #[test]
@@ -519,13 +529,13 @@ async fn test_end_to_end_twitch() {
         },
     );
 
-    // Verify it against test vk.
+    // Verify it against final vk.
     let res = verify_zk_login(
         &zk_login_inputs,
         max_epoch,
         &eph_pubkey,
         &map,
-        &ZkLoginEnv::Test,
+        &ZkLoginEnv::Prod,
     );
     assert!(res.is_ok());
 }
