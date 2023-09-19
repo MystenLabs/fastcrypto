@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::error::FastCryptoResult;
+use fastcrypto::{error::FastCryptoResult, hash::Digest};
 use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
@@ -224,7 +224,7 @@ pub fn parse_jwks(
 }
 
 /// A claim consists of value and index_mod_4.
-#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
+#[derive(Hash, Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Claim {
     value: String,
@@ -257,7 +257,7 @@ impl JWTHeader {
 }
 
 /// A structed of parsed JWT details, consists of kid, header, iss.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
+#[derive(Hash, Default, Debug, Clone, PartialEq, Eq)]
 pub struct JWTDetails {
     kid: String,
     header: String,
@@ -278,7 +278,7 @@ impl JWTDetails {
 }
 
 /// All inputs required for the zk login proof verification and other public inputs.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Hash, Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 
 pub struct ZkLoginInputs {
@@ -387,7 +387,7 @@ impl ZkLoginInputs {
     }
 }
 /// The struct for zk login proof.
-#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[derive(Hash, Debug, Clone, JsonSchema, Serialize, Deserialize)]
 pub struct ZkLoginProof {
     a: CircomG1,
     b: CircomG2,
