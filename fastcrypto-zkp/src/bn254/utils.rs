@@ -18,7 +18,7 @@ use super::zk_login::{hash_ascii_str_to_field, to_field};
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const SALT_SERVER_URL: &str = "http://salt.api-devnet.mystenlabs.com/get_salt";
-const PROVER_SERVER_URL: &str = "http://185.209.177.123:7000/zkp";
+const PROVER_SERVER_URL: &str = "http://prover.mystenlabs.com:8080/v1";
 const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
 const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
 const MAX_AUD_VALUE_LENGTH: u8 = 145;
