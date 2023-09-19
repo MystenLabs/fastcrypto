@@ -560,34 +560,44 @@ fn test_verify_zk_login() {
         .hash(vec![to_field(salt).unwrap()])
         .unwrap()
         .to_string();
-    assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).unwrap());
+    assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
 
     let address_seed = gen_address_seed_with_salt_hash(&salt_hash, name, value, aud).unwrap();
-    assert!(verify_zk_login_iss(&address, &address_seed, iss).unwrap());
+    assert!(verify_zk_login_iss(&address, &address_seed, iss).is_ok());
 
     let other_iss = "https://some.other.issuer.com";
-    assert!(!verify_zk_login_id(&address, name, value, aud, other_iss, &salt_hash).unwrap());
-    assert!(!verify_zk_login_iss(&address, &address_seed, other_iss).unwrap());
+    assert_eq!(
+        verify_zk_login_id(&address, name, value, aud, other_iss, &salt_hash),
+        Err(FastCryptoError::InvalidProof)
+    );
+    assert_eq!(
+        verify_zk_login_iss(&address, &address_seed, other_iss),
+        Err(FastCryptoError::InvalidProof)
+    );
 
     let too_long_kc_name = "subsubsubsubsubsubsubsubsubsubsubsub";
-    assert!(verify_zk_login_id(
-        &address,
-        too_long_kc_name,
-        value,
-        aud,
-        other_iss,
-        &salt_hash
-    )
-    .is_err());
+    assert_eq!(
+        verify_zk_login_id(
+            &address,
+            too_long_kc_name,
+            value,
+            aud,
+            other_iss,
+            &salt_hash
+        ),
+        Err(FastCryptoError::GeneralError("in_arr too long".to_string()))
+    );
 
     let too_long_kc_value = "106294049240999307923106294049240999307923106294049240999307923106294049240999307923106294049240999307923106294049240999307923";
-    assert!(verify_zk_login_id(
-        &address,
-        name,
-        too_long_kc_value,
-        aud,
-        other_iss,
-        &salt_hash
-    )
-    .is_err());
+    assert_eq!(
+        verify_zk_login_id(
+            &address,
+            name,
+            too_long_kc_value,
+            aud,
+            other_iss,
+            &salt_hash
+        ),
+        Err(FastCryptoError::GeneralError("in_arr too long".to_string()))
+    );
 }

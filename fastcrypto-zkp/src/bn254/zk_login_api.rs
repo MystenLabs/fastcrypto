@@ -180,17 +180,16 @@ pub fn verify_zk_login_id(
     aud: &str,
     iss: &str,
     salt_hash: &str,
-) -> FastCryptoResult<bool> {
+) -> FastCryptoResult<()> {
     let address_seed = gen_address_seed_with_salt_hash(salt_hash, name, value, aud)?;
     verify_zk_login_iss(address, &address_seed, iss)
 }
 
 /// Verify that the given parameters (address_seed and iss) were used to generate the given address.
-pub fn verify_zk_login_iss(
-    address: &[u8],
-    address_seed: &str,
-    iss: &str,
-) -> FastCryptoResult<bool> {
+pub fn verify_zk_login_iss(address: &[u8], address_seed: &str, iss: &str) -> FastCryptoResult<()> {
     let reconstructed_address = get_zk_login_address(address_seed, iss)?;
-    Ok(reconstructed_address == address)
+    match reconstructed_address == address {
+        true => Ok(()),
+        false => Err(FastCryptoError::InvalidProof),
+    }
 }
