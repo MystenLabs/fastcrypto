@@ -41,6 +41,11 @@ name = "nidkg"
 harness = false
 required-features = ["experimental"]
 
+[[bench]]
+name = "tbls"
+harness = false
+required-features = ["experimental"]
+
 [features]
 default = []
 experimental = []
