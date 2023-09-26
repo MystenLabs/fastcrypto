@@ -7,7 +7,7 @@
 
 use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::{GroupElement, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
@@ -170,5 +170,56 @@ impl<C: Scalar> Poly<C> {
             .collect::<Vec<P>>();
 
         Poly::<P>::from(commits)
+    }
+}
+
+impl<C: GroupElement + MultiScalarMul> Poly<C> {
+    /// Given at least `t` polynomial evaluations, it will recover the polynomial's
+    /// constant term
+    pub fn recover_c0_msm(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
+        if shares.len() < t.try_into().unwrap() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Check for duplicates.
+        let mut ids_set = HashSet::new();
+        shares.iter().map(|s| &s.index).for_each(|id| {
+            ids_set.insert(id);
+        });
+        if ids_set.len() != t as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Iterate over all indices and for each multiply the lagrange basis
+        // with the value of the share.
+        let mut coeffs = Vec::new();
+        let mut plain_shares = Vec::new();
+        for IndexedValue {
+            index: i,
+            value: share_i,
+        } in shares
+        {
+            let mut num = C::ScalarType::generator();
+            let mut den = C::ScalarType::generator();
+
+            for IndexedValue { index: j, value: _ } in shares {
+                if i == j {
+                    continue;
+                };
+                // j - 0
+                num = num * C::ScalarType::from(j.get() as u64); //opt
+
+                // 1 / (j - i)
+                den = den
+                    * (C::ScalarType::from(j.get() as u64) - C::ScalarType::from(i.get() as u64));
+                //opt
+            }
+            // Next line is safe since i != j.
+            let inv = (C::ScalarType::generator() / den).unwrap();
+            coeffs.push(num * inv);
+            plain_shares.push(*share_i);
+        }
+        let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
+        Ok(res)
     }
 }
