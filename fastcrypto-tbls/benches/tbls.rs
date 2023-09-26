@@ -22,10 +22,7 @@ mod tbls_benches {
             for w in WEIGHTS {
                 let shares = (1..=w)
                     .into_iter()
-                    .map(|i| {
-                        let share = private_poly.eval(NonZeroU32::new(i as u32).unwrap());
-                        share
-                    })
+                    .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
                     .collect::<Vec<_>>();
 
                 create.bench_function(format!("w={}", w).as_str(), |b| {
@@ -41,10 +38,7 @@ mod tbls_benches {
                 let private_poly = Poly::<bls12381::Scalar>::rand(w as u32, &mut thread_rng());
                 let shares = (1..=w)
                     .into_iter()
-                    .map(|i| {
-                        let share = private_poly.eval(NonZeroU32::new(i as u32).unwrap());
-                        share
-                    })
+                    .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
                     .collect::<Vec<_>>();
 
                 let sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
