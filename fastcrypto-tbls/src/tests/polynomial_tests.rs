@@ -79,3 +79,5 @@ fn interpolation_insufficient_shares() {
 
     Poly::<RistrettoScalar>::recover_c0(threshold, &shares).unwrap_err();
 }
+
+// TODO: test recover_msm
