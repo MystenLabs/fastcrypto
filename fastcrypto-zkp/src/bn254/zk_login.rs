@@ -97,6 +97,16 @@ impl FromStr for OIDCProvider {
     }
 }
 
+impl ToString for OIDCProvider {
+    fn to_string(&self) -> String {
+        match self {
+            Self::Google => "Google".to_string(),
+            Self::Twitch => "Twitch".to_string(),
+            Self::Facebook => "Facebook".to_string(),
+        }
+    }
+}
+
 impl OIDCProvider {
     /// Returns the provider config consisting of iss and jwk endpoint.
     pub fn get_config(&self) -> ProviderConfig {
