@@ -95,7 +95,6 @@ async fn test_verify_zk_login_google() {
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
-    let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
 
     // Get the address seed.
     let address_seed = gen_address_seed(
@@ -106,26 +105,11 @@ async fn test_verify_zk_login_google() {
     )
     .unwrap();
 
-    let parsed_token = "eyJhbGciOiJSUzI1NiIsImtpZCI6IjdjMGI2OTEzZmUxMzgyMGEzMzMzOTlhY2U0MjZlNzA1MzVhOWEwYmYiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiIyNTc2OTgzMjM3NC1mYW1lY3FyaGUyZ2tlYnQ1ZnZxbXMyMjYzMDQ2bGo5Ni5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsImF1ZCI6IjI1NzY5ODMyMzc0LWZhbWVjcXJoZTJna2VidDVmdnFtczIyNjMwNDZsajk2LmFwcHMuZ29vZ2xldXNlcmNvbnRlbnQuY29tIiwic3ViIjoiMTA2Mjk0MDQ5MjQwOTk5MzA3OTIzIiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJuYmYiOjE2OTUwNTUyMjQsImlhdCI6MTY5NTA1NTUyNCwiZXhwIjoxNjk1MDU5MTI0LCJqdGkiOiJjYjVjYTRkYmI2M2MzOTNkOGE3Mjc3ZDQ2YzFhODg1NTY4NmViMGE2In0.LAhVUmNeH9JuD85f_5wy5t1p5hAKIC0n-zW4Bn4oMuzdwIckcZ0F2iuXKqf00JWX5SQFdUEXaSKK38dnhAwYbUUkl4o5_06PmQY4PnMfOh9bcBzybXfo_jBuL0LCi-9CJG_hU-tTQLqjUk9yUui_xOOeCHU0hH1DSKdm64c1oaAAmuHuu67-btc1ECtaqCF_-_IL_uNIhnzlc0XI3h0aMgind-duAUAaIeMBvSXrseOQ1g-kOufXP-0VW5Fvx8vha1xv0OHowLhr0V7eYG-5-3kbiQskE6h8J7mnN5FLHD6_uafb5FqJQnHaHCvqi_Nixypc9hDEqudSlhzW1h2afw";
-
-    let max_epoch = 10;
-    let jwt_randomness = "100681567828351849884072155819400689117";
-
     // Get a proof from endpoint and serialize it.
-    let reader = get_proof(
-        parsed_token,
-        max_epoch,
-        jwt_randomness,
-        &kp_bigint,
-        user_salt,
-    )
-    .await
-    .unwrap();
-    // Get a proof from endpoint and serialize it.
-    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"8247215875293406890829839156897863742504615191361518281091302475904551111016\",\"6872980335748205979379321982220498484242209225765686471076081944034292159666\",\"1\"],\"b\":[[\"21419680064642047510915171723230639588631899775315750803416713283740137406807\",\"21566716915562037737681888858382287035712341650647439119820808127161946325890\"],[\"17867714710686394159919998503724240212517838710399045289784307078087926404555\",\"21812769875502013113255155836896615164559280911997219958031852239645061854221\"],[\"1\",\"0\"]],\"c\":[\"7530826803702928198368421787278524256623871560746240215547076095911132653214\",\"16244547936249959771862454850485726883972969173921727256151991751860694123976\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjZmNzI1NDEwMWY1NmU0MWNmMzVjOTkyNmRlODRhMmQ1NTJiNGM2ZjEiLCJ0eXAiOiJKV1QifQ\"}", &address_seed).unwrap();
     assert_eq!(
         zk_login_inputs.get_kid(),
-        "7c0b6913fe13820a333399ace426e70535a9a0bf".to_string()
+        "6f7254101f56e41cf35c9926de84a2d552b4c6f1".to_string()
     );
     assert_eq!(
         zk_login_inputs.get_iss(),
@@ -146,14 +130,14 @@ async fn test_verify_zk_login_google() {
     let content = JWK {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
-        n: "lWXY0XOj_ikSIDIvGOhfuRhQJAAj6BWsbbZ6P-PXRclzV32-QLB4GZHPPcH37Lou5pQsTQPvTETAfCLnglIRSbP8x1zA5tUakRlm5RiGF4kcWh5k60x8u0Uslx-d6EueKuY-KLHUVDuMULlHkYAScIdYnXz-Cnr6PFZj8RQezzdPVPH53Q8a_Z9b-vpGzsMS5gszITb-72OQNokojXdPVctl5WzSx-JnWbJxPiwHx_dSWgmTnyiYrZLqrqfampGdroaamtIXy0W8CAe0uCqcD1LunpfX-Q-RD1IycxnEaXSuUKhNhCcxtHWrozEyeD23Zja2WlcvHdYuTzyrvrvS9Q".to_string(),
+        n: "oUriU8GqbRw-avcMn95DGW1cpZR1IoM6L7krfrWvLSSCcSX6Ig117o25Yk7QWBiJpaPV0FbP7Y5-DmThZ3SaF0AXW-3BsKPEXfFfeKVc6vBqk3t5mKlNEowjdvNTSzoOXO5UIHwsXaxiJlbMRalaFEUm-2CKgmXl1ss_yGh1OHkfnBiGsfQUndKoHiZuDzBMGw8Sf67am_Ok-4FShK0NuR3-q33aB_3Z7obC71dejSLWFOEcKUVCaw6DGVuLog3x506h1QQ1r0FXKOQxnmqrRgpoHqGSouuG35oZve1vgCU4vLZ6EAgBAbC0KL35I7_0wUDSMpiAvf7iZxzJVbspkQ".to_string(),
         alg: "RS256".to_string(),
     };
 
     map.insert(
         JwkId::new(
             OIDCProvider::Google.get_config().iss,
-            "7c0b6913fe13820a333399ace426e70535a9a0bf".to_string(),
+            "6f7254101f56e41cf35c9926de84a2d552b4c6f1".to_string(),
         ),
         content,
     );
