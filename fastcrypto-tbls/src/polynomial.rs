@@ -94,7 +94,7 @@ impl<C: GroupElement> Poly<C> {
         shares.iter().map(|s| &s.index).for_each(|id| {
             ids_set.insert(id);
         });
-        if ids_set.len() != t as usize {
+        if ids_set.len() != shares.len() {
             return Err(FastCryptoError::InvalidInput);
         }
 

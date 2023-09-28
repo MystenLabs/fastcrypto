@@ -7,6 +7,7 @@
 
 use crate::polynomial::*;
 use crate::types::ShareIndex;
+use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::*;
 use rand::prelude::*;
@@ -80,4 +81,15 @@ fn interpolation_insufficient_shares() {
     Poly::<RistrettoScalar>::recover_c0(threshold, &shares).unwrap_err();
 }
 
-// TODO: test recover_msm
+#[test]
+fn eval_regression_msm() {
+    let one = G1Element::generator();
+    let coeff = vec![one, one, one];
+    let p = Poly::<G1Element>::from(coeff);
+    assert_eq!(p.degree(), 2);
+    let s1 = p.eval(NonZeroU32::new(10).unwrap());
+    let s2 = p.eval(NonZeroU32::new(20).unwrap());
+    let s3 = p.eval(NonZeroU32::new(30).unwrap());
+    let shares = vec![s1, s2, s3];
+    assert_eq!(Poly::<G1Element>::recover_c0_msm(3, &shares).unwrap(), one);
+}
