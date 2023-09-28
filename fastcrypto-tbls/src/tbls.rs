@@ -83,6 +83,7 @@ pub trait ThresholdBls {
             .iter()
             .map(|e| Self::Private::from(e.index.get().into()))
             .collect::<Vec<_>>();
+        // TODO: should we cache it instead?
         let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree());
         let pk = Self::Public::multi_scalar_mul(&coeffs, vss_pk.as_vec()).expect("sizes match");
         let aggregated_sig = Self::Signature::multi_scalar_mul(
@@ -101,6 +102,6 @@ pub trait ThresholdBls {
     ) -> Result<Self::Signature, FastCryptoError> {
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
-        Poly::<Self::Signature>::recover_c0(threshold, partials)
+        Poly::<Self::Signature>::recover_c0_msm(threshold, partials)
     }
 }

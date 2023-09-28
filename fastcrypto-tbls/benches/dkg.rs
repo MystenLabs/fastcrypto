@@ -51,39 +51,51 @@ mod dkg_benches {
     use super::*;
 
     fn dkg(c: &mut Criterion) {
-        const SIZES: [u16; 1] = [100];
-        const WEIGHTS: [u16; 3] = [10, 20, 33];
+        const SIZES: [u16; 2] = [100, 200];
+        const TOTAL_WEIGHTS: [u16; 3] = [2000, 3000, 5000];
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("DKG create");
-            for (n, w) in iproduct!(SIZES.iter(), WEIGHTS.iter()) {
-                let t = (n * w / 2) as u32;
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let t = (total_w / 3) as u32;
                 let keys = gen_ecies_keys(*n);
-                let d0 = setup_party(0, t, *w, &keys);
+                let d0 = setup_party(0, t, w, &keys);
 
-                create.bench_function(format!("n={}, w={}, t={}", n, w, t).as_str(), |b| {
-                    b.iter(|| d0.create_message(&mut thread_rng()))
-                });
+                create.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| b.iter(|| d0.create_message(&mut thread_rng())),
+                );
+
+                let message = d0.create_message(&mut thread_rng());
+                println!(
+                    "Message size for n={}, t={}: {}",
+                    n,
+                    t,
+                    bcs::to_bytes(&message).unwrap().len(),
+                );
             }
         }
 
         {
             let mut verify: BenchmarkGroup<_> = c.benchmark_group("DKG message processing");
-            for (n, w) in iproduct!(SIZES.iter(), WEIGHTS.iter()) {
-                let t = (n * w / 2) as u32;
+            for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
+                let w = total_w / n;
+                let t = (total_w / 3) as u32;
                 let keys = gen_ecies_keys(*n);
-                let d0 = setup_party(0, t, *w, &keys);
-                let d1 = setup_party(1, t, *w, &keys);
+                let d0 = setup_party(0, t, w, &keys);
+                let d1 = setup_party(1, t, w, &keys);
                 let message = d0.create_message(&mut thread_rng());
 
-                println!("Message size: {}", bcs::to_bytes(&message).unwrap().len());
-
-                verify.bench_function(format!("n={}, w={}, t={}", n, w, t).as_str(), |b| {
-                    b.iter(|| {
-                        d1.process_message(message.clone(), &mut thread_rng())
-                            .unwrap()
-                    })
-                });
+                verify.bench_function(
+                    format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),
+                    |b| {
+                        b.iter(|| {
+                            d1.process_message(message.clone(), &mut thread_rng())
+                                .unwrap()
+                        })
+                    },
+                );
             }
         }
     }
