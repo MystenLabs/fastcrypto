@@ -109,12 +109,13 @@ impl<C: GroupElement> Poly<C> {
         let mut coeffs = Vec::new();
 
         // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[n - 1 - i]
-        let mut deltas: Vec<Vec<<C as GroupElement>::ScalarType>> = Vec::new();
+        let n = indices.len();
+        let mut deltas: Vec<Vec<<C as GroupElement>::ScalarType>> = vec![Vec::new(); n];
         for (i_idx, i) in indices.iter().enumerate() {
             // Compute product with cached deltas
             let mut denominator = (0..i_idx)
-                .map(|j_idx| {
-                    deltas[j_idx]
+                .map(|k| {
+                    deltas[k]
                         .pop()
                         .expect("deltas[k] is popped k-1 times and contains exactly k-1 elements")
                 })
@@ -126,13 +127,11 @@ impl<C: GroupElement> Poly<C> {
             }
 
             // Compute remaining deltas
-            let mut new_deltas = Vec::new();
             for j in indices[i_idx + 1..].iter().rev() {
                 let delta = *j - i;
                 denominator = denominator * delta;
-                new_deltas.push(delta);
+                deltas[i_idx].push(delta);
             }
-            deltas.push(new_deltas);
 
             let coeff = full_numerator / denominator;
             coeffs.push(coeff.expect("safe since i != j"));
