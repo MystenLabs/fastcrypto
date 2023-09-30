@@ -108,7 +108,7 @@ impl<C: GroupElement> Poly<C> {
             .fold(C::ScalarType::generator(), |acc, i| acc * i);
         let mut coeffs = Vec::new();
 
-        // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[i + j]
+        // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[n - 1 - i]
         let mut deltas: Vec<Vec<<C as GroupElement>::ScalarType>> = Vec::new();
         for (i_idx, i) in indices.iter().enumerate() {
             // Compute product with cached deltas
