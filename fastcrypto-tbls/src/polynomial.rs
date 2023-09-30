@@ -108,22 +108,22 @@ impl<C: GroupElement> Poly<C> {
             .fold(C::ScalarType::generator(), |acc, i| acc * i);
         let mut coeffs = Vec::new();
 
-        // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[i].
+        // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[i + j]
         let mut deltas: Vec<Vec<<C as GroupElement>::ScalarType>> = Vec::new();
-        for (index, i) in indices.iter().enumerate() {
+        for (i_idx, i) in indices.iter().enumerate() {
             // Compute product with cached deltas
-            let mut denominator = (0..index)
-                .map(|j| deltas[j].pop().unwrap())
+            let mut denominator = (0..i_idx)
+                .map(|j_idx| deltas[j_idx][i_idx - j_idx - 1])
                 .fold(*i, |acc, j| acc * j);
 
             // Adjust sign since the cached values are negations of the factors we need.
-            if index % 2 == 1 {
+            if i_idx % 2 == 1 {
                 denominator = -denominator;
             }
 
             // Compute remaining deltas
             let mut new_deltas = Vec::new();
-            for j in indices[index + 1..].iter().rev() {
+            for j in &indices[i_idx + 1..] {
                 let delta = *j - i;
                 denominator = denominator * delta;
                 new_deltas.push(delta);
