@@ -119,7 +119,7 @@ impl<C: GroupElement> Poly<C> {
                         .pop()
                         .expect("deltas[k] is popped k-1 times and contains exactly k-1 elements")
                 })
-                .fold(*i, |acc, j| acc * j);
+                .fold(*i, |acc, delta| acc * delta);
 
             // Adjust sign since the cached values are negations of the factors we need.
             if i_idx % 2 == 1 {
