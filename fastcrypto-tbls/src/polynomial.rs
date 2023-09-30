@@ -107,11 +107,29 @@ impl<C: GroupElement> Poly<C> {
             .iter()
             .fold(C::ScalarType::generator(), |acc, i| acc * i);
         let mut coeffs = Vec::new();
-        for i in &indices {
-            let denominator = indices
-                .iter()
-                .filter(|j| *j != i)
-                .fold(*i, |acc, j| acc * (*j - i));
+
+        // Keep track of differences that are already computed: deltas[i][j] = indices[j] - indices[i].
+        let mut deltas: Vec<Vec<<C as GroupElement>::ScalarType>> = Vec::new();
+        for (index, i) in indices.iter().enumerate() {
+            // Compute product with cached deltas
+            let mut denominator = (0..index)
+                .map(|j| deltas[j].pop().unwrap())
+                .fold(*i, |acc, j| acc * j);
+
+            // Adjust sign since the cached values are negations of the factors we need.
+            if index % 2 == 1 {
+                denominator = -denominator;
+            }
+
+            // Compute remaining deltas
+            let mut new_deltas = Vec::new();
+            for j in indices[index + 1..].iter().rev() {
+                let delta = *j - i;
+                denominator = denominator * delta;
+                new_deltas.push(delta);
+            }
+            deltas.push(new_deltas);
+
             let coeff = full_numerator / denominator;
             coeffs.push(coeff.expect("safe since i != j"));
         }
