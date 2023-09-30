@@ -113,7 +113,11 @@ impl<C: GroupElement> Poly<C> {
         for (i_idx, i) in indices.iter().enumerate() {
             // Compute product with cached deltas
             let mut denominator = (0..i_idx)
-                .map(|j_idx| deltas[j_idx][i_idx - j_idx - 1])
+                .map(|j_idx| {
+                    deltas[j_idx]
+                        .pop()
+                        .expect("deltas[k] is popped k-1 times and contains exactly k-1 elements")
+                })
                 .fold(*i, |acc, j| acc * j);
 
             // Adjust sign since the cached values are negations of the factors we need.
@@ -123,7 +127,7 @@ impl<C: GroupElement> Poly<C> {
 
             // Compute remaining deltas
             let mut new_deltas = Vec::new();
-            for j in &indices[i_idx + 1..] {
+            for j in indices[i_idx + 1..].iter().rev() {
                 let delta = *j - i;
                 denominator = denominator * delta;
                 new_deltas.push(delta);
