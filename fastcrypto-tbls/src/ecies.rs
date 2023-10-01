@@ -190,11 +190,14 @@ where
 
     pub fn get_encryption(&self, i: usize) -> FastCryptoResult<Encryption<G>> {
         let buffer = self.1.get(i).ok_or(FastCryptoError::InvalidInput)?;
-        Ok(Encryption(self.0.clone(), buffer.clone()))
+        Ok(Encryption(self.0, buffer.clone()))
     }
 
     pub fn len(&self) -> usize {
         self.1.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.1.is_empty()
     }
 
     pub fn verify_knowledge(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {

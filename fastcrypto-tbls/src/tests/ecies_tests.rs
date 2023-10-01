@@ -66,9 +66,8 @@ fn test_multi_rec() {
 
     assert!(mr_enc.verify_knowledge(&ro).is_ok());
 
-    for i in 0..10 {
+    for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
         let enc = mr_enc.get_encryption(i).unwrap();
-        let (sk, _, msg) = &keys_and_msg[i];
         let decrypted = sk.decrypt(&enc);
         assert_eq!(msg.as_bytes(), &decrypted);
     }

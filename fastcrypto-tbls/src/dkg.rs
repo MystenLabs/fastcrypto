@@ -146,9 +146,7 @@ where
             .collect();
         let encrypted_shares = MultiRecipientEncryption::encrypt(
             &pk_and_shares,
-            &self
-                .random_oracle
-                .extend(&format!("encs {}", self.id).to_string()),
+            &self.random_oracle.extend(&format!("encs {}", self.id)),
             rng,
         );
 
@@ -167,11 +165,8 @@ where
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
             return Err(FastCryptoError::InvalidInput);
         }
-        msg.encrypted_shares.verify_knowledge(
-            &self
-                .random_oracle
-                .extend(&format!("encs {}", msg.sender).to_string()),
-        )?;
+        msg.encrypted_shares
+            .verify_knowledge(&self.random_oracle.extend(&format!("encs {}", msg.sender)))?;
         Ok(())
     }
 
@@ -202,7 +197,7 @@ where
                     encrypted_shares,
                     &self
                         .random_oracle
-                        .extend(&format!("recovery {} {}", self.id, message.sender).to_string()),
+                        .extend(&format!("recovery {} {}", self.id, message.sender)),
                     rng,
                 ),
             };
@@ -230,7 +225,7 @@ where
                     encrypted_shares,
                     &self
                         .random_oracle
-                        .extend(&format!("recovery {} {}", self.id, message.sender).to_string()),
+                        .extend(&format!("recovery {} {}", self.id, message.sender)),
                     rng,
                 ),
             };
@@ -362,7 +357,7 @@ where
                         encrypted_shares,
                         &self
                             .random_oracle
-                            .extend(&format!("recovery {} {}", accuser, accused).to_string()),
+                            .extend(&format!("recovery {} {}", accuser, accused)),
                         rng,
                     )
                     .is_err()
