@@ -3,7 +3,7 @@
 
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
@@ -30,6 +30,9 @@ pub struct PublicKey<G: GroupElement>(G);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption<G: GroupElement>(G, Vec<u8>);
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>);
 
 /// A recovery package that allows decrypting a *specific* ECIES Encryption.
 /// It also includes a NIZK proof of correctness.
@@ -92,7 +95,7 @@ where
         Encryption::<G>::encrypt(&self.0, msg, rng)
     }
 
-    pub fn deterministic_encrypt(&self, msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
+    pub fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
         Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g)
     }
 
@@ -166,6 +169,38 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     fn fixed_zero_nonce() -> InitializationVector<U16> {
         InitializationVector::<U16>::from_bytes(&[0u8; 16])
             .expect("U16 could always be set from a 16 bytes array of zeros")
+    }
+}
+
+impl<G: GroupElement + Serialize> MultiRecipientEncryption<G> {
+    pub fn encrypt<R: AllowedRng>(
+        inputs: &[(PublicKey<G>, Vec<u8>)],
+        rng: &mut R,
+    ) -> MultiRecipientEncryption<G> {
+        let r = G::ScalarType::rand(rng);
+        let r_g = G::generator() * r;
+        let encs = inputs
+            .iter()
+            .map(|(pk, msg)| {
+                let r_x_g = pk.0 * r;
+                Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g).1
+            })
+            .collect::<Vec<_>>();
+        Self(r_g, encs)
+    }
+
+    pub fn get_encryption(&self, i: usize) -> FastCryptoResult<Encryption<G>> {
+        let buffer = self.1.get(i).ok_or(FastCryptoError::InvalidInput)?;
+        Ok(Encryption(self.0.clone(), buffer.clone()))
+    }
+
+    pub fn len(&self) -> usize {
+        self.1.len()
+    }
+
+    #[cfg(test)]
+    pub fn swap_for_testing(&mut self, i: usize, j: usize) {
+        self.1.swap(i, j);
     }
 }
 

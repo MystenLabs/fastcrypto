@@ -7,7 +7,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies;
-use crate::ecies::RecoveryPackage;
+use crate::ecies::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -45,7 +45,7 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
     /// The encrypted shares created by the sender. Sorted according to the receivers.
-    pub encrypted_shares: Vec<ecies::Encryption<EG>>,
+    pub encrypted_shares: ecies::MultiRecipientEncryption<EG>,
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
@@ -131,7 +131,7 @@ where
 
     /// 4. Create the first message to be broadcasted.
     pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
-        let encrypted_shares = self
+        let pk_and_shares: Vec<(PublicKey<EG>, Vec<u8>)> = self
             .nodes
             .iter()
             .map(|node| {
@@ -141,9 +141,10 @@ where
                     .map(|share_id| self.vss_sk.eval(*share_id).value)
                     .collect::<Vec<_>>();
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
-                node.pk.encrypt(&buff, rng)
+                (node.pk.clone(), buff)
             })
             .collect();
+        let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, rng);
 
         Message {
             sender: self.id,
@@ -175,7 +176,10 @@ where
         self.sanity_check_message(&message)?;
 
         let my_share_ids = self.nodes.share_ids_of(self.id);
-        let encrypted_shares = &message.encrypted_shares[self.id as usize];
+        let encrypted_shares = &message
+            .encrypted_shares
+            .get_encryption(self.id as usize)
+            .expect("checked above that there are enough encryptions");
         let decrypted_shares = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_shares).ok();
 
         if decrypted_shares.is_none()
@@ -332,7 +336,9 @@ where
                 let valid_complaint = related_m1.is_some() && {
                     let encrypted_shares = &related_m1
                         .expect("checked above that is not None")
-                        .encrypted_shares[(accuser) as usize];
+                        .encrypted_shares
+                        .get_encryption(accuser as usize)
+                        .expect("checked above that there are enough encryptions");
                     Self::check_delegated_key_and_share(
                         &complaint.package,
                         accuser_pk,

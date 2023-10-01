@@ -68,7 +68,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     // detect that and send a complaint.
     let mut msg1 = d1.create_message(&mut thread_rng());
     // Switch the encrypted shares of two receivers.
-    msg1.encrypted_shares.swap(0, 1);
+    msg1.encrypted_shares.swap_for_testing(0, 1);
     // Don't send the message of d3 to d0 (emulating a slow party).
     let _msg3 = d3.create_message(&mut thread_rng());
     let r1_all = vec![msg0, msg1];

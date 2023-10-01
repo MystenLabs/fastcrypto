@@ -42,3 +42,30 @@ fn test_recovery_package() {
         .decrypt_with_recovery_package(&pkg, &ro, &encryption)
         .is_err());
 }
+
+#[test]
+fn test_multi_rec() {
+    let keys_and_msg = (0..10u32)
+        .into_iter()
+        .map(|i| {
+            let sk = PrivateKey::<Group>::new(&mut thread_rng());
+            let pk = PublicKey::<Group>::from_private_key(&sk);
+            (sk, pk, format!("test {}", i))
+        })
+        .collect::<Vec<_>>();
+
+    let mr_enc = MultiRecipientEncryption::encrypt(
+        &keys_and_msg
+            .iter()
+            .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
+            .collect::<Vec<_>>(),
+        &mut thread_rng(),
+    );
+
+    for i in 0..10 {
+        let enc = mr_enc.get_encryption(i).unwrap();
+        let (sk, _, msg) = &keys_and_msg[i];
+        let decrypted = sk.decrypt(&enc);
+        assert_eq!(msg.as_bytes(), &decrypted);
+    }
+}
