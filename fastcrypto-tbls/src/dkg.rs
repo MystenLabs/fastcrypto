@@ -8,7 +8,7 @@
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies;
 use crate::ecies::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
-use crate::nodes::{Node, Nodes, PartyId};
+use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
@@ -29,7 +29,7 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
     nodes: Nodes<EG>,
     t: u32,
     random_oracle: RandomOracle,
-    ecies_sk: ecies::PrivateKey<EG>,
+    enc_sk: ecies::PrivateKey<EG>,
     vss_sk: PrivatePoly<G>,
 }
 
@@ -51,8 +51,8 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Complaint<EG: GroupElement> {
-    encryption_sender: PartyId,
-    package: RecoveryPackage<EG>,
+    accused_sender: PartyId,
+    proof: RecoveryPackage<EG>,
 }
 
 /// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
@@ -92,22 +92,21 @@ where
     <EG as GroupElement>::ScalarType: FiatShamirChallenge,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
-    /// 2. After all parties have sent their ECIES public keys, create the set of nodes.
+    /// 2. After *all* parties have sent their ECIES public keys, create the set of nodes.
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new<R: AllowedRng>(
-        ecies_sk: ecies::PrivateKey<EG>,
-        nodes: Vec<Node<EG>>,
+        enc_sk: ecies::PrivateKey<EG>,
+        nodes: Nodes<EG>,
         t: u32, // The number of parties that are needed to reconstruct the full key/signature.
         random_oracle: RandomOracle,
         rng: &mut R,
     ) -> Result<Self, FastCryptoError> {
-        let ecies_pk = ecies::PublicKey::<EG>::from_private_key(&ecies_sk);
+        let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_id = nodes
             .iter()
-            .find(|n| n.pk == ecies_pk)
+            .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
-        let nodes = Nodes::new(nodes)?;
         if t >= nodes.n() {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -120,7 +119,7 @@ where
             nodes,
             t,
             random_oracle,
-            ecies_sk,
+            enc_sk,
             vss_sk,
         })
     }
@@ -186,14 +185,14 @@ where
             .encrypted_shares
             .get_encryption(self.id as usize)
             .expect("checked above that there are enough encryptions");
-        let decrypted_shares = Self::decrypt_and_get_share(&self.ecies_sk, encrypted_shares).ok();
+        let decrypted_shares = Self::decrypt_and_get_share(&self.enc_sk, encrypted_shares).ok();
 
         if decrypted_shares.is_none()
             || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()
         {
             let complaint = Complaint {
-                encryption_sender: message.sender,
-                package: self.ecies_sk.create_recovery_package(
+                accused_sender: message.sender,
+                proof: self.enc_sk.create_recovery_package(
                     encrypted_shares,
                     &self
                         .random_oracle
@@ -220,8 +219,8 @@ where
 
         if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
             let complaint = Complaint {
-                encryption_sender: message.sender,
-                package: self.ecies_sk.create_recovery_package(
+                accused_sender: message.sender,
+                proof: self.enc_sk.create_recovery_package(
                     encrypted_shares,
                     &self
                         .random_oracle
@@ -286,6 +285,9 @@ where
         Ok((shares, conf))
     }
 
+    // TODO: Handle the case of not having enough valid shares gracefully (e.g.,
+    // process_confirmations without my complaint).
+
     /// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
     ///
@@ -332,7 +334,7 @@ where
         let mut shares = shares;
         'outer: for m2 in confirmations {
             'inner: for complaint in &m2.complaints[..] {
-                let accused = complaint.encryption_sender;
+                let accused = complaint.accused_sender;
                 // Ignore senders that are already not relevant, or invalid complaints.
                 if !shares.contains_key(&accused) {
                     continue 'inner;
@@ -350,7 +352,7 @@ where
                         .get_encryption(accuser as usize)
                         .expect("checked above that there are enough encryptions");
                     Self::check_delegated_key_and_share(
-                        &complaint.package,
+                        &complaint.proof,
                         accuser_pk,
                         &self.nodes.share_ids_of(accuser),
                         &related_m1.expect("checked above that is not None").vss_pk,
@@ -390,7 +392,6 @@ where
     ) -> Output<G, EG> {
         let id_to_m1: HashMap<_, _> = first_messages.iter().map(|m| (m.sender, m)).collect();
         let mut vss_pk = PublicPoly::<G>::zero();
-
         let my_share_ids = self.nodes.share_ids_of(self.id);
 
         let mut final_shares = my_share_ids
@@ -407,9 +408,17 @@ where
             .collect::<HashMap<_, _>>();
 
         for (from_sender, shares_from_sender) in shares {
-            vss_pk.add(&id_to_m1.get(&from_sender).unwrap().vss_pk);
+            vss_pk.add(
+                &id_to_m1
+                    .get(&from_sender)
+                    .expect("shares only includes shares from valid first messages")
+                    .vss_pk,
+            );
             for share in shares_from_sender {
-                final_shares.get_mut(&share.index).unwrap().value += share.value;
+                final_shares
+                    .get_mut(&share.index)
+                    .expect("created above")
+                    .value += share.value;
             }
         }
 

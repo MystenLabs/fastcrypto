@@ -3,7 +3,7 @@
 
 use crate::dkg::Party;
 use crate::ecies;
-use crate::nodes::{Node, PartyId};
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
@@ -41,7 +41,7 @@ fn setup_party(
         .collect();
     Party::<G, EG>::new(
         keys.get(id as usize).unwrap().1.clone(),
-        nodes,
+        Nodes::new(nodes).unwrap(),
         (keys.len() / 2) as u32,
         RandomOracle::new("dkg"),
         &mut thread_rng(),
