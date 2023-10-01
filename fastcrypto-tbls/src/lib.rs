@@ -20,6 +20,7 @@ mod tbls_modules {
     pub mod ecies;
     pub mod mocked_dkg;
     pub mod nidkg;
+    pub mod nizk;
     pub mod nodes;
     pub mod polynomial;
     pub mod random_oracle;
