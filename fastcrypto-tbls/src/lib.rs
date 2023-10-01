@@ -58,3 +58,7 @@ pub mod nodes_tests;
 #[cfg(test)]
 #[path = "tests/nidkg_tests.rs"]
 pub mod nidkg_tests;
+
+#[cfg(test)]
+#[path = "tests/nizk_tests.rs"]
+pub mod nizk_tests;

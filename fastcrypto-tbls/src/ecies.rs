@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::nizk::DdhTupleNizk;
+use crate::nizk::{DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -31,8 +31,10 @@ pub struct PublicKey<G: GroupElement>(G);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption<G: GroupElement>(G, Vec<u8>);
 
+/// Multi-recipient encryption with a proof-of-knowledge of the plaintexts (when the encryption is
+/// valid).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>);
+pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>, DLNizk<G>);
 
 /// A recovery package that allows decrypting a *specific* ECIES Encryption.
 /// It also includes a NIZK proof of correctness.
@@ -147,7 +149,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     }
 
     fn hkdf(e: &G) -> Vec<u8> {
-        let serialized = bincode::serialize(&e).expect("serialize should never fail");
+        let serialized = bcs::to_bytes(e).expect("serialize should never fail");
         hkdf_sha3_256(
             &HkdfIkm::from_bytes(serialized.as_slice())
                 .expect("hkdf_sha3_256 should work with any input"),
@@ -164,21 +166,26 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     }
 }
 
-impl<G: GroupElement + Serialize> MultiRecipientEncryption<G> {
+impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
+where
+    <G as GroupElement>::ScalarType: FiatShamirChallenge,
+{
     pub fn encrypt<R: AllowedRng>(
-        inputs: &[(PublicKey<G>, Vec<u8>)],
+        pk_and_msgs: &[(PublicKey<G>, Vec<u8>)],
+        random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> MultiRecipientEncryption<G> {
         let r = G::ScalarType::rand(rng);
         let r_g = G::generator() * r;
-        let encs = inputs
+        let encs = pk_and_msgs
             .iter()
             .map(|(pk, msg)| {
                 let r_x_g = pk.0 * r;
                 Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g).1
             })
             .collect::<Vec<_>>();
-        Self(r_g, encs)
+        let nizk = DLNizk::<G>::create(&r, &r_g, random_oracle, rng);
+        Self(r_g, encs, nizk)
     }
 
     pub fn get_encryption(&self, i: usize) -> FastCryptoResult<Encryption<G>> {
@@ -188,6 +195,10 @@ impl<G: GroupElement + Serialize> MultiRecipientEncryption<G> {
 
     pub fn len(&self) -> usize {
         self.1.len()
+    }
+
+    pub fn verify_knowledge(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        self.2.verify(&self.0, random_oracle)
     }
 
     #[cfg(test)]

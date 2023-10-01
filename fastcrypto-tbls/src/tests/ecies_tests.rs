@@ -45,6 +45,7 @@ fn test_recovery_package() {
 
 #[test]
 fn test_multi_rec() {
+    let ro = RandomOracle::new("test");
     let keys_and_msg = (0..10u32)
         .into_iter()
         .map(|i| {
@@ -59,8 +60,11 @@ fn test_multi_rec() {
             .iter()
             .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
             .collect::<Vec<_>>(),
+        &ro,
         &mut thread_rng(),
     );
+
+    assert!(mr_enc.verify_knowledge(&ro).is_ok());
 
     for i in 0..10 {
         let enc = mr_enc.get_encryption(i).unwrap();

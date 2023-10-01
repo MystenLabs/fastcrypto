@@ -45,7 +45,7 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
     /// The encrypted shares created by the sender. Sorted according to the receivers.
-    pub encrypted_shares: ecies::MultiRecipientEncryption<EG>,
+    pub encrypted_shares: MultiRecipientEncryption<EG>,
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
@@ -144,7 +144,13 @@ where
                 (node.pk.clone(), buff)
             })
             .collect();
-        let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, rng);
+        let encrypted_shares = MultiRecipientEncryption::encrypt(
+            &pk_and_shares,
+            &self
+                .random_oracle
+                .extend(&format!("encs {}", self.id).to_string()),
+            rng,
+        );
 
         Message {
             sender: self.id,
@@ -161,6 +167,11 @@ where
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
             return Err(FastCryptoError::InvalidInput);
         }
+        msg.encrypted_shares.verify_knowledge(
+            &self
+                .random_oracle
+                .extend(&format!("encs {}", msg.sender).to_string()),
+        )?;
         Ok(())
     }
 
@@ -189,7 +200,9 @@ where
                 encryption_sender: message.sender,
                 package: self.ecies_sk.create_recovery_package(
                     encrypted_shares,
-                    &self.random_oracle.extend("ecies"),
+                    &self
+                        .random_oracle
+                        .extend(&format!("recovery {} {}", self.id, message.sender).to_string()),
                     rng,
                 ),
             };
@@ -215,7 +228,9 @@ where
                 encryption_sender: message.sender,
                 package: self.ecies_sk.create_recovery_package(
                     encrypted_shares,
-                    &self.random_oracle.extend("ecies"),
+                    &self
+                        .random_oracle
+                        .extend(&format!("recovery {} {}", self.id, message.sender).to_string()),
                     rng,
                 ),
             };
@@ -345,7 +360,9 @@ where
                         &self.nodes.share_ids_of(accuser),
                         &related_m1.expect("checked above that is not None").vss_pk,
                         encrypted_shares,
-                        &self.random_oracle.extend("ecies"),
+                        &self
+                            .random_oracle
+                            .extend(&format!("recovery {} {}", accuser, accused).to_string()),
                         rng,
                     )
                     .is_err()
