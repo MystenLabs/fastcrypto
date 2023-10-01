@@ -1707,6 +1707,7 @@ dependencies = [
  "digest 0.10.6",
  "fastcrypto",
  "fastcrypto-derive",
+ "hex",
  "itertools",
  "rand",
  "serde",
