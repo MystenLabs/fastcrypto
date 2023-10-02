@@ -31,6 +31,11 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
+#[cfg(feature = "e2e")]
+#[cfg(test)]
+#[path = "unit_tests/zk_login_e2e_tests.rs"]
+mod zk_login_e2e_tests;
+
 const MAX_HEADER_LEN: u8 = 248;
 const PACK_WIDTH: u8 = 248;
 const ISS: &str = "iss";
