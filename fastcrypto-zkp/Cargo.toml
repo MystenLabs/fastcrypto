@@ -1,6 +1,6 @@
 [package]
 name = "fastcrypto-zkp"
-version = "0.1.1"
+version = "0.1.2"
 license = "Apache-2.0"
 authors = ["Mysten Labs <build@mystenlabs.com>"]
 edition = "2021"
@@ -50,3 +50,6 @@ hex = "0.4.3"
 proptest = "1.1.0"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }
 tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
+
+[features]
+e2e = []
