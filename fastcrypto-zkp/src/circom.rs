@@ -7,7 +7,7 @@ use fastcrypto::error::FastCryptoError;
 pub type CircomG1 = Vec<String>;
 pub type CircomG2 = Vec<Vec<String>>;
 
-pub fn g1_affine_from_str_projective(s: CircomG1) -> Result<G1Affine, FastCryptoError> {
+pub fn g1_affine_from_str_projective(s: &CircomG1) -> Result<G1Affine, FastCryptoError> {
     if s.len() != 3 {
         return Err(FastCryptoError::InvalidInput);
     }
@@ -22,13 +22,13 @@ pub fn g1_affine_from_str_projective(s: CircomG1) -> Result<G1Affine, FastCrypto
     .into())
 }
 
-pub fn g2_affine_from_str_projective(s: CircomG2) -> Result<G2Affine, FastCryptoError> {
+pub fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, FastCryptoError> {
     use ark_bn254::G2Projective;
     if s.len() != 3 {
         return Err(FastCryptoError::InvalidInput);
     }
 
-    for x in &s {
+    for x in s {
         if x.len() != 2 {
             return Err(FastCryptoError::InvalidInput);
         }
