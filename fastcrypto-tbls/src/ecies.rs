@@ -58,6 +58,10 @@ where
         Self(G::ScalarType::rand(rng))
     }
 
+    pub fn from(sc: G::ScalarType) -> Self {
+        Self(sc)
+    }
+
     pub fn decrypt(&self, enc: &Encryption<G>) -> Vec<u8> {
         enc.decrypt(&self.0)
     }
@@ -109,6 +113,12 @@ where
 
     pub fn as_element(&self) -> &G {
         &self.0
+    }
+}
+
+impl<G: GroupElement> From<G> for PublicKey<G> {
+    fn from(p: G) -> Self {
+        Self(p)
     }
 }
 
