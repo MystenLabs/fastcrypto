@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use ark_bn254::{Bn254, Fr};
-use ark_crypto_primitives::snark::SNARK;
 use ark_ff::UniformRand;
 use ark_groth16::Groth16;
+use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use std::ops::Mul;
 

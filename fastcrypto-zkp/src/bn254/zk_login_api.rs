@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use ark_crypto_primitives::snark::SNARK;
+use ark_snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
 use super::verifier::process_vk_special;

@@ -4,10 +4,10 @@
 use crate::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
 use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
-use ark_crypto_primitives::snark::SNARK;
 pub use ark_ff::ToConstraintField;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_snark::SNARK;
 use fastcrypto::error::FastCryptoError;
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]

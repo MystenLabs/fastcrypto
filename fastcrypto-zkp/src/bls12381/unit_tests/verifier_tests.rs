@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 use crate::bls12381::verifier::{BlsFr, PreparedVerifyingKey as CustomPVK};
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Projective};
-use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bls12::G1Prepared;
 use ark_ec::pairing::Pairing as _;
 use ark_ec::CurveGroup;
 use ark_ff::{One, UniformRand};
 use ark_groth16::{Groth16, PreparedVerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
+use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use blst::{
     blst_final_exp, blst_fp12, blst_fp12_mul, blst_fr, blst_miller_loop, blst_p1, blst_p1_affine,
