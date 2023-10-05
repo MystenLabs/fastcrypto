@@ -75,6 +75,7 @@ fn test_multi_rec() {
         let decrypted = sk.decrypt(&enc);
         assert_eq!(msg.as_bytes(), &decrypted);
     }
+}
 
 #[test]
 fn test_blskeypair_to_group() {
