@@ -12,6 +12,14 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 name = "proving"
 harness = false
 
+[[bench]]
+name = "zklogin"
+harness = false
+
+[[bench]]
+name = "poseidon"
+harness = false
+
 [dependencies]
 ark-bls12-381 = "0.4.0"
 ark-bn254 = "0.4.0"
@@ -45,7 +53,7 @@ ark-circom = { git = "https://github.com/gakonst/ark-circom.git", rev = "b892c62
 ark-r1cs-std = "0.4.0"
 ark-std = { version = "0.4.0", features = ["parallel"]}
 blake2 = "0.10.6"
-criterion = "0.4.0"
+criterion = "0.5.1"
 hex = "0.4.3"
 proptest = "1.1.0"
 num-bigint = { version = "0.4", default-features = false, features = ["rand"] }

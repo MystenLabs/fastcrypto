@@ -162,7 +162,7 @@ pub fn verify_zk_login(
 }
 
 /// Verify a proof against its public inputs using the fixed verifying key.
-fn verify_zk_login_proof_with_fixed_vk(
+pub fn verify_zk_login_proof_with_fixed_vk(
     _usage: &ZkLoginEnv,
     proof: &Proof<Bn254>,
     public_inputs: &[Bn254Fr],
