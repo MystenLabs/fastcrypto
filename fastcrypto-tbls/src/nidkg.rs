@@ -6,7 +6,7 @@ use crate::dl_verification::{
     verify_deg_t_poly, verify_equal_exponents, verify_pairs, verify_triplets,
 };
 use crate::ecies;
-use crate::ecies::RecoveryPackage;
+use crate::ecies::{PublicKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly};
 use crate::random_oracle::RandomOracle;
@@ -168,7 +168,7 @@ where
                         let r_x_g = *node.pk.as_element() * r;
                         // Save also the points instead of recomputing them later.
                         values.push((r, r_x_g));
-                        node.pk.deterministic_encrypt(&msg, &r_g, &r_x_g)
+                        PublicKey::deterministic_encrypt(&msg, &r_g, &r_x_g)
                     })
                     .collect::<Vec<_>>()
                     .try_into()

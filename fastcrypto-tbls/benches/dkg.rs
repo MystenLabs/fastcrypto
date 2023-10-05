@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::{bls12381, ristretto255};
 use fastcrypto_tbls::dkg::Party;
 use fastcrypto_tbls::ecies;
-use fastcrypto_tbls::nodes::{Node, PartyId};
+use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::random_oracle::RandomOracle;
 use itertools::iproduct;
 use rand::thread_rng;
@@ -39,7 +39,7 @@ pub fn setup_party(
         .collect();
     Party::<G, EG>::new(
         keys.get(id as usize).unwrap().1.clone(),
-        nodes,
+        Nodes::new(nodes).unwrap(),
         threshold,
         RandomOracle::new("dkg"),
         &mut thread_rng(),
@@ -51,8 +51,8 @@ mod dkg_benches {
     use super::*;
 
     fn dkg(c: &mut Criterion) {
-        const SIZES: [u16; 2] = [100, 200];
-        const TOTAL_WEIGHTS: [u16; 3] = [2000, 3000, 5000];
+        const SIZES: [u16; 1] = [100];
+        const TOTAL_WEIGHTS: [u16; 4] = [2000, 2500, 3333, 5000];
 
         {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("DKG create");

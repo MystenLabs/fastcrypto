@@ -1,10 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::nizk::{DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
-use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381::G1Element;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
@@ -31,6 +31,11 @@ pub struct PublicKey<G: GroupElement>(G);
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption<G: GroupElement>(G, Vec<u8>);
 
+/// Multi-recipient encryption with a proof-of-knowledge of the plaintexts (when the encryption is
+/// valid).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>, DLNizk<G>);
+
 /// A recovery package that allows decrypting a *specific* ECIES Encryption.
 /// It also includes a NIZK proof of correctness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -40,14 +45,6 @@ pub struct RecoveryPackage<G: GroupElement> {
 }
 
 const AES_KEY_LENGTH: usize = 32;
-
-/// NIZKPoK for the DDH tuple [G, eG, PK=sk*G, Key=sk*eG].
-/// - Prover selects a random r and sends A=rG, B=reG.
-/// - Prover computes challenge c and sends z=r+c*sk.
-/// - Verifier checks that zG=A+cPK and zeG=B+cKey.
-/// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 
 impl<G> PrivateKey<G>
 where
@@ -96,7 +93,7 @@ where
         Encryption::<G>::encrypt(&self.0, msg, rng)
     }
 
-    pub fn deterministic_encrypt(&self, msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
+    pub fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
         Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g)
     }
 
@@ -162,7 +159,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     }
 
     fn hkdf(e: &G) -> Vec<u8> {
-        let serialized = bincode::serialize(&e).expect("serialize should never fail");
+        let serialized = bcs::to_bytes(e).expect("serialize should never fail");
         hkdf_sha3_256(
             &HkdfIkm::from_bytes(serialized.as_slice())
                 .expect("hkdf_sha3_256 should work with any input"),
@@ -179,70 +176,46 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     }
 }
 
-impl<G: GroupElement> DdhTupleNizk<G>
+impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
 where
-    G: GroupElement + Serialize,
     <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
-    pub fn create<R: AllowedRng>(
-        sk: &G::ScalarType,
-        e_g: &G,
-        sk_g: &G,
-        sk_e_g: &G,
+    pub fn encrypt<R: AllowedRng>(
+        pk_and_msgs: &[(PublicKey<G>, Vec<u8>)],
         random_oracle: &RandomOracle,
         rng: &mut R,
-    ) -> Self {
+    ) -> MultiRecipientEncryption<G> {
         let r = G::ScalarType::rand(rng);
-        let a = G::generator() * r;
-        let b = *e_g * r;
-        let challenge = Self::fiat_shamir_challenge(e_g, sk_g, sk_e_g, &a, &b, random_oracle);
-        let z = challenge * sk + r;
-        DdhTupleNizk(a, b, z)
+        let r_g = G::generator() * r;
+        let encs = pk_and_msgs
+            .iter()
+            .map(|(pk, msg)| {
+                let r_x_g = pk.0 * r;
+                Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g).1
+            })
+            .collect::<Vec<_>>();
+        let nizk = DLNizk::<G>::create(&r, &r_g, random_oracle, rng);
+        Self(r_g, encs, nizk)
     }
 
-    pub fn verify(
-        &self,
-        e_g: &G,
-        sk_g: &G,
-        sk_e_g: &G,
-        random_oracle: &RandomOracle,
-    ) -> Result<(), FastCryptoError> {
-        let challenge =
-            Self::fiat_shamir_challenge(e_g, sk_g, sk_e_g, &self.0, &self.1, random_oracle);
-        if !Self::is_valid_relation(
-            &self.0, // A
-            sk_g,
-            &G::generator(),
-            &self.2, // z
-            &challenge,
-        ) || !Self::is_valid_relation(
-            &self.1, // B
-            sk_e_g, e_g, &self.2, // z
-            &challenge,
-        ) {
-            Err(FastCryptoError::InvalidProof)
-        } else {
-            Ok(())
-        }
+    pub fn get_encryption(&self, i: usize) -> FastCryptoResult<Encryption<G>> {
+        let buffer = self.1.get(i).ok_or(FastCryptoError::InvalidInput)?;
+        Ok(Encryption(self.0, buffer.clone()))
     }
 
-    /// Returns the challenge for Fiat-Shamir.
-    fn fiat_shamir_challenge(
-        e_g: &G,
-        sk_g: &G,
-        sk_e_g: &G,
-        a: &G,
-        b: &G,
-        random_oracle: &RandomOracle,
-    ) -> G::ScalarType {
-        let output = random_oracle.evaluate(&(G1Element::generator(), e_g, sk_g, sk_e_g, a, b));
-        G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
+    pub fn len(&self) -> usize {
+        self.1.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.1.is_empty()
     }
 
-    /// Checks if e1 + e2*c = z e3
-    fn is_valid_relation(e1: &G, e2: &G, e3: &G, z: &G::ScalarType, c: &G::ScalarType) -> bool {
-        let left = *e1 + *e2 * c;
-        let right = *e3 * z;
-        left == right
+    pub fn verify_knowledge(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        self.2.verify(&self.0, random_oracle)
+    }
+
+    #[cfg(test)]
+    pub fn swap_for_testing(&mut self, i: usize, j: usize) {
+        self.1.swap(i, j);
     }
 }

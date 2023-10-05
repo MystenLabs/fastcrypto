@@ -3,7 +3,7 @@
 
 use crate::dkg::Party;
 use crate::ecies;
-use crate::nodes::{Node, PartyId};
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
@@ -41,7 +41,7 @@ fn setup_party(
         .collect();
     Party::<G, EG>::new(
         keys.get(id as usize).unwrap().1.clone(),
-        nodes,
+        Nodes::new(nodes).unwrap(),
         (keys.len() / 2) as u32,
         RandomOracle::new("dkg"),
         &mut thread_rng(),
@@ -68,7 +68,7 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     // detect that and send a complaint.
     let mut msg1 = d1.create_message(&mut thread_rng());
     // Switch the encrypted shares of two receivers.
-    msg1.encrypted_shares.swap(0, 1);
+    msg1.encrypted_shares.swap_for_testing(0, 1);
     // Don't send the message of d3 to d0 (emulating a slow party).
     let _msg3 = d3.create_message(&mut thread_rng());
     let r1_all = vec![msg0, msg1];

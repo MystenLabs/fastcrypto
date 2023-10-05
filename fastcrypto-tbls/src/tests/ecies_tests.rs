@@ -48,6 +48,36 @@ fn test_recovery_package() {
 }
 
 #[test]
+fn test_multi_rec() {
+    let ro = RandomOracle::new("test");
+    let keys_and_msg = (0..10u32)
+        .into_iter()
+        .map(|i| {
+            let sk = PrivateKey::<Group>::new(&mut thread_rng());
+            let pk = PublicKey::<Group>::from_private_key(&sk);
+            (sk, pk, format!("test {}", i))
+        })
+        .collect::<Vec<_>>();
+
+    let mr_enc = MultiRecipientEncryption::encrypt(
+        &keys_and_msg
+            .iter()
+            .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
+            .collect::<Vec<_>>(),
+        &ro,
+        &mut thread_rng(),
+    );
+
+    assert!(mr_enc.verify_knowledge(&ro).is_ok());
+
+    for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
+        let enc = mr_enc.get_encryption(i).unwrap();
+        let decrypted = sk.decrypt(&enc);
+        assert_eq!(msg.as_bytes(), &decrypted);
+    }
+}
+
+#[test]
 fn test_blskeypair_to_group() {
     let pair = BLS12381KeyPair::generate(&mut thread_rng());
     let (pk, sk) = (pair.public().clone(), pair.private());

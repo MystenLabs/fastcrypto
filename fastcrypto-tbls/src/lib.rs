@@ -20,6 +20,7 @@ mod tbls_modules {
     pub mod ecies;
     pub mod mocked_dkg;
     pub mod nidkg;
+    pub mod nizk;
     pub mod nodes;
     pub mod polynomial;
     pub mod random_oracle;
@@ -57,3 +58,7 @@ pub mod nodes_tests;
 #[cfg(test)]
 #[path = "tests/nidkg_tests.rs"]
 pub mod nidkg_tests;
+
+#[cfg(test)]
+#[path = "tests/nizk_tests.rs"]
+pub mod nizk_tests;
