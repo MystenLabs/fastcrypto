@@ -3,7 +3,11 @@
 
 use crate::ecies::*;
 use crate::random_oracle::RandomOracle;
+use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
+use fastcrypto::groups::bls12381::{G2Element, Scalar};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
+use fastcrypto::groups::GroupElement;
+use fastcrypto::traits::KeyPair;
 use rand::thread_rng;
 
 const MSG: &[u8; 4] = b"test";
@@ -71,4 +75,18 @@ fn test_multi_rec() {
         let decrypted = sk.decrypt(&enc);
         assert_eq!(msg.as_bytes(), &decrypted);
     }
+
+#[test]
+fn test_blskeypair_to_group() {
+    let pair = BLS12381KeyPair::generate(&mut thread_rng());
+    let (pk, sk) = (pair.public().clone(), pair.private());
+    let pk: G2Element = bcs::from_bytes(pk.as_ref()).expect("should work");
+    let ecies_pk = PublicKey::<G2Element>::from(pk);
+    let sk: Scalar = bcs::from_bytes(sk.as_ref()).expect("should work");
+    let ecies_sk = PrivateKey::<G2Element>::from(sk);
+    assert_eq!(
+        ecies_pk,
+        PublicKey::<G2Element>::from_private_key(&ecies_sk)
+    );
+    assert_eq!(*ecies_pk.as_element(), G2Element::generator() * sk);
 }

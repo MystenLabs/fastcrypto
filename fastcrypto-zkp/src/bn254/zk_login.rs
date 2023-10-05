@@ -341,6 +341,9 @@ impl ZkLoginInputs {
 
     /// Initialize JWTDetails by parsing header_base64 and iss_base64_details.
     pub fn init(&mut self) -> Result<Self, FastCryptoError> {
+        if BigUint::from_str(&self.address_seed).is_err() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         self.jwt_details = JWTDetails::new(&self.header_base64, &self.iss_base64_details)?;
         Ok(self.to_owned())
     }
@@ -420,9 +423,9 @@ impl ZkLoginProof {
     /// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     pub fn as_arkworks(&self) -> Result<Proof<Bn254>, FastCryptoError> {
         Ok(Proof {
-            a: g1_affine_from_str_projective(self.a.clone())?,
-            b: g2_affine_from_str_projective(self.b.clone())?,
-            c: g1_affine_from_str_projective(self.c.clone())?,
+            a: g1_affine_from_str_projective(&self.a)?,
+            b: g2_affine_from_str_projective(&self.b)?,
+            c: g1_affine_from_str_projective(&self.c)?,
         })
     }
 }

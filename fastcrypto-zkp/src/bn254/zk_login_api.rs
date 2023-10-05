@@ -38,13 +38,13 @@ static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(globa
 /// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
 fn global_pvk() -> PreparedVerifyingKey<Bn254> {
     // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    let vk_alpha_1 = g1_affine_from_str_projective(vec![
+    let vk_alpha_1 = g1_affine_from_str_projective(&vec![
         "21529901943976716921335152104180790524318946701278905588288070441048877064089".to_string(),
         "7775817982019986089115946956794180159548389285968353014325286374017358010641".to_string(),
         "1".to_string(),
     ])
     .unwrap();
-    let vk_beta_2 = g2_affine_from_str_projective(vec![
+    let vk_beta_2 = g2_affine_from_str_projective(&vec![
         vec![
             "6600437987682835329040464538375790690815756241121776438004683031791078085074"
                 .to_string(),
@@ -60,7 +60,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
         vec!["1".to_string(), "0".to_string()],
     ])
     .unwrap();
-    let vk_gamma_2 = g2_affine_from_str_projective(vec![
+    let vk_gamma_2 = g2_affine_from_str_projective(&vec![
         vec![
             "10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 .to_string(),
@@ -76,7 +76,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
         vec!["1".to_string(), "0".to_string()],
     ])
     .unwrap();
-    let vk_delta_2 = g2_affine_from_str_projective(vec![
+    let vk_delta_2 = g2_affine_from_str_projective(&vec![
         vec![
             "19260309516619721648285279557078789954438346514188902804737557357941293711874"
                 .to_string(),
@@ -111,7 +111,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
             "1".to_string(),
         ],
     ] {
-        let g1 = g1_affine_from_str_projective(e).unwrap();
+        let g1 = g1_affine_from_str_projective(&e).unwrap();
         vk_gamma_abc_g1.push(g1);
     }
 
