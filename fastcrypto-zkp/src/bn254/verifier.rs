@@ -3,10 +3,10 @@
 use std::ops::Neg;
 
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
-use ark_crypto_primitives::snark::SNARK;
 use ark_ec::bn::G2Prepared;
 use ark_ec::pairing::Pairing;
 use ark_groth16::{Groth16, PreparedVerifyingKey as ArkPreparedVerifyingKey};
+use ark_snark::SNARK;
 
 use crate::bn254::api::{Bn254Fr, SCALAR_SIZE};
 use crate::bn254::{FieldElement, Proof, VerifyingKey};
