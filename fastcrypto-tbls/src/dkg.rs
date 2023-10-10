@@ -17,7 +17,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
@@ -248,20 +248,17 @@ where
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
     ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
-        // Verify unique senders
-        let senders = processed_messages
+        // Enforce unique senders
+        let processed_messages = processed_messages
             .iter()
-            .map(|m| m.message.sender)
-            .collect::<HashSet<_>>();
-        if senders.len() != processed_messages.len() {
-            return Err(FastCryptoError::InvalidInput);
-        }
+            .map(|m| (m.message.sender, m))
+            .collect::<HashMap<_, _>>();
         // Verify we have enough messages
         let total_weight = processed_messages
-            .iter()
-            .map(|m| {
+            .keys()
+            .map(|sender| {
                 self.nodes
-                    .node_id_to_node(m.message.sender)
+                    .node_id_to_node(*sender)
                     .expect("checked in process_message")
                     .weight as u32
             })
@@ -275,7 +272,7 @@ where
             sender: self.id,
             complaints: Vec::new(),
         };
-        for m in processed_messages {
+        for m in processed_messages.values() {
             shares.insert(m.message.sender, m.shares.clone());
             if m.complaint.is_some() {
                 let complaint = m.complaint.clone().unwrap();
