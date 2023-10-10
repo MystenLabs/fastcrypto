@@ -1,6 +1,6 @@
 # fastcrypto-tbls
 
-An experimental crate that implements threshold BLS (tBLS) and distributed key generation (DKG) protocols.
+A crate that implements threshold BLS (tBLS) and distributed key generation (DKG) protocols.
 
 Currently, it only provides a fake object for creating the outputs of the DKG protocol.
 
