@@ -11,6 +11,9 @@ use fastcrypto::{ed25519::Ed25519KeyPair, jwt_utils::parse_and_validate_jwt, tra
 use im::HashMap as ImHashMap;
 use num_bigint::BigUint;
 
+const DEFAULT_PROVER_SERVER_URL: &str = "http://185.209.177.123:7000/v1";
+const DEFAULT_SALT_SERVER_URL: &str = "http://185.209.177.123:3000/get_salt";
+
 #[tokio::test]
 async fn test_end_to_end_twitch() {
     // Use a fixed Twitch token obtained with nonce hTPpgF7XAKbW37rEUS6pEVZqmoI
@@ -21,7 +24,9 @@ async fn test_end_to_end_twitch() {
     let jwt_randomness = "100681567828351849884072155819400689117";
 
     // Get salt based on the Twitch token.
-    let user_salt = get_salt(parsed_token).await.unwrap();
+    let user_salt = get_salt(parsed_token, DEFAULT_SALT_SERVER_URL)
+        .await
+        .unwrap();
 
     // Generate an ephermeral key pair.
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
@@ -36,6 +41,7 @@ async fn test_end_to_end_twitch() {
         jwt_randomness,
         &kp_bigint,
         &user_salt,
+        DEFAULT_PROVER_SERVER_URL,
     )
     .await
     .unwrap();

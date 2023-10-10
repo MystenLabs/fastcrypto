@@ -17,8 +17,6 @@ use std::str::FromStr;
 use super::zk_login::{hash_ascii_str_to_field, to_field};
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
-const SALT_SERVER_URL: &str = "https://salt.api.mystenlabs.com/get_salt";
-const PROVER_SERVER_URL: &str = "https://prover.mystenlabs.com/v1";
 const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
 const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
 const MAX_AUD_VALUE_LENGTH: u8 = 145;
@@ -114,11 +112,11 @@ pub struct GetSaltResponse {
 }
 
 /// Call the salt server for the given jwt_token and return the salt.
-pub async fn get_salt(jwt_token: &str) -> Result<String, FastCryptoError> {
+pub async fn get_salt(jwt_token: &str, url: &str) -> Result<String, FastCryptoError> {
     let client = Client::new();
     let body = json!({ "token": jwt_token });
     let response = client
-        .post(SALT_SERVER_URL)
+        .post(url)
         .json(&body)
         .header("Content-Type", "application/json")
         .send()
@@ -140,6 +138,7 @@ pub async fn get_proof(
     jwt_randomness: &str,
     eph_pubkey: &str,
     salt: &str,
+    prover_url: &str,
 ) -> Result<ZkLoginInputsReader, FastCryptoError> {
     let body = json!({
     "jwt": jwt_token,
@@ -151,7 +150,7 @@ pub async fn get_proof(
     });
     let client = Client::new();
     let response = client
-        .post(PROVER_SERVER_URL.to_string())
+        .post(prover_url.to_string())
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
