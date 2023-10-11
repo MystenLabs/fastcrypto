@@ -38,6 +38,7 @@ harness = false
 [[bench]]
 name = "nidkg"
 harness = false
+required-features = ["experimental"]
 
 [[bench]]
 name = "tbls"
