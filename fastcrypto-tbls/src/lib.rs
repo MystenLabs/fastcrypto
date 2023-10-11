@@ -11,23 +11,20 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-// This is a hack for not repeating the conditional compilation for each module.
-#[path = ""]
-mod tbls_modules {
-    pub mod dkg;
-    pub mod dl_verification;
-    pub mod ecies;
-    pub mod mocked_dkg;
-    pub mod nidkg;
-    pub mod nizk;
-    pub mod nodes;
-    pub mod polynomial;
-    pub mod random_oracle;
-    pub mod tbls;
-    pub mod types;
-}
+pub mod dkg;
+pub mod dl_verification;
+pub mod ecies;
+pub mod nizk;
+pub mod nodes;
+pub mod polynomial;
+pub mod random_oracle;
+pub mod tbls;
+pub mod types;
 
-pub use tbls_modules::*;
+#[cfg(any(test, feature = "experimental"))]
+pub mod mocked_dkg;
+#[cfg(any(test, feature = "experimental"))]
+pub mod nidkg;
 
 #[cfg(test)]
 #[path = "tests/tbls_tests.rs"]
