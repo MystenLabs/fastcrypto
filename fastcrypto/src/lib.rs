@@ -87,7 +87,7 @@ pub mod secp256r1_group_tests;
 
 pub mod traits;
 
-#[cfg(any(test, feature = "experimental"))]
+#[cfg(any(test, feature = "experimental", feature = "beacon-dkg"))]
 pub mod aes;
 pub mod bls12381;
 #[cfg(any(test, feature = "experimental"))]

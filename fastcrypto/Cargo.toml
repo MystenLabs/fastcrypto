@@ -93,6 +93,7 @@ name = "hash"
 harness = false
 
 [features]
+beacon-dkg = []
 default = []
 copy_key = []
 unsecure_schemes = ["dep:twox-hash", "dep:serde-big-array"]
