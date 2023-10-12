@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::error::FastCryptoResult;
+use fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
 use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
@@ -18,10 +18,7 @@ pub use ark_ff::ToConstraintField;
 use ark_ff::Zero;
 use ark_groth16::Proof;
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fastcrypto::{
-    error::FastCryptoError,
-    rsa::{Base64UrlUnpadded, Encoding},
-};
+use fastcrypto::error::FastCryptoError;
 use num_bigint::BigUint;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -31,7 +28,7 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-#[cfg(feature = "e2e")]
+// #[cfg(feature = "e2e")]
 #[cfg(test)]
 #[path = "unit_tests/zk_login_e2e_tests.rs"]
 mod zk_login_e2e_tests;
@@ -87,6 +84,12 @@ pub enum OIDCProvider {
     Twitch,
     /// See https://www.facebook.com/.well-known/openid-configuration/
     Facebook,
+    /// See https://kauth.kakao.com/.well-known/openid-configuration
+    Kakao,
+    /// See https://appleid.apple.com/.well-known/openid-configuration
+    Apple,
+    /// See https://slack.com/.well-known/openid-configuration
+    Slack,
 }
 
 impl FromStr for OIDCProvider {
@@ -97,6 +100,9 @@ impl FromStr for OIDCProvider {
             "Google" => Ok(Self::Google),
             "Twitch" => Ok(Self::Twitch),
             "Facebook" => Ok(Self::Facebook),
+            "Kakao" => Ok(Self::Kakao),
+            "Apple" => Ok(Self::Apple),
+            "Slack" => Ok(Self::Slack),
             _ => Err(FastCryptoError::InvalidInput),
         }
     }
@@ -108,6 +114,9 @@ impl ToString for OIDCProvider {
             Self::Google => "Google".to_string(),
             Self::Twitch => "Twitch".to_string(),
             Self::Facebook => "Facebook".to_string(),
+            Self::Kakao => "Kakao".to_string(),
+            Self::Apple => "Apple".to_string(),
+            Self::Slack => "Slack".to_string(),
         }
     }
 }
@@ -128,6 +137,17 @@ impl OIDCProvider {
                 "https://www.facebook.com",
                 "https://www.facebook.com/.well-known/oauth/openid/jwks/",
             ),
+            OIDCProvider::Kakao => ProviderConfig::new(
+                "https://kauth.kakao.com",
+                "https://kauth.kakao.com/.well-known/jwks.json",
+            ),
+            OIDCProvider::Apple => ProviderConfig::new(
+                "https://appleid.apple.com",
+                "https://appleid.apple.com/auth/keys",
+            ),
+            OIDCProvider::Slack => {
+                ProviderConfig::new("https://slack.com", "https://slack.com/openid/connect/keys")
+            }
         }
     }
 
@@ -137,6 +157,9 @@ impl OIDCProvider {
             "https://accounts.google.com" => Ok(Self::Google),
             "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
             "https://www.facebook.com" => Ok(Self::Facebook),
+            "https://kauth.kakao.com" => Ok(Self::Kakao),
+            "https://appleid.apple.com" => Ok(Self::Apple),
+            "https://slack.com" => Ok(Self::Slack),
             _ => Err(FastCryptoError::InvalidInput),
         }
     }
@@ -244,31 +267,6 @@ pub fn parse_jwks(
 pub struct Claim {
     value: String,
     index_mod_4: u8,
-}
-
-/// Struct that represents a standard JWT header according to
-/// https://openid.net/specs/openid-connect-core-1_0.html
-#[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-pub struct JWTHeader {
-    alg: String,
-    kid: String,
-    typ: String,
-}
-
-impl JWTHeader {
-    /// Parse the header base64 string into a [struct JWTHeader].
-    pub fn new(header_base64: &str) -> Result<Self, FastCryptoError> {
-        let header_bytes = Base64UrlUnpadded::decode_vec(header_base64)
-            .map_err(|_| FastCryptoError::InvalidInput)?;
-        let header_str =
-            std::str::from_utf8(&header_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
-        let header: JWTHeader =
-            serde_json::from_str(header_str).map_err(|_| FastCryptoError::InvalidInput)?;
-        if header.alg != "RS256" || header.typ != "JWT" {
-            return Err(FastCryptoError::GeneralError("Invalid header".to_string()));
-        }
-        Ok(header)
-    }
 }
 
 /// A structed of parsed JWT details, consists of kid, header, iss.

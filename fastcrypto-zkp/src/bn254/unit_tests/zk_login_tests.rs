@@ -9,7 +9,7 @@ use crate::bn254::utils::{
 };
 use crate::bn254::zk_login::{
     convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
-    trim, verify_extended_claim, Claim, JWTDetails, JWTHeader, JwkId,
+    trim, verify_extended_claim, Claim, JWTDetails, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::ZkLoginEnv;
@@ -23,6 +23,7 @@ use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
 use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError;
+use fastcrypto::jwt_utils::JWTHeader;
 use fastcrypto::traits::KeyPair;
 use im::hashmap::HashMap as ImHashMap;
 use num_bigint::BigUint;
@@ -146,8 +147,7 @@ async fn test_verify_zk_login_google() {
 #[test]
 fn test_parse_jwt_details() {
     let header = JWTHeader::new("eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ").unwrap();
-    assert_eq!(header.alg, "RS256");
-    assert_eq!(header.typ, "JWT");
+    assert_eq!(header.kid, "1");
 
     // Invalid base64
     assert_eq!(

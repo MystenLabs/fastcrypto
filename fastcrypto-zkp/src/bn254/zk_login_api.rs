@@ -32,8 +32,103 @@ impl Default for ZkLoginEnv {
     }
 }
 
-/// Produced from ceremony. Secure to use for mainnet.
+/// Corresponding to proofs generated from prover (prod). Produced from ceremony. Secure to use for mainnet.
 static GLOBAL_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(global_pvk);
+
+/// Corresponding to proofs generated from prover-dev. Used in devnet/testnet.
+static INSECURE_VERIFYING_KEY: Lazy<PreparedVerifyingKey<Bn254>> = Lazy::new(insecure_pvk);
+
+/// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
+fn insecure_pvk() -> PreparedVerifyingKey<Bn254> {
+    // Convert the Circom G1/G2/GT to arkworks G1/G2/GT
+    let vk_alpha_1 = g1_affine_from_str_projective(&vec![
+        "20491192805390485299153009773594534940189261866228447918068658471970481763042".to_string(),
+        "9383485363053290200918347156157836566562967994039712273449902621266178545958".to_string(),
+        "1".to_string(),
+    ])
+    .unwrap();
+    let vk_beta_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            "6375614351688725206403948262868962793625744043794305715222011528459656738731"
+                .to_string(),
+            "4252822878758300859123897981450591353533073413197771768651442665752259397132"
+                .to_string(),
+        ],
+        vec![
+            "10505242626370262277552901082094356697409835680220590971873171140371331206856"
+                .to_string(),
+            "21847035105528745403288232691147584728191162732299865338377159692350059136679"
+                .to_string(),
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ])
+    .unwrap();
+    let vk_gamma_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            "10857046999023057135944570762232829481370756359578518086990519993285655852781"
+                .to_string(),
+            "11559732032986387107991004021392285783925812861821192530917403151452391805634"
+                .to_string(),
+        ],
+        vec![
+            "8495653923123431417604973247489272438418190587263600148770280649306958101930"
+                .to_string(),
+            "4082367875863433681332203403145435568316851327593401208105741076214120093531"
+                .to_string(),
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ])
+    .unwrap();
+    let vk_delta_2 = g2_affine_from_str_projective(&vec![
+        vec![
+            "10857046999023057135944570762232829481370756359578518086990519993285655852781"
+                .to_string(),
+            "11559732032986387107991004021392285783925812861821192530917403151452391805634"
+                .to_string(),
+        ],
+        vec![
+            "8495653923123431417604973247489272438418190587263600148770280649306958101930"
+                .to_string(),
+            "4082367875863433681332203403145435568316851327593401208105741076214120093531"
+                .to_string(),
+        ],
+        vec!["1".to_string(), "0".to_string()],
+    ])
+    .unwrap();
+
+    // Create a vector of G1Affine elements from the IC
+    let mut vk_gamma_abc_g1 = Vec::new();
+    for e in vec![
+        vec![
+            "20701306374481714853949730154526815782802808896228594855451770849676897643964"
+                .to_string(),
+            "2766989084754673216772682210231588284954002353414778477810174100808747060165"
+                .to_string(),
+            "1".to_string(),
+        ],
+        vec![
+            "501195541410525737371980194958674422793469475773065719916327137354779402600"
+                .to_string(),
+            "13527631693157515024233848630878973193664410306029731429350155106228769355415"
+                .to_string(),
+            "1".to_string(),
+        ],
+    ] {
+        let g1 = g1_affine_from_str_projective(&e).unwrap();
+        vk_gamma_abc_g1.push(g1);
+    }
+
+    let vk = VerifyingKey {
+        alpha_g1: vk_alpha_1,
+        beta_g2: vk_beta_2,
+        gamma_g2: vk_gamma_2,
+        delta_g2: vk_delta_2,
+        gamma_abc_g1: vk_gamma_abc_g1,
+    };
+
+    // Convert the verifying key into the prepared form.
+    process_vk_special(&Bn254VerifyingKey(vk)).as_arkworks_pvk()
+}
 
 /// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
 fn global_pvk() -> PreparedVerifyingKey<Bn254> {
@@ -163,11 +258,15 @@ pub fn verify_zk_login(
 
 /// Verify a proof against its public inputs using the fixed verifying key.
 pub fn verify_zk_login_proof_with_fixed_vk(
-    _usage: &ZkLoginEnv,
+    usage: &ZkLoginEnv,
     proof: &Proof<Bn254>,
     public_inputs: &[Bn254Fr],
 ) -> Result<bool, FastCryptoError> {
-    Groth16::<Bn254>::verify_with_processed_vk(&GLOBAL_VERIFYING_KEY, public_inputs, proof)
+    let vk = match usage {
+        ZkLoginEnv::Prod => &GLOBAL_VERIFYING_KEY,
+        ZkLoginEnv::Test => &INSECURE_VERIFYING_KEY,
+    };
+    Groth16::<Bn254>::verify_with_processed_vk(vk, public_inputs, proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }
 
