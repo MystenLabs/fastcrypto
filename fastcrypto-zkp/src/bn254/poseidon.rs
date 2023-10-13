@@ -68,9 +68,9 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
-/// Given a binary representation of a BN254 field element as an integer in little-endian encoding, this
-/// function returns the corresponding field element. If the field element is not canonical (is larger
-/// than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
+/// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
+/// this function returns the corresponding field element. If the field element is not canonical (is
+/// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
 fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
@@ -78,8 +78,8 @@ fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryp
         Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal => {
             let field_element = Fr::from_le_bytes_mod_order(bytes);
-            // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction happened
-            // without doing the extra work of serializing the field element again.
+            // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction
+            // happened without doing the extra work of serializing the field element again.
             let reduced_bytes = field_element.into_bigint().to_bytes_le();
             if reduced_bytes != bytes {
                 return Err(InvalidInput);
