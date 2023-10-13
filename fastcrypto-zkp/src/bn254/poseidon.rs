@@ -48,8 +48,9 @@ impl PoseidonWrapper {
     }
 }
 
-/// Calculate the poseidon hash of the field element inputs. If the input
-/// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
+/// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
+/// H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
+/// error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
     let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
@@ -89,13 +90,12 @@ fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryp
     }
 }
 
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field element
-/// assuming a little-endian encoding. The field elements are then hashed using the poseidon hash function
-/// ([to_poseidon_hash]).
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]).
 ///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer
-/// greater than the field size, an error is returned. Note that this cannot happen if the input is '
-/// <= 31 bytes.
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
 pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
@@ -104,13 +104,13 @@ pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoErro
     to_poseidon_hash(field_elements)
 }
 
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field element
-/// assuming a little-endian encoding. The field elements are then hashed using the poseidon hash function
-/// ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32 bytes).
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
+/// bytes).
 ///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer
-/// greater than the field size, an error is returned. Note that this cannot happen if the input is '
-/// <= 31 bytes.
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
 pub fn hash_to_bytes(
     inputs: &Vec<Vec<u8>>,
 ) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
