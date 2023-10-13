@@ -70,6 +70,8 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 /// Given a binary representation of a BN254 field element as an integer in little-endian encoding, this
 /// function returns the corresponding field element. If the field element is not canonical (is larger
 /// than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
+///
+/// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
 fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
