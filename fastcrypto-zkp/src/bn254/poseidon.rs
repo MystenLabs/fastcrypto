@@ -266,5 +266,9 @@ mod test {
         // Input larger than the modulus
         let inputs = vec![vec![255; 32]];
         assert!(hash_to_bytes(&inputs).is_err());
+
+        // Input smaller than the modulus
+        let inputs = vec![vec![255; 31]];
+        assert!(hash_to_bytes(&inputs).is_ok());
     }
 }
