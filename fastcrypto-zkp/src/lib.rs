@@ -8,12 +8,16 @@
 #[macro_use]
 extern crate ff;
 
-use ff::PrimeField;
+use crate::bn254::api::Bn254Fr;
+use ark_ff::{BigInteger, PrimeField};
+use byte_slice_cast::AsByteSlice;
+use ff::PrimeField as OtherPrimeField;
 use neptune::hash_type::HashType;
 use neptune::matrix::transpose;
-use neptune::Poseidon;
 use neptune::poseidon::HashMode::Correct;
 use neptune::poseidon::PoseidonConstants;
+use neptune::Poseidon;
+use std::str::FromStr;
 use typenum::U2;
 
 #[derive(PrimeField)]
@@ -31,27 +35,46 @@ pub mod dummy_circuits;
 
 pub mod circom;
 
-
 #[test]
 fn test_neptune() {
     // t = 3
     let m = transpose(&vec![
         vec![
-            from_str("7511745149465107256748700652201246547602992235352608707588321460060273774987"),
-            from_str("10370080108974718697676803824769673834027675643658433702224577712625900127200"),
-            from_str("19705173408229649878903981084052839426532978878058043055305024233888854471533"),
-        ], vec![
-            from_str("18732019378264290557468133440468564866454307626475683536618613112504878618481"),
-            from_str("20870176810702568768751421378473869562658540583882454726129544628203806653987"),
-            from_str("7266061498423634438633389053804536045105766754026813321943009179476902321146"),
-        ], vec![
-            from_str("9131299761947733513298312097611845208338517739621853568979632113419485819303"),
-            from_str("10595341252162738537912664445405114076324478519622938027420701542910180337937"),
-            from_str("11597556804922396090267472882856054602429588299176362916247939723151043581408"),
+            from_str(
+                "7511745149465107256748700652201246547602992235352608707588321460060273774987",
+            ),
+            from_str(
+                "10370080108974718697676803824769673834027675643658433702224577712625900127200",
+            ),
+            from_str(
+                "19705173408229649878903981084052839426532978878058043055305024233888854471533",
+            ),
+        ],
+        vec![
+            from_str(
+                "18732019378264290557468133440468564866454307626475683536618613112504878618481",
+            ),
+            from_str(
+                "20870176810702568768751421378473869562658540583882454726129544628203806653987",
+            ),
+            from_str(
+                "7266061498423634438633389053804536045105766754026813321943009179476902321146",
+            ),
+        ],
+        vec![
+            from_str(
+                "9131299761947733513298312097611845208338517739621853568979632113419485819303",
+            ),
+            from_str(
+                "10595341252162738537912664445405114076324478519622938027420701542910180337937",
+            ),
+            from_str(
+                "11597556804922396090267472882856054602429588299176362916247939723151043581408",
+            ),
         ],
     ]);
 
-   let c = vec![
+    let c = vec![
         "6745197990210204598374042828761989596302876299545964402857411729872131034734",
         "426281677759936592021316809065178817848084678679510574715894138690250139748",
         "4014188762916583598888942667424965430287497824629657219807941460227372577781",
@@ -247,7 +270,10 @@ fn test_neptune() {
         "7181677521425162567568557182629489303281861794357882492140051324529826589361",
         "15123155547166304758320442783720138372005699143801247333941013553002921430306",
         "13409242754315411433193860530743374419854094495153957441316635981078068351329",
-    ].iter().map(|s| from_str(s)).collect::<Vec<Fr>>();
+    ]
+    .iter()
+    .map(|s| from_str(s))
+    .collect::<Vec<Fr>>();
 
     let poseidon_constants = PoseidonConstants::new_from_parameters(
         3,
@@ -255,19 +281,27 @@ fn test_neptune() {
         c,
         8,
         57,
-         HashType::<Fr, U2>::ConstantLength(2),
+        HashType::<Fr, U2>::ConstantLength(2),
     );
 
-     let mut poseidon = Poseidon::new(&poseidon_constants);
+    let mut poseidon = Poseidon::new(&poseidon_constants);
 
-     poseidon.input(from_str("1")).unwrap();
-     poseidon.input(from_str("2")).unwrap();
+    poseidon.input(from_str("1")).unwrap();
+    poseidon.input(from_str("2")).unwrap();
 
-     let hash = poseidon.hash_in_mode(Correct);
+    let hash = poseidon.hash_in_mode(Correct);
 
-     // Expected: 115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a
+    let expected = crate::bn254::poseidon::PoseidonWrapper::new()
+        .hash(vec![
+            ark_bn254::Fr::from_str("1").unwrap(),
+            ark_bn254::Fr::from_str("2").unwrap(),
+        ])
+        .unwrap();
 
-    println!("{:?}", hash);
+    assert_eq!(
+        hash.to_repr().as_byte_slice(),
+        expected.into_bigint().to_bytes_be().as_slice()
+    );
 }
 
 fn from_str(string: &str) -> Fr {

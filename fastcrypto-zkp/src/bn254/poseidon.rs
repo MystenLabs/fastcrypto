@@ -128,7 +128,6 @@ mod test {
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use std::str::FromStr;
-    use neptune::Poseidon;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
