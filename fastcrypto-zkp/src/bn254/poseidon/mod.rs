@@ -1,15 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::FrRepr;
 use ark_bn254::Fr;
+use byte_slice_cast::AsByteSlice;
 use ark_ff::{BigInteger, PrimeField};
 use fastcrypto::error::FastCryptoError;
+use ff::PrimeField as OtherPrimeField;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
 use once_cell::sync::OnceCell;
 use poseidon_ark::Poseidon;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+pub(crate) mod constants;
 
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
@@ -119,6 +124,16 @@ pub fn hash_to_bytes(
     Ok(bytes
         .try_into()
         .expect("Leading zeros are added in to_bytes_be"))
+}
+
+fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
+    Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
+}
+
+fn bn254_to_fr(fr: Fr) -> crate::Fr {
+    let mut bytes = [0u8; 32];
+    bytes.clone_from_slice(fr.into_bigint().as_byte_slice());
+    crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
 }
 
 #[cfg(test)]
