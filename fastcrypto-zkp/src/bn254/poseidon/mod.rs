@@ -3,8 +3,8 @@
 
 use crate::FrRepr;
 use ark_bn254::Fr;
-use byte_slice_cast::AsByteSlice;
 use ark_ff::{BigInteger, PrimeField};
+use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::FastCryptoError;
 use ff::PrimeField as OtherPrimeField;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
@@ -132,13 +132,14 @@ fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
 
 fn bn254_to_fr(fr: Fr) -> crate::Fr {
     let mut bytes = [0u8; 32];
-    bytes.clone_from_slice(fr.into_bigint().as_byte_slice());
+    bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
     crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
 }
 
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
+    use crate::bn254::poseidon::bn254_to_fr;
     use crate::bn254::poseidon::constants::load_constants;
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
@@ -296,34 +297,45 @@ mod test {
         assert!(hash_to_bytes(&inputs).is_ok());
     }
 
+    macro_rules! define_poseidon {
+        (
+    $pk_length:expr,
+    $sig_length:expr,
+    $dst_string:expr
+) => {};
+    }
+
     #[test]
     fn test_neptune() {
         let constants = load_constants();
 
+        let inputs = vec![Fr::from_str("1").unwrap(), Fr::from_str("2").unwrap()];
+
+        let i = inputs.len() - 1;
+        let t = inputs.len() + 1;
+
         // Neptune computes the product Mx as xM because they assume M is symmetric which is not the
         // case here so we have to transpose the matrix.
-        let m = transpose(&constants.matrices[1]);
-        let c = &constants.constants[1];
+        let m = transpose(&constants.matrices[i]);
+        let c = &constants.constants[i];
 
         let poseidon_constants = PoseidonConstants::new_from_parameters(
-            3,
+            t,
             m,
             c.clone(),
-            8,
-            57,
-            HashType::<crate::Fr, U2>::ConstantLength(2),
+            constants.full_rounds,
+            constants.partial_rounds[i],
+            HashType::<crate::Fr, U2>::ConstantLength(inputs.len()),
         );
 
         let mut poseidon = neptune::Poseidon::new(&poseidon_constants);
-
-        poseidon.input(from_str("1")).unwrap();
-        poseidon.input(from_str("2")).unwrap();
+        for input in inputs.iter() {
+            poseidon.input(bn254_to_fr(*input)).unwrap();
+        }
 
         let hash = poseidon.hash_in_mode(Correct);
 
-        let expected = PoseidonWrapper::new()
-            .hash(vec![Fr::from_str("1").unwrap(), Fr::from_str("2").unwrap()])
-            .unwrap();
+        let expected = PoseidonWrapper::new().hash(inputs).unwrap();
 
         assert_eq!(
             hash.to_repr().as_byte_slice(),
