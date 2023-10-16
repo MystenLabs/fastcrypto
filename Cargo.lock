@@ -1455,7 +1455,6 @@ dependencies = [
  "im",
  "num-bigint",
  "once_cell",
- "poseidon-ark",
  "proptest",
  "regex",
  "reqwest",
@@ -2407,16 +2406,6 @@ dependencies = [
  "cpufeatures",
  "opaque-debug",
  "universal-hash",
-]
-
-[[package]]
-name = "poseidon-ark"
-version = "0.0.1"
-source = "git+https://github.com/arnaucube/poseidon-ark.git?rev=ff7f5e05d55667b4ffba129b837da780c4c5c849#ff7f5e05d55667b4ffba129b837da780c4c5c849"
-dependencies = [
- "ark-bn254",
- "ark-ff",
- "ark-std",
 ]
 
 [[package]]

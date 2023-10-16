@@ -5,7 +5,6 @@
 //! verifier, based on BLST, but following the same API as Arkworks' Groth16 implementation.
 //! It includes benchmarks and tests to compare the performance and native formats of the two implementations.
 
-#[macro_use]
 extern crate ff;
 
 use ff::PrimeField;
