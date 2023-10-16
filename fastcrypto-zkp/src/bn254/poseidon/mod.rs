@@ -1,18 +1,20 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::poseidon::constants::{load_constants, Constants};
+use crate::bn254::poseidon::constants::{
+    POSEIDON_CONSTANTS_U1, POSEIDON_CONSTANTS_U10, POSEIDON_CONSTANTS_U11, POSEIDON_CONSTANTS_U12,
+    POSEIDON_CONSTANTS_U13, POSEIDON_CONSTANTS_U14, POSEIDON_CONSTANTS_U15, POSEIDON_CONSTANTS_U16,
+    POSEIDON_CONSTANTS_U2, POSEIDON_CONSTANTS_U3, POSEIDON_CONSTANTS_U4, POSEIDON_CONSTANTS_U5,
+    POSEIDON_CONSTANTS_U6, POSEIDON_CONSTANTS_U7, POSEIDON_CONSTANTS_U8, POSEIDON_CONSTANTS_U9,
+};
 use crate::FrRepr;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use ff::PrimeField as OtherPrimeField;
-use neptune::hash_type::HashType;
-use neptune::matrix::transpose;
 use neptune::poseidon::HashMode::Correct;
-use neptune::poseidon::PoseidonConstants;
-use neptune::{Poseidon as Neptune, Poseidon};
+use neptune::Poseidon as Neptune;
 use once_cell::sync::Lazy;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
 use once_cell::sync::OnceCell;
@@ -20,7 +22,6 @@ use poseidon_ark::Poseidon;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use typenum::Unsigned;
 use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
 
 pub(crate) mod constants;
@@ -29,28 +30,18 @@ pub(crate) mod constants;
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
-/// Wrapper struct for Poseidon hash instance.
-pub struct PoseidonWrapper {}
+/// Poseidon hash function over BN254.
+pub struct Poseidon {}
 
-impl Debug for PoseidonWrapper {
+impl Debug for Poseidon {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("PoseidonWrapper").finish()
     }
 }
 
-impl Default for PoseidonWrapper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PoseidonWrapper {
-    pub fn new() -> Self {
-        Self {}
-    }
-
+impl Poseidon {
     /// Calculate the hash of the given inputs.
-    pub fn hash(&self, inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
         neptune_hash(&inputs)
     }
 }
@@ -59,14 +50,12 @@ impl PoseidonWrapper {
 /// H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
 /// error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
-    static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
-    let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
     if inputs.len() <= 16 {
-        poseidon_ref.hash(inputs)
+        Poseidon::hash(inputs)
     } else if inputs.len() <= 32 {
-        let hash1 = poseidon_ref.hash(inputs[0..16].to_vec())?;
-        let hash2 = poseidon_ref.hash(inputs[16..].to_vec())?;
-        poseidon_ref.hash([hash1, hash2].to_vec())
+        let hash1 = Poseidon::hash(inputs[0..16].to_vec())?;
+        let hash2 = Poseidon::hash(inputs[16..].to_vec())?;
+        Poseidon::hash([hash1, hash2].to_vec())
     } else {
         Err(FastCryptoError::GeneralError(format!(
             "Yet to implement: Unable to hash a vector of length {}",
@@ -138,133 +127,83 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
     crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
 }
 
-macro_rules! define_poseidon_constants {
-    ($constants:expr, $ui:ty) => {{
-        let n = <$ui>::to_usize();
-        let i = n - 1;
-        let m = transpose(&$constants.matrices[i]);
-        let c = &$constants.constants[i];
-        PoseidonConstants::new_from_parameters(
-            n + 1,
-            m,
-            c.clone(),
-            $constants.full_rounds,
-            $constants.partial_rounds[i],
-            HashType::<crate::Fr, $ui>::ConstantLength(n),
-        )
-    }};
-}
-
-// TODO: CONSTANTS are not needed after all constants are loaded because they are cloned into the POSEIDON_CONSTANTs.
-static CONSTANTS: Lazy<Constants> = Lazy::new(|| load_constants());
-static POSEIDON_CONSTANTS_U1: Lazy<PoseidonConstants<crate::Fr, U1>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U1));
-static POSEIDON_CONSTANTS_U2: Lazy<PoseidonConstants<crate::Fr, U2>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U2));
-static POSEIDON_CONSTANTS_U3: Lazy<PoseidonConstants<crate::Fr, U3>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U3));
-static POSEIDON_CONSTANTS_U4: Lazy<PoseidonConstants<crate::Fr, U4>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U4));
-static POSEIDON_CONSTANTS_U5: Lazy<PoseidonConstants<crate::Fr, U5>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U5));
-static POSEIDON_CONSTANTS_U6: Lazy<PoseidonConstants<crate::Fr, U6>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U6));
-static POSEIDON_CONSTANTS_U7: Lazy<PoseidonConstants<crate::Fr, U7>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U7));
-static POSEIDON_CONSTANTS_U8: Lazy<PoseidonConstants<crate::Fr, U8>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U8));
-static POSEIDON_CONSTANTS_U9: Lazy<PoseidonConstants<crate::Fr, U9>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U9));
-static POSEIDON_CONSTANTS_U10: Lazy<PoseidonConstants<crate::Fr, U10>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U10));
-static POSEIDON_CONSTANTS_U11: Lazy<PoseidonConstants<crate::Fr, U11>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U11));
-static POSEIDON_CONSTANTS_U12: Lazy<PoseidonConstants<crate::Fr, U12>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U12));
-static POSEIDON_CONSTANTS_U13: Lazy<PoseidonConstants<crate::Fr, U13>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U13));
-static POSEIDON_CONSTANTS_U14: Lazy<PoseidonConstants<crate::Fr, U14>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U14));
-static POSEIDON_CONSTANTS_U15: Lazy<PoseidonConstants<crate::Fr, U15>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U15));
-static POSEIDON_CONSTANTS_U16: Lazy<PoseidonConstants<crate::Fr, U16>> =
-    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U16));
-
-static mut POSEIDON_U1: Lazy<Poseidon<crate::Fr, U1>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U1));
-static mut POSEIDON_U2: Lazy<Poseidon<crate::Fr, U2>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U2));
-static mut POSEIDON_U3: Lazy<Poseidon<crate::Fr, U3>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U3));
-static mut POSEIDON_U4: Lazy<Poseidon<crate::Fr, U4>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U4));
-static mut POSEIDON_U5: Lazy<Poseidon<crate::Fr, U5>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U5));
-static mut POSEIDON_U6: Lazy<Poseidon<crate::Fr, U6>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U6));
-static mut POSEIDON_U7: Lazy<Poseidon<crate::Fr, U7>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U7));
-static mut POSEIDON_U8: Lazy<Poseidon<crate::Fr, U8>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U8));
-static mut POSEIDON_U9: Lazy<Poseidon<crate::Fr, U9>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U9));
-static mut POSEIDON_U10: Lazy<Poseidon<crate::Fr, U10>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U10));
-static mut POSEIDON_U11: Lazy<Poseidon<crate::Fr, U11>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U11));
-static mut POSEIDON_U12: Lazy<Poseidon<crate::Fr, U12>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U12));
-static mut POSEIDON_U13: Lazy<Poseidon<crate::Fr, U13>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U13));
-static mut POSEIDON_U14: Lazy<Poseidon<crate::Fr, U14>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U14));
-static mut POSEIDON_U15: Lazy<Poseidon<crate::Fr, U15>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U15));
-static mut POSEIDON_U16: Lazy<Poseidon<crate::Fr, U16>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U16));
-
 macro_rules! define_poseidon_hash {
-    ($inputs:expr, $poseidon:expr) => {{
-        $poseidon.reset();
-        for input in $inputs.iter() {
-            $poseidon.input(bn254_to_fr(*input)).unwrap();
+    ($inputs:expr, $poseidon:expr) => {
+        // unsafe is needed when using mutable static objects
+        unsafe {
+            $poseidon.reset();
+            for input in $inputs.iter() {
+                $poseidon.input(bn254_to_fr(*input)).unwrap();
+            }
+            $poseidon.hash_in_mode(Correct)
         }
-        $poseidon.hash_in_mode(Correct)
-    }};
+    };
 }
+
+static mut POSEIDON_U1: Lazy<Neptune<crate::Fr, U1>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U1));
+static mut POSEIDON_U2: Lazy<Neptune<crate::Fr, U2>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U2));
+static mut POSEIDON_U3: Lazy<Neptune<crate::Fr, U3>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U3));
+static mut POSEIDON_U4: Lazy<Neptune<crate::Fr, U4>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U4));
+static mut POSEIDON_U5: Lazy<Neptune<crate::Fr, U5>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U5));
+static mut POSEIDON_U6: Lazy<Neptune<crate::Fr, U6>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U6));
+static mut POSEIDON_U7: Lazy<Neptune<crate::Fr, U7>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U7));
+static mut POSEIDON_U8: Lazy<Neptune<crate::Fr, U8>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U8));
+static mut POSEIDON_U9: Lazy<Neptune<crate::Fr, U9>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U9));
+static mut POSEIDON_U10: Lazy<Neptune<crate::Fr, U10>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U10));
+static mut POSEIDON_U11: Lazy<Neptune<crate::Fr, U11>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U11));
+static mut POSEIDON_U12: Lazy<Neptune<crate::Fr, U12>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U12));
+static mut POSEIDON_U13: Lazy<Neptune<crate::Fr, U13>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U13));
+static mut POSEIDON_U14: Lazy<Neptune<crate::Fr, U14>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U14));
+static mut POSEIDON_U15: Lazy<Neptune<crate::Fr, U15>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U15));
+static mut POSEIDON_U16: Lazy<Neptune<crate::Fr, U16>> =
+    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U16));
 
 fn neptune_hash(inputs: &Vec<Fr>) -> FastCryptoResult<Fr> {
     if inputs.is_empty() || inputs.len() > 16 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
 
-    unsafe {
-        let result = match inputs.len() {
-            1 => define_poseidon_hash!(inputs, POSEIDON_U1),
-            2 => define_poseidon_hash!(inputs, POSEIDON_U2),
-            3 => define_poseidon_hash!(inputs, POSEIDON_U3),
-            4 => define_poseidon_hash!(inputs, POSEIDON_U4),
-            5 => define_poseidon_hash!(inputs, POSEIDON_U5),
-            6 => define_poseidon_hash!(inputs, POSEIDON_U6),
-            7 => define_poseidon_hash!(inputs, POSEIDON_U7),
-            8 => define_poseidon_hash!(inputs, POSEIDON_U8),
-            9 => define_poseidon_hash!(inputs, POSEIDON_U9),
-            10 => define_poseidon_hash!(inputs, POSEIDON_U10),
-            11 => define_poseidon_hash!(inputs, POSEIDON_U11),
-            12 => define_poseidon_hash!(inputs, POSEIDON_U12),
-            13 => define_poseidon_hash!(inputs, POSEIDON_U13),
-            14 => define_poseidon_hash!(inputs, POSEIDON_U14),
-            15 => define_poseidon_hash!(inputs, POSEIDON_U15),
-            16 => define_poseidon_hash!(inputs, POSEIDON_U16),
-            _ => return Err(FastCryptoError::InvalidInput),
-        };
-        Ok(fr_to_bn254fr(result))
-    }
+    let result = match inputs.len() {
+        1 => define_poseidon_hash!(inputs, POSEIDON_U1),
+        2 => define_poseidon_hash!(inputs, POSEIDON_U2),
+        3 => define_poseidon_hash!(inputs, POSEIDON_U3),
+        4 => define_poseidon_hash!(inputs, POSEIDON_U4),
+        5 => define_poseidon_hash!(inputs, POSEIDON_U5),
+        6 => define_poseidon_hash!(inputs, POSEIDON_U6),
+        7 => define_poseidon_hash!(inputs, POSEIDON_U7),
+        8 => define_poseidon_hash!(inputs, POSEIDON_U8),
+        9 => define_poseidon_hash!(inputs, POSEIDON_U9),
+        10 => define_poseidon_hash!(inputs, POSEIDON_U10),
+        11 => define_poseidon_hash!(inputs, POSEIDON_U11),
+        12 => define_poseidon_hash!(inputs, POSEIDON_U12),
+        13 => define_poseidon_hash!(inputs, POSEIDON_U13),
+        14 => define_poseidon_hash!(inputs, POSEIDON_U14),
+        15 => define_poseidon_hash!(inputs, POSEIDON_U15),
+        16 => define_poseidon_hash!(inputs, POSEIDON_U16),
+        _ => return Err(FastCryptoError::InvalidInput),
+    };
+    Ok(fr_to_bn254fr(result))
 }
 
 #[cfg(test)]
 mod test {
-    use super::PoseidonWrapper;
+    use super::Poseidon;
+    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use crate::bn254::poseidon::bn254_to_fr;
     use crate::bn254::poseidon::constants::load_constants;
     use crate::bn254::poseidon::hash_to_bytes;
@@ -278,7 +217,6 @@ mod test {
 
     #[test]
     fn poseidon_test() {
-        let poseidon = PoseidonWrapper::new();
         let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
         let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
         let input3 = Fr::from_str("10000").unwrap();
@@ -286,7 +224,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = poseidon.hash(vec![input1, input2, input3, input4]).unwrap();
+        let hash = Poseidon::hash(vec![input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             Fr::from_str(
@@ -344,7 +282,6 @@ mod test {
 
     #[test]
     fn test_all_inputs_hash() {
-        let poseidon = PoseidonWrapper::new();
         let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
         let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
         let masked_content_hash = Fr::from_str(
@@ -366,21 +303,20 @@ mod test {
         )
         .unwrap();
 
-        let hash = poseidon
-            .hash(vec![
-                jwt_sha2_hash_0,
-                jwt_sha2_hash_1,
-                masked_content_hash,
-                payload_start_index,
-                payload_len,
-                eph_public_key_0,
-                eph_public_key_1,
-                max_epoch,
-                num_sha2_blocks,
-                key_claim_name_f,
-                addr_seed,
-            ])
-            .unwrap();
+        let hash = Poseidon::hash(vec![
+            jwt_sha2_hash_0,
+            jwt_sha2_hash_1,
+            masked_content_hash,
+            payload_start_index,
+            payload_len,
+            eph_public_key_0,
+            eph_public_key_1,
+            max_epoch,
+            num_sha2_blocks,
+            key_claim_name_f,
+            addr_seed,
+        ])
+        .unwrap();
         assert_eq!(
             hash.to_string(),
             "2487117669597822357956926047501254969190518860900347921480370492048882803688"

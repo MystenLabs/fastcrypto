@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::{
-    poseidon::{to_poseidon_hash, PoseidonWrapper},
+    poseidon::{to_poseidon_hash, Poseidon},
     utils::split_to_two_frs,
 };
 use crate::circom::{
@@ -379,14 +379,11 @@ impl ZkLoginInputs {
         let max_epoch_f = to_field(&max_epoch.to_string())?;
         let index_mod_4_f = to_field(&self.iss_base64_details.index_mod_4.to_string())?;
 
-        static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
-        let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
-
         let iss_base64_f =
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        poseidon_ref.hash(vec![
+        Poseidon::hash(vec![
             first,
             second,
             addr_seed,

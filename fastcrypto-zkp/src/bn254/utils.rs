@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::poseidon::PoseidonWrapper;
+use crate::bn254::poseidon::Poseidon;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
 use fastcrypto::error::FastCryptoError;
@@ -39,8 +39,7 @@ pub fn gen_address_seed(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    let poseidon = PoseidonWrapper::new();
-    let salt_hash = poseidon.hash(vec![to_field(salt)?])?;
+    let salt_hash = Poseidon::hash(vec![to_field(salt)?])?;
     gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
 }
 
@@ -51,15 +50,13 @@ pub(crate) fn gen_address_seed_with_salt_hash(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    let poseidon = PoseidonWrapper::new();
-    Ok(poseidon
-        .hash(vec![
-            hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
-            hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
-            hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
-            to_field(salt_hash)?,
-        ])?
-        .to_string())
+    Ok(Poseidon::hash(vec![
+        hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
+        hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
+        hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
+        to_field(salt_hash)?,
+    ])?
+    .to_string())
 }
 
 /// Return the OIDC URL for the given parameters. Crucially the nonce is computed.
@@ -104,7 +101,6 @@ pub fn get_nonce(
     max_epoch: u64,
     jwt_randomness: &str,
 ) -> Result<String, FastCryptoError> {
-    let poseidon = PoseidonWrapper::new();
     let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
     let max_epoch = Bn254Fr::from_str(&max_epoch.to_string())
@@ -112,8 +108,7 @@ pub fn get_nonce(
     let jwt_randomness =
         Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
 
-    let hash = poseidon
-        .hash(vec![first, second, max_epoch, jwt_randomness])
+    let hash = Poseidon::hash(vec![first, second, max_epoch, jwt_randomness])
         .expect("inputs is not too long");
     let data = BigUint::from(hash).to_bytes_be();
     let truncated = &data[data.len() - 20..];

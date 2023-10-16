@@ -3,6 +3,12 @@
 
 use crate::Fr;
 use ff::PrimeField;
+use neptune::hash_type::HashType;
+use neptune::matrix::transpose;
+use neptune::poseidon::PoseidonConstants;
+use once_cell::sync::Lazy;
+use typenum::Unsigned;
+use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
 
 #[derive(Debug)]
 pub(crate) struct Constants {
@@ -46,6 +52,58 @@ pub(crate) fn load_constants() -> Constants {
         ],
     }
 }
+
+macro_rules! define_poseidon_constants {
+    ($constants:expr, $ui:ty) => {{
+        let n = <$ui>::to_usize();
+        let i = n - 1;
+        let m = transpose(&$constants.matrices[i]);
+        let c = &$constants.constants[i];
+        PoseidonConstants::new_from_parameters(
+            n + 1,
+            m,
+            c.clone(),
+            $constants.full_rounds,
+            $constants.partial_rounds[i],
+            HashType::<crate::Fr, $ui>::ConstantLength(n),
+        )
+    }};
+}
+
+// TODO: CONSTANTS are not needed after all constants are loaded because they are cloned into the POSEIDON_CONSTANTs.
+static CONSTANTS: Lazy<Constants> = Lazy::new(|| load_constants());
+pub(crate) static POSEIDON_CONSTANTS_U1: Lazy<PoseidonConstants<crate::Fr, U1>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U1));
+pub(crate) static POSEIDON_CONSTANTS_U2: Lazy<PoseidonConstants<crate::Fr, U2>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U2));
+pub(crate) static POSEIDON_CONSTANTS_U3: Lazy<PoseidonConstants<crate::Fr, U3>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U3));
+pub(crate) static POSEIDON_CONSTANTS_U4: Lazy<PoseidonConstants<crate::Fr, U4>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U4));
+pub(crate) static POSEIDON_CONSTANTS_U5: Lazy<PoseidonConstants<crate::Fr, U5>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U5));
+pub(crate) static POSEIDON_CONSTANTS_U6: Lazy<PoseidonConstants<crate::Fr, U6>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U6));
+pub(crate) static POSEIDON_CONSTANTS_U7: Lazy<PoseidonConstants<crate::Fr, U7>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U7));
+pub(crate) static POSEIDON_CONSTANTS_U8: Lazy<PoseidonConstants<crate::Fr, U8>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U8));
+pub(crate) static POSEIDON_CONSTANTS_U9: Lazy<PoseidonConstants<crate::Fr, U9>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U9));
+pub(crate) static POSEIDON_CONSTANTS_U10: Lazy<PoseidonConstants<crate::Fr, U10>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U10));
+pub(crate) static POSEIDON_CONSTANTS_U11: Lazy<PoseidonConstants<crate::Fr, U11>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U11));
+pub(crate) static POSEIDON_CONSTANTS_U12: Lazy<PoseidonConstants<crate::Fr, U12>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U12));
+pub(crate) static POSEIDON_CONSTANTS_U13: Lazy<PoseidonConstants<crate::Fr, U13>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U13));
+pub(crate) static POSEIDON_CONSTANTS_U14: Lazy<PoseidonConstants<crate::Fr, U14>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U14));
+pub(crate) static POSEIDON_CONSTANTS_U15: Lazy<PoseidonConstants<crate::Fr, U15>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U15));
+pub(crate) static POSEIDON_CONSTANTS_U16: Lazy<PoseidonConstants<crate::Fr, U16>> =
+    Lazy::new(|| define_poseidon_constants!(CONSTANTS, U16));
 
 /// Constants taken from poseidon-ark.
 fn constants() -> (Vec<Vec<&'static str>>, Vec<Vec<Vec<&'static str>>>) {
