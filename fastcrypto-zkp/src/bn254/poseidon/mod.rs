@@ -298,9 +298,10 @@ mod test {
 
     #[test]
     fn test_neptune() {
-        // t = 3
         let constants = load_constants();
 
+        // Neptune computes the product Mx as xM because they assume M is symmetric which is not the
+        // case here so we have to transpose the matrix.
         let m = transpose(&constants.matrices[1]);
         let c = &constants.constants[1];
 
