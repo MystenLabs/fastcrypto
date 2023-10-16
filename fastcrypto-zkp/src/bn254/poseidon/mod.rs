@@ -157,7 +157,7 @@ macro_rules! define_poseidon_constants {
     }};
 }
 
-// TODO: Constants are loaded for each input size. But this is only done once and is better than keeping the constants around as a static variable.
+// TODO: CONSTANTS are not needed after all constants are loaded because they are cloned into the POSEIDON_CONSTANTs.
 static CONSTANTS: Lazy<Constants> = Lazy::new(|| load_constants());
 static POSEIDON_CONSTANTS_U1: Lazy<PoseidonConstants<crate::Fr, U1>> =
     Lazy::new(|| define_poseidon_constants!(CONSTANTS, U1));
@@ -207,7 +207,7 @@ fn neptune_hash(inputs: &Vec<Fr>) -> FastCryptoResult<Fr> {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
 
-    let results = match inputs.len() {
+    let result = match inputs.len() {
         1 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U1),
         2 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U2),
         3 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U3),
@@ -226,7 +226,7 @@ fn neptune_hash(inputs: &Vec<Fr>) -> FastCryptoResult<Fr> {
         16 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U16),
         _ => return Err(FastCryptoError::InvalidInput),
     };
-    Ok(fr_to_bn254fr(results))
+    Ok(fr_to_bn254fr(result))
 }
 
 #[cfg(test)]
