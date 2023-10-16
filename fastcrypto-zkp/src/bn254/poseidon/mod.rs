@@ -139,10 +139,19 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
+    use crate::bn254::poseidon::constants::load_constants;
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
+    use ark_ff::{BigInteger, PrimeField};
+    use byte_slice_cast::AsByteSlice;
+    use ff::PrimeField as OtherPrimeField;
+    use neptune::hash_type::HashType;
+    use neptune::matrix::transpose;
+    use neptune::poseidon::HashMode::Correct;
+    use neptune::poseidon::PoseidonConstants;
     use std::str::FromStr;
+    use typenum::U2;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
@@ -285,5 +294,43 @@ mod test {
         // Input smaller than the modulus
         let inputs = vec![vec![255; 31]];
         assert!(hash_to_bytes(&inputs).is_ok());
+    }
+
+    #[test]
+    fn test_neptune() {
+        // t = 3
+        let constants = load_constants();
+
+        let m = transpose(&constants.matrices[1]);
+        let c = &constants.constants[1];
+
+        let poseidon_constants = PoseidonConstants::new_from_parameters(
+            3,
+            m,
+            c.clone(),
+            8,
+            57,
+            HashType::<crate::Fr, U2>::ConstantLength(2),
+        );
+
+        let mut poseidon = neptune::Poseidon::new(&poseidon_constants);
+
+        poseidon.input(from_str("1")).unwrap();
+        poseidon.input(from_str("2")).unwrap();
+
+        let hash = poseidon.hash_in_mode(Correct);
+
+        let expected = PoseidonWrapper::new()
+            .hash(vec![Fr::from_str("1").unwrap(), Fr::from_str("2").unwrap()])
+            .unwrap();
+
+        assert_eq!(
+            hash.to_repr().as_byte_slice(),
+            expected.into_bigint().to_bytes_be().as_slice()
+        );
+    }
+
+    fn from_str(string: &str) -> crate::Fr {
+        crate::Fr::from_str_vartime(string).unwrap()
     }
 }

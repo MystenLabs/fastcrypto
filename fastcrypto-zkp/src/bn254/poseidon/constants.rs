@@ -14,6 +14,7 @@ pub(crate) struct Constants {
 
 pub(crate) fn load_constants() -> Constants {
     let (constants_strings, matrices_strings) = constants();
+
     let constants = constants_strings
         .iter()
         .map(|c| {
@@ -22,6 +23,7 @@ pub(crate) fn load_constants() -> Constants {
                 .collect()
         })
         .collect();
+
     let matrices = matrices_strings
         .iter()
         .map(|m| {
@@ -34,6 +36,7 @@ pub(crate) fn load_constants() -> Constants {
                 .collect()
         })
         .collect();
+
     Constants {
         constants,
         matrices,
