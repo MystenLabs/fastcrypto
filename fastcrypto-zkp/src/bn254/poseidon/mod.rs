@@ -13,6 +13,8 @@ use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::FastCryptoError;
 use ff::PrimeField as OtherPrimeField;
+use neptune::Poseidon;
+use neptune::poseidon::HashMode::OptimizedStatic;
 use neptune::poseidon::HashMode::Correct;
 use neptune::Poseidon as Neptune;
 use once_cell::sync::Lazy;
@@ -26,15 +28,15 @@ use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8,
 mod constants;
 
 macro_rules! define_poseidon_hash {
-    ($inputs:expr, $poseidon:expr) => {
-        // unsafe is needed when using mutable static objects
-        unsafe {
-            $poseidon.reset();
+    ($inputs:expr, $poseidon_constants:expr) => {
+        {
+            let mut poseidon = Poseidon::new(&$poseidon_constants);
+            poseidon.reset();
             for input in $inputs.iter() {
-                $poseidon.input(bn254_to_fr(*input)).unwrap();
+                poseidon.input(bn254_to_fr(*input)).unwrap();
             }
-            $poseidon.hash_in_mode(Correct);
-            $poseidon.elements[0]
+            poseidon.hash_in_mode(OptimizedStatic);
+            poseidon.elements[0]
         }
     };
 }
@@ -50,22 +52,22 @@ pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 
     let result = match inputs.len() {
-        1 => define_poseidon_hash!(inputs, POSEIDON_U1),
-        2 => define_poseidon_hash!(inputs, POSEIDON_U2),
-        3 => define_poseidon_hash!(inputs, POSEIDON_U3),
-        4 => define_poseidon_hash!(inputs, POSEIDON_U4),
-        5 => define_poseidon_hash!(inputs, POSEIDON_U5),
-        6 => define_poseidon_hash!(inputs, POSEIDON_U6),
-        7 => define_poseidon_hash!(inputs, POSEIDON_U7),
-        8 => define_poseidon_hash!(inputs, POSEIDON_U8),
-        9 => define_poseidon_hash!(inputs, POSEIDON_U9),
-        10 => define_poseidon_hash!(inputs, POSEIDON_U10),
-        11 => define_poseidon_hash!(inputs, POSEIDON_U11),
-        12 => define_poseidon_hash!(inputs, POSEIDON_U12),
-        13 => define_poseidon_hash!(inputs, POSEIDON_U13),
-        14 => define_poseidon_hash!(inputs, POSEIDON_U14),
-        15 => define_poseidon_hash!(inputs, POSEIDON_U15),
-        16 => define_poseidon_hash!(inputs, POSEIDON_U16),
+        1 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U1),
+        2 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U2),
+        3 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U3),
+        4 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U4),
+        5 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U5),
+        6 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U6),
+        7 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U7),
+        8 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U8),
+        9 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U9),
+        10 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U10),
+        11 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U11),
+        12 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U12),
+        13 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U13),
+        14 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U14),
+        15 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U15),
+        16 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U16),
         _ => return Err(FastCryptoError::InvalidInput),
     };
     Ok(fr_to_bn254fr(result))
@@ -151,39 +153,6 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
     bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
     crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
 }
-
-static mut POSEIDON_U1: Lazy<Neptune<crate::Fr, U1>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U1));
-static mut POSEIDON_U2: Lazy<Neptune<crate::Fr, U2>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U2));
-static mut POSEIDON_U3: Lazy<Neptune<crate::Fr, U3>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U3));
-static mut POSEIDON_U4: Lazy<Neptune<crate::Fr, U4>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U4));
-static mut POSEIDON_U5: Lazy<Neptune<crate::Fr, U5>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U5));
-static mut POSEIDON_U6: Lazy<Neptune<crate::Fr, U6>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U6));
-static mut POSEIDON_U7: Lazy<Neptune<crate::Fr, U7>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U7));
-static mut POSEIDON_U8: Lazy<Neptune<crate::Fr, U8>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U8));
-static mut POSEIDON_U9: Lazy<Neptune<crate::Fr, U9>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U9));
-static mut POSEIDON_U10: Lazy<Neptune<crate::Fr, U10>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U10));
-static mut POSEIDON_U11: Lazy<Neptune<crate::Fr, U11>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U11));
-static mut POSEIDON_U12: Lazy<Neptune<crate::Fr, U12>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U12));
-static mut POSEIDON_U13: Lazy<Neptune<crate::Fr, U13>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U13));
-static mut POSEIDON_U14: Lazy<Neptune<crate::Fr, U14>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U14));
-static mut POSEIDON_U15: Lazy<Neptune<crate::Fr, U15>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U15));
-static mut POSEIDON_U16: Lazy<Neptune<crate::Fr, U16>> =
-    Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U16));
 
 #[cfg(test)]
 mod test {
