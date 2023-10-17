@@ -13,7 +13,6 @@ use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::FastCryptoError;
 use ff::PrimeField as OtherPrimeField;
-use neptune::Poseidon;
 use neptune::poseidon::HashMode::OptimizedStatic;
 use neptune::poseidon::HashMode::Correct;
 use neptune::Poseidon as Neptune;
@@ -24,21 +23,20 @@ use poseidon_ark::Poseidon;
 use std::cmp::Ordering;
 use std::fmt::Debug;
 use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
+use neptune::Poseidon;
 
 mod constants;
 
 macro_rules! define_poseidon_hash {
-    ($inputs:expr, $poseidon_constants:expr) => {
-        {
-            let mut poseidon = Poseidon::new(&$poseidon_constants);
-            poseidon.reset();
-            for input in $inputs.iter() {
-                poseidon.input(bn254_to_fr(*input)).unwrap();
-            }
-            poseidon.hash_in_mode(OptimizedStatic);
-            poseidon.elements[0]
+    ($inputs:expr, $poseidon_constants:expr) => {{
+        let mut poseidon = Poseidon::new(&$poseidon_constants);
+        poseidon.reset();
+        for input in $inputs.iter() {
+            poseidon.input(bn254_to_fr(*input)).unwrap();
         }
-    };
+        poseidon.hash_in_mode(OptimizedStatic);
+        poseidon.elements[0]
+    }};
 }
 
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
@@ -91,6 +89,7 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
+/// Convert an ff field element to an arkworks-ff field element.
 /// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
 /// this function returns the corresponding field element. If the field element is not canonical (is
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
@@ -148,6 +147,7 @@ fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
     Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
 }
 
+/// Convert an arkworks-ff field element to an ff field element.
 fn bn254_to_fr(fr: Fr) -> crate::Fr {
     let mut bytes = [0u8; 32];
     bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());

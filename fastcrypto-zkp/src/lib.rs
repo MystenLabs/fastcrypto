@@ -9,6 +9,7 @@ extern crate ff;
 
 use ff::PrimeField;
 
+/// Definition of the BN254 prime field.
 #[derive(PrimeField)]
 #[PrimeFieldModulus = "21888242871839275222246405745257275088548364400416034343698204186575808495617"]
 #[PrimeFieldGenerator = "5"]
