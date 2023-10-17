@@ -35,6 +35,8 @@ macro_rules! define_poseidon_hash {
             poseidon.input(bn254_to_fr(*input)).unwrap();
         }
         poseidon.hash_in_mode(OptimizedStatic);
+
+        // Neptune returns the state element with index 1 but we want the first element.
         poseidon.elements[0]
     }};
 }
@@ -49,6 +51,8 @@ pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
 
+    // Instances of Poseidon and PoseidonConstants from neptune have different types depending on
+    // the number of inputs, so unfortunately we need to use a macro here.
     let result = match inputs.len() {
         1 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U1),
         2 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U2),
