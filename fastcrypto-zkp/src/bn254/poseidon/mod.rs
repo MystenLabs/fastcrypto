@@ -14,6 +14,8 @@ use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use ff::PrimeField as OtherPrimeField;
 use neptune::poseidon::HashMode::Correct;
+use neptune::poseidon::HashMode::OptimizedStatic;
+use neptune::poseidon::HashMode::OptimizedDynamic;
 use neptune::Poseidon as Neptune;
 use once_cell::sync::Lazy;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};

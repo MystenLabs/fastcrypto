@@ -4,7 +4,6 @@
 use crate::Fr;
 use ff::PrimeField;
 use neptune::hash_type::HashType;
-use neptune::matrix::transpose;
 use neptune::poseidon::PoseidonConstants;
 use once_cell::sync::Lazy;
 use typenum::Unsigned;
@@ -57,11 +56,11 @@ macro_rules! define_poseidon_constants {
     ($constants:expr, $ui:ty) => {{
         let n = <$ui>::to_usize();
         let i = n - 1;
-        let m = transpose(&$constants.matrices[i]);
+        let m = &$constants.matrices[i];
         let c = &$constants.constants[i];
         PoseidonConstants::new_from_parameters(
             n + 1,
-            m,
+            m.clone(),
             c.clone(),
             $constants.full_rounds,
             $constants.partial_rounds[i],
