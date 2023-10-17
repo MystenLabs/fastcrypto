@@ -71,7 +71,7 @@ macro_rules! define_poseidon_constants {
 }
 
 // TODO: CONSTANTS are not needed after all constants are loaded because they are cloned into the POSEIDON_CONSTANTs.
-static CONSTANTS: Lazy<Constants> = Lazy::new(|| load_constants());
+static CONSTANTS: Lazy<Constants> = Lazy::new(load_constants);
 pub(crate) static POSEIDON_CONSTANTS_U1: Lazy<PoseidonConstants<Fr, U1>> =
     Lazy::new(|| define_poseidon_constants!(CONSTANTS, U1));
 pub(crate) static POSEIDON_CONSTANTS_U2: Lazy<PoseidonConstants<Fr, U2>> =
