@@ -14,8 +14,6 @@ use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use ff::PrimeField as OtherPrimeField;
 use neptune::poseidon::HashMode::Correct;
-use neptune::poseidon::HashMode::OptimizedStatic;
-use neptune::poseidon::HashMode::OptimizedDynamic;
 use neptune::Poseidon as Neptune;
 use once_cell::sync::Lazy;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
@@ -26,26 +24,52 @@ use std::fmt::Debug;
 use std::fmt::Formatter;
 use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
 
-pub(crate) mod constants;
+mod constants;
+
+macro_rules! define_poseidon_hash {
+    ($inputs:expr, $poseidon:expr) => {
+        // unsafe is needed when using mutable static objects
+        unsafe {
+            $poseidon.reset();
+            for input in $inputs.iter() {
+                $poseidon.input(bn254_to_fr(*input)).unwrap();
+            }
+            $poseidon.hash_in_mode(Correct);
+            $poseidon.elements[0]
+        }
+    };
+}
 
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
 /// Poseidon hash function over BN254.
-pub struct Poseidon {}
-
-impl Debug for Poseidon {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PoseidonWrapper").finish()
+pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    if inputs.is_empty() || inputs.len() > 16 {
+        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-}
 
-impl Poseidon {
-    /// Calculate the hash of the given inputs.
-    pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
-        neptune_hash(&inputs)
-    }
+    let result = match inputs.len() {
+        1 => define_poseidon_hash!(inputs, POSEIDON_U1),
+        2 => define_poseidon_hash!(inputs, POSEIDON_U2),
+        3 => define_poseidon_hash!(inputs, POSEIDON_U3),
+        4 => define_poseidon_hash!(inputs, POSEIDON_U4),
+        5 => define_poseidon_hash!(inputs, POSEIDON_U5),
+        6 => define_poseidon_hash!(inputs, POSEIDON_U6),
+        7 => define_poseidon_hash!(inputs, POSEIDON_U7),
+        8 => define_poseidon_hash!(inputs, POSEIDON_U8),
+        9 => define_poseidon_hash!(inputs, POSEIDON_U9),
+        10 => define_poseidon_hash!(inputs, POSEIDON_U10),
+        11 => define_poseidon_hash!(inputs, POSEIDON_U11),
+        12 => define_poseidon_hash!(inputs, POSEIDON_U12),
+        13 => define_poseidon_hash!(inputs, POSEIDON_U13),
+        14 => define_poseidon_hash!(inputs, POSEIDON_U14),
+        15 => define_poseidon_hash!(inputs, POSEIDON_U15),
+        16 => define_poseidon_hash!(inputs, POSEIDON_U16),
+        _ => return Err(FastCryptoError::InvalidInput),
+    };
+    Ok(fr_to_bn254fr(result))
 }
 
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
@@ -53,11 +77,11 @@ impl Poseidon {
 /// error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     if inputs.len() <= 16 {
-        Poseidon::hash(inputs)
+        hash(inputs)
     } else if inputs.len() <= 32 {
-        let hash1 = Poseidon::hash(inputs[0..16].to_vec())?;
-        let hash2 = Poseidon::hash(inputs[16..].to_vec())?;
-        Poseidon::hash([hash1, hash2].to_vec())
+        let hash1 = hash(inputs[0..16].to_vec())?;
+        let hash2 = hash(inputs[16..].to_vec())?;
+        hash([hash1, hash2].to_vec())
     } else {
         Err(FastCryptoError::GeneralError(format!(
             "Yet to implement: Unable to hash a vector of length {}",
@@ -129,19 +153,6 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
     crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
 }
 
-macro_rules! define_poseidon_hash {
-    ($inputs:expr, $poseidon:expr) => {
-        // unsafe is needed when using mutable static objects
-        unsafe {
-            $poseidon.reset();
-            for input in $inputs.iter() {
-                $poseidon.input(bn254_to_fr(*input)).unwrap();
-            }
-            $poseidon.hash_in_mode(Correct)
-        }
-    };
-}
-
 static mut POSEIDON_U1: Lazy<Neptune<crate::Fr, U1>> =
     Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U1));
 static mut POSEIDON_U2: Lazy<Neptune<crate::Fr, U2>> =
@@ -175,36 +186,10 @@ static mut POSEIDON_U15: Lazy<Neptune<crate::Fr, U15>> =
 static mut POSEIDON_U16: Lazy<Neptune<crate::Fr, U16>> =
     Lazy::new(|| Neptune::new(&POSEIDON_CONSTANTS_U16));
 
-fn neptune_hash(inputs: &Vec<Fr>) -> FastCryptoResult<Fr> {
-    if inputs.is_empty() || inputs.len() > 16 {
-        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
-    }
-
-    let result = match inputs.len() {
-        1 => define_poseidon_hash!(inputs, POSEIDON_U1),
-        2 => define_poseidon_hash!(inputs, POSEIDON_U2),
-        3 => define_poseidon_hash!(inputs, POSEIDON_U3),
-        4 => define_poseidon_hash!(inputs, POSEIDON_U4),
-        5 => define_poseidon_hash!(inputs, POSEIDON_U5),
-        6 => define_poseidon_hash!(inputs, POSEIDON_U6),
-        7 => define_poseidon_hash!(inputs, POSEIDON_U7),
-        8 => define_poseidon_hash!(inputs, POSEIDON_U8),
-        9 => define_poseidon_hash!(inputs, POSEIDON_U9),
-        10 => define_poseidon_hash!(inputs, POSEIDON_U10),
-        11 => define_poseidon_hash!(inputs, POSEIDON_U11),
-        12 => define_poseidon_hash!(inputs, POSEIDON_U12),
-        13 => define_poseidon_hash!(inputs, POSEIDON_U13),
-        14 => define_poseidon_hash!(inputs, POSEIDON_U14),
-        15 => define_poseidon_hash!(inputs, POSEIDON_U15),
-        16 => define_poseidon_hash!(inputs, POSEIDON_U16),
-        _ => return Err(FastCryptoError::InvalidInput),
-    };
-    Ok(fr_to_bn254fr(result))
-}
-
 #[cfg(test)]
 mod test {
     use super::Poseidon;
+    use crate::bn254::poseidon::hash;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use crate::bn254::poseidon::bn254_to_fr;
     use crate::bn254::poseidon::constants::load_constants;
@@ -226,7 +211,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = Poseidon::hash(vec![input1, input2, input3, input4]).unwrap();
+        let hash = hash(vec![input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             Fr::from_str(
@@ -305,7 +290,7 @@ mod test {
         )
         .unwrap();
 
-        let hash = Poseidon::hash(vec![
+        let hash = hash(vec![
             jwt_sha2_hash_0,
             jwt_sha2_hash_1,
             masked_content_hash,

@@ -6,10 +6,8 @@ use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
 
-use super::{
-    poseidon::{to_poseidon_hash, Poseidon},
-    utils::split_to_two_frs,
-};
+use super::{poseidon::to_poseidon_hash, utils::split_to_two_frs};
+use crate::bn254::poseidon::hash;
 use crate::circom::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
 };
@@ -383,7 +381,7 @@ impl ZkLoginInputs {
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        Poseidon::hash(vec![
+        hash(vec![
             first,
             second,
             addr_seed,

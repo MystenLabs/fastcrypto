@@ -2205,7 +2205,7 @@ dependencies = [
 [[package]]
 name = "neptune"
 version = "11.0.0"
-source = "git+https://github.com/jonas-lj/neptune?rev=7f0d72ac15f3faf03dd77ab80790db1a578c9e04#7f0d72ac15f3faf03dd77ab80790db1a578c9e04"
+source = "git+https://github.com/jonas-lj/neptune?rev=2de7cb7893afb13c57c239be142ff69bb3a0db6b#2de7cb7893afb13c57c239be142ff69bb3a0db6b"
 dependencies = [
  "bellpepper",
  "bellpepper-core",

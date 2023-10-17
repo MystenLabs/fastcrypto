@@ -43,7 +43,7 @@ bcs = "0.1.4"
 im = "15"
 reqwest = { version = "0.11.20", default_features = false, features = ["blocking", "json", "rustls-tls"] }
 rustls-webpki = "0.101.4"
-neptune = { git = "https://github.com/jonas-lj/neptune", rev = "7f0d72ac15f3faf03dd77ab80790db1a578c9e04" }
+neptune = { git = "https://github.com/jonas-lj/neptune", rev = "2de7cb7893afb13c57c239be142ff69bb3a0db6b" }
 ff = { version = "0.13.0", features = ["derive"] }
 typenum = "1.13.0"
 
