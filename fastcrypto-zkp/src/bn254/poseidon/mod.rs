@@ -11,7 +11,7 @@ use crate::FrRepr;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError;
 use ff::PrimeField as OtherPrimeField;
 use neptune::poseidon::HashMode::Correct;
 use neptune::Poseidon as Neptune;
@@ -21,7 +21,6 @@ use once_cell::sync::OnceCell;
 use poseidon_ark::Poseidon;
 use std::cmp::Ordering;
 use std::fmt::Debug;
-use std::fmt::Formatter;
 use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
 
 mod constants;
