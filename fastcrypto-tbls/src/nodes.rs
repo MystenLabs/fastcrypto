@@ -7,6 +7,7 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::iter::Map;
 use std::ops::RangeInclusive;
 
@@ -23,6 +24,7 @@ pub struct Node<G: GroupElement> {
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>,
     n: u32, // share ids are 1..n
+    share_id_to_party_id: HashMap<ShareIndex, PartyId>,
 }
 
 impl<G: GroupElement> Nodes<G> {
@@ -36,7 +38,27 @@ impl<G: GroupElement> Nodes<G> {
         }
         // Get the total weight of the nodes
         let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
-        Ok(Self { nodes, n })
+
+        let share_id_to_party_id = Self::get_share_id_to_party_id(&nodes);
+
+        Ok(Self {
+            nodes,
+            n,
+            share_id_to_party_id,
+        })
+    }
+
+    fn get_share_id_to_party_id(nodes: &Vec<Node<G>>) -> HashMap<ShareIndex, PartyId> {
+        let mut curr_share_id = 1;
+        let mut share_id_to_party_id = HashMap::new();
+        for n in nodes {
+            for _ in 1..=n.weight {
+                let share_id = ShareIndex::new(curr_share_id).expect("nonzero");
+                share_id_to_party_id.insert(share_id, n.id);
+                curr_share_id += 1;
+            }
+        }
+        share_id_to_party_id
     }
 
     /// Total weight of the nodes.
@@ -56,16 +78,10 @@ impl<G: GroupElement> Nodes<G> {
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        // TODO: [perf opt] Cache this
-        let mut curr_share_id = 1;
-        for n in &self.nodes {
-            if curr_share_id <= share_id.get() && share_id.get() < curr_share_id + (n.weight as u32)
-            {
-                return Ok(n);
-            }
-            curr_share_id += n.weight as u32;
-        }
-        Err(FastCryptoError::InvalidInput)
+        self.share_id_to_party_id
+            .get(share_id)
+            .map(|id| self.node_id_to_node(*id))
+            .ok_or(FastCryptoError::InvalidInput)?
     }
 
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
@@ -113,8 +129,16 @@ impl<G: GroupElement> Nodes<G> {
                 weight: n.weight / max_d,
             })
             .collect::<Vec<_>>();
+        let share_id_to_party_id = Self::get_share_id_to_party_id(&nodes);
         let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
         let new_t = t / max_d + (t % max_d != 0) as u16;
-        (Self { nodes, n }, new_t)
+        (
+            Self {
+                nodes,
+                n,
+                share_id_to_party_id,
+            },
+            new_t,
+        )
     }
 }
