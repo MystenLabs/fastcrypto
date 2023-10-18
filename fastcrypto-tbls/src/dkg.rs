@@ -16,6 +16,7 @@ use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
+use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -243,7 +244,7 @@ where
     }
 
     /// 6. Merge results from multiple process_message calls so only one message needs to be sent.
-    ///    Returns InputTooShort if the threshold t is not met.
+    ///    Returns NotEnoughInputs if the threshold t is not met.
     pub fn merge(
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
@@ -251,20 +252,20 @@ where
         // Enforce unique senders
         let processed_messages = processed_messages
             .iter()
-            .map(|m| (m.message.sender, m))
-            .collect::<HashMap<_, _>>();
+            .unique_by(|m| m.message.sender)
+            .collect::<Vec<_>>();
         // Verify we have enough messages
         let total_weight = processed_messages
-            .keys()
-            .map(|sender| {
+            .iter()
+            .map(|m| {
                 self.nodes
-                    .node_id_to_node(*sender)
+                    .node_id_to_node(m.message.sender)
                     .expect("checked in process_message")
                     .weight as u32
             })
             .sum::<u32>();
         if total_weight < self.t {
-            return Err(FastCryptoError::InputTooShort(self.t as usize));
+            return Err(FastCryptoError::NotEnoughInputs);
         }
 
         let mut shares = HashMap::new();
@@ -272,10 +273,10 @@ where
             sender: self.id,
             complaints: Vec::new(),
         };
-        for m in processed_messages.values() {
+        for m in processed_messages {
             shares.insert(m.message.sender, m.shares.clone());
             if m.complaint.is_some() {
-                let complaint = m.complaint.clone().unwrap();
+                let complaint = m.complaint.clone().expect("checked above");
                 conf.complaints.push(complaint);
             }
         }
@@ -303,10 +304,12 @@ where
         if minimal_threshold < self.t {
             return Err(FastCryptoError::InvalidInput);
         }
+        let messages = messages.iter().unique_by(|m| m.sender).collect::<Vec<_>>();
         // Ignore confirmations with invalid sender
         let confirmations = confirmations
             .iter()
             .filter(|c| self.nodes.node_id_to_node(c.sender).is_ok())
+            .unique_by(|m| m.sender)
             .collect::<Vec<_>>();
         // Verify we have enough confirmations
         let total_weight = confirmations
@@ -319,14 +322,16 @@ where
             })
             .sum::<u32>();
         if total_weight < minimal_threshold {
-            return Err(FastCryptoError::InputTooShort(minimal_threshold as usize));
+            return Err(FastCryptoError::NotEnoughInputs);
         }
 
         // Two hash maps for faster access in the main loop below.
         let id_to_pk: HashMap<PartyId, &ecies::PublicKey<EG>> =
             self.nodes.iter().map(|n| (n.id, &n.pk)).collect();
-        let id_to_m1: HashMap<PartyId, &Message<G, EG>> =
-            messages.iter().map(|m| (m.sender, m)).collect();
+        let id_to_m1 = messages
+            .iter()
+            .map(|m| (m.sender, m))
+            .collect::<HashMap<_, _>>();
 
         let mut shares = shares;
         'outer: for m2 in confirmations {
@@ -387,6 +392,10 @@ where
         first_messages: &[Message<G, EG>],
         shares: SharesMap<G::ScalarType>,
     ) -> Output<G, EG> {
+        let first_messages = first_messages
+            .iter()
+            .unique_by(|m| m.sender)
+            .collect::<Vec<_>>();
         let id_to_m1: HashMap<_, _> = first_messages.iter().map(|m| (m.sender, m)).collect();
         let mut vss_pk = PublicPoly::<G>::zero();
         let my_share_ids = self.nodes.share_ids_of(self.id);

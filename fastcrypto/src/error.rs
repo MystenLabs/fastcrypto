@@ -40,6 +40,10 @@ pub enum FastCryptoError {
     #[error("Invalid proof was given to the function")]
     InvalidProof,
 
+    /// Not enough inputs were given to the function
+    #[error("Not enough inputs were given to the function")]
+    NotEnoughInputs,
+
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),

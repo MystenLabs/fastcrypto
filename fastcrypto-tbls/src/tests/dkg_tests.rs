@@ -7,6 +7,7 @@ use crate::nodes::{Node, Nodes, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
+use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use rand::thread_rng;
@@ -42,7 +43,7 @@ fn setup_party(
     Party::<G, EG>::new(
         keys.get(id as usize).unwrap().1.clone(),
         Nodes::new(nodes).unwrap(),
-        (keys.len() / 2) as u32,
+        3,
         RandomOracle::new("dkg"),
         &mut thread_rng(),
     )
@@ -71,6 +72,13 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     msg1.encrypted_shares.swap_for_testing(0, 1);
     // Don't send the message of d3 to d0 (emulating a slow party).
     let _msg3 = d3.create_message(&mut thread_rng());
+
+    assert_eq!(
+        d0.merge(&[d0.process_message(msg0.clone(), &mut thread_rng()).unwrap()])
+            .err(),
+        Some(FastCryptoError::NotEnoughInputs)
+    );
+
     let r1_all = vec![msg0, msg1];
 
     let (shares0, conf0) = d0
@@ -134,13 +142,15 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     let o3 = d3.aggregate(&r1_all, shares3);
 
     // Use the shares from 01 and o4 to sign a message.
-    let sig0 = S::partial_sign(&o0.shares[0], &MSG);
-    let sig3 = S::partial_sign(&o3.shares[0], &MSG);
+    let sig00 = S::partial_sign(&o0.shares[0], &MSG);
+    let sig30 = S::partial_sign(&o3.shares[0], &MSG);
+    let sig31 = S::partial_sign(&o3.shares[1], &MSG);
 
-    S::partial_verify(&o0.vss_pk, &MSG, &sig0).unwrap();
-    S::partial_verify(&o3.vss_pk, &MSG, &sig3).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig00).unwrap();
+    S::partial_verify(&o3.vss_pk, &MSG, &sig30).unwrap();
+    S::partial_verify(&o3.vss_pk, &MSG, &sig31).unwrap();
 
-    let sigs = vec![sig0, sig3];
+    let sigs = vec![sig00, sig30, sig31];
     let sig = S::aggregate(d0.t(), &sigs).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
