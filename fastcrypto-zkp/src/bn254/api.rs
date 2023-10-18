@@ -56,6 +56,9 @@ pub fn verify_groth16(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
+    if proof_public_inputs_as_bytes.len() % SCALAR_SIZE != 0 {
+        return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
+    }
     let proof = Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
     let mut public_inputs = Vec::new();
