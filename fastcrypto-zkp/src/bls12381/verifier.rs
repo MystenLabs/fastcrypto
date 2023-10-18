@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use std::borrow::Borrow;
 use std::{iter, ops::Neg, ptr};
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
@@ -42,12 +43,12 @@ pub struct PreparedVerifyingKey {
 
 impl PreparedVerifyingKey {
     /// Deserialize the prepared verifying key from the serialized fields of vk_gamma_abc_g1, alpha_g1_beta_g2, gamma_g2_neg_pc, delta_g2_neg_pc
-    pub fn deserialize(
-        vk_gamma_abc_g1_bytes: &[u8],
-        alpha_g1_beta_g2_bytes: &[u8],
-        gamma_g2_neg_pc_bytes: &[u8],
-        delta_g2_neg_pc_bytes: &[u8],
-    ) -> Result<Self, FastCryptoError> {
+    pub fn deserialize<V: Borrow<[u8]>>(bytes: &Vec<V>) -> Result<Self, FastCryptoError> {
+        if bytes.len() != 4 {
+            return Err(FastCryptoError::InputLengthWrong(bytes.len()));
+        }
+
+        let vk_gamma_abc_g1_bytes = bytes[0].borrow();
         if vk_gamma_abc_g1_bytes.len() % G1_COMPRESSED_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -59,14 +60,14 @@ impl PreparedVerifyingKey {
         }
 
         let alpha_g1_beta_g2 = bls_fq12_to_blst_fp12(
-            &Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
+            &Fq12::deserialize_compressed(bytes[1].borrow())
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
 
-        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(gamma_g2_neg_pc_bytes)
+        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(bytes[2].borrow())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let delta_g2_neg_pc = G2Affine::deserialize_compressed(delta_g2_neg_pc_bytes)
+        let delta_g2_neg_pc = G2Affine::deserialize_compressed(bytes[3].borrow())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(PreparedVerifyingKey {
@@ -78,7 +79,7 @@ impl PreparedVerifyingKey {
     }
 
     /// Serialize the prepared verifying key to its vectors form.
-    pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
+    pub fn serialize(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
         let mut res = Vec::new();
 
         let mut vk_gamma = Vec::new();
@@ -355,4 +356,34 @@ pub fn verify_with_processed_vk(
 
     let res = multipairing_with_processed_vk(pvk, &x, &proof.0);
     Ok(res == pvk.alpha_g1_beta_g2)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bls12381::verifier::{process_vk_special, PreparedVerifyingKey};
+    use crate::bls12381::VerifyingKey;
+    use crate::dummy_circuits::DummyCircuit;
+    use ark_bls12_381::{Bls12_381, Fr};
+    use ark_groth16::Groth16;
+    use ark_snark::SNARK;
+    use ark_std::rand::thread_rng;
+    use ark_std::UniformRand;
+
+    #[test]
+    fn test_serialization() {
+        const PUBLIC_SIZE: usize = 128;
+        let rng = &mut thread_rng();
+        let c = DummyCircuit::<Fr> {
+            a: Some(<Fr>::rand(rng)),
+            b: Some(<Fr>::rand(rng)),
+            num_variables: PUBLIC_SIZE,
+            num_constraints: 10,
+        };
+        let (_, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
+        let pvk = process_vk_special(&VerifyingKey(vk));
+
+        let serialized = pvk.serialize().unwrap();
+        let deserialized = PreparedVerifyingKey::deserialize(&serialized).unwrap();
+        assert_eq!(pvk, deserialized);
+    }
 }

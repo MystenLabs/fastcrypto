@@ -33,7 +33,7 @@ fn test_verify_groth16_in_bytes_api() {
 
     let pvk = process_vk_special(&VerifyingKey(vk));
 
-    let bytes = pvk.as_serialized().unwrap();
+    let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -120,7 +120,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
             .unwrap()
     );
 
-    let pvk = pvk.as_serialized().unwrap();
+    let pvk = pvk.serialize().unwrap();
 
     // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();
@@ -318,7 +318,7 @@ fn test_verify_groth16_elusiv_proof_in_bytes_api() {
 
     let pvk = process_vk_special(&vk);
 
-    let bytes = pvk.as_serialized().unwrap();
+    let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -533,7 +533,7 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
 
     let pvk = process_vk_special(&vk);
 
-    let bytes = pvk.as_serialized().unwrap();
+    let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];

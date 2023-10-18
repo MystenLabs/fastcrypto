@@ -20,7 +20,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
     let vk = VerifyingKey::<Bls12_381>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    process_vk_special(&vk.into()).as_serialized()
+    process_vk_special(&vk.into()).serialize()
 }
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
@@ -51,12 +51,12 @@ pub fn verify_groth16_in_bytes(
         .map_err(|_| FastCryptoError::InvalidInput)?
         .into();
 
-    let blst_pvk = PreparedVerifyingKey::deserialize(
+    let blst_pvk = PreparedVerifyingKey::deserialize(&vec![
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-    )?;
+    ])?;
 
     verify_with_processed_vk(&blst_pvk, &x, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))

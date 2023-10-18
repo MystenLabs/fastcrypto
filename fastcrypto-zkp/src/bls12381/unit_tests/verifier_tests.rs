@@ -215,14 +215,8 @@ fn test_verify_with_processed_vk() {
             .into();
 
     // Roundtrip serde of the prepared verifying key.
-    let serialized = blst_pvk.as_serialized().unwrap();
-    let serialized_pvk = CustomPVK::deserialize(
-        &serialized[0],
-        &serialized[1],
-        &serialized[2],
-        &serialized[3],
-    )
-    .unwrap();
+    let serialized = blst_pvk.serialize().unwrap();
+    let serialized_pvk = CustomPVK::deserialize(&serialized).unwrap();
 
     assert!(verify_with_processed_vk(
         &serialized_pvk,

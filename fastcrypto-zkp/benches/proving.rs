@@ -372,7 +372,7 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     );
 
     let pvk = fastcrypto_zkp::bn254::verifier::process_vk_special(&vk);
-    let bytes = pvk.as_serialized().unwrap();
+    let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];

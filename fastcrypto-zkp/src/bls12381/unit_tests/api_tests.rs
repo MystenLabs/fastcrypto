@@ -29,7 +29,7 @@ fn test_verify_groth16_in_bytes_api() {
     let v = c.a.unwrap().mul(c.b.unwrap());
     let blst_pvk = process_vk_special(&vk.into());
 
-    let bytes = blst_pvk.as_serialized().unwrap();
+    let bytes = blst_pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -147,7 +147,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     let inputs: Vec<_> = [FieldElement(a), FieldElement(b)].to_vec();
     assert!(verify_with_processed_vk(&pvk, &inputs, &proof.into()).unwrap());
 
-    let pvk = pvk.as_serialized().unwrap();
+    let pvk = pvk.serialize().unwrap();
 
     // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();

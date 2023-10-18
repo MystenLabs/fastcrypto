@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use std::ops::Neg;
@@ -36,7 +37,7 @@ pub struct PreparedVerifyingKey {
 
 impl PreparedVerifyingKey {
     /// Serialize the prepared verifying key to its vectors form.
-    pub fn as_serialized(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
+    pub fn serialize(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
         let mut res = Vec::new();
 
         let mut vk_gamma = Vec::new();
@@ -70,15 +71,16 @@ impl PreparedVerifyingKey {
 
     /// Deserialize the prepared verifying key from the serialized fields of vk_gamma_abc_g1,
     /// alpha_g1_beta_g2, gamma_g2_neg_pc, delta_g2_neg_pc
-    pub fn deserialize(
-        vk_gamma_abc_g1_bytes: &[u8],
-        alpha_g1_beta_g2_bytes: &[u8],
-        gamma_g2_neg_pc_bytes: &[u8],
-        delta_g2_neg_pc_bytes: &[u8],
-    ) -> Result<Self, FastCryptoError> {
+    pub fn deserialize<V: Borrow<[u8]>>(bytes: &Vec<V>) -> Result<Self, FastCryptoError> {
+        if bytes.len() != 4 {
+            return Err(FastCryptoError::InputLengthWrong(bytes.len()));
+        }
+
+        let vk_gamma_abc_g1_bytes = bytes[0].borrow();
         if vk_gamma_abc_g1_bytes.len() % SCALAR_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
+
         let mut vk_gamma_abc_g1: Vec<G1Affine> = Vec::new();
         for g1_bytes in vk_gamma_abc_g1_bytes.chunks(SCALAR_SIZE) {
             let g1 = G1Affine::deserialize_compressed(g1_bytes)
@@ -86,13 +88,13 @@ impl PreparedVerifyingKey {
             vk_gamma_abc_g1.push(g1);
         }
 
-        let alpha_g1_beta_g2 = Fq12::deserialize_compressed(alpha_g1_beta_g2_bytes)
+        let alpha_g1_beta_g2 = Fq12::deserialize_compressed(bytes[1].borrow())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(gamma_g2_neg_pc_bytes)
+        let gamma_g2_neg_pc = G2Affine::deserialize_compressed(bytes[2].borrow())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let delta_g2_neg_pc = G2Affine::deserialize_compressed(delta_g2_neg_pc_bytes)
+        let delta_g2_neg_pc = G2Affine::deserialize_compressed(bytes[3].borrow())
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         Ok(PreparedVerifyingKey {
@@ -159,4 +161,34 @@ pub fn verify_with_processed_vk(
     let x: Vec<Bn254Fr> = public_inputs.iter().map(|x| x.0).collect();
     Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof.0)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
+    use crate::bn254::VerifyingKey;
+    use crate::dummy_circuits::DummyCircuit;
+    use ark_bn254::{Bn254, Fr};
+    use ark_groth16::Groth16;
+    use ark_snark::SNARK;
+    use ark_std::rand::thread_rng;
+    use ark_std::UniformRand;
+
+    #[test]
+    fn test_serialization() {
+        const PUBLIC_SIZE: usize = 128;
+        let rng = &mut thread_rng();
+        let c = DummyCircuit::<Fr> {
+            a: Some(<Fr>::rand(rng)),
+            b: Some(<Fr>::rand(rng)),
+            num_variables: PUBLIC_SIZE,
+            num_constraints: 10,
+        };
+        let (_, vk) = Groth16::<Bn254>::circuit_specific_setup(c, rng).unwrap();
+        let pvk = process_vk_special(&VerifyingKey(vk));
+
+        let serialized = pvk.serialize().unwrap();
+        let deserialized = PreparedVerifyingKey::deserialize(&serialized).unwrap();
+        assert_eq!(pvk, deserialized);
+    }
 }

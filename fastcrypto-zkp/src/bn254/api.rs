@@ -21,7 +21,7 @@ pub const SCALAR_SIZE: usize = 32;
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
     let vk = VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
-    process_vk_special(&Bn254VerifyingKey(vk)).as_serialized()
+    process_vk_special(&Bn254VerifyingKey(vk)).serialize()
 }
 
 /// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
@@ -39,12 +39,12 @@ pub fn verify_groth16_in_bytes(
         return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
     }
 
-    let pvk = PreparedVerifyingKey::deserialize(
+    let pvk = PreparedVerifyingKey::deserialize(&vec![
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-    )?;
+    ])?;
 
     verify_groth16(&pvk, proof_public_inputs_as_bytes, proof_points_as_bytes)
 }
