@@ -1,8 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
-use crate::bn254::VerifyingKey as Bn254VerifyingKey;
+use crate::bn254::verifier::PreparedVerifyingKey;
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
 use ark_groth16::{Groth16, Proof, VerifyingKey};
@@ -21,7 +20,7 @@ pub const SCALAR_SIZE: usize = 32;
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
     let vk = VerifyingKey::<Bn254>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
-    process_vk_special(&Bn254VerifyingKey(vk)).serialize()
+    PreparedVerifyingKey::from(&vk).serialize()
 }
 
 /// Verify Groth16 proof using the serialized form of the prepared verifying key (see more at
@@ -67,6 +66,6 @@ pub fn verify_groth16(
             Bn254Fr::deserialize_compressed(chunk).map_err(|_| FastCryptoError::InvalidInput)?,
         );
     }
-    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &public_inputs, &proof)
+    Groth16::<Bn254>::verify_with_processed_vk(&pvk.into(), &public_inputs, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bn254::verifier::process_vk_special;
+use crate::bn254::verifier::PreparedVerifyingKey;
 use crate::bn254::VerifyingKey;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use ark_bn254::{Bn254, Fr};
@@ -31,7 +31,7 @@ fn test_verify_groth16_in_bytes_api() {
     let proof = Groth16::<Bn254>::prove(&pk, c, rng).unwrap();
     let v = c.a.unwrap().mul(c.b.unwrap());
 
-    let pvk = process_vk_special(&VerifyingKey(vk));
+    let pvk = PreparedVerifyingKey::from(&vk);
 
     let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
@@ -112,13 +112,10 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
         Groth16::<Bn254>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
     };
 
-    let pvk = process_vk_special(&VerifyingKey(params.vk));
+    let pvk = PreparedVerifyingKey::from(&params.vk);
 
     let inputs: Vec<_> = [a, b].to_vec();
-    assert!(
-        Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &inputs, &proof)
-            .unwrap()
-    );
+    assert!(Groth16::<Bn254>::verify_with_processed_vk(&(&pvk).into(), &inputs, &proof).unwrap());
 
     let pvk = pvk.serialize().unwrap();
 
@@ -316,7 +313,7 @@ fn test_verify_groth16_elusiv_proof_in_bytes_api() {
         .collect(),
     });
 
-    let pvk = process_vk_special(&vk);
+    let pvk = PreparedVerifyingKey::from(&vk);
 
     let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
@@ -409,7 +406,7 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
         ],
     );
 
-    let vk = ark_groth16::VerifyingKey {
+    let vk: ark_groth16::VerifyingKey<Bn254> = ark_groth16::VerifyingKey {
         alpha_g1: utils::G1Affine_from_str_projective((
             "8057073471822347335074195152835286348058235024870127707965681971765888348219",
             "14493022634743109860560137600871299171677470588934003383462482807829968516757",
@@ -528,10 +525,9 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
         .into_iter()
         .map(|s| utils::G1Affine_from_str_projective((s[0], s[1], s[2])))
         .collect(),
-    }
-    .into();
+    };
 
-    let pvk = process_vk_special(&vk);
+    let pvk = PreparedVerifyingKey::from(&vk);
 
     let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];

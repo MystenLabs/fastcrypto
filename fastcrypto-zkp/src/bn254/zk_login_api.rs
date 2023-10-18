@@ -4,10 +4,8 @@
 use ark_snark::SNARK;
 use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
-use super::verifier::process_vk_special;
 use super::zk_login::{JwkId, ZkLoginInputs, JWK};
 use crate::bn254::utils::{gen_address_seed_with_salt_hash, get_zk_login_address};
-use crate::bn254::VerifyingKey as Bn254VerifyingKey;
 use crate::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
@@ -124,7 +122,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
     };
 
     // Convert the verifying key into the prepared form.
-    process_vk_special(&Bn254VerifyingKey(vk)).as_arkworks_pvk()
+    PreparedVerifyingKey::from(vk)
 }
 
 /// Entry point for the ZkLogin API.

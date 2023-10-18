@@ -1,6 +1,7 @@
-use std::borrow::Borrow;
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+use std::borrow::Borrow;
 use std::ops::Neg;
 
 use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
@@ -36,6 +37,19 @@ pub struct PreparedVerifyingKey {
 }
 
 impl PreparedVerifyingKey {
+    /// Verify Groth16 proof using the prepared verifying key (see more at
+    /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and
+    /// the proof.
+    pub fn verify_with_processed_vk(
+        &self,
+        public_inputs: &[FieldElement],
+        proof: &Proof,
+    ) -> Result<bool, FastCryptoError> {
+        let x: Vec<Bn254Fr> = public_inputs.iter().map(|x| x.0).collect();
+        Groth16::<Bn254>::verify_with_processed_vk(&self.into(), &x, &proof.0)
+            .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+    }
+
     /// Serialize the prepared verifying key to its vectors form.
     pub fn serialize(&self) -> Result<Vec<Vec<u8>>, FastCryptoError> {
         let mut res = Vec::new();
@@ -104,69 +118,65 @@ impl PreparedVerifyingKey {
             delta_g2_neg_pc,
         })
     }
+}
 
+impl From<&PreparedVerifyingKey> for ArkPreparedVerifyingKey<Bn254> {
     /// Returns a [`ark_groth16::data_structures::PreparedVerifyingKey`] corresponding to this for
     /// usage in the arkworks api.
-    pub(crate) fn as_arkworks_pvk(&self) -> ArkPreparedVerifyingKey<Bn254> {
+    fn from(pvk: &PreparedVerifyingKey) -> Self {
         // Note that not all the members are set here, but we set enough to be able to run
         // Groth16::<Bn254>::verify_with_processed_vk.
         let mut ark_pvk = ArkPreparedVerifyingKey::default();
-        ark_pvk.vk.gamma_abc_g1 = self.vk_gamma_abc_g1.clone();
-        ark_pvk.alpha_g1_beta_g2 = self.alpha_g1_beta_g2;
-        ark_pvk.gamma_g2_neg_pc = G2Prepared::from(&self.gamma_g2_neg_pc);
-        ark_pvk.delta_g2_neg_pc = G2Prepared::from(&self.delta_g2_neg_pc);
+        ark_pvk.vk.gamma_abc_g1 = pvk.vk_gamma_abc_g1.clone();
+        ark_pvk.alpha_g1_beta_g2 = pvk.alpha_g1_beta_g2;
+        ark_pvk.gamma_g2_neg_pc = G2Prepared::from(&pvk.gamma_g2_neg_pc);
+        ark_pvk.delta_g2_neg_pc = G2Prepared::from(&pvk.delta_g2_neg_pc);
         ark_pvk
     }
 }
 
-/// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
-/// [`ark_groth16::PreparedVerifyingKey::process_vk`].
-///
-/// ## Example:
-/// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bn254::verifier::process_vk_special};
-/// use ark_bn254::{Bn254, Fr};
-/// use ark_ff::One;
-/// use ark_groth16::Groth16;
-/// use ark_std::rand::thread_rng;
-/// use fastcrypto_zkp::bn254::VerifyingKey;
-///
-/// let mut rng = thread_rng();
-/// let params = {
-///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
-///     Groth16::<Bn254>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
-/// };
-///
-/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
-/// // once per circuit.
-/// let pvk = process_vk_special(&params.vk.into());
-/// ```
-pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
-    PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.0.gamma_abc_g1.clone(),
-        alpha_g1_beta_g2: Bn254::pairing(vk.0.alpha_g1, vk.0.beta_g2).0,
-        gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.0.delta_g2.neg(),
+impl From<&VerifyingKey> for PreparedVerifyingKey {
+    /// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
+    /// [`ark_groth16::PreparedVerifyingKey::process_vk`].
+    ///
+    /// ## Example:
+    /// ```
+    /// use fastcrypto_zkp::{dummy_circuits::Fibonacci};
+    /// use ark_bn254::{Bn254, Fr};
+    /// use ark_ff::One;
+    /// use ark_groth16::Groth16;
+    /// use ark_std::rand::thread_rng;
+    /// use fastcrypto_zkp::bn254::VerifyingKey;
+    ///
+    /// let mut rng = thread_rng();
+    /// let params = {
+    ///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
+    ///     Groth16::<Bn254>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
+    /// };
+    ///
+    /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+    /// // once per circuit.
+    /// let pvk = &params.vk.into();
+    /// ```
+    fn from(vk: &VerifyingKey) -> Self {
+        (&vk.0).into()
     }
 }
 
-/// Verify Groth16 proof using the prepared verifying key (see more at
-/// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and
-/// the proof.
-pub fn verify_with_processed_vk(
-    pvk: &PreparedVerifyingKey,
-    public_inputs: &[FieldElement],
-    proof: &Proof,
-) -> Result<bool, FastCryptoError> {
-    let x: Vec<Bn254Fr> = public_inputs.iter().map(|x| x.0).collect();
-    Groth16::<Bn254>::verify_with_processed_vk(&pvk.as_arkworks_pvk(), &x, &proof.0)
-        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+impl From<&ark_groth16::VerifyingKey<Bn254>> for PreparedVerifyingKey {
+    fn from(vk: &ark_groth16::VerifyingKey<Bn254>) -> Self {
+        PreparedVerifyingKey {
+            vk_gamma_abc_g1: vk.gamma_abc_g1.clone(),
+            alpha_g1_beta_g2: Bn254::pairing(vk.alpha_g1, vk.beta_g2).0,
+            gamma_g2_neg_pc: vk.gamma_g2.neg(),
+            delta_g2_neg_pc: vk.delta_g2.neg(),
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::bn254::verifier::{process_vk_special, PreparedVerifyingKey};
-    use crate::bn254::VerifyingKey;
+    use crate::bn254::verifier::PreparedVerifyingKey;
     use crate::dummy_circuits::DummyCircuit;
     use ark_bn254::{Bn254, Fr};
     use ark_groth16::Groth16;
@@ -185,7 +195,7 @@ mod tests {
             num_constraints: 10,
         };
         let (_, vk) = Groth16::<Bn254>::circuit_specific_setup(c, rng).unwrap();
-        let pvk = process_vk_special(&VerifyingKey(vk));
+        let pvk = PreparedVerifyingKey::from(&vk);
 
         let serialized = pvk.serialize().unwrap();
         let deserialized = PreparedVerifyingKey::deserialize(&serialized).unwrap();

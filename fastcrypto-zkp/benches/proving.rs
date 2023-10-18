@@ -13,6 +13,7 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
+use fastcrypto_zkp::bn254::verifier::PreparedVerifyingKey;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use fastcrypto_zkp::{bls12381, bn254};
 use std::ops::Mul;
@@ -367,11 +368,11 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         ),
         &vk,
         |b, vk| {
-            b.iter(|| fastcrypto_zkp::bn254::verifier::process_vk_special(vk));
+            b.iter(|| PreparedVerifyingKey::from(vk));
         },
     );
 
-    let pvk = fastcrypto_zkp::bn254::verifier::process_vk_special(&vk);
+    let pvk = PreparedVerifyingKey::from(&vk);
     let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
