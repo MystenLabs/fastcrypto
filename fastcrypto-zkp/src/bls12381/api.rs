@@ -1,13 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use ark_bls12_381::Bls12_381;
-use ark_groth16::{Proof, VerifyingKey};
-use ark_serialize::CanonicalDeserialize;
 use fastcrypto::error::FastCryptoError;
 
-use crate::bls12381::conversions::{BlsFr, SCALAR_SIZE};
 use crate::bls12381::verifier::PreparedVerifyingKey;
+use crate::bls12381::FieldElement;
+use crate::bls12381::Proof;
+use crate::bls12381::VerifyingKey;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
@@ -15,10 +14,8 @@ mod api_tests;
 
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the four components of a prepared verified key (see more at [`crate::verifier::PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
-    let vk = VerifyingKey::<Bls12_381>::deserialize_compressed(vk_bytes)
-        .map_err(|_| FastCryptoError::InvalidInput)?;
-
-    PreparedVerifyingKey::from(&vk.into()).serialize()
+    let vk = VerifyingKey::deserialize(vk_bytes)?;
+    PreparedVerifyingKey::from(&vk).serialize()
 }
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
@@ -33,30 +30,13 @@ pub fn verify_groth16_in_bytes(
     proof_public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
-    if proof_public_inputs_as_bytes.len() % SCALAR_SIZE != 0 {
-        return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
-    }
-    let mut x = Vec::new();
-    for chunk in proof_public_inputs_as_bytes.chunks(SCALAR_SIZE) {
-        x.push(
-            BlsFr::deserialize_compressed(chunk)
-                .map_err(|_| FastCryptoError::InvalidInput)?
-                .into(),
-        );
-    }
-
-    let proof = Proof::<Bls12_381>::deserialize_compressed(proof_points_as_bytes)
-        .map_err(|_| FastCryptoError::InvalidInput)?
-        .into();
-
+    let x = FieldElement::deserialize_vector(proof_public_inputs_as_bytes)?;
+    let proof = Proof::deserialize(proof_points_as_bytes)?;
     let blst_pvk = PreparedVerifyingKey::deserialize(&vec![
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
     ])?;
-
-    blst_pvk
-        .verify(&x, &proof)
-        .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
+    blst_pvk.verify(x.as_slice(), &proof)
 }

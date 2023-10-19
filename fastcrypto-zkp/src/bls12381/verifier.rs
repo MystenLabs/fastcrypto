@@ -11,6 +11,7 @@ use blst::{
     blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p1s_mult_pippenger,
     blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
 };
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::{error::FastCryptoError, utils::log2_byte};
 
 use crate::bls12381::conversions::{
@@ -201,6 +202,15 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
             gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
             delta_g2_neg_pc: vk.0.delta_g2.neg(),
         }
+    }
+}
+
+impl VerifyingKey {
+    /// Deserialize a serialized Groth16 verifying key in compressed format using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
+    pub fn deserialize(bytes: &[u8]) -> FastCryptoResult<Self> {
+        ark_groth16::VerifyingKey::<Bls12_381>::deserialize_compressed(bytes)
+            .map(VerifyingKey)
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 

@@ -4,16 +4,16 @@
 use std::borrow::Borrow;
 use std::ops::Neg;
 
-use ark_bn254::{Bn254, Fq12, G1Affine, G2Affine};
+use ark_bn254::{Bn254, Fq12, Fr, G1Affine, G2Affine};
 use ark_ec::bn::G2Prepared;
 use ark_ec::pairing::Pairing;
 use ark_groth16::{Groth16, PreparedVerifyingKey as ArkPreparedVerifyingKey};
 use ark_snark::SNARK;
 
-use crate::bn254::api::{Bn254Fr, SCALAR_SIZE};
+use crate::bn254::api::SCALAR_SIZE;
 use crate::bn254::{FieldElement, Proof, VerifyingKey};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
 #[cfg(test)]
 #[path = "unit_tests/verifier_tests.rs"]
@@ -38,14 +38,14 @@ pub struct PreparedVerifyingKey {
 
 impl PreparedVerifyingKey {
     /// Verify Groth16 proof using the prepared verifying key (see more at
-    /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and
+    /// [`PreparedVerifyingKey`]), a vector of public inputs and
     /// the proof.
-    pub fn verify_with_processed_vk(
+    pub fn verify(
         &self,
         public_inputs: &[FieldElement],
         proof: &Proof,
     ) -> Result<bool, FastCryptoError> {
-        let x: Vec<Bn254Fr> = public_inputs.iter().map(|x| x.0).collect();
+        let x: Vec<Fr> = public_inputs.iter().map(|x| x.0).collect();
         Groth16::<Bn254>::verify_with_processed_vk(&self.into(), &x, &proof.0)
             .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
     }
@@ -157,10 +157,19 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
     ///
     /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
     /// // once per circuit.
-    /// let pvk = PreparedVerifyingKey::from(&params.vk);
+    /// let pvk = PreparedVerifyingKey::from(&VerifyingKey::from(params.vk));
     /// ```
     fn from(vk: &VerifyingKey) -> Self {
         (&vk.0).into()
+    }
+}
+
+impl VerifyingKey {
+    /// Deserialize a serialized Groth16 verifying key in compressed format using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
+    pub fn deserialize(bytes: &[u8]) -> FastCryptoResult<Self> {
+        ark_groth16::VerifyingKey::<Bn254>::deserialize_compressed(bytes)
+            .map(VerifyingKey)
+            .map_err(|_| FastCryptoError::InvalidInput)
     }
 }
 
