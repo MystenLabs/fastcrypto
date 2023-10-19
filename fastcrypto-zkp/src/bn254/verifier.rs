@@ -146,6 +146,7 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
     /// use ark_ff::One;
     /// use ark_groth16::Groth16;
     /// use ark_std::rand::thread_rng;
+    /// use fastcrypto_zkp::bn254::verifier::PreparedVerifyingKey;
     /// use fastcrypto_zkp::bn254::VerifyingKey;
     ///
     /// let mut rng = thread_rng();
@@ -156,7 +157,7 @@ impl From<&VerifyingKey> for PreparedVerifyingKey {
     ///
     /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
     /// // once per circuit.
-    /// let pvk = &params.vk.into();
+    /// let pvk = PreparedVerifyingKey::from(&params.vk);
     /// ```
     fn from(vk: &VerifyingKey) -> Self {
         (&vk.0).into()

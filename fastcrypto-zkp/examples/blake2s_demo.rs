@@ -17,7 +17,7 @@ use blake2::{digest::Digest, Blake2s256};
 use ark_r1cs_std::prelude::*;
 use ark_std::rand::thread_rng;
 use fastcrypto_zkp::bls12381::conversions::BlsFr;
-use fastcrypto_zkp::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
+use fastcrypto_zkp::bls12381::verifier::PreparedVerifyingKey;
 use fastcrypto_zkp::bls12381::{FieldElement, Proof};
 
 #[derive(Clone, Copy, Debug)]
@@ -112,7 +112,7 @@ fn main() {
     );
 
     // prepare the verification key
-    let pvk = process_vk_special(&params.vk.into());
+    let pvk = PreparedVerifyingKey::from(&params.vk.into());
 
     // provide the public inputs (the hash target) for verification
     let inputs: Vec<FieldElement> = [&circuit.blake2_seed[..], &circuit.expected_output[..]]
@@ -122,7 +122,7 @@ fn main() {
         .collect();
 
     // Verify the proof
-    assert!(verify_with_processed_vk(&pvk, &inputs, &proof).unwrap());
+    assert!(pvk.verify(&inputs, &proof).unwrap());
     println!(
         "Checked proof of knowledge of Blake2s preimage of {}!",
         hex::encode(circuit.expected_output)

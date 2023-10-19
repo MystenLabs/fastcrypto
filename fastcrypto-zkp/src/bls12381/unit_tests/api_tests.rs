@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::verifier::{process_vk_special, verify_with_processed_vk};
+use crate::bls12381::verifier::PreparedVerifyingKey;
 use crate::bls12381::FieldElement;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use ark_bls12_381::{Bls12_381, Fr};
@@ -27,7 +27,7 @@ fn test_verify_groth16_in_bytes_api() {
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
     let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
     let v = c.a.unwrap().mul(c.b.unwrap());
-    let blst_pvk = process_vk_special(&vk.into());
+    let blst_pvk = PreparedVerifyingKey::from(&vk.into());
 
     let bytes = blst_pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
@@ -142,10 +142,10 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     proof.b.serialize_compressed(&mut proof_bytes).unwrap();
     proof.c.serialize_compressed(&mut proof_bytes).unwrap();
 
-    let pvk = process_vk_special(&params.vk.into());
+    let pvk = PreparedVerifyingKey::from(&params.vk.into());
 
     let inputs: Vec<_> = [FieldElement(a), FieldElement(b)].to_vec();
-    assert!(verify_with_processed_vk(&pvk, &inputs, &proof.into()).unwrap());
+    assert!(pvk.verify(&inputs, &proof.into()).unwrap());
 
     let pvk = pvk.serialize().unwrap();
 

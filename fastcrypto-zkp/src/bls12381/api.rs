@@ -7,9 +7,7 @@ use ark_serialize::CanonicalDeserialize;
 use fastcrypto::error::FastCryptoError;
 
 use crate::bls12381::conversions::{BlsFr, SCALAR_SIZE};
-use crate::bls12381::verifier::{
-    process_vk_special, verify_with_processed_vk, PreparedVerifyingKey,
-};
+use crate::bls12381::verifier::PreparedVerifyingKey;
 
 #[cfg(test)]
 #[path = "unit_tests/api_tests.rs"]
@@ -20,7 +18,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
     let vk = VerifyingKey::<Bls12_381>::deserialize_compressed(vk_bytes)
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    process_vk_special(&vk.into()).serialize()
+    PreparedVerifyingKey::from(&vk.into()).serialize()
 }
 
 /// Verify Groth16 proof using the serialized form of the four components in a prepared verifying key
@@ -58,6 +56,7 @@ pub fn verify_groth16_in_bytes(
         delta_g2_neg_pc_bytes,
     ])?;
 
-    verify_with_processed_vk(&blst_pvk, &x, &proof)
+    blst_pvk
+        .verify(&x, &proof)
         .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
 }

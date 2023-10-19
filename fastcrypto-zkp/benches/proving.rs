@@ -13,7 +13,6 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
-use fastcrypto_zkp::bn254::verifier::PreparedVerifyingKey;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use fastcrypto_zkp::{bls12381, bn254};
 use std::ops::Mul;
@@ -368,11 +367,11 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         ),
         &vk,
         |b, vk| {
-            b.iter(|| PreparedVerifyingKey::from(vk));
+            b.iter(|| bn254::verifier::PreparedVerifyingKey::from(vk));
         },
     );
 
-    let pvk = PreparedVerifyingKey::from(&vk);
+    let pvk = bn254::verifier::PreparedVerifyingKey::from(&vk);
     let bytes = pvk.serialize().unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
@@ -437,23 +436,16 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
-                b.iter(|| fastcrypto_zkp::bls12381::verifier::process_vk_special(vk));
+                b.iter(|| bls12381::verifier::PreparedVerifyingKey::from(vk));
             },
         );
-        let pvk = fastcrypto_zkp::bls12381::verifier::process_vk_special(&vk);
+        let pvk = bls12381::verifier::PreparedVerifyingKey::from(&vk);
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
-                b.iter(|| {
-                    fastcrypto_zkp::bls12381::verifier::verify_with_processed_vk(
-                        pvk,
-                        &[(*v).into()],
-                        &proof,
-                    )
-                    .unwrap()
-                });
+                b.iter(|| pvk.verify(&[(*v).into()], &proof).unwrap());
             },
         );
     }

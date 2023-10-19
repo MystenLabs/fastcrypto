@@ -42,6 +42,55 @@ pub struct PreparedVerifyingKey {
 }
 
 impl PreparedVerifyingKey {
+    /// Returns the validity of the Groth16 proof passed as argument. The format of the inputs is assumed to be in arkworks format.
+    /// See [`multipairing_with_processed_vk`] for the actual pairing computation details.
+    ///
+    /// ## Example
+    /// ```
+    /// use fastcrypto_zkp::dummy_circuits::Fibonacci;
+    /// use ark_bls12_381::{Bls12_381, Fr};
+    /// use ark_ff::One;
+    /// use ark_groth16::Groth16;
+    /// use ark_std::rand::thread_rng;
+    /// use blake2::digest::Mac;
+    /// use fastcrypto_zkp::bls12381::FieldElement;
+    /// use fastcrypto_zkp::bls12381::verifier::PreparedVerifyingKey;
+    ///
+    /// let mut rng = thread_rng();
+    ///
+    /// let params = {
+    ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+    ///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
+    /// };
+    ///
+    /// let proof = {
+    ///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
+    ///     // Create a proof with our parameters, picking a random witness assignment
+    ///     Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
+    /// };
+    ///
+    /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+    /// // once per circuit.
+    /// let pvk = PreparedVerifyingKey::from(&params.vk.into());
+    ///
+    /// // We provide the public inputs which we know are used in our circuits
+    /// // this must be the same as the inputs used in the proof right above.
+    /// let inputs: Vec<FieldElement> = [Fr::one().into(); 2].to_vec();
+    ///
+    /// // Verify the proof
+    /// let r = pvk.verify(&inputs, &proof.into()).unwrap();
+    /// ```
+    pub fn verify(&self, x: &[FieldElement], proof: &Proof) -> Result<bool, FastCryptoError> {
+        // Note the "+1" : this API implies the first scalar coefficient is 1 and not sent
+        if (x.len() + 1) != self.vk_gamma_abc_g1.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let x: Vec<BlsFr> = x.iter().map(|x| x.0).collect();
+
+        let res = multipairing_with_processed_vk(self, &x, &proof.0);
+        Ok(res == self.alpha_g1_beta_g2)
+    }
+
     /// Deserialize the prepared verifying key from the serialized fields of vk_gamma_abc_g1, alpha_g1_beta_g2, gamma_g2_neg_pc, delta_g2_neg_pc
     pub fn deserialize<V: Borrow<[u8]>>(bytes: &Vec<V>) -> Result<Self, FastCryptoError> {
         if bytes.len() != 4 {
@@ -112,43 +161,46 @@ impl PreparedVerifyingKey {
     }
 }
 
-/// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
-/// [`ark_groth16::PreparedVerifyingKey::process_vk`], but uses a blst representation of the elements.
-///
-/// ## Example:
-/// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::process_vk_special};
-/// use ark_bls12_381::{Bls12_381, Fr};
-/// use ark_ff::One;
-/// use ark_groth16::Groth16;
-/// use ark_std::rand::thread_rng;
-///
-/// let mut rng = thread_rng();
-/// let params = {
-///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
-///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
-/// };
-///
-/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
-/// // once per circuit.
-/// let pvk = process_vk_special(&params.vk.into());
-/// ```
-pub fn process_vk_special(vk: &VerifyingKey) -> PreparedVerifyingKey {
-    let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.0.alpha_g1);
-    let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.0.beta_g2);
-    let blst_alpha_g1_beta_g2 = {
-        let mut tmp = blst_fp12::default();
-        unsafe { blst_miller_loop(&mut tmp, &g2_beta, &g1_alpha) };
+impl From<&VerifyingKey> for PreparedVerifyingKey {
+    /// Takes an input [`ark_groth16::VerifyingKey`] `vk` and returns a `PreparedVerifyingKey`. This is roughly homologous to
+    /// [`ark_groth16::PreparedVerifyingKey::process_vk`], but uses a blst representation of the elements.
+    ///
+    /// ## Example:
+    /// ```
+    /// use fastcrypto_zkp::{dummy_circuits::Fibonacci};
+    /// use ark_bls12_381::{Bls12_381, Fr};
+    /// use ark_ff::One;
+    /// use ark_groth16::Groth16;
+    /// use ark_std::rand::thread_rng;
+    /// use fastcrypto_zkp::bls12381::verifier::PreparedVerifyingKey;
+    ///
+    /// let mut rng = thread_rng();
+    /// let params = {
+    ///     let c = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1 (standard Fibonacci)
+    ///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(c, &mut rng).unwrap()
+    /// };
+    ///
+    /// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
+    /// // once per circuit.
+    /// let pvk = PreparedVerifyingKey::from(&params.vk.into());
+    /// ```
+    fn from(vk: &VerifyingKey) -> Self {
+        let g1_alpha = bls_g1_affine_to_blst_g1_affine(&vk.0.alpha_g1);
+        let g2_beta = bls_g2_affine_to_blst_g2_affine(&vk.0.beta_g2);
+        let blst_alpha_g1_beta_g2 = {
+            let mut tmp = blst_fp12::default();
+            unsafe { blst_miller_loop(&mut tmp, &g2_beta, &g1_alpha) };
 
-        let mut out = blst_fp12::default();
-        unsafe { blst_final_exp(&mut out, &tmp) };
-        out
-    };
-    PreparedVerifyingKey {
-        vk_gamma_abc_g1: vk.0.gamma_abc_g1.clone(),
-        alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
-        gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
-        delta_g2_neg_pc: vk.0.delta_g2.neg(),
+            let mut out = blst_fp12::default();
+            unsafe { blst_final_exp(&mut out, &tmp) };
+            out
+        };
+        PreparedVerifyingKey {
+            vk_gamma_abc_g1: vk.0.gamma_abc_g1.clone(),
+            alpha_g1_beta_g2: blst_alpha_g1_beta_g2,
+            gamma_g2_neg_pc: vk.0.gamma_g2.neg(),
+            delta_g2_neg_pc: vk.0.delta_g2.neg(),
+        }
     }
 }
 
@@ -307,60 +359,9 @@ fn multipairing_with_processed_vk(
     pairing_blst.as_fp12().final_exp()
 }
 
-/// Returns the validity of the Groth16 proof passed as argument. The format of the inputs is assumed to be in arkworks format.
-/// See [`multipairing_with_processed_vk`] for the actual pairing computation details.
-///
-/// ## Example
-/// ```
-/// use fastcrypto_zkp::{dummy_circuits::Fibonacci, bls12381::verifier::{ process_vk_special, verify_with_processed_vk }};
-/// use ark_bls12_381::{Bls12_381, Fr};
-/// use ark_ff::One;
-/// use ark_groth16::Groth16;
-/// use ark_std::rand::thread_rng;
-/// use fastcrypto_zkp::bls12381::FieldElement;
-///
-/// let mut rng = thread_rng();
-///
-/// let params = {
-///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
-///     Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
-/// };
-///
-/// let proof = {
-///     let circuit = Fibonacci::<Fr>::new(42, Fr::one(), Fr::one()); // 42 constraints, initial a = b = 1
-///     // Create a proof with our parameters, picking a random witness assignment
-///     Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
-/// };
-///
-/// // Prepare the verification key (for proof verification). Ideally, we would like to do this only
-/// // once per circuit.
-/// let pvk = process_vk_special(&params.vk.into());
-///
-/// // We provide the public inputs which we know are used in our circuits
-/// // this must be the same as the inputs used in the proof right above.
-/// let inputs: Vec<FieldElement> = [Fr::one().into(); 2].to_vec();
-///
-/// // Verify the proof
-/// let r = verify_with_processed_vk(&pvk, &inputs, &proof.into()).unwrap();
-/// ```
-pub fn verify_with_processed_vk(
-    pvk: &PreparedVerifyingKey,
-    x: &[FieldElement],
-    proof: &Proof,
-) -> Result<bool, FastCryptoError> {
-    // Note the "+1" : this API implies the first scalar coefficient is 1 and not sent
-    if (x.len() + 1) != pvk.vk_gamma_abc_g1.len() {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    let x: Vec<BlsFr> = x.iter().map(|x| x.0).collect();
-
-    let res = multipairing_with_processed_vk(pvk, &x, &proof.0);
-    Ok(res == pvk.alpha_g1_beta_g2)
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::bls12381::verifier::{process_vk_special, PreparedVerifyingKey};
+    use crate::bls12381::verifier::PreparedVerifyingKey;
     use crate::bls12381::VerifyingKey;
     use crate::dummy_circuits::DummyCircuit;
     use ark_bls12_381::{Bls12_381, Fr};
@@ -380,7 +381,7 @@ mod tests {
             num_constraints: 10,
         };
         let (_, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-        let pvk = process_vk_special(&VerifyingKey(vk));
+        let pvk = PreparedVerifyingKey::from(&VerifyingKey(vk));
 
         let serialized = pvk.serialize().unwrap();
         let deserialized = PreparedVerifyingKey::deserialize(&serialized).unwrap();
