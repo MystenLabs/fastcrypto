@@ -104,8 +104,8 @@ pub trait ThresholdBls {
         let unique_partials = partials
             .iter()
             .unique_by(|p| p.index)
-            .map(|m| m.clone())
             .take(threshold as usize)
+            .cloned()
             .collect::<Vec<_>>();
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.

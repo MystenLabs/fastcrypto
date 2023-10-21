@@ -87,7 +87,7 @@ impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
         let filtered = msgs
             .iter()
             .unique_by(|&m| m.message.sender)
-            .map(|m| m.clone())
+            .cloned()
             .collect::<Vec<_>>();
         Self(filtered)
     }
@@ -103,7 +103,7 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
             .0
             .iter()
             .filter(|m| !to_exclude.contains(&m.message.sender))
-            .map(|m| m.clone())
+            .cloned()
             .collect::<Vec<_>>();
         Self(filtered)
     }
