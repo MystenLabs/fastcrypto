@@ -329,6 +329,7 @@ where
     ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
     ///    application dependent but in most cases it should be at least t+f to guarantee that at
     ///    least t honest nodes have valid shares.
+    ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
     pub fn process_confirmations<R: AllowedRng>(
         &self,
@@ -469,28 +470,18 @@ where
         }
     }
 
-    // pub fn finish<R: AllowedRng>(
-    //     &self,
-    //     first_messages: &[Message<G, EG>],
-    //     confirmations: &[Confirmation<EG>],
-    //     minimal_threshold: u32,
-    //     rng: &mut R,
-    // ) -> FastCryptoResult<Output<G, EG>> {
-    //     let (shares, conf) = self.merge(
-    //         &first_messages
-    //             .iter()
-    //             .map(|m| self.process_message(m.clone(), rng).unwrap())
-    //             .collect::<Vec<_>>(),
-    //     )?;
-    //     let shares = self.process_confirmations(
-    //         first_messages,
-    //         confirmations,
-    //         shares,
-    //         minimal_threshold,
-    //         rng,
-    //     )?;
-    //     Ok(self.aggregate(first_messages, shares))
-    // }
+    /// Execute the previous two steps together.
+    pub fn complete<R: AllowedRng>(
+        &self,
+        messages: &UsedProcessedMessages<G, EG>,
+        confirmations: &[Confirmation<EG>],
+        minimal_threshold: u32,
+        rng: &mut R,
+    ) -> FastCryptoResult<Output<G, EG>> {
+        let verified_messages =
+            self.process_confirmations(messages, confirmations, minimal_threshold, rng)?;
+        Ok(self.aggregate(&verified_messages))
+    }
 
     fn decrypt_and_get_share(
         sk: &ecies::PrivateKey<EG>,
