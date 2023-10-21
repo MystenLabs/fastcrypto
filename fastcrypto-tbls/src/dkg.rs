@@ -115,7 +115,7 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
 pub struct Output<G: GroupElement, EG: GroupElement> {
     pub nodes: Nodes<EG>,
     pub vss_pk: Poly<G>,
-    pub shares: Vec<Share<G::ScalarType>>,
+    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing.
 }
 
 /// A dealer in the DKG ceremony.
@@ -328,7 +328,6 @@ where
     ///    least t honest nodes have valid shares.
     ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
-    ///    Returns NoValidShare if the party did not receive all its shares.
     pub fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
@@ -421,11 +420,6 @@ where
             messages,
             &to_exclude.into_iter().collect::<Vec<_>>(),
         );
-        // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
-        // was not processed), then I don't have a valid share for the final key.
-        if verified_messages.0.iter().any(|m| m.complaint.is_some()) {
-            return Err(FastCryptoError::NoValidShare);
-        }
 
         Ok(verified_messages)
     }
@@ -468,10 +462,18 @@ where
             }
         }
 
+        // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
+        // was not processed), then I don't have a valid share for the final key.
+        let shares = if messages.0.iter().all(|m| m.complaint.is_none()) {
+            Some(final_shares.values().cloned().collect())
+        } else {
+            None
+        };
+
         Output {
             nodes: self.nodes.clone(),
             vss_pk,
-            shares: final_shares.values().cloned().collect(),
+            shares,
         }
     }
 

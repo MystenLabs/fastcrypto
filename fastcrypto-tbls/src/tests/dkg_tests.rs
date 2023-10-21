@@ -128,9 +128,9 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     let o3 = d3.aggregate(&ver_msg3);
 
     // Use the shares from 01 and o4 to sign a message.
-    let sig00 = S::partial_sign(&o0.shares[0], &MSG);
-    let sig30 = S::partial_sign(&o3.shares[0], &MSG);
-    let sig31 = S::partial_sign(&o3.shares[1], &MSG);
+    let sig00 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
+    let sig30 = S::partial_sign(&o3.shares.as_ref().unwrap()[0], &MSG);
+    let sig31 = S::partial_sign(&o3.shares.as_ref().unwrap()[1], &MSG);
 
     S::partial_verify(&o0.vss_pk, &MSG, &sig00).unwrap();
     S::partial_verify(&o3.vss_pk, &MSG, &sig30).unwrap();

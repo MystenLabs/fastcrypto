@@ -48,10 +48,6 @@ pub enum FastCryptoError {
     #[error("Invalid message was given to the function")]
     InvalidMessage,
 
-    /// Party does not have a valid share
-    #[error("Party does not have a valid share")]
-    NoValidShare,
-
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),
