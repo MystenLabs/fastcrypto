@@ -86,8 +86,8 @@ impl<C: GroupElement> Poly<C> {
         t: u32,
         shares: &[Eval<C>],
     ) -> FastCryptoResult<Vec<C::ScalarType>> {
-        if shares.len() < t.try_into().unwrap() {
-            return Err(FastCryptoError::InvalidInput);
+        if shares.len() < t as usize {
+            return Err(FastCryptoError::NotEnoughInputs);
         }
         // Check for duplicates.
         let mut ids_set = HashSet::new();
@@ -95,7 +95,7 @@ impl<C: GroupElement> Poly<C> {
             ids_set.insert(id);
         });
         if ids_set.len() != shares.len() {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InvalidInput); // expected unique ids
         }
 
         let indices = shares

@@ -7,9 +7,10 @@
 use crate::dl_verification::{batch_coefficients, get_random_scalars};
 use crate::polynomial::Poly;
 use crate::types::IndexedValue;
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
+use itertools::Itertools;
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
@@ -99,9 +100,15 @@ pub trait ThresholdBls {
     fn aggregate(
         threshold: u32,
         partials: &[PartialSignature<Self::Signature>],
-    ) -> Result<Self::Signature, FastCryptoError> {
+    ) -> FastCryptoResult<Self::Signature> {
+        let unique_partials = partials
+            .iter()
+            .unique_by(|p| p.index)
+            .map(|m| m.clone())
+            .take(threshold as usize)
+            .collect::<Vec<_>>();
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
-        Poly::<Self::Signature>::recover_c0_msm(threshold, partials)
+        Poly::<Self::Signature>::recover_c0_msm(threshold, &unique_partials)
     }
 }
