@@ -18,7 +18,7 @@ use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
@@ -65,6 +65,7 @@ pub struct Confirmation<EG: GroupElement> {
     pub complaints: Vec<Complaint<EG>>,
 }
 
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     message: Message<G, EG>,
     shares: Vec<Share<G::ScalarType>>, //possibly empty
@@ -73,6 +74,40 @@ pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
 
 /// Mapping from node id to the shares received from that sender.
 pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
+
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
+    pub Vec<ProcessedMessage<G, EG>>,
+);
+
+impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
+    for UsedProcessedMessages<G, EG>
+{
+    fn from(msgs: &[ProcessedMessage<G, EG>]) -> Self {
+        let filtered = msgs
+            .iter()
+            .unique_by(|&m| m.message.sender)
+            .map(|m| m.clone())
+            .collect::<Vec<_>>();
+        Self(filtered)
+    }
+}
+
+pub struct VerifiedProcessedMessages<G: GroupElement, EG: GroupElement>(
+    pub Vec<ProcessedMessage<G, EG>>,
+);
+
+impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
+    fn filter_from(msgs: &UsedProcessedMessages<G, EG>, to_exclude: &[PartyId]) -> Self {
+        let filtered = msgs
+            .0
+            .iter()
+            .filter(|m| !to_exclude.contains(&m.message.sender))
+            .map(|m| m.clone())
+            .collect::<Vec<_>>();
+        Self(filtered)
+    }
+}
 
 /// [Output] is the final output of the DKG protocol in case it runs
 /// successfully. It can be used later with [ThresholdBls], see examples in tests.
@@ -158,21 +193,28 @@ where
     }
 
     fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
-        self.nodes.node_id_to_node(msg.sender)?;
+        self.nodes
+            .node_id_to_node(msg.sender)
+            .map_err(|_| FastCryptoError::InvalidMessage)?;
         if self.t != msg.vss_pk.degree() + 1 {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InvalidMessage);
         }
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InvalidMessage);
         }
         msg.encrypted_shares
-            .verify_knowledge(&self.random_oracle.extend(&format!("encs {}", msg.sender)))?;
+            .verify_knowledge(&self.random_oracle.extend(&format!("encs {}", msg.sender)))
+            .map_err(|_| FastCryptoError::InvalidMessage)?;
         Ok(())
     }
 
     /// 5. Process a message and create the second message to be broadcasted.
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
+    ///
+    ///   Returns error InvalidMessage if the message is invalid and should be ignored (note that we
+    ///   could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
+    ///   and just wait for f+1 valid messages).
     pub fn process_message<R: AllowedRng>(
         &self,
         message: Message<G, EG>,
@@ -243,19 +285,16 @@ where
         })
     }
 
-    /// 6. Merge results from multiple process_message calls so only one message needs to be sent.
+    /// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
     ///    Returns NotEnoughInputs if the threshold t is not met.
     pub fn merge(
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
-    ) -> FastCryptoResult<(SharesMap<G::ScalarType>, Confirmation<EG>)> {
-        // Enforce unique senders
-        let processed_messages = processed_messages
-            .iter()
-            .unique_by(|m| m.message.sender)
-            .collect::<Vec<_>>();
+    ) -> FastCryptoResult<(Confirmation<EG>, UsedProcessedMessages<G, EG>)> {
+        let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
-        let total_weight = processed_messages
+        let total_weight = filtered_messages
+            .0
             .iter()
             .map(|m| {
                 self.nodes
@@ -268,19 +307,17 @@ where
             return Err(FastCryptoError::NotEnoughInputs);
         }
 
-        let mut shares = HashMap::new();
         let mut conf = Confirmation {
             sender: self.id,
             complaints: Vec::new(),
         };
-        for m in processed_messages {
-            shares.insert(m.message.sender, m.shares.clone());
+        for m in &filtered_messages.0 {
             if m.complaint.is_some() {
                 let complaint = m.complaint.clone().expect("checked above");
                 conf.complaints.push(complaint);
             }
         }
-        Ok((shares, conf))
+        Ok((conf, filtered_messages))
     }
 
     // TODO: Handle the case of not having enough valid shares gracefully (e.g.,
@@ -292,19 +329,17 @@ where
     ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
     ///    application dependent but in most cases it should be at least t+f to guarantee that at
     ///    least t honest nodes have valid shares.
-    ///    Returns InputTooShort if the threshold minimal_threshold is not met.
+    ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
     pub fn process_confirmations<R: AllowedRng>(
         &self,
-        messages: &[Message<G, EG>],
+        messages: &UsedProcessedMessages<G, EG>,
         confirmations: &[Confirmation<EG>],
-        shares: SharesMap<G::ScalarType>,
         minimal_threshold: u32,
         rng: &mut R,
-    ) -> Result<SharesMap<G::ScalarType>, FastCryptoError> {
+    ) -> FastCryptoResult<VerifiedProcessedMessages<G, EG>> {
         if minimal_threshold < self.t {
             return Err(FastCryptoError::InvalidInput);
         }
-        let messages = messages.iter().unique_by(|m| m.sender).collect::<Vec<_>>();
         // Ignore confirmations with invalid sender
         let confirmations = confirmations
             .iter()
@@ -326,21 +361,21 @@ where
         }
 
         // Two hash maps for faster access in the main loop below.
-        let id_to_pk: HashMap<PartyId, &ecies::PublicKey<EG>> =
-            self.nodes.iter().map(|n| (n.id, &n.pk)).collect();
-        let id_to_m1 = messages
+        let id_to_pk = self
+            .nodes
             .iter()
-            .map(|m| (m.sender, m))
+            .map(|n| (n.id, &n.pk))
+            .collect::<HashMap<_, _>>();
+        let id_to_m1 = messages
+            .0
+            .iter()
+            .map(|m| (m.message.sender, &m.message))
             .collect::<HashMap<_, _>>();
 
-        let mut shares = shares;
+        let mut to_exclude = HashSet::new();
         'outer: for m2 in confirmations {
-            'inner: for complaint in &m2.complaints[..] {
+            'inner: for complaint in &m2.complaints {
                 let accused = complaint.accused_sender;
-                // Ignore senders that are already not relevant, or invalid complaints.
-                if !shares.contains_key(&accused) {
-                    continue 'inner;
-                }
                 let accuser = m2.sender;
                 let accuser_pk = id_to_pk
                     .get(&accuser)
@@ -352,7 +387,7 @@ where
                         .expect("checked above that is not None")
                         .encrypted_shares
                         .get_encryption(accuser as usize)
-                        .expect("checked above that there are enough encryptions");
+                        .expect("checked earlier that there are enough encryptions");
                     Self::check_delegated_key_and_share(
                         &complaint.proof,
                         accuser_pk,
@@ -370,33 +405,32 @@ where
                     // Ignore accused from now on, and continue processing complaints from the
                     // current accuser.
                     true => {
-                        shares.remove(&accused);
+                        to_exclude.insert(accused);
                         continue 'inner;
                     }
                     // Ignore the accuser from now on, including its other complaints (not critical
                     // for security, just saves some work).
                     false => {
-                        shares.remove(&accuser);
+                        to_exclude.insert(accuser);
                         continue 'outer;
                     }
                 }
             }
         }
 
-        Ok(shares)
+        Ok(VerifiedProcessedMessages::filter_from(
+            messages,
+            &to_exclude.into_iter().collect::<Vec<_>>(),
+        ))
     }
 
     /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
-    pub fn aggregate(
-        &self,
-        first_messages: &[Message<G, EG>],
-        shares: SharesMap<G::ScalarType>,
-    ) -> Output<G, EG> {
-        let first_messages = first_messages
+    pub fn aggregate(&self, messages: &VerifiedProcessedMessages<G, EG>) -> Output<G, EG> {
+        let id_to_m1 = messages
+            .0
             .iter()
-            .unique_by(|m| m.sender)
-            .collect::<Vec<_>>();
-        let id_to_m1: HashMap<_, _> = first_messages.iter().map(|m| (m.sender, m)).collect();
+            .map(|m| (m.message.sender, &m.message))
+            .collect::<HashMap<_, _>>();
         let mut vss_pk = PublicPoly::<G>::zero();
         let my_share_ids = self.nodes.share_ids_of(self.id);
 
@@ -413,14 +447,14 @@ where
             })
             .collect::<HashMap<_, _>>();
 
-        for (from_sender, shares_from_sender) in shares {
+        for m in &messages.0 {
             vss_pk.add(
                 &id_to_m1
-                    .get(&from_sender)
+                    .get(&m.message.sender)
                     .expect("shares only includes shares from valid first messages")
                     .vss_pk,
             );
-            for share in shares_from_sender {
+            for share in &m.shares {
                 final_shares
                     .get_mut(&share.index)
                     .expect("created above")
@@ -434,6 +468,29 @@ where
             shares: final_shares.values().cloned().collect(),
         }
     }
+
+    // pub fn finish<R: AllowedRng>(
+    //     &self,
+    //     first_messages: &[Message<G, EG>],
+    //     confirmations: &[Confirmation<EG>],
+    //     minimal_threshold: u32,
+    //     rng: &mut R,
+    // ) -> FastCryptoResult<Output<G, EG>> {
+    //     let (shares, conf) = self.merge(
+    //         &first_messages
+    //             .iter()
+    //             .map(|m| self.process_message(m.clone(), rng).unwrap())
+    //             .collect::<Vec<_>>(),
+    //     )?;
+    //     let shares = self.process_confirmations(
+    //         first_messages,
+    //         confirmations,
+    //         shares,
+    //         minimal_threshold,
+    //         rng,
+    //     )?;
+    //     Ok(self.aggregate(first_messages, shares))
+    // }
 
     fn decrypt_and_get_share(
         sk: &ecies::PrivateKey<EG>,
