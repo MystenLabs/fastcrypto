@@ -320,9 +320,6 @@ where
         Ok((conf, filtered_messages))
     }
 
-    // TODO: Handle the case of not having enough valid shares gracefully (e.g.,
-    // process_confirmations without my complaint).
-
     /// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
     ///
@@ -331,6 +328,7 @@ where
     ///    least t honest nodes have valid shares.
     ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
+    ///    Returns NoValidShare if the party did not receive all its shares.
     pub fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
@@ -419,10 +417,17 @@ where
             }
         }
 
-        Ok(VerifiedProcessedMessages::filter_from(
+        let verified_messages = VerifiedProcessedMessages::filter_from(
             messages,
             &to_exclude.into_iter().collect::<Vec<_>>(),
-        ))
+        );
+        // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
+        // was not processed), then I don't have a valid share for the final key.
+        if verified_messages.0.iter().any(|m| m.complaint.is_some()) {
+            return Err(FastCryptoError::NoValidShare);
+        }
+
+        Ok(verified_messages)
     }
 
     /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
