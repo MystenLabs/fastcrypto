@@ -111,6 +111,8 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
 
 /// [Output] is the final output of the DKG protocol in case it runs
 /// successfully. It can be used later with [ThresholdBls], see examples in tests.
+///
+/// If shares is None, the object can only be used for verifying (partial and full) signatures.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Output<G: GroupElement, EG: GroupElement> {
     pub nodes: Nodes<EG>,
@@ -328,7 +330,7 @@ where
     ///    least t honest nodes have valid shares.
     ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
-    pub fn process_confirmations<R: AllowedRng>(
+    pub(crate) fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
         confirmations: &[Confirmation<EG>],
@@ -425,7 +427,7 @@ where
     }
 
     /// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
-    pub fn aggregate(&self, messages: &VerifiedProcessedMessages<G, EG>) -> Output<G, EG> {
+    pub(crate) fn aggregate(&self, messages: &VerifiedProcessedMessages<G, EG>) -> Output<G, EG> {
         let id_to_m1 = messages
             .0
             .iter()
