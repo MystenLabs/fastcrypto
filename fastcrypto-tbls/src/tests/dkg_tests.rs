@@ -7,6 +7,7 @@ use crate::nodes::{Node, Nodes, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
+use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use rand::thread_rng;
@@ -42,7 +43,7 @@ fn setup_party(
     Party::<G, EG>::new(
         keys.get(id as usize).unwrap().1.clone(),
         Nodes::new(nodes).unwrap(),
-        (keys.len() / 2) as u32,
+        3,
         RandomOracle::new("dkg"),
         &mut thread_rng(),
     )
@@ -71,36 +72,34 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     msg1.encrypted_shares.swap_for_testing(0, 1);
     // Don't send the message of d3 to d0 (emulating a slow party).
     let _msg3 = d3.create_message(&mut thread_rng());
+
+    assert_eq!(
+        d0.merge(&[d0.process_message(msg0.clone(), &mut thread_rng()).unwrap()])
+            .err(),
+        Some(FastCryptoError::NotEnoughInputs)
+    );
+
     let r1_all = vec![msg0, msg1];
 
-    let (shares0, conf0) = d0
-        .merge(
-            &r1_all
-                .iter()
-                .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
+    let proc_msg0 = &r1_all
+        .iter()
+        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
 
-    let (shares1, conf1) = d1
-        .merge(
-            &r1_all
-                .iter()
-                .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
+    let proc_msg1 = &r1_all
+        .iter()
+        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf1, used_msgs1) = d1.merge(proc_msg1).unwrap();
 
     // Note that d3's first round message is not included but it should still be able to receive
     // shares and post complaints.
-    let (shares3, conf3) = d3
-        .merge(
-            &r1_all
-                .iter()
-                .map(|m| d3.process_message(m.clone(), &mut thread_rng()).unwrap())
-                .collect::<Vec<_>>(),
-        )
-        .unwrap();
+    let proc_msg3 = &r1_all
+        .iter()
+        .map(|m| d3.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf3, used_msgs3) = d3.merge(proc_msg3).unwrap();
 
     // There should be some complaints on the first messages of d1.
     assert!(
@@ -114,33 +113,30 @@ fn test_dkg_e2e_4_parties_threshold_2() {
     );
 
     let r2_all = vec![conf0, conf1, conf3];
-    let shares0 = d1
-        .process_confirmations(&r1_all, &r2_all, shares0, 3, &mut thread_rng())
+    let ver_msg0 = d1
+        .process_confirmations(&used_msgs0, &r2_all, 3, &mut thread_rng())
         .unwrap();
-    let shares1 = d1
-        .process_confirmations(&r1_all, &r2_all, shares1, 3, &mut thread_rng())
+    let ver_msg1 = d1
+        .process_confirmations(&used_msgs1, &r2_all, 3, &mut thread_rng())
         .unwrap();
-    let shares3 = d3
-        .process_confirmations(&r1_all, &r2_all, shares3, 3, &mut thread_rng())
+    let ver_msg3 = d3
+        .process_confirmations(&used_msgs3, &r2_all, 3, &mut thread_rng())
         .unwrap();
 
-    // Only the first message of d0 passed all tests -> only one vss is used.
-    assert_eq!(shares0.len(), 1);
-    assert_eq!(shares1.len(), 1);
-    assert_eq!(shares3.len(), 1);
-
-    let o0 = d0.aggregate(&r1_all, shares0);
-    let _o1 = d1.aggregate(&r1_all, shares1);
-    let o3 = d3.aggregate(&r1_all, shares3);
+    let o0 = d0.aggregate(&ver_msg0);
+    let _o1 = d1.aggregate(&ver_msg1);
+    let o3 = d3.aggregate(&ver_msg3);
 
     // Use the shares from 01 and o4 to sign a message.
-    let sig0 = S::partial_sign(&o0.shares[0], &MSG);
-    let sig3 = S::partial_sign(&o3.shares[0], &MSG);
+    let sig00 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
+    let sig30 = S::partial_sign(&o3.shares.as_ref().unwrap()[0], &MSG);
+    let sig31 = S::partial_sign(&o3.shares.as_ref().unwrap()[1], &MSG);
 
-    S::partial_verify(&o0.vss_pk, &MSG, &sig0).unwrap();
-    S::partial_verify(&o3.vss_pk, &MSG, &sig3).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig00).unwrap();
+    S::partial_verify(&o3.vss_pk, &MSG, &sig30).unwrap();
+    S::partial_verify(&o3.vss_pk, &MSG, &sig31).unwrap();
 
-    let sigs = vec![sig0, sig3];
+    let sigs = vec![sig00, sig30, sig31];
     let sig = S::aggregate(d0.t(), &sigs).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }

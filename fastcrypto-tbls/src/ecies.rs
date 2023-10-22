@@ -22,6 +22,7 @@ use typenum::consts::{U16, U32};
 /// APIs that use a random oracle must receive one as an argument. That RO must be unique and thus
 /// the caller should initialize/derive it using a unique prefix.
 
+// TODO: Use ZeroizeOnDrop.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PrivateKey<G: GroupElement>(G::ScalarType);
 

@@ -176,6 +176,5 @@ pub fn verify_equal_exponents<R: AllowedRng>(
 }
 
 pub fn get_random_scalars<S: Scalar, R: AllowedRng>(n: u32, rng: &mut R) -> Vec<S> {
-    // TODO: can use 40 bits instead of 64 ("& 0x000F_FFFF_FFFF_FFFF" below)
     (0..n).map(|_| S::from(rng.next_u64())).collect::<Vec<_>>()
 }
