@@ -17,8 +17,6 @@ use std::str::FromStr;
 use super::zk_login::{hash_ascii_str_to_field, to_field};
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
-const SALT_SERVER_URL: &str = "https://salt.api.mystenlabs.com/get_salt";
-const PROVER_SERVER_URL: &str = "https://prover.mystenlabs.com/v1";
 const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
 const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
 const MAX_AUD_VALUE_LENGTH: u8 = 145;
@@ -77,7 +75,24 @@ pub fn get_oidc_url(
     Ok(match provider {
             OIDCProvider::Google => format!("https://accounts.google.com/o/oauth2/v2/auth?client_id={}&response_type=id_token&redirect_uri={}&scope=openid&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Twitch => format!("https://id.twitch.tv/oauth2/authorize?client_id={}&force_verify=true&lang=en&login_type=login&redirect_uri={}&response_type=id_token&scope=openid&nonce={}", client_id, redirect_url, nonce),
-            OIDCProvider::Facebook => format!("https://www.facebook.com/v17.0/dialog/oauth?client_id={}&redirect_uri={}&scope=openid&nonce={}&response_type=id_token", client_id, redirect_url, nonce) })
+            OIDCProvider::Facebook => format!("https://www.facebook.com/v17.0/dialog/oauth?client_id={}&redirect_uri={}&scope=openid&nonce={}&response_type=id_token", client_id, redirect_url, nonce),
+            OIDCProvider::Kakao => format!("https://kauth.kakao.com/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
+            OIDCProvider::Apple => format!("https://appleid.apple.com/auth/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
+            OIDCProvider::Slack => format!("https://slack.com/openid/connect/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce) 
+        })
+}
+
+/// Return the token exchange URL for the given auth code.
+pub fn get_token_exchange_url(
+    provider: OIDCProvider,
+    client_id: &str,
+    redirect_url: &str,
+    auth_code: &str,
+) -> Result<String, FastCryptoError> {
+    match provider {
+        OIDCProvider::Kakao => Ok(format!("https://kauth.kakao.com/oauth/token?grant_type=authorization_code&client_id={}&redirect_uri={}&code={}", client_id, redirect_url, auth_code)),
+        _ => Err(FastCryptoError::InvalidInput)
+    }
 }
 
 /// Calculate the nonce for the given parameters. Nonce is defined as the Base64Url encoded of the poseidon hash of 4 inputs:
@@ -114,11 +129,11 @@ pub struct GetSaltResponse {
 }
 
 /// Call the salt server for the given jwt_token and return the salt.
-pub async fn get_salt(jwt_token: &str) -> Result<String, FastCryptoError> {
+pub async fn get_salt(jwt_token: &str, salt_url: &str) -> Result<String, FastCryptoError> {
     let client = Client::new();
     let body = json!({ "token": jwt_token });
     let response = client
-        .post(SALT_SERVER_URL)
+        .post(salt_url)
         .json(&body)
         .header("Content-Type", "application/json")
         .send()
@@ -140,6 +155,7 @@ pub async fn get_proof(
     jwt_randomness: &str,
     eph_pubkey: &str,
     salt: &str,
+    prover_url: &str,
 ) -> Result<ZkLoginInputsReader, FastCryptoError> {
     let body = json!({
     "jwt": jwt_token,
@@ -151,7 +167,7 @@ pub async fn get_proof(
     });
     let client = Client::new();
     let response = client
-        .post(PROVER_SERVER_URL.to_string())
+        .post(prover_url.to_string())
         .header("Content-Type", "application/json")
         .json(&body)
         .send()
