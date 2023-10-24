@@ -28,7 +28,7 @@ use std::str::FromStr;
 #[path = "unit_tests/zk_login_tests.rs"]
 mod zk_login_tests;
 
-// #[cfg(feature = "e2e")]
+#[cfg(feature = "e2e")]
 #[cfg(test)]
 #[path = "unit_tests/zk_login_e2e_tests.rs"]
 mod zk_login_e2e_tests;
@@ -185,8 +185,8 @@ pub struct JWK {
 pub struct JWKReader {
     e: String,
     n: String,
-    #[serde(rename = "use")]
-    my_use: String,
+    #[serde(rename = "use", skip_serializing_if = "Option::is_none")]
+    my_use: Option<String>,
     kid: String,
     kty: String,
     alg: String,
@@ -196,11 +196,7 @@ impl JWK {
     /// Parse JWK from the reader struct.
     pub fn from_reader(reader: JWKReader) -> FastCryptoResult<Self> {
         let trimmed_e = trim(reader.e);
-        if reader.alg != "RS256"
-            || reader.my_use != "sig"
-            || reader.kty != "RSA"
-            || trimmed_e != "AQAB"
-        {
+        if reader.alg != "RS256" || reader.kty != "RSA" || trimmed_e != "AQAB" {
             return Err(FastCryptoError::InvalidInput);
         }
         Ok(Self {
