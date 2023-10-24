@@ -77,7 +77,7 @@ pub fn get_oidc_url(
             OIDCProvider::Twitch => format!("https://id.twitch.tv/oauth2/authorize?client_id={}&force_verify=true&lang=en&login_type=login&redirect_uri={}&response_type=id_token&scope=openid&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Facebook => format!("https://www.facebook.com/v17.0/dialog/oauth?client_id={}&redirect_uri={}&scope=openid&nonce={}&response_type=id_token", client_id, redirect_url, nonce),
             OIDCProvider::Kakao => format!("https://kauth.kakao.com/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
-            OIDCProvider::Apple => format!("https://appleid.apple.com/auth/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
+            OIDCProvider::Apple => format!("https://appleid.apple.com/auth/authorize?client_id={}&redirect_uri={}&scope=email&response_mode=form_post&response_type=code%20id_token&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Slack => format!("https://slack.com/openid/connect/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce) 
         })
 }
