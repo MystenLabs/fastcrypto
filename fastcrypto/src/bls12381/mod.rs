@@ -113,7 +113,7 @@ impl Eq for BLS12381PublicKey {}
 
 impl PartialOrd for BLS12381PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.as_ref().partial_cmp(other.as_ref())
+        Some(self.cmp(other))
     }
 }
 

@@ -295,7 +295,7 @@ impl Debug for Ed25519PublicKey {
     }
 }
 
-#[allow(clippy::derive_hash_xor_eq)] // ed25519_consensus's PartialEq is compatible
+#[allow(clippy::derived_hash_with_manual_eq)] // ed25519_consensus's PartialEq is compatible
 impl std::hash::Hash for Ed25519PublicKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.0.as_bytes().hash(state);
@@ -304,7 +304,7 @@ impl std::hash::Hash for Ed25519PublicKey {
 
 impl PartialOrd for Ed25519PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.0.as_bytes().partial_cmp(other.0.as_bytes())
+        Some(self.cmp(other))
     }
 }
 

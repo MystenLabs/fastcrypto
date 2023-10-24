@@ -92,7 +92,7 @@ impl std::hash::Hash for Secp256k1PublicKey {
 
 impl PartialOrd for Secp256k1PublicKey {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.pubkey.partial_cmp(&other.pubkey)
+        Some(self.cmp(other))
     }
 }
 

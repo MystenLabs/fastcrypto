@@ -12,11 +12,10 @@ fn test_reduce() {
     let pk = ecies::PublicKey::<RistrettoPoint>::from_private_key(&sk);
     for number_of_nodes in [10, 50, 100, 150, 200, 250, 300, 350, 400] {
         let node_vec = (0..number_of_nodes)
-            .into_iter()
             .map(|i| Node {
                 id: i,
                 pk: pk.clone(),
-                weight: 5 + i as u16,
+                weight: 5 + i,
             })
             .collect();
         let nodes = Nodes::new(node_vec).unwrap();

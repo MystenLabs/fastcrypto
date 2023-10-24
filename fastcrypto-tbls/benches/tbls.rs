@@ -21,7 +21,6 @@ mod tbls_benches {
             const WEIGHTS: [usize; 5] = [10, 20, 30, 40, 50];
             for w in WEIGHTS {
                 let shares = (1..=w)
-                    .into_iter()
                     .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
                     .collect::<Vec<_>>();
 
@@ -37,7 +36,6 @@ mod tbls_benches {
             for w in TOTAL_WEIGHTS {
                 let private_poly = Poly::<bls12381::Scalar>::rand(w as u32, &mut thread_rng());
                 let shares = (1..=w)
-                    .into_iter()
                     .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
                     .collect::<Vec<_>>();
 

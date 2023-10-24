@@ -14,7 +14,6 @@ type G = G1Element;
 
 pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)> {
     (0..n)
-        .into_iter()
         .map(|id| {
             let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
             let pk = ecies::PublicKey::<G>::from_private_key(&sk);

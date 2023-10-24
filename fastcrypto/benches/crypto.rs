@@ -372,7 +372,7 @@ mod signature_benches {
             BenchmarkId::new(name.to_string(), size),
             &(test_data.msgs, test_data.public_keys, test_data.signatures),
             |b, (m, pks, sigs)| {
-                let sigs_ref = sigs.iter().map(|m| m.borrow()).collect::<Vec<_>>();
+                let sigs_ref = sigs.iter().collect::<Vec<_>>();
                 let msgs_ref = m.iter().map(|m| m.borrow()).collect::<Vec<_>>();
                 let cloned_pks = pks.clone();
                 b.iter(|| {
