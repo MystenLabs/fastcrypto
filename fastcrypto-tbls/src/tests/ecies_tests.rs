@@ -51,7 +51,6 @@ fn test_recovery_package() {
 fn test_multi_rec() {
     let ro = RandomOracle::new("test");
     let keys_and_msg = (0..10u32)
-        .into_iter()
         .map(|i| {
             let sk = PrivateKey::<Group>::new(&mut thread_rng());
             let pk = PublicKey::<Group>::from_private_key(&sk);

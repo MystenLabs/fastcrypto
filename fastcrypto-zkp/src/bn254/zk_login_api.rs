@@ -98,7 +98,7 @@ fn insecure_pvk() -> PreparedVerifyingKey<Bn254> {
 
     // Create a vector of G1Affine elements from the IC
     let mut vk_gamma_abc_g1 = Vec::new();
-    for e in vec![
+    for e in [
         vec![
             "20701306374481714853949730154526815782802808896228594855451770849676897643964"
                 .to_string(),
@@ -190,7 +190,7 @@ fn global_pvk() -> PreparedVerifyingKey<Bn254> {
 
     // Create a vector of G1Affine elements from the IC
     let mut vk_gamma_abc_g1 = Vec::new();
-    for e in vec![
+    for e in [
         vec![
             "1607694606386445293170795095076356565829000940041894770459712091642365695804"
                 .to_string(),

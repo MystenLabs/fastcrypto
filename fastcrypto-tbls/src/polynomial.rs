@@ -12,7 +12,7 @@ use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
-//// Types
+/// Types
 
 pub type Eval<A> = IndexedValue<A>;
 
@@ -24,7 +24,7 @@ pub struct Poly<C>(Vec<C>);
 pub type PrivatePoly<C> = Poly<<C as GroupElement>::ScalarType>;
 pub type PublicPoly<C> = Poly<C>;
 
-//// Vector related operations.
+/// Vector related operations.
 
 impl<C> Poly<C> {
     /// Returns the degree of the polynomial
@@ -47,7 +47,7 @@ impl<C> From<Poly<C>> for Vec<C> {
     }
 }
 
-//// GroupElement operations.
+/// GroupElement operations.
 
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
@@ -148,7 +148,7 @@ impl<C: GroupElement> Poly<C> {
     }
 }
 
-//// Scalar operations.
+/// Scalar operations.
 
 impl<C: Scalar> Poly<C> {
     /// Returns a new polynomial of the given degree where each coefficients is

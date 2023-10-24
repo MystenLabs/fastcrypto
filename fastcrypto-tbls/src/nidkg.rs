@@ -113,14 +113,11 @@ where
 
         // Precompute the dual code coefficients.
         let ids_as_scalars = (1..=n)
-            .into_iter()
             .map(|i| (i, G::ScalarType::from(i as u64)))
             .collect::<HashMap<_, _>>();
         let precomputed_dual_code_coefficients = (1..=n)
-            .into_iter()
             .map(|i| {
                 (1..=n)
-                    .into_iter()
                     .filter(|j| i != *j)
                     .map(|j| ids_as_scalars[&i] - ids_as_scalars[&j])
                     .fold(G::ScalarType::generator(), |acc, x| acc * x)
@@ -160,7 +157,6 @@ where
                     .share_id_to_node(&share_id)
                     .expect("using valid share id");
                 let encryptions = (0..NUM_OF_ENCRYPTIONS_PER_SHARE)
-                    .into_iter()
                     .map(|_| {
                         let r = G::ScalarType::rand(rng);
                         let msg = bcs::to_bytes(&r).expect("serialization should work");
@@ -201,7 +197,6 @@ where
         .map(|(share_id, chal, &values)| {
             let share = self.vss_sk.eval(share_id).value;
             let infos = (0..NUM_OF_ENCRYPTIONS_PER_SHARE)
-                .into_iter()
                 .map(|i| {
                     if chal[i] {
                         EncryptionInfo::ForVerification { k_x_g: values[i].1 }
@@ -321,7 +316,6 @@ where
         assert!(self.is_above_t(messages).is_ok());
 
         let partial_pks = (0..self.nodes.n())
-            .into_iter()
             .map(|i| {
                 messages
                     .iter()
