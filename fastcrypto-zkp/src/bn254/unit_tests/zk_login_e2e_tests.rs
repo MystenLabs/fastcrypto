@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::env;
+use std::{env, str::FromStr};
 
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
@@ -212,6 +212,46 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
+    println!("zk_login_inputs: {:?}", serde_json::to_string(&reader));
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
+    println!("seed: {:?}", zk_login_inputs.address_seed);
     (max_epoch, eph_pubkey, zk_login_inputs)
+}
+
+#[tokio::test]
+async fn test_end_to_end_google() {
+    let parsed_token = "eyJhbGciOiJSUzI1NiIsImtpZCI6ImEwNmFmMGI2OGEyMTE5ZDY5MmNhYzRhYmY0MTVmZjM3ODgxMzZmNjUiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJhenAiOiI0MTA1OTE0OTM4ODctaWVobm5ob2ptcTcwOWYxbmppa2d2OWF0Ym9iY2VvcTYuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJhdWQiOiI0MTA1OTE0OTM4ODctaWVobm5ob2ptcTcwOWYxbmppa2d2OWF0Ym9iY2VvcTYuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJzdWIiOiIxMTQxMzM1NDM5MDg3OTY0ODg0OTkiLCJub25jZSI6IktLUEZ1SUdwZFdzUUNva2tNTXhNSkN3SHNURSIsIm5iZiI6MTY5ODI3MTEzMSwiaWF0IjoxNjk4MjcxNDMxLCJleHAiOjE2OTgyNzUwMzEsImp0aSI6IjdiZmE3NWVhZmE0Y2JjYzFlZWMwZjkzMGJiNzMwYzdlOGQ5MmMxNzgifQ.t4uJ_xBOA_7RfGxI6GGOgUFL0Vl5OA-BQg-lFnTo89Xfvn1NAoMYYsf76CL9IlYV8DoV2iyPzJ6-XLUZYQFd4_FZVLmo7CsRbXNXbKnhmFUgD1CmT-Mqe1maA3M7ZqPWQDkeikVG7746BUj5i3D1IUB15hh4fq6ChJTu7M_SwcD1vbCI1Su0QCS0G4TGqujO5t4Yb5JKoCDWMJB5aN-i3R_eS7f45puCDL5Cpw7d8_dDgI3UuS7QiOGJo1LirRUDcq4LQlsCz8ouilfMuZ9KBJLHHDVEoptsvYgSk8Gil_YqfAglIb1_lwr7JKbA2QRS3pYOJS6Rh_0pr3RYf-K7KQ";
+    let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
+    // Get the address seed.
+    let address_seed = gen_address_seed("129390038577185583942388216820280642146", "sub", &sub, &aud).unwrap();
+    let eph_pubkey = BigUint::from_str("24233553856840384279002909819670823189421496095696456902211235365856816693804").unwrap().to_bytes_be();
+    let mut extended_pk_bytes = vec![0x00];
+    extended_pk_bytes.extend(eph_pubkey);
+
+    println!("extended_pk_bytes: {:?}", extended_pk_bytes.len());
+    let zk_login_inputs = ZkLoginInputs::from_json("{     \"proofPoints\": {         \"a\": [             \"98043527755705813373598036768441355235962609271688636745550818969775238692\",             \"3847947815734152223243624418348526564568855512823750305022546576957696697482\",             \"1\"         ],         \"b\": [             [                 \"4864019982277401092902178508982368513993190517179117438128245846422134406078\",                 \"5038795982792806847984082973563213384171151667593147603574741214319566854727\"             ],             [                 \"10635240743689646673097840272559984133066550794108708401575210630519204643141\",                 \"1159829323555801821986734203043953887760843043747177816800215715254173485554\"             ],             [                 \"1\",                 \"0\"             ]         ],         \"c\": [             \"17982592953133250811076592940227976027343092016562261835120860442990894559259\",             \"17369126164603331193161811502842707368793107186813373199566908960041993018076\",             \"1\"         ]     },     \"issBase64Details\": {         \"value\": \"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",         \"indexMod4\": 1     },     \"headerBase64\": \"eyJhbGciOiJSUzI1NiIsImtpZCI6ImEwNmFmMGI2OGEyMTE5ZDY5MmNhYzRhYmY0MTVmZjM3ODgxMzZmNjUiLCJ0eXAiOiJKV1QifQ\" }", &address_seed).unwrap();
+    let mut map = ImHashMap::new();
+    map.insert(
+        JwkId::new(
+            OIDCProvider::Google.get_config().iss,
+            "a06af0b68a2119d692cac4abf415ff3788136f65".to_string(),
+        ),
+        JWK {
+            kty: "RSA".to_string(),
+            e: "AQAB".to_string(),
+            n: "yrIpMnHYrVPwlbC-IY8aU2Q6QKnLf_p1FQXNiTO9mWFdeYXP4cNF6QKWgy4jbVSrOs-4qLZbKwRvZhfTuuKW6fwj5lVZcNsq5dd6GXR65I8kwomMH-Zv_pDt9zLiiJCp5_GU6Klb8zMY_jEE1fZp88HIk2ci4GrmtPTbw8LHAkn0P54sQQqmCtzqAWp8qkZ-GGNITxMIdQMY225kX7Dx91ruCb26jPCvF5uOrHT-I6rFU9fZbIgn4T9PthruubbUCutKIR-JK8B7djf61f8ETuKomaHVbCcxA-Q7xD0DEJzeRMqiPrlb9nJszZjmp_VsChoQQg-wl0jFP-1Rygsx9w".to_string(),
+            alg: "RS256".to_string(),
+        },
+    );
+
+    // Verify it against prod vk fails.
+    let res_prod = verify_zk_login(
+        &zk_login_inputs,
+        200,
+        &extended_pk_bytes,
+        &map,
+        &ZkLoginEnv::Prod,
+    );
+    println!("res_prod: {:?}", res_prod);
+    assert!(res_prod.is_err());
 }
