@@ -467,6 +467,13 @@ impl Discriminant {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_digits(Order::Msf)
     }
+
+    /// Try to create a discriminant from a big-endian byte representation of the absolute value.
+    /// Fails if the discriminant is not equal to 1 mod 4.
+    pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        let discriminant = BigInt::from_bytes_be(num_bigint::Sign::Minus, bytes);
+        Self::try_from(discriminant)
+    }
 }
 
 #[cfg(test)]

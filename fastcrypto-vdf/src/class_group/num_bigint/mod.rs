@@ -397,6 +397,13 @@ impl Discriminant {
     pub fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes_be().1
     }
+
+    /// Try to create a discriminant from a big-endian byte representation of the absolute value.
+    /// Fails if the discriminant is not equal to 1 mod 4.
+    pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
+        let discriminant = BigInt::from_bytes_be(num_bigint::Sign::Minus, bytes);
+        Self::try_from(discriminant)
+    }
 }
 
 #[cfg(test)]
@@ -448,5 +455,21 @@ mod tests {
             assert_ne!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(i)));
         }
         assert_eq!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(7)));
+    }
+
+    #[test]
+    fn test_discriminant_to_from_bytes() {
+        assert!(Discriminant::try_from_be_bytes(&[0x01]).is_err());
+        assert!(Discriminant::try_from_be_bytes(&[0x03]).is_ok());
+
+        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
+        let bytes = discriminant.to_bytes();
+        let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
+        assert_eq!(discriminant, discriminant2);
+
+        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 256).unwrap();
+        let bytes = discriminant.to_bytes();
+        let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
+        assert_eq!(discriminant, discriminant2);
     }
 }
