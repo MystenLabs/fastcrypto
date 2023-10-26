@@ -18,7 +18,7 @@ enum Command {
     Discriminant(DiscriminantArguments),
 
     /// Compute VDF output and proof.
-    Evaluate(EvaluateArguments),
+    Prove(ProveArguments),
 
     /// Verify an output .
     Verify(VerifyArguments),
@@ -36,7 +36,7 @@ struct DiscriminantArguments {
 }
 
 #[derive(Parser, Clone)]
-struct EvaluateArguments {
+struct ProveArguments {
     /// The hex encoded discriminant.
     #[clap(short, long)]
     discriminant: String,
@@ -91,7 +91,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
             Ok(result)
         }
 
-        Command::Evaluate(arguments) => {
+        Command::Prove(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
             let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
@@ -150,7 +150,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{execute, Command, DiscriminantArguments, EvaluateArguments, VerifyArguments};
+    use crate::{execute, Command, DiscriminantArguments, ProveArguments, VerifyArguments};
 
     #[test]
     fn test_discriminant() {
@@ -165,10 +165,10 @@ mod tests {
     }
 
     #[test]
-    fn test_evaluate() {
+    fn test_prove() {
         let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
         let iterations = 1000u64;
-        let result = execute(Command::Evaluate(EvaluateArguments {
+        let result = execute(Command::Prove(ProveArguments {
             discriminant,
             iterations,
         }))
@@ -177,7 +177,7 @@ mod tests {
         assert_eq!(expected, result);
 
         let invalid_discriminant = "abcx".to_string();
-        assert!(execute(Command::Evaluate(EvaluateArguments {
+        assert!(execute(Command::Prove(ProveArguments {
             discriminant: invalid_discriminant,
             iterations,
         }))
