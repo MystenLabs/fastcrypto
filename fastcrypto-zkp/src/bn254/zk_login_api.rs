@@ -125,7 +125,7 @@ fn insecure_pvk() -> PreparedVerifyingKey<Bn254> {
     };
 
     // Convert the verifying key into the prepared form.
-    process_vk_special(&Bn254VerifyingKey(vk)).as_arkworks_pvk()
+    PreparedVerifyingKey::from(vk)
 }
 
 /// Load a fixed verifying key from zkLogin.vkey output. This is based on a local setup and should not use in production.
