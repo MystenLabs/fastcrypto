@@ -11,7 +11,7 @@ use fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
 use fastcrypto_vdf::vdf::VDF;
 use num_bigint::BigInt;
 use num_traits::Num;
-use rand::{RngCore, thread_rng};
+use rand::{thread_rng, RngCore};
 
 struct VerificationInputs {
     iterations: u64,
@@ -66,13 +66,12 @@ fn verify(c: &mut Criterion) {
         }, &mut group);
 }
 
-
 fn sample_discriminant(c: &mut Criterion) {
     #[cfg(not(feature = "gmp"))]
-        let dep = "num-bigint";
+    let dep = "num-bigint";
 
     #[cfg(feature = "gmp")]
-        let dep = "gmp";
+    let dep = "gmp";
 
     let bit_lengths = [128, 256, 512, 1024, 2048];
 
@@ -82,11 +81,18 @@ fn sample_discriminant(c: &mut Criterion) {
 
     for bit_length in bit_lengths {
         c.bench_with_input(
-            BenchmarkId::new(format!("Sample class group discriminant ({})", dep), &bit_length), &bit_length,
-            |b, n| b.iter(|| {
-                rng.try_fill_bytes(&mut seed).unwrap();
-                Discriminant::from_seed(&seed, *n).unwrap(  );
-            }));
+            BenchmarkId::new(
+                format!("Sample class group discriminant ({})", dep),
+                &bit_length,
+            ),
+            &bit_length,
+            |b, n| {
+                b.iter(|| {
+                    rng.try_fill_bytes(&mut seed).unwrap();
+                    Discriminant::from_seed(&seed, *n).unwrap();
+                })
+            },
+        );
     }
 }
 
