@@ -83,7 +83,7 @@ fn sample_discriminant(c: &mut Criterion) {
         c.bench_with_input(
             BenchmarkId::new(
                 format!("Sample class group discriminant ({})", dep),
-                &bit_length,
+                bit_length,
             ),
             &bit_length,
             |b, n| {
