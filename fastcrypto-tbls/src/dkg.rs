@@ -19,6 +19,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use tracing::debug;
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
@@ -195,18 +196,36 @@ where
     }
 
     fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
-        self.nodes
-            .node_id_to_node(msg.sender)
-            .map_err(|_| FastCryptoError::InvalidMessage)?;
+        if self.nodes.node_id_to_node(msg.sender).is_err() {
+            debug!(
+                "Message sanity check failed: no node with id {}",
+                msg.sender
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
         if self.t != msg.vss_pk.degree() + 1 {
+            debug!(
+                "Message sanity check failed: expected vss_pk degree={}, got {}",
+                self.t - 1,
+                msg.vss_pk.degree()
+            );
             return Err(FastCryptoError::InvalidMessage);
         }
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
+            debug!(
+                "Message sanity check failed: expected encrypted_shares.len={}, got {}",
+                self.nodes.num_nodes(),
+                msg.encrypted_shares.len()
+            );
             return Err(FastCryptoError::InvalidMessage);
         }
-        msg.encrypted_shares
+        if let Err(e) = msg
+            .encrypted_shares
             .verify_knowledge(&self.random_oracle.extend(&format!("encs {}", msg.sender)))
-            .map_err(|_| FastCryptoError::InvalidMessage)?;
+        {
+            debug!("Message sanity check failed: verify_knowledge returned err: {e:?}");
+            return Err(FastCryptoError::InvalidMessage);
+        }
         Ok(())
     }
 
