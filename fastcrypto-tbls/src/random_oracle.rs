@@ -4,6 +4,7 @@
 use digest::Digest;
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_512;
+use std::fmt::Debug;
 
 /// Random Oracle from SHA3-512.
 /// - prefix should be globally unique.
@@ -13,7 +14,7 @@ use sha3::Sha3_512;
 ///   "-". The caller must make sure to choose distinct prefix & extension strings.
 ///     E.g., RandomOracle::new("abc-").extend("def") = RandomOracle::new("abc-def")
 
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomOracle {
     prefix: String,
 }

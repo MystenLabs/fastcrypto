@@ -3,6 +3,7 @@
 
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
+use crate::encoding::{Encoding, Hex};
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
@@ -29,26 +30,27 @@ use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
+use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 
 /// Elements of the group G_1 in BLS 12-381.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 #[repr(transparent)]
 pub struct G1Element(blst_p1);
 
 /// Elements of the group G_2 in BLS 12-381.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 #[repr(transparent)]
 pub struct G2Element(blst_p2);
 
 /// Elements of the subgroup G_T of F_q^{12} in BLS 12-381. Note that it is written in additive notation here.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct GTElement(blst_fp12);
 
 /// This represents a scalar modulo r = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
 /// which is the order of the groups G1, G2 and GT. Note that r is a 255 bit prime.
-#[derive(Debug, From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 pub struct Scalar(blst_fr);
 
 pub const SCALAR_LENGTH: usize = 32;
@@ -247,6 +249,13 @@ impl ToFromByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
     }
 }
 
+impl Debug for G1Element {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes = Hex::encode(self.to_byte_array());
+        write!(f, "{:?}", bytes)
+    }
+}
+
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
@@ -409,6 +418,13 @@ impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
     }
 }
 
+impl Debug for G2Element {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes = Hex::encode(self.to_byte_array());
+        write!(f, "{:?}", bytes)
+    }
+}
+
 serialize_deserialize_with_to_from_byte_array!(G2Element);
 generate_bytes_representation!(G2Element, G2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
 
@@ -539,6 +555,13 @@ impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
 
     fn to_byte_array(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
         self.0.to_bendian()
+    }
+}
+
+impl Debug for GTElement {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes = Hex::encode(self.to_byte_array());
+        write!(f, "{:?}", bytes)
     }
 }
 
@@ -687,6 +710,13 @@ impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
             blst_bendian_from_scalar(bytes.as_mut_ptr(), &scalar);
         }
         bytes
+    }
+}
+
+impl Debug for Scalar {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let bytes = Hex::encode(self.to_byte_array());
+        write!(f, "{:?}", bytes)
     }
 }
 
