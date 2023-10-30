@@ -20,6 +20,7 @@ rug = {version = "1.21.0", optional = true}
 
 [features]
 gmp = ["dep:rug"]
+experimental = []
 
 [dev-dependencies]
 hex = "0.4.3"
