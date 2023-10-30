@@ -215,6 +215,13 @@ where
         self.2.verify(&self.0, random_oracle)
     }
 
+    pub fn ephemeral_key(&self) -> &G {
+        &self.0
+    }
+    pub fn proof(&self) -> &DLNizk<G> {
+        &self.2
+    }
+
     #[cfg(test)]
     pub fn swap_for_testing(&mut self, i: usize, j: usize) {
         self.1.swap(i, j);

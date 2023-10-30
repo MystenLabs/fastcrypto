@@ -24,9 +24,11 @@ tracing.workspace = true
 
 itertools = "0.10.5"
 hex = "0.4.3"
+tap = { version = "1.0.1", features = [] }
 
 [dev-dependencies]
 criterion = "0.4.0"
+tracing-test = "0.2.4"
 
 [[bench]]
 name = "polynomial"
