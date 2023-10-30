@@ -156,7 +156,9 @@ where
         let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
 
         debug!("Creating party {my_id}, {enc_pk:?} with threshold {t}, {random_oracle:?}");
-        nodes.iter().for_each(|n| debug!("{n:?}"));
+        if tracing::enabled!(tracing::Level::DEBUG) {
+            nodes.iter().for_each(|n| debug!("{n:?}"));
+        }
 
         Ok(Self {
             id: my_id,
@@ -217,7 +219,7 @@ where
 
         if self.t != msg.vss_pk.degree() + 1 {
             debug!(
-                "Message sanity check failed ({}) expected vss_pk degree={}, got {}",
+                "Message sanity check failed ({}): expected vss_pk degree={}, got {}",
                 msg.sender,
                 self.t - 1,
                 msg.vss_pk.degree()
