@@ -84,10 +84,11 @@ jobs:
             diffutils
             make
             mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-rust
       - name: Test VDF with GMP (windows)
         run: |
           cd fastcrypto-vdf
-          msys2 -c 'cargo nextest run --features gmp'
+          msys2 -c 'cargo test --features gmp'
           cd ..
       - run: scripts/changed-files.sh
         
