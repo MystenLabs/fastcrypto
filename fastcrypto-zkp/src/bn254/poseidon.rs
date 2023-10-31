@@ -2,11 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use ark_bn254::Fr;
+use ark_ff::{BigInteger, PrimeField};
 use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
 use once_cell::sync::OnceCell;
 use poseidon_ark::Poseidon;
+use std::cmp::Ordering;
 use std::fmt::Debug;
 use std::fmt::Formatter;
+
+/// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
+/// we need 32 bytes to represent it as an integer.
+pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
 /// Wrapper struct for Poseidon hash instance.
 pub struct PoseidonWrapper {
@@ -41,8 +48,9 @@ impl PoseidonWrapper {
     }
 }
 
-/// Calculate the poseidon hash of the field element inputs. If the input
-/// length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..32])), otherwise return an error.
+/// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
+/// H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
+/// error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
     let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
@@ -60,17 +68,69 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
+/// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
+/// this function returns the corresponding field element. If the field element is not canonical (is
+/// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
+///
+/// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
+fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
+    match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
+        Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
+        Ordering::Equal => {
+            let field_element = Fr::from_le_bytes_mod_order(bytes);
+            // Unfortunately, there doesn't seem to be a nice way to check if a modular reduction
+            // happened without doing the extra work of serializing the field element again.
+            let reduced_bytes = field_element.into_bigint().to_bytes_le();
+            if reduced_bytes != bytes {
+                return Err(InvalidInput);
+            }
+            Ok(field_element)
+        }
+        Ordering::Greater => Err(InputTooLong(bytes.len())),
+    }
+}
+
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]).
+///
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
+pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
+    let mut field_elements = Vec::new();
+    for input in inputs {
+        field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
+    }
+    to_poseidon_hash(field_elements)
+}
+
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
+/// bytes).
+///
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
+pub fn hash_to_bytes(
+    inputs: &Vec<Vec<u8>>,
+) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
+    let field_element = hash_to_field_element(inputs)?;
+    let bytes = field_element.into_bigint().to_bytes_le();
+    Ok(bytes
+        .try_into()
+        .expect("Leading zeros are added in to_bytes_be"))
+}
+
 #[cfg(test)]
 mod test {
     use super::PoseidonWrapper;
+    use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
-        vals.iter()
-            .map(|x| Bn254Fr::from_str(&x.to_string()).unwrap())
-            .collect()
+        vals.into_iter().map(Bn254Fr::from).collect()
     }
 
     #[test]
@@ -183,5 +243,32 @@ mod test {
             "2487117669597822357956926047501254969190518860900347921480370492048882803688"
                 .to_string()
         );
+    }
+
+    #[test]
+    fn test_hash_to_bytes() {
+        let inputs: Vec<Vec<u8>> = vec![vec![1u8]];
+        let hash = hash_to_bytes(&inputs).unwrap();
+        // 18586133768512220936620570745912940619677854269274689475585506675881198879027 in decimal
+        let expected =
+            hex::decode("33018202c57d898b84338b16d1a4960e133c6a4d656cfec1bd62a9ea00611729")
+                .unwrap();
+        assert_eq!(hash.as_slice(), &expected);
+
+        // 7853200120776062878684798364095072458815029376092732009249414926327459813530 in decimal
+        let inputs: Vec<Vec<u8>> = vec![vec![1u8], vec![2u8]];
+        let hash = hash_to_bytes(&inputs).unwrap();
+        let expected =
+            hex::decode("9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11")
+                .unwrap();
+        assert_eq!(hash.as_slice(), &expected);
+
+        // Input larger than the modulus
+        let inputs = vec![vec![255; 32]];
+        assert!(hash_to_bytes(&inputs).is_err());
+
+        // Input smaller than the modulus
+        let inputs = vec![vec![255; 31]];
+        assert!(hash_to_bytes(&inputs).is_ok());
     }
 }
