@@ -66,6 +66,27 @@ jobs:
       # Ensure there are no uncommitted changes in the repo after running tests
       - run: scripts/changed-files.sh
 
+  windows_test:
+    runs-on: windows-ghcloud
+    strategy:
+      fail-fast: false
+    env:
+      RUSTFLAGS: -D warnings
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with: 
+          msystem: MSYS
+      - name: Setup MSYS2
+        run: |
+          pacman -S pacman-mirrors
+          pacman -S diffutils make mingw-w64-x86_64-gcc
+      - name: Test VDF with GMP (windows)
+        run: |
+          cd fastcrypto-vdf
+          msys2 -c 'cargo nextest run --features gmp'
+          cd ..
+      - run: scripts/changed-files.sh
+        
   clippy:
     runs-on: ubuntu-ghcloud
     steps:
