@@ -68,6 +68,9 @@ jobs:
 
   windows_test:
     runs-on: windows-ghcloud
+    defaults:
+      run:
+        shell: msys2 {0}
     strategy:
       fail-fast: false
     env:
@@ -80,18 +83,14 @@ jobs:
         with: 
           msystem: mingw64
           update: true
-          install: >-
-            diffutils
-            make
+          pacboy: >-
             m4
-            mingw-w64-x86_64-gmp
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-rust
+            gmp
+            gcc
+            rust
       - name: Test VDF with GMP (windows)
         run: |
-          cd fastcrypto-vdf
-          msys2 -c 'cargo test --features gmp'
-          cd ..
+          cargo test --features gmp
       - run: scripts/changed-files.sh
         
   clippy:
