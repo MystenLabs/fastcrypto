@@ -677,7 +677,7 @@ impl FiatShamirChallenge for Scalar {
         const INPUT_LENGTH: usize = SCALAR_LENGTH - 10; // Safe for our prime field
         assert!(INPUT_LENGTH <= uniform_buffer.len());
         let mut bytes = [0u8; SCALAR_LENGTH];
-        bytes.copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
+        bytes[..INPUT_LENGTH].copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
         let mut ret = blst_fr::default();
         unsafe {
             let mut scalar = blst_scalar::default();
