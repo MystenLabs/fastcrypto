@@ -73,6 +73,9 @@ jobs:
     env:
       RUSTFLAGS: -D warnings
     steps:
+      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
+      - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       - uses: msys2/setup-msys2@v2
         with: 
           msystem: MSYS
