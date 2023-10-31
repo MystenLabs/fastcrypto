@@ -83,8 +83,8 @@ jobs:
         with: 
           msystem: mingw64
           update: true
+          install: m4
           pacboy: >-
-            m4:p
             gmp:p
             gcc:p
             rust:p
