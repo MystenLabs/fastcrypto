@@ -68,14 +68,8 @@ jobs:
 
   windows_test:
     runs-on: windows-ghcloud
-    defaults:
-      run:
-        shell: msys2 {0}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - { sys: mingw64, env: x86_64 }
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -84,16 +78,18 @@ jobs:
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       - uses: msys2/setup-msys2@v2
         with: 
-          msystem: ${{matrix.sys}}
+          msystem: mingw64
           update: true
-          install: m4
-          pacboy: >-
-            gmp:p
-            gcc:p
-            rust:p
+          install: >-
+            m4
+            mingw-w64-x86_64-gmp
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-rust
       - name: Test VDF with GMP (windows)
         run: |
-          cargo test --features gmp
+          cd fastcrypto-vdf
+          msys2 -c 'cargo test --features gmp'
+          cd ..
       - run: scripts/changed-files.sh
         
   clippy:
