@@ -84,6 +84,7 @@ jobs:
             diffutils
             make
             m4
+            mingw-w64-x86_64-gmp
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-rust
       - name: Test VDF with GMP (windows)
