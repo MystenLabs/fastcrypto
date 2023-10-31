@@ -676,7 +676,7 @@ impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
         const INPUT_LENGTH: usize = SCALAR_LENGTH - 10; // Safe for our prime field
         assert!(INPUT_LENGTH <= uniform_buffer.len());
-        let mut bytes = [0u8; INPUT_LENGTH];
+        let mut bytes = [0u8; SCALAR_LENGTH];
         bytes.copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
         let mut ret = blst_fr::default();
         unsafe {
