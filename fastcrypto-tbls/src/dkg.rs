@@ -194,17 +194,19 @@ where
             .collect();
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
+        let vss_pk = self.vss_sk.commit();
+
         debug!(
             "Created message using {:?}, with eph key {:?} proof {:?}, pk {:?}",
             ro_for_enc,
             encrypted_shares.ephemeral_key(),
             encrypted_shares.proof(),
-            self.vss_sk.commit().c0()
+            vss_pk.c0()
         );
 
         Message {
             sender: self.id,
-            vss_pk: self.vss_sk.commit(),
+            vss_pk,
             encrypted_shares,
         }
     }
@@ -555,7 +557,20 @@ where
         // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
         let shares = if messages.0.iter().all(|m| m.complaint.is_none()) {
-            debug!("Aggregating my shares succeeded",);
+            debug!("Aggregating my shares succeeded");
+
+            // TODO: Remove after debugging is over.
+            final_shares.values().for_each(|s| {
+                let from_eval = vss_pk.eval(s.index);
+                let from_share = G::generator() * s.value;
+                if from_eval.value != from_share {
+                    debug!(
+                        "Invalid share in aggregate: {:?} from_eval: {:?} from_share: {:?}",
+                        s, from_eval, from_share
+                    );
+                }
+            });
+
             Some(final_shares.values().cloned().collect())
         } else {
             debug!("Aggregating my shares failed");
