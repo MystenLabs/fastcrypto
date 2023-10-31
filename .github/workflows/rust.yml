@@ -78,7 +78,7 @@ jobs:
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       - uses: msys2/setup-msys2@v2
         with: 
-          msystem: MSYS
+          msystem: mingw64
           pacboy: >-
             diffutils:p
             make:p
