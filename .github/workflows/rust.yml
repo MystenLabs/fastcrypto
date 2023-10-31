@@ -79,10 +79,10 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with: 
           msystem: MSYS
-      - name: Setup MSYS2
-        run: |
-          pacman -S pacman-mirrors
-          pacman -S diffutils make mingw-w64-x86_64-gcc
+          pacboy: >-
+            diffutils:p
+            make:p
+            mingw-w64-x86_64-gcc:p 
       - name: Test VDF with GMP (windows)
         run: |
           cd fastcrypto-vdf
