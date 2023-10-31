@@ -81,6 +81,8 @@ jobs:
           msystem: mingw64
           update: true
           install: >-
+            diffutils
+            make
             m4
             mingw-w64-x86_64-gmp
             mingw-w64-x86_64-gcc
