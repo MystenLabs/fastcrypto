@@ -6,6 +6,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{bls12381, GroupElement, MultiScalarMul, Pairing, Scalar};
 use fastcrypto::traits::AllowedRng;
 use std::num::NonZeroU32;
+use tracing::debug;
 
 /// Helper functions for checking relations between scalars and group elements.
 
@@ -56,7 +57,23 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     let rhs = G::multi_scalar_mul(&coeffs, poly.as_vec()).expect("sizes match");
 
     if lhs != rhs {
-        return Err(FastCryptoError::InvalidProof);
+        // TODO: Remove after debugging is over.
+        debug!(
+            "verify_poly_evals with {:?} failed, trying sequential verifications",
+            poly.c0()
+        );
+        for e in evals.iter() {
+            let from_eval = poly.eval(e.index);
+            let from_share = G::generator() * e.value;
+            if from_eval.value != from_share {
+                debug!(
+                    "Invalid share: {:?} from_eval: {:?} from_share: {:?}",
+                    e, from_eval, from_share
+                );
+                return Err(FastCryptoError::InvalidProof);
+            }
+        }
+        debug!("sequential verifications succeeded");
     }
     Ok(())
 }

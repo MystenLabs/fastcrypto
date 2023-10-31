@@ -186,6 +186,7 @@ where
                     .iter()
                     .map(|share_id| self.vss_sk.eval(*share_id).value)
                     .collect::<Vec<_>>();
+                // TODO: Remove after debugging is over.
                 debug!("Creating shares for party {} {:?} ", node.id, &shares);
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 (node.pk.clone(), buff)
@@ -194,10 +195,11 @@ where
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
         debug!(
-            "Created message using {:?}, with eph key {:?} and proof {:?}",
+            "Created message using {:?}, with eph key {:?} proof {:?}, pk {:?}",
             ro_for_enc,
             encrypted_shares.ephemeral_key(),
-            encrypted_shares.proof()
+            encrypted_shares.proof(),
+            self.vss_sk.commit().c0()
         );
 
         Message {
@@ -308,49 +310,32 @@ where
             })
             .collect::<Vec<_>>();
 
+        // TODO: Remove after debugging is over.
         debug!(
-            "decrypted shares from party {}: {:?}",
+            "Decrypted shares from party {}: {:?}",
             message.sender, decrypted_shares
         );
 
-        if !verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
+        if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
             debug!(
                 "Processing message from party {} failed, invalid shares",
                 message.sender
             );
-
-            // TODO: remove after debug
-            let mut failed = false;
-            decrypted_shares.iter().for_each(|s| {
-                let from_eval = message.vss_pk.eval(s.index);
-                let from_share = G::generator() * s.value;
-                if from_eval.value != from_share {
-                    failed = true;
-                    debug!(
-                        "invalid share: {:?} from_eval: {:?} from_share: {:?}",
-                        s, from_eval, from_share
-                    );
-                }
+            let complaint = Complaint {
+                accused_sender: message.sender,
+                proof: self.enc_sk.create_recovery_package(
+                    encrypted_shares,
+                    &self
+                        .random_oracle
+                        .extend(&format!("recovery {} {}", self.id, message.sender)),
+                    rng,
+                ),
+            };
+            return Ok(ProcessedMessage {
+                message,
+                shares: vec![],
+                complaint: Some(complaint),
             });
-
-            debug!("sequantial share verifications: {}", failed);
-            if failed {
-                let complaint = Complaint {
-                    accused_sender: message.sender,
-                    proof: self.enc_sk.create_recovery_package(
-                        encrypted_shares,
-                        &self
-                            .random_oracle
-                            .extend(&format!("recovery {} {}", self.id, message.sender)),
-                        rng,
-                    ),
-                };
-                return Ok(ProcessedMessage {
-                    message,
-                    shares: vec![],
-                    complaint: Some(complaint),
-                });
-            }
         }
 
         Ok(ProcessedMessage {

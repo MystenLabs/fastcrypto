@@ -652,6 +652,7 @@ impl ScalarType for Scalar {
         let mut ret = blst_fr::default();
         let mut bytes = [0u8; SCALAR_LENGTH];
         rng.fill_bytes(&mut bytes);
+        // TODO: is this secure?
         unsafe {
             let mut scalar = blst_scalar::default();
             blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
@@ -674,7 +675,7 @@ impl ScalarType for Scalar {
 
 impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
-        const INPUT_LENGTH: usize = SCALAR_LENGTH - 10; // Safe for our prime field
+        const INPUT_LENGTH: usize = SCALAR_LENGTH - 1; // Safe for our prime field
         assert!(INPUT_LENGTH <= uniform_buffer.len());
         let mut bytes = [0u8; SCALAR_LENGTH];
         bytes[..INPUT_LENGTH].copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
