@@ -73,6 +73,9 @@ jobs:
         shell: msys2 {0}
     strategy:
       fail-fast: false
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
     env:
       RUSTFLAGS: -D warnings
     steps:
@@ -81,7 +84,7 @@ jobs:
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       - uses: msys2/setup-msys2@v2
         with: 
-          msystem: mingw64
+          msystem: ${{matrix.sys}}
           update: true
           install: m4
           pacboy: >-
