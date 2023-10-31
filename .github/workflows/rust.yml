@@ -79,10 +79,11 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with: 
           msystem: mingw64
-          pacboy: >-
-            diffutils:p
-            make:p
-            mingw-w64-x86_64-gcc:p 
+          update: true
+          install: >-
+            diffutils
+            make
+            mingw-w64-x86_64-gcc
       - name: Test VDF with GMP (windows)
         run: |
           cd fastcrypto-vdf
