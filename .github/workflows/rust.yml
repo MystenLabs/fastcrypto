@@ -84,10 +84,10 @@ jobs:
           msystem: mingw64
           update: true
           pacboy: >-
-            m4
-            gmp
-            gcc
-            rust
+            m4:p
+            gmp:p
+            gcc:p
+            rust:p
       - name: Test VDF with GMP (windows)
         run: |
           cargo test --features gmp
