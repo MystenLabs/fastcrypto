@@ -71,10 +71,11 @@ impl<C: GroupElement> Poly<C> {
     /// Evaluates the polynomial at the specified value.
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
         let xi = C::ScalarType::from(i.get().into());
-        let res = self.0.iter().rev().fold(C::zero(), |mut sum, coeff| {
-            sum = sum * xi + coeff;
-            sum
-        });
+        let res = self
+            .0
+            .iter()
+            .rev()
+            .fold(C::zero(), |sum, coeff| sum * xi + coeff);
 
         Eval {
             index: i,
