@@ -156,9 +156,12 @@ where
         let seed = G::ScalarType::rand(rng);
         let vss_sk = PrivatePoly::<G>::not_secure(t - 1, &seed);
 
+        let vss_pk = vss_sk.commit::<G>();
+        let vss_pk_c0 = vss_pk.c0();
         debug!(
-            "Creating party {my_id}, {seed:?}, {enc_pk:?} with threshold {t}, {random_oracle:?}"
+            "Creating party {my_id}, seed {seed:?}, vss_pk_c0 {vss_pk_c0:?}, {enc_pk:?} with threshold {t}, {random_oracle:?}"
         );
+
         if tracing::enabled!(tracing::Level::DEBUG) {
             nodes.iter().for_each(|n| debug!("{n:?}"));
         }
@@ -207,11 +210,13 @@ where
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
 
         debug!(
-            "Created message using {:?}, with eph key {:?} proof {:?}, pk {:?}",
+            "Created message using {:?}, with eph key {:?} proof {:?}, vss_pk_c0 {:?}, seed {:?}, eval 1 {:?}",
             ro_for_enc,
             encrypted_shares.ephemeral_key(),
             encrypted_shares.proof(),
-            vss_pk.c0()
+            vss_pk.c0(),
+            self.vss_sk.c0(),
+            self.vss_sk.eval(ShareIndex::new(1).unwrap())
         );
 
         Message {
