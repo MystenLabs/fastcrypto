@@ -30,7 +30,7 @@ impl PrimeCandidates {
     }
 
     /// Returns true if a candidate is one of the next `upper_limit` candidates.
-    fn find_candidate(&mut self, candidate: &BigInt, upper_limit: usize) -> bool {
+    fn contains(&mut self, candidate: &BigInt, upper_limit: usize) -> bool {
         for _ in 0..upper_limit {
             if candidate == &self.next_candidate() {
                 return true;
@@ -53,11 +53,11 @@ impl PrimeCandidates {
             let hash = Sha256::digest(&self.seed).digest;
             blob.extend_from_slice(&hash[..min(hash.len(), self.bit_length / 8 - blob.len())]);
         }
-        let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
-        for b in &self.bitmask {
-            x.set_bit(*b as u64, true);
+        let mut candidate = BigInt::from_bytes_be(Sign::Plus, &blob);
+        for bit in &self.bitmask {
+            candidate.set_bit(*bit as u64, true);
         }
-        x
+        candidate
     }
 }
 
@@ -87,7 +87,7 @@ pub fn verify_prime(p: &BigInt, seed: &[u8], bitmask: &[usize]) -> FastCryptoRes
     let length = p.bits() as usize;
     let mut prime_candidates = PrimeCandidates::new(seed, length, bitmask).unwrap();
     let upper_limit = compute_upper_limit(length)?;
-    if !prime_candidates.find_candidate(p, upper_limit) {
+    if !prime_candidates.contains(p, upper_limit) {
         return Ok(false);
     }
     Ok(is_prime(&p.to_biguint().unwrap(), None).probably())
