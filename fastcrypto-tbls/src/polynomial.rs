@@ -159,6 +159,13 @@ impl<C: Scalar> Poly<C> {
         Self::from(coeffs)
     }
 
+    pub fn not_secure(degree: u32, seed: &C) -> Self {
+        let coeffs: Vec<C> = (0..=degree)
+            .map(|i| *seed * C::from((i + 1) as u64))
+            .collect();
+        Self::from(coeffs)
+    }
+
     /// Commits the scalar polynomial to the group and returns a polynomial over
     /// the group.
     pub fn commit<P: GroupElement<ScalarType = C>>(&self) -> Poly<P> {

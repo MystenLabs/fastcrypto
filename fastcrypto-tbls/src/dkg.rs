@@ -14,7 +14,7 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -153,9 +153,12 @@ where
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
-        let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
+        let seed = G::ScalarType::rand(rng);
+        let vss_sk = PrivatePoly::<G>::not_secure(t - 1, &seed);
 
-        debug!("Creating party {my_id}, {enc_pk:?} with threshold {t}, {random_oracle:?}");
+        debug!(
+            "Creating party {my_id}, {seed:?}, {enc_pk:?} with threshold {t}, {random_oracle:?}"
+        );
         if tracing::enabled!(tracing::Level::DEBUG) {
             nodes.iter().for_each(|n| debug!("{n:?}"));
         }
