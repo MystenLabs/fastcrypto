@@ -2,16 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::{Discriminant, QuadraticForm};
-use crate::vdf::VDF;
+use crate::vdf::hash_to_prime::B_BITS;
+use crate::vdf::{hash_to_prime, VDF};
 use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::hash::HashFunction;
-use fastcrypto::hash::Sha256;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
-use num_prime::nt_funcs::is_prime;
-use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
 
@@ -121,9 +118,6 @@ pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
 }
 
-/// Size of the random prime modulus B used in proving and verification.
-const B_BITS: usize = 264;
-
 /// Implementation of the Fiat-Shamir challenge generation compatible with chiavdf.
 /// Note that this implementation is weak, meaning that not all public parameters are used in the
 /// challenge generation. This is not secure if an adversary can influence the public parameters.
@@ -139,7 +133,8 @@ impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        hash_prime(&seed, B_BITS, &[B_BITS - 1]).expect("The length should be a multiple of 8")
+        hash_to_prime::hash_prime(&seed, B_BITS, &[B_BITS - 1])
+            .expect("The length should be a multiple of 8")
     }
 }
 
@@ -164,56 +159,22 @@ impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
         seed.extend_from_slice(&vdf.iterations.to_be_bytes());
 
-        hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        hash_to_prime::hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
-    }
-}
-
-/// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
-/// Generates a random pseudo-prime using the hash and check method:
-/// Randomly chooses x with bit-length `length`, then applies a mask
-///   (for b in bitmask) { x |= (1 << b) }.
-/// Then return x if it is a pseudo-prime, otherwise repeat.
-///
-/// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
-fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult<BigInt> {
-    if length % 8 != 0 {
-        return Err(InvalidInput);
-    }
-
-    let mut sprout: Vec<u8> = vec![];
-    sprout.extend_from_slice(seed);
-
-    loop {
-        let mut blob = vec![];
-        while blob.len() * 8 < length {
-            for i in (0..sprout.len()).rev() {
-                sprout[i] = sprout[i].wrapping_add(1);
-                if sprout[i] != 0 {
-                    break;
-                }
-            }
-            let hash = Sha256::digest(&sprout).digest;
-            blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
-        }
-        let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
-        for b in bitmask {
-            x.set_bit(*b as u64, true);
-        }
-
-        // The implementations of the primality test used below might be slightly different from the
-        // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
-        // is not an issue.
-        if is_prime(&x.to_biguint().unwrap(), None).probably() {
-            return Ok(x);
-        }
     }
 }
 
 impl Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
     pub fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
-        Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
+        Self::try_from(hash_to_prime::hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
+    }
+
+    /// Verify that this discriminant was created from the given seed.
+    pub fn verify_from_seed(&self, seed: &[u8]) -> bool {
+        let absolute_value = BigInt::from_bytes_be(Sign::Plus, &self.to_bytes());
+        hash_to_prime::verify_prime(&absolute_value, seed, &[0, 1, 2, self.bits() - 1])
+            .unwrap_or(false)
     }
 }
 
@@ -278,4 +239,14 @@ fn test_verify_1024() {
 
     let vdf = ClassGroupVDF::new(discriminant, iterations);
     assert!(vdf.verify(&input, &result, &proof).is_ok());
+}
+
+#[test]
+fn test_discriminant() {
+    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+    assert!(discriminant.verify_from_seed(&challenge));
+
+    let other_challenge = hex::decode("abcd").unwrap();
+    assert!(!discriminant.verify_from_seed(&other_challenge));
 }

@@ -8,6 +8,8 @@ use fastcrypto::error::FastCryptoResult;
 
 pub mod wesolowski;
 
+mod hash_to_prime;
+
 /// This represents a Verifiable Delay Function (VDF) construction.
 pub trait VDF {
     /// The type of the input to the VDF.
