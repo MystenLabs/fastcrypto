@@ -156,11 +156,15 @@ where
         let seed = G::ScalarType::rand(rng);
         let vss_sk = PrivatePoly::<G>::not_secure(t - 1, &seed);
 
+        debug!(
+            "Creating party {my_id}, seed {seed:?}, enc_pk {enc_pk:?} with threshold {t}, {random_oracle:?}"
+        );
+
         let vss_pk = vss_sk.commit::<G>();
         let vss_pk_c0 = vss_pk.c0();
-        debug!(
-            "Creating party {my_id}, seed {seed:?}, vss_pk_c0 {vss_pk_c0:?}, {enc_pk:?} with threshold {t}, {random_oracle:?}"
-        );
+        let g_seed = G::generator() * seed;
+        let vss_sk_c0 = vss_sk.c0();
+        debug!("Creating party {my_id}, seed {seed:?}, vss_sk_c0 {vss_sk_c0:?}, vss_pk_c0 {vss_pk_c0:?}, g_seed {g_seed:?}");
 
         if tracing::enabled!(tracing::Level::DEBUG) {
             nodes.iter().for_each(|n| debug!("{n:?}"));
