@@ -8,13 +8,12 @@ use num_bigint::{BigInt, Sign};
 use num_prime::nt_funcs::is_prime;
 use std::cmp::min;
 
-/// Size of the random prime modulus B used in proving and verification.
-pub const B_BITS: usize = 264;
-
+/// This struct provides an iterator of candidates for a random prime of a given bit length based on
+/// a seed. A bitmask can be provided to ensure that bits of the candidate is always set.
 struct PrimeCandidates {
-    sprout: Vec<u8>,
+    seed: Vec<u8>,
     bitmask: Vec<usize>,
-    length: usize,
+    bit_length: usize,
 }
 
 impl PrimeCandidates {
@@ -24,14 +23,14 @@ impl PrimeCandidates {
         }
 
         Ok(Self {
-            sprout: seed.to_vec(),
+            seed: seed.to_vec(),
             bitmask: bitmask.to_vec(),
-            length,
+            bit_length: length,
         })
     }
 
     /// Returns true if a candidate is one of the next `upper_limit` candidates.
-    fn check_candidate(&mut self, candidate: &BigInt, upper_limit: usize) -> bool {
+    fn find_candidate(&mut self, candidate: &BigInt, upper_limit: usize) -> bool {
         for _ in 0..upper_limit {
             if candidate == &self.next_candidate() {
                 return true;
@@ -40,18 +39,19 @@ impl PrimeCandidates {
         false
     }
 
-    /// Returns the next candidate.
+    /// Returns the next candidate by randomly choosing x with bit-length `length`, then applies a
+    /// mask (for b in bitmask) { x |= (1 << b) } and return x.
     fn next_candidate(&mut self) -> BigInt {
         let mut blob = vec![];
-        while blob.len() * 8 < self.length {
-            for i in (0..self.sprout.len()).rev() {
-                self.sprout[i] = self.sprout[i].wrapping_add(1);
-                if self.sprout[i] != 0 {
+        while blob.len() * 8 < self.bit_length {
+            for i in (0..self.seed.len()).rev() {
+                self.seed[i] = self.seed[i].wrapping_add(1);
+                if self.seed[i] != 0 {
                     break;
                 }
             }
-            let hash = Sha256::digest(&self.sprout).digest;
-            blob.extend_from_slice(&hash[..min(hash.len(), self.length / 8 - blob.len())]);
+            let hash = Sha256::digest(&self.seed).digest;
+            blob.extend_from_slice(&hash[..min(hash.len(), self.bit_length / 8 - blob.len())]);
         }
         let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
         for b in &self.bitmask {
@@ -87,7 +87,7 @@ pub fn verify_prime(p: &BigInt, seed: &[u8], bitmask: &[usize]) -> FastCryptoRes
     let length = p.bits() as usize;
     let mut prime_candidates = PrimeCandidates::new(seed, length, bitmask).unwrap();
     let upper_limit = compute_upper_limit(length)?;
-    if !prime_candidates.check_candidate(p, upper_limit) {
+    if !prime_candidates.find_candidate(p, upper_limit) {
         return Ok(false);
     }
     Ok(is_prime(&p.to_biguint().unwrap(), None).probably())

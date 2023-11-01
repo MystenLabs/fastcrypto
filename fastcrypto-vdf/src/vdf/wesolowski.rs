@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::{Discriminant, QuadraticForm};
-use crate::vdf::hash_to_prime::B_BITS;
 use crate::vdf::{hash_to_prime, VDF};
 use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
@@ -11,6 +10,9 @@ use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
+
+/// Size of the random prime modulus B used in proving and verification.
+pub const B_BITS: usize = 264;
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
