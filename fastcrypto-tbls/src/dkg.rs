@@ -186,7 +186,12 @@ where
 
     /// 4. Create the first message to be broadcasted.
     pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
-        debug!("Creating message for party {}", self.id);
+        debug!(
+            "Creating message for party {} using seed {:?}, eval 1 {:?}",
+            self.id,
+            self.vss_sk.c0(),
+            self.vss_sk.eval(ShareIndex::new(1).unwrap())
+        );
         let vss_pk = self.vss_sk.commit();
         let pk_and_shares: Vec<(PublicKey<EG>, Vec<u8>)> = self
             .nodes
