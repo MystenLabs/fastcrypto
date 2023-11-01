@@ -80,7 +80,7 @@ jobs:
           update: true
           install: >-
             diffutils
-            make
+            mingw-w64-x86_64-ninja
             m4
             mingw-w64-x86_64-gmp
             mingw-w64-x86_64-gcc
