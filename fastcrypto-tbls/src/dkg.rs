@@ -177,6 +177,7 @@ where
     /// 4. Create the first message to be broadcasted.
     pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
         debug!("Creating message for party {}", self.id);
+        let vss_pk = self.vss_sk.commit();
         let pk_and_shares: Vec<(PublicKey<EG>, Vec<u8>)> = self
             .nodes
             .iter()
@@ -184,17 +185,23 @@ where
                 let share_ids = self.nodes.share_ids_of(node.id);
                 let shares = share_ids
                     .iter()
-                    .map(|share_id| self.vss_sk.eval(*share_id).value)
+                    .map(|share_id| self.vss_sk.eval(*share_id))
                     .collect::<Vec<_>>();
                 // TODO: Remove after debugging is over.
                 debug!("Creating shares for party {} {:?} ", node.id, &shares);
+                let exp_for_debug = shares
+                    .iter()
+                    .map(|s| (vss_pk.eval(s.index), G::generator() * s.value))
+                    .collect::<Vec<_>>();
+                debug!("With proofs {} {:?} ", node.id, &exp_for_debug);
+
+                let shares = shares.iter().map(|s| s.value).collect::<Vec<_>>();
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 (node.pk.clone(), buff)
             })
             .collect();
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
-        let vss_pk = self.vss_sk.commit();
 
         debug!(
             "Created message using {:?}, with eph key {:?} proof {:?}, pk {:?}",
