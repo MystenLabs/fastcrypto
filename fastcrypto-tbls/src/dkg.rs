@@ -154,13 +154,31 @@ where
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
         let seed = G::ScalarType::rand(rng);
-        let vss_sk = PrivatePoly::<G>::not_secure(t - 1, &seed);
-
         debug!(
             "Creating party {my_id}, seed {seed:?}, enc_pk {enc_pk:?} with threshold {t}, {random_oracle:?}"
         );
+        let vss_sk = PrivatePoly::<G>::not_secure(t - 1, &seed);
+        let vss_sk_c0 = vss_sk.c0();
+        debug!("Creating party {my_id}, seed {seed:?}, vss_sk_c0 {vss_sk_c0:?}");
+
+        // some silly sanity tests
+        let one = G::ScalarType::generator();
+        debug!("Creating party {my_id}, seed {seed:?}, one {one:?}");
+        let two = one + one;
+        debug!("Creating party {my_id}, seed {seed:?}, two {two:?}");
+        let seed2 = seed + seed;
+        debug!("Creating party {my_id}, seed {seed:?}, seed2 {seed2:?}");
+        let seed4 = seed2 * two;
+        debug!("Creating party {my_id}, seed {seed:?}, seed4 {seed4:?}");
+        let seed2_2 = seed * two;
+        debug!("Creating party {my_id}, seed {seed:?}, seed2_2 {seed2_2:?}");
+        let seed4_2 = seed * G::ScalarType::from(4);
+        debug!("Creating party {my_id}, seed {seed:?}, seed4_2 {seed4_2:?}");
 
         let vss_pk = vss_sk.commit::<G>();
+        let vss_sk_c0 = vss_sk.c0();
+        debug!("Creating party {my_id}, seed {seed:?}, vss_sk_c0 {vss_sk_c0:?}");
+
         let vss_pk_c0 = vss_pk.c0();
         let g_seed = G::generator() * seed;
         let vss_sk_c0 = vss_sk.c0();

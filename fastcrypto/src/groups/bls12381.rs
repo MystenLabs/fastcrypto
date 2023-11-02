@@ -93,6 +93,7 @@ impl Neg for G1Element {
 /// The size of this scalar in bytes.
 fn size_in_bytes(scalar: &blst_scalar) -> usize {
     let mut i = scalar.b.len();
+    assert_eq!(i, 32);
     while i != 0 && scalar.b[i - 1] == 0 {
         i -= 1;
     }

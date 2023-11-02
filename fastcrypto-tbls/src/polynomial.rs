@@ -11,6 +11,7 @@ use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
+use tracing::debug;
 
 /// Types
 
@@ -161,9 +162,15 @@ impl<C: Scalar> Poly<C> {
     }
 
     pub fn not_secure(degree: u32, seed: &C) -> Self {
+        debug!("not_secure: seed = {seed:?}");
         let coeffs: Vec<C> = (0..=degree)
-            .map(|i| *seed * C::from((i + 1) as u64))
+            .map(|i| {
+                let v = *seed * C::from((i + 1) as u64);
+                debug!("not_secure: seed = {seed:?} i = {i} v = {v:?}");
+                v
+            })
             .collect();
+        debug!("not_secure: c0 = {:?}", coeffs[0]);
         Self::from(coeffs)
     }
 
