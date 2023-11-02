@@ -174,6 +174,10 @@ where
         debug!("Creating party {my_id}, seed {seed:?}, seed2_2 {seed2_2:?}");
         let seed4_2 = seed * G::ScalarType::from(4);
         debug!("Creating party {my_id}, seed {seed:?}, seed4_2 {seed4_2:?}");
+        let one2 = G::ScalarType::from(1);
+        debug!("Creating party {my_id}, seed {seed:?}, one2 {one2:?}");
+        let two2 = G::ScalarType::from(2);
+        debug!("Creating party {my_id}, seed {seed:?}, two2 {two2:?}");
 
         let vss_pk = vss_sk.commit::<G>();
         let vss_sk_c0 = vss_sk.c0();

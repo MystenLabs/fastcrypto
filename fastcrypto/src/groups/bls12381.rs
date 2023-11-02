@@ -631,8 +631,9 @@ impl Mul<Scalar> for Scalar {
 impl From<u64> for Scalar {
     fn from(value: u64) -> Self {
         let mut ret = blst_fr::default();
+        let buff = [value, 0u64, 0u64, 0u64];
         unsafe {
-            blst_fr_from_uint64(&mut ret, &value);
+            blst_fr_from_uint64(&mut ret, buff.as_ptr());
         }
         Self::from(ret)
     }
