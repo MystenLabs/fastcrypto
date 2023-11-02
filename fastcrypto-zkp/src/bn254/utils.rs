@@ -179,6 +179,10 @@ pub async fn get_proof(
         .bytes()
         .await
         .map_err(|_| FastCryptoError::InvalidInput)?;
+
+    #[cfg(feature = "e2e")]
+    println!("get_proof response: {:?}", full_bytes);
+
     let get_proof_response: ZkLoginInputsReader =
         serde_json::from_slice(&full_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
     Ok(get_proof_response)
