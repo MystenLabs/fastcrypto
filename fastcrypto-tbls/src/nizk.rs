@@ -89,7 +89,7 @@ where
 /// - Verifier checks that zG=A+c(xG).
 /// The NIZK is (A, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DLNizk<G: GroupElement>(pub G, pub G::ScalarType);
+pub struct DLNizk<G: GroupElement>(G, G::ScalarType);
 
 impl<G: GroupElement> DLNizk<G>
 where
