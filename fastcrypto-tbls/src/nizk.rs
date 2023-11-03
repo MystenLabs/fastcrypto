@@ -89,7 +89,7 @@ where
 /// - Verifier checks that zG=A+c(xG).
 /// The NIZK is (A, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DLNizk<G: GroupElement>(G, G::ScalarType);
+pub struct DLNizk<G: GroupElement>(pub G, pub G::ScalarType);
 
 impl<G: GroupElement> DLNizk<G>
 where
@@ -106,15 +106,13 @@ where
         let a = G::generator() * r;
         let challenge = Self::fiat_shamir_challenge(x_g, &a, random_oracle);
         let z = challenge * x + r;
-        // TODO: Remove after debugging is over.
-        debug!("Creating nizk with {x:?} {r:?} {challenge:?}");
+        debug!("NIZK: Creating a proof for {x_g:?} with challenge {challenge:?}");
         DLNizk(a, z)
     }
 
     pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> Result<(), FastCryptoError> {
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
-        // TODO: Remove after debugging is over.
-        debug!("Verifying nizk of {x_g:?} with {challenge:?}");
+        debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
         if (G::generator() * self.1) != (self.0 + *x_g * challenge) {
             Err(FastCryptoError::InvalidProof)
         } else {

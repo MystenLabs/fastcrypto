@@ -11,7 +11,6 @@ use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use tracing::debug;
 
 /// Types
 
@@ -158,19 +157,6 @@ impl<C: Scalar> Poly<C> {
     /// In the context of secret sharing, the threshold is the degree + 1.
     pub fn rand<R: AllowedRng>(degree: u32, rng: &mut R) -> Self {
         let coeffs: Vec<C> = (0..=degree).map(|_| C::rand(rng)).collect();
-        Self::from(coeffs)
-    }
-
-    pub fn not_secure(degree: u32, seed: &C) -> Self {
-        debug!("not_secure: seed = {seed:?}");
-        let coeffs: Vec<C> = (0..=degree)
-            .map(|i| {
-                let v = *seed * C::from((i + 1) as u64);
-                debug!("not_secure: seed = {seed:?} i = {i} v = {v:?}");
-                v
-            })
-            .collect();
-        debug!("not_secure: c0 = {:?}", coeffs[0]);
         Self::from(coeffs)
     }
 
