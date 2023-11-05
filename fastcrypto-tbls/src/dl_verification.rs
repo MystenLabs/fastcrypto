@@ -56,9 +56,10 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     let rhs = G::multi_scalar_mul(&coeffs, poly.as_vec()).expect("sizes match");
 
     if lhs != rhs {
-        return Err(FastCryptoError::InvalidProof);
+        Err(FastCryptoError::InvalidProof)
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 /// Check that a pair (k, H) satisfies H = k*G using a random combination of the pairs and

@@ -6,6 +6,7 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 /// NIZKPoK for the DDH tuple [G, H=eG, xG, xH].
 /// - Prover selects a random r and sends A=rG, B=rH.
@@ -105,11 +106,13 @@ where
         let a = G::generator() * r;
         let challenge = Self::fiat_shamir_challenge(x_g, &a, random_oracle);
         let z = challenge * x + r;
+        debug!("NIZK: Creating a proof for {x_g:?} with challenge {challenge:?}");
         DLNizk(a, z)
     }
 
     pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> Result<(), FastCryptoError> {
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
+        debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
         if (G::generator() * self.1) != (self.0 + *x_g * challenge) {
             Err(FastCryptoError::InvalidProof)
         } else {

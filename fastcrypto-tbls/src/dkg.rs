@@ -19,7 +19,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use tracing::debug;
+use tracing::{debug, info, warn};
 
 use tap::prelude::*;
 
@@ -155,10 +155,16 @@ where
         // to reduce communication.
         let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
 
-        debug!("Creating party {my_id}, {enc_pk:?} with threshold {t}, {random_oracle:?}");
-        if tracing::enabled!(tracing::Level::DEBUG) {
-            nodes.iter().for_each(|n| debug!("{n:?}"));
-        }
+        let vss_pk = vss_sk.commit::<G>();
+        info!(
+            "DKG: Creating party {}, nodes hash {:?}, t {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
+            my_id,
+            nodes.hash(),
+            t,
+            random_oracle,
+            enc_pk,
+            vss_pk.c0(),
+        );
 
         Ok(Self {
             id: my_id,
@@ -176,7 +182,15 @@ where
 
     /// 4. Create the first message to be broadcasted.
     pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
-        debug!("Creating message for party {}", self.id);
+        let vss_pk = self.vss_sk.commit();
+        let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
+        info!(
+            "DKG: Creating message for party {} with vss pk c0 {:?}, ro {:?}",
+            self.id,
+            vss_pk.c0(),
+            ro_for_enc,
+        );
+
         let pk_and_shares: Vec<(PublicKey<EG>, Vec<u8>)> = self
             .nodes
             .iter()
@@ -190,18 +204,19 @@ where
                 (node.pk.clone(), buff)
             })
             .collect();
-        let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
+
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
+
         debug!(
-            "Created message using {:?}, with eph key {:?} and proof {:?}",
+            "DKG: Created message using {:?}, with eph key {:?} nizk {:?}",
             ro_for_enc,
             encrypted_shares.ephemeral_key(),
-            encrypted_shares.proof()
+            encrypted_shares.proof(),
         );
 
         Message {
             sender: self.id,
-            vss_pk: self.vss_sk.commit(),
+            vss_pk,
             encrypted_shares,
         }
     }
@@ -210,16 +225,16 @@ where
         self.nodes
             .node_id_to_node(msg.sender)
             .tap_err(|_| {
-                debug!(
-                    "Message sanity check failed: no node with id {}",
+                warn!(
+                    "DKG: Message sanity check failed, invalid id {}",
                     msg.sender
                 )
             })
             .map_err(|_| FastCryptoError::InvalidMessage)?;
 
         if self.t != msg.vss_pk.degree() + 1 {
-            debug!(
-                "Message sanity check failed ({}): expected vss_pk degree={}, got {}",
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected degree={}, got {}",
                 msg.sender,
                 self.t - 1,
                 msg.vss_pk.degree()
@@ -227,8 +242,8 @@ where
             return Err(FastCryptoError::InvalidMessage);
         }
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
-            debug!(
-                "Message sanity check failed ({}): expected encrypted_shares.len={}, got {}",
+            warn!(
+                "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
                 msg.sender,
                 self.nodes.num_nodes(),
                 msg.encrypted_shares.len()
@@ -240,7 +255,7 @@ where
         msg.encrypted_shares
             .verify_knowledge(&ro_for_enc)
             .tap_err(|e| {
-                debug!("Message sanity check failed ({}): verify_knowledge with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
+                warn!("DKG: Message sanity check failed for id {}, verify_knowledge with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
                     msg.sender,
                     ro_for_enc,
                     msg.encrypted_shares.ephemeral_key(),
@@ -262,7 +277,11 @@ where
         message: Message<G, EG>,
         rng: &mut R,
     ) -> FastCryptoResult<ProcessedMessage<G, EG>> {
-        debug!("Processing message from party {}", message.sender);
+        debug!(
+            "DKG: Processing message from party {} with vss pk c0 {:?}",
+            message.sender,
+            message.vss_pk.c0()
+        );
         // Ignore if invalid (and other honest parties will ignore as well).
         self.sanity_check_message(&message)?;
 
@@ -276,8 +295,8 @@ where
         if decrypted_shares.is_none()
             || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()
         {
-            debug!(
-                "Processing message from party {} failed, invalid number of decrypted shares",
+            warn!(
+                "DKG: Processing message from party {} failed, invalid number of decrypted shares",
                 message.sender
             );
             let complaint = Complaint {
@@ -307,9 +326,14 @@ where
             })
             .collect::<Vec<_>>();
 
+        debug!(
+            "DKG: Successfully decrypted shares from party {}",
+            message.sender
+        );
+
         if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
             debug!(
-                "Processing message from party {} failed, invalid shares",
+                "DKG: Processing message from party {} failed, invalid shares",
                 message.sender
             );
             let complaint = Complaint {
@@ -329,6 +353,11 @@ where
             });
         }
 
+        info!(
+            "DKG: Successfully processed message from party {}",
+            message.sender
+        );
+
         Ok(ProcessedMessage {
             message,
             shares: decrypted_shares,
@@ -342,7 +371,7 @@ where
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
     ) -> FastCryptoResult<(Confirmation<EG>, UsedProcessedMessages<G, EG>)> {
-        debug!("Trying to merge {} messages", processed_messages.len());
+        debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
         let total_weight = filtered_messages
@@ -360,6 +389,8 @@ where
             return Err(FastCryptoError::NotEnoughInputs);
         }
 
+        info!("DKG: Merging messages with total weight {total_weight}");
+
         // Log used parties.
         let used_parties = filtered_messages
             .0
@@ -367,7 +398,7 @@ where
             .map(|m| m.message.sender.to_string())
             .collect::<Vec<String>>()
             .join(",");
-        debug!("Using messages from parties: {}", used_parties);
+        debug!("DKG: Using messages from parties: {}", used_parties);
 
         let mut conf = Confirmation {
             sender: self.id,
@@ -375,7 +406,7 @@ where
         };
         for m in &filtered_messages.0 {
             if m.complaint.is_some() {
-                debug!("Including a complaint on party {}", m.message.sender);
+                debug!("DKG: Including a complaint on party {}", m.message.sender);
                 let complaint = m.complaint.clone().expect("checked above");
                 conf.complaints.push(complaint);
             }
@@ -423,6 +454,8 @@ where
             return Err(FastCryptoError::NotEnoughInputs);
         }
 
+        info!("DKG: Processing confirmations with total weight {total_weight}, expected {minimal_threshold}");
+
         // Two hash maps for faster access in the main loop below.
         let id_to_pk = self
             .nodes
@@ -440,7 +473,7 @@ where
             'inner: for complaint in &m2.complaints {
                 let accused = complaint.accused_sender;
                 let accuser = m2.sender;
-                debug!("Checking complaint from {accuser} on {accused}");
+                debug!("DKG: Checking complaint from {accuser} on {accused}");
                 let accuser_pk = id_to_pk
                     .get(&accuser)
                     .expect("checked above that accuser is valid id");
@@ -469,14 +502,14 @@ where
                     // Ignore accused from now on, and continue processing complaints from the
                     // current accuser.
                     true => {
-                        debug!("Processing confirmations excluded accused party {accused}");
+                        warn!("DKG: Processing confirmations excluded accused party {accused}");
                         to_exclude.insert(accused);
                         continue 'inner;
                     }
                     // Ignore the accuser from now on, including its other complaints (not critical
                     // for security, just saves some work).
                     false => {
-                        debug!("Processing confirmations excluded accuser {accuser}");
+                        warn!("DKG: Processing confirmations excluded accuser {accuser}");
                         to_exclude.insert(accuser);
                         continue 'outer;
                     }
@@ -496,7 +529,10 @@ where
             .map(|m| m.message.sender.to_string())
             .collect::<Vec<String>>()
             .join(",");
-        debug!("Using verified messages from parties: {}", used_parties);
+        debug!(
+            "DKG: Using verified messages from parties: {}",
+            used_parties
+        );
 
         Ok(verified_messages)
     }
@@ -546,10 +582,10 @@ where
         // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
         let shares = if messages.0.iter().all(|m| m.complaint.is_none()) {
-            debug!("Aggregating my shares succeeded",);
+            info!("DKG: Aggregating my shares succeeded");
             Some(final_shares.values().cloned().collect())
         } else {
-            debug!("Aggregating my shares failed");
+            warn!("DKG: Aggregating my shares failed");
             None
         };
 
@@ -595,7 +631,7 @@ where
         let decrypted_shares: Vec<G::ScalarType> =
             bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)?;
         if decrypted_shares.len() != share_ids.len() {
-            debug!("check_delegated_key_and_share recovered invalid number of shares");
+            debug!("DKG: check_delegated_key_and_share recovered invalid number of shares");
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -609,7 +645,7 @@ where
             .collect::<Vec<_>>();
 
         verify_poly_evals(&decrypted_shares, vss_pk, rng).tap_err(|_| {
-            debug!("check_delegated_key_and_share failed to verify poly evals");
+            debug!("DKG: check_delegated_key_and_share failed to verify shares");
         })
     }
 }

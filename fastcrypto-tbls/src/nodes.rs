@@ -6,6 +6,7 @@ use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
+use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::iter::Map;
@@ -27,7 +28,7 @@ pub struct Nodes<G: GroupElement> {
     share_id_to_party_id: HashMap<ShareIndex, PartyId>,
 }
 
-impl<G: GroupElement> Nodes<G> {
+impl<G: GroupElement + Serialize> Nodes<G> {
     /// Create a new set of nodes.
     pub fn new(nodes: Vec<Node<G>>) -> FastCryptoResult<Self> {
         let mut nodes = nodes;
@@ -103,6 +104,12 @@ impl<G: GroupElement> Nodes<G> {
     /// Get an iterator on the nodes.
     pub fn iter(&self) -> impl Iterator<Item = &Node<G>> {
         self.nodes.iter()
+    }
+
+    pub fn hash(&self) -> Digest<32> {
+        let mut hash = Blake2b256::default();
+        hash.update(bcs::to_bytes(&self.nodes).expect("should serialize"));
+        hash.finalize()
     }
 
     /// Reduce weights up to an allowed delta in the original total weight.

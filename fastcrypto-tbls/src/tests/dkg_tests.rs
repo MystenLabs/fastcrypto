@@ -9,14 +9,14 @@ use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
-use fastcrypto::groups::ristretto255::RistrettoPoint;
 use rand::thread_rng;
+use tracing_test::traced_test;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
 type G = G2Element;
 type S = ThresholdBls12381MinSig;
-type EG = RistrettoPoint;
+type EG = G2Element;
 
 fn gen_ecies_keys(n: usize) -> Vec<(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)> {
     (0..n)
@@ -52,6 +52,7 @@ fn setup_party(
 
 // TODO: add more tests.
 
+#[traced_test]
 #[test]
 fn test_dkg_e2e_4_parties_threshold_2() {
     let keys = gen_ecies_keys(4);
