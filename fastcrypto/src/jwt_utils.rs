@@ -66,10 +66,8 @@ impl JWTHeader {
     pub fn new(header_base64: &str) -> Result<Self, FastCryptoError> {
         let header_bytes = Base64UrlUnpadded::decode_vec(header_base64)
             .map_err(|_| FastCryptoError::InvalidInput)?;
-        let header_str =
-            std::str::from_utf8(&header_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         let header: JWTHeader =
-            serde_json::from_str(header_str).map_err(|_| FastCryptoError::InvalidInput)?;
+            serde_json::from_slice(&header_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
         if header.alg != "RS256" {
             return Err(FastCryptoError::GeneralError("Invalid header".to_string()));
         }
