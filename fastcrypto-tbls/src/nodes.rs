@@ -9,12 +9,10 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::iter::Map;
-use std::ops::RangeInclusive;
 
 pub type PartyId = u16;
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
     pub pk: ecies::PublicKey<G>,
@@ -23,18 +21,22 @@ pub struct Node<G: GroupElement> {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
-    nodes: Vec<Node<G>>,
-    n: u32, // share ids are 1..n
+    nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1
+    n: u32,              // Share ids are 1..n
     share_id_to_party_id: HashMap<ShareIndex, PartyId>,
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
-    /// Create a new set of nodes.
+    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     pub fn new(nodes: Vec<Node<G>>) -> FastCryptoResult<Self> {
         let mut nodes = nodes;
         nodes.sort_by_key(|n| n.id);
         // Check all ids are consecutive and start from 0
         if (0..nodes.len()).any(|i| (nodes[i].id as usize) != i) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Make sure we never overflow, as we don't expect to have more than 1000 nodes
+        if nodes.len() > 1000 {
             return Err(FastCryptoError::InvalidInput);
         }
         // Get the total weight of the nodes
@@ -73,7 +75,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get an iterator on the share ids.
-    pub fn share_ids_iter(&self) -> Map<RangeInclusive<u32>, fn(u32) -> ShareIndex> {
+    pub fn share_ids_iter(&self) -> impl Iterator<Item = ShareIndex> {
         (1..=self.n).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
