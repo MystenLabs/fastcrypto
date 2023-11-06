@@ -11,8 +11,12 @@ use std::fmt::Debug;
 /// - evaluate serializes the given input and outputs SHA3-512(prefix_len as u8 | prefix | input).
 /// - Subprotocols may use a prefix that is extended from the prefix of its parent protocol, by
 ///   deriving a new instance using extend, which simply concatenates the strings with the separator
-///   "-". The caller must make sure to choose distinct prefix & extension strings.
-///     E.g., RandomOracle::new("abc-").extend("def") = RandomOracle::new("abc-def")
+///   "-". E.g., RandomOracle::new("abc").extend("def") = RandomOracle::new("abc-def").
+///
+/// The caller must make sure to:
+/// - Choose distinct prefix & extension strings, preferably without "-" in them.
+/// - Ensure that the prefix & extension strings are short enough to fit in a u8.
+/// Violating these constraints will cause a panic.
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomOracle {
