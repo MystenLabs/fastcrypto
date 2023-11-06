@@ -1424,6 +1424,7 @@ dependencies = [
  "num-modular 0.6.1",
  "num-prime",
  "num-traits",
+ "rand",
  "rug",
 ]
 

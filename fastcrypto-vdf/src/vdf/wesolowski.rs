@@ -8,9 +8,8 @@ use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::hash::Sha256;
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
-use num_prime::nt_funcs::is_prime;
 use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
@@ -204,10 +203,21 @@ fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult
         // The implementations of the primality test used below might be slightly different from the
         // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
         // is not an issue.
-        if is_prime(&x.to_biguint().unwrap(), None).probably() {
+        if is_prime(&x.to_biguint().unwrap()) {
             return Ok(x);
         }
     }
+}
+
+#[cfg(feature = "gmp")]
+fn is_prime(x: &BigUint) -> bool {
+    let y = rug::Integer::from_digits(&x.to_bytes_be(), rug::integer::Order::Msf);
+    y.is_probably_prime(30) != rug::integer::IsPrime::No
+}
+
+#[cfg(not(feature = "gmp"))]
+fn is_prime(x: &BigUint) -> bool {
+    num_prime::nt_funcs::is_prime(x, None).probably()
 }
 
 impl Discriminant {
