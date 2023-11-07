@@ -19,14 +19,13 @@ where
 {
     let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
     let pk = ecies::PublicKey::<G>::from_private_key(&sk);
-    let node_vec = (0..n)
+    (0..n)
         .map(|i| Node {
             id: i,
             pk: pk.clone(),
             weight: 1 + i,
         })
-        .collect();
-    node_vec
+        .collect()
 }
 
 #[test]
