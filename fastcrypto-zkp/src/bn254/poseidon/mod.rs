@@ -85,7 +85,6 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     }
 }
 
-/// Convert an ff field element to an arkworks-ff field element.
 /// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
 /// this function returns the corresponding field element. If the field element is not canonical (is
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
