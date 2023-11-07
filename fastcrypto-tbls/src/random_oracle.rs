@@ -16,7 +16,7 @@ use std::fmt::Debug;
 /// The caller must make sure to:
 /// - Choose distinct prefix & extension strings, preferably without "-" in them.
 /// - Ensure that the prefix & extension strings are short enough to fit in a u8.
-/// Violating these constraints will cause a panic.
+///   Violating this constraint will cause a panic.
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RandomOracle {
