@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::random_oracle::RandomOracle;
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
@@ -98,7 +98,7 @@ where
 {
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
-        x_g: &G,
+        x_g: &G, // passed since probably already computed
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> Self {
@@ -110,7 +110,11 @@ where
         DLNizk(a, z)
     }
 
-    pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> Result<(), FastCryptoError> {
+    pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        if *x_g == G::zero() || self.0 == G::zero() {
+            // we should never see this, but just in case
+            return Err(FastCryptoError::InvalidProof);
+        }
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
         debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
         if (G::generator() * self.1) != (self.0 + *x_g * challenge) {

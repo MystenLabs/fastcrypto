@@ -7,6 +7,7 @@ use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use rand::thread_rng;
+use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 #[generic_tests::define]
@@ -57,6 +58,26 @@ mod point_tests {
         assert!(nizk
             .verify(&g_x1, &g_x2, &g_x2, &RandomOracle::new("test"))
             .is_err());
+    }
+
+    #[test]
+    fn test_inf<G: GroupElement + Serialize + DeserializeOwned>()
+    where
+        G::ScalarType: FiatShamirChallenge,
+    {
+        // inf should be rejected even if the proof is valid
+        let zero = G::ScalarType::zero();
+        let inf = G::zero();
+        let g = G::generator();
+        let nizk = DLNizk::create(&zero, &inf, &RandomOracle::new("test"), &mut thread_rng());
+        assert!(nizk.verify(&inf, &RandomOracle::new("test")).is_err());
+        assert!(nizk.verify(&g, &RandomOracle::new("test")).is_err());
+        // inf should be rejected also when deserialized
+        let nizk = (inf.clone(), zero.clone());
+        let nizk = bcs::to_bytes(&nizk).unwrap();
+        let nizk: DLNizk<G> = bcs::from_bytes(&nizk).unwrap();
+        assert!(nizk.verify(&inf, &RandomOracle::new("test")).is_err());
+        assert!(nizk.verify(&g, &RandomOracle::new("test")).is_err());
     }
 
     #[instantiate_tests(<RistrettoPoint>)]
