@@ -73,7 +73,7 @@ mod point_tests {
         assert!(nizk.verify(&inf, &RandomOracle::new("test")).is_err());
         assert!(nizk.verify(&g, &RandomOracle::new("test")).is_err());
         // inf should be rejected also when deserialized
-        let nizk = (inf.clone(), zero.clone());
+        let nizk = (inf, zero);
         let nizk = bcs::to_bytes(&nizk).unwrap();
         let nizk: DLNizk<G> = bcs::from_bytes(&nizk).unwrap();
         assert!(nizk.verify(&inf, &RandomOracle::new("test")).is_err());

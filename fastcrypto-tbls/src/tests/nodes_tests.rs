@@ -97,7 +97,7 @@ fn test_interfaces() {
 #[test]
 fn test_reduce() {
     for number_of_nodes in [10, 50, 100, 150, 200, 250, 300, 350, 400] {
-        let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes as u16);
+        let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
         let nodes = Nodes::new(node_vec).unwrap();
         let t = (nodes.n() / 3) as u16;
 
