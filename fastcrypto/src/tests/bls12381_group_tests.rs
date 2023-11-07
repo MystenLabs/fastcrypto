@@ -11,6 +11,10 @@ use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
+use blst::{
+    blst_p1_affine_generator, blst_p1_affine_serialize, blst_p2_affine_generator,
+    blst_p2_affine_serialize,
+};
 use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
@@ -245,38 +249,99 @@ fn test_consistent_bls12381_serialization() {
 }
 
 #[test]
-fn test_bad_serialization() {
+fn test_serialization_g1() {
+    let infinity_bit = 0x40;
+    let compressed_bit = 0x80;
+
+    // All zero serialization for G1 should fail.
     let mut bytes = [0u8; 48];
     assert!(G1Element::from_byte_array(&bytes).is_err());
 
-    bytes[0] = 0x40; // Infinity w/o compressed byte
+    // Infinity w/o compressed byte should fail.
+    bytes[0] |= infinity_bit;
     assert!(G1Element::from_byte_array(&bytes).is_err());
 
-    bytes[0] = 0x80 | 0x40; // Valid infinity
+    // Valid infinity
+    bytes[0] |= compressed_bit;
     assert_eq!(
         G1Element::zero(),
         G1Element::from_byte_array(&bytes).unwrap()
     );
 
+    // to and from_byte_array should be inverses.
     let mut bytes = G1Element::generator().to_byte_array();
-    bytes[0] = 0x08; // Set non-compressed byte
+    assert_eq!(
+        G1Element::generator(),
+        G1Element::from_byte_array(&bytes).unwrap()
+    );
+    assert_ne!(bytes[0] & compressed_bit, 0);
+
+    // Unsetting the compressed bit set, this should fail.
+    bytes[0] ^= compressed_bit;
     assert!(G1Element::from_byte_array(&bytes).is_err());
 
+    // Test correct uncompressed serialization of a point
+    let mut uncompressed_bytes = [0u8; 96];
+    unsafe {
+        blst_p1_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p1_affine_generator());
+    }
+    // This should fail because from_byte_array only accepts compressed format.
+    assert!(G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).is_err());
+
+    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
+    uncompressed_bytes[0] |= 0x80;
+    assert_eq!(
+        G1Element::generator(),
+        G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).unwrap()
+    );
+}
+
+#[test]
+fn test_serialization_g2() {
+    let infinity_bit = 0x40;
+    let compressed_bit = 0x80;
+
+    // All zero serialization for G2 should fail.
     let mut bytes = [0u8; 96];
     assert!(G2Element::from_byte_array(&bytes).is_err());
 
-    bytes[0] = 0x40; // Infinity w/o compressed byte
+    // Infinity w/o compressed byte should fail.
+    bytes[0] |= infinity_bit;
     assert!(G2Element::from_byte_array(&bytes).is_err());
 
-    bytes[0] = 0x80 | 0x40; // Valid infinity
+    // Valid infinity when the right bits are set.
+    bytes[0] |= compressed_bit;
     assert_eq!(
         G2Element::zero(),
         G2Element::from_byte_array(&bytes).unwrap()
     );
 
+    // to and from_byte_array should be inverses.
     let mut bytes = G2Element::generator().to_byte_array();
-    bytes[0] = 0x08; // Set non-compressed byte
+    assert_eq!(
+        G2Element::generator(),
+        G2Element::from_byte_array(&bytes).unwrap()
+    );
+    assert_ne!(bytes[0] & compressed_bit, 0);
+
+    // Unsetting the compressed bit set, this should fail.
+    bytes[0] ^= compressed_bit;
     assert!(G2Element::from_byte_array(&bytes).is_err());
+
+    // Test correct uncompressed serialization of a point
+    let mut uncompressed_bytes = [0u8; 192];
+    unsafe {
+        blst_p2_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p2_affine_generator());
+    }
+    // This should fail because from_byte_array only accepts compressed format.
+    assert!(G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).is_err());
+
+    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
+    uncompressed_bytes[0] |= 0x80;
+    assert_eq!(
+        G2Element::generator(),
+        G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).unwrap()
+    );
 }
 
 #[test]
