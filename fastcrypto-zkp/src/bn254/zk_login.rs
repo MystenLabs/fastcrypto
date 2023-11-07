@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
-use once_cell::sync::OnceCell;
 use reqwest::Client;
 use serde_json::Value;
 

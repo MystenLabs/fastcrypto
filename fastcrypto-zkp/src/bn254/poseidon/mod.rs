@@ -12,19 +12,15 @@ use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
 use ff::PrimeField as OtherPrimeField;
 use neptune::poseidon::HashMode::OptimizedStatic;
-use neptune::poseidon::HashMode::Correct;
-use neptune::Poseidon as Neptune;
-use once_cell::sync::Lazy;
-use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
-use once_cell::sync::OnceCell;
-use poseidon_ark::Poseidon;
-use std::cmp::Ordering;
-use std::fmt::Debug;
-use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
 use neptune::Poseidon;
+use std::cmp::Ordering;
 
+/// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
+/// we need 32 bytes to represent it as an integer.
+pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 mod constants;
 
 macro_rules! define_poseidon_hash {
@@ -40,10 +36,6 @@ macro_rules! define_poseidon_hash {
         poseidon.elements[0]
     }};
 }
-
-/// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
-/// we need 32 bytes to represent it as an integer.
-pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
 /// Poseidon hash function over BN254.
 pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
@@ -161,14 +153,19 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 #[cfg(test)]
 mod test {
     use super::Poseidon;
-    use crate::bn254::poseidon::hash;
-    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use crate::bn254::poseidon::bn254_to_fr;
     use crate::bn254::poseidon::constants::load_constants;
+    use crate::bn254::poseidon::hash;
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
+    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
+    use ff::PrimeField;
+    use neptune::hash_type::HashType;
+    use neptune::poseidon::HashMode::Correct;
+    use neptune::poseidon::PoseidonConstants;
     use std::str::FromStr;
+    use typenum::U2;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
@@ -316,44 +313,6 @@ mod test {
     $sig_length:expr,
     $dst_string:expr
 ) => {};
-    }
-
-    #[test]
-    fn test_neptune() {
-        let constants = load_constants();
-
-        let inputs = vec![Fr::from_str("1").unwrap(), Fr::from_str("2").unwrap()];
-
-        let i = inputs.len() - 1;
-        let t = inputs.len() + 1;
-
-        // Neptune computes the product Mx as xM because they assume M is symmetric which is not the
-        // case here so we have to transpose the matrix.
-        let m = transpose(&constants.matrices[i]);
-        let c = &constants.constants[i];
-
-        let poseidon_constants = PoseidonConstants::new_from_parameters(
-            t,
-            m,
-            c.clone(),
-            constants.full_rounds,
-            constants.partial_rounds[i],
-            HashType::<crate::Fr, U2>::ConstantLength(inputs.len()),
-        );
-
-        let mut poseidon = neptune::Poseidon::new(&poseidon_constants);
-        for input in inputs.iter() {
-            poseidon.input(bn254_to_fr(*input)).unwrap();
-        }
-
-        let hash = poseidon.hash_in_mode(Correct);
-
-        let expected = PoseidonWrapper::new().hash(inputs).unwrap();
-
-        assert_eq!(
-            hash.to_repr().as_byte_slice(),
-            expected.into_bigint().to_bytes_be().as_slice()
-        );
     }
 
     fn from_str(string: &str) -> crate::Fr {

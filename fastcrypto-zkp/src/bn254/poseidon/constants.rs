@@ -18,7 +18,7 @@ pub(crate) struct Constants {
 }
 
 /// Load constants for the poseidon hash function.
-fn load_constants() -> Constants {
+pub(crate) fn load_constants() -> Constants {
     let (constants_strings, matrices_strings) = constants();
 
     let constants = constants_strings
