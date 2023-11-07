@@ -166,7 +166,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "hashbrown 0.13.2",
- "itertools 0.10.5",
+ "itertools",
  "num-traits",
  "zeroize",
 ]
@@ -183,7 +183,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "digest 0.10.6",
- "itertools 0.10.5",
+ "itertools",
  "num-bigint 0.4.3",
  "num-traits",
  "paste",
@@ -431,9 +431,9 @@ dependencies = [
 
 [[package]]
 name = "bellpepper"
-version = "0.2.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0271a107b5f600ee41bdafbb3c8ddf4afa52983d4b078917d89dbb920116e987"
+checksum = "b89c91b2463f99a3a527a16a5b6862f257ee8188d3cf1fbc53af06fb61c09f4f"
 dependencies = [
  "bellpepper-core",
  "byteorder",
@@ -442,9 +442,9 @@ dependencies = [
 
 [[package]]
 name = "bellpepper-core"
-version = "0.2.1"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2c9a1b2f748c59938bc72165ebdf34efffeecee9cfbe0bb7d6b01aea21cd523"
+checksum = "1d8abb418570756396d722841b19edfec21d4e89e1cf8990610663040ecb1aea"
 dependencies = [
  "blake2s_simd",
  "byteorder",
@@ -625,6 +625,7 @@ checksum = "7a8a8ed6fefbeef4a8c7b460e4110e12c5e22a5b7cf32621aae6ad650c4dcf29"
 dependencies = [
  "blst",
  "byte-slice-cast",
+ "ec-gpu",
  "ff 0.13.0",
  "group 0.13.0",
  "pairing",
@@ -915,7 +916,7 @@ dependencies = [
  "ciborium",
  "clap 3.2.23",
  "criterion-plot",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -941,7 +942,7 @@ dependencies = [
  "clap 4.1.8",
  "criterion-plot",
  "is-terminal",
- "itertools 0.10.5",
+ "itertools",
  "num-traits",
  "once_cell",
  "oorandom",
@@ -962,7 +963,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
- "itertools 0.10.5",
+ "itertools",
 ]
 
 [[package]]
@@ -1231,6 +1232,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "68b0cf012f1230e43cd00ebb729c6bb58707ecfa8ad08b52ef3a4ccd2697fc30"
 
 [[package]]
+name = "ec-gpu"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd63582de2b59ea1aa48d7c1941b5d87618d95484397521b3acdfa0e1e9f5e45"
+
+[[package]]
 name = "ecdsa"
 version = "0.14.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1480,7 +1487,7 @@ dependencies = [
  "fastcrypto",
  "fastcrypto-derive",
  "hex",
- "itertools 0.10.5",
+ "itertools",
  "rand",
  "serde",
  "sha3 0.10.6",
@@ -2052,15 +2059,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
@@ -2218,8 +2216,8 @@ dependencies = [
 
 [[package]]
 name = "neptune"
-version = "11.0.0"
-source = "git+https://github.com/jonas-lj/neptune?rev=2de7cb7893afb13c57c239be142ff69bb3a0db6b#2de7cb7893afb13c57c239be142ff69bb3a0db6b"
+version = "12.0.0"
+source = "git+https://github.com/lurk-lab/neptune?rev=d8b4eeadd8acc9d9e8d9d510605c954f1410aa60#d8b4eeadd8acc9d9e8d9d510605c954f1410aa60"
 dependencies = [
  "bellpepper",
  "bellpepper-core",
@@ -2228,7 +2226,6 @@ dependencies = [
  "byteorder",
  "ff 0.13.0",
  "generic-array",
- "itertools 0.8.2",
  "log",
  "pasta_curves",
  "serde",
@@ -2452,6 +2449,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3e57598f73cc7e1b2ac63c79c517b31a0877cd7c402cdcaa311b5208de7a095"
 dependencies = [
  "blake2b_simd",
+ "ec-gpu",
  "ff 0.13.0",
  "group 0.13.0",
  "hex",
@@ -2590,7 +2588,7 @@ checksum = "09963355b9f467184c04017ced4a2ba2d75cbcb4e7462690d388233253d4b1a9"
 dependencies = [
  "anstyle",
  "difflib",
- "itertools 0.10.5",
+ "itertools",
  "predicates-core",
 ]
 

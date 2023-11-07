@@ -5,6 +5,7 @@ use crate::Fr;
 use ff::PrimeField;
 use neptune::hash_type::HashType;
 use neptune::poseidon::PoseidonConstants;
+use neptune::Strength;
 use once_cell::sync::Lazy;
 use typenum::Unsigned;
 use typenum::{U1, U10, U11, U12, U13, U14, U15, U16, U2, U3, U4, U5, U6, U7, U8, U9};
@@ -65,7 +66,8 @@ macro_rules! define_poseidon_constants {
             c.clone(),
             $constants.full_rounds,
             $constants.partial_rounds[i],
-            HashType::<crate::Fr, $ui>::ConstantLength(n),
+            HashType::<crate::Fr, $ui>::Sponge,
+            Strength::Standard,
         )
     }};
 }
