@@ -62,7 +62,7 @@ pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
         14 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U14),
         15 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U15),
         16 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U16),
-        _ => return Err(FastCryptoError::InvalidInput),
+        _ => return Err(InvalidInput),
     };
     Ok(fr_to_bn254fr(result))
 }
@@ -152,20 +152,11 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 
 #[cfg(test)]
 mod test {
-    use super::Poseidon;
-    use crate::bn254::poseidon::bn254_to_fr;
-    use crate::bn254::poseidon::constants::load_constants;
     use crate::bn254::poseidon::hash;
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
-    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
-    use ff::PrimeField;
-    use neptune::hash_type::HashType;
-    use neptune::poseidon::HashMode::Correct;
-    use neptune::poseidon::PoseidonConstants;
     use std::str::FromStr;
-    use typenum::U2;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
@@ -305,17 +296,5 @@ mod test {
         // Input smaller than the modulus
         let inputs = vec![vec![255; 31]];
         assert!(hash_to_bytes(&inputs).is_ok());
-    }
-
-    macro_rules! define_poseidon {
-        (
-    $pk_length:expr,
-    $sig_length:expr,
-    $dst_string:expr
-) => {};
-    }
-
-    fn from_str(string: &str) -> crate::Fr {
-        crate::Fr::from_str_vartime(string).unwrap()
     }
 }
