@@ -157,6 +157,10 @@ mod test {
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use std::str::FromStr;
+    use ark_ff::{BigInteger, PrimeField};
+    use proptest::arbitrary::Arbitrary;
+    use proptest::collection;
+    use lazy_static::lazy_static;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
@@ -296,5 +300,26 @@ mod test {
         // Input smaller than the modulus
         let inputs = vec![vec![255; 31]];
         assert!(hash_to_bytes(&inputs).is_ok());
+    }
+
+    #[cfg(test)]
+    lazy_static! {
+        static ref POSEIDON_ARK: poseidon_ark::Poseidon = poseidon_ark::Poseidon::new();
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_against_poseidon_ark(r in collection::vec(<[u8; 31]>::arbitrary(), 1..16)) {
+
+            let input = r.iter().map(|ri| ri.to_vec()).collect::<Vec<_>>();
+            let actual = hash_to_bytes(&input).unwrap();
+
+            // ark_poseidon
+            let input_ark = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
+            let expected_fr = POSEIDON_ARK.hash(input_ark).unwrap();
+            let expected_bytes = expected_fr.into_bigint().to_bytes_le();
+
+            assert_eq!(&actual, expected_bytes.as_slice());
+        }
     }
 }
