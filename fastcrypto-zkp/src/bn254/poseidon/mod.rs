@@ -138,6 +138,7 @@ pub fn hash_to_bytes(
         .expect("Leading zeros are added in to_bytes_be"))
 }
 
+/// Convert an ff field element to an arkworks-ff field element.
 fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
     Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
 }
