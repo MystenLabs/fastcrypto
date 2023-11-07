@@ -170,9 +170,3 @@ mod points_tests {
     #[instantiate_tests(<G2Element>)]
     mod g2_element {}
 }
-
-//
-
-//
-
-//
