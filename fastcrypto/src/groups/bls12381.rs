@@ -655,7 +655,7 @@ impl ScalarType for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         let mut buffer = [0u8; 64];
         rng.fill_bytes(&mut buffer);
-        reduce_mod_wide(&buffer)
+        reduce_mod_uniform_buffer(&buffer)
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {
@@ -671,7 +671,8 @@ impl ScalarType for Scalar {
 }
 
 /// Reduce a big-endian integer of arbitrary size modulo the scalar field size and return the scalar.
-pub(crate) fn reduce_mod_wide(buffer: &[u8]) -> Scalar {
+pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
+    assert!(buffer.len() >= 48);
     let mut ret = blst_fr::default();
     let mut tmp = blst_scalar::default();
     unsafe {
@@ -683,9 +684,7 @@ pub(crate) fn reduce_mod_wide(buffer: &[u8]) -> Scalar {
 
 impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
-        const INPUT_LENGTH: usize = SCALAR_LENGTH - 1; // Safe for our prime field
-        assert!(INPUT_LENGTH <= uniform_buffer.len());
-        reduce_mod_wide(uniform_buffer)
+        reduce_mod_uniform_buffer(uniform_buffer)
     }
 }
 
