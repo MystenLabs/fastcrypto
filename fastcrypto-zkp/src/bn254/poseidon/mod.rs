@@ -156,11 +156,11 @@ mod test {
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
-    use std::str::FromStr;
     use ark_ff::{BigInteger, PrimeField};
+    use lazy_static::lazy_static;
     use proptest::arbitrary::Arbitrary;
     use proptest::collection;
-    use lazy_static::lazy_static;
+    use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
         vals.into_iter().map(Bn254Fr::from).collect()
