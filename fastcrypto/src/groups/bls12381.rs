@@ -20,9 +20,9 @@ use blst::{
     blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine,
+    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p1_uncompress,
     blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
-    blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress,
     blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
     p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
@@ -167,6 +167,7 @@ impl MultiScalarMul for G1Element {
             }
             scalar_bytes.extend_from_slice(&scalar.b);
         }
+        // The scalar field size is smaller than 2^255, so we need at most 255 bits.
         let res = points.mult(scalar_bytes.as_slice(), 255);
         Ok(Self::from(res))
     }
@@ -229,7 +230,7 @@ impl ToFromByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p1_uncompress(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p1_from_affine(&mut ret, &affine);
@@ -398,7 +399,7 @@ impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
         let mut ret = blst_p2::default();
         unsafe {
             let mut affine = blst_p2_affine::default();
-            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p2_uncompress(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(&mut ret, &affine);

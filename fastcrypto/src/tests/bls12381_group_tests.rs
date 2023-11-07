@@ -243,3 +243,12 @@ fn test_consistent_bls12381_serialization() {
     pk1.verify(MSG, &sig3).unwrap();
     assert_eq!(sig1, sig3);
 }
+
+#[test]
+fn test_bad_serialization() {
+    let bytes = [0u8; 48];
+    assert!(G1Element::from_byte_array(&bytes).is_err());
+
+    let bytes = [0u8; 96];
+    assert!(G2Element::from_byte_array(&bytes).is_err());
+}
