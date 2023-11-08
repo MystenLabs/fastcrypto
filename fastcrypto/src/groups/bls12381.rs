@@ -671,6 +671,11 @@ impl ScalarType for Scalar {
 }
 
 /// Reduce a big-endian integer of arbitrary size modulo the scalar field size and return the scalar.
+/// If the input bytes are uniformly distributed, the output will be uniformly distributed in the
+/// scalar field.
+///
+/// The input buffer must be at least 48 bytes long to ensure that there is only negligible bias in
+/// the output.
 pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
     assert!(buffer.len() >= 48);
     let mut ret = blst_fr::default();
