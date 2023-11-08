@@ -103,7 +103,7 @@ where
         pkg: &RecoveryPackage<G>,
         random_oracle: &RandomOracle,
         enc: &Encryption<G>,
-    ) -> Result<Vec<u8>, FastCryptoError> {
+    ) -> FastCryptoResult<Vec<u8>> {
         pkg.proof
             .verify(&enc.0, &self.0, &pkg.ephemeral_key, random_oracle)?;
         Ok(enc.decrypt_from_partial_decryption(&pkg.ephemeral_key))
