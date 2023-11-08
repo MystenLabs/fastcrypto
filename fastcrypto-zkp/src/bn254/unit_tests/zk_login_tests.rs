@@ -18,6 +18,7 @@ use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
+use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
 use fastcrypto::ed25519::Ed25519KeyPair;
@@ -523,5 +524,48 @@ fn test_verify_zk_login() {
             &salt_hash
         ),
         Err(FastCryptoError::GeneralError("in_arr too long".to_string()))
+    );
+}
+
+#[test]
+fn test_all_inputs_hash() {
+    let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
+    let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
+    let masked_content_hash = Fr::from_str(
+        "14900420995580824499222150327925943524564997104405553289134597516335134742309",
+    )
+    .unwrap();
+    let payload_start_index = Fr::from_str("103").unwrap();
+    let payload_len = Fr::from_str("564").unwrap();
+    let eph_public_key_0 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
+    let eph_public_key_1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
+    let max_epoch = Fr::from_str("10000").unwrap();
+    let num_sha2_blocks = Fr::from_str("11").unwrap();
+    let key_claim_name_f = Fr::from_str(
+        "18523124550523841778801820019979000409432455608728354507022210389496924497355",
+    )
+    .unwrap();
+    let addr_seed = Fr::from_str(
+        "15604334753912523265015800787270404628529489918817818174033741053550755333691",
+    )
+    .unwrap();
+
+    let hash = hash(vec![
+        jwt_sha2_hash_0,
+        jwt_sha2_hash_1,
+        masked_content_hash,
+        payload_start_index,
+        payload_len,
+        eph_public_key_0,
+        eph_public_key_1,
+        max_epoch,
+        num_sha2_blocks,
+        key_claim_name_f,
+        addr_seed,
+    ])
+    .unwrap();
+    assert_eq!(
+        hash.to_string(),
+        "2487117669597822357956926047501254969190518860900347921480370492048882803688".to_string()
     );
 }
