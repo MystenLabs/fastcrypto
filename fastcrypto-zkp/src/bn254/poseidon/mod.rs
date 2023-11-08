@@ -315,17 +315,13 @@ mod test {
 
     proptest::proptest! {
         #[test]
-        fn test_against_poseidon_ark(r in collection::vec(<[u8; 31]>::arbitrary(), 1..16)) {
+        fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
 
-            let input = r.iter().map(|ri| ri.to_vec()).collect::<Vec<_>>();
-            let actual = hash_to_bytes(&input).unwrap();
+            let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
+            let expected = POSEIDON_ARK.hash(inputs).unwrap().into_bigint().to_bytes_le();
 
-            // ark_poseidon
-            let input_ark = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
-            let expected_fr = POSEIDON_ARK.hash(input_ark).unwrap();
-            let expected_bytes = expected_fr.into_bigint().to_bytes_le();
-
-            assert_eq!(&actual, expected_bytes.as_slice());
+            let actual = hash_to_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
+            assert_eq!(&actual, expected.as_slice());
         }
     }
 }
