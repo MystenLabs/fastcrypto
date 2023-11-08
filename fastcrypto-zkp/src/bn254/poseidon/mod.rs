@@ -43,7 +43,8 @@ macro_rules! define_poseidon_hash {
     }};
 }
 
-/// Poseidon hash function over BN254.
+/// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
+/// elements, otherwise an error is returned.
 pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     if inputs.is_empty() || inputs.len() > 16 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
