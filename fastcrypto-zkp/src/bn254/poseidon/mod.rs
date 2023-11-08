@@ -275,7 +275,7 @@ mod test {
         fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
 
             let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
-            let expected = POSEIDON_ARK.hash(inputs).unwrap().into_bigint().to_bytes_le();
+            let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
             let actual = hash_to_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
             assert_eq!(&actual, expected.as_slice());
