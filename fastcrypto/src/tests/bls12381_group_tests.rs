@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
-use crate::groups::bls12381::{G1Element, G2Element, GTElement, Scalar};
+use crate::groups::bls12381::{reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar};
 use crate::groups::{
     GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
 };
@@ -11,6 +11,10 @@ use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
+use blst::{
+    blst_p1_affine_generator, blst_p1_affine_serialize, blst_p2_affine_generator,
+    blst_p2_affine_serialize,
+};
 use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
@@ -242,4 +246,116 @@ fn test_consistent_bls12381_serialization() {
     let sig3 = <BLS12381Signature as ToFromBytes>::from_bytes(sig2_as_bytes.as_slice()).unwrap();
     pk1.verify(MSG, &sig3).unwrap();
     assert_eq!(sig1, sig3);
+}
+
+#[test]
+fn test_serialization_g1() {
+    let infinity_bit = 0x40;
+    let compressed_bit = 0x80;
+
+    // All zero serialization for G1 should fail.
+    let mut bytes = [0u8; 48];
+    assert!(G1Element::from_byte_array(&bytes).is_err());
+
+    // Infinity w/o compressed byte should fail.
+    bytes[0] |= infinity_bit;
+    assert!(G1Element::from_byte_array(&bytes).is_err());
+
+    // Valid infinity
+    bytes[0] |= compressed_bit;
+    assert_eq!(
+        G1Element::zero(),
+        G1Element::from_byte_array(&bytes).unwrap()
+    );
+
+    // to and from_byte_array should be inverses.
+    let mut bytes = G1Element::generator().to_byte_array();
+    assert_eq!(
+        G1Element::generator(),
+        G1Element::from_byte_array(&bytes).unwrap()
+    );
+    assert_ne!(bytes[0] & compressed_bit, 0);
+
+    // Unsetting the compressed bit set, this should fail.
+    bytes[0] ^= compressed_bit;
+    assert!(G1Element::from_byte_array(&bytes).is_err());
+
+    // Test correct uncompressed serialization of a point
+    let mut uncompressed_bytes = [0u8; 96];
+    unsafe {
+        blst_p1_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p1_affine_generator());
+    }
+    // This should fail because from_byte_array only accepts compressed format.
+    assert!(G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).is_err());
+
+    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
+    uncompressed_bytes[0] |= 0x80;
+    assert_eq!(
+        G1Element::generator(),
+        G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).unwrap()
+    );
+}
+
+#[test]
+fn test_serialization_g2() {
+    let infinity_bit = 0x40;
+    let compressed_bit = 0x80;
+
+    // All zero serialization for G2 should fail.
+    let mut bytes = [0u8; 96];
+    assert!(G2Element::from_byte_array(&bytes).is_err());
+
+    // Infinity w/o compressed byte should fail.
+    bytes[0] |= infinity_bit;
+    assert!(G2Element::from_byte_array(&bytes).is_err());
+
+    // Valid infinity when the right bits are set.
+    bytes[0] |= compressed_bit;
+    assert_eq!(
+        G2Element::zero(),
+        G2Element::from_byte_array(&bytes).unwrap()
+    );
+
+    // to and from_byte_array should be inverses.
+    let mut bytes = G2Element::generator().to_byte_array();
+    assert_eq!(
+        G2Element::generator(),
+        G2Element::from_byte_array(&bytes).unwrap()
+    );
+    assert_ne!(bytes[0] & compressed_bit, 0);
+
+    // Unsetting the compressed bit set, this should fail.
+    bytes[0] ^= compressed_bit;
+    assert!(G2Element::from_byte_array(&bytes).is_err());
+
+    // Test correct uncompressed serialization of a point
+    let mut uncompressed_bytes = [0u8; 192];
+    unsafe {
+        blst_p2_affine_serialize(uncompressed_bytes.as_mut_ptr(), blst_p2_affine_generator());
+    }
+    // This should fail because from_byte_array only accepts compressed format.
+    assert!(G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).is_err());
+
+    // But if we set the uncompressed bit, it should work because the compressed format is just the first coordinate.
+    uncompressed_bytes[0] |= 0x80;
+    assert_eq!(
+        G2Element::generator(),
+        G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).unwrap()
+    );
+}
+
+#[test]
+fn test_reduce_mod_uniform_buffer() {
+    // 9920230154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
+    let bytes = <[u8; 64]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258c8138a0a25").unwrap()).unwrap();
+    // This is the above bytes as a big-endian integer modulo the BLS scalar field size and then written as big-endian bytes.
+    let expected =
+        hex::decode("42326e5eb98173088355c38dace25686f73f8900c8af2da6480b34e2313c49c2").unwrap();
+    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
+
+    // 99202309022396765790443178473142775358161915835492099699231487822465101596204583014819121570129071631157073920534979728799457207703011355835025584728154395168010467440495232506909487652629574290093191912925556996116934135093887783048487593217824704573634359454220706793741831181736379748807477797
+    let bytes = <[u8; 59]>::try_from(hex::decode("bd69132eca59d8eb6b2aeaab1bb0f4128ea2554a2a5fd5ed90cfa341311d63d2bddef3cf93ebbd3781dc09921ca8611e0db756164b297a90cff258").unwrap()).unwrap();
+    let expected =
+        hex::decode("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74").unwrap();
+    assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
 }

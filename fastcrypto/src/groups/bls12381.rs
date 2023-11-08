@@ -20,11 +20,11 @@ use blst::{
     blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine,
+    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p1_uncompress,
     blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
-    blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
-    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress,
+    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
+    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
@@ -167,6 +167,7 @@ impl MultiScalarMul for G1Element {
             }
             scalar_bytes.extend_from_slice(&scalar.b);
         }
+        // The scalar field size is smaller than 2^255, so we need at most 255 bits.
         let res = points.mult(scalar_bytes.as_slice(), 255);
         Ok(Self::from(res))
     }
@@ -229,7 +230,7 @@ impl ToFromByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p1_uncompress(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p1_from_affine(&mut ret, &affine);
@@ -354,6 +355,7 @@ impl MultiScalarMul for G2Element {
             }
             scalar_bytes.extend_from_slice(&scalar.b);
         }
+        // The scalar field size is smaller than 2^255, so we need at most 255 bits.
         let res = points.mult(scalar_bytes.as_slice(), 255);
         Ok(Self::from(res))
     }
@@ -398,7 +400,7 @@ impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
         let mut ret = blst_p2::default();
         unsafe {
             let mut affine = blst_p2_affine::default();
-            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p2_uncompress(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(&mut ret, &affine);
@@ -651,16 +653,9 @@ impl Div<Scalar> for Scalar {
 
 impl ScalarType for Scalar {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
-        let mut ret = blst_fr::default();
-        let mut bytes = [0u8; SCALAR_LENGTH];
-        rng.fill_bytes(&mut bytes);
-        // TODO: is this secure?
-        unsafe {
-            let mut scalar = blst_scalar::default();
-            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
-            blst_fr_from_scalar(&mut ret, &scalar);
-        }
-        Scalar::from(ret)
+        let mut buffer = [0u8; 64];
+        rng.fill_bytes(&mut buffer);
+        reduce_mod_uniform_buffer(&buffer)
     }
 
     fn inverse(&self) -> FastCryptoResult<Self> {
@@ -675,19 +670,26 @@ impl ScalarType for Scalar {
     }
 }
 
+/// Reduce a big-endian integer of arbitrary size modulo the scalar field size and return the scalar.
+/// If the input bytes are uniformly distributed, the output will be uniformly distributed in the
+/// scalar field.
+///
+/// The input buffer must be at least 48 bytes long to ensure that there is only negligible bias in
+/// the output.
+pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
+    assert!(buffer.len() >= 48);
+    let mut ret = blst_fr::default();
+    let mut tmp = blst_scalar::default();
+    unsafe {
+        blst_scalar_from_be_bytes(&mut tmp, buffer.as_ptr(), buffer.len());
+        blst_fr_from_scalar(&mut ret, &tmp);
+    }
+    Scalar::from(ret)
+}
+
 impl FiatShamirChallenge for Scalar {
     fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
-        const INPUT_LENGTH: usize = SCALAR_LENGTH - 1; // Safe for our prime field
-        assert!(INPUT_LENGTH <= uniform_buffer.len());
-        let mut bytes = [0u8; SCALAR_LENGTH];
-        bytes[..INPUT_LENGTH].copy_from_slice(&uniform_buffer[..INPUT_LENGTH]);
-        let mut ret = blst_fr::default();
-        unsafe {
-            let mut scalar = blst_scalar::default();
-            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
-            blst_fr_from_scalar(&mut ret, &scalar);
-        }
-        Scalar::from(ret)
+        reduce_mod_uniform_buffer(uniform_buffer)
     }
 }
 
