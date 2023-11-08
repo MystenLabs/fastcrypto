@@ -32,7 +32,13 @@ macro_rules! define_poseidon_hash {
         }
         poseidon.hash_in_mode(OptimizedStatic);
 
-        // Neptune returns the state element with index 1 but we want the first element.
+        // Neptune returns the state element with index 1 but we want the first element to be aligned
+        // with poseidon-rs and circomlib's implementation.
+        //
+        // See also:
+        //  * https://github.com/lurk-lab/neptune/blob/b7a9db1fc6ce096aff52b903f7d228eddea6d4e3/src/poseidon.rs#L698
+        //  * https://github.com/arnaucube/poseidon-rs/blob/f4ba1f7c32905cd2ae5a71e7568564bb150a9862/src/lib.rs#L116
+        //  * https://github.com/iden3/circomlib/blob/cff5ab6288b55ef23602221694a6a38a0239dcc0/circuits/poseidon.circom#L207
         poseidon.elements[0]
     }};
 }
