@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["bls12381","bn254","circom","dummy_circuits"]};
+window.SIDEBAR_ITEMS = {"mod":["bls12381","bn254","circom","dummy_circuits"],"struct":["Fr","FrRepr"]};

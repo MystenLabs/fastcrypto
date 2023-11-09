@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["batch_coefficients","get_random_scalars","verify_deg_t_poly","verify_equal_exponents","verify_pairs","verify_poly_evals","verify_triplets"]};

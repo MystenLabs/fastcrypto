@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["bgmw","windowed"],"trait":["ScalarMultiplier"]};
+window.SIDEBAR_ITEMS = {"mod":["windowed"],"trait":["ScalarMultiplier"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["BLS_G1_LENGTH","BLS_G2_LENGTH","BLS_KEYPAIR_LENGTH","BLS_PRIVATE_KEY_LENGTH"],"mod":["min_pk","min_sig","mskr"]};
+window.SIDEBAR_ITEMS = {"constant":["BLS_G1_LENGTH","BLS_G2_LENGTH","BLS_KEYPAIR_LENGTH","BLS_PRIVATE_KEY_LENGTH"],"mod":["min_pk","min_sig"]};

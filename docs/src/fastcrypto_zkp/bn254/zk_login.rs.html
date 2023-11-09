@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f40c346f39d9abc1.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (46514218f 2023-06-20)" data-search-js="search-95c92dd01058facf.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-190c35055d2a8300.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto_zkp/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (fdaaaf9f9 2023-11-08)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -603,648 +603,406 @@
 <a href="#603" id="603">603</a>
 <a href="#604" id="604">604</a>
 <a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
-<a href="#614" id="614">614</a>
-<a href="#615" id="615">615</a>
-<a href="#616" id="616">616</a>
-<a href="#617" id="617">617</a>
-<a href="#618" id="618">618</a>
-<a href="#619" id="619">619</a>
-<a href="#620" id="620">620</a>
-<a href="#621" id="621">621</a>
-<a href="#622" id="622">622</a>
-<a href="#623" id="623">623</a>
-<a href="#624" id="624">624</a>
-<a href="#625" id="625">625</a>
-<a href="#626" id="626">626</a>
-<a href="#627" id="627">627</a>
-<a href="#628" id="628">628</a>
-<a href="#629" id="629">629</a>
-<a href="#630" id="630">630</a>
-<a href="#631" id="631">631</a>
-<a href="#632" id="632">632</a>
-<a href="#633" id="633">633</a>
-<a href="#634" id="634">634</a>
-<a href="#635" id="635">635</a>
-<a href="#636" id="636">636</a>
-<a href="#637" id="637">637</a>
-<a href="#638" id="638">638</a>
-<a href="#639" id="639">639</a>
-<a href="#640" id="640">640</a>
-<a href="#641" id="641">641</a>
-<a href="#642" id="642">642</a>
-<a href="#643" id="643">643</a>
-<a href="#644" id="644">644</a>
-<a href="#645" id="645">645</a>
-<a href="#646" id="646">646</a>
-<a href="#647" id="647">647</a>
-<a href="#648" id="648">648</a>
-<a href="#649" id="649">649</a>
-<a href="#650" id="650">650</a>
-<a href="#651" id="651">651</a>
-<a href="#652" id="652">652</a>
-<a href="#653" id="653">653</a>
-<a href="#654" id="654">654</a>
-<a href="#655" id="655">655</a>
-<a href="#656" id="656">656</a>
-<a href="#657" id="657">657</a>
-<a href="#658" id="658">658</a>
-<a href="#659" id="659">659</a>
-<a href="#660" id="660">660</a>
-<a href="#661" id="661">661</a>
-<a href="#662" id="662">662</a>
-<a href="#663" id="663">663</a>
-<a href="#664" id="664">664</a>
-<a href="#665" id="665">665</a>
-<a href="#666" id="666">666</a>
-<a href="#667" id="667">667</a>
-<a href="#668" id="668">668</a>
-<a href="#669" id="669">669</a>
-<a href="#670" id="670">670</a>
-<a href="#671" id="671">671</a>
-<a href="#672" id="672">672</a>
-<a href="#673" id="673">673</a>
-<a href="#674" id="674">674</a>
-<a href="#675" id="675">675</a>
-<a href="#676" id="676">676</a>
-<a href="#677" id="677">677</a>
-<a href="#678" id="678">678</a>
-<a href="#679" id="679">679</a>
-<a href="#680" id="680">680</a>
-<a href="#681" id="681">681</a>
-<a href="#682" id="682">682</a>
-<a href="#683" id="683">683</a>
-<a href="#684" id="684">684</a>
-<a href="#685" id="685">685</a>
-<a href="#686" id="686">686</a>
-<a href="#687" id="687">687</a>
-<a href="#688" id="688">688</a>
-<a href="#689" id="689">689</a>
-<a href="#690" id="690">690</a>
-<a href="#691" id="691">691</a>
-<a href="#692" id="692">692</a>
-<a href="#693" id="693">693</a>
-<a href="#694" id="694">694</a>
-<a href="#695" id="695">695</a>
-<a href="#696" id="696">696</a>
-<a href="#697" id="697">697</a>
-<a href="#698" id="698">698</a>
-<a href="#699" id="699">699</a>
-<a href="#700" id="700">700</a>
-<a href="#701" id="701">701</a>
-<a href="#702" id="702">702</a>
-<a href="#703" id="703">703</a>
-<a href="#704" id="704">704</a>
-<a href="#705" id="705">705</a>
-<a href="#706" id="706">706</a>
-<a href="#707" id="707">707</a>
-<a href="#708" id="708">708</a>
-<a href="#709" id="709">709</a>
-<a href="#710" id="710">710</a>
-<a href="#711" id="711">711</a>
-<a href="#712" id="712">712</a>
-<a href="#713" id="713">713</a>
-<a href="#714" id="714">714</a>
-<a href="#715" id="715">715</a>
-<a href="#716" id="716">716</a>
-<a href="#717" id="717">717</a>
-<a href="#718" id="718">718</a>
-<a href="#719" id="719">719</a>
-<a href="#720" id="720">720</a>
-<a href="#721" id="721">721</a>
-<a href="#722" id="722">722</a>
-<a href="#723" id="723">723</a>
-<a href="#724" id="724">724</a>
-<a href="#725" id="725">725</a>
-<a href="#726" id="726">726</a>
-<a href="#727" id="727">727</a>
-<a href="#728" id="728">728</a>
-<a href="#729" id="729">729</a>
-<a href="#730" id="730">730</a>
-<a href="#731" id="731">731</a>
-<a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span>ark_crypto_primitives::snark::SNARK;
-<span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::fmt;
+</span><span class="kw">use </span>fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
+<span class="kw">use </span>reqwest::Client;
+<span class="kw">use </span>serde_json::Value;
 
-<span class="kw">use super</span>::{poseidon::PoseidonWrapper, verifier::process_vk_special};
-<span class="kw">use </span><span class="kw">crate</span>::bn254::VerifyingKey <span class="kw">as </span>Bn254VerifyingKey;
-<span class="kw">use </span><span class="kw">crate</span>::circom::CircomPublicInputs;
-<span class="kw">use crate</span>::{
-    bn254::verifier::PreparedVerifyingKey,
-    circom::{g1_affine_from_str_projective, g2_affine_from_str_projective},
+<span class="kw">use super</span>::{poseidon::to_poseidon_hash, utils::split_to_two_frs};
+<span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::hash;
+<span class="kw">use </span><span class="kw">crate</span>::circom::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
 };
 <span class="kw">pub use </span>ark_bn254::{Bn254, Fr <span class="kw">as </span>Bn254Fr};
 <span class="kw">pub use </span>ark_ff::ToConstraintField;
-<span class="kw">use </span>ark_groth16::{Groth16, Proof, VerifyingKey};
+<span class="kw">use </span>ark_ff::Zero;
+<span class="kw">use </span>ark_groth16::Proof;
 <span class="kw">pub use </span>ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-<span class="kw">use </span>fastcrypto::{
-    error::FastCryptoError,
-    rsa::{Base64UrlUnpadded, Encoding},
-};
-<span class="kw">use </span>num_bigint::{BigInt, BigUint};
-<span class="kw">use </span>once_cell::sync::Lazy;
-<span class="kw">use </span>regex::Regex;
+<span class="kw">use </span>fastcrypto::error::FastCryptoError;
+<span class="kw">use </span>num_bigint::BigUint;
 <span class="kw">use </span>schemars::JsonSchema;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
-<span class="kw">use </span>serde_json::Value;
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">&quot;unit_tests/zk_login_tests.rs&quot;</span>]
 </span><span class="kw">mod </span>zk_login_tests;
 
-<span class="kw">static </span>GLOBAL_VERIFYING_KEY: Lazy&lt;PreparedVerifyingKey&gt; = Lazy::new(global_pvk);
+<span class="attr">#[cfg(feature = <span class="string">&quot;e2e&quot;</span>)]
+#[cfg(test)]
+#[path = <span class="string">&quot;unit_tests/zk_login_e2e_tests.rs&quot;</span>]
+</span><span class="kw">mod </span>zk_login_e2e_tests;
 
-<span class="doccomment">/// Hardcoded mapping from the provider and its supported key claim name to its map-to-field Big Int in string.
-/// The field value is computed from the max key claim length and its provider.
-</span><span class="kw">static </span>SUPPORTED_KEY_CLAIM_TO_FIELD: Lazy&lt;HashMap&lt;(<span class="kw-2">&amp;</span>str, String), <span class="kw-2">&amp;</span>str&gt;&gt; = Lazy::new(|| {
-    <span class="kw">let </span><span class="kw-2">mut </span>map = HashMap::new();
-    map.insert(
-        (
-            OAuthProvider::Google.get_config().<span class="number">0</span>,
-            SupportedKeyClaim::Sub.to_string(),
-        ),
-        <span class="string">&quot;18523124550523841778801820019979000409432455608728354507022210389496924497355&quot;</span>,
-    );
-    map.insert(
-        (
-            OAuthProvider::Google.get_config().<span class="number">0</span>,
-            SupportedKeyClaim::Email.to_string(),
-        ),
-        <span class="string">&quot;&quot;</span>,
-    );
-    map.insert(
-        (
-            OAuthProvider::Twitch.get_config().<span class="number">0</span>,
-            SupportedKeyClaim::Sub.to_string(),
-        ),
-        <span class="string">&quot;&quot;</span>,
-    );
-    map.insert(
-        (
-            OAuthProvider::Twitch.get_config().<span class="number">0</span>,
-            SupportedKeyClaim::Email.to_string(),
-        ),
-        <span class="string">&quot;&quot;</span>,
-    );
-    map
-});
+<span class="kw">const </span>MAX_HEADER_LEN: u8 = <span class="number">248</span>;
+<span class="kw">const </span>PACK_WIDTH: u8 = <span class="number">248</span>;
+<span class="kw">const </span>ISS: <span class="kw-2">&amp;</span>str = <span class="string">&quot;iss&quot;</span>;
+<span class="kw">const </span>BASE64_URL_CHARSET: <span class="kw-2">&amp;</span>str = <span class="string">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_&quot;</span>;
+<span class="kw">const </span>MAX_EXT_ISS_LEN: u8 = <span class="number">165</span>;
+<span class="kw">const </span>MAX_ISS_LEN_B64: u8 = <span class="number">4 </span>* (<span class="number">1 </span>+ MAX_EXT_ISS_LEN / <span class="number">3</span>);
 
-<span class="doccomment">/// Supported OAuth providers. Must contain &quot;openid&quot; in &quot;scopes_supported&quot;
-/// and &quot;public&quot; for &quot;subject_types_supported&quot; instead of &quot;pairwise&quot;.
+<span class="doccomment">/// Key to identify a JWK, consists of iss and kid.
+</span><span class="attr">#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize, PartialOrd, Ord)]
+</span><span class="kw">pub struct </span>JwkId {
+    <span class="doccomment">/// iss string that identifies the OIDC provider.
+    </span><span class="kw">pub </span>iss: String,
+    <span class="doccomment">/// kid string that identifies the JWK.
+    </span><span class="kw">pub </span>kid: String,
+}
+
+<span class="kw">impl </span>JwkId {
+    <span class="doccomment">/// Create a new JwkId.
+    </span><span class="kw">pub fn </span>new(iss: String, kid: String) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{ iss, kid }
+    }
+}
+
+<span class="doccomment">/// The provider config consists of iss string and jwk endpoint.
 </span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>OAuthProvider {
+</span><span class="kw">pub struct </span>ProviderConfig {
+    <span class="doccomment">/// iss string that identifies the OIDC provider.
+    </span><span class="kw">pub </span>iss: String,
+    <span class="doccomment">/// The JWK url string for the given provider.
+    </span><span class="kw">pub </span>jwk_endpoint: String,
+}
+
+<span class="kw">impl </span>ProviderConfig {
+    <span class="doccomment">/// Create a new provider config.
+    </span><span class="kw">pub fn </span>new(iss: <span class="kw-2">&amp;</span>str, jwk_endpoint: <span class="kw-2">&amp;</span>str) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            iss: iss.to_string(),
+            jwk_endpoint: jwk_endpoint.to_string(),
+        }
+    }
+}
+
+<span class="doccomment">/// Supported OIDC providers.
+</span><span class="attr">#[derive(Clone, Debug, Hash, PartialEq, Eq)]
+</span><span class="kw">pub enum </span>OIDCProvider {
     <span class="doccomment">/// See https://accounts.google.com/.well-known/openid-configuration
     </span>Google,
     <span class="doccomment">/// See https://id.twitch.tv/oauth2/.well-known/openid-configuration
     </span>Twitch,
+    <span class="doccomment">/// See https://www.facebook.com/.well-known/openid-configuration/
+    </span>Facebook,
+    <span class="doccomment">/// See https://kauth.kakao.com/.well-known/openid-configuration
+    </span>Kakao,
+    <span class="doccomment">/// See https://appleid.apple.com/.well-known/openid-configuration
+    </span>Apple,
+    <span class="doccomment">/// See https://slack.com/.well-known/openid-configuration
+    </span>Slack,
 }
 
-<span class="kw">impl </span>OAuthProvider {
-    <span class="doccomment">/// Returns a tuple of iss string and JWK endpoint string for the given provider.
-    </span><span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; (<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str) {
-        <span class="kw">match </span><span class="self">self </span>{
-            OAuthProvider::Google =&gt; (
-                <span class="string">&quot;https://accounts.google.com&quot;</span>,
-                <span class="string">&quot;https://www.googleapis.com/oauth2/v2/certs&quot;</span>,
-            ),
-            OAuthProvider::Twitch =&gt; (
-                <span class="string">&quot;https://id.twitch.tv/oauth2&quot;</span>,
-                <span class="string">&quot;https://id.twitch.tv/oauth2/keys&quot;</span>,
-            ),
-        }
-    }
+<span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= FastCryptoError;
 
-    <span class="doccomment">/// Returns the provider for the given iss string.
-    </span><span class="kw">pub fn </span>from_iss(iss: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">match </span>iss {
-            <span class="string">&quot;https://accounts.google.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
-            <span class="string">&quot;https://id.twitch.tv/oauth2&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+        <span class="kw">match </span>s {
+            <span class="string">&quot;Google&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
+            <span class="string">&quot;Twitch&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
+            <span class="string">&quot;Facebook&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
+            <span class="string">&quot;Kakao&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
+            <span class="string">&quot;Apple&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
+            <span class="string">&quot;Slack&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
 }
 
-<span class="doccomment">/// The claims in the body signed by OAuth provider that must
-/// be locally unique to the provider and cannot be reassigned.
-</span><span class="attr">#[derive(Debug)]
-</span><span class="kw">pub enum </span>SupportedKeyClaim {
-    <span class="doccomment">/// Subject id representing an unique account.
-    </span>Sub,
-    <span class="doccomment">/// Email string representing an unique account.
-    </span>Email,
-}
-
-<span class="kw">impl </span>fmt::Display <span class="kw">for </span>SupportedKeyClaim {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+<span class="kw">impl </span>ToString <span class="kw">for </span>OIDCProvider {
+    <span class="kw">fn </span>to_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
         <span class="kw">match </span><span class="self">self </span>{
-            SupportedKeyClaim::Email =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;email&quot;</span>),
-            SupportedKeyClaim::Sub =&gt; <span class="macro">write!</span>(f, <span class="string">&quot;sub&quot;</span>),
+            <span class="self">Self</span>::Google =&gt; <span class="string">&quot;Google&quot;</span>.to_string(),
+            <span class="self">Self</span>::Twitch =&gt; <span class="string">&quot;Twitch&quot;</span>.to_string(),
+            <span class="self">Self</span>::Facebook =&gt; <span class="string">&quot;Facebook&quot;</span>.to_string(),
+            <span class="self">Self</span>::Kakao =&gt; <span class="string">&quot;Kakao&quot;</span>.to_string(),
+            <span class="self">Self</span>::Apple =&gt; <span class="string">&quot;Apple&quot;</span>.to_string(),
+            <span class="self">Self</span>::Slack =&gt; <span class="string">&quot;Slack&quot;</span>.to_string(),
         }
     }
 }
 
-<span class="doccomment">/// Return whether the claim string is supported for zk login.
-</span><span class="kw">pub fn </span>is_claim_supported(claim_name: <span class="kw-2">&amp;</span>str) -&gt; bool {
-    <span class="macro">vec!</span>[SupportedKeyClaim::Sub.to_string()].contains(<span class="kw-2">&amp;</span>claim_name.to_owned())
-}
-
-<span class="doccomment">/// Verify a zk login proof using the fixed verifying key.
-</span><span class="kw">pub fn </span>verify_zk_login_proof_with_fixed_vk(
-    proof: <span class="kw-2">&amp;</span>ZkLoginProof,
-    public_inputs: <span class="kw-2">&amp;</span>PublicInputs,
-) -&gt; <span class="prelude-ty">Result</span>&lt;bool, FastCryptoError&gt; {
-    Groth16::&lt;Bn254&gt;::verify_with_processed_vk(
-        <span class="kw-2">&amp;</span>GLOBAL_VERIFYING_KEY.as_arkworks_pvk(),
-        <span class="kw-2">&amp;</span>public_inputs.as_arkworks(),
-        <span class="kw-2">&amp;</span>proof.as_arkworks(),
-    )
-    .map_err(|e| FastCryptoError::GeneralError(e.to_string()))
-}
-
-<span class="doccomment">/// Load a fixed verifying key from zklogin.vkey output from setup
-/// https://github.com/MystenLabs/fastcrypto/blob/2a704431e4d2685625c0cc06d19fd7d08a4aafa4/openid-zkp-auth/README.md
-</span><span class="kw">fn </span>global_pvk() -&gt; PreparedVerifyingKey {
-    <span class="comment">// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    </span><span class="kw">let </span>vk_alpha_1 = g1_affine_from_str_projective(<span class="macro">vec!</span>[
-        <span class="string">&quot;20491192805390485299153009773594534940189261866228447918068658471970481763042&quot;</span>.to_string(),
-        <span class="string">&quot;9383485363053290200918347156157836566562967994039712273449902621266178545958&quot;</span>.to_string(),
-        <span class="string">&quot;1&quot;</span>.to_string(),
-    ]);
-    <span class="kw">let </span>vk_beta_2 = g2_affine_from_str_projective(<span class="macro">vec!</span>[
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;6375614351688725206403948262868962793625744043794305715222011528459656738731&quot;
-                </span>.to_string(),
-            <span class="string">&quot;4252822878758300859123897981450591353533073413197771768651442665752259397132&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;10505242626370262277552901082094356697409835680220590971873171140371331206856&quot;
-                </span>.to_string(),
-            <span class="string">&quot;21847035105528745403288232691147584728191162732299865338377159692350059136679&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
-    ]);
-    <span class="kw">let </span>vk_gamma_2 = g2_affine_from_str_projective(<span class="macro">vec!</span>[
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;10857046999023057135944570762232829481370756359578518086990519993285655852781&quot;
-                </span>.to_string(),
-            <span class="string">&quot;11559732032986387107991004021392285783925812861821192530917403151452391805634&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;8495653923123431417604973247489272438418190587263600148770280649306958101930&quot;
-                </span>.to_string(),
-            <span class="string">&quot;4082367875863433681332203403145435568316851327593401208105741076214120093531&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
-    ]);
-    <span class="kw">let </span>vk_delta_2 = g2_affine_from_str_projective(<span class="macro">vec!</span>[
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;10857046999023057135944570762232829481370756359578518086990519993285655852781&quot;
-                </span>.to_string(),
-            <span class="string">&quot;11559732032986387107991004021392285783925812861821192530917403151452391805634&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;8495653923123431417604973247489272438418190587263600148770280649306958101930&quot;
-                </span>.to_string(),
-            <span class="string">&quot;4082367875863433681332203403145435568316851327593401208105741076214120093531&quot;
-                </span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
-    ]);
-
-    <span class="comment">// Create a vector of G1Affine elements from the IC
-    </span><span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1 = Vec::new();
-    <span class="kw">for </span>e <span class="kw">in </span><span class="macro">vec!</span>[
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;18931764958316061396537365316410279129357566768168194299771466990652581507745&quot;
-                </span>.to_string(),
-            <span class="string">&quot;19589594864158083697499253358172374190940731232487666687594341722397321059767&quot;
-                </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
-        ],
-        <span class="macro">vec!</span>[
-            <span class="string">&quot;6267760579143073538587735682191258967573139158461221609828687320377758856284&quot;
-                </span>.to_string(),
-            <span class="string">&quot;18672820669757254021555424652581702101071897282778751499312181111578447239911&quot;
-                </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
-        ],
-    ] {
-        <span class="kw">let </span>g1 = g1_affine_from_str_projective(e);
-        vk_gamma_abc_g1.push(g1);
+<span class="kw">impl </span>OIDCProvider {
+    <span class="doccomment">/// Returns the provider config consisting of iss and jwk endpoint.
+    </span><span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProviderConfig {
+        <span class="kw">match </span><span class="self">self </span>{
+            OIDCProvider::Google =&gt; ProviderConfig::new(
+                <span class="string">&quot;https://accounts.google.com&quot;</span>,
+                <span class="string">&quot;https://www.googleapis.com/oauth2/v2/certs&quot;</span>,
+            ),
+            OIDCProvider::Twitch =&gt; ProviderConfig::new(
+                <span class="string">&quot;https://id.twitch.tv/oauth2&quot;</span>,
+                <span class="string">&quot;https://id.twitch.tv/oauth2/keys&quot;</span>,
+            ),
+            OIDCProvider::Facebook =&gt; ProviderConfig::new(
+                <span class="string">&quot;https://www.facebook.com&quot;</span>,
+                <span class="string">&quot;https://www.facebook.com/.well-known/oauth/openid/jwks/&quot;</span>,
+            ),
+            OIDCProvider::Kakao =&gt; ProviderConfig::new(
+                <span class="string">&quot;https://kauth.kakao.com&quot;</span>,
+                <span class="string">&quot;https://kauth.kakao.com/.well-known/jwks.json&quot;</span>,
+            ),
+            OIDCProvider::Apple =&gt; ProviderConfig::new(
+                <span class="string">&quot;https://appleid.apple.com&quot;</span>,
+                <span class="string">&quot;https://appleid.apple.com/auth/keys&quot;</span>,
+            ),
+            OIDCProvider::Slack =&gt; {
+                ProviderConfig::new(<span class="string">&quot;https://slack.com&quot;</span>, <span class="string">&quot;https://slack.com/openid/connect/keys&quot;</span>)
+            }
+        }
     }
 
-    <span class="kw">let </span>vk = VerifyingKey {
-        alpha_g1: vk_alpha_1,
-        beta_g2: vk_beta_2,
-        gamma_g2: vk_gamma_2,
-        delta_g2: vk_delta_2,
-        gamma_abc_g1: vk_gamma_abc_g1,
-    };
-    process_vk_special(<span class="kw-2">&amp;</span>Bn254VerifyingKey(vk))
-}
-
-<span class="doccomment">/// A parsed result of all aux inputs.
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>AuxInputs {
-    addr_seed: String,
-    eph_public_key: Vec&lt;String&gt;,
-    jwt_sha2_hash: Vec&lt;String&gt;,
-    jwt_signature: String,
-    key_claim_name: String,
-    masked_content: Vec&lt;u8&gt;,
-    max_epoch: u64,
-    num_sha2_blocks: u8,
-    payload_len: u16,
-    payload_start_index: u16,
-    <span class="attr">#[serde(skip)]
-    </span>parsed_masked_content: ParsedMaskedContent,
-}
-
-<span class="kw">impl </span>AuxInputs {
-    <span class="doccomment">/// Validate and parse masked content bytes into the struct and other json strings into the struct.
-    </span><span class="kw">pub fn </span>from_json(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>inputs: AuxInputs =
-            serde_json::from_str(value).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        inputs.parsed_masked_content = ParsedMaskedContent::new(
-            <span class="kw-2">&amp;</span>inputs.masked_content,
-            inputs.payload_start_index,
-            inputs.payload_len,
-            inputs.num_sha2_blocks,
-        )<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(inputs)
-    }
-
-    <span class="doccomment">/// Init ParsedMaskedContent
-    </span><span class="kw">pub fn </span>init(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="self">self</span>.parsed_masked_content = ParsedMaskedContent::new(
-            <span class="kw-2">&amp;</span><span class="self">self</span>.masked_content,
-            <span class="self">self</span>.payload_start_index,
-            <span class="self">self</span>.payload_len,
-            <span class="self">self</span>.num_sha2_blocks,
-        )<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">self</span>.to_owned())
-    }
-    <span class="doccomment">/// Get the jwt hash in byte array format.
-    </span><span class="kw">pub fn </span>get_jwt_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.jwt_sha2_hash
-            .iter()
-            .flat_map(|x| big_int_str_to_bytes(x))
-            .collect()
-    }
-
-    <span class="doccomment">/// Get the ephemeral pubkey in bytes.
-    </span><span class="kw">pub fn </span>get_eph_pub_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.eph_public_key
-            .iter()
-            .flat_map(|x| big_int_str_to_bytes(x))
-            .collect()
-    }
-
-    <span class="doccomment">/// Get the max epoch value.
-    </span><span class="kw">pub fn </span>get_max_epoch(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u64 {
-        <span class="self">self</span>.max_epoch
-    }
-
-    <span class="doccomment">/// Get jwt signature in bytes.
-    </span><span class="kw">pub fn </span>get_jwt_signature(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
-        Base64UrlUnpadded::decode_vec(<span class="kw-2">&amp;</span><span class="self">self</span>.jwt_signature)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
-    }
-
-    <span class="doccomment">/// Get the address seed in string.
-    </span><span class="kw">pub fn </span>get_address_seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.addr_seed
-    }
-
-    <span class="doccomment">/// Get the iss string.
-    </span><span class="kw">pub fn </span>get_iss(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="self">self</span>.parsed_masked_content.get_iss()
-    }
-
-    <span class="doccomment">/// Get the client id string.
-    </span><span class="kw">pub fn </span>get_client_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="self">self</span>.parsed_masked_content.get_client_id()
-    }
-
-    <span class="doccomment">/// Get the kid string.
-    </span><span class="kw">pub fn </span>get_kid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="self">self</span>.parsed_masked_content.get_kid()
-    }
-
-    <span class="doccomment">/// Get the key claim name string.
-    </span><span class="kw">pub fn </span>get_claim_name(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.key_claim_name
-    }
-
-    <span class="doccomment">/// Calculate the poseidon hash from 10 selected fields in the aux inputs.
-    </span><span class="kw">pub fn </span>calculate_all_inputs_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-        <span class="comment">// TODO(joyqvq): check each string for bigint is valid.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>poseidon = PoseidonWrapper::new();
-        <span class="kw">let </span>jwt_sha2_hash_0 = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.jwt_sha2_hash[<span class="number">0</span>]).unwrap();
-        <span class="kw">let </span>jwt_sha2_hash_1 = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.jwt_sha2_hash[<span class="number">1</span>]).unwrap();
-        <span class="kw">let </span>masked_content_hash = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.parsed_masked_content.hash).unwrap();
-        <span class="kw">let </span>payload_start_index = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.payload_start_index.to_string()).unwrap();
-        <span class="kw">let </span>payload_len = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.payload_len.to_string()).unwrap();
-        <span class="kw">let </span>eph_public_key_0 = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.eph_public_key[<span class="number">0</span>]).unwrap();
-        <span class="kw">let </span>eph_public_key_1 = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.eph_public_key[<span class="number">1</span>]).unwrap();
-        <span class="kw">let </span>max_epoch = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.max_epoch.to_string()).unwrap();
-        <span class="kw">let </span>num_sha2_blocks = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.num_sha2_blocks.to_string()).unwrap();
-        <span class="kw">let </span>addr_seed = Bn254Fr::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.addr_seed.to_string()).unwrap();
-        <span class="kw">let </span>key_claim_name_f = Bn254Fr::from_str(
-            SUPPORTED_KEY_CLAIM_TO_FIELD
-                .get(<span class="kw-2">&amp;</span>(<span class="self">self</span>.get_iss(), <span class="self">self</span>.get_claim_name().to_owned()))
-                .unwrap(),
-        )
-        .unwrap();
-        <span class="prelude-val">Ok</span>(poseidon
-            .hash(<span class="macro">vec!</span>[
-                jwt_sha2_hash_0,
-                jwt_sha2_hash_1,
-                masked_content_hash,
-                payload_start_index,
-                payload_len,
-                eph_public_key_0,
-                eph_public_key_1,
-                max_epoch,
-                num_sha2_blocks,
-                key_claim_name_f,
-                addr_seed,
-            ])<span class="question-mark">?
-            </span>.to_string())
+    <span class="doccomment">/// Returns the OIDCProvider for the given iss string.
+    </span><span class="kw">pub fn </span>from_iss(iss: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">match </span>iss {
+            <span class="string">&quot;https://accounts.google.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
+            <span class="string">&quot;https://id.twitch.tv/oauth2&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
+            <span class="string">&quot;https://www.facebook.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
+            <span class="string">&quot;https://kauth.kakao.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
+            <span class="string">&quot;https://appleid.apple.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
+            <span class="string">&quot;https://slack.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+        }
     }
 }
 
-<span class="doccomment">/// A structed of all parsed and validated values from the masked content bytes.
-</span><span class="attr">#[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>ParsedMaskedContent {
-    header: JWTHeader,
-    iss: String,
-    client_id: String,
-    hash: String,
+<span class="doccomment">/// Struct that contains info for a JWK. A list of them for different kids can
+/// be retrieved from the JWK endpoint (e.g. &lt;https://www.googleapis.com/oauth2/v3/certs&gt;).
+/// The JWK is used to verify the JWT token.
+</span><span class="attr">#[derive(PartialEq, Eq, Hash, Debug, Clone, Serialize, Deserialize, PartialOrd, Ord)]
+</span><span class="kw">pub struct </span>JWK {
+    <span class="doccomment">/// Key type parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.1
+    </span><span class="kw">pub </span>kty: String,
+    <span class="doccomment">/// RSA public exponent, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+    </span><span class="kw">pub </span>e: String,
+    <span class="doccomment">/// RSA modulus, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
+    </span><span class="kw">pub </span>n: String,
+    <span class="doccomment">/// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
+    </span><span class="kw">pub </span>alg: String,
 }
 
-<span class="doccomment">/// Struct that represents a standard JWT header according to
-/// https://openid.net/specs/openid-connect-core-1_0.html
-</span><span class="attr">#[derive(Default, Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>JWTHeader {
-    alg: String,
+<span class="doccomment">/// Reader struct to parse all fields in a JWK from JSON.
+</span><span class="attr">#[derive(Debug, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>JWKReader {
+    e: String,
+    n: String,
+    <span class="attr">#[serde(rename = <span class="string">&quot;use&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    </span>my_use: <span class="prelude-ty">Option</span>&lt;String&gt;,
     kid: String,
-    typ: String,
+    kty: String,
+    alg: String,
 }
 
-<span class="kw">impl </span>ParsedMaskedContent {
-    <span class="doccomment">/// Parse the masked content bytes into a [struct ParsedMaskedContent].
-    /// payload_start_index, payload_len, num_sha2_blocks are used for
-    /// validation and parsing.
-    </span><span class="kw">pub fn </span>new(
-        masked_content: <span class="kw-2">&amp;</span>[u8],
-        payload_start_index: u16,
-        payload_len: u16,
-        num_sha2_blocks: u8,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// Verify the bytes after 64 * num_sha2_blocks should be all 0s.
-        </span><span class="kw">if </span>!masked_content
-            .get(<span class="number">64 </span>* num_sha2_blocks <span class="kw">as </span>usize..)
-            .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?
-            </span>.iter()
-            .all(|<span class="kw-2">&amp;</span>x| x == <span class="number">0</span>)
-        {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Incorrect payload padding&quot;</span>.to_string(),
-            ));
+<span class="kw">impl </span>JWK {
+    <span class="doccomment">/// Parse JWK from the reader struct.
+    </span><span class="kw">pub fn </span>from_reader(reader: JWKReader) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>trimmed_e = trim(reader.e);
+        <span class="kw">if </span>reader.alg != <span class="string">&quot;RS256&quot; </span>|| reader.kty != <span class="string">&quot;RSA&quot; </span>|| trimmed_e != <span class="string">&quot;AQAB&quot; </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
-
-        <span class="kw">let </span>masked_content_tmp = masked_content
-            .get(..<span class="number">64 </span>* num_sha2_blocks <span class="kw">as </span>usize)
-            .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-
-        <span class="comment">// Verify the byte at payload start index is indeed b&#39;.&#39;.
-        </span><span class="kw">if </span>payload_start_index &lt; <span class="number">1
-            </span>|| masked_content_tmp.get(payload_start_index <span class="kw">as </span>usize - <span class="number">1</span>) != <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="string">b&#39;.&#39;</span>)
-        {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Incorrect payload index for separator&quot;</span>.to_string(),
-            ));
-        }
-
-        <span class="kw">let </span>header = parse_and_validate_header(
-            masked_content_tmp
-                .get(<span class="number">0</span>..payload_start_index <span class="kw">as </span>usize - <span class="number">1</span>)
-                .ok_or_else(|| {
-                    FastCryptoError::GeneralError(
-                        <span class="string">&quot;Invalid payload index to parse header&quot;</span>.to_string(),
-                    )
-                })<span class="question-mark">?</span>,
-        )<span class="question-mark">?</span>;
-
-        <span class="comment">// Parse the jwt length from the last 8 bytes of the masked content.
-        </span><span class="kw">let </span>jwt_length_bytes = masked_content_tmp
-            .get(masked_content_tmp.len() - <span class="number">8</span>..)
-            .ok_or_else(|| FastCryptoError::GeneralError(<span class="string">&quot;Invalid last 8 bytes&quot;</span>.to_string()))<span class="question-mark">?</span>;
-        <span class="kw">let </span>jwt_length = calculate_value_from_bytearray(jwt_length_bytes);
-
-        <span class="comment">// Verify the jwt length equals to 8*(payload_start_index + payload_len).
-        </span><span class="kw">if </span>jwt_length != <span class="number">8 </span>* (payload_start_index <span class="kw">as </span>usize + payload_len <span class="kw">as </span>usize) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Incorrect jwt length&quot;</span>.to_string(),
-            ));
-        }
-
-        <span class="comment">// Parse sha2 pad into a bit array.
-        </span><span class="kw">let </span>sha_2_pad = bytearray_to_bits(
-            <span class="kw-2">&amp;</span>masked_content_tmp[payload_start_index <span class="kw">as </span>usize + payload_len <span class="kw">as </span>usize..],
-        );
-
-        <span class="comment">// Verify that the first bit of the bit array of sha2 pad is 1.
-        </span><span class="kw">if </span>!sha_2_pad[<span class="number">0</span>] {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Incorrect sha2 padding&quot;</span>.to_string(),
-            ));
-        }
-
-        <span class="comment">// Verify the count of 0s in the sha2 pad bit array satifies the condition
-        // with the jwt length.
-        </span>validate_zeros_count(<span class="kw-2">&amp;</span>sha_2_pad, jwt_length)<span class="question-mark">?</span>;
-
-        <span class="comment">// Splits the masked payload into 3 parts (that reveals iss, aud, nonce respectively)
-        // separated by a delimiter of &quot;=&quot; of any length. With padding etc
-        </span><span class="kw">let </span>parts = find_parts_and_indices(
-            <span class="kw-2">&amp;</span>masked_content_tmp
-                [payload_start_index <span class="kw">as </span>usize..payload_start_index <span class="kw">as </span>usize + payload_len <span class="kw">as </span>usize],
-        )<span class="question-mark">?</span>;
-
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
-            header,
-            iss: parts[<span class="number">0</span>].to_string(),
-            client_id: parts[<span class="number">1</span>].to_string(),
-            hash: calculate_merklized_hash(masked_content)<span class="question-mark">?</span>,
+            kty: reader.kty,
+            e: trimmed_e,
+            n: trim(reader.n),
+            alg: reader.alg,
         })
     }
+}
 
-    <span class="doccomment">/// Get the iss string value.
-    </span><span class="kw">pub fn </span>get_iss(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.iss
+<span class="doccomment">/// Trim trailing &#39;=&#39; so that it is considered a valid base64 url encoding string by base64ct library.
+</span><span class="kw">fn </span>trim(str: String) -&gt; String {
+    str.trim_end_matches(<span class="string">&#39;=&#39;</span>).to_owned()
+}
+
+<span class="doccomment">/// Fetch JWKs from the given provider and return a list of JwkId -&gt; JWK.
+</span><span class="kw">pub async fn </span>fetch_jwks(
+    provider: <span class="kw-2">&amp;</span>OIDCProvider,
+    client: <span class="kw-2">&amp;</span>Client,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(JwkId, JWK)&gt;, FastCryptoError&gt; {
+    <span class="kw">let </span>response = client
+        .get(provider.get_config().jwk_endpoint)
+        .send()
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Failed to get JWK&quot;</span>.to_string()))<span class="question-mark">?</span>;
+    <span class="kw">let </span>bytes = response
+        .bytes()
+        .<span class="kw">await
+        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Failed to get bytes&quot;</span>.to_string()))<span class="question-mark">?</span>;
+    parse_jwks(<span class="kw-2">&amp;</span>bytes, provider)
+}
+
+<span class="doccomment">/// Parse the JWK bytes received from the given provider and return a list of JwkId -&gt; JWK.
+</span><span class="kw">pub fn </span>parse_jwks(
+    json_bytes: <span class="kw-2">&amp;</span>[u8],
+    provider: <span class="kw-2">&amp;</span>OIDCProvider,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;(JwkId, JWK)&gt;, FastCryptoError&gt; {
+    <span class="kw">let </span>json_str = String::from_utf8_lossy(json_bytes);
+    <span class="kw">let </span>parsed_list: <span class="prelude-ty">Result</span>&lt;serde_json::Value, serde_json::Error&gt; = serde_json::from_str(<span class="kw-2">&amp;</span>json_str);
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_list) = parsed_list {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(keys) = parsed_list[<span class="string">&quot;keys&quot;</span>].as_array() {
+            <span class="kw">let </span><span class="kw-2">mut </span>ret = Vec::new();
+            <span class="kw">for </span>k <span class="kw">in </span>keys {
+                <span class="kw">let </span>parsed: JWKReader = serde_json::from_value(k.clone())
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Parse error&quot;</span>.to_string()))<span class="question-mark">?</span>;
+
+                ret.push((
+                    JwkId::new(provider.get_config().iss, parsed.kid.clone()),
+                    JWK::from_reader(parsed)<span class="question-mark">?</span>,
+                ));
+            }
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(ret);
+        }
     }
+    <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+        <span class="string">&quot;Invalid JWK response&quot;</span>.to_string(),
+    ))
+}
 
-    <span class="doccomment">/// Get the kid string value.
-    </span><span class="kw">pub fn </span>get_kid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.header.kid
-    }
+<span class="doccomment">/// A claim consists of value and index_mod_4.
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>Claim {
+    value: String,
+    index_mod_4: u8,
+}
 
-    <span class="doccomment">/// Get the client id string value.
-    </span><span class="kw">pub fn </span>get_client_id(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.client_id
+<span class="doccomment">/// A structed of parsed JWT details, consists of kid, header, iss.
+</span><span class="attr">#[derive(Default, Debug, Clone, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>JWTDetails {
+    kid: String,
+    header: String,
+    iss: String,
+}
+
+<span class="kw">impl </span>JWTDetails {
+    <span class="doccomment">/// Read in the Claim and header string. Parse and validate kid, header, iss as JWT details.
+    </span><span class="kw">pub fn </span>new(header_base64: <span class="kw-2">&amp;</span>str, claim: <span class="kw-2">&amp;</span>Claim) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>header = JWTHeader::new(header_base64)<span class="question-mark">?</span>;
+        <span class="kw">let </span>ext_claim = decode_base64_url(<span class="kw-2">&amp;</span>claim.value, <span class="kw-2">&amp;</span>claim.index_mod_4)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(JWTDetails {
+            kid: header.kid,
+            header: header_base64.to_string(),
+            iss: verify_extended_claim(<span class="kw-2">&amp;</span>ext_claim, ISS)<span class="question-mark">?</span>,
+        })
     }
 }
 
-<span class="doccomment">/// The zk login proof.
+<span class="doccomment">/// All inputs required for the zk login proof verification and other public inputs.
+</span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+
+</span><span class="kw">pub struct </span>ZkLoginInputs {
+    proof_points: ZkLoginProof,
+    iss_base64_details: Claim,
+    header_base64: String,
+    address_seed: String,
+    <span class="attr">#[serde(skip)]
+    </span>jwt_details: JWTDetails,
+}
+
+<span class="doccomment">/// The reader struct for the proving service response.
+</span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
+#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+</span><span class="kw">pub struct </span>ZkLoginInputsReader {
+    proof_points: ZkLoginProof,
+    iss_base64_details: Claim,
+    header_base64: String,
+    <span class="attr">#[serde(skip)]
+    </span>jwt_details: JWTDetails,
+}
+
+<span class="kw">impl </span>ZkLoginInputs {
+    <span class="doccomment">/// Parse the proving service response and pass in the address seed. Initialize the jwt details struct.
+    </span><span class="kw">pub fn </span>from_json(value: <span class="kw-2">&amp;</span>str, address_seed: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">let </span>reader: ZkLoginInputsReader =
+            serde_json::from_str(value).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+        <span class="self">Self</span>::from_reader(reader, address_seed)
+    }
+
+    <span class="doccomment">/// Initialize ZkLoginInputs from the
+    </span><span class="kw">pub fn </span>from_reader(
+        reader: ZkLoginInputsReader,
+        address_seed: <span class="kw-2">&amp;</span>str,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        ZkLoginInputs {
+            proof_points: reader.proof_points,
+            iss_base64_details: reader.iss_base64_details,
+            header_base64: reader.header_base64,
+            address_seed: address_seed.to_owned(),
+            jwt_details: reader.jwt_details,
+        }
+        .init()
+    }
+
+    <span class="doccomment">/// Initialize JWTDetails by parsing header_base64 and iss_base64_details.
+    </span><span class="kw">pub fn </span>init(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+        <span class="kw">if </span>BigUint::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed).is_err() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
+        <span class="self">self</span>.jwt_details = JWTDetails::new(<span class="kw-2">&amp;</span><span class="self">self</span>.header_base64, <span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="self">self</span>.to_owned())
+    }
+
+    <span class="doccomment">/// Get the parsed kid string.
+    </span><span class="kw">pub fn </span>get_kid(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.jwt_details.kid
+    }
+
+    <span class="doccomment">/// Get the parsed iss string.
+    </span><span class="kw">pub fn </span>get_iss(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.jwt_details.iss
+    }
+
+    <span class="doccomment">/// Get the zk login proof.
+    </span><span class="kw">pub fn </span>get_proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ZkLoginProof {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.proof_points
+    }
+
+    <span class="doccomment">/// Get the address seed string.
+    </span><span class="kw">pub fn </span>get_address_seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.address_seed
+    }
+
+    <span class="doccomment">/// Calculate the poseidon hash from selected fields from inputs, along with the ephemeral pubkey.
+    </span><span class="kw">pub fn </span>calculate_all_inputs_hash(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        eph_pk_bytes: <span class="kw-2">&amp;</span>[u8],
+        modulus: <span class="kw-2">&amp;</span>[u8],
+        max_epoch: u64,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
+        <span class="kw">if </span><span class="self">self</span>.header_base64.len() &gt; MAX_HEADER_LEN <span class="kw">as </span>usize {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">&quot;Header too long&quot;</span>.to_string()));
+        }
+
+        <span class="kw">let </span>addr_seed = to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed)<span class="question-mark">?</span>;
+        <span class="kw">let </span>(first, second) = split_to_two_frs(eph_pk_bytes)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>max_epoch_f = to_field(<span class="kw-2">&amp;</span>max_epoch.to_string())<span class="question-mark">?</span>;
+        <span class="kw">let </span>index_mod_4_f = to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.index_mod_4.to_string())<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>iss_base64_f =
+            hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.value, MAX_ISS_LEN_B64)<span class="question-mark">?</span>;
+        <span class="kw">let </span>header_f = hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.header_base64, MAX_HEADER_LEN)<span class="question-mark">?</span>;
+        <span class="kw">let </span>modulus_f = hash_to_field(<span class="kw-2">&amp;</span>[BigUint::from_bytes_be(modulus)], <span class="number">2048</span>, PACK_WIDTH)<span class="question-mark">?</span>;
+        hash(<span class="macro">vec!</span>[
+            first,
+            second,
+            addr_seed,
+            max_epoch_f,
+            iss_base64_f,
+            index_mod_4_f,
+            header_f,
+            modulus_f,
+        ])
+    }
+}
+<span class="doccomment">/// The struct for zk login proof.
 </span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ZkLoginProof {
-    pi_a: Vec&lt;String&gt;,
-    pi_b: Vec&lt;Vec&lt;String&gt;&gt;,
-    pi_c: Vec&lt;String&gt;,
-    protocol: String,
+    a: CircomG1,
+    b: CircomG2,
+    c: CircomG1,
 }
 
 <span class="kw">impl </span>ZkLoginProof {
@@ -1252,262 +1010,202 @@
     </span><span class="kw">pub fn </span>from_json(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">let </span>proof: ZkLoginProof =
             serde_json::from_str(value).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidProof)<span class="question-mark">?</span>;
-        <span class="kw">match </span>proof.protocol == <span class="string">&quot;groth16&quot; </span>{
-            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(proof),
-            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),
-        }
+        <span class="prelude-val">Ok</span>(proof)
     }
 
     <span class="doccomment">/// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
-    </span><span class="kw">pub fn </span>as_arkworks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Proof&lt;Bn254&gt; {
-        <span class="kw">let </span>a = g1_affine_from_str_projective(<span class="self">self</span>.pi_a.clone());
-        <span class="kw">let </span>b = g2_affine_from_str_projective(<span class="self">self</span>.pi_b.clone());
-        <span class="kw">let </span>c = g1_affine_from_str_projective(<span class="self">self</span>.pi_c.clone());
-        Proof { a, b, c }
+    </span><span class="kw">pub fn </span>as_arkworks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Proof&lt;Bn254&gt;, FastCryptoError&gt; {
+        <span class="prelude-val">Ok</span>(Proof {
+            a: g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="self">self</span>.a)<span class="question-mark">?</span>,
+            b: g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="self">self</span>.b)<span class="question-mark">?</span>,
+            c: g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="self">self</span>.c)<span class="question-mark">?</span>,
+        })
     }
 }
 
-<span class="doccomment">/// The public inputs containing an array of string that is the all inputs hash.
-</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Hash, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>PublicInputs {
-    inputs: Vec&lt;String&gt;, <span class="comment">// Represented the public inputs in canonical serialized form.
-</span>}
-
-<span class="kw">impl </span>PublicInputs {
-    <span class="doccomment">/// Parse the public inputs from a json string.
-    </span><span class="kw">pub fn </span>from_json(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">let </span>inputs: CircomPublicInputs =
-            serde_json::from_str(value).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidProof)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{ inputs })
+<span class="doccomment">/// Parse the extended claim json value to its claim value, using the expected claim key.
+</span><span class="kw">fn </span>verify_extended_claim(
+    extended_claim: <span class="kw-2">&amp;</span>str,
+    expected_key: <span class="kw-2">&amp;</span>str,
+) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
+    <span class="comment">// Last character of each extracted_claim must be &#39;}&#39; or &#39;,&#39;
+    </span><span class="kw">if </span>!(extended_claim.ends_with(<span class="string">&#39;}&#39;</span>) || extended_claim.ends_with(<span class="string">&#39;,&#39;</span>)) {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+            <span class="string">&quot;Invalid extended claim&quot;</span>.to_string(),
+        ));
     }
 
-    <span class="doccomment">/// Convert the public inputs into arkworks format.
-    </span><span class="kw">pub fn </span>as_arkworks(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;Bn254Fr&gt; {
-        <span class="comment">// TODO(joyqvq): check safety for valid bigint string.
-        </span><span class="self">self</span>.inputs
-            .iter()
-            .map(|x| Bn254Fr::from_str(x).unwrap())
-            .collect()
-    }
-
-    <span class="doccomment">/// Get the all_inputs_hash as big int string.
-    </span><span class="kw">pub fn </span>get_all_inputs_hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.inputs[<span class="number">0</span>]
-    }
+    <span class="kw">let </span>json_str = <span class="macro">format!</span>(<span class="string">&quot;{{{}}}&quot;</span>, <span class="kw-2">&amp;</span>extended_claim[..extended_claim.len() - <span class="number">1</span>]);
+    <span class="kw">let </span>json: Value = serde_json::from_str(<span class="kw-2">&amp;</span>json_str).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+    <span class="kw">let </span>value = json
+        .as_object()
+        .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?
+        </span>.get(expected_key)
+        .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?
+        </span>.as_str()
+        .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(value.to_string())
 }
 
-<span class="doccomment">/// Parse the ascii string from the input bytearray and split it by delimiter &quot;=&quot; of any
-/// length. Return a list of the split parts and a list of start indices of each part.
-</span><span class="kw">fn </span>find_parts_and_indices(input: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;String&gt;, FastCryptoError&gt; {
-    <span class="kw">let </span>input_str = std::str::from_utf8(input)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Invalid masked content&quot;</span>.to_string()))<span class="question-mark">?</span>;
-    <span class="kw">let </span>re = Regex::new(<span class="string">&quot;=+&quot;</span>).expect(<span class="string">&quot;Regex string should be valid&quot;</span>);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>chunks = Vec::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>start_idx = <span class="number">0</span>;
-
-    <span class="kw">for </span>mat <span class="kw">in </span>re.find_iter(input_str) {
-        <span class="kw">let </span>end_idx = mat.start();
-        <span class="kw">if </span>start_idx &lt; end_idx {
-            <span class="kw">if </span>start_idx % <span class="number">4 </span>== <span class="number">3 </span>|| end_idx % <span class="number">4 </span>== <span class="number">0 </span>{
-                <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                    <span class="string">&quot;Invalid start or end index&quot;</span>.to_string(),
-                ));
-            }
-            <span class="kw">let </span><span class="kw-2">mut </span>chunk_in_bits: Vec&lt;bool&gt; = base64_to_bitarray(<span class="kw-2">&amp;</span>input_str[start_idx..end_idx]);
-            <span class="kw">let </span>original_len = chunk_in_bits.len();
-            <span class="kw">if </span>start_idx % <span class="number">4 </span>== <span class="number">1 </span>{
-                chunk_in_bits.drain(..<span class="number">2</span>);
-            } <span class="kw">else if </span>start_idx % <span class="number">4 </span>== <span class="number">2 </span>{
-                chunk_in_bits.drain(..<span class="number">4</span>);
-            }
-
-            <span class="kw">if </span>end_idx % <span class="number">4 </span>== <span class="number">1 </span>{
-                chunk_in_bits.drain(original_len - <span class="number">4</span>..);
-            } <span class="kw">else if </span>end_idx % <span class="number">4 </span>== <span class="number">2 </span>{
-                chunk_in_bits.drain(original_len - <span class="number">2</span>..);
-            };
-
-            <span class="kw">let </span>bytearray = bits_to_bytes(<span class="kw-2">&amp;</span>chunk_in_bits);
-            <span class="kw">let </span>input_str = std::str::from_utf8(<span class="kw-2">&amp;</span>bytearray).map_err(|<span class="kw">_</span>| {
-                FastCryptoError::GeneralError(<span class="string">&quot;Invalid bytearray from tweaked bits&quot;</span>.to_string())
-            })<span class="question-mark">?</span>;
-            chunks.push(input_str.to_string());
+<span class="doccomment">/// Parse the base64 string, add paddings based on offset, and convert to a bytearray.
+</span><span class="kw">fn </span>decode_base64_url(s: <span class="kw-2">&amp;</span>str, i: <span class="kw-2">&amp;</span>u8) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
+    <span class="kw">if </span>s.len() &lt; <span class="number">2 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+            <span class="string">&quot;Base64 string smaller than 2&quot;</span>.to_string(),
+        ));
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>bits = base64_to_bitarray(s);
+    <span class="kw">match </span>i {
+        <span class="number">0 </span>=&gt; {}
+        <span class="number">1 </span>=&gt; {
+            bits.drain(..<span class="number">2</span>);
         }
-        start_idx = mat.end();
+        <span class="number">2 </span>=&gt; {
+            bits.drain(..<span class="number">4</span>);
+        }
+        <span class="kw">_ </span>=&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+                <span class="string">&quot;Invalid first_char_offset&quot;</span>.to_string(),
+            ));
+        }
     }
-    <span class="prelude-val">Ok</span>(<span class="macro">vec!</span>[
-        find_value(<span class="kw-2">&amp;</span>chunks[<span class="number">0</span>], <span class="string">&quot;\&quot;iss\&quot;:\&quot;&quot;</span>, <span class="string">&quot;\&quot;,&quot;</span>)<span class="question-mark">?</span>,
-        find_value(<span class="kw-2">&amp;</span>chunks[<span class="number">1</span>], <span class="string">&quot;\&quot;aud\&quot;:\&quot;&quot;</span>, <span class="string">&quot;\&quot;,&quot;</span>)<span class="question-mark">?</span>,
-    ])
-}
 
-<span class="doccomment">/// Given a part in string, find the value between the prefix and suffix.
-/// The index value is used to decide the number of &#39;0&#39; needed to pad to
-/// make the parts an valid Base64 encoding.
-</span><span class="kw">fn </span>find_value(ascii_string: <span class="kw-2">&amp;</span>str, prefix: <span class="kw-2">&amp;</span>str, suffix: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="kw">let </span>start = ascii_string
-        .find(prefix)
-        .ok_or_else(|| FastCryptoError::GeneralError(<span class="string">&quot;Invalid parts prefix&quot;</span>.to_string()))<span class="question-mark">?
-        </span>+ prefix.len();
-    <span class="kw">let </span>end = ascii_string[start..]
-        .find(suffix)
-        .ok_or_else(|| FastCryptoError::GeneralError(<span class="string">&quot;Invalid ascii suffix&quot;</span>.to_string()))<span class="question-mark">?
-        </span>+ start;
-    <span class="prelude-val">Ok</span>(ascii_string[start..end].to_string())
-}
-
-<span class="doccomment">/// Count the number of 0s in the bit array and check if the count satifies as the
-/// smallest, non-negative solution to equation jwt_length + 1 + K = 448 (mod 512).
-/// See more at 4.1(b) https://datatracker.ietf.org/doc/html/rfc4634#section-4.1
-</span><span class="kw">fn </span>validate_zeros_count(arr: <span class="kw-2">&amp;</span>[bool], jwt_length: usize) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-    <span class="comment">// Count the number of 0s in the bitarray excluding the last 8 bytes (64 bits).
-    </span><span class="kw">let </span>count = arr.iter().take(arr.len() - <span class="number">64</span>).filter(|<span class="kw-2">&amp;</span>bit| !bit).count();
-    <span class="kw">if </span>(jwt_length + <span class="number">1 </span>+ count) % <span class="number">512 </span>== <span class="number">448 </span>&amp;&amp; count &lt; <span class="number">512 </span>{
-        <span class="prelude-val">Ok</span>(())
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-            <span class="string">&quot;Invalid bitarray&quot;</span>.to_string(),
-        ))
+    <span class="kw">let </span>last_char_offset = (i + s.len() <span class="kw">as </span>u8 - <span class="number">1</span>) % <span class="number">4</span>;
+    <span class="kw">match </span>last_char_offset {
+        <span class="number">3 </span>=&gt; {}
+        <span class="number">2 </span>=&gt; {
+            bits.drain(bits.len() - <span class="number">2</span>..);
+        }
+        <span class="number">1 </span>=&gt; {
+            bits.drain(bits.len() - <span class="number">4</span>..);
+        }
+        <span class="kw">_ </span>=&gt; {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+                <span class="string">&quot;Invalid last_char_offset&quot;</span>.to_string(),
+            ));
+        }
     }
+
+    <span class="kw">if </span>bits.len() % <span class="number">8 </span>!= <span class="number">0 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
+            <span class="string">&quot;Invalid bits length&quot;</span>.to_string(),
+        ));
+    }
+
+    <span class="prelude-val">Ok</span>(std::str::from_utf8(<span class="kw-2">&amp;</span>bitarray_to_bytearray(<span class="kw-2">&amp;</span>bits))
+        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Invalid UTF8 string&quot;</span>.to_string()))<span class="question-mark">?
+        </span>.to_owned())
 }
 
 <span class="doccomment">/// Map a base64 string to a bit array by taking each char&#39;s index and covert it to binary form.
-</span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;bool&gt; {
-    <span class="kw">let </span>base64_url_character_set =
-        <span class="string">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_&quot;</span>;
+</span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;u8&gt; {
     input
         .chars()
         .flat_map(|c| {
-            <span class="kw">let </span>index = base64_url_character_set.find(c).unwrap();
-            <span class="kw">let </span><span class="kw-2">mut </span>bits = Vec::new();
-            <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">6 </span>{
-                bits.push((index &gt;&gt; (<span class="number">5 </span>- i)) &amp; <span class="number">1 </span>== <span class="number">1</span>);
-            }
-            bits
+            <span class="kw">let </span>index = BASE64_URL_CHARSET.find(c).unwrap() <span class="kw">as </span>u8; <span class="comment">// TODO: could panic
+            </span>(<span class="number">0</span>..<span class="number">6</span>).rev().map(<span class="kw">move </span>|i| index &gt;&gt; i &amp; <span class="number">1</span>)
         })
         .collect()
 }
 
-<span class="doccomment">/// Convert a bitarray to a bytearray.
-</span><span class="kw">fn </span>bits_to_bytes(bits: <span class="kw-2">&amp;</span>[bool]) -&gt; Vec&lt;u8&gt; {
+<span class="doccomment">/// Convert a bitarray (each bit is represented by u8) to a byte array by taking each 8 bits as a
+/// byte in big-endian format.
+</span><span class="kw">fn </span>bitarray_to_bytearray(bits: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>bytes: Vec&lt;u8&gt; = Vec::new();
-    <span class="kw">let </span><span class="kw-2">mut </span>current_byte: u8 = <span class="number">0</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>bits_remaining: u8 = <span class="number">8</span>;
-
-    <span class="kw">for </span>bit <span class="kw">in </span>bits.iter() {
-        <span class="kw">if </span><span class="kw-2">*</span>bit {
-            current_byte |= <span class="number">1 </span>&lt;&lt; (bits_remaining - <span class="number">1</span>);
+    <span class="kw">for </span>bits <span class="kw">in </span>bits.chunks(<span class="number">8</span>) {
+        <span class="kw">let </span><span class="kw-2">mut </span>byte = <span class="number">0u8</span>;
+        <span class="kw">for </span>(i, bit) <span class="kw">in </span>bits.iter().rev().enumerate() {
+            byte |= bit &lt;&lt; i;
         }
-        bits_remaining -= <span class="number">1</span>;
-        <span class="kw">if </span>bits_remaining == <span class="number">0 </span>{
-            bytes.push(current_byte);
-            current_byte = <span class="number">0</span>;
-            bits_remaining = <span class="number">8</span>;
-        }
+        bytes.push(byte);
     }
-
-    <span class="kw">if </span>bits_remaining &lt; <span class="number">8 </span>{
-        bytes.push(current_byte);
-    }
-
     bytes
 }
 
-<span class="doccomment">/// Convert a big int string to a big endian bytearray.
-</span><span class="kw">pub fn </span>big_int_str_to_bytes(value: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;u8&gt; {
-    BigInt::from_str(value)
-        .expect(<span class="string">&quot;Invalid big int string&quot;</span>)
-        .to_bytes_be()
-        .<span class="number">1
-</span>}
-
-<span class="doccomment">/// Calculate the integer value from the bytearray.
-</span><span class="kw">fn </span>calculate_value_from_bytearray(arr: <span class="kw-2">&amp;</span>[u8]) -&gt; usize {
-    <span class="kw">let </span>sized: [u8; <span class="number">8</span>] = arr.try_into().expect(<span class="string">&quot;Invalid byte array&quot;</span>);
-    ((sized[<span class="number">7</span>] <span class="kw">as </span>u16) | (sized[<span class="number">6</span>] <span class="kw">as </span>u16) &lt;&lt; <span class="number">8</span>).into()
+<span class="doccomment">/// Convert a bigint string to a field element.
+</span><span class="kw">pub fn </span>to_field(val: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
+    Bn254Fr::from_str(val)
+        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Convert to field error&quot;</span>.to_string()))
 }
 
-<span class="doccomment">/// Given a chunk of bytearray, parse it as an ascii string and decode as a JWTHeader.
-/// Return the JWTHeader if its fields are valid.
-</span><span class="kw">fn </span>parse_and_validate_header(chunk: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;JWTHeader, FastCryptoError&gt; {
-    <span class="kw">let </span>header_str = std::str::from_utf8(chunk)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Cannot parse header string&quot;</span>.to_string()))<span class="question-mark">?</span>;
-    <span class="kw">let </span>decoded_header = Base64UrlUnpadded::decode_vec(header_str)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Invalid jwt header&quot;</span>.to_string()))<span class="question-mark">?</span>;
-    <span class="kw">let </span>json_header: Value = serde_json::from_slice(<span class="kw-2">&amp;</span>decoded_header)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Invalid json&quot;</span>.to_string()))<span class="question-mark">?</span>;
-    <span class="kw">let </span>header: JWTHeader = serde_json::from_value(json_header)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Cannot parse jwt header&quot;</span>.to_string()))<span class="question-mark">?</span>;
-    <span class="kw">if </span>header.alg != <span class="string">&quot;RS256&quot; </span>|| header.typ != <span class="string">&quot;JWT&quot; </span>{
-        <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">&quot;Invalid header&quot;</span>.to_string()))
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Ok</span>(header)
+<span class="doccomment">/// Pads a stream of bytes and maps it to a field element
+</span><span class="kw">pub fn </span>hash_ascii_str_to_field(str: <span class="kw-2">&amp;</span>str, max_size: u8) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
+    <span class="kw">let </span>str_padded = str_to_padded_char_codes(str, max_size)<span class="question-mark">?</span>;
+    hash_to_field(<span class="kw-2">&amp;</span>str_padded, <span class="number">8</span>, PACK_WIDTH)
+}
+
+<span class="kw">fn </span>str_to_padded_char_codes(str: <span class="kw-2">&amp;</span>str, max_len: u8) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;BigUint&gt;, FastCryptoError&gt; {
+    <span class="kw">let </span>arr: Vec&lt;BigUint&gt; = str
+        .chars()
+        .map(|c| BigUint::from_slice(<span class="kw-2">&amp;</span>([c <span class="kw">as </span>u32])))
+        .collect();
+    pad_with_zeroes(arr, max_len)
+}
+
+<span class="kw">fn </span>pad_with_zeroes(in_arr: Vec&lt;BigUint&gt;, out_count: u8) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;BigUint&gt;, FastCryptoError&gt; {
+    <span class="kw">if </span>in_arr.len() &gt; out_count <span class="kw">as </span>usize {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">&quot;in_arr too long&quot;</span>.to_string()));
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>padded = in_arr;
+    padded.resize(out_count <span class="kw">as </span>usize, BigUint::zero());
+    <span class="prelude-val">Ok</span>(padded)
+}
+
+<span class="doccomment">/// Maps a stream of bigints to a single field element. First we convert the base from
+/// inWidth to packWidth. Then we compute the poseidon hash of the &quot;packed&quot; input.
+/// input is the input vector containing equal-width big ints. inWidth is the width of
+/// each input element.
+</span><span class="kw">fn </span>hash_to_field(
+    input: <span class="kw-2">&amp;</span>[BigUint],
+    in_width: u16,
+    pack_width: u8,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
+    <span class="kw">let </span>packed = convert_base(input, in_width, pack_width)<span class="question-mark">?</span>;
+    to_poseidon_hash(packed)
+}
+
+<span class="kw">fn </span>div_ceil(dividend: usize, divisor: usize) -&gt; <span class="prelude-ty">Result</span>&lt;usize, FastCryptoError&gt; {
+    <span class="kw">if </span>divisor == <span class="number">0 </span>{
+        <span class="comment">// Handle division by zero as needed for your application.
+        </span><span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+    }
+
+    <span class="prelude-val">Ok</span>(<span class="number">1 </span>+ ((dividend - <span class="number">1</span>) / divisor))
+}
+
+<span class="doccomment">/// Helper function to pack field elements from big ints.
+</span><span class="kw">fn </span>convert_base(
+    in_arr: <span class="kw-2">&amp;</span>[BigUint],
+    in_width: u16,
+    out_width: u8,
+) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Bn254Fr&gt;, FastCryptoError&gt; {
+    <span class="kw">let </span>bits = big_int_array_to_bits(in_arr, in_width <span class="kw">as </span>usize);
+    <span class="kw">let </span><span class="kw-2">mut </span>packed: Vec&lt;Bn254Fr&gt; = bits
+        .rchunks(out_width <span class="kw">as </span>usize)
+        .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, <span class="number">2</span>).unwrap()))
+        .collect();
+    packed.reverse();
+    <span class="kw">match </span>packed.len() != div_ceil(in_arr.len() * in_width <span class="kw">as </span>usize, out_width <span class="kw">as </span>usize).unwrap() {
+        <span class="bool-val">true </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+        <span class="bool-val">false </span>=&gt; <span class="prelude-val">Ok</span>(packed),
     }
 }
 
-<span class="doccomment">/// Calculate the merklized hash of the given bytes after 0 paddings.
-</span><span class="kw">pub fn </span>calculate_merklized_hash(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>bitarray = bytearray_to_bits(bytes);
-    pad_bitarray(<span class="kw-2">&amp;mut </span>bitarray, <span class="number">248</span>);
-    <span class="kw">let </span>bigints = convert_to_bigints(<span class="kw-2">&amp;</span>bitarray, <span class="number">248</span>);
-    to_poseidon_hash(bigints)
-}
+<span class="doccomment">/// Convert a big int array to a bit array with 0 paddings.
+</span><span class="kw">fn </span>big_int_array_to_bits(arr: <span class="kw-2">&amp;</span>[BigUint], int_size: usize) -&gt; Vec&lt;u8&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>bitarray: Vec&lt;u8&gt; = Vec::new();
+    <span class="kw">for </span>num <span class="kw">in </span>arr {
+        <span class="kw">let </span>val = num.to_radix_be(<span class="number">2</span>);
+        <span class="kw">let </span>extra_bits = <span class="kw">if </span>val.len() &lt; int_size {
+            int_size - val.len()
+        } <span class="kw">else </span>{
+            <span class="number">0
+        </span>};
 
-<span class="doccomment">/// Calculate the hash of the inputs.
-</span><span class="kw">pub fn </span>to_poseidon_hash(inputs: Vec&lt;Bn254Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="kw">if </span>inputs.len() &lt;= <span class="number">15 </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        <span class="prelude-val">Ok</span>(poseidon1.hash(inputs)<span class="question-mark">?</span>.to_string())
-    } <span class="kw">else if </span>inputs.len() &lt;= <span class="number">30 </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>poseidon1: PoseidonWrapper = PoseidonWrapper::new();
-        <span class="kw">let </span>hash1 = poseidon1.hash(inputs[<span class="number">0</span>..<span class="number">15</span>].to_vec())<span class="question-mark">?</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>poseidon2 = PoseidonWrapper::new();
-        <span class="kw">let </span>hash2 = poseidon2.hash(inputs[<span class="number">15</span>..].to_vec())<span class="question-mark">?</span>;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>poseidon3 = PoseidonWrapper::new();
-        <span class="kw">let </span>hash_final = poseidon3.hash([hash1, hash2].to_vec());
-
-        <span class="prelude-val">Ok</span>(hash_final<span class="question-mark">?</span>.to_string())
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
+        <span class="kw">let </span><span class="kw-2">mut </span>padded = <span class="macro">vec!</span>[<span class="number">0</span>; extra_bits];
+        padded.extend(val);
+        bitarray.extend(padded)
     }
-}
-<span class="doccomment">/// Convert a bytearray to a bitarray.
-</span><span class="kw">fn </span>bytearray_to_bits(bytearray: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;bool&gt; {
-    bytearray
-        .iter()
-        .flat_map(|<span class="kw-2">&amp;</span>byte| (<span class="number">0</span>..<span class="number">8</span>).rev().map(<span class="kw">move </span>|i| (byte &gt;&gt; i) &amp; <span class="number">1 </span>== <span class="number">1</span>))
-        .collect()
-}
-
-<span class="doccomment">/// Convert a bitarray to a bytearray.
-</span><span class="kw">fn </span>bitarray_to_string(bitarray: <span class="kw-2">&amp;</span>[bool]) -&gt; Vec&lt;u8&gt; {
-    bitarray.iter().map(|<span class="kw-2">&amp;</span>b| u8::from(b)).collect()
-}
-
-<span class="doccomment">/// Pad the bitarray some number of 0s so that its length is a multiple of the segment size.
-</span><span class="kw">fn </span>pad_bitarray(bitarray: <span class="kw-2">&amp;mut </span>Vec&lt;bool&gt;, segment_size: usize) {
-    <span class="kw">let </span>remainder = bitarray.len() % segment_size;
-    <span class="kw">if </span>remainder != <span class="number">0 </span>{
-        bitarray.extend(std::iter::repeat(<span class="bool-val">false</span>).take(segment_size - remainder));
-    }
-}
-
-<span class="doccomment">/// Convert a bitarray to a vector of field elements, padded using segment size.
-</span><span class="kw">fn </span>convert_to_bigints(bitarray: <span class="kw-2">&amp;</span>[bool], segment_size: usize) -&gt; Vec&lt;Bn254Fr&gt; {
-    <span class="kw">let </span>chunks = bitarray.chunks(segment_size);
-    chunks
-        .map(|chunk| {
-            <span class="kw">let </span><span class="kw-2">mut </span>bytes = <span class="macro">vec!</span>[<span class="number">0</span>; (segment_size + <span class="number">7</span>) / <span class="number">8</span>];
-            <span class="kw">for </span>(i, <span class="kw-2">&amp;</span>bit) <span class="kw">in </span>chunk.iter().enumerate() {
-                bytes[i / <span class="number">8</span>] |= (bit <span class="kw">as </span>u8) &lt;&lt; (<span class="number">7 </span>- i % <span class="number">8</span>);
-            }
-            <span class="kw">let </span>f = bitarray_to_string(chunk);
-            <span class="kw">let </span>st = BigUint::from_radix_be(<span class="kw-2">&amp;</span>f, <span class="number">2</span>).unwrap().to_string();
-            Bn254Fr::from_str(<span class="kw-2">&amp;</span>st).unwrap()
-        })
-        .collect()
+    bitarray
 }
 </code></pre></div></section></main></body></html>

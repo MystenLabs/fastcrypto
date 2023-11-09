@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/conversion.rs`."><title>conversion.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f40c346f39d9abc1.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (46514218f 2023-06-20)" data-search-js="search-95c92dd01058facf.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-190c35055d2a8300.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/conversion.rs`."><title>conversion.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (fdaaaf9f9 2023-11-08)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -192,6 +192,13 @@
 <a href="#192" id="192">192</a>
 <a href="#193" id="193">193</a>
 <a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -223,23 +230,26 @@
 }
 
 <span class="doccomment">/// Convert an arkworks field element to a p256 field element.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fq_arkworks_to_p256(scalar: <span class="kw-2">&amp;</span>ark_secp256r1::Fq) -&gt; p256::Scalar {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fq_arkworks_to_p256(scalar: <span class="kw-2">&amp;</span>ark_secp256r1::Fq) -&gt; FieldBytes {
     <span class="comment">// This implementation is taken from bls_fq_to_blst_fp in fastcrypto-zkp.
     </span><span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; <span class="number">32</span>];
     scalar.serialize_uncompressed(<span class="kw-2">&amp;mut </span>bytes[..]).unwrap();
-    p256::Scalar::from_uint_unchecked(U256::from_le_byte_array(FieldBytes::from(bytes)))
+    bytes.reverse();
+    p256::FieldBytes::from(bytes)
 }
 
 <span class="doccomment">/// Convert an p256 affine point to an arkworks affine point.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>affine_pt_p256_to_arkworks(point: <span class="kw-2">&amp;</span>p256::AffinePoint) -&gt; ark_secp256r1::Affine {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>affine_pt_p256_to_projective_arkworks(
+    point: <span class="kw-2">&amp;</span>p256::AffinePoint,
+) -&gt; ark_secp256r1::Projective {
     <span class="kw">if </span>point.is_identity().into() {
-        <span class="kw">return </span>ark_secp256r1::Affine::zero();
+        <span class="kw">return </span>ark_secp256r1::Projective::zero();
     }
     <span class="kw">let </span>encoded_point = point.to_encoded_point(<span class="bool-val">false</span>);
-    ark_secp256r1::Affine::new_unchecked(
+    ark_secp256r1::Projective::from(ark_secp256r1::Affine::new_unchecked(
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.x().unwrap()),
         ark_secp256r1::Fq::from_be_bytes_mod_order(encoded_point.y().unwrap()),
-    )
+    ))
 }
 
 <span class="doccomment">/// Reduce a big-endian integer representation modulo the subgroup order in arkworks representation.
@@ -247,11 +257,13 @@
     ark_secp256r1::Fr::from_be_bytes_mod_order(bytes)
 }
 
-<span class="doccomment">/// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order)
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arkworks_fq_to_fr(scalar: <span class="kw-2">&amp;</span>ark_secp256r1::Fq) -&gt; ark_secp256r1::Fr {
+<span class="doccomment">/// Reduce an arkworks field element (modulo field size) to a scalar (modulo subgroup order). This also
+/// returns a boolean indicating whether a modular reduction was performed.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>arkworks_fq_to_fr(scalar: <span class="kw-2">&amp;</span>ark_secp256r1::Fq) -&gt; (ark_secp256r1::Fr, bool) {
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; <span class="number">32</span>];
     scalar.serialize_uncompressed(<span class="kw-2">&amp;mut </span>bytes[..]).unwrap();
-    ark_secp256r1::Fr::from_le_bytes_mod_order(<span class="kw-2">&amp;</span>bytes)
+    <span class="kw">let </span>output = ark_secp256r1::Fr::from_le_bytes_mod_order(<span class="kw-2">&amp;</span>bytes);
+    (output, output.into_bigint() != scalar.into_bigint())
 }
 
 <span class="doccomment">/// Converts an arkworks affine point to a p256 affine point.
@@ -260,8 +272,8 @@
         <span class="kw">return </span>p256::AffinePoint::IDENTITY;
     }
     <span class="kw">let </span>encoded_point = p256::EncodedPoint::from_affine_coordinates(
-        <span class="kw-2">&amp;</span>fq_arkworks_to_p256(point.x().expect(<span class="string">&quot;The point should not be zero&quot;</span>)).to_bytes(),
-        <span class="kw-2">&amp;</span>fq_arkworks_to_p256(point.y().expect(<span class="string">&quot;The point should not be zero&quot;</span>)).to_bytes(),
+        <span class="kw-2">&amp;</span>fq_arkworks_to_p256(point.x().expect(<span class="string">&quot;The point should not be zero&quot;</span>)),
+        <span class="kw-2">&amp;</span>fq_arkworks_to_p256(point.y().expect(<span class="string">&quot;The point should not be zero&quot;</span>)),
         <span class="bool-val">false</span>,
     );
     p256::AffinePoint::from_encoded_point(<span class="kw-2">&amp;</span>encoded_point).unwrap()
@@ -341,46 +353,48 @@
     </span><span class="kw">fn </span>test_pt_p256_to_arkworks() {
         <span class="comment">// 0
         </span><span class="macro">assert_eq!</span>(
-            ark_secp256r1::Affine::zero(),
-            affine_pt_p256_to_arkworks(<span class="kw-2">&amp;</span>p256::AffinePoint::IDENTITY)
+            ark_secp256r1::Projective::zero(),
+            affine_pt_p256_to_projective_arkworks(<span class="kw-2">&amp;</span>p256::AffinePoint::IDENTITY)
         );
 
         <span class="comment">// G
         </span><span class="macro">assert_eq!</span>(
-            ark_secp256r1::Affine::generator() * ark_secp256r1::Fr::from(<span class="number">7u32</span>),
-            affine_pt_p256_to_arkworks(
+            ark_secp256r1::Projective::generator() * ark_secp256r1::Fr::from(<span class="number">7u32</span>),
+            affine_pt_p256_to_projective_arkworks(
                 <span class="kw-2">&amp;</span>(p256::AffinePoint::generator() * p256::Scalar::from(<span class="number">7u32</span>)).to_affine()
             )
         );
 
         <span class="comment">// 7G
         </span><span class="macro">assert_eq!</span>(
-            ark_secp256r1::Affine::generator(),
-            affine_pt_p256_to_arkworks(<span class="kw-2">&amp;</span>p256::AffinePoint::generator())
+            ark_secp256r1::Projective::generator(),
+            affine_pt_p256_to_projective_arkworks(<span class="kw-2">&amp;</span>p256::AffinePoint::generator())
         );
 
         <span class="comment">// sG, random s
         </span><span class="kw">let </span>random_s = p256::Scalar::random(<span class="kw-2">&amp;mut </span>rand::thread_rng());
         <span class="macro">assert_eq!</span>(
-            (ark_secp256r1::Affine::generator() * fr_p256_to_arkworks(<span class="kw-2">&amp;</span>random_s)).into_affine(),
-            affine_pt_p256_to_arkworks(<span class="kw-2">&amp;</span>(p256::AffinePoint::generator() * random_s).to_affine())
+            (ark_secp256r1::Projective::generator() * fr_p256_to_arkworks(<span class="kw-2">&amp;</span>random_s)).into_affine(),
+            affine_pt_p256_to_projective_arkworks(
+                <span class="kw-2">&amp;</span>(p256::AffinePoint::generator() * random_s).to_affine()
+            )
         );
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_arkworks_fq_to_fr() {
         <span class="kw">let </span>s = ark_secp256r1::Fq::rand(<span class="kw-2">&amp;mut </span>rand::thread_rng());
-        <span class="kw">let </span>s_fr = arkworks_fq_to_fr(<span class="kw-2">&amp;</span>s);
+        <span class="kw">let </span>s_fr = arkworks_fq_to_fr(<span class="kw-2">&amp;</span>s).<span class="number">0</span>;
         <span class="kw">let </span>p256_s = fq_arkworks_to_p256(<span class="kw-2">&amp;</span>s);
-        <span class="kw">let </span>reduced_s = p256::Scalar::reduce_bytes(<span class="kw-2">&amp;</span>p256_s.to_bytes());
+        <span class="kw">let </span>reduced_s = p256::Scalar::reduce_bytes(<span class="kw-2">&amp;</span>p256_s);
         <span class="macro">assert_eq!</span>(fr_arkworks_to_p256(<span class="kw-2">&amp;</span>s_fr), reduced_s);
-        <span class="macro">assert_eq!</span>(reduce_bytes(<span class="kw-2">&amp;</span>p256_s.to_bytes().try_into().unwrap()), s_fr);
+        <span class="macro">assert_eq!</span>(reduce_bytes(<span class="kw-2">&amp;</span>p256_s.try_into().unwrap()), s_fr);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_fq_arkworks_to_p256() {
         <span class="kw">let </span>arkworks_seven = ark_secp256r1::Fq::from(<span class="number">7u32</span>);
-        <span class="kw">let </span>p256_seven = p256::Scalar::from(<span class="number">7u32</span>);
+        <span class="kw">let </span>p256_seven = p256::FieldBytes::from(p256::Scalar::from(<span class="number">7u32</span>));
 
         <span class="kw">let </span>actual_p256_seven = fq_arkworks_to_p256(<span class="kw-2">&amp;</span>arkworks_seven);
         <span class="macro">assert_eq!</span>(actual_p256_seven, p256_seven);

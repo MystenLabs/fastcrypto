@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/integer_utils.rs`."><title>integer_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-f40c346f39d9abc1.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (46514218f 2023-06-20)" data-search-js="search-95c92dd01058facf.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../static.files/main-190c35055d2a8300.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../../fastcrypto/index.html"><img class="rust-logo" src="../../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/integer_utils.rs`."><title>integer_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (fdaaaf9f9 2023-11-08)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -154,6 +154,41 @@
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
 <a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -183,15 +218,26 @@
 }
 
 <span class="doccomment">/// Get the integer represented by a given range of bits of a byte from start to end (exclusive).
+/// Both the start and end parameter may be greater than 8, in which case the remaining bits of the
+/// byte will be assumed to be zero.
 </span><span class="attr">#[inline]
 </span><span class="kw">fn </span>get_lendian_from_substring(byte: <span class="kw-2">&amp;</span>u8, start: usize, end: usize) -&gt; u8 {
     <span class="macro">assert!</span>(start &lt;= end);
+    <span class="kw">if </span>start &gt; <span class="number">7 </span>{
+        <span class="kw">return </span><span class="number">0</span>;
+    } <span class="kw">else if </span>end &gt; <span class="number">8 </span>{
+        <span class="kw">return </span>get_lendian_from_substring(byte, start, <span class="number">8</span>);
+    }
     byte &gt;&gt; start &amp; ((<span class="number">1 </span>&lt;&lt; (end - start)) - <span class="number">1</span>) <span class="kw">as </span>u8
 }
 
 <span class="doccomment">/// Compute ceil(numerator / denominator).
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>div_ceil(numerator: usize, denominator: usize) -&gt; usize {
-    (numerator + denominator - <span class="number">1</span>) / denominator
+    <span class="macro">assert!</span>(denominator &gt; <span class="number">0</span>);
+    <span class="kw">if </span>numerator == <span class="number">0 </span>{
+        <span class="kw">return </span><span class="number">0</span>;
+    }
+    <span class="number">1 </span>+ ((numerator - <span class="number">1</span>) / denominator)
 }
 
 <span class="doccomment">/// Get the integer represented by a given range of bits of a an integer represented by a little-endian
@@ -247,6 +293,14 @@
     (usize::BITS - x.leading_zeros() - <span class="number">1</span>) <span class="kw">as </span>usize
 }
 
+<span class="doccomment">/// Return true iff the given number is a power of 2.
+</span><span class="kw">pub fn </span>is_power_of_2(x: usize) -&gt; bool {
+    <span class="kw">if </span>x == <span class="number">0 </span>{
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+    x &amp; (x - <span class="number">1</span>) == <span class="number">0
+</span>}
+
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
@@ -274,6 +328,9 @@
         <span class="macro">assert_eq!</span>(<span class="number">129</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">0</span>, <span class="number">8</span>));
         <span class="macro">assert_eq!</span>(<span class="number">64</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">1</span>, <span class="number">8</span>));
         <span class="macro">assert_eq!</span>(<span class="number">16</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">3</span>, <span class="number">8</span>));
+        <span class="macro">assert_eq!</span>(<span class="number">129</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">0</span>, <span class="number">100</span>));
+        <span class="macro">assert_eq!</span>(<span class="number">1</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">7</span>, <span class="number">8</span>));
+        <span class="macro">assert_eq!</span>(<span class="number">0</span>, get_lendian_from_substring(<span class="kw-2">&amp;</span>byte, <span class="number">8</span>, <span class="number">8</span>));
     }
 
     <span class="attr">#[test]
@@ -308,6 +365,19 @@
         <span class="macro">assert_eq!</span>(<span class="number">1</span>, get_bits_from_bytes(<span class="kw-2">&amp;</span>bytes, <span class="number">16</span>, <span class="number">17</span>));
         <span class="macro">assert_eq!</span>(<span class="number">0</span>, get_bits_from_bytes(<span class="kw-2">&amp;</span>bytes, <span class="number">17</span>, <span class="number">23</span>));
         <span class="macro">assert_eq!</span>(<span class="number">1</span>, get_bits_from_bytes(<span class="kw-2">&amp;</span>bytes, <span class="number">23</span>, <span class="number">100</span>));
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_is_power_of_two() {
+        <span class="macro">assert!</span>(!is_power_of_2(<span class="number">0</span>));
+        <span class="macro">assert!</span>(is_power_of_2(<span class="number">1</span>));
+        <span class="macro">assert!</span>(is_power_of_2(<span class="number">2</span>));
+        <span class="macro">assert!</span>(!is_power_of_2(<span class="number">3</span>));
+        <span class="macro">assert!</span>(is_power_of_2(<span class="number">4</span>));
+        <span class="macro">assert!</span>(!is_power_of_2(<span class="number">511</span>));
+        <span class="macro">assert!</span>(is_power_of_2(<span class="number">512</span>));
+        <span class="macro">assert!</span>(!is_power_of_2(<span class="number">513</span>));
+        <span class="macro">assert!</span>(is_power_of_2(<span class="number">4096</span>));
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ChiaFiatShamir","StrongFiatShamir","WesolowskiVDF"],"trait":["FiatShamir"],"type":["ChiaClassGroupVDF","ClassGroupVDF"]};

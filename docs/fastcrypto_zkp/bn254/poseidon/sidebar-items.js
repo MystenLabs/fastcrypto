@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["PoseidonWrapper"]};
+window.SIDEBAR_ITEMS = {"constant":["FIELD_ELEMENT_SIZE_IN_BYTES"],"fn":["hash","hash_to_bytes","hash_to_field_element","to_poseidon_hash"]};

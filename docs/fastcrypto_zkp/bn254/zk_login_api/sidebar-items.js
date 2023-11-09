@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"derive":["CanonicalDeserialize","CanonicalSerialize"],"enum":["ZkLoginEnv"],"fn":["verify_zk_login","verify_zk_login_id","verify_zk_login_iss","verify_zk_login_proof_with_fixed_vk"],"trait":["CanonicalDeserialize","CanonicalSerialize","ToConstraintField"],"type":["Bn254","Bn254Fr"]};

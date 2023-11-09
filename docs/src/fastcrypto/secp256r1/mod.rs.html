@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Bold-a2c9cd1067f8b328.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-f40c346f39d9abc1.css" id="mainThemeStyle"><div id="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.72.0-nightly (46514218f 2023-06-20)" data-search-js="search-95c92dd01058facf.js" data-settings-js="settings-de11bff964e9d4e5.js" data-settings-css="settings-8c76f75bfb6bd192.css" data-theme-light-css="light-0f8c037637f9eb3e.css" data-theme-dark-css="dark-1097f8e92a01e3cf.css" data-theme-ayu-css="ayu-614652228113ac93.css" ></div><script src="../../../static.files/storage-62ce34ea385b278a.js"></script><script defer src="../../../static.files/source-script-11255107d0a65077.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../static.files/main-190c35055d2a8300.js"></script><noscript><link rel="stylesheet" media="(prefers-color-scheme:light)" href="../../../static.files/light-0f8c037637f9eb3e.css"><link rel="stylesheet" media="(prefers-color-scheme:dark)" href="../../../static.files/dark-1097f8e92a01e3cf.css"><link rel="stylesheet" href="../../../static.files/noscript-13285aec31fa243e.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><a class="sub-logo-container" href="../../../fastcrypto/index.html"><img class="rust-logo" src="../../../static.files/rust-logo-151179464ae7ed46.svg" alt="logo"></a><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/secp256r1/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.75.0-nightly (fdaaaf9f9 2023-11-08)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-9dd44ab47b99a0fb.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -502,20 +502,6 @@
 <a href="#502" id="502">502</a>
 <a href="#503" id="503">503</a>
 <a href="#504" id="504">504</a>
-<a href="#505" id="505">505</a>
-<a href="#506" id="506">506</a>
-<a href="#507" id="507">507</a>
-<a href="#508" id="508">508</a>
-<a href="#509" id="509">509</a>
-<a href="#510" id="510">510</a>
-<a href="#511" id="511">511</a>
-<a href="#512" id="512">512</a>
-<a href="#513" id="513">513</a>
-<a href="#514" id="514">514</a>
-<a href="#515" id="515">515</a>
-<a href="#516" id="516">516</a>
-<a href="#517" id="517">517</a>
-<a href="#518" id="518">518</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -545,9 +531,8 @@
     serialize_deserialize_with_to_from_bytes,
 };
 <span class="kw">use </span>ark_ec::{AffineRepr, CurveGroup};
-<span class="kw">use </span>ark_ff::Field;
-<span class="kw">use </span>ark_secp256r1::Projective;
-<span class="kw">use </span>elliptic_curve::{Curve, FieldBytesEncoding, PrimeField};
+<span class="kw">use </span>ark_ff::{BigInteger, Field, PrimeField};
+<span class="kw">use </span>elliptic_curve::{Curve, FieldBytesEncoding, PrimeField <span class="kw">as </span>OtherPrimeField};
 <span class="kw">use </span>lazy_static::lazy_static;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>p256::ecdsa::{
@@ -556,10 +541,9 @@
 };
 <span class="kw">use </span>p256::elliptic_curve::group::GroupEncoding;
 <span class="kw">use </span>p256::elliptic_curve::scalar::IsHigh;
-<span class="kw">use </span>p256::{FieldBytes, NistP256, Scalar};
+<span class="kw">use </span>p256::{NistP256, Scalar};
 <span class="kw">use </span>std::fmt::{<span class="self">self</span>, Debug};
 <span class="kw">use </span>std::str::FromStr;
-<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 
@@ -569,8 +553,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
 <span class="kw">use </span><span class="kw">crate</span>::hash::{HashFunction, Sha256};
 <span class="kw">use </span><span class="kw">crate</span>::secp256r1::conversion::{
-    affine_pt_p256_to_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256, fr_p256_to_arkworks,
-    get_affine_x_coordinate, reduce_bytes,
+    affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256,
+    fr_p256_to_arkworks, get_affine_x_coordinate, reduce_bytes,
 };
 <span class="kw">use </span><span class="kw">crate</span>::secp256r1::recoverable::Secp256r1RecoverableSignature;
 <span class="kw">use </span><span class="kw">crate</span>::traits::Signer;
@@ -618,7 +602,7 @@
 #[derive(SilentDebug, SilentDisplay)]
 </span><span class="kw">pub struct </span>Secp256r1PrivateKey {
     <span class="kw">pub </span>privkey: ExternalSecretKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; SECP256R1_PRIVATE_KEY_LENGTH]&gt;,
+    <span class="kw">pub </span>bytes: OnceCell&lt;zeroize::Zeroizing&lt;[u8; SECP256R1_PRIVATE_KEY_LENGTH]&gt;&gt;,
 }
 
 <span class="doccomment">/// Secp256r1 signature.
@@ -637,13 +621,13 @@
 
 <span class="kw">impl </span>PartialOrd <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
-        <span class="self">self</span>.as_ref().partial_cmp(other.as_ref())
+        <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
     }
 }
 
 <span class="kw">impl </span>Ord <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
-        <span class="self">self</span>.as_ref().cmp(other.as_ref())
+        <span class="self">self</span>.pubkey.cmp(<span class="kw-2">&amp;</span>other.pubkey)
     }
 }
 
@@ -668,13 +652,13 @@
 <span class="macro">lazy_static! </span>{
     <span class="kw">static </span><span class="kw-2">ref </span>MULTIPLIER: WindowedScalarMultiplier&lt;
         ProjectivePoint,
-        <span class="kw">crate</span>::groups::secp256r1::Scalar,
+        &lt;ProjectivePoint <span class="kw">as </span>GroupElement&gt;::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
     &gt; = WindowedScalarMultiplier::&lt;
         ProjectivePoint,
-        <span class="kw">crate</span>::groups::secp256r1::Scalar,
+        &lt;ProjectivePoint <span class="kw">as </span>GroupElement&gt;::ScalarType,
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
@@ -711,7 +695,7 @@
         <span class="comment">// Convert scalars to arkworks representation
         </span><span class="kw">let </span>r = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>r);
         <span class="kw">let </span>s = fr_p256_to_arkworks(<span class="kw-2">&amp;</span>s);
-        <span class="kw">let </span>q = affine_pt_p256_to_arkworks(<span class="self">self</span>.pubkey.as_affine());
+        <span class="kw">let </span>q = affine_pt_p256_to_projective_arkworks(<span class="self">self</span>.pubkey.as_affine());
 
         <span class="comment">// Compute inverse of s. This fails if s is zero which is checked in deserialization and in
         // split_scalars above, but we avoid an unwrap here to be safe.
@@ -725,16 +709,17 @@
         </span><span class="kw">let </span>p = MULTIPLIER
             .two_scalar_mul(
                 <span class="kw-2">&amp;</span>secp256r1::Scalar(u1),
-                <span class="kw-2">&amp;</span>ProjectivePoint(Projective::from(q)),
+                <span class="kw-2">&amp;</span>ProjectivePoint(q),
                 <span class="kw-2">&amp;</span>secp256r1::Scalar(u2),
             )
             .<span class="number">0</span>;
 
-        <span class="kw">let </span>x = get_affine_x_coordinate(<span class="kw-2">&amp;</span>p);
-
         <span class="comment">// Note that x is none if and only if p is zero, in which case the signature is invalid. See
         // step 5 in section 4.1.4 in &quot;SEC 1: Elliptic Curve Cryptography&quot;.
-        </span><span class="kw">if </span>x.is_some() &amp;&amp; arkworks_fq_to_fr(<span class="kw-2">&amp;</span>x.unwrap()) == r {
+        </span><span class="kw">let </span>x = get_affine_x_coordinate(<span class="kw-2">&amp;</span>p).ok_or(FastCryptoError::InvalidSignature)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>(x_reduced, <span class="kw">_</span>) = arkworks_fq_to_fr(<span class="kw-2">&amp;</span>x);
+        <span class="kw">if </span>x_reduced == r {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
         <span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature)
@@ -744,8 +729,7 @@
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256r1PublicKey {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.bytes
-            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.pubkey.as_ref().to_bytes().into()))
-            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
+            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.pubkey.as_ref().to_bytes().into())
     }
 }
 
@@ -789,11 +773,11 @@
         <span class="kw">match </span>ExternalSecretKey::try_from(bytes) {
             <span class="prelude-val">Ok</span>(privkey) =&gt; <span class="prelude-val">Ok</span>(Secp256r1PrivateKey {
                 privkey,
-                bytes: OnceCell::with_value(
+                bytes: OnceCell::with_value(zeroize::Zeroizing::new(
                     &lt;[u8; SECP256R1_PRIVATE_KEY_LENGTH]&gt;::try_from(bytes).map_err(|<span class="kw">_</span>| {
                         FastCryptoError::InputLengthWrong(SECP256R1_PRIVATE_KEY_LENGTH)
                     })<span class="question-mark">?</span>,
-                ),
+                )),
             }),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
@@ -811,25 +795,14 @@
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256r1PrivateKey {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
         <span class="self">self</span>.bytes
-            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| <span class="prelude-val">Ok</span>(<span class="self">self</span>.privkey.to_bytes().into()))
-            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
+            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| zeroize::Zeroizing::new(<span class="self">self</span>.privkey.to_bytes().into()))
+            .as_ref()
     }
 }
 
-<span class="kw">impl </span>zeroize::Zeroize <span class="kw">for </span>Secp256r1PrivateKey {
-    <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.bytes.take().zeroize();
-        <span class="comment">// SigningKey from the p256 crate implements zeroize on drop, so we do not need to zeroize it here.
-    </span>}
-}
-
-<span class="kw">impl </span>Drop <span class="kw">for </span>Secp256r1PrivateKey {
-    <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="self">self</span>.bytes.take().zeroize();
-    }
-}
-
-<span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256r1PrivateKey {}
+<span class="comment">// All fields impl zeroize::ZeroizeOnDrop directly or indirectly (OnceCell&#39;s drop will call
+// ZeroizeOnDrop).
+</span><span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>Secp256r1PrivateKey {}
 
 <span class="macro">serialize_deserialize_with_to_from_bytes!</span>(Secp256r1Signature, SECP256R1_SIGNATURE_LENTH);
 <span class="macro">generate_bytes_representation!</span>(
@@ -862,14 +835,9 @@
 
 <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>Secp256r1Signature {
     <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_try_init::&lt;<span class="kw">_</span>, eyre::Report&gt;(|| {
-                <span class="prelude-val">Ok</span>(
-                    &lt;[u8; SECP256R1_SIGNATURE_LENTH]&gt;::try_from(<span class="self">self</span>.sig.to_bytes().as_slice())
-                        .unwrap(),
-                )
-            })
-            .expect(<span class="string">&quot;OnceCell invariant violated&quot;</span>)
+        <span class="self">self</span>.bytes.get_or_init::&lt;<span class="kw">_</span>&gt;(|| {
+            &lt;[u8; SECP256R1_SIGNATURE_LENTH]&gt;::try_from(<span class="self">self</span>.sig.to_bytes().as_slice()).unwrap()
+        })
     }
 }
 
@@ -908,9 +876,9 @@
 <span class="kw">impl </span>Secp256r1KeyPair {
     <span class="doccomment">/// Sign a message using the given hash function and return the signature and the elliptic curve
     /// point R = kG where k is the ephemeral nonce generated according to RFC6979.
-    </span><span class="kw">fn </span>sign_common&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; (Signature, ark_secp256r1::Affine) {
+    </span><span class="kw">fn </span>sign_common&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; (Signature, bool, bool) {
         <span class="comment">// Hash message
-        </span><span class="kw">let </span>z = H::digest(msg).digest;
+        </span><span class="kw">let </span>z = reduce_bytes(<span class="kw-2">&amp;</span>H::digest(msg).digest);
 
         <span class="comment">// Private key as scalar
         </span><span class="kw">let </span>x = <span class="self">self</span>.secret.privkey.as_nonzero_scalar();
@@ -921,7 +889,7 @@
             <span class="kw-2">&amp;</span>Scalar::from_repr(rfc6979::generate_k::&lt;sha2::Sha256, <span class="kw">_</span>&gt;(
                 <span class="kw-2">&amp;</span>x.to_bytes(),
                 <span class="kw-2">&amp;</span>NistP256::ORDER.encode_field_bytes(),
-                <span class="kw-2">&amp;</span>FieldBytes::from(z),
+                <span class="kw-2">&amp;</span>fr_arkworks_to_p256(<span class="kw-2">&amp;</span>z).to_bytes(),
                 <span class="kw-2">&amp;</span>[],
             ))
             .unwrap(),
@@ -929,7 +897,6 @@
 
         <span class="comment">// Convert secret key and message to arkworks scalars.
         </span><span class="kw">let </span>x = fr_p256_to_arkworks(x);
-        <span class="kw">let </span>z = reduce_bytes(<span class="kw-2">&amp;</span>z);
 
         <span class="comment">// Compute scalar inversion of k
         </span><span class="kw">let </span>k_inv = k.inverse().expect(<span class="string">&quot;k should not be zero&quot;</span>);
@@ -938,10 +905,10 @@
         </span><span class="kw">let </span>big_r = MULTIPLIER.mul(<span class="kw-2">&amp;</span>secp256r1::Scalar(k)).<span class="number">0</span>.into_affine();
 
         <span class="comment">// Lift x-coordinate of R and reduce it into an element of the scalar field
-        </span><span class="kw">let </span>r = arkworks_fq_to_fr(big_r.x().expect(<span class="string">&quot;R should not be zero&quot;</span>));
+        </span><span class="kw">let </span>(r, is_x_reduced) = arkworks_fq_to_fr(big_r.x().expect(<span class="string">&quot;R should not be zero&quot;</span>));
 
         <span class="comment">// Compute s as a signature over r and z.
-        </span><span class="kw">let </span>s = k_inv * (z + (r * x));
+        </span><span class="kw">let </span>s = k_inv * (z + r * x);
 
         <span class="comment">// Convert to p256 format
         </span><span class="kw">let </span>s = fr_arkworks_to_p256(<span class="kw-2">&amp;</span>s).to_bytes();
@@ -950,18 +917,23 @@
         <span class="comment">// This can only fail if either 𝒓 or 𝒔 are zero (see ecdsa-0.15.0/src/lib.rs) which is negligible.
         </span><span class="kw">let </span>signature = Signature::from_scalars(r, s).expect(<span class="string">&quot;r or s is zero&quot;</span>);
 
-        (signature, big_r)
-    }
-
-    <span class="doccomment">/// Create a new signature using the given hash function to hash the message.
-    </span><span class="kw">pub fn </span>sign_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256r1Signature {
-        <span class="kw">let </span>(signature, <span class="kw">_</span>) = <span class="self">self</span>.sign_common::&lt;H&gt;(msg);
+        <span class="comment">// The parity of the y coordinate is needed for computing the recovery id.
+        </span><span class="kw">let </span>is_r_odd = big_r.y().expect(<span class="string">&quot;R is zero&quot;</span>).into_bigint().is_odd();
+        <span class="kw">let </span>is_s_high: bool = signature.s().is_high().into();
+        <span class="kw">let </span>is_y_odd = is_r_odd ^ is_s_high;
 
         <span class="comment">// Normalize signature
         </span><span class="kw">let </span>normalized_signature = signature.normalize_s().unwrap_or(signature);
 
+        (normalized_signature, is_y_odd, is_x_reduced)
+    }
+
+    <span class="doccomment">/// Create a new signature using the given hash function to hash the message.
+    </span><span class="kw">pub fn </span>sign_with_hash&lt;H: HashFunction&lt;<span class="number">32</span>&gt;&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Secp256r1Signature {
+        <span class="kw">let </span>(signature, <span class="kw">_</span>, <span class="kw">_</span>) = <span class="self">self</span>.sign_common::&lt;H&gt;(msg);
+
         Secp256r1Signature {
-            sig: normalized_signature,
+            sig: signature,
             bytes: OnceCell::new(),
         }
     }
