@@ -38,12 +38,12 @@ impl QuadraticForm {
     /// length in bits.
     pub fn serialized_length(discriminant_in_bits: usize) -> usize {
         // The number of 32 bit words needed to represent the discriminant rounded up,
-        ((discriminant_in_bits + 31) / 32
+        (discriminant_in_bits + 31) / 32
             * 3 // a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
             + 1 // Flags for special forms (identity or generator) and the sign of b and t'.
             + 1 // The size of g - 1 = g_size.
             // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
-            + 2) as usize
+            + 2
     }
 
     /// Serialize a quadratic form. The length of the serialization in bytes depends on the bit-length

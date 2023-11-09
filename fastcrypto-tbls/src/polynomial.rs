@@ -41,12 +41,6 @@ impl<C> From<Vec<C>> for Poly<C> {
     }
 }
 
-impl<C> From<Poly<C>> for Vec<C> {
-    fn from(poly: Poly<C>) -> Self {
-        poly.0
-    }
-}
-
 /// GroupElement operations.
 
 impl<C: GroupElement> Poly<C> {
@@ -83,12 +77,13 @@ impl<C: GroupElement> Poly<C> {
         }
     }
 
-    fn get_lagrange_coefficients(
+    // Expects exactly t unique shares.
+    fn get_lagrange_coefficients_for_c0(
         t: u32,
         shares: &[Eval<C>],
     ) -> FastCryptoResult<Vec<C::ScalarType>> {
-        if shares.len() < t as usize {
-            return Err(FastCryptoError::NotEnoughInputs);
+        if shares.len() != t as usize {
+            return Err(FastCryptoError::InvalidInput);
         }
         // Check for duplicates.
         let mut ids_set = HashSet::new();
@@ -119,10 +114,9 @@ impl<C: GroupElement> Poly<C> {
         Ok(coeffs)
     }
 
-    /// Given at least `t` polynomial evaluations, it will recover the polynomial's
-    /// constant term
+    /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
     pub fn recover_c0(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
-        let coeffs = Self::get_lagrange_coefficients(t, shares)?;
+        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares)?;
         let plain_shares = shares.iter().map(|s| s.value).collect::<Vec<_>>();
         let res = coeffs
             .iter()
@@ -132,10 +126,14 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Checks if a given share is valid.
-    pub fn is_valid_share(&self, idx: ShareIndex, share: &C::ScalarType) -> bool {
+    pub fn verify_share(&self, idx: ShareIndex, share: &C::ScalarType) -> FastCryptoResult<()> {
         let e = C::generator() * share;
         let pub_eval = self.eval(idx);
-        pub_eval.value == e
+        if pub_eval.value == e {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidInput)
+        }
     }
 
     /// Return the constant term of the polynomial.
@@ -166,11 +164,7 @@ impl<C: Scalar> Poly<C> {
         let commits = self
             .0
             .iter()
-            .map(|c| {
-                let mut commitment = P::generator();
-                commitment = commitment * c;
-                commitment
-            })
+            .map(|c| P::generator() * c)
             .collect::<Vec<P>>();
 
         Poly::<P>::from(commits)
@@ -178,10 +172,10 @@ impl<C: Scalar> Poly<C> {
 }
 
 impl<C: GroupElement + MultiScalarMul> Poly<C> {
-    /// Given at least `t` polynomial evaluations, it will recover the polynomial's
-    /// constant term
+    /// Given exactly `t` polynomial evaluations, it will recover the polynomial's
+    /// constant term.
     pub fn recover_c0_msm(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
-        let coeffs = Self::get_lagrange_coefficients(t, shares)?;
+        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares)?;
         let plain_shares = shares.iter().map(|s| s.value).collect::<Vec<_>>();
         let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
         Ok(res)

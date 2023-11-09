@@ -107,6 +107,9 @@ pub trait ThresholdBls {
             .take(threshold as usize)
             .cloned()
             .collect::<Vec<_>>();
+        if unique_partials.len() != threshold as usize {
+            return Err(FastCryptoError::NotEnoughInputs);
+        }
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
         Poly::<Self::Signature>::recover_c0_msm(threshold, &unique_partials)

@@ -29,6 +29,7 @@ tap = { version = "1.0.1", features = [] }
 [dev-dependencies]
 criterion = "0.4.0"
 tracing-test = "0.2.4"
+generic-tests = "0.1.2"
 
 [[bench]]
 name = "polynomial"

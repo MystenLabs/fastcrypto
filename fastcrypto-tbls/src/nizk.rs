@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::random_oracle::RandomOracle;
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use tracing::debug;
 
 /// NIZKPoK for the DDH tuple [G, H=eG, xG, xH].
@@ -13,7 +13,7 @@ use tracing::debug;
 /// - Prover computes challenge c and sends z=r+c*x.
 /// - Verifier checks that zG=A+c(xG) and zeG=B+c(xH).
 /// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 
 impl<G: GroupElement> DdhTupleNizk<G>
@@ -34,6 +34,7 @@ where
         let b = *h * r;
         let challenge = Self::fiat_shamir_challenge(h, x_g, x_h, &a, &b, random_oracle);
         let z = challenge * x + r;
+        debug!("NIZK: Creating a proof for {h:?} {x_g:?} {x_h:?} with challenge {challenge:?}");
         DdhTupleNizk(a, b, z)
     }
 
@@ -43,8 +44,13 @@ where
         x_g: &G,
         x_h: &G,
         random_oracle: &RandomOracle,
-    ) -> Result<(), FastCryptoError> {
+    ) -> FastCryptoResult<()> {
+        if *h == G::zero() || *x_g == G::zero() || *x_h == G::zero() {
+            // We should never see this, but just in case
+            return Err(FastCryptoError::InvalidProof);
+        }
         let challenge = Self::fiat_shamir_challenge(h, x_g, x_h, &self.0, &self.1, random_oracle);
+        debug!("NIZK: Verifying a proof of {h:?} {x_g:?} {x_h:?} with challenge {challenge:?}");
         if !Self::is_valid_relation(
             &self.0, // A
             x_g,
@@ -83,12 +89,31 @@ where
     }
 }
 
+impl<'de, G> Deserialize<'de> for DdhTupleNizk<G>
+where
+    G: GroupElement + Deserialize<'de>,
+    G::ScalarType: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let tuple = <(G, G, G::ScalarType)>::deserialize(deserializer)?;
+        if tuple.0 == G::zero() || tuple.1 == G::zero() || tuple.2 == G::ScalarType::zero() {
+            return Err(serde::de::Error::custom(
+                "Invalid proof: one of the elements is inf/zero",
+            ));
+        }
+        Ok(DdhTupleNizk(tuple.0, tuple.1, tuple.2))
+    }
+}
+
 /// NIZKPoK for the DL [G, xG].
 /// - Prover selects a random r and sends A=rG.
 /// - Prover computes challenge c and sends z=r+c*x.
 /// - Verifier checks that zG=A+c(xG).
 /// The NIZK is (A, z) where c is implicitly computed using a random oracle.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DLNizk<G: GroupElement>(G, G::ScalarType);
 
 impl<G: GroupElement> DLNizk<G>
@@ -98,7 +123,7 @@ where
 {
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
-        x_g: &G,
+        x_g: &G, // passed since probably already computed
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> Self {
@@ -110,7 +135,11 @@ where
         DLNizk(a, z)
     }
 
-    pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> Result<(), FastCryptoError> {
+    pub fn verify(&self, x_g: &G, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        if *x_g == G::zero() {
+            // we should never see this, but just in case
+            return Err(FastCryptoError::InvalidProof);
+        }
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, random_oracle);
         debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
         if (G::generator() * self.1) != (self.0 + *x_g * challenge) {
@@ -124,5 +153,24 @@ where
     fn fiat_shamir_challenge(x_g: &G, a: &G, random_oracle: &RandomOracle) -> G::ScalarType {
         let output = random_oracle.evaluate(&(G::generator(), x_g, a));
         G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
+    }
+}
+
+impl<'de, G> Deserialize<'de> for DLNizk<G>
+where
+    G: GroupElement + Deserialize<'de>,
+    G::ScalarType: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let tuple = <(G, G::ScalarType)>::deserialize(deserializer)?;
+        if tuple.0 == G::zero() || tuple.1 == G::ScalarType::zero() {
+            return Err(serde::de::Error::custom(
+                "Invalid proof: one of the elements is inf/zero",
+            ));
+        }
+        Ok(DLNizk(tuple.0, tuple.1))
     }
 }
