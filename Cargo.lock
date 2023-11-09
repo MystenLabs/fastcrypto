@@ -2218,8 +2218,9 @@ dependencies = [
 
 [[package]]
 name = "neptune"
-version = "12.0.0"
-source = "git+https://github.com/lurk-lab/neptune?rev=d8b4eeadd8acc9d9e8d9d510605c954f1410aa60#d8b4eeadd8acc9d9e8d9d510605c954f1410aa60"
+version = "13.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "06626c9ac04c894e9a23d061ba1309f28506cdc5fe64156d28a15fb57fc8e438"
 dependencies = [
  "bellpepper",
  "bellpepper-core",
