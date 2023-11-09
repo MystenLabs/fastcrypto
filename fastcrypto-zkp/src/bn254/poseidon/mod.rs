@@ -151,7 +151,8 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
     let mut bytes = [0u8; 32];
     // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
     bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
-    crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("The bytes of fr are guaranteed to be canonical here")
+    crate::Fr::from_repr_vartime(FrRepr(bytes))
+        .expect("The bytes of fr are guaranteed to be canonical here")
 }
 
 #[cfg(test)]
