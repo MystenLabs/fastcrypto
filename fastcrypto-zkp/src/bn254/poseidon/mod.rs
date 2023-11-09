@@ -1,65 +1,84 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::bn254::poseidon::constants::*;
+use crate::FrRepr;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
+use byte_slice_cast::AsByteSlice;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
-use once_cell::sync::OnceCell;
-use poseidon_ark::Poseidon;
+use ff::PrimeField as OtherPrimeField;
+use neptune::poseidon::HashMode::OptimizedStatic;
+use neptune::Poseidon;
 use std::cmp::Ordering;
-use std::fmt::Debug;
-use std::fmt::Formatter;
 
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
+mod constants;
 
-/// Wrapper struct for Poseidon hash instance.
-pub struct PoseidonWrapper {
-    instance: Poseidon,
-}
-
-impl Debug for PoseidonWrapper {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PoseidonWrapper").finish()
-    }
-}
-
-impl Default for PoseidonWrapper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl PoseidonWrapper {
-    /// Initialize a Poseidon hash function.
-    pub fn new() -> Self {
-        Self {
-            instance: Poseidon::new(),
+macro_rules! define_poseidon_hash {
+    ($inputs:expr, $poseidon_constants:expr) => {{
+        let mut poseidon = Poseidon::new(&$poseidon_constants);
+        poseidon.reset();
+        for input in $inputs.iter() {
+            poseidon.input(bn254_to_fr(*input)).expect("The number of inputs must be aligned with the constants");
         }
+        poseidon.hash_in_mode(OptimizedStatic);
+
+        // Neptune returns the state element with index 1 but we want the first element to be aligned
+        // with poseidon-rs and circomlib's implementation which returns the 0'th element.
+        //
+        // See:
+        //  * https://github.com/lurk-lab/neptune/blob/b7a9db1fc6ce096aff52b903f7d228eddea6d4e3/src/poseidon.rs#L698
+        //  * https://github.com/arnaucube/poseidon-rs/blob/f4ba1f7c32905cd2ae5a71e7568564bb150a9862/src/lib.rs#L116
+        //  * https://github.com/iden3/circomlib/blob/cff5ab6288b55ef23602221694a6a38a0239dcc0/circuits/poseidon.circom#L207
+        poseidon.elements[0]
+    }};
+}
+
+/// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
+/// elements, otherwise an error is returned.
+pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+    if inputs.is_empty() || inputs.len() > 16 {
+        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
 
-    /// Calculate the hash of the given inputs.
-    pub fn hash(&self, inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
-        self.instance
-            .hash(inputs)
-            .map_err(|_| FastCryptoError::InvalidInput)
-    }
+    // Instances of Poseidon and PoseidonConstants from neptune have different types depending on
+    // the number of inputs, so unfortunately we need to use a macro here.
+    let result = match inputs.len() {
+        1 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U1),
+        2 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U2),
+        3 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U3),
+        4 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U4),
+        5 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U5),
+        6 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U6),
+        7 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U7),
+        8 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U8),
+        9 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U9),
+        10 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U10),
+        11 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U11),
+        12 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U12),
+        13 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U13),
+        14 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U14),
+        15 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U15),
+        16 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U16),
+        _ => return Err(InvalidInput),
+    };
+    Ok(fr_to_bn254fr(result))
 }
 
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
 /// H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
 /// error.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
-    static POSEIDON: OnceCell<PoseidonWrapper> = OnceCell::new();
-    let poseidon_ref = POSEIDON.get_or_init(PoseidonWrapper::new);
     if inputs.len() <= 16 {
-        poseidon_ref.hash(inputs)
+        hash(inputs)
     } else if inputs.len() <= 32 {
-        let hash1 = poseidon_ref.hash(inputs[0..16].to_vec())?;
-        let hash2 = poseidon_ref.hash(inputs[16..].to_vec())?;
-        poseidon_ref.hash([hash1, hash2].to_vec())
+        let hash1 = hash(inputs[0..16].to_vec())?;
+        let hash2 = hash(inputs[16..].to_vec())?;
+        hash([hash1, hash2].to_vec())
     } else {
         Err(FastCryptoError::GeneralError(format!(
             "Yet to implement: Unable to hash a vector of length {}",
@@ -121,12 +140,31 @@ pub fn hash_to_bytes(
         .expect("Leading zeros are added in to_bytes_be"))
 }
 
+/// Convert an ff field element to an arkworks-ff field element.
+fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
+    // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
+    Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
+}
+
+/// Convert an arkworks-ff field element to an ff field element.
+fn bn254_to_fr(fr: Fr) -> crate::Fr {
+    let mut bytes = [0u8; 32];
+    // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
+    bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
+    crate::Fr::from_repr_vartime(FrRepr(bytes))
+        .expect("The bytes of fr are guaranteed to be canonical here")
+}
+
 #[cfg(test)]
 mod test {
-    use super::PoseidonWrapper;
+    use crate::bn254::poseidon::hash;
     use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
+    use ark_ff::{BigInteger, PrimeField};
+    use lazy_static::lazy_static;
+    use proptest::arbitrary::Arbitrary;
+    use proptest::collection;
     use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
@@ -135,7 +173,6 @@ mod test {
 
     #[test]
     fn poseidon_test() {
-        let poseidon = PoseidonWrapper::new();
         let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
         let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
         let input3 = Fr::from_str("10000").unwrap();
@@ -143,7 +180,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = poseidon.hash(vec![input1, input2, input3, input4]).unwrap();
+        let hash = hash(vec![input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             Fr::from_str(
@@ -200,52 +237,6 @@ mod test {
     }
 
     #[test]
-    fn test_all_inputs_hash() {
-        let poseidon = PoseidonWrapper::new();
-        let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
-        let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
-        let masked_content_hash = Fr::from_str(
-            "14900420995580824499222150327925943524564997104405553289134597516335134742309",
-        )
-        .unwrap();
-        let payload_start_index = Fr::from_str("103").unwrap();
-        let payload_len = Fr::from_str("564").unwrap();
-        let eph_public_key_0 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
-        let eph_public_key_1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
-        let max_epoch = Fr::from_str("10000").unwrap();
-        let num_sha2_blocks = Fr::from_str("11").unwrap();
-        let key_claim_name_f = Fr::from_str(
-            "18523124550523841778801820019979000409432455608728354507022210389496924497355",
-        )
-        .unwrap();
-        let addr_seed = Fr::from_str(
-            "15604334753912523265015800787270404628529489918817818174033741053550755333691",
-        )
-        .unwrap();
-
-        let hash = poseidon
-            .hash(vec![
-                jwt_sha2_hash_0,
-                jwt_sha2_hash_1,
-                masked_content_hash,
-                payload_start_index,
-                payload_len,
-                eph_public_key_0,
-                eph_public_key_1,
-                max_epoch,
-                num_sha2_blocks,
-                key_claim_name_f,
-                addr_seed,
-            ])
-            .unwrap();
-        assert_eq!(
-            hash.to_string(),
-            "2487117669597822357956926047501254969190518860900347921480370492048882803688"
-                .to_string()
-        );
-    }
-
-    #[test]
     fn test_hash_to_bytes() {
         let inputs: Vec<Vec<u8>> = vec![vec![1u8]];
         let hash = hash_to_bytes(&inputs).unwrap();
@@ -270,5 +261,22 @@ mod test {
         // Input smaller than the modulus
         let inputs = vec![vec![255; 31]];
         assert!(hash_to_bytes(&inputs).is_ok());
+    }
+
+    #[cfg(test)]
+    lazy_static! {
+        static ref POSEIDON_ARK: poseidon_ark::Poseidon = poseidon_ark::Poseidon::new();
+    }
+
+    proptest::proptest! {
+        #[test]
+        fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
+
+            let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
+            let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
+
+            let actual = hash_to_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
+            assert_eq!(&actual, expected.as_slice());
+        }
     }
 }
