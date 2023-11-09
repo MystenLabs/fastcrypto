@@ -50,6 +50,10 @@
 <a href="#50" id="50">50</a>
 <a href="#51" id="51">51</a>
 <a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -63,8 +67,12 @@
 /// - evaluate serializes the given input and outputs SHA3-512(prefix_len as u8 | prefix | input).
 /// - Subprotocols may use a prefix that is extended from the prefix of its parent protocol, by
 ///   deriving a new instance using extend, which simply concatenates the strings with the separator
-///   &quot;-&quot;. The caller must make sure to choose distinct prefix &amp; extension strings.
-///     E.g., RandomOracle::new(&quot;abc-&quot;).extend(&quot;def&quot;) = RandomOracle::new(&quot;abc-def&quot;)
+///   &quot;-&quot;. E.g., RandomOracle::new(&quot;abc&quot;).extend(&quot;def&quot;) = RandomOracle::new(&quot;abc-def&quot;).
+///
+/// The caller must make sure to:
+/// - Choose distinct prefix &amp; extension strings, preferably without &quot;-&quot; in them.
+/// - Ensure that the prefix &amp; extension strings are short enough to fit in a u8.
+///   Violating this constraint will cause a panic.
 
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>RandomOracle {

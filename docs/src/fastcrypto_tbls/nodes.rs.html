@@ -149,6 +149,8 @@
 <a href="#149" id="149">149</a>
 <a href="#150" id="150">150</a>
 <a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -160,12 +162,10 @@
 <span class="kw">use </span>fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::collections::HashMap;
-<span class="kw">use </span>std::iter::Map;
-<span class="kw">use </span>std::ops::RangeInclusive;
 
 <span class="kw">pub type </span>PartyId = u16;
 
-<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+<span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Node&lt;G: GroupElement&gt; {
     <span class="kw">pub </span>id: PartyId,
     <span class="kw">pub </span>pk: ecies::PublicKey&lt;G&gt;,
@@ -174,18 +174,22 @@
 
 <span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Nodes&lt;G: GroupElement&gt; {
-    nodes: Vec&lt;Node&lt;G&gt;&gt;,
-    n: u32, <span class="comment">// share ids are 1..n
+    nodes: Vec&lt;Node&lt;G&gt;&gt;, <span class="comment">// Party ids are 0..len(nodes)-1
+    </span>n: u32,              <span class="comment">// Share ids are 1..n
     </span>share_id_to_party_id: HashMap&lt;ShareIndex, PartyId&gt;,
 }
 
 <span class="kw">impl</span>&lt;G: GroupElement + Serialize&gt; Nodes&lt;G&gt; {
-    <span class="doccomment">/// Create a new set of nodes.
+    <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     </span><span class="kw">pub fn </span>new(nodes: Vec&lt;Node&lt;G&gt;&gt;) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>nodes = nodes;
         nodes.sort_by_key(|n| n.id);
         <span class="comment">// Check all ids are consecutive and start from 0
         </span><span class="kw">if </span>(<span class="number">0</span>..nodes.len()).any(|i| (nodes[i].id <span class="kw">as </span>usize) != i) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
+        <span class="comment">// Make sure we never overflow, as we don&#39;t expect to have more than 1000 nodes
+        </span><span class="kw">if </span>nodes.len() &gt; <span class="number">1000 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// Get the total weight of the nodes
@@ -224,7 +228,7 @@
     }
 
     <span class="doccomment">/// Get an iterator on the share ids.
-    </span><span class="kw">pub fn </span>share_ids_iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Map&lt;RangeInclusive&lt;u32&gt;, <span class="kw">fn</span>(u32) -&gt; ShareIndex&gt; {
+    </span><span class="kw">pub fn </span>share_ids_iter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw">impl </span>Iterator&lt;Item = ShareIndex&gt; {
         (<span class="number">1</span>..=<span class="self">self</span>.n).map(|i| ShareIndex::new(i).expect(<span class="string">&quot;nonzero&quot;</span>))
     }
 

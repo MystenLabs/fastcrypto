@@ -181,12 +181,6 @@
 <a href="#181" id="181">181</a>
 <a href="#182" id="182">182</a>
 <a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -230,12 +224,6 @@
     }
 }
 
-<span class="kw">impl</span>&lt;C&gt; From&lt;Poly&lt;C&gt;&gt; <span class="kw">for </span>Vec&lt;C&gt; {
-    <span class="kw">fn </span>from(poly: Poly&lt;C&gt;) -&gt; <span class="self">Self </span>{
-        poly.<span class="number">0
-    </span>}
-}
-
 <span class="doccomment">/// GroupElement operations.
 
 </span><span class="kw">impl</span>&lt;C: GroupElement&gt; Poly&lt;C&gt; {
@@ -272,12 +260,13 @@
         }
     }
 
-    <span class="kw">fn </span>get_lagrange_coefficients(
+    <span class="comment">// Expects exactly t unique shares.
+    </span><span class="kw">fn </span>get_lagrange_coefficients_for_c0(
         t: u32,
         shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;],
     ) -&gt; FastCryptoResult&lt;Vec&lt;C::ScalarType&gt;&gt; {
-        <span class="kw">if </span>shares.len() &lt; t <span class="kw">as </span>usize {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
+        <span class="kw">if </span>shares.len() != t <span class="kw">as </span>usize {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// Check for duplicates.
         </span><span class="kw">let </span><span class="kw-2">mut </span>ids_set = HashSet::new();
@@ -308,10 +297,9 @@
         <span class="prelude-val">Ok</span>(coeffs)
     }
 
-    <span class="doccomment">/// Given at least `t` polynomial evaluations, it will recover the polynomial&#39;s
-    /// constant term
+    <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial&#39;s constant term.
     </span><span class="kw">pub fn </span>recover_c0(t: u32, shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
-        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients(t, shares)<span class="question-mark">?</span>;
+        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares)<span class="question-mark">?</span>;
         <span class="kw">let </span>plain_shares = shares.iter().map(|s| s.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>res = coeffs
             .iter()
@@ -321,10 +309,14 @@
     }
 
     <span class="doccomment">/// Checks if a given share is valid.
-    </span><span class="kw">pub fn </span>is_valid_share(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: ShareIndex, share: <span class="kw-2">&amp;</span>C::ScalarType) -&gt; bool {
+    </span><span class="kw">pub fn </span>verify_share(<span class="kw-2">&amp;</span><span class="self">self</span>, idx: ShareIndex, share: <span class="kw-2">&amp;</span>C::ScalarType) -&gt; FastCryptoResult&lt;()&gt; {
         <span class="kw">let </span>e = C::generator() * share;
         <span class="kw">let </span>pub_eval = <span class="self">self</span>.eval(idx);
-        pub_eval.value == e
+        <span class="kw">if </span>pub_eval.value == e {
+            <span class="prelude-val">Ok</span>(())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
+        }
     }
 
     <span class="doccomment">/// Return the constant term of the polynomial.
@@ -355,11 +347,7 @@
         <span class="kw">let </span>commits = <span class="self">self
             </span>.<span class="number">0
             </span>.iter()
-            .map(|c| {
-                <span class="kw">let </span><span class="kw-2">mut </span>commitment = P::generator();
-                commitment = commitment * c;
-                commitment
-            })
+            .map(|c| P::generator() * c)
             .collect::&lt;Vec&lt;P&gt;&gt;();
 
         Poly::&lt;P&gt;::from(commits)
@@ -367,10 +355,10 @@
 }
 
 <span class="kw">impl</span>&lt;C: GroupElement + MultiScalarMul&gt; Poly&lt;C&gt; {
-    <span class="doccomment">/// Given at least `t` polynomial evaluations, it will recover the polynomial&#39;s
-    /// constant term
+    <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial&#39;s
+    /// constant term.
     </span><span class="kw">pub fn </span>recover_c0_msm(t: u32, shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
-        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients(t, shares)<span class="question-mark">?</span>;
+        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares)<span class="question-mark">?</span>;
         <span class="kw">let </span>plain_shares = shares.iter().map(|s| s.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>res = C::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, <span class="kw-2">&amp;</span>plain_shares).expect(<span class="string">&quot;sizes match&quot;</span>);
         <span class="prelude-val">Ok</span>(res)

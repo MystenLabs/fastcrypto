@@ -529,13 +529,13 @@
     /// length in bits.
     </span><span class="kw">pub fn </span>serialized_length(discriminant_in_bits: usize) -&gt; usize {
         <span class="comment">// The number of 32 bit words needed to represent the discriminant rounded up,
-        </span>((discriminant_in_bits + <span class="number">31</span>) / <span class="number">32
+        </span>(discriminant_in_bits + <span class="number">31</span>) / <span class="number">32
             </span>* <span class="number">3 </span><span class="comment">// a&#39; is two words and t&#39; is one word. Both is divided by g, so the length of g is subtracted from both.
             </span>+ <span class="number">1 </span><span class="comment">// Flags for special forms (identity or generator) and the sign of b and t&#39;.
             </span>+ <span class="number">1 </span><span class="comment">// The size of g - 1 = g_size.
             // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
-            </span>+ <span class="number">2</span>) <span class="kw">as </span>usize
-    }
+            </span>+ <span class="number">2
+    </span>}
 
     <span class="doccomment">/// Serialize a quadratic form. The length of the serialization in bytes depends on the bit-length
     /// of the discriminant and may be computed using [QuadraticForm::serialized_length].

@@ -112,6 +112,9 @@
 <a href="#112" id="112">112</a>
 <a href="#113" id="113">113</a>
 <a href="#114" id="114">114</a>
+<a href="#115" id="115">115</a>
+<a href="#116" id="116">116</a>
+<a href="#117" id="117">117</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -221,6 +224,9 @@
             .take(threshold <span class="kw">as </span>usize)
             .cloned()
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">if </span>unique_partials.len() != threshold <span class="kw">as </span>usize {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
+        }
         <span class="comment">// No conversion is required since PartialSignature&lt;S&gt; and Eval&lt;S&gt; are different aliases to
         // IndexedValue&lt;S&gt;.
         </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0_msm(threshold, <span class="kw-2">&amp;</span>unique_partials)

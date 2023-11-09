@@ -332,7 +332,7 @@
         pkg: <span class="kw-2">&amp;</span>RecoveryPackage&lt;G&gt;,
         random_oracle: <span class="kw-2">&amp;</span>RandomOracle,
         enc: <span class="kw-2">&amp;</span>Encryption&lt;G&gt;,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
+    ) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
         pkg.proof
             .verify(<span class="kw-2">&amp;</span>enc.<span class="number">0</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>pkg.ephemeral_key, random_oracle)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(enc.decrypt_from_partial_decryption(<span class="kw-2">&amp;</span>pkg.ephemeral_key))

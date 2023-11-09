@@ -65,7 +65,7 @@
 
 </span><span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, PublicPoly};
 <span class="kw">use crate</span>::{ecies, tbls};
-<span class="kw">use </span>fastcrypto::error::FastCryptoError;
+<span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::ristretto255::RistrettoPoint;
 <span class="kw">use </span>fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
@@ -84,7 +84,7 @@
         pk: <span class="kw-2">&amp;</span><span class="self">Self</span>::Public,
         sig: <span class="kw-2">&amp;</span><span class="self">Self</span>::Signature,
         msg: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+    ) -&gt; FastCryptoResult&lt;()&gt; {
         <span class="kw">let </span>hashed_message = <span class="self">Self</span>::Signature::hash_to_group_element(msg);
         <span class="comment">// e(sig, g2)
         </span><span class="kw">let </span>left = sig.pairing(<span class="kw-2">&amp;</span><span class="self">Self</span>::Public::generator());
