@@ -23,7 +23,7 @@ macro_rules! define_poseidon_hash {
         let mut poseidon = Poseidon::new(&$poseidon_constants);
         poseidon.reset();
         for input in $inputs.iter() {
-            poseidon.input(bn254_to_fr(*input)).unwrap();
+            poseidon.input(bn254_to_fr(*input)).expect("The number of inputs must be aligned with the constants");
         }
         poseidon.hash_in_mode(OptimizedStatic);
 
@@ -142,14 +142,16 @@ pub fn hash_to_bytes(
 
 /// Convert an ff field element to an arkworks-ff field element.
 fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
+    // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
     Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
 }
 
 /// Convert an arkworks-ff field element to an ff field element.
 fn bn254_to_fr(fr: Fr) -> crate::Fr {
     let mut bytes = [0u8; 32];
+    // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
     bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
-    crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("fr is always valid")
+    crate::Fr::from_repr_vartime(FrRepr(bytes)).expect("The bytes of fr are guaranteed to be canonical here")
 }
 
 #[cfg(test)]
