@@ -126,7 +126,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Checks if a given share is valid.
-    pub fn is_valid_share(&self, idx: ShareIndex, share: &C::ScalarType) -> FastCryptoResult<()> {
+    pub fn verify_share(&self, idx: ShareIndex, share: &C::ScalarType) -> FastCryptoResult<()> {
         let e = C::generator() * share;
         let pub_eval = self.eval(idx);
         if pub_eval.value == e {

@@ -3,7 +3,7 @@
 
 use crate::polynomial::{Eval, PublicPoly};
 use crate::{ecies, tbls};
-use fastcrypto::error::FastCryptoError;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ impl tbls::ThresholdBls for ThresholdBls12381MinSig {
         pk: &Self::Public,
         sig: &Self::Signature,
         msg: &[u8],
-    ) -> Result<(), FastCryptoError> {
+    ) -> FastCryptoResult<()> {
         let hashed_message = Self::Signature::hash_to_group_element(msg);
         // e(sig, g2)
         let left = sig.pairing(&Self::Public::generator());

@@ -102,7 +102,7 @@ mod points_tests {
         let e2 = public_p.eval(I10);
         assert_eq!(e1.index, e2.index);
         assert_eq!(G::generator() * e1.value, e2.value);
-        assert!(public_p.is_valid_share(e1.index, &e1.value).is_ok());
+        assert!(public_p.verify_share(e1.index, &e1.value).is_ok());
         // test simple poly
         let one = G::ScalarType::generator();
         let coeff = vec![one, one, one];
