@@ -8,10 +8,11 @@ use crate::{
 };
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
-use num_bigint::BigInt;
+use num_bigint::{BigInt};
 use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
+use crate::bigint_utils::{DefaultPrimalityCheck, PrimalityCheck};
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -88,11 +89,11 @@ impl<
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
 /// Fiat-Shamir implementation.
-pub type StrongVDF<G> = WesolowskiVDF<G, StrongFiatShamir<G, B_BITS>>;
+pub type StrongVDF<G> = WesolowskiVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
 /// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
-pub type WeakVDF<G> = WesolowskiVDF<G, WeakFiatShamir<G, B_BITS>>;
+pub type WeakVDF<G> = WesolowskiVDF<G, WeakFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
     /// Create a new VDF over an group of unknown where the discriminant has a given size and
@@ -112,27 +113,29 @@ pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
 }
 
-/// Size of the random prime modulus B used in proving and verification.
-const B_BITS: usize = 264;
+/// Size of the challenge used in proving and verification.
+pub const CHALLENGE_SIZE: usize = 264;
 
 /// Implementation of the Fiat-Shamir challenge generation compatible with chiavdf.
 /// Note that this implementation is weak, meaning that not all public parameters are used in the
 /// challenge generation. This is not secure if an adversary can influence the public parameters.
 /// See https://eprint.iacr.org/2023/691.
-pub struct WeakFiatShamir<G, const CHALLENGE_SIZE: usize> {
+pub struct WeakFiatShamir<G, const CHALLENGE_SIZE: usize, P> {
     _group: PhantomData<G>,
+    _primality_check: PhantomData<P>,
 }
 
 impl<
         G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
         const CHALLENGE_SIZE: usize,
-    > FiatShamir<G> for WeakFiatShamir<G, CHALLENGE_SIZE>
+        P: PrimalityCheck,
+    > FiatShamir<G> for WeakFiatShamir<G, CHALLENGE_SIZE, P>
 {
     fn compute_challenge<F>(_vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        bigint_utils::hash_prime_default(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        bigint_utils::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
@@ -140,14 +143,16 @@ impl<
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
 /// The implementation is strong, meaning that all public parameters are used in the challenge generation.
 /// See https://eprint.iacr.org/2023/691.
-pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize> {
+pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize, P> {
     _group: PhantomData<G>,
+    _primality_check: PhantomData<P>
 }
 
 impl<
         G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
         const CHALLENGE_SIZE: usize,
-    > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE>
+        P: PrimalityCheck,
+    > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
 {
     fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
@@ -159,7 +164,7 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        bigint_utils::hash_prime_default(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        bigint_utils::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }

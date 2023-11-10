@@ -4,9 +4,8 @@
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::{HashFunction, Sha256};
-use num_bigint::{BigInt, BigUint, Sign};
+use num_bigint::{BigInt, BigUint};
 use num_integer::Integer;
-use num_prime::PrimalityTestConfig;
 use num_traits::{One, Signed, Zero};
 use std::cmp::min;
 use std::mem;
@@ -93,9 +92,7 @@ pub fn hash_prime_default(
     length: usize,
     bitmask: &[usize],
 ) -> FastCryptoResult<BigInt> {
-    hash_prime(seed, length, bitmask, |x| {
-        num_prime::nt_funcs::is_prime(x, None).probably()
-    })
+    hash_prime::<DefaultPrimalityCheck>(seed, length, bitmask)
 }
 
 /// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
@@ -105,11 +102,10 @@ pub fn hash_prime_default(
 /// Then return x if it is a pseudo-prime, otherwise repeat.
 ///
 /// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
-pub fn hash_prime<P: Fn(&BigUint) -> bool>(
+pub fn hash_prime<P: PrimalityCheck>(
     seed: &[u8],
     length: usize,
     bitmask: &[usize],
-    primality_test: P,
 ) -> FastCryptoResult<BigInt> {
     if length % 8 != 0 {
         return Err(InvalidInput);
@@ -138,9 +134,22 @@ pub fn hash_prime<P: Fn(&BigUint) -> bool>(
         // The implementations of the primality test used below might be slightly different from the
         // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
         // is not an issue.
-        if primality_test(&x) {
+        if P::is_prime(&x) {
             return Ok(x.into());
         }
+    }
+}
+
+pub trait PrimalityCheck {
+    /// Return true if x is a probable prime. If false is returned, x is guaranteed to be composite.
+    fn is_prime(x: &BigUint) -> bool;
+}
+
+pub struct DefaultPrimalityCheck {}
+
+impl PrimalityCheck for DefaultPrimalityCheck {
+    fn is_prime(x: &BigUint) -> bool {
+        num_prime::nt_funcs::is_prime(x, None).probably()
     }
 }
 
