@@ -3,9 +3,11 @@
 
 use clap::Parser;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
+use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
+use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ParameterizedGroupElement;
+use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
 const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 1024;
@@ -99,7 +101,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 
             let g = QuadraticForm::generator(&discriminant);
 
-            let vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            let vdf = StrongVDF::new(discriminant, arguments.iterations);
             let (output, proof) = vdf
                 .evaluate(&g)
                 .map_err(|_| Error::new(ErrorKind::Other, "VDF evaluation failed"))?;
@@ -137,7 +139,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 
             let g = QuadraticForm::generator(&discriminant);
 
-            let vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            let vdf = StrongVDF::new(discriminant, arguments.iterations);
             let verifies = vdf.verify(&g, &output, &proof).is_ok();
 
             let mut result = "Verified: ".to_string();

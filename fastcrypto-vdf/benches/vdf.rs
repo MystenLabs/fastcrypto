@@ -7,8 +7,9 @@ extern crate criterion;
 use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
+use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
+use fastcrypto_vdf::Parameter;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
@@ -34,20 +35,14 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 
     let input = QuadraticForm::generator(&discriminant);
 
-    let vdf = ClassGroupVDF::new(discriminant, parameters.iterations);
+    let vdf = StrongVDF::new(discriminant, parameters.iterations);
     c.bench_function(discriminant_size.to_string(), move |b| {
         b.iter(|| vdf.verify(&input, &result, &proof))
     });
 }
 
 fn verify(c: &mut Criterion) {
-    #[cfg(not(feature = "gmp"))]
-    let dep = "num-bigint";
-
-    #[cfg(feature = "gmp")]
-    let dep = "gmp";
-
-    let mut group = c.benchmark_group(format!("VDF verify ({})", dep));
+    let mut group = c.benchmark_group("VDF verify".to_string());
 
     //1024 bits
     verify_single(VerificationInputs {
@@ -67,12 +62,6 @@ fn verify(c: &mut Criterion) {
 }
 
 fn sample_discriminant(c: &mut Criterion) {
-    #[cfg(not(feature = "gmp"))]
-    let dep = "num-bigint";
-
-    #[cfg(feature = "gmp")]
-    let dep = "gmp";
-
     let bit_lengths = [128, 256, 512, 1024, 2048];
 
     let mut seed = [0u8; 32];
@@ -81,10 +70,7 @@ fn sample_discriminant(c: &mut Criterion) {
 
     for bit_length in bit_lengths {
         c.bench_with_input(
-            BenchmarkId::new(
-                format!("Sample class group discriminant ({})", dep),
-                bit_length,
-            ),
+            BenchmarkId::new("Sample class group discriminant".to_string(), bit_length),
             &bit_length,
             |b, n| {
                 b.iter(|| {

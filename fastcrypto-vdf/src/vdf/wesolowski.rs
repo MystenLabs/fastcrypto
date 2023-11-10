@@ -1,11 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::{Discriminant, QuadraticForm};
 use crate::vdf::VDF;
-use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use crate::{Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
-use fastcrypto::error::FastCryptoResult;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::hash::HashFunction;
 use fastcrypto::hash::Sha256;
 use num_bigint::{BigInt, BigUint, Sign};
@@ -87,28 +86,21 @@ impl<
     }
 }
 
-/// Implementation of Wesolowski's VDF construction over imaginary class groups using a strong
+/// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
 /// Fiat-Shamir implementation.
-pub type ClassGroupVDF = WesolowskiVDF<QuadraticForm, StrongFiatShamir<B_BITS>>;
+pub type StrongVDF<G> = WesolowskiVDF<G, StrongFiatShamir<G, B_BITS>>;
 
-/// Implementation of Wesolowski's VDF construction over imaginary class groups compatible with chiavdf
-/// (https://github.com/Chia-Network/chiavdf).
-///
-/// Note that the evaluation phase is slower than chia's implementations, so estimates on how long it
-/// takes to evaluate the VDF should currently be used with caution.
-pub type ChiaClassGroupVDF = WesolowskiVDF<QuadraticForm, ChiaFiatShamir>;
+/// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
+/// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
+pub type WeakVDF<G> = WesolowskiVDF<G, ChiaFiatShamir<G>>;
 
-impl<F> WesolowskiVDF<QuadraticForm, F> {
-    /// Create a new VDF over an imaginary class group where the discriminant has a given size and
+impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
+    /// Create a new VDF over an group of unknown where the discriminant has a given size and
     /// is generated based on a seed. The `iterations` parameters specifies the number of group
     /// operations the evaluation function requires.
-    pub fn from_seed(
-        seed: &[u8],
-        discriminant_size_in_bits: usize,
-        iterations: u64,
-    ) -> FastCryptoResult<Self> {
+    pub fn from_seed(seed: &[u8], size_in_bits: usize, iterations: u64) -> FastCryptoResult<Self> {
         Ok(Self::new(
-            Discriminant::from_seed(seed, discriminant_size_in_bits)?,
+            G::ParameterType::from_seed(seed, size_in_bits)?,
             iterations,
         ))
     }
@@ -127,14 +119,14 @@ const B_BITS: usize = 264;
 /// Note that this implementation is weak, meaning that not all public parameters are used in the
 /// challenge generation. This is not secure if an adversary can influence the public parameters.
 /// See https://eprint.iacr.org/2023/691.
-pub struct ChiaFiatShamir;
+pub struct ChiaFiatShamir<G> {
+    _group: PhantomData<G>,
+}
 
-impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
-    fn compute_challenge<F>(
-        _vdf: &WesolowskiVDF<QuadraticForm, F>,
-        input: &QuadraticForm,
-        output: &QuadraticForm,
-    ) -> BigInt {
+impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement> FiatShamir<G>
+    for ChiaFiatShamir<G>
+{
+    fn compute_challenge<F>(_vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
@@ -145,23 +137,25 @@ impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
 /// The implementation is strong, meaning that all public parameters are used in the challenge generation.
 /// See https://eprint.iacr.org/2023/691.
-pub struct StrongFiatShamir<const CHALLENGE_SIZE: usize>;
+pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize> {
+    _group: PhantomData<G>,
+}
 
-impl<const CHALLENGE_SIZE: usize> FiatShamir<QuadraticForm> for StrongFiatShamir<CHALLENGE_SIZE> {
-    fn compute_challenge<F>(
-        vdf: &WesolowskiVDF<QuadraticForm, F>,
-        input: &QuadraticForm,
-        output: &QuadraticForm,
-    ) -> BigInt {
+impl<
+        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        const CHALLENGE_SIZE: usize,
+    > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE>
+{
+    fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
 
-        // The inputs to the hash function have a 1:1 encoding because the size of all parameters are
-        // fixed per discriminant size. See serialized_length for the input and output, and iterations
         // is always 8 bytes: https://doc.rust-lang.org/std/primitive.u64.html#method.to_be_bytes.
+        seed.extend_from_slice(&(input.as_bytes().len() as u64).to_be_bytes());
         seed.extend_from_slice(&input.as_bytes());
+        seed.extend_from_slice(&(output.as_bytes().len() as u64).to_be_bytes());
         seed.extend_from_slice(&output.as_bytes());
+        seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
-        seed.extend_from_slice(&vdf.iterations.to_be_bytes());
 
         hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
@@ -215,77 +209,86 @@ fn is_prime(x: &BigUint) -> bool {
     y.is_probably_prime(30) != rug::integer::IsPrime::No
 }
 
-#[cfg(not(feature = "gmp"))]
 fn is_prime(x: &BigUint) -> bool {
     num_prime::nt_funcs::is_prime(x, None).probably()
 }
 
-impl Discriminant {
+impl<P: TryFrom<BigInt, Error = FastCryptoError> + Eq + ToBytes> Parameter for P {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    pub fn from_seed(seed: &[u8], length: usize) -> FastCryptoResult<Self> {
-        Self::try_from(hash_prime(seed, length, &[0, 1, 2, length - 1])?.neg())
+    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<P> {
+        Self::try_from(hash_prime(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?.neg())
     }
 }
 
-#[test]
-fn test_prove_and_verify() {
-    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let iterations = 1000u64;
-    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+#[cfg(test)]
+mod tests {
+    use num_bigint::BigInt;
+    use crate::class_group::{Discriminant, QuadraticForm};
+    use crate::{Parameter, ParameterizedGroupElement};
+    use crate::vdf::VDF;
+    use crate::vdf::wesolowski::{StrongVDF, WeakVDF};
 
-    let g = QuadraticForm::generator(&discriminant);
+    #[test]
+    fn test_prove_and_verify() {
+        let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+        let iterations = 1000u64;
+        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
 
-    let vdf = ClassGroupVDF::new(discriminant, iterations);
-    let (output, proof) = vdf.evaluate(&g).unwrap();
-    assert!(vdf.verify(&g, &output, &proof).is_ok());
+        let g = QuadraticForm::generator(&discriminant);
 
-    // A modified output or proof fails to verify
-    let modified_output = output.mul(&BigInt::from(2));
-    let modified_proof = proof.mul(&BigInt::from(2));
-    assert!(vdf.verify(&g, &modified_output, &proof).is_err());
-    assert!(vdf.verify(&g, &output, &modified_proof).is_err());
-}
+        let vdf = StrongVDF::<QuadraticForm>::new(discriminant, iterations);
+        let (output, proof) = vdf.evaluate(&g).unwrap();
+        assert!(vdf.verify(&g, &output, &proof).is_ok());
 
-#[test]
-fn test_verify_from_chain() {
-    // Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
-    let challenge_hex = "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";
-    let iterations = 4194304u64;
-    let result_hex = "0300445cbcaa176166d9a50b9699e9394be46766c8f6494a1a9afd95bb5dc652ee42101278ad7358baf4ae727e4f5a6f732e3a8c26d9d11365081275a6d4b36dda63a905baffdaebab3311d8d6e2f356edf3bb1cf90e5654e688869d66d1c60676440100";
-    let proof_hex = "030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100";
+        // A modified output or proof fails to verify
+        let modified_output = output.mul(&BigInt::from(2));
+        let modified_proof = proof.mul(&BigInt::from(2));
+        assert!(vdf.verify(&g, &modified_output, &proof).is_err());
+        assert!(vdf.verify(&g, &output, &modified_proof).is_err());
+    }
 
-    let challenge = hex::decode(challenge_hex).unwrap();
-    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+    #[test]
+    fn test_verify_from_chain() {
+        // Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
+        let challenge_hex = "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";
+        let iterations = 4194304u64;
+        let result_hex = "0300445cbcaa176166d9a50b9699e9394be46766c8f6494a1a9afd95bb5dc652ee42101278ad7358baf4ae727e4f5a6f732e3a8c26d9d11365081275a6d4b36dda63a905baffdaebab3311d8d6e2f356edf3bb1cf90e5654e688869d66d1c60676440100";
+        let proof_hex = "030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100";
 
-    let result_bytes = hex::decode(result_hex).unwrap();
-    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+        let challenge = hex::decode(challenge_hex).unwrap();
+        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
 
-    let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+        let result_bytes = hex::decode(result_hex).unwrap();
+        let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
 
-    let input = QuadraticForm::generator(&discriminant);
+        let proof_bytes = hex::decode(proof_hex).unwrap();
+        let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
 
-    let vdf = ChiaClassGroupVDF::from_seed(&challenge, 1024, iterations).unwrap();
-    assert!(vdf.verify(&input, &result, &proof).is_ok());
-}
+        let input = QuadraticForm::generator(&discriminant);
 
-#[test]
-fn test_verify_1024() {
-    let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
-    let iterations = 1000u64;
-    let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
-    let proof_hex = "000075d043db5f619f5cb4e8ef7729c7cac154434c33d6e52dd086b90a52c7b1231890eda9d1365100e88993e332f0a99bb7763f215de2fb6b632445beeeff22b657dc90d4e110ed03eac10ec445117d211208c79dd4933ba58b8e17b4c54ef1824c0100";
+        let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 1024, iterations).unwrap();
+        assert!(vdf.verify(&input, &result, &proof).is_ok());
+    }
 
-    let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+    #[test]
+    fn test_verify_1024() {
+        let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
+        let iterations = 1000u64;
+        let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
+        let proof_hex = "0100eb1e1b0b58bca2ceca30344321d77e6c6f995e7c9db878d63aa71348db3577634e309be81ed71cba185a0d3c6bba2945c7002cc757c29a612afec8bf95581c008d2fe1c77e5171f8b85706e5f823cd233d847117f25b53d45cb30fb036b5b0030100";
 
-    let result_bytes = hex::decode(result_hex).unwrap();
-    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
 
-    let proof_bytes = hex::decode(proof_hex).unwrap();
-    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+        let result_bytes = hex::decode(result_hex).unwrap();
+        let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
 
-    let input = QuadraticForm::generator(&discriminant);
+        let proof_bytes = hex::decode(proof_hex).unwrap();
+        let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
 
-    let vdf = ClassGroupVDF::new(discriminant, iterations);
-    assert!(vdf.verify(&input, &result, &proof).is_ok());
+        let input = QuadraticForm::generator(&discriminant);
+
+        let vdf = StrongVDF::<QuadraticForm>::new(discriminant, iterations);
+
+        assert!(vdf.verify(&input, &result, &proof).is_ok());
+    }
 }
