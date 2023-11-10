@@ -92,7 +92,7 @@ pub type StrongVDF<G> = WesolowskiVDF<G, StrongFiatShamir<G, B_BITS>>;
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
 /// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
-pub type WeakVDF<G> = WesolowskiVDF<G, ChiaFiatShamir<G>>;
+pub type WeakVDF<G> = WesolowskiVDF<G, WeakFiatShamir<G, B_BITS>>;
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
     /// Create a new VDF over an group of unknown where the discriminant has a given size and
@@ -119,18 +119,21 @@ const B_BITS: usize = 264;
 /// Note that this implementation is weak, meaning that not all public parameters are used in the
 /// challenge generation. This is not secure if an adversary can influence the public parameters.
 /// See https://eprint.iacr.org/2023/691.
-pub struct ChiaFiatShamir<G> {
+pub struct WeakFiatShamir<G, const CHALLENGE_SIZE: usize> {
     _group: PhantomData<G>,
 }
 
-impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement> FiatShamir<G>
-    for ChiaFiatShamir<G>
+impl<
+        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        const CHALLENGE_SIZE: usize,
+    > FiatShamir<G> for WeakFiatShamir<G, CHALLENGE_SIZE>
 {
     fn compute_challenge<F>(_vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        hash_prime(&seed, B_BITS, &[B_BITS - 1]).expect("The length should be a multiple of 8")
+        hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+            .expect("The length should be a multiple of 8")
     }
 }
 
@@ -149,7 +152,6 @@ impl<
     fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
 
-        // is always 8 bytes: https://doc.rust-lang.org/std/primitive.u64.html#method.to_be_bytes.
         seed.extend_from_slice(&(input.as_bytes().len() as u64).to_be_bytes());
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&(output.as_bytes().len() as u64).to_be_bytes());
@@ -222,11 +224,11 @@ impl<P: TryFrom<BigInt, Error = FastCryptoError> + Eq + ToBytes> Parameter for P
 
 #[cfg(test)]
 mod tests {
-    use num_bigint::BigInt;
     use crate::class_group::{Discriminant, QuadraticForm};
-    use crate::{Parameter, ParameterizedGroupElement};
-    use crate::vdf::VDF;
     use crate::vdf::wesolowski::{StrongVDF, WeakVDF};
+    use crate::vdf::VDF;
+    use crate::{Parameter, ParameterizedGroupElement};
+    use num_bigint::BigInt;
 
     #[test]
     fn test_prove_and_verify() {
