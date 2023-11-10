@@ -5,7 +5,7 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::class_group::bigint_utils::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::bigint_utils::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -16,7 +16,6 @@ use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, Neg};
 
-mod bigint_utils;
 mod compressed;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.

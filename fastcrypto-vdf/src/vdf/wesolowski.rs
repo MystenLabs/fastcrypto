@@ -1,15 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::class_group::Discriminant;
 use crate::vdf::VDF;
-use crate::{Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use crate::{
+    bigint_utils, Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement,
+};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::hash::HashFunction;
-use fastcrypto::hash::Sha256;
-use num_bigint::{BigInt, BigUint, Sign};
+use fastcrypto::error::FastCryptoResult;
+use num_bigint::BigInt;
 use num_integer::Integer;
-use std::cmp::min;
 use std::marker::PhantomData;
 use std::ops::Neg;
 
@@ -132,7 +132,7 @@ impl<
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        bigint_utils::hash_prime_default(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
@@ -159,66 +159,18 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        hash_prime(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        bigint_utils::hash_prime_default(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
 
-/// Implementation of HashPrime from chiavdf (https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43):
-/// Generates a random pseudo-prime using the hash and check method:
-/// Randomly chooses x with bit-length `length`, then applies a mask
-///   (for b in bitmask) { x |= (1 << b) }.
-/// Then return x if it is a pseudo-prime, otherwise repeat.
-///
-/// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
-fn hash_prime(seed: &[u8], length: usize, bitmask: &[usize]) -> FastCryptoResult<BigInt> {
-    if length % 8 != 0 {
-        return Err(InvalidInput);
-    }
-
-    let mut sprout: Vec<u8> = vec![];
-    sprout.extend_from_slice(seed);
-
-    loop {
-        let mut blob = vec![];
-        while blob.len() * 8 < length {
-            for i in (0..sprout.len()).rev() {
-                sprout[i] = sprout[i].wrapping_add(1);
-                if sprout[i] != 0 {
-                    break;
-                }
-            }
-            let hash = Sha256::digest(&sprout).digest;
-            blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
-        }
-        let mut x = BigInt::from_bytes_be(Sign::Plus, &blob);
-        for b in bitmask {
-            x.set_bit(*b as u64, true);
-        }
-
-        // The implementations of the primality test used below might be slightly different from the
-        // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
-        // is not an issue.
-        if is_prime(&x.to_biguint().unwrap()) {
-            return Ok(x);
-        }
-    }
-}
-
-#[cfg(feature = "gmp")]
-fn is_prime(x: &BigUint) -> bool {
-    let y = rug::Integer::from_digits(&x.to_bytes_be(), rug::integer::Order::Msf);
-    y.is_probably_prime(30) != rug::integer::IsPrime::No
-}
-
-fn is_prime(x: &BigUint) -> bool {
-    num_prime::nt_funcs::is_prime(x, None).probably()
-}
-
-impl<P: TryFrom<BigInt, Error = FastCryptoError> + Eq + ToBytes> Parameter for P {
+impl Parameter for Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<P> {
-        Self::try_from(hash_prime(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?.neg())
+    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
+        Self::try_from(
+            bigint_utils::hash_prime_default(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?
+                .neg(),
+        )
     }
 }
 
