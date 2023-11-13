@@ -10,13 +10,13 @@ pub mod class_group;
 #[cfg(any(test, feature = "experimental"))]
 pub mod vdf;
 
+#[cfg(any(test, feature = "experimental"))]
 mod extended_gcd;
+#[cfg(any(test, feature = "experimental"))]
 pub mod hash_prime;
 
-pub trait ToBytes {
-    fn to_bytes(&self) -> Vec<u8>;
-}
-
+/// This trait is implemented by types which can be used as parameters for a parameterized group.
+/// See [ParameterizedGroupElement].
 pub trait Parameter: Eq + Sized + ToBytes {
     /// Compute a random instance of a given size from a seed.
     fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Self>;
@@ -25,7 +25,7 @@ pub trait Parameter: Eq + Sized + ToBytes {
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
 pub trait ParameterizedGroupElement:
-    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Neg + Eq
+    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Neg + Eq + ToBytes
 {
     /// The type of the parameter which uniquely defines this group.
     type ParameterType: Parameter;
@@ -42,12 +42,14 @@ pub trait ParameterizedGroupElement:
     /// Compute scale * self.
     fn mul(&self, scale: &Self::ScalarType) -> Self;
 
-    /// Serialize this group element.
-    fn as_bytes(&self) -> Vec<u8>;
-
     /// Check whether this group element is in the same group as `other`.
     fn same_group(&self, other: &Self) -> bool;
 }
 
 /// Trait impl'd by elements of groups where the order is unknown.
 pub trait UnknownOrderGroupElement {}
+
+pub trait ToBytes {
+    /// Serialize this object into a byte vector.
+    fn to_bytes(&self) -> Vec<u8>;
+}

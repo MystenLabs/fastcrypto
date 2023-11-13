@@ -324,10 +324,6 @@ impl ParameterizedGroupElement for QuadraticForm {
         result
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        self.serialize().to_vec()
-    }
-
     fn same_group(&self, other: &Self) -> bool {
         self.discriminant() == other.discriminant()
     }
@@ -367,6 +363,12 @@ impl Neg for QuadraticForm {
             c: self.c,
             partial_gcd_limit: self.partial_gcd_limit,
         }
+    }
+}
+
+impl ToBytes for QuadraticForm {
+    fn to_bytes(&self) -> Vec<u8> {
+        self.serialize().to_vec()
     }
 }
 

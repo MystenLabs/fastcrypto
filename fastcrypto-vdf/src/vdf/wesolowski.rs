@@ -132,8 +132,8 @@ impl<
 {
     fn compute_challenge<F>(_vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
-        seed.extend_from_slice(&input.as_bytes());
-        seed.extend_from_slice(&output.as_bytes());
+        seed.extend_from_slice(&input.to_bytes());
+        seed.extend_from_slice(&output.to_bytes());
         hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
@@ -156,10 +156,14 @@ impl<
     fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
 
-        seed.extend_from_slice(&(input.as_bytes().len() as u64).to_be_bytes());
-        seed.extend_from_slice(&input.as_bytes());
-        seed.extend_from_slice(&(output.as_bytes().len() as u64).to_be_bytes());
-        seed.extend_from_slice(&output.as_bytes());
+        let input_bytes = input.to_bytes();
+        seed.extend_from_slice(&(input_bytes.len() as u64).to_be_bytes());
+        seed.extend_from_slice(&input_bytes);
+
+        let output_bytes = output.to_bytes();
+        seed.extend_from_slice(&(output_bytes.len() as u64).to_be_bytes());
+        seed.extend_from_slice(&output_bytes);
+
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
