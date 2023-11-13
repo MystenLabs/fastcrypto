@@ -1,12 +1,19 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module contains an implementation of the extended Euclidean algorithm for [BigInt]`s.
+//! Besides the gcd and the Bezout coefficients, it also returns the quotients of the two inputs
+//! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
+//! and come out for free while computing the Bezout coefficients.
+
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::mem;
 use std::ops::Neg;
 
+/// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
+/// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
 pub struct EuclideanAlgorithmOutput {
     pub gcd: BigInt,
     pub x: BigInt,

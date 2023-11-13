@@ -3,9 +3,10 @@
 
 use clap::Parser;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
+use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
-use fastcrypto_vdf::ParameterizedGroupElement;
+use fastcrypto_vdf::Parameter;
+use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
 const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 1024;
@@ -99,13 +100,13 @@ fn execute(cmd: Command) -> Result<String, Error> {
 
             let g = QuadraticForm::generator(&discriminant);
 
-            let vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            let vdf = StrongVDF::new(discriminant, arguments.iterations);
             let (output, proof) = vdf
                 .evaluate(&g)
                 .map_err(|_| Error::new(ErrorKind::Other, "VDF evaluation failed"))?;
 
-            let output_string = hex::encode(output.as_bytes());
-            let proof_string = hex::encode(proof.as_bytes());
+            let output_string = hex::encode(output.to_bytes());
+            let proof_string = hex::encode(proof.to_bytes());
 
             let mut result = "Output: ".to_string();
             result.push_str(&output_string);
@@ -137,7 +138,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 
             let g = QuadraticForm::generator(&discriminant);
 
-            let vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            let vdf = StrongVDF::new(discriminant, arguments.iterations);
             let verifies = vdf.verify(&g, &output, &proof).is_ok();
 
             let mut result = "Verified: ".to_string();
@@ -173,7 +174,7 @@ mod tests {
             iterations,
         }))
         .unwrap();
-        let expected = "Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100";
+        let expected = "Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302";
         assert_eq!(expected, result);
 
         let invalid_discriminant = "abcx".to_string();
@@ -189,7 +190,7 @@ mod tests {
         let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
         let iterations = 1000u64;
         let output = "010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401".to_string();
-        let proof = "0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100".to_string();
+        let proof = "0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302".to_string();
         let result = execute(Command::Verify(VerifyArguments {
             discriminant,
             iterations,
