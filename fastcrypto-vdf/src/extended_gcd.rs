@@ -6,14 +6,13 @@
 //! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
 //! and come out for free while computing the Bezout coefficients.
 
-use num_bigint::{BigInt, BigUint, RandomBits};
+use num_bigint::{BigInt, BigUint, RandomBits, Sign};
 use num_integer::Integer;
 use num_modular::ModularUnaryOps;
 use num_traits::{One, Signed, Zero};
-use rand::{Rng, SeedableRng};
 use std::cmp::min;
 use std::mem;
-use std::ops::{Mul, Neg, Shr, Sub};
+use std::ops::{BitOr, BitXor, Mul, Neg, Shr, Sub};
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
@@ -93,6 +92,17 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
     }
 }
 
+#[cfg(test)]
+use rand::{Rng, SeedableRng};
+
+pub fn exact_div_signed(a: &BigInt, b: &BigInt) -> BigInt {
+    BigInt::from_biguint(
+        a.sign() * b.sign(),
+        exact_div(&a.magnitude(), &b.magnitude()),
+    )
+}
+
+/// Algorithm from Jebelean (1993), "An algorithm for exact division", J. Symb. Comput. 15, 2.
 pub fn exact_div(a: &BigUint, b: &BigUint) -> BigUint {
     let divisor_trailing_zeros = b.to_u32_digits()[0].trailing_zeros();
 
@@ -108,7 +118,9 @@ pub fn exact_div(a: &BigUint, b: &BigUint) -> BigUint {
 
     for k in 0..result_length {
         q.push(a_digits[k].wrapping_mul(b_prime));
-        if k + 1 < result_length {
+
+        // Skip on last iteration
+        if k < result_length - 1 {
             let j = min(length, result_length - k);
             let a_new_digits = BigUint::from_slice(&a_digits[k..])
                 .sub(BigUint::from_slice(&b_digits[0..j]).mul(q[k]))
@@ -124,10 +136,16 @@ pub fn exact_div(a: &BigUint, b: &BigUint) -> BigUint {
 fn test_exact_div() {
     let mut rng = rand_pcg::Pcg32::seed_from_u64(123);
 
-    let b: BigUint = rng.sample(RandomBits::new(256));
-    let c: BigUint = rng.sample(RandomBits::new(177));
-    let a: BigUint = b.clone() * c.clone();
-    assert_eq!(c, exact_div(&a, &b));
+    for _ in 0..1000 {
+        let n: u64 = rng.gen_range(10..1000);
+        let b: BigUint = rng.sample(RandomBits::new(n));
+
+        let m: u64 = rng.gen_range(10..1000);
+        let c: BigUint = rng.sample(RandomBits::new(m));
+
+        let a: BigUint = b.clone() * c.clone();
+        assert_eq!(c, exact_div(&a, &b));
+    }
 }
 
 #[test]

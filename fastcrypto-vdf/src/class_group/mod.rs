@@ -5,7 +5,9 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::extended_gcd::{
+    exact_div_signed, extended_euclidean_algorithm, EuclideanAlgorithmOutput,
+};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -157,7 +159,7 @@ impl QuadraticForm {
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
             (
                 g,
-                &b * (&m / &h) + &l * (&capital_by / &h),
+                &b * (&m / &h) + &l * &exact_div_signed(&capital_by, &h),
                 b_divided_by_gcd,
             )
         };
