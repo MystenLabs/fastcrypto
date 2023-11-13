@@ -6,7 +6,6 @@ use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
 use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
-use fastcrypto_vdf::ParameterizedGroupElement;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
@@ -106,8 +105,8 @@ fn execute(cmd: Command) -> Result<String, Error> {
                 .evaluate(&g)
                 .map_err(|_| Error::new(ErrorKind::Other, "VDF evaluation failed"))?;
 
-            let output_string = hex::encode(output.as_bytes());
-            let proof_string = hex::encode(proof.as_bytes());
+            let output_string = hex::encode(output.to_bytes());
+            let proof_string = hex::encode(proof.to_bytes());
 
             let mut result = "Output: ".to_string();
             result.push_str(&output_string);
