@@ -103,7 +103,11 @@ fn size_in_bytes(scalar: &blst_scalar) -> usize {
 /// Given a scalar and its size in bytes (computed using [size_in_bytes], this method returns the size
 /// of the scalar in bits.
 fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
-    8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
+    if size_in_bytes == 0 {
+        0
+    } else {
+        8 * size_in_bytes - 7 + log2_byte(scalar.b[size_in_bytes - 1])
+    }
 }
 
 #[allow(clippy::suspicious_arithmetic_impl)]
