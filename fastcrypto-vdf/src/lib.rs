@@ -10,7 +10,8 @@ pub mod class_group;
 #[cfg(any(test, feature = "experimental"))]
 pub mod vdf;
 
-pub mod bigint_utils;
+mod extended_gcd;
+pub mod hash_prime;
 
 pub trait ToBytes {
     fn to_bytes(&self) -> Vec<u8>;

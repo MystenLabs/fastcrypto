@@ -2,17 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::Discriminant;
+use crate::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
 use crate::vdf::VDF;
-use crate::{
-    bigint_utils, Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement,
-};
+use crate::{hash_prime, Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
-use num_bigint::{BigInt};
+use num_bigint::BigInt;
 use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
-use crate::bigint_utils::{DefaultPrimalityCheck, PrimalityCheck};
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -89,7 +87,8 @@ impl<
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
 /// Fiat-Shamir implementation.
-pub type StrongVDF<G> = WesolowskiVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
+pub type StrongVDF<G> =
+    WesolowskiVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
 /// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
@@ -135,7 +134,7 @@ impl<
         let mut seed = vec![];
         seed.extend_from_slice(&input.as_bytes());
         seed.extend_from_slice(&output.as_bytes());
-        bigint_utils::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
@@ -145,7 +144,7 @@ impl<
 /// See https://eprint.iacr.org/2023/691.
 pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize, P> {
     _group: PhantomData<G>,
-    _primality_check: PhantomData<P>
+    _primality_check: PhantomData<P>,
 }
 
 impl<
@@ -164,7 +163,7 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        bigint_utils::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
@@ -173,8 +172,7 @@ impl Parameter for Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
     fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
         Self::try_from(
-            bigint_utils::hash_prime_default(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?
-                .neg(),
+            hash_prime::hash_prime_default(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?.neg(),
         )
     }
 }

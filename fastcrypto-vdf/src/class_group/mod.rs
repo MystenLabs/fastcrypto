@@ -5,7 +5,7 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::bigint_utils::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
