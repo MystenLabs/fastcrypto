@@ -29,14 +29,10 @@ pub trait ThresholdBls {
         pk: &Self::Public,
         sig: &Self::Signature,
         msg: &[u8],
-    ) -> Result<(), FastCryptoError>;
+    ) -> FastCryptoResult<()>;
 
     /// Verify a signature on a given message.
-    fn verify(
-        public: &Self::Public,
-        msg: &[u8],
-        sig: &Self::Signature,
-    ) -> Result<(), FastCryptoError> {
+    fn verify(public: &Self::Public, msg: &[u8], sig: &Self::Signature) -> FastCryptoResult<()> {
         Self::verify_pairings(public, sig, msg).map_err(|_| FastCryptoError::InvalidSignature)
     }
 
@@ -65,26 +61,30 @@ pub trait ThresholdBls {
         vss_pk: &Poly<Self::Public>,
         msg: &[u8],
         partial_sig: &PartialSignature<Self::Signature>,
-    ) -> Result<(), FastCryptoError> {
+    ) -> FastCryptoResult<()> {
         let pk_i = vss_pk.eval(partial_sig.index);
         Self::verify(&pk_i.value, msg, &partial_sig.value)
     }
 
     /// Verify a set of signatures done by a partial key holder.
     /// Randomly check if \sum r_i sig_i is a valid signature with public key \sum r_i p(i) G
-    /// where r_i are random scalars.
+    /// where r_i are random scalars, and p(i) are points on the polynomial.
     fn partial_verify_batch<R: AllowedRng>(
         vss_pk: &Poly<Self::Public>,
         msg: &[u8],
         partial_sigs: &[PartialSignature<Self::Signature>],
         rng: &mut R,
-    ) -> Result<(), FastCryptoError> {
+    ) -> FastCryptoResult<()> {
+        assert!(vss_pk.degree() > 0 || msg.len() > 0);
+        if partial_sigs.is_empty() {
+            return Ok(());
+        }
         let rs = get_random_scalars::<Self::Private, R>(partial_sigs.len() as u32, rng);
         let evals_as_scalars = partial_sigs
             .iter()
             .map(|e| Self::Private::from(e.index.get().into()))
             .collect::<Vec<_>>();
-        // TODO: should we cache it instead?
+        // TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
         let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree());
         let pk = Self::Public::multi_scalar_mul(&coeffs, vss_pk.as_vec()).expect("sizes match");
         let aggregated_sig = Self::Signature::multi_scalar_mul(
