@@ -6,11 +6,14 @@
 //! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
 //! and come out for free while computing the Bezout coefficients.
 
-use num_bigint::BigInt;
+use std::cmp::min;
+use num_bigint::{BigInt, BigUint, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::mem;
-use std::ops::Neg;
+use std::ops::{Mul, Neg, Shr, Sub};
+use std::str::FromStr;
+use num_modular::ModularUnaryOps;
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
@@ -88,6 +91,40 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
             b_divided_by_gcd,
         }
     }
+}
+
+
+pub fn exact_div(a: &BigUint, b: &BigUint) -> BigUint {
+    let divisor_trailing_zeros = b.to_u32_digits()[0].trailing_zeros();
+
+    let mut a_digits = a.shr(divisor_trailing_zeros as usize).to_u32_digits();
+    let b_digits = b.shr(divisor_trailing_zeros as usize).to_u32_digits();
+
+    let result_length = a_digits.len() - b_digits.len() + 1;
+    let length = min(b_digits.len(), result_length);
+
+    let b_prime = (b_digits[0] as u64).invm(&(1 << 32)).unwrap() as u32;
+
+    let mut q = Vec::new();
+
+    for k in 0..result_length {
+        q.push(a_digits[k].wrapping_mul(b_prime));
+        if k + 1 < result_length {
+            let j = min(length, result_length -k);
+            let a_new_digits = BigUint::from_slice(&a_digits[k..result_length]).sub(BigUint::from_slice(&b_digits[0..j]).mul(q[k])).to_u32_digits();
+            a_digits[k..k+a_new_digits.len()].copy_from_slice(&a_new_digits);
+            a_digits[k+a_new_digits.len()..result_length].fill(0);
+        }
+    }
+    BigUint::from_slice(&q)
+}
+
+#[test]
+fn test_exact_div() {
+    let a = BigUint::from_str("2868257319497634232961664256").unwrap();
+    let b = BigUint::from_str("15239746984").unwrap();
+    let c = BigUint::from_str("188208985523773984").unwrap();
+    assert_eq!(c, exact_div(&a, &b));
 }
 
 #[test]

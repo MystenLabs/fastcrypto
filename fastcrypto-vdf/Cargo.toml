@@ -11,7 +11,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto" }
-num-bigint = "0.4.3"
+num-bigint = { version = "0.4.3", features = ["rand"] }
 num-traits = "0.2.16"
 num-integer = "0.1.45"
 num-modular = "0.6.1"
@@ -24,6 +24,7 @@ experimental = []
 hex = "0.4.3"
 criterion = "0.5.1"
 rand = "0.8.4"
+rand_pcg = "0.3.1"
 
 [[bench]]
 name = "vdf"
