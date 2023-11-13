@@ -227,14 +227,16 @@
 <a href="#227" id="227">227</a>
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-<span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::ClassGroupVDF;
+<span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 <span class="kw">use </span>fastcrypto_vdf::vdf::VDF;
-<span class="kw">use </span>fastcrypto_vdf::ParameterizedGroupElement;
+<span class="kw">use </span>fastcrypto_vdf::Parameter;
+<span class="kw">use </span>fastcrypto_vdf::ToBytes;
 <span class="kw">use </span>std::io::{Error, ErrorKind};
 
 <span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">1024</span>;
@@ -328,13 +330,13 @@
 
             <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
 
-            <span class="kw">let </span>vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
             <span class="kw">let </span>(output, proof) = vdf
                 .evaluate(<span class="kw-2">&amp;</span>g)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::Other, <span class="string">&quot;VDF evaluation failed&quot;</span>))<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>output_string = hex::encode(output.as_bytes());
-            <span class="kw">let </span>proof_string = hex::encode(proof.as_bytes());
+            <span class="kw">let </span>output_string = hex::encode(output.to_bytes());
+            <span class="kw">let </span>proof_string = hex::encode(proof.to_bytes());
 
             <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">&quot;Output: &quot;</span>.to_string();
             result.push_str(<span class="kw-2">&amp;</span>output_string);
@@ -366,7 +368,7 @@
 
             <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
 
-            <span class="kw">let </span>vdf = ClassGroupVDF::new(discriminant, arguments.iterations);
+            <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
             <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>g, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
 
             <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">&quot;Verified: &quot;</span>.to_string();
@@ -402,7 +404,7 @@
             iterations,
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">&quot;Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">&quot;Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302&quot;</span>;
         <span class="macro">assert_eq!</span>(expected, result);
 
         <span class="kw">let </span>invalid_discriminant = <span class="string">&quot;abcx&quot;</span>.to_string();
@@ -418,7 +420,7 @@
         <span class="kw">let </span>discriminant = <span class="string">&quot;ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27&quot;</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
         <span class="kw">let </span>output = <span class="string">&quot;010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401&quot;</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">&quot;0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100&quot;</span>.to_string();
+        <span class="kw">let </span>proof = <span class="string">&quot;0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302&quot;</span>.to_string();
         <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
             discriminant,
             iterations,

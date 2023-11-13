@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["ChiaFiatShamir","StrongFiatShamir","WesolowskiVDF"],"trait":["FiatShamir"],"type":["ChiaClassGroupVDF","ClassGroupVDF"]};
+window.SIDEBAR_ITEMS = {"constant":["CHALLENGE_SIZE"],"struct":["StrongFiatShamir","WeakFiatShamir","WesolowskiVDF"],"trait":["FiatShamir"],"type":["StrongVDF","WeakVDF"]};

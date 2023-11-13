@@ -5,7 +5,7 @@ var srcIndex = JSON.parse('{\
 "fastcrypto_cli":["",[],["lib.rs"]],\
 "fastcrypto_derive":["",[],["lib.rs"]],\
 "fastcrypto_tbls":["",[],["dkg.rs","dl_verification.rs","ecies.rs","lib.rs","nizk.rs","nodes.rs","polynomial.rs","random_oracle.rs","tbls.rs","types.rs"]],\
-"fastcrypto_vdf":["",[["class_group",[["num_bigint",[],["bigint_utils.rs","compressed.rs","mod.rs"]]],["mod.rs"]],["vdf",[],["mod.rs","wesolowski.rs"]]],["lib.rs"]],\
+"fastcrypto_vdf":["",[["class_group",[],["compressed.rs","mod.rs"]],["vdf",[],["mod.rs","wesolowski.rs"]]],["extended_gcd.rs","hash_prime.rs","lib.rs"]],\
 "fastcrypto_zkp":["",[["bls12381",[],["api.rs","conversions.rs","mod.rs","verifier.rs"]],["bn254",[["poseidon",[],["constants.rs","mod.rs"]]],["api.rs","mod.rs","utils.rs","verifier.rs","zk_login.rs","zk_login_api.rs"]]],["circom.rs","dummy_circuits.rs","lib.rs"]],\
 "sigs_cli":["",[],["sigs_cli.rs"]],\
 "vdf_cli":["",[],["vdf.rs"]]\
