@@ -15,7 +15,7 @@ use std::fmt::Debug;
 ///
 /// The caller must make sure to:
 /// - Choose distinct prefix & extension strings, preferably without "-" in them.
-/// - Ensure that the prefix & extension strings are short enough to fit in a u8.
+/// - Ensure that the length of prefix & extension is small enough to fit in u32.
 ///   Violating this constraint will cause a panic.
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -26,7 +26,7 @@ pub struct RandomOracle {
 impl RandomOracle {
     pub fn new(initial_prefix: &str) -> Self {
         // Since we shouldn't get such long prefixes, it's safe to assert here.
-        assert!(initial_prefix.len() < u8::MAX as usize);
+        assert!(initial_prefix.len() < u32::MAX as usize);
         Self {
             prefix: initial_prefix.into(),
         }
@@ -34,11 +34,11 @@ impl RandomOracle {
 
     pub fn evaluate<T: Serialize>(&self, obj: &T) -> [u8; 64] {
         let mut hasher = Sha3_512::default();
-        let len: u8 = self
+        let len: u32 = self
             .prefix
             .len()
             .try_into()
-            .expect("prefix length should be less than u8::MAX, checked when set");
+            .expect("prefix length should be less than u32::MAX, checked when set");
         hasher.update(len.to_be_bytes());
         hasher.update(&self.prefix);
         let serialized = bcs::to_bytes(obj).expect("serialize should never fail");
@@ -48,7 +48,7 @@ impl RandomOracle {
 
     pub fn extend(&self, extension: &str) -> Self {
         // Since we shouldn't get such long prefixes, it's safe to assert here.
-        assert!(self.prefix.len() + extension.len() + 1 < u8::MAX as usize);
+        assert!(self.prefix.len() + extension.len() + 1 < u32::MAX as usize);
         Self {
             prefix: self.prefix.clone() + "-" + extension,
         }

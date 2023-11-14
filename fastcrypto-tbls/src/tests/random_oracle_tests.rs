@@ -33,6 +33,6 @@ fn test_regression() {
     let ro1 = RandomOracle::new("abc");
     assert_eq!(
         ro1.evaluate(&"alice").to_vec(),
-        hex::decode("ea7857d7b4946f810e15e6fb1f95eb3a2c8117e78ab7f23f7d139444c67b415dcfb080f878d22cf5c5010660fee38722588d7f071972c67ab1affcaabfca76c3").unwrap()
+        hex::decode("f52f72aac5d40ebb30677b5531ccf7b42dbfaa2b6426c196af72237b96185e4d04412d872deacc64403bf06fd03b3925d3d3b0e7344b983c4189d19c7acce2f2").unwrap()
     );
 }
