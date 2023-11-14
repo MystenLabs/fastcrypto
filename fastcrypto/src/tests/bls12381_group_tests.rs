@@ -26,6 +26,9 @@ fn test_scalar_arithmetic() {
     let zero = Scalar::zero();
     let one = Scalar::generator();
 
+    assert_eq!(zero, zero - zero);
+    assert_eq!(zero, -zero);
+
     let four = one + zero + one + one + one;
     assert_eq!(four, Scalar::from(4));
 
@@ -77,6 +80,10 @@ fn test_g1_arithmetic() {
     assert_eq!(G1Element::zero(), g - g);
 
     assert!((G1Element::generator() / Scalar::zero()).is_err());
+
+    let identity = G1Element::zero();
+    assert_eq!(identity, identity - identity);
+    assert_eq!(identity, -identity);
 }
 
 #[test]
@@ -127,6 +134,10 @@ fn test_g2_arithmetic() {
 
     assert_ne!(G2Element::zero(), g);
     assert_eq!(G2Element::zero(), g - g);
+
+    let identity = G2Element::zero();
+    assert_eq!(identity, identity - identity);
+    assert_eq!(identity, -identity);
 }
 
 #[test]
