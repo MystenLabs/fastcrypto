@@ -18,12 +18,9 @@ type G = G2Element;
 type S = ThresholdBls12381MinSig;
 type EG = G2Element;
 
-fn gen_keys_and_nodes(
-    n: usize,
-) -> (
-    Vec<(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)>,
-    Nodes<EG>,
-) {
+type KeyNodePair<EG> = (PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>);
+
+fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
     let keys = (0..n)
         .map(|id| {
             let sk = ecies::PrivateKey::<EG>::new(&mut thread_rng());
