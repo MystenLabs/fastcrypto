@@ -141,7 +141,14 @@ async fn test_verify_zk_login_google() {
         ),
         content,
     );
-    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
+    let res = verify_zk_login(
+        &zk_login_inputs,
+        10,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Prod,
+        true,
+    );
     assert!(res.is_ok());
 }
 
