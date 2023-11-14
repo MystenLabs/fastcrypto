@@ -213,8 +213,14 @@ where
         self.1.is_empty()
     }
 
-    pub fn verify_knowledge(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
-        self.2.verify(&self.0, random_oracle)
+    pub fn verify(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        self.2.verify(&self.0, random_oracle)?;
+        // Encryptions cannot be empty.
+        self.1
+            .iter()
+            .all(|e| !e.is_empty())
+            .then(|| ())
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     pub fn ephemeral_key(&self) -> &G {

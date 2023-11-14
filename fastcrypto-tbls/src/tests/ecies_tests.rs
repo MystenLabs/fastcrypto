@@ -80,13 +80,24 @@ mod point_tests {
             &mut thread_rng(),
         );
 
-        assert!(mr_enc.verify_knowledge(&ro).is_ok());
+        assert!(mr_enc.verify(&ro).is_ok());
 
         for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
             let enc = mr_enc.get_encryption(i).unwrap();
             let decrypted = sk.decrypt(&enc);
             assert_eq!(msg.as_bytes(), &decrypted);
         }
+
+        // test empty messages
+        let mr_enc = MultiRecipientEncryption::encrypt(
+            &keys_and_msg
+                .iter()
+                .map(|(_, pk, _)| (pk.clone(), vec![]))
+                .collect::<Vec<_>>(),
+            &ro,
+            &mut thread_rng(),
+        );
+        assert!(mr_enc.verify(&ro).is_err());
     }
 
     #[instantiate_tests(<RistrettoPoint>)]

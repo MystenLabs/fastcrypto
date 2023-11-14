@@ -267,11 +267,10 @@ where
         }
 
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", msg.sender));
-        // TODO: check all encs are non zero len
         msg.encrypted_shares
-            .verify_knowledge(&ro_for_enc)
+            .verify(&ro_for_enc)
             .tap_err(|e| {
-                warn!("DKG: Message sanity check failed for id {}, verify_knowledge with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
+                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
                     msg.sender,
                     ro_for_enc,
                     msg.encrypted_shares.ephemeral_key(),
