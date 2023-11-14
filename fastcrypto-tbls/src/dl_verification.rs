@@ -40,7 +40,7 @@ pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u32)
 
 /// Checks that a given set of evaluations is consistent with a given polynomial in the exp by
 /// checking that (\sum r_i v_i)*G = \sum r_i p(i) for a random set of scalars r_i.
-pub(crate) fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
+pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     evals: &[Eval<G::ScalarType>],
     poly: &Poly<G>,
     rng: &mut R,
@@ -69,7 +69,7 @@ pub(crate) fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>
 
 /// Check that a pair (k, H) satisfies H = k*G using a random combination of the pairs and
 /// multi scalar multiplication.
-pub(crate) fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
+pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     pairs: &[(G::ScalarType, G)],
     rng: &mut R,
 ) -> FastCryptoResult<()> {
@@ -102,7 +102,7 @@ pub(crate) fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 
 /// Check that a triplet (k, G, H) satisfies H = k*G using a random combination of the
 /// triplets and multi scalar multiplication.
-pub(crate) fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
+pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     triplets: &[(G::ScalarType, G, G)],
     rng: &mut R,
 ) -> FastCryptoResult<()> {
@@ -140,7 +140,7 @@ pub(crate) fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 
 /// Check that partial public keys form a polynomial of the right degree using the protocol of
 /// https://eprint.iacr.org/2017/216.pdf. deg_f should be n-k-2 if the polynomial is of degree k.
-pub(crate) fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
+pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     deg_f: u32,
     values: &[G],
     precomputed_dual_code_coefficients: &[G::ScalarType],
@@ -161,7 +161,7 @@ pub(crate) fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>
 
 /// Checks if vectors v1=(a1*G1, ..., an*G1) and v2=(a1'*G2, ..., an'*G2) use ai = ai' for all i, by
 /// computing <v1, e> and <v2, e> for a random e and checking if they are equal using pairing.
-pub(crate) fn verify_equal_exponents<R: AllowedRng>(
+pub fn verify_equal_exponents<R: AllowedRng>(
     v1: &[bls12381::G1Element],
     v2: &[bls12381::G2Element],
     rng: &mut R,
