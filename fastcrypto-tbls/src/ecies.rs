@@ -219,7 +219,7 @@ where
         self.1
             .iter()
             .all(|e| !e.is_empty())
-            .then(|| ())
+            .then_some(())
             .ok_or(FastCryptoError::InvalidInput)
     }
 

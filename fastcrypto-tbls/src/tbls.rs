@@ -75,7 +75,7 @@ pub trait ThresholdBls {
         partial_sigs: &[PartialSignature<Self::Signature>],
         rng: &mut R,
     ) -> FastCryptoResult<()> {
-        assert!(vss_pk.degree() > 0 || msg.len() > 0);
+        assert!(vss_pk.degree() > 0 || !msg.is_empty());
         if partial_sigs.is_empty() {
             return Ok(());
         }

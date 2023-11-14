@@ -53,7 +53,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
 
     // Create the parties
     let d0 = Party::<G, EG>::new(
-        keys.get(0 as usize).unwrap().1.clone(),
+        keys.get(0_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -62,7 +62,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     .unwrap();
     assert_eq!(d0.t(), t);
     let d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -71,7 +71,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     .unwrap();
     // The third party (d2) is ignored (emulating a byzantine party).
     let d3 = Party::<G, EG>::new(
-        keys.get(3 as usize).unwrap().1.clone(),
+        keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -79,7 +79,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     )
     .unwrap();
     let d4 = Party::<G, EG>::new(
-        keys.get(4 as usize).unwrap().1.clone(),
+        keys.get(4_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -87,7 +87,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     )
     .unwrap();
     let d5 = Party::<G, EG>::new(
-        keys.get(5 as usize).unwrap().1.clone(),
+        keys.get(5_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -244,7 +244,7 @@ fn test_party_new_errors() {
 
     // t is zero
     assert!(Party::<G, EG>::new(
-        keys.get(0 as usize).unwrap().1.clone(),
+        keys.get(0_usize).unwrap().1.clone(),
         nodes.clone(),
         0,
         ro.clone(),
@@ -253,7 +253,7 @@ fn test_party_new_errors() {
     .is_err());
     // t is too large
     assert!(Party::<G, EG>::new(
-        keys.get(0 as usize).unwrap().1.clone(),
+        keys.get(0_usize).unwrap().1.clone(),
         nodes.clone(),
         100,
         ro.clone(),
@@ -278,7 +278,7 @@ fn test_process_message_failures() {
     let (keys, nodes) = gen_keys_and_nodes(4);
 
     let d0 = Party::<G, EG>::new(
-        keys.get(0 as usize).unwrap().1.clone(),
+        keys.get(0_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -288,7 +288,7 @@ fn test_process_message_failures() {
 
     // invalid sender
     let d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -301,7 +301,7 @@ fn test_process_message_failures() {
 
     // invalid degree
     let d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t - 1,
         ro.clone(),
@@ -313,7 +313,7 @@ fn test_process_message_failures() {
 
     // invalid c0
     let d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -337,14 +337,14 @@ fn test_process_message_failures() {
         shares,
         complaint,
     } = d0.process_message(msg1, &mut thread_rng()).unwrap();
-    if shares.len() > 0 || complaint.is_none() {
+    if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
 
     // invalid share
     // use another d1 with a different vss_sk to create an encryption with "invalid" shares
     let another_d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -359,7 +359,7 @@ fn test_process_message_failures() {
         shares,
         complaint,
     } = d0.process_message(msg1, &mut thread_rng()).unwrap();
-    if shares.len() > 0 || complaint.is_none() {
+    if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
 }
@@ -371,7 +371,7 @@ fn test_test_process_confirmations() {
     let (keys, nodes) = gen_keys_and_nodes(6);
 
     let d0 = Party::<G, EG>::new(
-        keys.get(0 as usize).unwrap().1.clone(),
+        keys.get(0_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -379,7 +379,7 @@ fn test_test_process_confirmations() {
     )
     .unwrap();
     let d1 = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -387,7 +387,7 @@ fn test_test_process_confirmations() {
     )
     .unwrap();
     let d2 = Party::<G, EG>::new(
-        keys.get(2 as usize).unwrap().1.clone(),
+        keys.get(2_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -395,7 +395,7 @@ fn test_test_process_confirmations() {
     )
     .unwrap();
     let d3 = Party::<G, EG>::new(
-        keys.get(3 as usize).unwrap().1.clone(),
+        keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -438,7 +438,7 @@ fn test_test_process_confirmations() {
     let ver_msg = d1
         .process_confirmations(
             &used_msgs0,
-            &vec![conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
+            &[conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
             3,
             &mut thread_rng(),
         )
@@ -459,7 +459,7 @@ fn test_test_process_confirmations() {
     let ver_msg = d1
         .process_confirmations(
             &used_msgs0,
-            &vec![conf2.clone(), conf3.clone(), conf7],
+            &[conf2.clone(), conf3.clone(), conf7],
             3,
             &mut thread_rng(),
         )
@@ -481,7 +481,7 @@ fn test_test_process_confirmations() {
     let ver_msg = d1
         .process_confirmations(
             &used_msgs0,
-            &vec![conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
+            &[conf0.clone(), conf1.clone(), conf2.clone(), conf3.clone()],
             3,
             &mut thread_rng(),
         )
@@ -501,7 +501,7 @@ fn test_test_process_confirmations() {
 fn create_message_generates_valid_message() {
     let (keys, nodes) = gen_keys_and_nodes(4);
     let d = Party::<G, EG>::new(
-        keys.get(1 as usize).unwrap().1.clone(),
+        keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         3,
         RandomOracle::new("dkg"),

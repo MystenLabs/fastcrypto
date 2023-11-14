@@ -46,7 +46,7 @@ pub(crate) fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>
     rng: &mut R,
 ) -> FastCryptoResult<()> {
     assert!(poly.degree() > 0);
-    if evals.len() == 0 {
+    if evals.is_empty() {
         return Ok(());
     }
     let rs = get_random_scalars::<G::ScalarType, R>(evals.len() as u32, rng);

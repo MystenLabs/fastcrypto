@@ -132,8 +132,8 @@ fn test_partial_verify_batch() {
     .is_err());
     // even if the sum of sigs is ok, should fail since not consistent with the polynomial
     let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
-    sigs[0].value = sigs[0].value - G1Element::generator();
-    sigs[1].value = sigs[1].value + G1Element::generator();
+    sigs[0].value -= G1Element::generator();
+    sigs[1].value += G1Element::generator();
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
@@ -189,7 +189,7 @@ fn test_verify_poly_evals() {
         .into_iter()
         .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
         .collect::<Vec<_>>();
-    shares[0].value = shares[0].value + Scalar::generator();
-    shares[1].value = shares[1].value - Scalar::generator();
+    shares[0].value += Scalar::generator();
+    shares[1].value -= Scalar::generator();
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
 }
