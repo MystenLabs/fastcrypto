@@ -227,9 +227,16 @@ pub fn verify_zk_login(
     eph_pubkey_bytes: &[u8],
     all_jwk: &ImHashMap<JwkId, JWK>,
     env: &ZkLoginEnv,
+    should_sanitize_iss: bool,
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (iss, kid).
-    let (iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
+    let (iss, kid) = match should_sanitize_iss {
+        true => (
+            input.get_sanitized_iss().to_string(),
+            input.get_kid().to_string(),
+        ),
+        false => (input.get_iss().to_string(), input.get_kid().to_string()),
+    };
     let jwk = all_jwk
         .get(&JwkId::new(iss.clone(), kid.clone()))
         .ok_or_else(|| {
