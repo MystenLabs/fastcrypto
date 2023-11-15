@@ -43,6 +43,7 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        true,
     );
     assert!(res.is_ok());
 
@@ -53,6 +54,7 @@ async fn test_end_to_end_twitch() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        true,
     );
     assert!(res_prod.is_err());
 }
@@ -86,6 +88,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        true,
     );
     assert!(res.is_ok());
 
@@ -96,6 +99,7 @@ async fn test_end_to_end_kakao() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        true,
     );
     assert!(res_prod.is_err());
 }
@@ -128,6 +132,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        true,
     );
     assert!(res.is_ok());
 
@@ -138,6 +143,7 @@ async fn test_end_to_end_apple() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        true,
     );
     assert!(res_prod.is_err());
 }
@@ -170,6 +176,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Test,
+        true,
     );
     assert!(res.is_ok());
 
@@ -180,6 +187,7 @@ async fn test_end_to_end_slack() {
         &eph_pubkey,
         &map,
         &ZkLoginEnv::Prod,
+        true,
     );
     assert!(res_prod.is_err());
 }
