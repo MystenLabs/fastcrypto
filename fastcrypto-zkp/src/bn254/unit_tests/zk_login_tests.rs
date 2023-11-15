@@ -5,7 +5,8 @@ use std::str::FromStr;
 
 use crate::bn254::poseidon::hash;
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
+    big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
+    get_zk_login_address,
 };
 use crate::bn254::zk_login::{
     convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
@@ -575,4 +576,39 @@ fn test_all_inputs_hash() {
         hash.to_string(),
         "2487117669597822357956926047501254969190518860900347921480370492048882803688".to_string()
     );
+}
+
+#[test]
+fn test_alternative_iss_for_google() {
+    let input = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"7566241567720780416751598994698310678767195459947224622023785587667176814058\",\"18104499930818305143361187733659014043953751050617136254447624192327280445771\",\"1\"],\"b\":[[\"11369230593957954942221175389182778816136534144714579815927653075736806430994\",\"11928003240637992017698644299021052465098754853899210401706726930513411198353\"],[\"2597127058046351054449743605218058440565462021354202666955356076272028963802\",\"3385145993275542896693643488618289924488296318344621918448585222369718288892\"],[\"1\",\"0\"]],\"c\":[\"395141536511114303768253959602639884294254888080713473665269769443249414257\",\"21430657725804540809568084344756144327539843580919730138594118365564728808275\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6ImM5YWZkYTM2ODJlYmYwOWViMzA1NWMxYzRiZDM5Yjc1MWZiZjgxOTUiLCJ0eXAiOiJKV1QifQ\"}", "4959624758616676340947699768172740454110375485415332267384397278368360470616").unwrap();
+    let mut eph_pubkey_bytes = vec![0];
+    eph_pubkey_bytes.extend(
+        big_int_str_to_bytes(
+            "3598866369818193253063936208363210863933653800990958031560302098730308306242903464",
+        )
+        .unwrap(),
+    );
+    let mut all_jwk = ImHashMap::new();
+    all_jwk.insert(
+        JwkId::new(
+            OIDCProvider::Google.get_config().iss,
+            "c9afda3682ebf09eb3055c1c4bd39b751fbf8195".to_string(),
+        ),
+        JWK {
+            kty: "RSA".to_string(),
+            e: "AQAB".to_string(),
+            n: "whYOFK2Ocbbpb_zVypi9SeKiNUqKQH0zTKN1-6fpCTu6ZalGI82s7XK3tan4dJt90ptUPKD2zvxqTzFNfx4HHHsrYCf2-FMLn1VTJfQazA2BvJqAwcpW1bqRUEty8tS_Yv4hRvWfQPcc2Gc3-_fQOOW57zVy-rNoJc744kb30NjQxdGp03J2S3GLQu7oKtSDDPooQHD38PEMNnITf0pj-KgDPjymkMGoJlO3aKppsjfbt_AH6GGdRghYRLOUwQU-h-ofWHR3lbYiKtXPn5dN24kiHy61e3VAQ9_YAZlwXC_99GGtw_NpghFAuM4P1JDn0DppJldy3PGFC0GfBCZASw".to_string(),
+            alg: "RS256".to_string(),
+        },
+    );
+
+    let res = verify_zk_login(
+        &input,
+        10000,
+        &eph_pubkey_bytes,
+        &all_jwk,
+        &ZkLoginEnv::Test,
+        true,
+    );
+    assert!(res.is_ok());
 }
