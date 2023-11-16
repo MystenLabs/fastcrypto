@@ -298,17 +298,17 @@ pub trait AggregateAuthenticator:
     ///
     /// # Example
     /// ```rust
-    /// use fastcrypto::ed25519::*;
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
+    /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message: &[u8] = b"Hello, world!";
-    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message);
-    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message);
     ///
-    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
     /// let public_keys = &[kp1.public().clone(), kp2.public().clone()];
     /// assert!(aggregated_signature.verify(public_keys, message).is_ok());
     /// ```
@@ -322,18 +322,18 @@ pub trait AggregateAuthenticator:
     ///
     /// # Example
     /// ```rust
-    /// use fastcrypto::ed25519::*;
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
+    /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message1: &[u8] = b"Hello, world!";
-    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message1);
     /// let message2: &[u8] = b"Hello, world!!!";
-    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message2);
     ///
-    /// let aggregated_signature = Ed25519AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
+    /// let aggregated_signature = BLS12381AggregateSignature::aggregate(vec!(&signature1, &signature2)).unwrap();
     /// let messages = [message1, message2];
     /// let public_keys = [kp1.public().clone(), kp2.public().clone()];
     /// assert!(aggregated_signature.verify_different_msg(&public_keys, &messages).is_ok());
@@ -348,25 +348,25 @@ pub trait AggregateAuthenticator:
     ///
     /// # Example
     /// ```rust
-    /// use fastcrypto::ed25519::*;
     /// use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
+    /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
     /// let message1: &[u8] = b"Hello, world!";
-    /// let kp1 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp1 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature1 = kp1.sign(message1);
-    /// let aggregated_signature1 = Ed25519AggregateSignature::aggregate(vec!(&signature1)).unwrap();
+    /// let aggregated_signature1 = BLS12381AggregateSignature::aggregate(vec!(&signature1)).unwrap();
     /// let message2: &[u8] = b"1234";
-    /// let kp2 = Ed25519KeyPair::generate(&mut thread_rng());
+    /// let kp2 = BLS12381KeyPair::generate(&mut thread_rng());
     /// let signature2 = kp2.sign(message2);
-    /// let aggregated_signature2 = Ed25519AggregateSignature::aggregate(vec!(&signature2)).unwrap();
+    /// let aggregated_signature2 = BLS12381AggregateSignature::aggregate(vec!(&signature2)).unwrap();
     ///
     /// let aggregated_signatures = [&aggregated_signature1, &aggregated_signature2];
     /// let messages = [message1, message2];
     /// let pks1 = [kp1.public().clone()];
     /// let pks2 = [kp2.public().clone()];
     /// let public_keys = vec!(pks1.iter(), pks2.iter());
-    /// assert!(Ed25519AggregateSignature::batch_verify(&aggregated_signatures, public_keys, &messages).is_ok());
+    /// assert!(BLS12381AggregateSignature::batch_verify(&aggregated_signatures, public_keys, &messages).is_ok());
     /// ```
     fn batch_verify<'a>(
         sigs: &[&Self],
