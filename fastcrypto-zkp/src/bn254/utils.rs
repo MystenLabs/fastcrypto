@@ -175,7 +175,7 @@ pub async fn get_proof(
         .await
         .map_err(|_| FastCryptoError::InvalidInput)?;
 
-    #[cfg(feature = "e2e")]
+    // #[cfg(feature = "e2e")]
     println!("get_proof response: {:?}", full_bytes);
 
     let get_proof_response: ZkLoginInputsReader =

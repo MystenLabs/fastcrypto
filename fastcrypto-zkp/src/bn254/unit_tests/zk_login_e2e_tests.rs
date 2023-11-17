@@ -17,9 +17,18 @@ const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
 
 #[tokio::test]
 async fn test_end_to_end_twitch() {
+    use crate::bn254::utils::get_nonce;
+    let k = Ed25519KeyPair::generate(&mut StdRng::from_seed([2; 32]));
+    let mut eph_pubkey = vec![0x00];
+    eph_pubkey.extend(k.public().as_ref());
+    println!("public key: {:?}", k.public().as_ref());
+    let nonce = get_nonce(&eph_pubkey, 10, "100681567828351849884072155819400689117");
+    println!("nonce: {:?}", nonce);
     // Use a fixed Twitch token obtained with nonce hTPpgF7XAKbW37rEUS6pEVZqmoI
     // Derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
-    let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE2OTIyODQzMzQsImlhdCI6MTY5MjI4MzQzNCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.M54Sgs6aDu5Mprs_CgXeRbgiErC7oehj-h9oEcBqZFDADwd09zs9hbfDPqUjaNBB-_I6G7kn9e-zwPov8PUecI68kr3oyiCMWhKD-3h1FEu13MZv71B6jhIDMu1_UgI-RSrOQMRvdI8eL3qqD-KsvJuJH1Sz0w56PnB0xupUg-eSvgnMBAo6iTa0t1grX9qGy7U00i_oqn9J4jVGVVEbMhUWROJMjowWdOogJ4_VNqm67JHd_rMZ3xtjLabP6Nk1Gx-VjUbYceNADWUr5xpJveRtvb1FJvd0HSN4mab51zuSUnavCQw2OXbyoH8j6uuQAAKVhG-_Ht1hCvReycGXKw";
+    let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE3MDAyNTcxNDIsImlhdCI6MTcwMDI1NjI0MiwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiI3em56VDl5YmVBLWhHQldsZk44MS1WUHoyQVkiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.WBT0q3ZxznpLIWPSAhOZbaCjG-eMvmqptj1AnyjpZ_6eIsQQk5YdcidRXBvBmN8Efin2leKdMmqN7xFY1bK9pFruUNVSN02avOhjzekZdA11Kss3nffkQVnYTxEDrX1tHazXTPRXtOAsnjjTI2oDCPx_Z2-vrkBVkBF4yl9vK_Isu2V1eD-jSvjxBkGv2wpyKqVGlZzXGMYi8ugurGlmHM7PoiOg2mbKIrvfhv6QQ4kMl6tdnkWQG2tC-mITgVj9H9VgfkH7nX0TH-mKi3NkQaUKEKk9lbdlWvCAsxoJ-uIGg4gRVMcrTr9lMSPt5NoiK5jwBBAmVdgiI8QplfAhMw";
+    // let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE3MDAyNTY1OTYsImlhdCI6MTcwMDI1NTY5NiwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiJkcWFRR3lXZzFGSVNOSjBEdGRXYnJzak5xTXMiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.F-PyWY3d1rIj6fumkWCwnptYyDTZXYWhUnqPtKPkQmv9mmGKwyiZg_P1YRWSGXIriA_c7fHfl3DRcrgPonmsvGJNKLU_exthSEwA_85abVG-CKIGeaHMV3V0dorRCDH1E2r3ONdMHJmC2k0SaVmMIxN5BHZkRcxxocfHknsfwH4dNhIIjmnuFbY0FYaXZE4dz6s3dr-qPTWBf7DCP0gAMSpjpF457urDLgJairP3tcDimjGL1pqL4t8ZPrb11vLgr1ARYv3Ig9x1bxSAtF1Y30lsoMx5V91Vdv8mlXSZzLRTDgmbThJf2DAovAvk9EDWpwhIByqm9DWbfM0W2qq3Jg";
+    // let parsed_token = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IjEifQ.eyJhdWQiOiJyczFiaDA2NWk5eWE0eWR2aWZpeGw0a3NzMHVocHQiLCJleHAiOjE2OTIyODQzMzQsImlhdCI6MTY5MjI4MzQzNCwiaXNzIjoiaHR0cHM6Ly9pZC50d2l0Y2gudHYvb2F1dGgyIiwic3ViIjoiOTA0NDQ4NjkyIiwiYXpwIjoicnMxYmgwNjVpOXlhNHlkdmlmaXhsNGtzczB1aHB0Iiwibm9uY2UiOiJoVFBwZ0Y3WEFLYlczN3JFVVM2cEVWWnFtb0kiLCJwcmVmZXJyZWRfdXNlcm5hbWUiOiJqb3lxdnEifQ.M54Sgs6aDu5Mprs_CgXeRbgiErC7oehj-h9oEcBqZFDADwd09zs9hbfDPqUjaNBB-_I6G7kn9e-zwPov8PUecI68kr3oyiCMWhKD-3h1FEu13MZv71B6jhIDMu1_UgI-RSrOQMRvdI8eL3qqD-KsvJuJH1Sz0w56PnB0xupUg-eSvgnMBAo6iTa0t1grX9qGy7U00i_oqn9J4jVGVVEbMhUWROJMjowWdOogJ4_VNqm67JHd_rMZ3xtjLabP6Nk1Gx-VjUbYceNADWUr5xpJveRtvb1FJvd0HSN4mab51zuSUnavCQw2OXbyoH8j6uuQAAKVhG-_Ht1hCvReycGXKw";
     let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(parsed_token).await;
     // Make a map of jwk ids to jwks just for Twitch.
     let mut map = ImHashMap::new();
@@ -199,7 +208,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let user_salt = "129390038577185583942388216820280642146";
 
     // Generate an ephermeral key pair.
-    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
+    let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([2; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
     let kp_bigint = BigUint::from_bytes_be(&eph_pubkey).to_string();
@@ -215,11 +224,13 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
         user_salt,
         url,
     )
-    .await
-    .unwrap();
+    .await;
+    println!("reader: {:?}", reader);
+    let reader = reader.unwrap();
     let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
+    println!("zk_login_inputs: {:?}", serde_json::to_string(&zk_login_inputs).unwrap());
     (max_epoch, eph_pubkey, zk_login_inputs)
 }
