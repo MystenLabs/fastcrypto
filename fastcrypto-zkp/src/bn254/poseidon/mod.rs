@@ -106,6 +106,20 @@ pub fn hash_to_bytes(
     Ok(field_element_to_canonical_le_bytes(&field_element))
 }
 
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]).
+///
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
+pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
+    let mut field_elements = Vec::new();
+    for input in inputs {
+        field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
+    }
+    to_poseidon_hash(field_elements)
+}
+
 /// Calculate the poseidon hash of a byte array:
 ///  1) Interpret all the `bytes` as a little-endian integer.
 ///  2) Set the `8*bytes.len()`'th bit of the integer.
@@ -170,20 +184,6 @@ fn field_element_to_canonical_le_bytes(field_element: &Fr) -> [u8; FIELD_ELEMENT
     let bytes = field_element.into_bigint().to_bytes_le();
     <[u8; FIELD_ELEMENT_SIZE_IN_BYTES]>::try_from(bytes)
         .expect("The result is guaranteed to be 32 bytes")
-}
-
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]).
-///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
-pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
-    let mut field_elements = Vec::new();
-    for input in inputs {
-        field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
-    }
-    to_poseidon_hash(field_elements)
 }
 
 /// Convert an ff field element to an arkworks-ff field element.
