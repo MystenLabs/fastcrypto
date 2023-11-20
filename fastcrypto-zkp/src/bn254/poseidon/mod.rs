@@ -20,6 +20,9 @@ use std::cmp::Ordering;
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
+/// The length of the hash when used as a binary-to-binary function. The length is 16 bytes because
+/// it ensures that the output is uniform even though the hash function it self is not uniform over
+/// 32 bytes.
 pub const HASH_OUTPUT_LENGTH: usize = 16;
 
 /// The degree of the Merkle tree used to hash multiple elements.
@@ -130,7 +133,6 @@ pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoErro
 ///  5) Return the first 16 bytes of the little-endian integer that represents the output of the hash
 ///     function.
 pub fn hash_bytes_to_bytes(bytes: &[u8]) -> Result<[u8; HASH_OUTPUT_LENGTH], FastCryptoError> {
-    assert!(HASH_OUTPUT_LENGTH <= FIELD_ELEMENT_SIZE_IN_BYTES);
     let field_elements = map_bytes_injectively_to_field_elements(bytes);
     let result_as_field_element = to_poseidon_hash(field_elements)?;
     let mut result_bytes = [0u8; HASH_OUTPUT_LENGTH];
@@ -217,7 +219,6 @@ mod test {
     use lazy_static::lazy_static;
     use proptest::arbitrary::Arbitrary;
     use proptest::collection;
-    use std::ops::Shl;
     use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
