@@ -20,6 +20,8 @@ use std::cmp::Ordering;
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
 
+pub const HASH_OUTPUT_LENGTH: usize = 16;
+
 /// The degree of the Merkle tree used to hash multiple elements.
 pub const MERKLE_TREE_DEGREE: usize = 16;
 
@@ -125,13 +127,17 @@ pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoErro
 ///  2) Set the `8*bytes.len()`'th bit of the integer.
 ///  3) Write the base-expansion of the integer where the base it the BN254 field size.
 ///  4) Interpret the digits as field elements and hash them with the Poseidon hash function.
-///  5) Return the hash as a little-endian integer (32 bytes).
-pub fn hash_bytes_to_bytes(
-    bytes: &[u8],
-) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
+///  5) Return the first 16 bytes of the little-endian integer that represents the output of the hash
+///     function.
+pub fn hash_bytes_to_bytes(bytes: &[u8]) -> Result<[u8; HASH_OUTPUT_LENGTH], FastCryptoError> {
+    assert!(HASH_OUTPUT_LENGTH <= FIELD_ELEMENT_SIZE_IN_BYTES);
     let field_elements = map_bytes_injectively_to_field_elements(bytes);
-    let result = to_poseidon_hash(field_elements)?;
-    Ok(field_element_to_canonical_le_bytes(&result))
+    let result_as_field_element = to_poseidon_hash(field_elements)?;
+    let mut result_bytes = [0u8; HASH_OUTPUT_LENGTH];
+    result_bytes.clone_from_slice(
+        &field_element_to_canonical_le_bytes(&result_as_field_element)[..HASH_OUTPUT_LENGTH],
+    );
+    Ok(result_bytes)
 }
 
 /// Map a byte array to a vector of field elements. The mapping works as follows:
@@ -203,14 +209,15 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 
 #[cfg(test)]
 mod test {
-    use crate::bn254::poseidon::hash_to_bytes;
     use crate::bn254::poseidon::{hash, hash_bytes_to_bytes};
+    use crate::bn254::poseidon::{hash_to_bytes, HASH_OUTPUT_LENGTH};
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use ark_ff::{BigInteger, PrimeField};
     use lazy_static::lazy_static;
     use proptest::arbitrary::Arbitrary;
     use proptest::collection;
+    use std::ops::Shl;
     use std::str::FromStr;
 
     fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
@@ -290,26 +297,23 @@ mod test {
     fn test_binary_hashing() {
         assert_eq!(
             hash_bytes_to_bytes(&[]).unwrap(),
-            hash_to_bytes(&vec![vec![1]]).unwrap()
+            hash_to_bytes(&vec![vec![1]]).unwrap()[..HASH_OUTPUT_LENGTH]
         );
 
         assert_eq!(
             hash_bytes_to_bytes(&[0]).unwrap(),
-            hash_to_bytes(&vec![vec![0, 1]]).unwrap()
+            hash_to_bytes(&vec![vec![0, 1]]).unwrap()[..HASH_OUTPUT_LENGTH]
         );
 
         assert_eq!(
             hash_bytes_to_bytes(&[0, 1, 2, 3]).unwrap(),
-            hash_to_bytes(&vec![vec![0, 1, 2, 3, 1]]).unwrap()
+            hash_to_bytes(&vec![vec![0, 1, 2, 3, 1]]).unwrap()[..HASH_OUTPUT_LENGTH]
         );
 
         let large_input = hex::decode("bc23bbeaa1ab56ad6b3cc61f413a64e6f0e0fa58a35a039a9442918b1e83e3f1ec6b9db62ca937c43db07eacb4e291ae0a67b88cddef85633b364d8a5fee4f95c1f703cd74a07947e498f1f74aefaab5458c310b5eedfe24d148330e0ae25f01ee92a8808030ce3cabbeff0c4c4892119ae1644b9c0b834ab9f27e4ee02cffdee251568b652565431f1f23511ef9653295ae37b861709ec58e5990809bc184c8d9fc5cde1264e58ebe517cbf653d4a69a6d662d5bb1663c5b580b9d9f3b1159346e2bebc8eaf38fc1552971378e50a1edb6d3ae9d60f1ca4fb2d47167ec23ddf7b2597fd2d461f22cb631a37f22673ad03ed42da73fe0dc7d798713aab6e97ebc902ba70").unwrap();
         assert_eq!(
             hash_bytes_to_bytes(&large_input).unwrap(),
-            [
-                156, 236, 71, 218, 237, 179, 78, 53, 125, 57, 169, 211, 254, 169, 31, 58, 162, 250,
-                30, 64, 115, 137, 243, 78, 246, 174, 106, 219, 114, 39, 180, 33
-            ]
+            [156, 236, 71, 218, 237, 179, 78, 53, 125, 57, 169, 211, 254, 169, 31, 58]
         );
     }
 
