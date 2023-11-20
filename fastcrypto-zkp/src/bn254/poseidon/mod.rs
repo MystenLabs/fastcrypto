@@ -2,22 +2,30 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::poseidon::constants::*;
-use crate::FrRepr;
+use crate::{FrRepr, FIELD_SIZE};
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
 use byte_slice_cast::AsByteSlice;
-use fastcrypto::error::FastCryptoError;
 use fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use ff::PrimeField as OtherPrimeField;
 use neptune::poseidon::HashMode::OptimizedStatic;
 use neptune::Poseidon;
+use num_bigint::BigUint;
+use num_integer::Integer;
+use num_traits::Zero;
 use std::cmp::Ordering;
 
 /// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
 pub const FIELD_ELEMENT_SIZE_IN_BYTES: usize = 32;
+
+/// The degree of the Merkle tree used to hash multiple elements.
+pub const MERKLE_TREE_DEGREE: usize = 16;
+
 mod constants;
 
+/// Define a macro to calculate the poseidon hash of a vector of inputs using the neptune library.
 macro_rules! define_poseidon_hash {
     ($inputs:expr, $poseidon_constants:expr) => {{
         let mut poseidon = Poseidon::new(&$poseidon_constants);
@@ -70,21 +78,68 @@ pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 }
 
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
-/// H(inputs), if it is <= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
-/// error.
+/// H(inputs), otherwise chunk the inputs into groups of 16, hash them and input the results recursively.
 pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
-    if inputs.len() <= 16 {
+    if inputs.len() <= MERKLE_TREE_DEGREE {
         hash(inputs)
-    } else if inputs.len() <= 32 {
-        let hash1 = hash(inputs[0..16].to_vec())?;
-        let hash2 = hash(inputs[16..].to_vec())?;
-        hash([hash1, hash2].to_vec())
     } else {
-        Err(FastCryptoError::GeneralError(format!(
-            "Yet to implement: Unable to hash a vector of length {}",
-            inputs.len()
-        )))
+        to_poseidon_hash(
+            inputs
+                .chunks(MERKLE_TREE_DEGREE)
+                .map(|chunk| hash(chunk.to_vec()))
+                .collect::<FastCryptoResult<Vec<_>>>()?,
+        )
     }
+}
+
+/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
+/// bytes).
+///
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
+pub fn hash_to_bytes(
+    inputs: &Vec<Vec<u8>>,
+) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
+    let field_element = hash_to_field_element(inputs)?;
+    Ok(field_element_to_canonical_le_bytes(&field_element))
+}
+
+/// Calculate the poseidon hash of a byte array:
+///  1) Interpret all the `bytes` as a little-endian integer.
+///  2) Set the `8*bytes.len()`'th bit of the integer.
+///  3) Write the base-expansion of the integer where the base it the BN254 field size.
+///  4) Interpret the digits as field elements and hash them with the Poseidon hash function.
+///  5) Return the hash as a little-endian integer (32 bytes).
+pub fn hash_bytes_to_bytes(
+    bytes: &[u8],
+) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
+    let field_elements = map_bytes_injectively_to_field_elements(bytes);
+    let result = to_poseidon_hash(field_elements)?;
+    Ok(field_element_to_canonical_le_bytes(&result))
+}
+
+/// Map a byte array to a vector of field elements. The mapping works as follows:
+///  1) Interpret all the `bytes` as a little-endian integer.
+///  2) Set the `8*bytes.len()`'th bit of the integer.
+///  3) Write the base-expansion of the integer where the base it the BN254 field size.
+///  4) Interpret the digits as field elements and return.
+fn map_bytes_injectively_to_field_elements(bytes: &[u8]) -> Vec<Fr> {
+    let mut n = BigUint::from_bytes_le(bytes);
+
+    // To ensure that the bits to field elements mapping is injective in case the leading bit is
+    // zero, we need to set the highest bit.
+    n.set_bit((8 * bytes.len()) as u64, true);
+
+    let mut digits = Vec::new();
+    while !n.is_zero() {
+        let (q, r) = n.div_rem(&FIELD_SIZE);
+        digits.push(from_canonical_le_bytes_to_field_element(&r.to_bytes_le())
+            .expect("The Euclidean division ensures that the representation is canonical because the remainder is smaller than the field size"));
+        n = q
+    }
+    digits
 }
 
 /// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
@@ -109,6 +164,14 @@ fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryp
     }
 }
 
+/// Convert a BN254 field element to a byte array as the little-endian representation of the
+/// underlying canonical integer representation of the element.
+fn field_element_to_canonical_le_bytes(field_element: &Fr) -> [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
+    let bytes = field_element.into_bigint().to_bytes_le();
+    <[u8; FIELD_ELEMENT_SIZE_IN_BYTES]>::try_from(bytes)
+        .expect("The result is guaranteed to be 32 bytes")
+}
+
 /// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
 /// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
 /// hash function ([to_poseidon_hash]).
@@ -121,23 +184,6 @@ pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoErro
         field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
     }
     to_poseidon_hash(field_elements)
-}
-
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
-/// bytes).
-///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
-pub fn hash_to_bytes(
-    inputs: &Vec<Vec<u8>>,
-) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
-    let field_element = hash_to_field_element(inputs)?;
-    let bytes = field_element.into_bigint().to_bytes_le();
-    Ok(bytes
-        .try_into()
-        .expect("Leading zeros are added in to_bytes_be"))
 }
 
 /// Convert an ff field element to an arkworks-ff field element.
@@ -157,8 +203,8 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 
 #[cfg(test)]
 mod test {
-    use crate::bn254::poseidon::hash;
     use crate::bn254::poseidon::hash_to_bytes;
+    use crate::bn254::poseidon::{hash, hash_bytes_to_bytes};
     use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use ark_ff::{BigInteger, PrimeField};
@@ -229,11 +275,42 @@ mod test {
             "4123755143677678663754455867798672266093104048057302051129414708339780424023"
         );
 
-        assert!(to_poseidon_hash(to_bigint_arr(vec![
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-            24, 25, 26, 27, 28, 29, 30, 31, 32
-        ]))
-        .is_err());
+        assert_eq!(
+            to_poseidon_hash(to_bigint_arr(vec![
+                0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
+                23, 24, 25, 26, 27, 28, 29, 30, 31, 32
+            ]))
+            .unwrap()
+            .to_string(),
+            "15368023340287843142129781602124963668572853984788169144128906033251913623349"
+        );
+    }
+
+    #[test]
+    fn test_binary_hashing() {
+        assert_eq!(
+            hash_bytes_to_bytes(&[]).unwrap(),
+            hash_to_bytes(&vec![vec![1]]).unwrap()
+        );
+
+        assert_eq!(
+            hash_bytes_to_bytes(&[0]).unwrap(),
+            hash_to_bytes(&vec![vec![0, 1]]).unwrap()
+        );
+
+        assert_eq!(
+            hash_bytes_to_bytes(&[0, 1, 2, 3]).unwrap(),
+            hash_to_bytes(&vec![vec![0, 1, 2, 3, 1]]).unwrap()
+        );
+
+        let large_input = hex::decode("bc23bbeaa1ab56ad6b3cc61f413a64e6f0e0fa58a35a039a9442918b1e83e3f1ec6b9db62ca937c43db07eacb4e291ae0a67b88cddef85633b364d8a5fee4f95c1f703cd74a07947e498f1f74aefaab5458c310b5eedfe24d148330e0ae25f01ee92a8808030ce3cabbeff0c4c4892119ae1644b9c0b834ab9f27e4ee02cffdee251568b652565431f1f23511ef9653295ae37b861709ec58e5990809bc184c8d9fc5cde1264e58ebe517cbf653d4a69a6d662d5bb1663c5b580b9d9f3b1159346e2bebc8eaf38fc1552971378e50a1edb6d3ae9d60f1ca4fb2d47167ec23ddf7b2597fd2d461f22cb631a37f22673ad03ed42da73fe0dc7d798713aab6e97ebc902ba70").unwrap();
+        assert_eq!(
+            hash_bytes_to_bytes(&large_input).unwrap(),
+            [
+                156, 236, 71, 218, 237, 179, 78, 53, 125, 57, 169, 211, 254, 169, 31, 58, 162, 250,
+                30, 64, 115, 137, 243, 78, 246, 174, 106, 219, 114, 39, 180, 33
+            ]
+        );
     }
 
     #[test]

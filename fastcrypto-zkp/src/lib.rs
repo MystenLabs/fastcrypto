@@ -8,6 +8,9 @@
 extern crate ff;
 
 use ff::PrimeField;
+use lazy_static::lazy_static;
+use num_bigint::BigUint;
+use std::str::FromStr;
 
 /// Definition of the BN254 prime field.
 #[derive(PrimeField)]
@@ -15,6 +18,13 @@ use ff::PrimeField;
 #[PrimeFieldGenerator = "5"]
 #[PrimeFieldReprEndianness = "big"]
 pub struct Fr([u64; 4]);
+
+lazy_static! {
+    static ref FIELD_SIZE: BigUint = BigUint::from_str(
+        "21888242871839275222246405745257275088548364400416034343698204186575808495617"
+    )
+    .unwrap();
+}
 
 pub mod bls12381;
 

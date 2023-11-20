@@ -47,6 +47,8 @@ neptune = "13.0.0"
 ff = { version = "0.13.0", features = ["derive"] }
 typenum = "1.13.0"
 lazy_static = "1.4.0"
+num-integer = "0.1.45"
+num-traits = "0.2.16"
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
