@@ -11,7 +11,7 @@ use tracing::debug;
 /// NIZKPoK for the DDH tuple [G, H=eG, xG, xH].
 /// - Prover selects a random r and sends A=rG, B=rH.
 /// - Prover computes challenge c and sends z=r+c*x.
-/// - Verifier checks that zG=A+c(xG) and zeG=B+c(xH).
+/// - Verifier checks that zG=A+c(xG) and zH=B+c(xH).
 /// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub(crate) struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
@@ -21,6 +21,7 @@ where
     G: GroupElement + Serialize,
     <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
+    /// Create a new NIZKPoK for the DDH tuple [G, H=eG, xG, xH] using the given RNG and random oracle.
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
         h: &G,
@@ -38,6 +39,7 @@ where
         DdhTupleNizk(a, b, z)
     }
 
+    /// Verify this NIZKPoK.
     pub fn verify(
         &self,
         h: &G,
@@ -51,13 +53,13 @@ where
         }
         let challenge = Self::fiat_shamir_challenge(h, x_g, x_h, &self.0, &self.1, random_oracle);
         debug!("NIZK: Verifying a proof of {h:?} {x_g:?} {x_h:?} with challenge {challenge:?}");
-        if !Self::is_valid_relation(
+        if !is_valid_relation(
             &self.0, // A
             x_g,
             &G::generator(),
             &self.2, // z
             &challenge,
-        ) || !Self::is_valid_relation(
+        ) || !is_valid_relation(
             &self.1, // B
             x_h, h, &self.2, // z
             &challenge,
@@ -79,13 +81,6 @@ where
     ) -> G::ScalarType {
         let output = random_oracle.evaluate(&(G::generator(), h, x_g, x_h, a, b));
         G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
-    }
-
-    /// Checks if e1 + e2*c = z e3
-    fn is_valid_relation(e1: &G, e2: &G, e3: &G, z: &G::ScalarType, c: &G::ScalarType) -> bool {
-        let left = *e1 + *e2 * c;
-        let right = *e3 * z;
-        left == right
     }
 }
 
@@ -121,6 +116,7 @@ where
     G: GroupElement + Serialize,
     <G as GroupElement>::ScalarType: FiatShamirChallenge,
 {
+    /// Create a new NIZKPoK for the DL [G, xG] using the given RNG and random oracle.
     pub fn create<R: AllowedRng>(
         x: &G::ScalarType,
         x_g: &G,             // passed since probably already computed
@@ -148,7 +144,7 @@ where
         }
         let challenge = Self::fiat_shamir_challenge(x_g, &self.0, aux_ro_input, random_oracle);
         debug!("NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}");
-        if (G::generator() * self.1) != (self.0 + *x_g * challenge) {
+        if !is_valid_relation(&self.0, x_g, &G::generator(), &self.1, &challenge) {
             Err(FastCryptoError::InvalidProof)
         } else {
             Ok(())
@@ -184,4 +180,17 @@ where
         }
         Ok(DLNizk(tuple.0, tuple.1))
     }
+}
+
+/// Checks if e1 + c e2 = z e3
+fn is_valid_relation<G: GroupElement>(
+    e1: &G,
+    e2: &G,
+    e3: &G,
+    z: &G::ScalarType,
+    c: &G::ScalarType,
+) -> bool {
+    let left = *e1 + *e2 * c;
+    let right = *e3 * z;
+    left == right
 }
