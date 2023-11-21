@@ -41,6 +41,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         if nodes.is_empty() || nodes.len() > 1000 {
             return Err(FastCryptoError::InvalidInput);
         }
+        // Check that all weights are non-zero
+        if nodes.iter().any(|n| n.weight == 0) {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // We use accumulated weights to map share ids to party ids.
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
