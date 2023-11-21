@@ -39,7 +39,7 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
 
 /// The higher-level protocol is responsible for verifying that the 'sender' is correct in the
 /// following messages (based on the chain's signatures).
-/// Also, the high level protocol is responsible the all parties see the same order of messages.
+/// Also, the high level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
