@@ -12,6 +12,7 @@ use std::collections::HashMap;
 
 pub type PartyId = u16;
 
+/// TODO: Add documentation
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
@@ -22,7 +23,7 @@ pub struct Node<G: GroupElement> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1
-    n: u32,              // Share ids are 1..n
+    total_weight: u32,   // Share ids are 1..total_weight
     share_id_to_party_id: HashMap<ShareIndex, PartyId>,
 }
 
@@ -40,13 +41,13 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
         // Get the total weight of the nodes
-        let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        let total_weight = nodes.iter().map(|n| n.weight as u32).sum();
 
         let share_id_to_party_id = Self::get_share_id_to_party_id(&nodes);
 
         Ok(Self {
             nodes,
-            n,
+            total_weight,
             share_id_to_party_id,
         })
     }
@@ -65,8 +66,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Total weight of the nodes.
-    pub fn n(&self) -> u32 {
-        self.n
+    pub fn total_weight(&self) -> u32 {
+        self.total_weight
     }
 
     /// Number of nodes.
@@ -76,7 +77,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get an iterator on the share ids.
     pub fn share_ids_iter(&self) -> impl Iterator<Item = ShareIndex> {
-        (1..=self.n).map(|i| ShareIndex::new(i).expect("nonzero"))
+        (1..=self.total_weight).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
     /// Get the node corresponding to a share id.
@@ -144,7 +145,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         (
             Self {
                 nodes,
-                n,
+                total_weight: n,
                 share_id_to_party_id,
             },
             new_t,

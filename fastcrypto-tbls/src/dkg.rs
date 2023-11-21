@@ -152,7 +152,7 @@ where
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
         // Check that the threshold makes sense.
-        if t >= nodes.n() || t == 0 {
+        if t >= nodes.total_weight() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -166,7 +166,7 @@ where
             my_id,
             nodes.hash(),
             t,
-            nodes.n(),
+            nodes.total_weight(),
             random_oracle,
             enc_pk,
             vss_pk.c0(),
