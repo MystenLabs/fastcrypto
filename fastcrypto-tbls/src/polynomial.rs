@@ -64,6 +64,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Evaluates the polynomial at the specified value.
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
+        // Use Horner's Method to evaluate the polynomial.
         let xi = C::ScalarType::from(i.get().into());
         let res = self
             .0
@@ -87,10 +88,7 @@ impl<C: GroupElement> Poly<C> {
         }
         // Check for duplicates.
         let mut ids_set = HashSet::new();
-        shares.iter().map(|s| &s.index).for_each(|id| {
-            ids_set.insert(id);
-        });
-        if ids_set.len() != shares.len() {
+        if !shares.iter().map(|s| &s.index).all(|id| ids_set.insert(id)) {
             return Err(FastCryptoError::InvalidInput); // expected unique ids
         }
 
