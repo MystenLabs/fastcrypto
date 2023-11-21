@@ -21,6 +21,8 @@ use typenum::consts::{U16, U32};
 ///
 /// APIs that use a random oracle must receive one as an argument. That RO must be unique and thus
 /// the caller should initialize/derive it using a unique prefix.
+///
+/// The encryption uses AES Counter mode and is not CCA secure as is.
 
 // TODO: Use ZeroizeOnDrop.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -211,8 +213,14 @@ where
         self.1.is_empty()
     }
 
-    pub fn verify_knowledge(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
-        self.2.verify(&self.0, random_oracle)
+    pub fn verify(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        self.2.verify(&self.0, random_oracle)?;
+        // Encryptions cannot be empty.
+        self.1
+            .iter()
+            .all(|e| !e.is_empty())
+            .then_some(())
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     pub fn ephemeral_key(&self) -> &G {
@@ -225,5 +233,10 @@ where
     #[cfg(test)]
     pub fn swap_for_testing(&mut self, i: usize, j: usize) {
         self.1.swap(i, j);
+    }
+
+    #[cfg(test)]
+    pub fn copy_for_testing(&mut self, src: usize, dst: usize) {
+        self.1[dst] = self.1[src].clone();
     }
 }

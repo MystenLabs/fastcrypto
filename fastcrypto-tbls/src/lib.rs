@@ -22,8 +22,6 @@ pub mod tbls;
 pub mod types;
 
 #[cfg(any(test, feature = "experimental"))]
-pub mod mocked_dkg;
-#[cfg(any(test, feature = "experimental"))]
 pub mod nidkg;
 
 #[cfg(test)]

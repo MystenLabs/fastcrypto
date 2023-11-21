@@ -7,7 +7,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies;
-use crate::ecies::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
+use crate::ecies::{MultiRecipientEncryption, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -39,6 +39,7 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
 
 /// The higher-level protocol is responsible for verifying that the 'sender' is correct in the
 /// following messages (based on the chain's signatures).
+/// Also, the high level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -60,7 +61,7 @@ pub struct Complaint<EG: GroupElement> {
 }
 
 /// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
-/// created by receiver of invalid encrypted shares.
+/// created by receiver of invalid encrypted shares (if any).
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
@@ -68,16 +69,15 @@ pub struct Confirmation<EG: GroupElement> {
     pub complaints: Vec<Complaint<EG>>,
 }
 
+/// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
-    message: Message<G, EG>,
-    shares: Vec<Share<G::ScalarType>>, //possibly empty
-    complaint: Option<Complaint<EG>>,
+    pub message: Message<G, EG>,
+    pub shares: Vec<Share<G::ScalarType>>, //possibly empty
+    pub complaint: Option<Complaint<EG>>,
 }
 
-/// Mapping from node id to the shares received from that sender.
-pub type SharesMap<S> = HashMap<PartyId, Vec<Share<S>>>;
-
+/// Unique processed messages that are being used in the protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
     pub Vec<ProcessedMessage<G, EG>>,
@@ -86,6 +86,7 @@ pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
 impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
     for UsedProcessedMessages<G, EG>
 {
+    // Assumes all parties see the same order of messages.
     fn from(msgs: &[ProcessedMessage<G, EG>]) -> Self {
         let filtered = msgs
             .iter()
@@ -96,6 +97,7 @@ impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
     }
 }
 
+/// Processed messages that were not excluded.
 pub struct VerifiedProcessedMessages<G: GroupElement, EG: GroupElement>(
     pub Vec<ProcessedMessage<G, EG>>,
 );
@@ -126,41 +128,45 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
 /// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
-impl<G: GroupElement, EG: GroupElement> Party<G, EG>
+impl<G, EG> Party<G, EG>
 where
-    G: MultiScalarMul + Serialize + DeserializeOwned,
-    EG: Serialize + DeserializeOwned,
-    <EG as GroupElement>::ScalarType: FiatShamirChallenge,
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
-    /// 2. After *all* parties have sent their ECIES public keys, create the set of nodes.
+    /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new<R: AllowedRng>(
         enc_sk: ecies::PrivateKey<EG>,
         nodes: Nodes<EG>,
         t: u32, // The number of parties that are needed to reconstruct the full key/signature.
-        random_oracle: RandomOracle,
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
-    ) -> Result<Self, FastCryptoError> {
+    ) -> FastCryptoResult<Self> {
+        // Check that my ecies pk is in the nodes.
         let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_id = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
-        if t >= nodes.n() {
+        // Check that the threshold makes sense.
+        if t >= nodes.n() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
         let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
 
+        // TODO: remove once the protocol is stable since it's a non negligible computation.
         let vss_pk = vss_sk.commit::<G>();
         info!(
-            "DKG: Creating party {}, nodes hash {:?}, t {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
+            "DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
             my_id,
             nodes.hash(),
             t,
+            nodes.n(),
             random_oracle,
             enc_pk,
             vss_pk.c0(),
@@ -190,8 +196,8 @@ where
             vss_pk.c0(),
             ro_for_enc,
         );
-
-        let pk_and_shares: Vec<(PublicKey<EG>, Vec<u8>)> = self
+        // Create a vector of a public key and shares per receiver.
+        let pk_and_shares = self
             .nodes
             .iter()
             .map(|node| {
@@ -203,8 +209,8 @@ where
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 (node.pk.clone(), buff)
             })
-            .collect();
-
+            .collect::<Vec<_>>();
+        // Encrypt everything.
         let encrypted_shares = MultiRecipientEncryption::encrypt(&pk_and_shares, &ro_for_enc, rng);
 
         debug!(
@@ -241,6 +247,15 @@ where
             );
             return Err(FastCryptoError::InvalidMessage);
         }
+
+        if *msg.vss_pk.c0() == G::zero() {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero c0",
+                msg.sender,
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        }
+
         if self.nodes.num_nodes() != msg.encrypted_shares.len() {
             warn!(
                 "DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}",
@@ -253,9 +268,9 @@ where
 
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", msg.sender));
         msg.encrypted_shares
-            .verify_knowledge(&ro_for_enc)
+            .verify(&ro_for_enc)
             .tap_err(|e| {
-                warn!("DKG: Message sanity check failed for id {}, verify_knowledge with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
+                warn!("DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}",
                     msg.sender,
                     ro_for_enc,
                     msg.encrypted_shares.ephemeral_key(),
@@ -303,9 +318,10 @@ where
                 accused_sender: message.sender,
                 proof: self.enc_sk.create_recovery_package(
                     encrypted_shares,
-                    &self
-                        .random_oracle
-                        .extend(&format!("recovery {} {}", self.id, message.sender)),
+                    &self.random_oracle.extend(&format!(
+                        "recovery of id {} received from {}",
+                        self.id, message.sender
+                    )),
                     rng,
                 ),
             };
@@ -325,12 +341,11 @@ where
                 value: *s,
             })
             .collect::<Vec<_>>();
-
         debug!(
             "DKG: Successfully decrypted shares from party {}",
             message.sender
         );
-
+        // Verify all shares in a batch.
         if verify_poly_evals(&decrypted_shares, &message.vss_pk, rng).is_err() {
             debug!(
                 "DKG: Processing message from party {} failed, invalid shares",
@@ -340,9 +355,10 @@ where
                 accused_sender: message.sender,
                 proof: self.enc_sk.create_recovery_package(
                     encrypted_shares,
-                    &self
-                        .random_oracle
-                        .extend(&format!("recovery {} {}", self.id, message.sender)),
+                    &self.random_oracle.extend(&format!(
+                        "recovery of id {} received from {}",
+                        self.id, message.sender
+                    )),
                     rng,
                 ),
             };
@@ -357,7 +373,6 @@ where
             "DKG: Successfully processed message from party {}",
             message.sender
         );
-
         Ok(ProcessedMessage {
             message,
             shares: decrypted_shares,
@@ -430,7 +445,7 @@ where
         rng: &mut R,
     ) -> FastCryptoResult<VerifiedProcessedMessages<G, EG>> {
         debug!("Processing {} confirmations", confirmations.len());
-        if minimal_threshold < self.t {
+        if minimal_threshold < self.t || minimal_threshold == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         // Ignore confirmations with invalid sender
@@ -485,18 +500,19 @@ where
                         .encrypted_shares
                         .get_encryption(accuser as usize)
                         .expect("checked earlier that there are enough encryptions");
-                    Self::check_delegated_key_and_share(
+                    Self::check_complaint_proof(
                         &complaint.proof,
                         accuser_pk,
                         &self.nodes.share_ids_of(accuser),
                         &related_m1.expect("checked above that is not None").vss_pk,
                         encrypted_shares,
-                        &self
-                            .random_oracle
-                            .extend(&format!("recovery {} {}", accuser, accused)),
+                        &self.random_oracle.extend(&format!(
+                            "recovery of id {} received from {}",
+                            accuser, accused
+                        )),
                         rng,
                     )
-                    .is_err()
+                    .is_ok()
                 };
                 match valid_complaint {
                     // Ignore accused from now on, and continue processing complaints from the
@@ -617,7 +633,8 @@ where
         bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)
     }
 
-    fn check_delegated_key_and_share<R: AllowedRng>(
+    // Returns an error if the complaint is invalid.
+    fn check_complaint_proof<R: AllowedRng>(
         recovery_pkg: &RecoveryPackage<EG>,
         ecies_pk: &ecies::PublicKey<EG>,
         share_ids: &[ShareIndex],
@@ -626,13 +643,22 @@ where
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> FastCryptoResult<()> {
+        // Check that the recovery package is valid, and if not, return an error since the complaint
+        // is invalid.
         let buffer =
             ecies_pk.decrypt_with_recovery_package(recovery_pkg, random_oracle, encrypted_share)?;
-        let decrypted_shares: Vec<G::ScalarType> =
-            bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)?;
+
+        let decrypted_shares: Vec<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
+            Ok(s) => s,
+            Err(_) => {
+                debug!("DKG: check_complaint_proof failed to deserialize shares");
+                return Ok(());
+            }
+        };
+
         if decrypted_shares.len() != share_ids.len() {
-            debug!("DKG: check_delegated_key_and_share recovered invalid number of shares");
-            return Err(FastCryptoError::InvalidInput);
+            debug!("DKG: check_complaint_proof recovered invalid number of shares");
+            return Ok(());
         }
 
         let decrypted_shares = decrypted_shares
@@ -644,8 +670,12 @@ where
             })
             .collect::<Vec<_>>();
 
-        verify_poly_evals(&decrypted_shares, vss_pk, rng).tap_err(|_| {
-            debug!("DKG: check_delegated_key_and_share failed to verify shares");
-        })
+        match verify_poly_evals(&decrypted_shares, vss_pk, rng) {
+            Ok(()) => Err(FastCryptoError::InvalidProof),
+            Err(_) => {
+                debug!("DKG: check_complaint_proof failed to verify shares");
+                Ok(())
+            }
+        }
     }
 }
