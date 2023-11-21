@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (6b771f6b5 2023-11-15)" data-channel="nightly" data-search-js="search-8fbf244ebcf71464.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-f06f02fd918e3bb3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (3a85a5cfe 2023-11-20)" data-channel="nightly" data-search-js="search-d23a059ec093b287.js" data-settings-js="settings-74424d7eec62a23e.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-f06f02fd918e3bb3.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -649,6 +649,36 @@
 <a href="#649" id="649">649</a>
 <a href="#650" id="650">650</a>
 <a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -658,7 +688,7 @@
 
 </span><span class="kw">use </span><span class="kw">crate</span>::dl_verification::verify_poly_evals;
 <span class="kw">use </span><span class="kw">crate</span>::ecies;
-<span class="kw">use </span><span class="kw">crate</span>::ecies::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
+<span class="kw">use </span><span class="kw">crate</span>::ecies::{MultiRecipientEncryption, RecoveryPackage};
 <span class="kw">use </span><span class="kw">crate</span>::nodes::{Nodes, PartyId};
 <span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 <span class="kw">use </span><span class="kw">crate</span>::random_oracle::RandomOracle;
@@ -690,6 +720,7 @@
 
 <span class="doccomment">/// The higher-level protocol is responsible for verifying that the &#39;sender&#39; is correct in the
 /// following messages (based on the chain&#39;s signatures).
+/// Also, the high level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -711,7 +742,7 @@
 }
 
 <span class="doccomment">/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
-/// created by receiver of invalid encrypted shares.
+/// created by receiver of invalid encrypted shares (if any).
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Confirmation&lt;EG: GroupElement&gt; {
     <span class="kw">pub </span>sender: PartyId,
@@ -719,17 +750,16 @@
     </span><span class="kw">pub </span>complaints: Vec&lt;Complaint&lt;EG&gt;&gt;,
 }
 
-<span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+<span class="doccomment">/// Wrapper for collecting everything related to a processed message.
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProcessedMessage&lt;G: GroupElement, EG: GroupElement&gt; {
-    message: Message&lt;G, EG&gt;,
-    shares: Vec&lt;Share&lt;G::ScalarType&gt;&gt;, <span class="comment">//possibly empty
-    </span>complaint: <span class="prelude-ty">Option</span>&lt;Complaint&lt;EG&gt;&gt;,
+    <span class="kw">pub </span>message: Message&lt;G, EG&gt;,
+    <span class="kw">pub </span>shares: Vec&lt;Share&lt;G::ScalarType&gt;&gt;, <span class="comment">//possibly empty
+    </span><span class="kw">pub </span>complaint: <span class="prelude-ty">Option</span>&lt;Complaint&lt;EG&gt;&gt;,
 }
 
-<span class="doccomment">/// Mapping from node id to the shares received from that sender.
-</span><span class="kw">pub type </span>SharesMap&lt;S&gt; = HashMap&lt;PartyId, Vec&lt;Share&lt;S&gt;&gt;&gt;;
-
-<span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+<span class="doccomment">/// Unique processed messages that are being used in the protocol.
+</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>UsedProcessedMessages&lt;G: GroupElement, EG: GroupElement&gt;(
     <span class="kw">pub </span>Vec&lt;ProcessedMessage&lt;G, EG&gt;&gt;,
 );
@@ -737,7 +767,8 @@
 <span class="kw">impl</span>&lt;G: GroupElement, EG: GroupElement&gt; From&lt;<span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;]&gt;
     <span class="kw">for </span>UsedProcessedMessages&lt;G, EG&gt;
 {
-    <span class="kw">fn </span>from(msgs: <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;]) -&gt; <span class="self">Self </span>{
+    <span class="comment">// Assumes all parties see the same order of messages.
+    </span><span class="kw">fn </span>from(msgs: <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;]) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>filtered = msgs
             .iter()
             .unique_by(|<span class="kw-2">&amp;</span>m| m.message.sender)
@@ -747,7 +778,8 @@
     }
 }
 
-<span class="kw">pub struct </span>VerifiedProcessedMessages&lt;G: GroupElement, EG: GroupElement&gt;(
+<span class="doccomment">/// Processed messages that were not excluded.
+</span><span class="kw">pub struct </span>VerifiedProcessedMessages&lt;G: GroupElement, EG: GroupElement&gt;(
     <span class="kw">pub </span>Vec&lt;ProcessedMessage&lt;G, EG&gt;&gt;,
 );
 
@@ -777,41 +809,45 @@
 <span class="doccomment">/// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
-</span><span class="kw">impl</span>&lt;G: GroupElement, EG: GroupElement&gt; Party&lt;G, EG&gt;
+</span><span class="kw">impl</span>&lt;G, EG&gt; Party&lt;G, EG&gt;
 <span class="kw">where
-    </span>G: MultiScalarMul + Serialize + DeserializeOwned,
-    EG: Serialize + DeserializeOwned,
-    &lt;EG <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge,
+    </span>G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge,
 {
     <span class="doccomment">/// 1. Create a new ECIES private key and send the public key to all parties.
-    /// 2. After *all* parties have sent their ECIES public keys, create the set of nodes.
+    /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     </span><span class="kw">pub fn </span>new&lt;R: AllowedRng&gt;(
         enc_sk: ecies::PrivateKey&lt;EG&gt;,
         nodes: Nodes&lt;EG&gt;,
         t: u32, <span class="comment">// The number of parties that are needed to reconstruct the full key/signature.
-        </span>random_oracle: RandomOracle,
-        rng: <span class="kw-2">&amp;mut </span>R,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">let </span>enc_pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>enc_sk);
+        </span>random_oracle: RandomOracle, <span class="comment">// Should be unique for each invocation, but the same for all parties.
+        </span>rng: <span class="kw-2">&amp;mut </span>R,
+    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="comment">// Check that my ecies pk is in the nodes.
+        </span><span class="kw">let </span>enc_pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>enc_sk);
         <span class="kw">let </span>my_id = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?
             </span>.id;
-        <span class="kw">if </span>t &gt;= nodes.n() {
+        <span class="comment">// Check that the threshold makes sense.
+        </span><span class="kw">if </span>t &gt;= nodes.n() || t == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
         </span><span class="kw">let </span>vss_sk = PrivatePoly::&lt;G&gt;::rand(t - <span class="number">1</span>, rng);
 
-        <span class="kw">let </span>vss_pk = vss_sk.commit::&lt;G&gt;();
+        <span class="comment">// TODO: remove once the protocol is stable since it&#39;s a non negligible computation.
+        </span><span class="kw">let </span>vss_pk = vss_sk.commit::&lt;G&gt;();
         <span class="macro">info!</span>(
-            <span class="string">&quot;DKG: Creating party {}, nodes hash {:?}, t {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}&quot;</span>,
+            <span class="string">&quot;DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}&quot;</span>,
             my_id,
             nodes.hash(),
             t,
+            nodes.n(),
             random_oracle,
             enc_pk,
             vss_pk.c0(),
@@ -841,8 +877,8 @@
             vss_pk.c0(),
             ro_for_enc,
         );
-
-        <span class="kw">let </span>pk_and_shares: Vec&lt;(PublicKey&lt;EG&gt;, Vec&lt;u8&gt;)&gt; = <span class="self">self
+        <span class="comment">// Create a vector of a public key and shares per receiver.
+        </span><span class="kw">let </span>pk_and_shares = <span class="self">self
             </span>.nodes
             .iter()
             .map(|node| {
@@ -854,9 +890,9 @@
                 <span class="kw">let </span>buff = bcs::to_bytes(<span class="kw-2">&amp;</span>shares).expect(<span class="string">&quot;serialize of shares should never fail&quot;</span>);
                 (node.pk.clone(), buff)
             })
-            .collect();
-
-        <span class="kw">let </span>encrypted_shares = MultiRecipientEncryption::encrypt(<span class="kw-2">&amp;</span>pk_and_shares, <span class="kw-2">&amp;</span>ro_for_enc, rng);
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="comment">// Encrypt everything.
+        </span><span class="kw">let </span>encrypted_shares = MultiRecipientEncryption::encrypt(<span class="kw-2">&amp;</span>pk_and_shares, <span class="kw-2">&amp;</span>ro_for_enc, rng);
 
         <span class="macro">debug!</span>(
             <span class="string">&quot;DKG: Created message using {:?}, with eph key {:?} nizk {:?}&quot;</span>,
@@ -892,6 +928,15 @@
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
         }
+
+        <span class="kw">if </span><span class="kw-2">*</span>msg.vss_pk.c0() == G::zero() {
+            <span class="macro">warn!</span>(
+                <span class="string">&quot;DKG: Message sanity check failed for id {}, zero c0&quot;</span>,
+                msg.sender,
+            );
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
+        }
+
         <span class="kw">if </span><span class="self">self</span>.nodes.num_nodes() != msg.encrypted_shares.len() {
             <span class="macro">warn!</span>(
                 <span class="string">&quot;DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}&quot;</span>,
@@ -904,9 +949,9 @@
 
         <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;encs {}&quot;</span>, msg.sender));
         msg.encrypted_shares
-            .verify_knowledge(<span class="kw-2">&amp;</span>ro_for_enc)
+            .verify(<span class="kw-2">&amp;</span>ro_for_enc)
             .tap_err(|e| {
-                <span class="macro">warn!</span>(<span class="string">&quot;DKG: Message sanity check failed for id {}, verify_knowledge with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}&quot;</span>,
+                <span class="macro">warn!</span>(<span class="string">&quot;DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}&quot;</span>,
                     msg.sender,
                     ro_for_enc,
                     msg.encrypted_shares.ephemeral_key(),
@@ -954,9 +999,10 @@
                 accused_sender: message.sender,
                 proof: <span class="self">self</span>.enc_sk.create_recovery_package(
                     encrypted_shares,
-                    <span class="kw-2">&amp;</span><span class="self">self
-                        </span>.random_oracle
-                        .extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;recovery {} {}&quot;</span>, <span class="self">self</span>.id, message.sender)),
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                        <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                        <span class="self">self</span>.id, message.sender
+                    )),
                     rng,
                 ),
             };
@@ -976,13 +1022,12 @@
                 value: <span class="kw-2">*</span>s,
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-
         <span class="macro">debug!</span>(
             <span class="string">&quot;DKG: Successfully decrypted shares from party {}&quot;</span>,
             message.sender
         );
-
-        <span class="kw">if </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, <span class="kw-2">&amp;</span>message.vss_pk, rng).is_err() {
+        <span class="comment">// Verify all shares in a batch.
+        </span><span class="kw">if </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, <span class="kw-2">&amp;</span>message.vss_pk, rng).is_err() {
             <span class="macro">debug!</span>(
                 <span class="string">&quot;DKG: Processing message from party {} failed, invalid shares&quot;</span>,
                 message.sender
@@ -991,9 +1036,10 @@
                 accused_sender: message.sender,
                 proof: <span class="self">self</span>.enc_sk.create_recovery_package(
                     encrypted_shares,
-                    <span class="kw-2">&amp;</span><span class="self">self
-                        </span>.random_oracle
-                        .extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;recovery {} {}&quot;</span>, <span class="self">self</span>.id, message.sender)),
+                    <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                        <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                        <span class="self">self</span>.id, message.sender
+                    )),
                     rng,
                 ),
             };
@@ -1008,7 +1054,6 @@
             <span class="string">&quot;DKG: Successfully processed message from party {}&quot;</span>,
             message.sender
         );
-
         <span class="prelude-val">Ok</span>(ProcessedMessage {
             message,
             shares: decrypted_shares,
@@ -1081,7 +1126,7 @@
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;VerifiedProcessedMessages&lt;G, EG&gt;&gt; {
         <span class="macro">debug!</span>(<span class="string">&quot;Processing {} confirmations&quot;</span>, confirmations.len());
-        <span class="kw">if </span>minimal_threshold &lt; <span class="self">self</span>.t {
+        <span class="kw">if </span>minimal_threshold &lt; <span class="self">self</span>.t || minimal_threshold == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// Ignore confirmations with invalid sender
@@ -1136,18 +1181,19 @@
                         .encrypted_shares
                         .get_encryption(accuser <span class="kw">as </span>usize)
                         .expect(<span class="string">&quot;checked earlier that there are enough encryptions&quot;</span>);
-                    <span class="self">Self</span>::check_delegated_key_and_share(
+                    <span class="self">Self</span>::check_complaint_proof(
                         <span class="kw-2">&amp;</span>complaint.proof,
                         accuser_pk,
                         <span class="kw-2">&amp;</span><span class="self">self</span>.nodes.share_ids_of(accuser),
                         <span class="kw-2">&amp;</span>related_m1.expect(<span class="string">&quot;checked above that is not None&quot;</span>).vss_pk,
                         encrypted_shares,
-                        <span class="kw-2">&amp;</span><span class="self">self
-                            </span>.random_oracle
-                            .extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;recovery {} {}&quot;</span>, accuser, accused)),
+                        <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                            <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                            accuser, accused
+                        )),
                         rng,
                     )
-                    .is_err()
+                    .is_ok()
                 };
                 <span class="kw">match </span>valid_complaint {
                     <span class="comment">// Ignore accused from now on, and continue processing complaints from the
@@ -1268,7 +1314,8 @@
         bcs::from_bytes(buffer.as_slice()).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 
-    <span class="kw">fn </span>check_delegated_key_and_share&lt;R: AllowedRng&gt;(
+    <span class="comment">// Returns an error if the complaint is invalid.
+    </span><span class="kw">fn </span>check_complaint_proof&lt;R: AllowedRng&gt;(
         recovery_pkg: <span class="kw-2">&amp;</span>RecoveryPackage&lt;EG&gt;,
         ecies_pk: <span class="kw-2">&amp;</span>ecies::PublicKey&lt;EG&gt;,
         share_ids: <span class="kw-2">&amp;</span>[ShareIndex],
@@ -1277,13 +1324,22 @@
         random_oracle: <span class="kw-2">&amp;</span>RandomOracle,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;()&gt; {
-        <span class="kw">let </span>buffer =
+        <span class="comment">// Check that the recovery package is valid, and if not, return an error since the complaint
+        // is invalid.
+        </span><span class="kw">let </span>buffer =
             ecies_pk.decrypt_with_recovery_package(recovery_pkg, random_oracle, encrypted_share)<span class="question-mark">?</span>;
-        <span class="kw">let </span>decrypted_shares: Vec&lt;G::ScalarType&gt; =
-            bcs::from_bytes(buffer.as_slice()).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>decrypted_shares: Vec&lt;G::ScalarType&gt; = <span class="kw">match </span>bcs::from_bytes(buffer.as_slice()) {
+            <span class="prelude-val">Ok</span>(s) =&gt; s,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof failed to deserialize shares&quot;</span>);
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+        };
+
         <span class="kw">if </span>decrypted_shares.len() != share_ids.len() {
-            <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_delegated_key_and_share recovered invalid number of shares&quot;</span>);
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+            <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof recovered invalid number of shares&quot;</span>);
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
         <span class="kw">let </span>decrypted_shares = decrypted_shares
@@ -1295,9 +1351,13 @@
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
-        verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, vss_pk, rng).tap_err(|<span class="kw">_</span>| {
-            <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_delegated_key_and_share failed to verify shares&quot;</span>);
-        })
+        <span class="kw">match </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, vss_pk, rng) {
+            <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
+                <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof failed to verify shares&quot;</span>);
+                <span class="prelude-val">Ok</span>(())
+            }
+        }
     }
 }
 </code></pre></div></section></main></body></html>
