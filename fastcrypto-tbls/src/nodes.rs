@@ -24,7 +24,7 @@ pub struct Node<G: GroupElement> {
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>,           // Party ids are 0..len(nodes)-1
     total_weight: u32,             // Share ids are 1..total_weight
-    accumulated_weights: Vec<u32>, // Accumulated weights of nodes. Used for looking up party ids from share ids.
+    accumulated_weights: Vec<u32>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
@@ -41,6 +41,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
 
+        // We use accumulated weights to map share ids to party ids.
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
         let total_weight = *accumulated_weights
             .last()
