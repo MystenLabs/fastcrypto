@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 // TODO: Inconsistent naming: party_id vs node_id.
 pub type PartyId = u16;
 
-/// TODO: Add documentation
+// TODO: Add documentation
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
@@ -20,6 +20,7 @@ pub struct Node<G: GroupElement> {
     pub weight: u16,
 }
 
+// TODO: Add documentation
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>,           // Party ids are 0..len(nodes)-1
