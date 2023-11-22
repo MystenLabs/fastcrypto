@@ -151,7 +151,7 @@ impl OIDCProvider {
     /// Returns the OIDCProvider for the given iss string.
     pub fn from_iss(iss: &str) -> Result<Self, FastCryptoError> {
         match iss {
-            "https://accounts.google.com" | "accounts.google.com" => Ok(Self::Google),
+            "https://accounts.google.com" => Ok(Self::Google),
             "https://id.twitch.tv/oauth2" => Ok(Self::Twitch),
             "https://www.facebook.com" => Ok(Self::Facebook),
             "https://kauth.kakao.com" => Ok(Self::Kakao),
@@ -349,14 +349,6 @@ impl ZkLoginInputs {
         &self.jwt_details.iss
     }
 
-    /// Get the sanitized iss string to use standard iss string.
-    pub fn get_sanitized_iss(&self) -> &str {
-        if &self.jwt_details.iss == "accounts.google.com" {
-            "https://accounts.google.com"
-        } else {
-            &self.jwt_details.iss
-        }
-    }
     /// Get the zk login proof.
     pub fn get_proof(&self) -> &ZkLoginProof {
         &self.proof_points
