@@ -11,7 +11,7 @@ pub fn g1_affine_from_str_projective(s: &CircomG1) -> Result<G1Affine, FastCrypt
     if s.len() != 3 {
         return Err(FastCryptoError::InvalidInput);
     }
-    Ok(G1Projective::new(
+    Ok(G1Projective::new_unchecked(
         s[0].parse::<Fq>()
             .map_err(|_| FastCryptoError::InvalidInput)?,
         s[1].parse::<Fq>()
@@ -33,7 +33,7 @@ pub fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, FastCrypt
             return Err(FastCryptoError::InvalidInput);
         }
     }
-    Ok(G2Projective::new(
+    Ok(G2Projective::new_unchecked(
         Fq2::new(
             s[0][0]
                 .parse::<Fq>()
