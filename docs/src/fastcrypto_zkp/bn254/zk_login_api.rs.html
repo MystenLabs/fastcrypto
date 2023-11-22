@@ -290,13 +290,6 @@
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -526,16 +519,9 @@
     eph_pubkey_bytes: <span class="kw-2">&amp;</span>[u8],
     all_jwk: <span class="kw-2">&amp;</span>ImHashMap&lt;JwkId, JWK&gt;,
     env: <span class="kw-2">&amp;</span>ZkLoginEnv,
-    should_sanitize_iss: bool,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
     <span class="comment">// Load the expected JWK based on (iss, kid).
-    </span><span class="kw">let </span>(iss, kid) = <span class="kw">match </span>should_sanitize_iss {
-        <span class="bool-val">true </span>=&gt; (
-            input.get_sanitized_iss().to_string(),
-            input.get_kid().to_string(),
-        ),
-        <span class="bool-val">false </span>=&gt; (input.get_iss().to_string(), input.get_kid().to_string()),
-    };
+    </span><span class="kw">let </span>(iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
     <span class="kw">let </span>jwk = all_jwk
         .get(<span class="kw-2">&amp;</span>JwkId::new(iss.clone(), kid.clone()))
         .ok_or_else(|| {

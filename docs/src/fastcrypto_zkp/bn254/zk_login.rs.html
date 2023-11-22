@@ -603,14 +603,6 @@
 <a href="#603" id="603">603</a>
 <a href="#604" id="604">604</a>
 <a href="#605" id="605">605</a>
-<a href="#606" id="606">606</a>
-<a href="#607" id="607">607</a>
-<a href="#608" id="608">608</a>
-<a href="#609" id="609">609</a>
-<a href="#610" id="610">610</a>
-<a href="#611" id="611">611</a>
-<a href="#612" id="612">612</a>
-<a href="#613" id="613">613</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -764,7 +756,7 @@
     <span class="doccomment">/// Returns the OIDCProvider for the given iss string.
     </span><span class="kw">pub fn </span>from_iss(iss: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>iss {
-            <span class="string">&quot;https://accounts.google.com&quot; </span>| <span class="string">&quot;accounts.google.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
+            <span class="string">&quot;https://accounts.google.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
             <span class="string">&quot;https://id.twitch.tv/oauth2&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
             <span class="string">&quot;https://www.facebook.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
             <span class="string">&quot;https://kauth.kakao.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
@@ -962,14 +954,6 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.jwt_details.iss
     }
 
-    <span class="doccomment">/// Get the sanitized iss string to use standard iss string.
-    </span><span class="kw">pub fn </span>get_sanitized_iss(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
-        <span class="kw">if </span><span class="kw-2">&amp;</span><span class="self">self</span>.jwt_details.iss == <span class="string">&quot;accounts.google.com&quot; </span>{
-            <span class="string">&quot;https://accounts.google.com&quot;
-        </span>} <span class="kw">else </span>{
-            <span class="kw-2">&amp;</span><span class="self">self</span>.jwt_details.iss
-        }
-    }
     <span class="doccomment">/// Get the zk login proof.
     </span><span class="kw">pub fn </span>get_proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>ZkLoginProof {
         <span class="kw-2">&amp;</span><span class="self">self</span>.proof_points
