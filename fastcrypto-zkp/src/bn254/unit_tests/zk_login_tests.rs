@@ -5,8 +5,7 @@ use std::str::FromStr;
 
 use crate::bn254::poseidon::hash;
 use crate::bn254::utils::{
-    big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
-    get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address, big_int_str_to_bytes,
 };
 use crate::bn254::zk_login::{
     convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
@@ -142,14 +141,7 @@ async fn test_verify_zk_login_google() {
         ),
         content,
     );
-    let res = verify_zk_login(
-        &zk_login_inputs,
-        10,
-        &eph_pubkey,
-        &map,
-        &ZkLoginEnv::Prod,
-        true,
-    );
+    let res = verify_zk_login(&zk_login_inputs, 10, &eph_pubkey, &map, &ZkLoginEnv::Prod);
     assert!(res.is_ok());
 }
 
@@ -611,7 +603,6 @@ fn test_alternative_iss_for_google() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        true,
     );
     assert!(res.is_ok());
 
@@ -621,7 +612,6 @@ fn test_alternative_iss_for_google() {
         &eph_pubkey_bytes,
         &all_jwk,
         &ZkLoginEnv::Test,
-        true,
     );
     assert!(invalid_res.is_err());
 }
