@@ -242,7 +242,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
 }
 
 fn decrypt_and_prepare_for_reenc(
-    keys: &Vec<KeyNodePair<EG>>,
+    keys: &[KeyNodePair<EG>],
     nodes: &Nodes<EG>,
     msg0: &Message<G, EG>,
 ) -> Vec<(PublicKey<EG>, Vec<u8>)> {

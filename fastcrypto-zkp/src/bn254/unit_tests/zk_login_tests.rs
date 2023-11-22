@@ -5,7 +5,8 @@ use std::str::FromStr;
 
 use crate::bn254::poseidon::hash;
 use crate::bn254::utils::{
-    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address, big_int_str_to_bytes,
+    big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
+    get_zk_login_address,
 };
 use crate::bn254::zk_login::{
     convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
