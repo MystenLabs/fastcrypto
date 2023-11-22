@@ -18,10 +18,10 @@ impl tbls::ThresholdBls for ThresholdBls12381MinSig {
     type Public = bls12381::G2Element;
     type Signature = bls12381::G1Element;
 
-    fn verify_pairings(
+    fn verify(
         pk: &Self::Public,
-        sig: &Self::Signature,
         msg: &[u8],
+        sig: &Self::Signature,
     ) -> FastCryptoResult<()> {
         let hashed_message = Self::Signature::hash_to_group_element(msg);
         // e(sig, g2)

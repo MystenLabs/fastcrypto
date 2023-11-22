@@ -23,18 +23,9 @@ pub trait ThresholdBls {
     /// `Signature` represents the group over which the signatures are represented.
     type Signature: GroupElement<ScalarType = Self::Private> + HashToGroupElement + MultiScalarMul;
 
-    /// Curve dependent implementation of computing and comparing the pairings as part of the
-    /// signature verification.
-    fn verify_pairings(
-        pk: &Self::Public,
-        sig: &Self::Signature,
-        msg: &[u8],
-    ) -> FastCryptoResult<()>;
-
-    /// Verify a signature on a given message.
-    fn verify(public: &Self::Public, msg: &[u8], sig: &Self::Signature) -> FastCryptoResult<()> {
-        Self::verify_pairings(public, sig, msg).map_err(|_| FastCryptoError::InvalidSignature)
-    }
+    /// Verify a signature on a given message. This is standard BLS signature verification
+    /// over the used curve construction.
+    fn verify(public: &Self::Public, msg: &[u8], sig: &Self::Signature) -> FastCryptoResult<()>;
 
     /// Sign a message using the private share/partial key.
     fn partial_sign(share: &Share<Self::Private>, msg: &[u8]) -> PartialSignature<Self::Signature> {
