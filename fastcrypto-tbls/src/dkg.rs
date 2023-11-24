@@ -492,27 +492,27 @@ where
                 let accuser_pk = id_to_pk
                     .get(&accuser)
                     .expect("checked above that accuser is valid id");
-                let related_m1 = id_to_m1.get(&accused);
                 // If the claim refers to a non existing message, it's an invalid complaint.
-                let valid_complaint = related_m1.is_some() && {
-                    let encrypted_shares = &related_m1
-                        .expect("checked above that is not None")
-                        .encrypted_shares
-                        .get_encryption(accuser as usize)
-                        .expect("checked earlier that there are enough encryptions");
-                    Self::check_complaint_proof(
-                        &complaint.proof,
-                        accuser_pk,
-                        &self.nodes.share_ids_of(accuser),
-                        &related_m1.expect("checked above that is not None").vss_pk,
-                        encrypted_shares,
-                        &self.random_oracle.extend(&format!(
-                            "recovery of id {} received from {}",
-                            accuser, accused
-                        )),
-                        rng,
-                    )
-                    .is_ok()
+                let valid_complaint = match id_to_m1.get(&accused) {
+                    Some(related_m1) => {
+                        let encrypted_shares = &related_m1
+                            .encrypted_shares
+                            .get_encryption(accuser as usize)
+                            .expect("checked earlier that there are enough encryptions");
+                        Self::check_complaint_proof(
+                            &complaint.proof,
+                            accuser_pk,
+                            &self.nodes.share_ids_of(accuser),
+                            &related_m1.vss_pk,
+                            encrypted_shares,
+                            &self.random_oracle.extend(&format!(
+                                "recovery of id {} received from {}",
+                                accuser, accused
+                            )),
+                            rng,
+                        ).is_ok()
+                    }
+                    None => false
                 };
                 match valid_complaint {
                     // Ignore accused from now on, and continue processing complaints from the
