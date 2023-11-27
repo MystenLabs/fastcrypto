@@ -14,7 +14,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, Neg};
+use std::ops::{Add, Neg, Shl, ShlAssign, Shr};
 
 mod compressed;
 
@@ -98,12 +98,11 @@ impl QuadraticForm {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         let mut form = self.normalize();
         while !form.is_reduced() {
-            let s = (&form.b + &form.c).div_floor(&(&form.c * 2));
-            let cs = &form.c * &s;
-            let old_c = form.c.clone();
-            form.c = (&cs - &form.b) * &s + &form.a;
-            form.a = old_c;
-            form.b = &cs * 2 - &form.b;
+            let s = (&form.b + &form.c).div_floor(&form.c).shr(1);
+            let cs: BigInt = &form.c * &s;
+            swap(&mut form.a, &mut form.c);
+            form.c += (&cs - &form.b) * &s;
+            form.b = cs.shl(1) - &form.b;
         }
         form
     }
