@@ -112,7 +112,7 @@ pub fn hash_to_bytes(
 pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
-        field_elements.push(from_canonical_le_bytes_to_field_element(input)?);
+        field_elements.push(canonical_le_bytes_to_field_element(input)?);
     }
     to_poseidon_hash(field_elements)
 }
@@ -122,7 +122,7 @@ pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoErro
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-fn from_canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
+fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal => {
