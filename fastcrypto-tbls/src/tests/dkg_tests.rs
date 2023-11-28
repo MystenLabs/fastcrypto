@@ -1,8 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::{Party, ProcessedMessage};
+use crate::dkg::{Message, Party, ProcessedMessage};
 use crate::ecies;
+use crate::ecies::{MultiRecipientEncryption, PublicKey};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
@@ -96,13 +97,19 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     // later because of an invalid complaint
     let msg4 = d4.create_message(&mut thread_rng());
     let msg5 = d5.create_message(&mut thread_rng());
-    // d5 will receive invalid shares from d0, but its complaint will not be processed.
+    // d5 will receive invalid shares from d0, but its complaint will not be processed on time.
     let mut msg0 = d0.create_message(&mut thread_rng());
-    msg0.encrypted_shares.copy_for_testing(0, 5);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg0);
+    pk_and_msgs[5] = pk_and_msgs[0].clone();
+    msg0.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 0"), &mut thread_rng());
     // We will modify d1's message to make it invalid (emulating a cheating party). d0 and d1
-    // should detect that and send a complaint.
+    // should detect that and send complaints.
     let mut msg1 = d1.create_message(&mut thread_rng());
-    msg1.encrypted_shares.swap_for_testing(0, 1);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1);
+    pk_and_msgs.swap(0, 1);
+    msg1.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
     // d2 and d3 are ignored here (emulating slow parties).
 
     let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg4.clone(), msg5.clone()]; // duplicates should be ignored
@@ -234,6 +241,23 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 
+fn decrypt_and_prepare_for_reenc(
+    keys: &[KeyNodePair<EG>],
+    nodes: &Nodes<EG>,
+    msg0: &Message<G, EG>,
+) -> Vec<(PublicKey<EG>, Vec<u8>)> {
+    nodes
+        .iter()
+        .map(|n| {
+            let key = keys[n.id as usize].1.clone();
+            (
+                n.pk.clone(),
+                key.decrypt(&msg0.encrypted_shares.get_encryption(n.id as usize).unwrap()),
+            )
+        })
+        .collect::<Vec<_>>()
+}
+
 #[test]
 fn test_party_new_errors() {
     let ro = RandomOracle::new("dkg");
@@ -323,12 +347,13 @@ fn test_process_message_failures() {
     invalid_msg.vss_pk = poly.into();
     assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
 
-    // TODO: test encrypted_shares sanity checks
-
     // invalid number of encrypted shares
     let mut msg1 = d1.create_message(&mut thread_rng());
     // Switch the encrypted shares of two receivers.
-    msg1.encrypted_shares.swap_for_testing(0, 1);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1);
+    pk_and_msgs.swap(0, 1);
+    msg1.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
     let ProcessedMessage {
         message: _,
         shares,
@@ -337,6 +362,12 @@ fn test_process_message_failures() {
     if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
+
+    // invalid encryption's proof
+    let mut msg1 = d1.create_message(&mut thread_rng());
+    // Switch the encrypted shares of two receivers.
+    msg1.encrypted_shares.swap_for_testing(0, 1);
+    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
 
     // invalid share
     // use another d1 with a different vss_sk to create an encryption with "invalid" shares
@@ -404,7 +435,11 @@ fn test_test_process_confirmations() {
     let msg1 = d1.create_message(&mut thread_rng());
     let msg2 = d2.create_message(&mut thread_rng());
     let mut msg3 = d3.create_message(&mut thread_rng());
-    msg3.encrypted_shares.swap_for_testing(0, 1);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg3);
+    pk_and_msgs.swap(0, 1);
+    msg3.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut thread_rng());
+
     let all_messages = vec![msg0, msg1, msg2, msg3];
 
     let proc_msg0 = &all_messages

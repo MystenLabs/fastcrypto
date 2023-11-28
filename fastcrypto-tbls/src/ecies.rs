@@ -197,7 +197,9 @@ where
                 Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g).1
             })
             .collect::<Vec<_>>();
-        let nizk = DLNizk::<G>::create(&r, &r_g, random_oracle, rng);
+        // Bind the NIZK to the encrypted messages by adding them as inputs to the RO.
+        let encs_bytes = bcs::to_bytes(&encs).expect("serialize should never fail");
+        let nizk = DLNizk::<G>::create(&r, &r_g, &encs_bytes, random_oracle, rng);
         Self(r_g, encs, nizk)
     }
 
@@ -214,7 +216,8 @@ where
     }
 
     pub fn verify(&self, random_oracle: &RandomOracle) -> FastCryptoResult<()> {
-        self.2.verify(&self.0, random_oracle)?;
+        let encs_bytes = bcs::to_bytes(&self.1).expect("serialize should never fail");
+        self.2.verify(&self.0, &encs_bytes, random_oracle)?;
         // Encryptions cannot be empty.
         self.1
             .iter()
