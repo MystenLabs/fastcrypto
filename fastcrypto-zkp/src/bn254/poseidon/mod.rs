@@ -45,7 +45,7 @@ macro_rules! define_poseidon_hash {
 
 /// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
 /// elements, otherwise an error is returned.
-pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+pub fn poseidon(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     if inputs.is_empty() || inputs.len() > 16 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
@@ -74,16 +74,28 @@ pub fn hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     Ok(fr_to_bn254fr(result))
 }
 
+/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
+/// If input length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]),
+/// H(inputs[16..])), otherwise return an error.
+///
+/// This functions must be equivalent with the one found in the zk_login circuit.
+pub(crate) fn poseidon_zk_login(inputs: Vec<Fr>) -> FastCryptoResult<Fr> {
+    if inputs.is_empty() || inputs.len() > 32 {
+        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
+    }
+    poseidon_merkle_tree(inputs)
+}
+
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
 /// H(inputs), otherwise chunk the inputs into groups of 16, hash them and input the results recursively.
-pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+pub fn poseidon_merkle_tree(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
     if inputs.len() <= MERKLE_TREE_DEGREE {
-        hash(inputs)
+        poseidon(inputs)
     } else {
-        to_poseidon_hash(
+        poseidon_merkle_tree(
             inputs
                 .chunks(MERKLE_TREE_DEGREE)
-                .map(|chunk| hash(chunk.to_vec()))
+                .map(|chunk| poseidon(chunk.to_vec()))
                 .collect::<FastCryptoResult<Vec<_>>>()?,
         )
     }
@@ -91,30 +103,24 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 
 /// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
 /// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
+/// hash function ([poseidon_merkle_tree]) and the result is serialized as a little-endian integer (32
 /// bytes).
 ///
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
 /// field size or is longer than 32 bytes, an error is returned.
-pub fn hash_to_bytes(
+///
+/// This function is used as an interface to the poseidon hash function in the sui-framework.
+pub fn poseidon_bytes(
     inputs: &Vec<Vec<u8>>,
 ) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
-    let field_element = hash_to_field_element(inputs)?;
-    Ok(field_element_to_canonical_le_bytes(&field_element))
-}
-
-/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]).
-///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
-pub fn hash_to_field_element(inputs: &Vec<Vec<u8>>) -> Result<Fr, FastCryptoError> {
     let mut field_elements = Vec::new();
     for input in inputs {
         field_elements.push(canonical_le_bytes_to_field_element(input)?);
     }
-    to_poseidon_hash(field_elements)
+    let output_as_field_element = poseidon(field_elements)?;
+    Ok(field_element_to_canonical_le_bytes(
+        &output_as_field_element,
+    ))
 }
 
 /// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
@@ -164,9 +170,9 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 
 #[cfg(test)]
 mod test {
-    use crate::bn254::poseidon::hash;
-    use crate::bn254::poseidon::hash_to_bytes;
-    use crate::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
+    use crate::bn254::poseidon::poseidon_bytes;
+    use crate::bn254::poseidon::{poseidon, poseidon_merkle_tree};
+    use crate::bn254::{poseidon::poseidon_zk_login, zk_login::Bn254Fr};
     use ark_bn254::Fr;
     use ark_ff::{BigInteger, PrimeField};
     use lazy_static::lazy_static;
@@ -187,7 +193,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = hash(vec![input1, input2, input3, input4]).unwrap();
+        let hash = poseidon(vec![input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             Fr::from_str(
@@ -198,20 +204,21 @@ mod test {
     }
     #[test]
     fn test_to_poseidon_hash() {
+        assert!(poseidon_merkle_tree(to_bigint_arr(vec![])).is_err());
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1]))
+            poseidon_merkle_tree(to_bigint_arr(vec![1]))
                 .unwrap()
                 .to_string(),
             "18586133768512220936620570745912940619677854269274689475585506675881198879027"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![1, 2]))
+            poseidon_merkle_tree(to_bigint_arr(vec![1, 2]))
                 .unwrap()
                 .to_string(),
             "7853200120776062878684798364095072458815029376092732009249414926327459813530"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![
+            poseidon_merkle_tree(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
             ]))
             .unwrap()
@@ -219,7 +226,7 @@ mod test {
             "4203130618016961831408770638653325366880478848856764494148034853759773445968"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![
+            poseidon_merkle_tree(to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
             ]))
             .unwrap()
@@ -227,7 +234,7 @@ mod test {
             "9989051620750914585850546081941653841776809718687451684622678807385399211877"
         );
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![
+            poseidon_merkle_tree(to_bigint_arr(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29
             ]))
@@ -235,9 +242,8 @@ mod test {
             .to_string(),
             "4123755143677678663754455867798672266093104048057302051129414708339780424023"
         );
-
         assert_eq!(
-            to_poseidon_hash(to_bigint_arr(vec![
+            poseidon_merkle_tree(to_bigint_arr(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
             ]))
@@ -245,12 +251,17 @@ mod test {
             .to_string(),
             "15368023340287843142129781602124963668572853984788169144128906033251913623349"
         );
+        assert!(poseidon_zk_login(to_bigint_arr(vec![
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+            24, 25, 26, 27, 28, 29, 30, 31, 32
+        ]))
+        .is_err());
     }
 
     #[test]
     fn test_hash_to_bytes() {
         let inputs: Vec<Vec<u8>> = vec![vec![1u8]];
-        let hash = hash_to_bytes(&inputs).unwrap();
+        let hash = poseidon_bytes(&inputs).unwrap();
         // 18586133768512220936620570745912940619677854269274689475585506675881198879027 in decimal
         let expected =
             hex::decode("33018202c57d898b84338b16d1a4960e133c6a4d656cfec1bd62a9ea00611729")
@@ -259,7 +270,7 @@ mod test {
 
         // 7853200120776062878684798364095072458815029376092732009249414926327459813530 in decimal
         let inputs: Vec<Vec<u8>> = vec![vec![1u8], vec![2u8]];
-        let hash = hash_to_bytes(&inputs).unwrap();
+        let hash = poseidon_bytes(&inputs).unwrap();
         let expected =
             hex::decode("9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11")
                 .unwrap();
@@ -267,11 +278,11 @@ mod test {
 
         // Input larger than the modulus
         let inputs = vec![vec![255; 32]];
-        assert!(hash_to_bytes(&inputs).is_err());
+        assert!(poseidon_bytes(&inputs).is_err());
 
         // Input smaller than the modulus
         let inputs = vec![vec![255; 31]];
-        assert!(hash_to_bytes(&inputs).is_ok());
+        assert!(poseidon_bytes(&inputs).is_ok());
     }
 
     #[cfg(test)]
@@ -286,7 +297,7 @@ mod test {
             let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
             let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
-            let actual = hash_to_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
+            let actual = poseidon_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
             assert_eq!(&actual, expected.as_slice());
         }
     }

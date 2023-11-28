@@ -3,7 +3,7 @@
 
 use std::str::FromStr;
 
-use crate::bn254::poseidon::hash;
+use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::utils::{
     big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
     get_zk_login_address,
@@ -485,7 +485,9 @@ fn test_verify_zk_login() {
     let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
     let salt = "6588741469050502421550140105345050859";
     let iss = "https://accounts.google.com";
-    let salt_hash = hash(vec![to_field(salt).unwrap()]).unwrap().to_string();
+    let salt_hash = poseidon_zk_login(vec![to_field(salt).unwrap()])
+        .unwrap()
+        .to_string();
     assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
 
     let address_seed = gen_address_seed_with_salt_hash(&salt_hash, name, value, aud).unwrap();
@@ -551,7 +553,7 @@ fn test_all_inputs_hash() {
     )
     .unwrap();
 
-    let hash = hash(vec![
+    let hash = poseidon_zk_login(vec![
         jwt_sha2_hash_0,
         jwt_sha2_hash_1,
         masked_content_hash,
