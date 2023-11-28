@@ -117,7 +117,7 @@ pub fn poseidon_bytes(
     for input in inputs {
         field_elements.push(canonical_le_bytes_to_field_element(input)?);
     }
-    let output_as_field_element = poseidon(field_elements)?;
+    let output_as_field_element = poseidon_merkle_tree(field_elements)?;
     Ok(field_element_to_canonical_le_bytes(
         &output_as_field_element,
     ))
