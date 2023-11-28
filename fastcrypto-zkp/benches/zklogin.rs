@@ -109,7 +109,6 @@ mod zklogin_benches {
                     &eph_pubkey,
                     &map,
                     &ZkLoginEnv::Prod,
-                    true,
                 )
             })
         });
