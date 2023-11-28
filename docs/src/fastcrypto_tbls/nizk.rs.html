@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/nizk.rs`."><title>nizk.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (6cf088810 2023-11-26)" data-channel="nightly" data-search-js="search-56a624991a76cfad.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-e1c03aa593074e71.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/nizk.rs`."><title>nizk.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (49b3924bd 2023-11-27)" data-channel="nightly" data-search-js="search-56a624991a76cfad.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -174,6 +174,17 @@
 <a href="#174" id="174">174</a>
 <a href="#175" id="175">175</a>
 <a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -299,24 +310,30 @@
 {
     <span class="kw">pub fn </span>create&lt;R: AllowedRng&gt;(
         x: <span class="kw-2">&amp;</span>G::ScalarType,
-        x_g: <span class="kw-2">&amp;</span>G, <span class="comment">// passed since probably already computed
+        x_g: <span class="kw-2">&amp;</span>G,             <span class="comment">// passed since probably already computed
+        </span>aux_ro_input: <span class="kw-2">&amp;</span>[u8], <span class="comment">// optional auxiliary input to the random oracle
         </span>random_oracle: <span class="kw-2">&amp;</span>RandomOracle,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>r = G::ScalarType::rand(rng);
         <span class="kw">let </span>a = G::generator() * r;
-        <span class="kw">let </span>challenge = <span class="self">Self</span>::fiat_shamir_challenge(x_g, <span class="kw-2">&amp;</span>a, random_oracle);
+        <span class="kw">let </span>challenge = <span class="self">Self</span>::fiat_shamir_challenge(x_g, <span class="kw-2">&amp;</span>a, aux_ro_input, random_oracle);
         <span class="kw">let </span>z = challenge * x + r;
         <span class="macro">debug!</span>(<span class="string">&quot;NIZK: Creating a proof for {x_g:?} with challenge {challenge:?}&quot;</span>);
         DLNizk(a, z)
     }
 
-    <span class="kw">pub fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, x_g: <span class="kw-2">&amp;</span>G, random_oracle: <span class="kw-2">&amp;</span>RandomOracle) -&gt; FastCryptoResult&lt;()&gt; {
+    <span class="kw">pub fn </span>verify(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        x_g: <span class="kw-2">&amp;</span>G,
+        aux_ro_input: <span class="kw-2">&amp;</span>[u8],
+        random_oracle: <span class="kw-2">&amp;</span>RandomOracle,
+    ) -&gt; FastCryptoResult&lt;()&gt; {
         <span class="kw">if </span><span class="kw-2">*</span>x_g == G::zero() {
             <span class="comment">// we should never see this, but just in case
             </span><span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidProof);
         }
-        <span class="kw">let </span>challenge = <span class="self">Self</span>::fiat_shamir_challenge(x_g, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, random_oracle);
+        <span class="kw">let </span>challenge = <span class="self">Self</span>::fiat_shamir_challenge(x_g, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, aux_ro_input, random_oracle);
         <span class="macro">debug!</span>(<span class="string">&quot;NIZK: Verifying a proof of {x_g:?} with challenge {challenge:?}&quot;</span>);
         <span class="kw">if </span>(G::generator() * <span class="self">self</span>.<span class="number">1</span>) != (<span class="self">self</span>.<span class="number">0 </span>+ <span class="kw-2">*</span>x_g * challenge) {
             <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof)
@@ -326,8 +343,13 @@
     }
 
     <span class="doccomment">/// Returns the challenge for Fiat-Shamir.
-    </span><span class="kw">fn </span>fiat_shamir_challenge(x_g: <span class="kw-2">&amp;</span>G, a: <span class="kw-2">&amp;</span>G, random_oracle: <span class="kw-2">&amp;</span>RandomOracle) -&gt; G::ScalarType {
-        <span class="kw">let </span>output = random_oracle.evaluate(<span class="kw-2">&amp;</span>(G::generator(), x_g, a));
+    </span><span class="kw">fn </span>fiat_shamir_challenge(
+        x_g: <span class="kw-2">&amp;</span>G,
+        a: <span class="kw-2">&amp;</span>G,
+        aux_ro_input: <span class="kw-2">&amp;</span>[u8],
+        random_oracle: <span class="kw-2">&amp;</span>RandomOracle,
+    ) -&gt; G::ScalarType {
+        <span class="kw">let </span>output = random_oracle.evaluate(<span class="kw-2">&amp;</span>(G::generator(), x_g, a, aux_ro_input));
         G::ScalarType::fiat_shamir_reduction_to_group_element(<span class="kw-2">&amp;</span>output)
     }
 }
