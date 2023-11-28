@@ -97,7 +97,7 @@ pub fn to_poseidon_hash(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
 /// field size or is longer than 32 bytes, an error is returned.
 pub fn hash_to_bytes(
-    inputs: &[[u8]]
+    inputs: &Vec<Vec<u8>>,
 ) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
     let field_element = hash_to_field_element(inputs)?;
     Ok(field_element_to_canonical_le_bytes(&field_element))
