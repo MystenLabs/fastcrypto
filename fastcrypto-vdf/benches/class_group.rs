@@ -7,6 +7,7 @@ use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
 use fastcrypto_vdf::ParameterizedGroupElement;
 use num_bigint::BigInt;
 use num_traits::Num;
+use fastcrypto::groups::Double;
 
 fn class_group_ops_single<M: Measurement>(
     discriminant_string: &str,

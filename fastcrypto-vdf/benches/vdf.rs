@@ -7,12 +7,14 @@ extern crate criterion;
 use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
+use fastcrypto_vdf::vdf::wesolowski::{FastVerify, StrongFiatShamir, StrongVDF};
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
+use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
+use fastcrypto_vdf::hash_prime::DefaultPrimalityCheck;
 
 struct VerificationInputs {
     iterations: u64,
@@ -29,16 +31,27 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 
     let result_bytes = hex::decode(parameters.result).unwrap();
     let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+    let result2 = result.clone();
 
     let proof_bytes = hex::decode(parameters.proof).unwrap();
     let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+    let proof2 = proof.clone();
 
     let input = QuadraticForm::generator(&discriminant);
+    let input2 = input.clone();
 
-    let vdf = StrongVDF::new(discriminant, parameters.iterations);
+    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
+    let vdf2 = StrongVDF::new(discriminant, parameters.iterations);
     c.bench_function(discriminant_size.to_string(), move |b| {
         b.iter(|| vdf.verify(&input, &result, &proof))
     });
+
+    let fast_verify: FastVerify<QuadraticForm, StrongFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
+        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>> = FastVerify::new(vdf2, input2);
+    c.bench_function(format!("{} fast", discriminant_size), move |b| {
+        b.iter(|| fast_verify.fast_verify(&result2, &proof2))
+    });
+
 }
 
 fn verify(c: &mut Criterion) {

@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::Discriminant;
+use crate::class_group::{Discriminant};
 use crate::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
 use crate::vdf::VDF;
 use crate::{hash_prime, Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
@@ -11,6 +11,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
+use fastcrypto::groups::multiplier::ScalarMultiplier;
 
 /// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -83,6 +84,42 @@ impl<
         }
         Ok(())
     }
+}
+
+pub struct FastVerify<G: ParameterizedGroupElement + UnknownOrderGroupElement, F, M: ScalarMultiplier<G, G::ScalarType>> {
+    vdf: WesolowskiVDF<G, F>,
+    input: G,
+    multiplier: M,
+}
+
+impl<G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigInt>> FastVerify<G, F, M> {
+
+    pub fn new(vdf: WesolowskiVDF<G, F>, input: G) -> Self {
+        let multiplier = M::new(input.clone(), G::zero(&vdf.group_parameter));
+        Self {
+            vdf,
+            input,
+            multiplier,
+        }
+    }
+
+    pub fn fast_verify(
+        &self,
+        output: &G,
+        proof: &G,
+    ) -> FastCryptoResult<()> {
+
+        let challenge = F::compute_challenge(&self.vdf, &self.input, output);
+        let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.vdf.iterations), &challenge);
+
+        let actual = self.multiplier.two_scalar_mul(&r, proof, &challenge);
+
+        if actual != *output {
+            return Err(InvalidProof);
+        }
+        Ok(())
+    }
+
 }
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
@@ -184,10 +221,12 @@ impl Parameter for Discriminant {
 #[cfg(test)]
 mod tests {
     use crate::class_group::{Discriminant, QuadraticForm};
-    use crate::vdf::wesolowski::{StrongVDF, WeakVDF};
+    use crate::vdf::wesolowski::{FastVerify, StrongFiatShamir, StrongVDF, WeakVDF};
     use crate::vdf::VDF;
     use crate::{Parameter, ParameterizedGroupElement};
     use num_bigint::BigInt;
+    use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
+    use crate::hash_prime::DefaultPrimalityCheck;
 
     #[test]
     fn test_prove_and_verify() {
@@ -206,6 +245,10 @@ mod tests {
         let modified_proof = proof.mul(&BigInt::from(2));
         assert!(vdf.verify(&g, &modified_output, &proof).is_err());
         assert!(vdf.verify(&g, &output, &modified_proof).is_err());
+
+        let fast_verify: FastVerify<QuadraticForm, StrongFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
+            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>> = FastVerify::new(vdf, g);
+        assert!(fast_verify.fast_verify(&output, &proof).is_ok());
     }
 
     #[test]

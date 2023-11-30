@@ -1414,6 +1414,7 @@ dependencies = [
  "k256",
  "lazy_static",
  "merlin",
+ "num-bigint 0.4.4",
  "once_cell",
  "p256",
  "proptest",

@@ -41,11 +41,6 @@ pub trait GroupElement:
 
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
-
-    /// Compute 2 * Self. May be overwritten by implementations that have a fast doubling operation.
-    fn double(&self) -> Self {
-        *self + self
-    }
 }
 
 // TODO: Move Serialize + DeserializeOwned to GroupElement.
@@ -56,6 +51,11 @@ pub trait Scalar:
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;
+}
+
+pub trait Double {
+    /// Compute 2 * Self = Self + Self.
+    fn double(&self) -> Self;
 }
 
 pub trait Pairing: GroupElement {

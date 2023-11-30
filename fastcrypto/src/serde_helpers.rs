@@ -11,6 +11,7 @@ use serde::{
 use serde_with::serde_as;
 use std::fmt;
 use std::fmt::{Debug, Display};
+use num_bigint::BigInt;
 
 use crate::error::FastCryptoError;
 use crate::{
@@ -69,6 +70,20 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
     const BYTE_LENGTH: usize = LENGTH;
     fn from_byte_array(bytes: &[u8; LENGTH]) -> Result<Self, FastCryptoError>;
     fn to_byte_array(&self) -> [u8; LENGTH];
+}
+
+
+impl ToFromByteArray<34> for BigInt {
+    fn from_byte_array(_bytes: &[u8; 34]) -> Result<Self, FastCryptoError> {
+        panic!("Not used")
+    }
+
+    fn to_byte_array(&self) -> [u8; 34] {
+        let mut output = [0u8; 34];
+        let bytes = self.to_signed_bytes_le();
+        output[0..bytes.len()].clone_from_slice(&bytes);
+        output
+    }
 }
 
 /// Macro for generating Serialize/Deserialize for a type that implements [ToFromByteArray].

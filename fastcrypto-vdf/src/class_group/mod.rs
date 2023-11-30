@@ -14,7 +14,9 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Neg, Shl, Shr};
+use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
+use fastcrypto::groups::Double;
+use fastcrypto::serde_helpers::ToFromByteArray;
 
 mod compressed;
 
@@ -219,17 +221,8 @@ impl QuadraticForm {
     }
 }
 
-impl ParameterizedGroupElement for QuadraticForm {
-    /// The discriminant of a quadratic form defines the class group.
-    type ParameterType = Discriminant;
-
-    type ScalarType = BigInt;
-
-    fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
-    }
-
-    fn double(self) -> Self {
+impl Double for QuadraticForm {
+    fn double(&self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
@@ -301,6 +294,25 @@ impl ParameterizedGroupElement for QuadraticForm {
         };
         form.reduce();
         form
+    }
+}
+
+impl<'a> Mul<&'a BigInt> for QuadraticForm {
+    type Output = Self;
+
+    fn mul(self, rhs: &'a BigInt) -> Self::Output {
+        (&self).mul(rhs)
+    }
+}
+
+impl ParameterizedGroupElement for QuadraticForm {
+    /// The discriminant of a quadratic form defines the class group.
+    type ParameterType = Discriminant;
+
+    type ScalarType = BigInt;
+
+    fn zero(discriminant: &Self::ParameterType) -> Self {
+        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
