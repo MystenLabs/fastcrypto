@@ -50,13 +50,11 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
         r.1 = r.0;
         r.0 = r_prime;
 
-        let f = |mut x: (BigInt, BigInt)| {
-            mem::swap(&mut x.0, &mut x.1);
-            x.0 -= &q * &x.1;
-            x
-        };
-        s = f(s);
-        t = f(t);
+        mem::swap(&mut s.0, &mut s.1);
+        s.0 -= &q * &s.1;
+
+        mem::swap(&mut t.0, &mut t.1);
+        t.0 -= &q * &t.1;
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
