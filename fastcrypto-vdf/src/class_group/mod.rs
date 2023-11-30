@@ -14,7 +14,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, Neg, Shl, ShlAssign, Shr};
+use std::ops::{Add, AddAssign, Neg, Shl, Shr};
 
 mod compressed;
 
@@ -66,21 +66,15 @@ impl QuadraticForm {
     }
 
     /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    fn normalize(self) -> Self {
+    fn normalize(&mut self) {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         if self.is_normal() {
-            return self;
+            return;
         }
-        let r = (&self.a - &self.b).div_floor(&(&self.a * 2));
-        let ra = &r * &self.a;
-        let c = self.c + (&ra + &self.b) * &r;
-        let b = self.b + &ra * 2;
-        Self {
-            a: self.a,
-            b,
-            c,
-            partial_gcd_limit: self.partial_gcd_limit,
-        }
+        let r = (&self.a - &self.b).div_floor(&self.a).shr(1);
+        let ra: BigInt = &r * &self.a;
+        self.c.add_assign((&ra + &self.b) * &r);
+        self.b.add_assign(&ra.shl(1));
     }
 
     /// Return true if this form is reduced: A form is reduced if it is normal (see
@@ -94,17 +88,16 @@ impl QuadraticForm {
     }
 
     /// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    fn reduce(self) -> Self {
+    fn reduce(&mut self) {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        let mut form = self.normalize();
-        while !form.is_reduced() {
-            let s = (&form.b + &form.c).div_floor(&form.c).shr(1);
-            let cs: BigInt = &form.c * &s;
-            swap(&mut form.a, &mut form.c);
-            form.c += (&cs - &form.b) * &s;
-            form.b = cs.shl(1) - &form.b;
+        self.normalize();
+        while !self.is_reduced() {
+            let s = (&self.b + &self.c).div_floor(&self.c).shr(1);
+            let cs: BigInt = &self.c * &s;
+            swap(&mut self.a, &mut self.c);
+            self.c += (&cs - &self.b) * &s;
+            self.b = cs.shl(1) - &self.b;
         }
-        form
     }
 
     /// Compute the composition of this quadratic form with another quadratic form.
@@ -215,13 +208,14 @@ impl QuadraticForm {
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
-        QuadraticForm {
+        let mut form = QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
-        }
-        .reduce()
+        };
+        form.reduce();
+        form
     }
 }
 
@@ -299,13 +293,14 @@ impl ParameterizedGroupElement for QuadraticForm {
             w3 = &w3 - &g * &x * &dx;
         }
 
-        QuadraticForm {
+        let mut form = QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
-        }
-        .reduce()
+        };
+        form.reduce();
+        form
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
@@ -435,14 +430,14 @@ mod tests {
             QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
         assert_eq!(quadratic_form.c, BigInt::from(55));
 
-        quadratic_form = quadratic_form.normalize();
+        quadratic_form.normalize();
 
         // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
         assert_eq!(quadratic_form.a, BigInt::from(11));
         assert_eq!(quadratic_form.b, BigInt::from(5));
         assert_eq!(quadratic_form.c, BigInt::from(1));
 
-        quadratic_form = quadratic_form.reduce();
+        quadratic_form.reduce();
 
         // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
         assert_eq!(quadratic_form.a, BigInt::from(1));
