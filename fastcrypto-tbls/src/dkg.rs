@@ -304,7 +304,7 @@ where
         let encrypted_shares = &message
             .encrypted_shares
             .get_encryption(self.id as usize)
-            .expect("checked above that there are enough encryptions");
+            .expect("checked in sanity_check_message that there are enough encryptions");
         let decrypted_shares = Self::decrypt_and_get_share(&self.enc_sk, encrypted_shares).ok();
 
         if decrypted_shares.is_none()
