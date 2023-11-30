@@ -420,10 +420,9 @@ where
             complaints: Vec::new(),
         };
         for m in &filtered_messages.0 {
-            if m.complaint.is_some() {
+            if let Some(complaint) = &m.complaint {
                 debug!("DKG: Including a complaint on party {}", m.message.sender);
-                let complaint = m.complaint.clone().expect("checked above");
-                conf.complaints.push(complaint);
+                conf.complaints.push(complaint.clone());
             }
         }
         Ok((conf, filtered_messages))
@@ -510,9 +509,10 @@ where
                                 accuser, accused
                             )),
                             rng,
-                        ).is_ok()
+                        )
+                        .is_ok()
                     }
-                    None => false
+                    None => false,
                 };
                 match valid_complaint {
                     // Ignore accused from now on, and continue processing complaints from the
