@@ -74,8 +74,8 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
 
 // This is used for multi-scalar multiplication
 impl<const N: usize> ToFromByteArray<N> for BigInt {
-    fn from_byte_array(bytes: &[u8; N]) -> Result<Self, FastCryptoError> {
-        Ok(BigInt::from_signed_bytes_be(bytes))
+    fn from_byte_array(_bytes: &[u8; N]) -> Result<Self, FastCryptoError> {
+        panic!("Not used")
     }
 
     fn to_byte_array(&self) -> [u8; N] {
