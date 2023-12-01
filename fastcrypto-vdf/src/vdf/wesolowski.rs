@@ -277,8 +277,8 @@ mod tests {
         assert!(vdf.verify(&input, &modified_output, &proof).is_err());
         assert!(vdf.verify(&input, &output, &modified_proof).is_err());
 
-        let fast_verify = StrongVDFVerifier::new(vdf, input);
-        assert!(fast_verify.verify(&output, &proof).is_ok());
+        let fast_verifier = StrongVDFVerifier::new(vdf, input);
+        assert!(fast_verifier.verify(&output, &proof).is_ok());
     }
 
     #[test]
@@ -303,8 +303,8 @@ mod tests {
         let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 1024, iterations).unwrap();
         assert!(vdf.verify(&input, &result, &proof).is_ok());
 
-        let fast_verify = WeakVDFVerifier::new(vdf, input);
-        assert!(fast_verify.verify(&result, &proof).is_ok());
+        let fast_verifier = WeakVDFVerifier::new(vdf, input);
+        assert!(fast_verifier.verify(&result, &proof).is_ok());
     }
 
     #[test]
