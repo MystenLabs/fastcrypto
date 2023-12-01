@@ -78,3 +78,38 @@ impl PrimalityCheck for DefaultPrimalityCheck {
         num_prime::nt_funcs::is_prime(x, None).probably()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::hash_prime::hash_prime_default;
+    use num_bigint::BigUint;
+    use num_integer::Integer;
+    use num_prime::PrimalityTestConfig;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_hash_prime() {
+        let seed = [0u8; 32];
+        let length = 512;
+        let bitmask: [usize; 3] = [0, 1, length - 1];
+
+        let prime = hash_prime_default(&seed, length, &bitmask)
+            .unwrap()
+            .to_biguint()
+            .unwrap();
+
+        // Prime has right length
+        assert_eq!(length as u64, prime.bits());
+
+        // The last two bits are set (see bitmask)
+        assert_eq!(BigUint::from(3u64), prime.mod_floor(&BigUint::from(4u64)));
+
+        // The result is a prime, even when checking with a stricter test
+        assert!(
+            num_prime::nt_funcs::is_prime(&prime, Some(PrimalityTestConfig::strict())).probably()
+        );
+
+        // Regression test
+        assert_eq!(prime, BigUint::from_str("7904272817142338150419757415334055106926417574777773392214522399425467199262039794276651240832053626391864792937889238336287002167559810128294881253078163").unwrap());
+    }
+}
