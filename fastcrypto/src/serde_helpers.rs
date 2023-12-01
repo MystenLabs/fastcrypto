@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
+use num_bigint::BigInt;
 use schemars::JsonSchema;
 use serde::{
     de,
@@ -11,7 +12,6 @@ use serde::{
 use serde_with::serde_as;
 use std::fmt;
 use std::fmt::{Debug, Display};
-use num_bigint::BigInt;
 
 use crate::error::FastCryptoError;
 use crate::{
@@ -71,7 +71,6 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
     fn from_byte_array(bytes: &[u8; LENGTH]) -> Result<Self, FastCryptoError>;
     fn to_byte_array(&self) -> [u8; LENGTH];
 }
-
 
 impl ToFromByteArray<34> for BigInt {
     fn from_byte_array(_bytes: &[u8; 34]) -> Result<Self, FastCryptoError> {

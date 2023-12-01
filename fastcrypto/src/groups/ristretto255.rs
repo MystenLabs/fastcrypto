@@ -5,7 +5,9 @@
 //! prime order 2^{252} + 27742317777372353535851937790883648493 built over Curve25519.
 
 use crate::error::FastCryptoResult;
-use crate::groups::{Double, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
+use crate::groups::{
+    Doubling, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
+};
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
@@ -55,7 +57,7 @@ impl RistrettoPoint {
     }
 }
 
-impl Double for RistrettoPoint {
+impl Doubling for RistrettoPoint {
     fn double(&self) -> Self {
         Self(self.0.add(&self.0))
     }

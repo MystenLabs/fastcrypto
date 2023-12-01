@@ -53,7 +53,8 @@ pub trait Scalar:
     fn inverse(&self) -> FastCryptoResult<Self>;
 }
 
-pub trait Double {
+/// Trait for group elements that has a fast doubling operation.
+pub trait Doubling {
     /// Compute 2 * Self = Self + Self.
     fn double(&self) -> Self;
 }

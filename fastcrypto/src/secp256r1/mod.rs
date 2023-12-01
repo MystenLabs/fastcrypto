@@ -158,7 +158,10 @@ lazy_static! {
         PRECOMPUTED_POINTS,
         SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
-    >::new(secp256r1::ProjectivePoint::generator(), secp256r1::ProjectivePoint::zero());
+    >::new(
+        secp256r1::ProjectivePoint::generator(),
+        secp256r1::ProjectivePoint::zero()
+    );
 }
 
 serialize_deserialize_with_to_from_bytes!(Secp256r1PublicKey, SECP256R1_PUBLIC_KEY_LENGTH);

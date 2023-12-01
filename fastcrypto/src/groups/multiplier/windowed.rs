@@ -9,7 +9,7 @@ use std::ops::{Add, Mul};
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
-use crate::groups::{Double, GroupElement};
+use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
@@ -25,7 +25,7 @@ use crate::serde_helpers::ToFromByteArray;
 /// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
 /// optimal performance.
 pub struct WindowedScalarMultiplier<
-    G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Double + Clone + Debug,
+    G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
     S: ToFromByteArray<SCALAR_SIZE> + Clone,
     const CACHE_SIZE: usize,
     const SCALAR_SIZE: usize,
@@ -38,7 +38,7 @@ pub struct WindowedScalarMultiplier<
 }
 
 impl<
-        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Double + Clone + Debug,
+        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
         S: ToFromByteArray<SCALAR_SIZE> + Clone,
         const CACHE_SIZE: usize,
         const SCALAR_SIZE: usize,
@@ -50,7 +50,7 @@ impl<
 }
 
 impl<
-        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Double + Clone + Debug,
+        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
         S: ToFromByteArray<SCALAR_SIZE> + Clone + Debug,
         const CACHE_SIZE: usize,
         const SCALAR_SIZE: usize,
@@ -95,12 +95,7 @@ impl<
         result
     }
 
-    fn two_scalar_mul(
-        &self,
-        base_scalar: &S,
-        other_element: &G,
-        other_scalar: &S,
-    ) -> G {
+    fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G {
         // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
         multi_scalar_mul_generic(
             &[base_scalar.clone(), other_scalar.clone()],
@@ -111,7 +106,6 @@ impl<
         )
     }
 }
-
 
 /// This method computes the linear combination of the given scalars and group elements using the
 /// sliding window method. Some group elements may have tables of precomputed elements which can
@@ -126,7 +120,7 @@ impl<
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
-    G: GroupElement<ScalarType = S> + Double,
+    G: GroupElement<ScalarType = S> + Doubling,
     S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
     const SCALAR_SIZE: usize,
     const N: usize,
@@ -146,7 +140,7 @@ pub fn multi_scalar_mul<
 }
 
 pub fn multi_scalar_mul_generic<
-    G: Double + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
+    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
     S: ToFromByteArray<SCALAR_SIZE> + Clone + Debug,
     const SCALAR_SIZE: usize,
     const N: usize,
@@ -246,7 +240,13 @@ pub fn multi_scalar_mul_generic<
 }
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
-fn compute_multiples<S, G: Double + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug>(base_element: &G, window_size: usize) -> Vec<G> {
+fn compute_multiples<
+    S,
+    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
+>(
+    base_element: &G,
+    window_size: usize,
+) -> Vec<G> {
     assert!(window_size > 0, "Window size must be strictly positive.");
     let mut smallest_multiple = base_element.clone();
     for _ in 1..window_size {

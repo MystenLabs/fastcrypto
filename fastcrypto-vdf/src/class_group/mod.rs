@@ -9,14 +9,14 @@ use crate::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::groups::Doubling;
+use fastcrypto::serde_helpers::ToFromByteArray;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
-use fastcrypto::groups::Double;
-use fastcrypto::serde_helpers::ToFromByteArray;
 
 mod compressed;
 
@@ -221,7 +221,7 @@ impl QuadraticForm {
     }
 }
 
-impl Double for QuadraticForm {
+impl Doubling for QuadraticForm {
     fn double(&self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.

@@ -20,10 +20,5 @@ pub trait ScalarMultiplier<G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S
     fn mul(&self, scalar: &S) -> G;
 
     /// Compute `self.base_element * base_scalar + other_element * other_scalar`.
-    fn two_scalar_mul(
-        &self,
-        base_scalar: &S,
-        other_element: &G,
-        other_scalar: &S,
-    ) -> G;
+    fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G;
 }

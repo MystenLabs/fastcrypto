@@ -5,7 +5,7 @@
 //! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::{Double, GroupElement, Scalar as ScalarTrait};
+use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -36,7 +36,7 @@ impl GroupElement for ProjectivePoint {
     }
 }
 
-impl Double for ProjectivePoint {
+impl Doubling for ProjectivePoint {
     fn double(&self) -> Self {
         ProjectivePoint::from(self.0.double())
     }
