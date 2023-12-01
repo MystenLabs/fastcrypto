@@ -161,7 +161,7 @@ pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     fn compute_challenge<F>(vdf: &WesolowskisVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
 }
 
-/// Size of the challenge used in proving and verification.
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
 pub const CHALLENGE_SIZE: usize = 33;
 
 /// Implementation of the Fiat-Shamir challenge generation compatible with chiavdf.
