@@ -4,15 +4,13 @@
 //! This module contains implementations of optimised scalar multiplication algorithms where the
 //! group element is fixed and certain multiples of this may be pre-computed.
 
-use std::ops::{Add, Mul};
-
 #[cfg(feature = "experimental")]
 pub mod bgmw;
 mod integer_utils;
 pub mod windowed;
 
 /// Trait for scalar multiplication for a fixed group element, e.g. by using precomputed values.
-pub trait ScalarMultiplier<G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G>, S> {
+pub trait ScalarMultiplier<G, S> {
     /// Create a new scalar multiplier with the given base element.
     fn new(base_element: G, zero: G) -> Self;
 

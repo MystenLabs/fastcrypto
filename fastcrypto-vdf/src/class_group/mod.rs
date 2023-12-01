@@ -10,10 +10,10 @@ use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::Doubling;
-use fastcrypto::serde_helpers::ToFromByteArray;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
+use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
@@ -301,7 +301,7 @@ impl<'a> Mul<&'a BigInt> for QuadraticForm {
     type Output = Self;
 
     fn mul(self, rhs: &'a BigInt) -> Self::Output {
-        (&self).mul(rhs)
+        self.borrow().mul(rhs)
     }
 }
 

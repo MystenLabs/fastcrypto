@@ -9,7 +9,7 @@ use std::ops::{Add, Mul};
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
-use crate::groups::{Doubling, GroupElement};
+use crate::groups::Doubling;
 use crate::serde_helpers::ToFromByteArray;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
@@ -71,7 +71,7 @@ impl<
         let cache: [G; CACHE_SIZE] = cache.try_into().unwrap();
         Self {
             cache,
-            _scalar: PhantomData::default(),
+            _scalar: PhantomData,
         }
     }
 
@@ -97,7 +97,7 @@ impl<
 
     fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G {
         // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
-        multi_scalar_mul_generic(
+        multi_scalar_mul(
             &[base_scalar.clone(), other_scalar.clone()],
             &[self.cache[1].clone(), other_element.clone()],
             &HashMap::from([(0, self.cache[CACHE_SIZE / 2..CACHE_SIZE].to_vec())]),
@@ -120,26 +120,6 @@ impl<
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
-    G: GroupElement<ScalarType = S> + Doubling,
-    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
-    const SCALAR_SIZE: usize,
-    const N: usize,
->(
-    scalars: &[G::ScalarType; N],
-    elements: &[G; N],
-    precomputed_multiples: &HashMap<usize, Vec<G>>,
-    default_window_width: usize,
-) -> G {
-    multi_scalar_mul_generic(
-        scalars,
-        elements,
-        precomputed_multiples,
-        default_window_width,
-        G::zero(),
-    )
-}
-
-pub fn multi_scalar_mul_generic<
     G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
     S: ToFromByteArray<SCALAR_SIZE> + Clone + Debug,
     const SCALAR_SIZE: usize,
@@ -252,7 +232,7 @@ fn compute_multiples<
     for _ in 1..window_size {
         smallest_multiple = smallest_multiple.double();
     }
-    successors(Some(smallest_multiple), |g| Some(g.clone() + &base_element))
+    successors(Some(smallest_multiple), |g| Some(g.clone() + base_element))
         .take(1 << (window_size - 1))
         .collect::<Vec<_>>()
 }
@@ -265,6 +245,7 @@ mod tests {
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
 
     use super::*;

@@ -228,7 +228,9 @@ impl Parameter for Discriminant {
 mod tests {
     use crate::class_group::{Discriminant, QuadraticForm};
     use crate::hash_prime::DefaultPrimalityCheck;
-    use crate::vdf::wesolowski::{FastVerify, StrongFiatShamir, StrongVDF, WeakVDF};
+    use crate::vdf::wesolowski::{
+        FastVerify, StrongFiatShamir, StrongVDF, WeakFiatShamir, WeakVDF,
+    };
     use crate::vdf::VDF;
     use crate::{Parameter, ParameterizedGroupElement};
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
@@ -281,6 +283,13 @@ mod tests {
 
         let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 1024, iterations).unwrap();
         assert!(vdf.verify(&input, &result, &proof).is_ok());
+
+        let fast_verify: FastVerify<
+            QuadraticForm,
+            WeakFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
+            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>,
+        > = FastVerify::new(vdf, input);
+        assert!(fast_verify.fast_verify(&result, &proof).is_ok());
     }
 
     #[test]
