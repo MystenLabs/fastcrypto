@@ -72,14 +72,21 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
     fn to_byte_array(&self) -> [u8; LENGTH];
 }
 
-impl ToFromByteArray<34> for BigInt {
-    fn from_byte_array(_bytes: &[u8; 34]) -> Result<Self, FastCryptoError> {
-        panic!("Not used")
+// This is used for multi-scalar multiplication
+impl<const N: usize> ToFromByteArray<N> for BigInt {
+    fn from_byte_array(bytes: &[u8; N]) -> Result<Self, FastCryptoError> {
+        Ok(BigInt::from_signed_bytes_be(bytes))
     }
 
-    fn to_byte_array(&self) -> [u8; 34] {
-        let mut output = [0u8; 34];
+    fn to_byte_array(&self) -> [u8; N] {
+        let mut output = [0u8; N];
         let bytes = self.to_signed_bytes_le();
+
+        // It's up to the caller to ensure that the BigInt is not too large to fit in N bytes.
+        if bytes.len() > N {
+            // TODO: Should we return the first N bytes instead of panicking?
+            panic!("BigInt is too large to fit in {} bytes", N);
+        }
         output[0..bytes.len()].clone_from_slice(&bytes);
         output
     }

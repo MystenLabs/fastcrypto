@@ -63,7 +63,7 @@ impl<
             panic!("CACHE_SIZE must be a power of two greater than 1");
         }
         let mut cache = vec![];
-        cache.push(zero); //[zero; CACHE_SIZE];
+        cache.push(zero);
         cache.push(base_element.clone());
         for i in 2..CACHE_SIZE {
             cache.push(cache[i - 1].clone() + &base_element);
