@@ -31,28 +31,28 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 
     let result_bytes = hex::decode(parameters.result).unwrap();
     let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
-    let result2 = result.clone();
+    let result_copy = result.clone();
 
     let proof_bytes = hex::decode(parameters.proof).unwrap();
     let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
-    let proof2 = proof.clone();
+    let proof_copy = proof.clone();
 
     let input = QuadraticForm::generator(&discriminant);
-    let input2 = input.clone();
+    let input_copy = input.clone();
 
     let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
-    let vdf2 = StrongVDF::new(discriminant, parameters.iterations);
     c.bench_function(discriminant_size.to_string(), move |b| {
         b.iter(|| vdf.verify(&input, &result, &proof))
     });
 
+    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
     let fast_verify: FastVerify<
         QuadraticForm,
         StrongFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
         WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>,
-    > = FastVerify::new(vdf2, input2);
+    > = FastVerify::new(vdf, input_copy);
     c.bench_function(format!("{} fast", discriminant_size), move |b| {
-        b.iter(|| fast_verify.fast_verify(&result2, &proof2))
+        b.iter(|| fast_verify.fast_verify(&result_copy, &proof_copy))
     });
 }
 
