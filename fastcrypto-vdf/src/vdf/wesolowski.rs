@@ -13,15 +13,15 @@ use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
 
-/// An implementation of the Wesolowski VDF construction (https://eprint.iacr.org/2018/623) over a
+/// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
-pub struct WesolowskiVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> {
+pub struct WesolowskisVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> {
     group_parameter: G::ParameterType,
     iterations: u64,
     _fiat_shamir: PhantomData<F>,
 }
 
-impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
+impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskisVDF<G, F> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
     pub fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
@@ -36,7 +36,7 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G
 impl<
         G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
         F: FiatShamir<G>,
-    > VDF for WesolowskiVDF<G, F>
+    > VDF for WesolowskisVDF<G, F>
 {
     type InputType = G;
     type OutputType = G;
@@ -73,7 +73,6 @@ impl<
         }
 
         let challenge = F::compute_challenge(self, input, output);
-
         let f1 = proof.mul(&challenge);
 
         let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
@@ -86,12 +85,15 @@ impl<
     }
 }
 
-pub struct FastVerify<
+/// A faster method of verification which uses fast multi-scalar multiplication. The scalar size
+/// for the scalar multiplier `M`  must be larger enough to hold the challenge in the Fiat-Shamir
+/// construction `F`.
+pub struct FastVerifier<
     G: ParameterizedGroupElement + UnknownOrderGroupElement,
     F,
     M: ScalarMultiplier<G, G::ScalarType>,
 > {
-    vdf: WesolowskiVDF<G, F>,
+    vdf: WesolowskisVDF<G, F>,
     input: G,
     multiplier: M,
 }
@@ -100,9 +102,10 @@ impl<
         G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
         F: FiatShamir<G>,
         M: ScalarMultiplier<G, BigInt>,
-    > FastVerify<G, F, M>
+    > FastVerifier<G, F, M>
 {
-    pub fn new(vdf: WesolowskiVDF<G, F>, input: G) -> Self {
+    /// Create a new FastVerifier for the given VDF instance.
+    pub fn new(vdf: WesolowskisVDF<G, F>, input: G) -> Self {
         let multiplier = M::new(input.clone(), G::zero(&vdf.group_parameter));
         Self {
             vdf,
@@ -111,16 +114,19 @@ impl<
         }
     }
 
-    pub fn fast_verify(&self, output: &G, proof: &G) -> FastCryptoResult<()> {
+    /// Verify the output and proof from a VDF using the input given in [new].
+    pub fn verify(&self, output: &G, proof: &G) -> FastCryptoResult<()> {
+        if !self.input.same_group(output) || !self.input.same_group(proof) {
+            return Err(InvalidInput);
+        }
+
         let challenge = F::compute_challenge(&self.vdf, &self.input, output);
         let r = BigInt::modpow(
             &BigInt::from(2),
             &BigInt::from(self.vdf.iterations),
             &challenge,
         );
-
         let actual = self.multiplier.two_scalar_mul(&r, proof, &challenge);
-
         if actual != *output {
             return Err(InvalidProof);
         }
@@ -131,13 +137,13 @@ impl<
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
 /// Fiat-Shamir implementation.
 pub type StrongVDF<G> =
-    WesolowskiVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
+    WesolowskisVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
 /// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
-pub type WeakVDF<G> = WesolowskiVDF<G, WeakFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
+pub type WeakVDF<G> = WesolowskisVDF<G, WeakFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
 
-impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G, F> {
+impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskisVDF<G, F> {
     /// Create a new VDF over an group of unknown where the discriminant has a given size and
     /// is generated based on a seed. The `iterations` parameters specifies the number of group
     /// operations the evaluation function requires.
@@ -152,11 +158,11 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F> WesolowskiVDF<G
 pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement> {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
+    fn compute_challenge<F>(vdf: &WesolowskisVDF<G, F>, input: &G, output: &G) -> G::ScalarType;
 }
 
 /// Size of the challenge used in proving and verification.
-pub const CHALLENGE_SIZE: usize = 264;
+pub const CHALLENGE_SIZE: usize = 33;
 
 /// Implementation of the Fiat-Shamir challenge generation compatible with chiavdf.
 /// Note that this implementation is weak, meaning that not all public parameters are used in the
@@ -173,11 +179,11 @@ impl<
         P: PrimalityCheck,
     > FiatShamir<G> for WeakFiatShamir<G, CHALLENGE_SIZE, P>
 {
-    fn compute_challenge<F>(_vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
+    fn compute_challenge<F>(_vdf: &WesolowskisVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
         seed.extend_from_slice(&input.to_bytes());
         seed.extend_from_slice(&output.to_bytes());
-        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
+        hash_prime::hash_prime::<P>(&seed, 8 * CHALLENGE_SIZE, &[8 * CHALLENGE_SIZE - 1])
             .expect("The length should be a multiple of 8")
     }
 }
@@ -196,7 +202,7 @@ impl<
         P: PrimalityCheck,
     > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
 {
-    fn compute_challenge<F>(vdf: &WesolowskiVDF<G, F>, input: &G, output: &G) -> BigInt {
+    fn compute_challenge<F>(vdf: &WesolowskisVDF<G, F>, input: &G, output: &G) -> BigInt {
         let mut seed = vec![];
 
         let input_bytes = input.to_bytes();
@@ -210,8 +216,8 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[CHALLENGE_SIZE - 1])
-            .expect("The length should be a multiple of 8")
+        hash_prime::hash_prime::<P>(&seed, 8 * CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1])
+            .expect("The length is a multiple of 8")
     }
 }
 
@@ -229,7 +235,7 @@ mod tests {
     use crate::class_group::{Discriminant, QuadraticForm};
     use crate::hash_prime::DefaultPrimalityCheck;
     use crate::vdf::wesolowski::{
-        FastVerify, StrongFiatShamir, StrongVDF, WeakFiatShamir, WeakVDF,
+        FastVerifier, StrongFiatShamir, StrongVDF, WeakFiatShamir, WeakVDF,
     };
     use crate::vdf::VDF;
     use crate::{Parameter, ParameterizedGroupElement};
@@ -254,12 +260,12 @@ mod tests {
         assert!(vdf.verify(&g, &modified_output, &proof).is_err());
         assert!(vdf.verify(&g, &output, &modified_proof).is_err());
 
-        let fast_verify: FastVerify<
+        let fast_verify: FastVerifier<
             QuadraticForm,
-            StrongFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
-            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>,
-        > = FastVerify::new(vdf, g);
-        assert!(fast_verify.fast_verify(&output, &proof).is_ok());
+            StrongFiatShamir<QuadraticForm, 33, DefaultPrimalityCheck>,
+            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 33, 5>,
+        > = FastVerifier::new(vdf, g);
+        assert!(fast_verify.verify(&output, &proof).is_ok());
     }
 
     #[test]
@@ -284,12 +290,12 @@ mod tests {
         let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 1024, iterations).unwrap();
         assert!(vdf.verify(&input, &result, &proof).is_ok());
 
-        let fast_verify: FastVerify<
+        let fast_verify: FastVerifier<
             QuadraticForm,
-            WeakFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
-            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>,
-        > = FastVerify::new(vdf, input);
-        assert!(fast_verify.fast_verify(&result, &proof).is_ok());
+            WeakFiatShamir<QuadraticForm, 33, DefaultPrimalityCheck>,
+            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 33, 5>,
+        > = FastVerifier::new(vdf, input);
+        assert!(fast_verify.verify(&result, &proof).is_ok());
     }
 
     #[test]
@@ -297,7 +303,7 @@ mod tests {
         let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
         let iterations = 1000u64;
         let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
-        let proof_hex = "0100eb1e1b0b58bca2ceca30344321d77e6c6f995e7c9db878d63aa71348db3577634e309be81ed71cba185a0d3c6bba2945c7002cc757c29a612afec8bf95581c008d2fe1c77e5171f8b85706e5f823cd233d847117f25b53d45cb30fb036b5b0030100";
+        let proof_hex = "03001a967ce490545d31cbd13ef87edbeac3c90f61f3fa0efc1dd6aab5a62007593a8bfba9aee82966a8f056c38334eeeafaa1afbb5c98eb9c97bf42bfcce90b0b5c9d32f743b735e1179f2ef169301906fe4acaa95755171b223af2c04038a983630100";
 
         let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
 
@@ -310,7 +316,6 @@ mod tests {
         let input = QuadraticForm::generator(&discriminant);
 
         let vdf = StrongVDF::<QuadraticForm>::new(discriminant, iterations);
-
         assert!(vdf.verify(&input, &result, &proof).is_ok());
     }
 }

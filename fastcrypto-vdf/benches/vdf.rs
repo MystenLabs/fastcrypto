@@ -9,7 +9,7 @@ use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
 use fastcrypto_vdf::hash_prime::DefaultPrimalityCheck;
-use fastcrypto_vdf::vdf::wesolowski::{FastVerify, StrongFiatShamir, StrongVDF};
+use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongFiatShamir, StrongVDF};
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
 use num_bigint::BigInt;
@@ -46,13 +46,13 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
     });
 
     let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
-    let fast_verify: FastVerify<
+    let fast_verify: FastVerifier<
         QuadraticForm,
-        StrongFiatShamir<QuadraticForm, 264, DefaultPrimalityCheck>,
-        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 34, 5>,
-    > = FastVerify::new(vdf, input_copy);
+        StrongFiatShamir<QuadraticForm, 33, DefaultPrimalityCheck>,
+        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 33, 5>,
+    > = FastVerifier::new(vdf, input_copy);
     c.bench_function(format!("{} fast", discriminant_size), move |b| {
-        b.iter(|| fast_verify.fast_verify(&result_copy, &proof_copy))
+        b.iter(|| fast_verify.verify(&result_copy, &proof_copy))
     });
 }
 

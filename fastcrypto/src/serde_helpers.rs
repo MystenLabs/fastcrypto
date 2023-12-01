@@ -80,7 +80,7 @@ impl<const N: usize> ToFromByteArray<N> for BigInt {
 
     fn to_byte_array(&self) -> [u8; N] {
         let mut output = [0u8; N];
-        let bytes = self.to_signed_bytes_le();
+        let bytes = self.to_bytes_le().1;
 
         // It's up to the caller to ensure that the BigInt is not too large to fit in N bytes.
         if bytes.len() > N {
