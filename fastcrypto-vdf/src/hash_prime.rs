@@ -4,8 +4,6 @@
 //! This module contains an implementation of a hash-to-prime function identical to the HashPrime
 //! function from [chiavdf](https://github.com/Chia-Network/chiavdf/blob/bcc36af3a8de4d2fcafa571602040a4ebd4bdd56/src/proof_common.h#L14-L43).
 
-use fastcrypto::error::FastCryptoError::InvalidInput;
-use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::{HashFunction, Sha256};
 use num_bigint::{BigInt, BigUint};
 use std::cmp::min;
@@ -25,19 +23,15 @@ pub trait PrimalityCheck {
 /// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
 pub fn hash_prime<P: PrimalityCheck>(
     seed: &[u8],
-    length: usize,
+    length_in_bytes: usize,
     bitmask: &[usize],
-) -> FastCryptoResult<BigInt> {
-    if length % 8 != 0 {
-        return Err(InvalidInput);
-    }
-
+) -> BigInt {
     let mut sprout: Vec<u8> = vec![];
     sprout.extend_from_slice(seed);
 
     loop {
         let mut blob = vec![];
-        while blob.len() * 8 < length {
+        while blob.len() < length_in_bytes {
             for i in (0..sprout.len()).rev() {
                 sprout[i] = sprout[i].wrapping_add(1);
                 if sprout[i] != 0 {
@@ -45,7 +39,7 @@ pub fn hash_prime<P: PrimalityCheck>(
                 }
             }
             let hash = Sha256::digest(&sprout).digest;
-            blob.extend_from_slice(&hash[..min(hash.len(), length / 8 - blob.len())]);
+            blob.extend_from_slice(&hash[..min(hash.len(), length_in_bytes - blob.len())]);
         }
         let mut x = BigUint::from_bytes_be(&blob);
         for b in bitmask {
@@ -56,18 +50,14 @@ pub fn hash_prime<P: PrimalityCheck>(
         // one used by chiavdf, but since the risk of a false positive is very small (4^{-100}) this
         // is not an issue.
         if P::is_prime(&x) {
-            return Ok(x.into());
+            return x.into();
         }
     }
 }
 
 /// Implementation of [hash_prime] using the primality test from `num_prime::nt_funcs::is_prime`.
-pub fn hash_prime_default(
-    seed: &[u8],
-    length: usize,
-    bitmask: &[usize],
-) -> FastCryptoResult<BigInt> {
-    hash_prime::<DefaultPrimalityCheck>(seed, length, bitmask)
+pub fn hash_prime_default(seed: &[u8], length_in_bytes: usize, bitmask: &[usize]) -> BigInt {
+    hash_prime::<DefaultPrimalityCheck>(seed, length_in_bytes, bitmask)
 }
 
 /// Implementation of the [PrimalityCheck] trait using the primality test from `num_prime::nt_funcs::is_prime`.
@@ -90,16 +80,15 @@ mod tests {
     #[test]
     fn test_hash_prime() {
         let seed = [0u8; 32];
-        let length = 512;
-        let bitmask: [usize; 3] = [0, 1, length - 1];
+        let length = 64;
+        let bitmask: [usize; 3] = [0, 1, 8 * length - 1];
 
         let prime = hash_prime_default(&seed, length, &bitmask)
-            .unwrap()
             .to_biguint()
             .unwrap();
 
         // Prime has right length
-        assert_eq!(length as u64, prime.bits());
+        assert_eq!((length * 8) as u64, prime.bits());
 
         // The last two bits are set (see bitmask)
         assert_eq!(BigUint::from(3u64), prime.mod_floor(&BigUint::from(4u64)));

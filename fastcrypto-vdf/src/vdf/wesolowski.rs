@@ -183,8 +183,7 @@ impl<
         let mut seed = vec![];
         seed.extend_from_slice(&input.to_bytes());
         seed.extend_from_slice(&output.to_bytes());
-        hash_prime::hash_prime::<P>(&seed, 8 * CHALLENGE_SIZE, &[8 * CHALLENGE_SIZE - 1])
-            .expect("The length should be a multiple of 8")
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[8 * CHALLENGE_SIZE - 1])
     }
 }
 
@@ -216,16 +215,20 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        hash_prime::hash_prime::<P>(&seed, 8 * CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1])
-            .expect("The length is a multiple of 8")
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1])
     }
 }
 
 impl Parameter for Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
+    /// The size_in_bits must be divisible by 8.
     fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
+        if size_in_bits % 8 != 0 {
+            return Err(InvalidInput);
+        }
         Self::try_from(
-            hash_prime::hash_prime_default(seed, size_in_bits, &[0, 1, 2, size_in_bits - 1])?.neg(),
+            hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
+                .neg(),
         )
     }
 }
