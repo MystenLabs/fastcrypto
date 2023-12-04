@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use base64ct::Encoding as _;
-use num_bigint::BigInt;
 use schemars::JsonSchema;
 use serde::{
     de,
@@ -70,26 +69,6 @@ pub trait ToFromByteArray<const LENGTH: usize>: Sized {
     const BYTE_LENGTH: usize = LENGTH;
     fn from_byte_array(bytes: &[u8; LENGTH]) -> Result<Self, FastCryptoError>;
     fn to_byte_array(&self) -> [u8; LENGTH];
-}
-
-// This is used for multi-scalar multiplication
-impl<const N: usize> ToFromByteArray<N> for BigInt {
-    fn from_byte_array(_bytes: &[u8; N]) -> Result<Self, FastCryptoError> {
-        panic!("Not used")
-    }
-
-    fn to_byte_array(&self) -> [u8; N] {
-        let mut output = [0u8; N];
-        let bytes = self.to_bytes_le().1;
-
-        // It's up to the caller to ensure that the BigInt is not too large to fit in N bytes.
-        if bytes.len() > N {
-            // TODO: Should we return the first N bytes instead of panicking?
-            panic!("BigInt is too large to fit in {} bytes", N);
-        }
-        output[0..bytes.len()].clone_from_slice(&bytes);
-        output
-    }
 }
 
 /// Macro for generating Serialize/Deserialize for a type that implements [ToFromByteArray].

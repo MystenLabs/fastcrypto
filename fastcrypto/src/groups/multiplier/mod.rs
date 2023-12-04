@@ -20,3 +20,8 @@ pub trait ScalarMultiplier<G, S> {
     /// Compute `self.base_element * base_scalar + other_element * other_scalar`.
     fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G;
 }
+
+pub trait ToLittleEndianByteArray<const SCALAR_SIZE: usize> {
+    /// Serialize scalar into a byte vector in little-endian format.
+    fn to_le_byte_array(&self) -> [u8; SCALAR_SIZE];
+}

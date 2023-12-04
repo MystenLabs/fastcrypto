@@ -5,6 +5,7 @@
 //! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
 
 use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::multiplier::ToLittleEndianByteArray;
 use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
@@ -124,6 +125,12 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
             .serialize_uncompressed(&mut bytes[..])
             .expect("Byte array not large enough");
         bytes
+    }
+}
+
+impl ToLittleEndianByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
+    fn to_le_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
+        self.to_byte_array()
     }
 }
 

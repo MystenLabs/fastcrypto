@@ -8,9 +8,8 @@ use std::marker::PhantomData;
 use std::ops::{Add, Mul};
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
+use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianByteArray};
 use crate::groups::Doubling;
-use crate::serde_helpers::ToFromByteArray;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
 /// fast for double multiplications, where a sliding window method is used, but this implies that the
@@ -25,8 +24,8 @@ use crate::serde_helpers::ToFromByteArray;
 /// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
 /// optimal performance.
 pub struct WindowedScalarMultiplier<
-    G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
-    S: ToFromByteArray<SCALAR_SIZE> + Clone,
+    G,
+    S,
     const CACHE_SIZE: usize,
     const SCALAR_SIZE: usize,
     const SLIDING_WINDOW_WIDTH: usize,
@@ -38,8 +37,8 @@ pub struct WindowedScalarMultiplier<
 }
 
 impl<
-        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
-        S: ToFromByteArray<SCALAR_SIZE> + Clone,
+        G,
+        S,
         const CACHE_SIZE: usize,
         const SCALAR_SIZE: usize,
         const SLIDING_WINDOW_WIDTH: usize,
@@ -51,7 +50,7 @@ impl<
 
 impl<
         G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
-        S: ToFromByteArray<SCALAR_SIZE> + Clone + Debug,
+        S: ToLittleEndianByteArray<SCALAR_SIZE> + Clone + Debug,
         const CACHE_SIZE: usize,
         const SCALAR_SIZE: usize,
         const SLIDING_WINDOW_WIDTH: usize,
@@ -77,7 +76,7 @@ impl<
 
     fn mul(&self, scalar: &S) -> G {
         // Scalar as bytes in little-endian representation.
-        let scalar_bytes = scalar.to_byte_array();
+        let scalar_bytes = scalar.to_le_byte_array();
 
         let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
             &scalar_bytes,
@@ -121,7 +120,7 @@ impl<
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
     G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
-    S: ToFromByteArray<SCALAR_SIZE> + Clone + Debug,
+    S: ToLittleEndianByteArray<SCALAR_SIZE> + Clone + Debug,
     const SCALAR_SIZE: usize,
     const N: usize,
 >(
@@ -159,7 +158,7 @@ pub fn multi_scalar_mul<
     // Compute little-endian byte representations of scalars.
     let scalar_bytes = scalars
         .iter()
-        .map(|s| s.to_byte_array())
+        .map(|s| s.to_le_byte_array())
         .collect::<Vec<[u8; SCALAR_SIZE]>>();
 
     // We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
@@ -247,8 +246,15 @@ mod tests {
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
+    use crate::serde_helpers::ToFromByteArray;
 
     use super::*;
+
+    impl ToLittleEndianByteArray<32> for RistrettoScalar {
+        fn to_le_byte_array(&self) -> [u8; 32] {
+            self.to_byte_array()
+        }
+    }
 
     #[test]
     fn test_scalar_multiplication_ristretto() {

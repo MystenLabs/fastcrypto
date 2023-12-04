@@ -1,6 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::groups::multiplier::ToLittleEndianByteArray;
+use num_bigint::BigInt;
+use std::cmp::min;
+
 /// Given a binary representation of a number in little-endian format, return the digits of its base
 /// `2^bits_per_digit` expansion.
 pub fn compute_base_2w_expansion<const N: usize>(
@@ -187,5 +191,19 @@ mod tests {
         assert!(is_power_of_2(512));
         assert!(!is_power_of_2(513));
         assert!(is_power_of_2(4096));
+    }
+}
+
+// We implementation `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
+// multi-scalar multiplication.
+impl<const N: usize> ToLittleEndianByteArray<N> for BigInt {
+    fn to_le_byte_array(&self) -> [u8; N] {
+        let mut output = [0u8; N];
+        let bytes = self.to_bytes_le().1;
+
+        // It's up to the caller to ensure that the BigInt is not too large to fit in N bytes.
+        // Otherwise, we just truncate the output.
+        output[0..min(bytes.len(), N)].clone_from_slice(&bytes);
+        output
     }
 }
