@@ -26,6 +26,8 @@ use tap::prelude::*;
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
+// TODO: Add a description of the protocol.
+
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Party<G: GroupElement, EG: GroupElement> {
