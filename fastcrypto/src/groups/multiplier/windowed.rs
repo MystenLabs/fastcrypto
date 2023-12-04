@@ -32,7 +32,6 @@ pub struct WindowedScalarMultiplier<
 > {
     /// Precomputed multiples of the base element from 0 up to CACHE_SIZE - 1 = 2^WINDOW_WIDTH - 1.
     cache: [G; CACHE_SIZE],
-
     _scalar: PhantomData<S>,
 }
 
