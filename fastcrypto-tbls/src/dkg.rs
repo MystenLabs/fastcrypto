@@ -184,6 +184,7 @@ where
         })
     }
 
+    // TODO: Add documentation or remove it.
     pub fn t(&self) -> u32 {
         self.t
     }
