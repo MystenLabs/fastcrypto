@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-9ee3a5e31a2afa3e.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (49b3924bd 2023-11-27)" data-channel="nightly" data-search-js="search-56a624991a76cfad.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -679,6 +679,10 @@
 <a href="#679" id="679">679</a>
 <a href="#680" id="680">680</a>
 <a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -707,7 +711,9 @@
 <span class="doccomment">/// Generics below use `G: GroupElement&#39; for the group of the VSS public key, and `EG: GroupElement&#39;
 /// for the group of the ECIES public key.
 
-/// Party in the DKG protocol.
+</span><span class="comment">// TODO: Add a description of the protocol.
+
+</span><span class="doccomment">/// Party in the DKG protocol.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Party&lt;G: GroupElement, EG: GroupElement&gt; {
     id: PartyId,
@@ -728,7 +734,6 @@
 </span><span class="kw">pub struct </span>Message&lt;G: GroupElement, EG: GroupElement&gt; {
     <span class="kw">pub </span>sender: PartyId,
     <span class="doccomment">/// The commitment of the secret polynomial created by the sender.
-    </span><span class="comment">// TODO: [security] add a proof of possession/knowledge?
     </span><span class="kw">pub </span>vss_pk: PublicPoly&lt;G&gt;,
     <span class="doccomment">/// The encrypted shares created by the sender. Sorted according to the receivers.
     </span><span class="kw">pub </span>encrypted_shares: MultiRecipientEncryption&lt;EG&gt;,
@@ -806,7 +811,9 @@
     <span class="kw">pub </span>shares: <span class="prelude-ty">Option</span>&lt;Vec&lt;Share&lt;G::ScalarType&gt;&gt;&gt;, <span class="comment">// None if some shares are missing.
 </span>}
 
-<span class="doccomment">/// A dealer in the DKG ceremony.
+<span class="comment">// TODO: Handle parties with zero weights (currently rejected by Nodes::new()).
+
+</span><span class="doccomment">/// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
 </span><span class="kw">impl</span>&lt;G, EG&gt; Party&lt;G, EG&gt;
@@ -833,7 +840,7 @@
             .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?
             </span>.id;
         <span class="comment">// Check that the threshold makes sense.
-        </span><span class="kw">if </span>t &gt;= nodes.n() || t == <span class="number">0 </span>{
+        </span><span class="kw">if </span>t &gt;= nodes.total_weight() || t == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -847,7 +854,7 @@
             my_id,
             nodes.hash(),
             t,
-            nodes.n(),
+            nodes.total_weight(),
             random_oracle,
             enc_pk,
             vss_pk.c0(),
@@ -863,7 +870,8 @@
         })
     }
 
-    <span class="kw">pub fn </span>t(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    <span class="doccomment">/// The threshold needed to reconstruct the full key/signature.
+    </span><span class="kw">pub fn </span>t(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
         <span class="self">self</span>.t
     }
 
@@ -985,7 +993,7 @@
         <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>message
             .encrypted_shares
             .get_encryption(<span class="self">self</span>.id <span class="kw">as </span>usize)
-            .expect(<span class="string">&quot;checked above that there are enough encryptions&quot;</span>);
+            .expect(<span class="string">&quot;checked in sanity_check_message that there are enough encryptions&quot;</span>);
         <span class="kw">let </span>decrypted_shares = <span class="self">Self</span>::decrypt_and_get_share(<span class="kw-2">&amp;</span><span class="self">self</span>.enc_sk, encrypted_shares).ok();
 
         <span class="kw">if </span>decrypted_shares.is_none()
@@ -1101,10 +1109,9 @@
             complaints: Vec::new(),
         };
         <span class="kw">for </span>m <span class="kw">in </span><span class="kw-2">&amp;</span>filtered_messages.<span class="number">0 </span>{
-            <span class="kw">if </span>m.complaint.is_some() {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(complaint) = <span class="kw-2">&amp;</span>m.complaint {
                 <span class="macro">debug!</span>(<span class="string">&quot;DKG: Including a complaint on party {}&quot;</span>, m.message.sender);
-                <span class="kw">let </span>complaint = m.complaint.clone().expect(<span class="string">&quot;checked above&quot;</span>);
-                conf.complaints.push(complaint);
+                conf.complaints.push(complaint.clone());
             }
         }
         <span class="prelude-val">Ok</span>((conf, filtered_messages))
@@ -1173,27 +1180,28 @@
                 <span class="kw">let </span>accuser_pk = id_to_pk
                     .get(<span class="kw-2">&amp;</span>accuser)
                     .expect(<span class="string">&quot;checked above that accuser is valid id&quot;</span>);
-                <span class="kw">let </span>related_m1 = id_to_m1.get(<span class="kw-2">&amp;</span>accused);
                 <span class="comment">// If the claim refers to a non existing message, it&#39;s an invalid complaint.
-                </span><span class="kw">let </span>valid_complaint = related_m1.is_some() &amp;&amp; {
-                    <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>related_m1
-                        .expect(<span class="string">&quot;checked above that is not None&quot;</span>)
-                        .encrypted_shares
-                        .get_encryption(accuser <span class="kw">as </span>usize)
-                        .expect(<span class="string">&quot;checked earlier that there are enough encryptions&quot;</span>);
-                    <span class="self">Self</span>::check_complaint_proof(
-                        <span class="kw-2">&amp;</span>complaint.proof,
-                        accuser_pk,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.nodes.share_ids_of(accuser),
-                        <span class="kw-2">&amp;</span>related_m1.expect(<span class="string">&quot;checked above that is not None&quot;</span>).vss_pk,
-                        encrypted_shares,
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                            <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
-                            accuser, accused
-                        )),
-                        rng,
-                    )
-                    .is_ok()
+                </span><span class="kw">let </span>valid_complaint = <span class="kw">match </span>id_to_m1.get(<span class="kw-2">&amp;</span>accused) {
+                    <span class="prelude-val">Some</span>(related_m1) =&gt; {
+                        <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>related_m1
+                            .encrypted_shares
+                            .get_encryption(accuser <span class="kw">as </span>usize)
+                            .expect(<span class="string">&quot;checked earlier that there are enough encryptions&quot;</span>);
+                        <span class="self">Self</span>::check_complaint_proof(
+                            <span class="kw-2">&amp;</span>complaint.proof,
+                            accuser_pk,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.nodes.share_ids_of(accuser),
+                            <span class="kw-2">&amp;</span>related_m1.vss_pk,
+                            encrypted_shares,
+                            <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                                <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                                accuser, accused
+                            )),
+                            rng,
+                        )
+                        .is_ok()
+                    }
+                    <span class="prelude-val">None </span>=&gt; <span class="bool-val">false</span>,
                 };
                 <span class="kw">match </span>valid_complaint {
                     <span class="comment">// Ignore accused from now on, and continue processing complaints from the
