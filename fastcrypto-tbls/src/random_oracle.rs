@@ -27,7 +27,7 @@ pub struct RandomOracle {
 impl RandomOracle {
     /// Create a fresh random oracle with a given "session id"/prefix.
     pub fn new(initial_prefix: &str) -> Self {
-        debug_assert!(!initial_prefix.contains("-"));
+        debug_assert!(!initial_prefix.contains('-'));
         // Since we shouldn't get such long prefixes, it's safe to assert here.
         assert!(initial_prefix.len() < u32::MAX as usize);
         Self {
@@ -52,7 +52,7 @@ impl RandomOracle {
 
     /// Derive a new random oracle from the current one and additional string (can be done multiple times).
     pub fn extend(&self, extension: &str) -> Self {
-        debug_assert!(!extension.contains("-"));
+        debug_assert!(!extension.contains('-'));
         // Since we shouldn't get such long prefixes, it's safe to assert here.
         assert!(self.prefix.len() + extension.len() + 1 < u32::MAX as usize);
         Self {
