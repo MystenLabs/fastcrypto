@@ -132,6 +132,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
         let mut max_d = 1;
         for d in 2..=40 {
+            // TODO: [perf] Remove once the DKG & Nodes can work with zero weights.
+            if self.nodes.iter().any(|n| n.weight < d) {
+                break;
+            }
             let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if sum <= allowed_delta {
                 max_d = d;
