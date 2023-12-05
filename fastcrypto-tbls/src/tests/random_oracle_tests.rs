@@ -12,8 +12,6 @@ fn test_random_oracle() {
     assert_ne!(ro1.evaluate(&"alice"), ro2.evaluate(&"alice"));
     let ro3 = ro1.extend("def");
     assert_ne!(ro1.evaluate(&"alice"), ro3.evaluate(&"alice"));
-    let ro4 = RandomOracle::new("abc-def");
-    assert_eq!(ro3.evaluate(&"alice"), ro4.evaluate(&"alice"));
 }
 
 #[test]
@@ -24,8 +22,6 @@ fn test_empty_strings() {
 
     let ro3 = ro2.extend("");
     assert_ne!(ro3.evaluate(&"alice"), ro2.evaluate(&"alice"));
-    let ro4 = RandomOracle::new("def-");
-    assert_eq!(ro3.evaluate(&"alice"), ro4.evaluate(&"alice"));
 }
 
 #[test]
