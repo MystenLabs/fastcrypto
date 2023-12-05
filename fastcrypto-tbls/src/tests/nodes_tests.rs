@@ -34,12 +34,23 @@ fn test_new_failures() {
     let mut nodes_vec = get_nodes::<G2Element>(20);
     nodes_vec.remove(7);
     assert!(Nodes::new(nodes_vec).is_err());
+    // start id is not 0
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec.remove(0);
+    assert!(Nodes::new(nodes_vec).is_err());
     // duplicate id
     let mut nodes_vec = get_nodes::<G2Element>(20);
     nodes_vec[19].id = 1;
     assert!(Nodes::new(nodes_vec).is_err());
     // too many nodes
     let nodes_vec = get_nodes::<G2Element>(20000);
+    assert!(Nodes::new(nodes_vec).is_err());
+    // too little
+    let nodes_vec: Vec<Node<G2Element>> = Vec::new();
+    assert!(Nodes::new(nodes_vec).is_err());
+    // with zero weight
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec[19].weight = 0;
     assert!(Nodes::new(nodes_vec).is_err());
 }
 
@@ -84,6 +95,18 @@ fn test_interfaces() {
             .unwrap(),
         &nodes_vec[2]
     );
+    assert_eq!(
+        nodes
+            .share_id_to_node(&NonZeroU32::new(5050).unwrap())
+            .unwrap(),
+        &nodes_vec[99]
+    );
+    assert!(nodes
+        .share_id_to_node(&NonZeroU32::new(5051).unwrap())
+        .is_err());
+    assert!(nodes
+        .share_id_to_node(&NonZeroU32::new(15051).unwrap())
+        .is_err());
 
     assert_eq!(nodes.node_id_to_node(1).unwrap(), &nodes_vec[1]);
 

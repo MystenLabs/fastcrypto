@@ -24,7 +24,7 @@ pub struct RandomOracle {
 }
 
 impl RandomOracle {
-    /// TODO: Add method doc
+    /// Create a fresh random oracle with a given "session id"/prefix.
     pub fn new(initial_prefix: &str) -> Self {
         // Since we shouldn't get such long prefixes, it's safe to assert here.
         assert!(initial_prefix.len() < u32::MAX as usize);
@@ -33,7 +33,7 @@ impl RandomOracle {
         }
     }
 
-    /// TODO: Add method doc
+    /// Evaluate the random oracle on a given input.
     pub fn evaluate<T: Serialize>(&self, obj: &T) -> [u8; 64] {
         let mut hasher = Sha3_512::default();
         let len: u32 = self
@@ -48,7 +48,7 @@ impl RandomOracle {
         hasher.finalize().into()
     }
 
-    /// TODO: Add method doc
+    /// Derive a new random oracle from the current one and additional string (can be done multiple times).
     pub fn extend(&self, extension: &str) -> Self {
         // Since we shouldn't get such long prefixes, it's safe to assert here.
         assert!(self.prefix.len() + extension.len() + 1 < u32::MAX as usize);

@@ -49,7 +49,6 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
 pub struct Message<G: GroupElement, EG: GroupElement> {
     pub sender: PartyId,
     /// The commitment of the secret polynomial created by the sender.
-    // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
     /// The encrypted shares created by the sender. Sorted according to the receivers.
     pub encrypted_shares: MultiRecipientEncryption<EG>,
@@ -127,6 +126,8 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
     pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing.
 }
 
+// TODO: Handle parties with zero weights (currently rejected by Nodes::new()).
+
 /// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
@@ -184,7 +185,7 @@ where
         })
     }
 
-    // TODO: Add documentation or remove it.
+    /// The threshold needed to reconstruct the full key/signature.
     pub fn t(&self) -> u32 {
         self.t
     }
