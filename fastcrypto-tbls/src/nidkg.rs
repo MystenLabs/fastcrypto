@@ -184,7 +184,7 @@ where
         // Compute the cut-and-choose challenge bits.
         let ro = self
             .random_oracle
-            .extend(format!("-{}-cut-and-choose", self.id).as_str());
+            .extend(format!("_{}_cut_and_choose", self.id).as_str());
         let seed = ro.evaluate(&msg_before_fiat_shamir);
         let challenge = Self::challenge(seed.as_slice(), self.nodes.total_weight());
 
@@ -240,7 +240,7 @@ where
         };
         let ro = self
             .random_oracle
-            .extend(format!("-{}-cut-and-choose", msg.sender).as_str());
+            .extend(format!("_{}_cut_and_choose", msg.sender).as_str());
         let seed = ro.evaluate(&msg_before_fiat_shamir);
         let challenge = Self::challenge(seed.as_slice(), self.nodes.total_weight());
 
