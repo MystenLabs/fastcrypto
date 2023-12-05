@@ -34,12 +34,23 @@ fn test_new_failures() {
     let mut nodes_vec = get_nodes::<G2Element>(20);
     nodes_vec.remove(7);
     assert!(Nodes::new(nodes_vec).is_err());
+    // start id is not 0
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec.remove(0);
+    assert!(Nodes::new(nodes_vec).is_err());
     // duplicate id
     let mut nodes_vec = get_nodes::<G2Element>(20);
     nodes_vec[19].id = 1;
     assert!(Nodes::new(nodes_vec).is_err());
     // too many nodes
     let nodes_vec = get_nodes::<G2Element>(20000);
+    assert!(Nodes::new(nodes_vec).is_err());
+    // too little
+    let nodes_vec: Vec<Node<G2Element>> = Vec::new();
+    assert!(Nodes::new(nodes_vec).is_err());
+    // with zero weight
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec[19].weight = 0;
     assert!(Nodes::new(nodes_vec).is_err());
 }
 
@@ -59,7 +70,7 @@ fn test_new_order() {
 fn test_interfaces() {
     let nodes_vec = get_nodes::<G2Element>(100);
     let nodes = Nodes::new(nodes_vec.clone()).unwrap();
-    assert_eq!(nodes.n(), 5050);
+    assert_eq!(nodes.total_weight(), 5050);
     assert_eq!(nodes.num_nodes(), 100);
     assert!(nodes
         .share_ids_iter()
@@ -84,6 +95,18 @@ fn test_interfaces() {
             .unwrap(),
         &nodes_vec[2]
     );
+    assert_eq!(
+        nodes
+            .share_id_to_node(&NonZeroU32::new(5050).unwrap())
+            .unwrap(),
+        &nodes_vec[99]
+    );
+    assert!(nodes
+        .share_id_to_node(&NonZeroU32::new(5051).unwrap())
+        .is_err());
+    assert!(nodes
+        .share_id_to_node(&NonZeroU32::new(15051).unwrap())
+        .is_err());
 
     assert_eq!(nodes.node_id_to_node(1).unwrap(), &nodes_vec[1]);
 
@@ -98,7 +121,7 @@ fn test_reduce() {
     for number_of_nodes in [10, 50, 100, 150, 200, 250, 300, 350, 400] {
         let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
         let nodes = Nodes::new(node_vec).unwrap();
-        let t = (nodes.n() / 3) as u16;
+        let t = (nodes.total_weight() / 3) as u16;
 
         // No extra gap, should return the inputs
         let (new_nodes, new_t) = nodes.reduce(t, 1);
@@ -106,11 +129,11 @@ fn test_reduce() {
         assert_eq!(t, new_t);
 
         // 10% gap
-        let (new_nodes, _new_t) = nodes.reduce(t, (nodes.n() / 10) as u16);
+        let (new_nodes, _new_t) = nodes.reduce(t, (nodes.total_weight() / 10) as u16);
         // Estimate the real factor d
         let d = nodes.iter().last().unwrap().weight / new_nodes.iter().last().unwrap().weight;
         // The loss per node is on average (d - 1) / 2
         // We use 9 instead of 10 to compensate wrong value of d
-        assert!((d - 1) / 2 * number_of_nodes < ((nodes.n() / 9) as u16));
+        assert!((d - 1) / 2 * number_of_nodes < ((nodes.total_weight() / 9) as u16));
     }
 }

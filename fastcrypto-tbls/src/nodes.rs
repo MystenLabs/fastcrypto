@@ -8,10 +8,10 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 pub type PartyId = u16;
 
+/// Public parameters of a party.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
@@ -19,11 +19,12 @@ pub struct Node<G: GroupElement> {
     pub weight: u16,
 }
 
+/// Wrapper for a set of nodes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
-    nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1
-    n: u32,              // Share ids are 1..n
-    share_id_to_party_id: HashMap<ShareIndex, PartyId>,
+    nodes: Vec<Node<G>>,           // Party ids are 0..len(nodes)-1
+    total_weight: u32,             // Share ids are 1..total_weight
+    accumulated_weights: Vec<u32>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
@@ -36,37 +37,41 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             return Err(FastCryptoError::InvalidInput);
         }
         // Make sure we never overflow, as we don't expect to have more than 1000 nodes
-        if nodes.len() > 1000 {
+        if nodes.is_empty() || nodes.len() > 1000 {
             return Err(FastCryptoError::InvalidInput);
         }
-        // Get the total weight of the nodes
-        let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        // Check that all weights are non-zero
+        if nodes.iter().any(|n| n.weight == 0) {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
-        let share_id_to_party_id = Self::get_share_id_to_party_id(&nodes);
+        // We use accumulated weights to map share ids to party ids.
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let total_weight = *accumulated_weights
+            .last()
+            .expect("Number of nodes is non-zero");
 
         Ok(Self {
             nodes,
-            n,
-            share_id_to_party_id,
+            total_weight,
+            accumulated_weights,
         })
     }
 
-    fn get_share_id_to_party_id(nodes: &Vec<Node<G>>) -> HashMap<ShareIndex, PartyId> {
-        let mut curr_share_id = 1;
-        let mut share_id_to_party_id = HashMap::new();
-        for n in nodes {
-            for _ in 1..=n.weight {
-                let share_id = ShareIndex::new(curr_share_id).expect("nonzero");
-                share_id_to_party_id.insert(share_id, n.id);
-                curr_share_id += 1;
-            }
-        }
-        share_id_to_party_id
+    fn get_accumulated_weights(nodes: &[Node<G>]) -> Vec<u32> {
+        nodes
+            .iter()
+            .map(|n| n.weight as u32)
+            .scan(0, |accumulated_weight, weight| {
+                *accumulated_weight += weight;
+                Some(*accumulated_weight)
+            })
+            .collect::<Vec<_>>()
     }
 
     /// Total weight of the nodes.
-    pub fn n(&self) -> u32 {
-        self.n
+    pub fn total_weight(&self) -> u32 {
+        self.total_weight
     }
 
     /// Number of nodes.
@@ -76,15 +81,18 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get an iterator on the share ids.
     pub fn share_ids_iter(&self) -> impl Iterator<Item = ShareIndex> {
-        (1..=self.n).map(|i| ShareIndex::new(i).expect("nonzero"))
+        (1..=self.total_weight).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        self.share_id_to_party_id
-            .get(share_id)
-            .map(|id| self.node_id_to_node(*id))
-            .ok_or(FastCryptoError::InvalidInput)?
+        let node_id: PartyId = match self.accumulated_weights.binary_search(&share_id.get()) {
+            Ok(i) => i,
+            Err(i) => i,
+        }
+        .try_into()
+        .map_err(|_| InvalidInput)?;
+        self.node_id_to_node(node_id)
     }
 
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
@@ -124,6 +132,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
         let mut max_d = 1;
         for d in 2..=40 {
+            // TODO: [perf] Remove once the DKG & Nodes can work with zero weights.
+            if self.nodes.iter().any(|n| n.weight < d) {
+                break;
+            }
             let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if sum <= allowed_delta {
                 max_d = d;
@@ -138,14 +150,14 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 weight: n.weight / max_d,
             })
             .collect::<Vec<_>>();
-        let share_id_to_party_id = Self::get_share_id_to_party_id(&nodes);
-        let n = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
         let new_t = t / max_d + (t % max_d != 0) as u16;
         (
             Self {
                 nodes,
-                n,
-                share_id_to_party_id,
+                total_weight,
+                accumulated_weights,
             },
             new_t,
         )

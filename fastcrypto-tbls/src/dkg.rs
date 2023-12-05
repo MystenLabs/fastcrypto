@@ -26,6 +26,8 @@ use tap::prelude::*;
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
+// TODO: Add a description of the protocol.
+
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Party<G: GroupElement, EG: GroupElement> {
@@ -47,7 +49,6 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
 pub struct Message<G: GroupElement, EG: GroupElement> {
     pub sender: PartyId,
     /// The commitment of the secret polynomial created by the sender.
-    // TODO: [security] add a proof of possession/knowledge?
     pub vss_pk: PublicPoly<G>,
     /// The encrypted shares created by the sender. Sorted according to the receivers.
     pub encrypted_shares: MultiRecipientEncryption<EG>,
@@ -125,6 +126,8 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
     pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing.
 }
 
+// TODO: Handle parties with zero weights (currently rejected by Nodes::new()).
+
 /// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
@@ -152,7 +155,7 @@ where
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
         // Check that the threshold makes sense.
-        if t >= nodes.n() || t == 0 {
+        if t >= nodes.total_weight() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -166,7 +169,7 @@ where
             my_id,
             nodes.hash(),
             t,
-            nodes.n(),
+            nodes.total_weight(),
             random_oracle,
             enc_pk,
             vss_pk.c0(),
@@ -182,6 +185,7 @@ where
         })
     }
 
+    /// The threshold needed to reconstruct the full key/signature.
     pub fn t(&self) -> u32 {
         self.t
     }
@@ -304,7 +308,7 @@ where
         let encrypted_shares = &message
             .encrypted_shares
             .get_encryption(self.id as usize)
-            .expect("checked above that there are enough encryptions");
+            .expect("checked in sanity_check_message that there are enough encryptions");
         let decrypted_shares = Self::decrypt_and_get_share(&self.enc_sk, encrypted_shares).ok();
 
         if decrypted_shares.is_none()
@@ -420,10 +424,9 @@ where
             complaints: Vec::new(),
         };
         for m in &filtered_messages.0 {
-            if m.complaint.is_some() {
+            if let Some(complaint) = &m.complaint {
                 debug!("DKG: Including a complaint on party {}", m.message.sender);
-                let complaint = m.complaint.clone().expect("checked above");
-                conf.complaints.push(complaint);
+                conf.complaints.push(complaint.clone());
             }
         }
         Ok((conf, filtered_messages))
@@ -492,27 +495,28 @@ where
                 let accuser_pk = id_to_pk
                     .get(&accuser)
                     .expect("checked above that accuser is valid id");
-                let related_m1 = id_to_m1.get(&accused);
                 // If the claim refers to a non existing message, it's an invalid complaint.
-                let valid_complaint = related_m1.is_some() && {
-                    let encrypted_shares = &related_m1
-                        .expect("checked above that is not None")
-                        .encrypted_shares
-                        .get_encryption(accuser as usize)
-                        .expect("checked earlier that there are enough encryptions");
-                    Self::check_complaint_proof(
-                        &complaint.proof,
-                        accuser_pk,
-                        &self.nodes.share_ids_of(accuser),
-                        &related_m1.expect("checked above that is not None").vss_pk,
-                        encrypted_shares,
-                        &self.random_oracle.extend(&format!(
-                            "recovery of id {} received from {}",
-                            accuser, accused
-                        )),
-                        rng,
-                    )
-                    .is_ok()
+                let valid_complaint = match id_to_m1.get(&accused) {
+                    Some(related_m1) => {
+                        let encrypted_shares = &related_m1
+                            .encrypted_shares
+                            .get_encryption(accuser as usize)
+                            .expect("checked earlier that there are enough encryptions");
+                        Self::check_complaint_proof(
+                            &complaint.proof,
+                            accuser_pk,
+                            &self.nodes.share_ids_of(accuser),
+                            &related_m1.vss_pk,
+                            encrypted_shares,
+                            &self.random_oracle.extend(&format!(
+                                "recovery of id {} received from {}",
+                                accuser, accused
+                            )),
+                            rng,
+                        )
+                        .is_ok()
+                    }
+                    None => false,
                 };
                 match valid_complaint {
                     // Ignore accused from now on, and continue processing complaints from the

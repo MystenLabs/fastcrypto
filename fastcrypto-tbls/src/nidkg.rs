@@ -105,7 +105,7 @@ where
             .ok_or(FastCryptoError::InvalidInput)?
             .id;
         let nodes = Nodes::new(nodes)?;
-        let n = nodes.n();
+        let n = nodes.total_weight();
         if t >= n {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -184,9 +184,9 @@ where
         // Compute the cut-and-choose challenge bits.
         let ro = self
             .random_oracle
-            .extend(format!("-{}-cut-and-choose", self.id).as_str());
+            .extend(format!("_{}_cut_and_choose", self.id).as_str());
         let seed = ro.evaluate(&msg_before_fiat_shamir);
-        let challenge = Self::challenge(seed.as_slice(), self.nodes.n());
+        let challenge = Self::challenge(seed.as_slice(), self.nodes.total_weight());
 
         // Reveal the scalars corresponding to the challenge bits.
         let processed_pairs = izip!(
@@ -227,7 +227,7 @@ where
     ) -> FastCryptoResult<()> {
         // Check the degree of the sender's polynomial..
         verify_deg_t_poly(
-            self.nodes.n() - self.t - 1,
+            self.nodes.total_weight() - self.t - 1,
             &msg.partial_pks,
             &self.precomputed_dual_code_coefficients,
             rng,
@@ -240,9 +240,9 @@ where
         };
         let ro = self
             .random_oracle
-            .extend(format!("-{}-cut-and-choose", msg.sender).as_str());
+            .extend(format!("_{}_cut_and_choose", msg.sender).as_str());
         let seed = ro.evaluate(&msg_before_fiat_shamir);
-        let challenge = Self::challenge(seed.as_slice(), self.nodes.n());
+        let challenge = Self::challenge(seed.as_slice(), self.nodes.total_weight());
 
         let mut pairs_to_check = Vec::new();
         let mut tuples_to_check = Vec::new();
@@ -315,7 +315,7 @@ where
     pub fn compute_final_pks(&self, messages: &[Message<G>]) -> (G, Vec<G>) {
         assert!(self.is_above_t(messages).is_ok());
 
-        let partial_pks = (0..self.nodes.n())
+        let partial_pks = (0..self.nodes.total_weight())
             .map(|i| {
                 messages
                     .iter()
