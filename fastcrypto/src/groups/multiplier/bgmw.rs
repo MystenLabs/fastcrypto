@@ -83,8 +83,7 @@ impl<
         // Scalar as bytes in little-endian representation.
         let scalar_bytes = scalar.to_byte_array();
 
-        let base_2w_expansion =
-            compute_base_2w_expansion::<SCALAR_SIZE>(&scalar_bytes, Self::WINDOW_WIDTH);
+        let base_2w_expansion = compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
         let mut result = self.get_precomputed_multiple(0, base_2w_expansion[0]);
         for (i, digit) in base_2w_expansion.iter().enumerate().skip(1) {

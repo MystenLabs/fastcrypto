@@ -80,16 +80,13 @@ pub fn verify_prime<P: PrimalityCheck>(
     bitmask: &[usize],
     prime: &(usize, BigUint),
 ) -> FastCryptoResult<()> {
-    let iterator = HashPrimeIterator {
+    let mut iterator = HashPrimeIterator {
         seed: seed.to_vec(),
         length_in_bytes,
         bitmask: bitmask.to_vec(),
     };
     // Check that the original index points to a prime
-    let original_prime = iterator
-        .skip(prime.0)
-        .next()
-        .expect("Iterator failed to give next");
+    let original_prime = iterator.nth(prime.0).expect("Iterator is infinite");
     if P::is_prime(&original_prime) && original_prime == prime.1 {
         return Ok(());
     }
@@ -105,7 +102,7 @@ pub fn verify_complaint<P: PrimalityCheck>(
     prime: &(usize, BigUint),
     complaint: &usize,
 ) -> FastCryptoResult<()> {
-    let iterator = HashPrimeIterator {
+    let mut iterator = HashPrimeIterator {
         seed: seed.to_vec(),
         length_in_bytes,
         bitmask: bitmask.to_vec(),
@@ -116,10 +113,7 @@ pub fn verify_complaint<P: PrimalityCheck>(
     }
 
     // Check that the complaint index points to a prime
-    let complaint_prime = iterator
-        .skip(*complaint)
-        .next()
-        .expect("Iterator failed to give next");
+    let complaint_prime = iterator.nth(*complaint).expect("Iterator is infinite");
     if !P::is_prime(&complaint_prime) {
         return Err(FastCryptoError::InvalidProof);
     }

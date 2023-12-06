@@ -8,7 +8,7 @@ use std::marker::PhantomData;
 use std::ops::{Add, Mul};
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianByteArray};
+use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
 use crate::groups::Doubling;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
@@ -16,18 +16,15 @@ use crate::groups::Doubling;
 /// `double_mul`, is NOT constant time. However, the single multiplication method `mul` is constant
 /// time if the group operations for `G` are constant time.
 ///
-/// The `CACHE_SIZE` should be a power of two > 1. The `SCALAR_SIZE` is the number of bytes in the byte
-/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
-/// the scalar in little-endian format.
+/// The `CACHE_SIZE` should be a power of two > 1.
 ///
 /// The `SLIDING_WINDOW_WIDTH` is the number of bits in the sliding window of the elements not already
-/// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
+/// with precomputed multiples. This should be approximately log2(sqrt(scalar size in bits)) + 1 for
 /// optimal performance.
 pub struct WindowedScalarMultiplier<
     G,
     S,
     const CACHE_SIZE: usize,
-    const SCALAR_SIZE: usize,
     const SLIDING_WINDOW_WIDTH: usize,
 > {
     /// Precomputed multiples of the base element from 0 up to CACHE_SIZE - 1 = 2^WINDOW_WIDTH - 1.
@@ -35,13 +32,8 @@ pub struct WindowedScalarMultiplier<
     _scalar: PhantomData<S>,
 }
 
-impl<
-        G,
-        S,
-        const CACHE_SIZE: usize,
-        const SCALAR_SIZE: usize,
-        const SLIDING_WINDOW_WIDTH: usize,
-    > WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
+impl<G, S, const CACHE_SIZE: usize, const SLIDING_WINDOW_WIDTH: usize>
+    WindowedScalarMultiplier<G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
     const WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
@@ -49,12 +41,10 @@ impl<
 
 impl<
         G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
-        S: ToLittleEndianByteArray<SCALAR_SIZE> + Clone + Debug,
+        S: ToLittleEndianBytes + Clone + Debug,
         const CACHE_SIZE: usize,
-        const SCALAR_SIZE: usize,
         const SLIDING_WINDOW_WIDTH: usize,
-    > ScalarMultiplier<G, S>
-    for WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
+    > ScalarMultiplier<G, S> for WindowedScalarMultiplier<G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH>
 {
     fn new(base_element: G, zero: G) -> Self {
         if !is_power_of_2(CACHE_SIZE) || CACHE_SIZE <= 1 {
@@ -75,12 +65,10 @@ impl<
 
     fn mul(&self, scalar: &S) -> G {
         // Scalar as bytes in little-endian representation.
-        let scalar_bytes = scalar.to_le_byte_array();
+        let scalar_bytes = scalar.to_le_bytes();
 
-        let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
-            &scalar_bytes,
-            Self::WINDOW_WIDTH,
-        );
+        let base_2w_expansion =
+            integer_utils::compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
         // Computer multiplication using the fixed-window method to ensure that it's constant time.
         let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]].clone();
@@ -119,8 +107,7 @@ impl<
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
     G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
-    S: ToLittleEndianByteArray<SCALAR_SIZE> + Clone + Debug,
-    const SCALAR_SIZE: usize,
+    S: ToLittleEndianBytes + Clone + Debug,
     const N: usize,
 >(
     scalars: &[S; N],
@@ -129,6 +116,10 @@ pub fn multi_scalar_mul<
     default_window_width: usize,
     zero: G,
 ) -> G {
+    if N == 0 {
+        return zero;
+    }
+
     let mut window_sizes = [0usize; N];
 
     // Compute missing precomputation tables.
@@ -157,8 +148,14 @@ pub fn multi_scalar_mul<
     // Compute little-endian byte representations of scalars.
     let scalar_bytes = scalars
         .iter()
-        .map(|s| s.to_le_byte_array())
-        .collect::<Vec<[u8; SCALAR_SIZE]>>();
+        .map(|s| s.to_le_bytes())
+        .collect::<Vec<Vec<u8>>>();
+
+    let scalar_size = scalar_bytes
+        .iter()
+        .map(|b| b.len())
+        .max()
+        .expect("No scalars given.");
 
     // We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
     // beginning of a window, and we continue the iteration. When the iterations exists the window,
@@ -173,7 +170,7 @@ pub fn multi_scalar_mul<
     let mut result = zero;
 
     // Iterate through all bits of the scalars from the top.
-    for bit in (0..SCALAR_SIZE * 8).rev() {
+    for bit in (0..scalar_size * 8).rev() {
         if !is_zero {
             result = result.double();
         }
@@ -249,19 +246,18 @@ mod tests {
 
     use super::*;
 
-    impl ToLittleEndianByteArray<32> for RistrettoScalar {
-        fn to_le_byte_array(&self) -> [u8; 32] {
-            self.to_byte_array()
+    impl ToLittleEndianBytes for RistrettoScalar {
+        fn to_le_bytes(&self) -> Vec<u8> {
+            self.to_byte_array().to_vec()
         }
     }
 
     #[test]
     fn test_scalar_multiplication_ristretto() {
-        let multiplier =
-            WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32, 4>::new(
-                RistrettoPoint::generator(),
-                RistrettoPoint::zero(),
-            );
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 4>::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         let scalars = [
             RistrettoScalar::from(0),
@@ -301,35 +297,35 @@ mod tests {
         for scalar in scalars {
             let expected = ProjectivePoint::generator() * scalar;
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 4>::new(
                 ProjectivePoint::generator(),
                 ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 4>::new(
                 ProjectivePoint::generator(),
                 ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 4>::new(
                 ProjectivePoint::generator(),
                 ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 4>::new(
                 ProjectivePoint::generator(),
                 ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 4>::new(
                 ProjectivePoint::generator(),
                 ProjectivePoint::zero(),
             );
@@ -340,11 +336,10 @@ mod tests {
 
     #[test]
     fn test_double_mul_ristretto() {
-        let multiplier =
-            WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32, 5>::new(
-                RistrettoPoint::generator(),
-                RistrettoPoint::zero(),
-            );
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 5>::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
 

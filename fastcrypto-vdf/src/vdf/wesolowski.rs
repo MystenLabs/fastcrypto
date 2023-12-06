@@ -146,7 +146,7 @@ pub type StrongVDF<G> =
 pub type StrongVDFVerifier<G> = FastVerifier<
     G,
     StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>,
-    WindowedScalarMultiplier<G, BigInt, 256, CHALLENGE_SIZE, 5>,
+    WindowedScalarMultiplier<G, BigInt, 256, 5>,
 >;
 
 /// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
@@ -156,7 +156,7 @@ pub type WeakVDF<G> = WesolowskisVDF<G, WeakFiatShamir<G, CHALLENGE_SIZE, Defaul
 pub type WeakVDFVerifier<G> = FastVerifier<
     G,
     WeakFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>,
-    WindowedScalarMultiplier<G, BigInt, 256, CHALLENGE_SIZE, 5>,
+    WindowedScalarMultiplier<G, BigInt, 256, 5>,
 >;
 
 impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>

@@ -50,7 +50,7 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
     let fast_verify: FastVerifier<
         QuadraticForm,
         StrongFiatShamir<QuadraticForm, CHALLENGE_SIZE, DefaultPrimalityCheck>,
-        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, CHALLENGE_SIZE, 5>,
+        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
     > = FastVerifier::new(vdf, input_copy);
     c.bench_function(format!("{} fast", discriminant_size), move |b| {
         b.iter(|| fast_verify.verify(&result_copy, &proof_copy))

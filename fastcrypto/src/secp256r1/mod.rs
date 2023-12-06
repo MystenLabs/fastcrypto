@@ -46,7 +46,7 @@ use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use crate::groups::multiplier::windowed::WindowedScalarMultiplier;
 use crate::groups::multiplier::ScalarMultiplier;
 use crate::groups::secp256r1;
-use crate::groups::secp256r1::{ProjectivePoint, SCALAR_SIZE_IN_BYTES};
+use crate::groups::secp256r1::ProjectivePoint;
 use crate::hash::{HashFunction, Sha256};
 use crate::secp256r1::conversion::{
     affine_pt_p256_to_projective_arkworks, arkworks_fq_to_fr, fr_arkworks_to_p256,
@@ -150,13 +150,11 @@ lazy_static! {
         ProjectivePoint,
         <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
-        SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
     > = WindowedScalarMultiplier::<
         ProjectivePoint,
         <ProjectivePoint as GroupElement>::ScalarType,
         PRECOMPUTED_POINTS,
-        SCALAR_SIZE_IN_BYTES,
         SLIDING_WINDOW_WIDTH,
     >::new(
         secp256r1::ProjectivePoint::generator(),

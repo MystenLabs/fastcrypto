@@ -65,27 +65,27 @@ mod group_benches {
 
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Fixed window (16)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Fixed window (32)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Fixed window (64)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Fixed window (128)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
     }
@@ -114,27 +114,27 @@ mod group_benches {
 
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Straus (16)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Straus (32)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Straus (64)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Straus (128)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Straus (256)", &mut group);
         double_scale_single::<ProjectivePoint, DefaultMultiplier<ProjectivePoint>, _>(
