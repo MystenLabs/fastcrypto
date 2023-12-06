@@ -9,7 +9,7 @@ use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::Neg;
@@ -201,7 +201,7 @@ impl<
         let mut seed = vec![];
         seed.extend_from_slice(&input.to_bytes());
         seed.extend_from_slice(&output.to_bytes());
-        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[8 * CHALLENGE_SIZE - 1])
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[8 * CHALLENGE_SIZE - 1]).into()
     }
 }
 
@@ -233,7 +233,7 @@ impl<
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
         seed.extend_from_slice(&vdf.group_parameter.to_bytes());
 
-        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1])
+        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1]).into()
     }
 }
 
@@ -246,6 +246,8 @@ impl Parameter for Discriminant {
         }
         Self::try_from(
             hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
+                .to_bigint()
+                .expect("Never fails")
                 .neg(),
         )
     }
