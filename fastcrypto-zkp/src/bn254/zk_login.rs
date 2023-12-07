@@ -5,8 +5,8 @@ use fastcrypto::{error::FastCryptoResult, jwt_utils::JWTHeader};
 use reqwest::Client;
 use serde_json::Value;
 
-use super::{poseidon::to_poseidon_hash, utils::split_to_two_frs};
-use crate::bn254::poseidon::hash;
+use super::utils::split_to_two_frs;
+use crate::bn254::poseidon::poseidon_zk_login;
 use crate::circom::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
 };
@@ -380,7 +380,7 @@ impl ZkLoginInputs {
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        hash(vec![
+        poseidon_zk_login(vec![
             first,
             second,
             addr_seed,
@@ -556,7 +556,7 @@ fn hash_to_field(
     pack_width: u8,
 ) -> Result<Bn254Fr, FastCryptoError> {
     let packed = convert_base(input, in_width, pack_width)?;
-    to_poseidon_hash(packed)
+    poseidon_zk_login(packed)
 }
 
 fn div_ceil(dividend: usize, divisor: usize) -> Result<usize, FastCryptoError> {

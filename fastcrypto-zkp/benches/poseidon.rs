@@ -19,7 +19,9 @@ mod poseidon_benches {
                     let mut rng = ark_std::test_rng();
                     let inputs: Vec<ark_bn254::Fr> =
                         (0..*size).map(|_| ark_bn254::Fr::rand(&mut rng)).collect();
-                    b.iter(|| fastcrypto_zkp::bn254::poseidon::to_poseidon_hash(inputs.clone()));
+                    b.iter(|| {
+                        fastcrypto_zkp::bn254::poseidon::poseidon_merkle_tree(inputs.clone())
+                    });
                 },
             );
         }
