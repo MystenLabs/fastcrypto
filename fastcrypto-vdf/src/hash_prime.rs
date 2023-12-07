@@ -51,16 +51,25 @@ pub trait PrimalityCheck {
 ///   (for b in bitmask) { x |= (1 << b) }.
 /// Then return x if it is a pseudo-prime, otherwise repeat.
 ///
-/// The length must be a multiple of 8, otherwise `FastCryptoError::InvalidInput` is returned.
+/// See also [hash_prime_with_index].
 pub fn hash_prime<P: PrimalityCheck>(
     seed: &[u8],
     length_in_bytes: usize,
     bitmask: &[usize],
 ) -> BigUint {
-    hash_prime_with_certificate::<P>(seed, length_in_bytes, bitmask).1
+    hash_prime_with_index::<P>(seed, length_in_bytes, bitmask).1
 }
 
-pub fn hash_prime_with_certificate<P: PrimalityCheck>(
+/// Generates a random pseudo-prime using the hash and check method:
+/// Randomly chooses x with bit-length `length`, then applies a mask
+///   (for b in bitmask) { x |= (1 << b) }.
+/// Then return x if it is a pseudo-prime, otherwise repeat.
+///
+/// This method returns both the prime and the index of the prime in the
+/// iterator.
+///
+/// See also [hash_prime].
+pub fn hash_prime_with_index<P: PrimalityCheck>(
     seed: &[u8],
     length_in_bytes: usize,
     bitmask: &[usize],
@@ -78,47 +87,18 @@ pub fn verify_prime<P: PrimalityCheck>(
     seed: &[u8],
     length_in_bytes: usize,
     bitmask: &[usize],
-    prime: &(usize, BigUint),
+    index: usize,
 ) -> FastCryptoResult<()> {
     let mut iterator = HashPrimeIterator {
         seed: seed.to_vec(),
         length_in_bytes,
         bitmask: bitmask.to_vec(),
     };
-    // Check that the original index points to a prime
-    let original_prime = iterator.nth(prime.0).expect("Iterator is infinite");
-    if P::is_prime(&original_prime) && original_prime == prime.1 {
+    // Check that the index points to a prime
+    if P::is_prime(&iterator.nth(index).expect("Iterator is infinite")) {
         return Ok(());
     }
     Err(FastCryptoError::InvalidProof)
-}
-
-/// Assuming that the prime has passed a [verify_prime], this verifies that the complaint represents
-/// a prime prior to the given prime in the iterator, eg. that the complaint is valid.
-pub fn verify_complaint<P: PrimalityCheck>(
-    seed: &[u8],
-    length_in_bytes: usize,
-    bitmask: &[usize],
-    prime: &(usize, BigUint),
-    complaint: &usize,
-) -> FastCryptoResult<()> {
-    let mut iterator = HashPrimeIterator {
-        seed: seed.to_vec(),
-        length_in_bytes,
-        bitmask: bitmask.to_vec(),
-    };
-
-    if complaint >= &prime.0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-
-    // Check that the complaint index points to a prime
-    let complaint_prime = iterator.nth(*complaint).expect("Iterator is infinite");
-    if !P::is_prime(&complaint_prime) {
-        return Err(FastCryptoError::InvalidProof);
-    }
-
-    Ok(())
 }
 
 /// Implementation of [hash_prime] using the primality test from `num_prime::nt_funcs::is_prime`.
@@ -138,8 +118,7 @@ impl PrimalityCheck for DefaultPrimalityCheck {
 #[cfg(test)]
 mod tests {
     use crate::hash_prime::{
-        hash_prime_default, verify_complaint, verify_prime, DefaultPrimalityCheck,
-        HashPrimeIterator, PrimalityCheck,
+        hash_prime_default, verify_prime, DefaultPrimalityCheck, HashPrimeIterator, PrimalityCheck,
     };
     use num_bigint::BigUint;
     use num_integer::Integer;
@@ -195,33 +174,16 @@ mod tests {
                 &seed,
                 length_in_bytes,
                 &bitmask,
-                candidate
+                candidate.0
             )
             .is_ok());
         }
 
-        assert!(verify_complaint::<DefaultPrimalityCheck>(
+        assert!(verify_prime::<DefaultPrimalityCheck>(
             &seed,
             length_in_bytes,
             &bitmask,
-            &candidates[1],
-            &candidates[0].0
-        )
-        .is_ok());
-        assert!(verify_complaint::<DefaultPrimalityCheck>(
-            &seed,
-            length_in_bytes,
-            &bitmask,
-            &candidates[2],
-            &candidates[1].0
-        )
-        .is_ok());
-        assert!(verify_complaint::<DefaultPrimalityCheck>(
-            &seed,
-            length_in_bytes,
-            &bitmask,
-            &candidates[0],
-            &candidates[1].0
+            &candidates[0].0 + 1,
         )
         .is_err());
     }

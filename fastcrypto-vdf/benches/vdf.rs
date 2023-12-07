@@ -5,10 +5,12 @@
 extern crate criterion;
 
 use criterion::measurement::Measurement;
-use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
+use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::hash_prime::DefaultPrimalityCheck;
+use fastcrypto_vdf::hash_prime::{
+    hash_prime_with_certificate, verify_prime, DefaultPrimalityCheck,
+};
 use fastcrypto_vdf::vdf::wesolowski::CHALLENGE_SIZE;
 use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongFiatShamir, StrongVDF};
 use fastcrypto_vdf::vdf::VDF;
@@ -78,16 +80,16 @@ fn verify(c: &mut Criterion) {
 }
 
 fn sample_discriminant(c: &mut Criterion) {
-    let bit_lengths = [128, 256, 512, 1024, 2048];
+    let byte_lengths = [16, 32, 64, 128, 256];
 
     let mut seed = [0u8; 32];
 
     let mut rng = thread_rng();
 
-    for bit_length in bit_lengths {
+    for byte_length in byte_lengths {
         c.bench_with_input(
-            BenchmarkId::new("Sample class group discriminant".to_string(), bit_length),
-            &bit_length,
+            BenchmarkId::new("Sample class group discriminant".to_string(), byte_length),
+            &byte_length,
             |b, n| {
                 b.iter(|| {
                     rng.try_fill_bytes(&mut seed).unwrap();
@@ -98,10 +100,39 @@ fn sample_discriminant(c: &mut Criterion) {
     }
 }
 
+fn verify_discriminant(c: &mut Criterion) {
+    let byte_lengths = [16, 32, 64, 128, 256];
+    let seed = [0u8; 32];
+
+    for byte_length in byte_lengths {
+        let (i, d) = hash_prime_with_certificate::<DefaultPrimalityCheck>(
+            &seed,
+            byte_length,
+            &[0, 1, 8 * byte_length - 1],
+        );
+
+        c.bench_with_input(
+            BenchmarkId::new("Verify discriminant".to_string(), byte_length),
+            &byte_length,
+            |b, n| {
+                b.iter(|| {
+                    verify_prime::<DefaultPrimalityCheck>(
+                        &seed,
+                        *n,
+                        &[0, 1, 8 * byte_length - 1],
+                        &(i, d.clone()),
+                    )
+                    .unwrap()
+                })
+            },
+        );
+    }
+}
+
 criterion_group! {
     name = vdf_benchmarks;
     config = Criterion::default().sample_size(100);
-    targets = verify, sample_discriminant
+    targets = verify, sample_discriminant, verify_discriminant
 }
 
 criterion_main!(vdf_benchmarks);
