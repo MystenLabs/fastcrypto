@@ -149,7 +149,7 @@ mod tests {
     }
 
     #[test]
-    fn test_hash_prime_complaints() {
+    fn test_verify_hash_prime() {
         let seed = [0u8; 32];
         let length_in_bytes = 64;
         let bitmask: [usize; 3] = [0, 1, 8 * length_in_bytes - 1];
