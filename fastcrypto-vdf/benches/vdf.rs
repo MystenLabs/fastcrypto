@@ -5,12 +5,10 @@
 extern crate criterion;
 
 use criterion::measurement::Measurement;
-use criterion::{BatchSize, BenchmarkGroup, BenchmarkId, Criterion};
+use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::hash_prime::{
-    hash_prime_with_certificate, verify_prime, DefaultPrimalityCheck,
-};
+use fastcrypto_vdf::hash_prime::{hash_prime_with_index, verify_prime, DefaultPrimalityCheck};
 use fastcrypto_vdf::vdf::wesolowski::CHALLENGE_SIZE;
 use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongFiatShamir, StrongVDF};
 use fastcrypto_vdf::vdf::VDF;
@@ -105,7 +103,7 @@ fn verify_discriminant(c: &mut Criterion) {
     let seed = [0u8; 32];
 
     for byte_length in byte_lengths {
-        let (i, d) = hash_prime_with_certificate::<DefaultPrimalityCheck>(
+        let (i, _) = hash_prime_with_index::<DefaultPrimalityCheck>(
             &seed,
             byte_length,
             &[0, 1, 8 * byte_length - 1],
@@ -120,7 +118,7 @@ fn verify_discriminant(c: &mut Criterion) {
                         &seed,
                         *n,
                         &[0, 1, 8 * byte_length - 1],
-                        &(i, d.clone()),
+                        i,
                     )
                     .unwrap()
                 })
