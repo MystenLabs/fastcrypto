@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -242,8 +242,8 @@
 <span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">1024</span>;
 
 <span class="attr">#[derive(Parser)]
-#[command(name = <span class="string">&quot;vdf-cli&quot;</span>)]
-#[command(about = <span class="string">&quot;Verifiable delay function using Wesolowski&#39;s construction over imaginary class groups&quot;</span>, long_about = <span class="prelude-val">None</span>)]
+#[command(name = <span class="string">"vdf-cli"</span>)]
+#[command(about = <span class="string">"Verifiable delay function using Wesolowski's construction over imaginary class groups"</span>, long_about = <span class="prelude-val">None</span>)]
 </span><span class="kw">enum </span>Command {
     <span class="doccomment">/// Sample a random discriminant from a seed.
     </span>Discriminant(DiscriminantArguments),
@@ -299,11 +299,11 @@
 <span class="kw">fn </span>main() {
     <span class="kw">match </span>execute(Command::parse()) {
         <span class="prelude-val">Ok</span>(res) =&gt; {
-            <span class="macro">println!</span>(<span class="string">&quot;{}&quot;</span>, res);
+            <span class="macro">println!</span>(<span class="string">"{}"</span>, res);
             std::process::exit(exitcode::OK);
         }
         <span class="prelude-val">Err</span>(e) =&gt; {
-            <span class="macro">println!</span>(<span class="string">&quot;Error: {}&quot;</span>, e);
+            <span class="macro">println!</span>(<span class="string">"Error: {}"</span>, e);
             std::process::exit(exitcode::DATAERR);
         }
     }
@@ -313,65 +313,65 @@
     <span class="kw">match </span>cmd {
         Command::Discriminant(arguments) =&gt; {
             <span class="kw">let </span>seed = hex::decode(arguments.seed)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid seed.&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid seed."</span>))<span class="question-mark">?</span>;
             <span class="kw">let </span>discriminant =
                 Discriminant::from_seed(<span class="kw-2">&amp;</span>seed, arguments.bit_length <span class="kw">as </span>usize).unwrap();
             <span class="kw">let </span>discriminant_string = hex::encode(discriminant.to_bytes());
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">&quot;Discriminant: &quot;</span>.to_string();
+            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Discriminant: "</span>.to_string();
             result.push_str(<span class="kw-2">&amp;</span>discriminant_string);
             <span class="prelude-val">Ok</span>(result)
         }
 
         Command::Evaluate(arguments) =&gt; {
             <span class="kw">let </span>discriminant_bytes = hex::decode(arguments.discriminant)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid discriminant.&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
             <span class="kw">let </span>discriminant = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>discriminant_bytes)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid discriminant.&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
 
             <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
 
             <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
             <span class="kw">let </span>(output, proof) = vdf
                 .evaluate(<span class="kw-2">&amp;</span>g)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::Other, <span class="string">&quot;VDF evaluation failed&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::Other, <span class="string">"VDF evaluation failed"</span>))<span class="question-mark">?</span>;
 
             <span class="kw">let </span>output_string = hex::encode(output.to_bytes());
             <span class="kw">let </span>proof_string = hex::encode(proof.to_bytes());
 
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">&quot;Output: &quot;</span>.to_string();
+            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
             result.push_str(<span class="kw-2">&amp;</span>output_string);
-            result.push_str(<span class="string">&quot;\nProof:  &quot;</span>);
+            result.push_str(<span class="string">"\nProof:  "</span>);
             result.push_str(<span class="kw-2">&amp;</span>proof_string);
             <span class="prelude-val">Ok</span>(result)
         }
 
         Command::Verify(arguments) =&gt; {
             <span class="kw">let </span>discriminant_bytes = hex::decode(arguments.discriminant)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid discriminant.&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
             <span class="kw">let </span>discriminant = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>discriminant_bytes)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid discriminant.&quot;</span>))<span class="question-mark">?</span>;
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
 
             <span class="kw">let </span>output = QuadraticForm::from_bytes(
                 <span class="kw-2">&amp;</span>hex::decode(arguments.output).map_err(|<span class="kw">_</span>| {
-                    Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid output hex string.&quot;</span>)
+                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
                 })<span class="question-mark">?</span>,
                 <span class="kw-2">&amp;</span>discriminant,
             )
-            .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid output.&quot;</span>))<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
             <span class="kw">let </span>proof = QuadraticForm::from_bytes(
                 <span class="kw-2">&amp;</span>hex::decode(arguments.proof).map_err(|<span class="kw">_</span>| {
-                    Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid proof hex string.&quot;</span>)
+                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof hex string."</span>)
                 })<span class="question-mark">?</span>,
                 <span class="kw-2">&amp;</span>discriminant,
             )
-            .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">&quot;Invalid proof.&quot;</span>))<span class="question-mark">?</span>;
+            .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
 
             <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
 
             <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
             <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>g, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
 
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">&quot;Verified: &quot;</span>.to_string();
+            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Verified: "</span>.to_string();
             result.push_str(<span class="kw-2">&amp;</span>verifies.to_string());
             <span class="prelude-val">Ok</span>(result)
         }
@@ -385,29 +385,29 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discriminant() {
-        <span class="kw">let </span>seed = <span class="string">&quot;abcd&quot;</span>.to_string();
+        <span class="kw">let </span>seed = <span class="string">"abcd"</span>.to_string();
         <span class="kw">let </span>result = execute(Command::Discriminant(DiscriminantArguments {
             seed,
             bit_length: <span class="number">1024</span>,
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">&quot;Discriminant: ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27&quot;</span>.to_string();
+        <span class="kw">let </span>expected = <span class="string">"Discriminant: ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
         <span class="macro">assert_eq!</span>(expected, result);
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_evaluate() {
-        <span class="kw">let </span>discriminant = <span class="string">&quot;ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27&quot;</span>.to_string();
+        <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
         <span class="kw">let </span>result = execute(Command::Evaluate(EvaluateArguments {
             discriminant,
             iterations,
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">&quot;Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">"Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302"</span>;
         <span class="macro">assert_eq!</span>(expected, result);
 
-        <span class="kw">let </span>invalid_discriminant = <span class="string">&quot;abcx&quot;</span>.to_string();
+        <span class="kw">let </span>invalid_discriminant = <span class="string">"abcx"</span>.to_string();
         <span class="macro">assert!</span>(execute(Command::Evaluate(EvaluateArguments {
             discriminant: invalid_discriminant,
             iterations,
@@ -417,10 +417,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_verify() {
-        <span class="kw">let </span>discriminant = <span class="string">&quot;ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27&quot;</span>.to_string();
+        <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
-        <span class="kw">let </span>output = <span class="string">&quot;010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401&quot;</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">&quot;0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302&quot;</span>.to_string();
+        <span class="kw">let </span>output = <span class="string">"010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401"</span>.to_string();
+        <span class="kw">let </span>proof = <span class="string">"0000aadd0fceb7cab33ad9991aaddfb234473d2c4dc987225cba6f1c6a259e01e893fecede62b459db56474f840e0da0e4de3d0b2da709083620dccfed9451dc3c1b4f911167c85f887dacaa6cac52db94682f9ddc73c18613d4ecf6513580ec2f270302"</span>.to_string();
         <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
             discriminant,
             iterations,
@@ -428,10 +428,10 @@
             proof: proof.clone(),
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">&quot;Verified: true&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">"Verified: true"</span>;
         <span class="macro">assert_eq!</span>(expected, result);
 
-        <span class="kw">let </span>invalid_discriminant = <span class="string">&quot;abcx&quot;</span>.to_string();
+        <span class="kw">let </span>invalid_discriminant = <span class="string">"abcx"</span>.to_string();
         <span class="macro">assert!</span>(execute(Command::Verify(VerifyArguments {
             discriminant: invalid_discriminant,
             iterations,
@@ -443,10 +443,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_invalid_proof() {
-        <span class="kw">let </span>discriminant = <span class="string">&quot;ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27&quot;</span>.to_string();
+        <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">2000u64</span>;
-        <span class="kw">let </span>output = <span class="string">&quot;010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401&quot;</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">&quot;0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100&quot;</span>.to_string();
+        <span class="kw">let </span>output = <span class="string">"010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401"</span>.to_string();
+        <span class="kw">let </span>proof = <span class="string">"0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100"</span>.to_string();
         <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
             discriminant,
             iterations,
@@ -454,7 +454,7 @@
             proof,
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">&quot;Verified: false&quot;</span>;
+        <span class="kw">let </span>expected = <span class="string">"Verified: false"</span>;
         <span class="macro">assert_eq!</span>(expected, result);
     }
 }

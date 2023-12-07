@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/compressed.rs`."><title>compressed.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/compressed.rs`."><title>compressed.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -526,8 +526,8 @@
     </span><span class="kw">pub fn </span>serialized_length(discriminant_in_bits: usize) -&gt; usize {
         <span class="comment">// The number of 32 bit words needed to represent the discriminant rounded up,
         </span>(discriminant_in_bits + <span class="number">31</span>) / <span class="number">32
-            </span>* <span class="number">3 </span><span class="comment">// a&#39; is two words and t&#39; is one word. Both is divided by g, so the length of g is subtracted from both.
-            </span>+ <span class="number">1 </span><span class="comment">// Flags for special forms (identity or generator) and the sign of b and t&#39;.
+            </span>* <span class="number">3 </span><span class="comment">// a' is two words and t' is one word. Both is divided by g, so the length of g is subtracted from both.
+            </span>+ <span class="number">1 </span><span class="comment">// Flags for special forms (identity or generator) and the sign of b and t'.
             </span>+ <span class="number">1 </span><span class="comment">// The size of g - 1 = g_size.
             // Two extra bytes for g and b0 (which has the same length). Note that 2 * g_size was already counted.
             </span>+ <span class="number">2
@@ -583,7 +583,7 @@
         <span class="kw">let </span>b_sign = b &lt; <span class="kw-2">&amp;</span>BigInt::zero();
         <span class="kw">let </span>b_abs = b.abs();
 
-        <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">mut </span>t_prime) = partial_xgcd(a, <span class="kw-2">&amp;</span>b_abs).expect(<span class="string">&quot;a must be positive and b non-zero&quot;</span>);
+        <span class="kw">let </span>(<span class="kw">_</span>, <span class="kw-2">mut </span>t_prime) = partial_xgcd(a, <span class="kw-2">&amp;</span>b_abs).expect(<span class="string">"a must be positive and b non-zero"</span>);
         <span class="kw">let </span>g = a.gcd(<span class="kw-2">&amp;</span>t_prime);
 
         <span class="kw">let </span><span class="kw-2">mut </span>b0: BigInt;
@@ -719,19 +719,19 @@
 
                 bytes.extend_from_slice(
                     <span class="kw-2">&amp;</span>export_to_size(<span class="kw-2">&amp;</span>form.a_prime, a_prime_length)
-                        .expect(<span class="string">&quot;The size bound on the discriminant ensures that this is true&quot;</span>),
+                        .expect(<span class="string">"The size bound on the discriminant ensures that this is true"</span>),
                 );
                 bytes.extend_from_slice(
                     <span class="kw-2">&amp;</span>export_to_size(<span class="kw-2">&amp;</span>form.t_prime, t_prime_length)
-                        .expect(<span class="string">&quot;The size bound on the discriminant ensures that this is true&quot;</span>),
+                        .expect(<span class="string">"The size bound on the discriminant ensures that this is true"</span>),
                 );
                 bytes.extend_from_slice(
                     <span class="kw-2">&amp;</span>export_to_size(<span class="kw-2">&amp;</span>form.g, g_length)
-                        .expect(<span class="string">&quot;The size bound on the discriminant ensures that this is true&quot;</span>),
+                        .expect(<span class="string">"The size bound on the discriminant ensures that this is true"</span>),
                 );
                 bytes.extend_from_slice(
                     <span class="kw-2">&amp;</span>export_to_size(<span class="kw-2">&amp;</span>form.b0, b0_length)
-                        .expect(<span class="string">&quot;The size bound on the discriminant ensures that this is true&quot;</span>),
+                        .expect(<span class="string">"The size bound on the discriminant ensures that this is true"</span>),
                 );
                 bytes.extend_from_slice(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
                     <span class="number">0u8</span>;
@@ -777,11 +777,11 @@
         <span class="kw">let </span>g_length = g_size + <span class="number">1</span>;
         <span class="kw">let </span>b0_length = g_size + <span class="number">1</span>;
 
-        <span class="comment">// a&#39; = a / g
+        <span class="comment">// a' = a / g
         </span><span class="kw">let </span>a_prime = bigint_from_bytes(<span class="kw-2">&amp;</span>bytes[offset..offset + a_prime_length]);
         offset += a_prime_length;
 
-        <span class="comment">// t&#39; = t / g, where t satisfies (a*x + b*t &lt; sqrt(a))
+        <span class="comment">// t' = t / g, where t satisfies (a*x + b*t &lt; sqrt(a))
         </span><span class="kw">let </span><span class="kw-2">mut </span>t_prime = bigint_from_bytes(<span class="kw-2">&amp;</span>bytes[offset..offset + t_prime_length]);
         <span class="kw">let </span>t_sign = bytes[<span class="number">0</span>] &amp; <span class="number">0x02 </span>!= <span class="number">0</span>;
         <span class="kw">if </span>t_sign {
@@ -793,7 +793,7 @@
         </span><span class="kw">let </span>g = bigint_from_bytes(<span class="kw-2">&amp;</span>bytes[offset..offset + g_length]);
         offset += g_length;
 
-        <span class="comment">// b0 = b / a&#39;
+        <span class="comment">// b0 = b / a'
         </span><span class="kw">let </span>b0 = bigint_from_bytes(<span class="kw-2">&amp;</span>bytes[offset..offset + b0_length]);
         <span class="kw">let </span>b_sign = bytes[<span class="number">0</span>] &amp; <span class="number">0x01 </span>!= <span class="number">0</span>;
 
@@ -890,11 +890,11 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_bigint_import() {
-        <span class="kw">let </span>bytes = hex::decode(<span class="string">&quot;0102&quot;</span>).unwrap();
+        <span class="kw">let </span>bytes = hex::decode(<span class="string">"0102"</span>).unwrap();
         <span class="kw">let </span>bigint = bigint_from_bytes(<span class="kw-2">&amp;</span>bytes);
 
         <span class="comment">// We expect little endian, e.g. 0x02 * 256 + 0x01 = 513.
-        </span><span class="kw">let </span>expected = BigInt::from_str_radix(<span class="string">&quot;513&quot;</span>, <span class="number">10</span>).unwrap();
+        </span><span class="kw">let </span>expected = BigInt::from_str_radix(<span class="string">"513"</span>, <span class="number">10</span>).unwrap();
         <span class="macro">assert_eq!</span>(bigint, expected);
 
         <span class="kw">let </span>reconstructed = bigint_to_bytes(<span class="kw-2">&amp;</span>bigint);
@@ -903,10 +903,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_compression() {
-        <span class="kw">let </span>discriminant_hex = <span class="string">&quot;d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf&quot;</span>;
+        <span class="kw">let </span>discriminant_hex = <span class="string">"d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf"</span>;
         <span class="kw">let </span>discriminant =
             Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, <span class="number">16</span>).unwrap()).unwrap();
-        <span class="kw">let </span>compressed_hex = <span class="string">&quot;0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605&quot;</span>;
+        <span class="kw">let </span>compressed_hex = <span class="string">"0200222889d197dbfddc011bba8725c753b3caf8cb85b2a03b4f8d92cf5606e81208d717f068b8476ffe1f9c2e0443fc55030605"</span>;
         <span class="kw">let </span>compressed = CompressedQuadraticForm::deserialize(
             <span class="kw-2">&amp;</span>hex::decode(compressed_hex).unwrap(),
             <span class="kw-2">&amp;</span>discriminant,
@@ -919,10 +919,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_serialize_deserialize() {
-        <span class="kw">let </span>discriminant_hex = <span class="string">&quot;d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf&quot;</span>;
+        <span class="kw">let </span>discriminant_hex = <span class="string">"d2b4bc45525b1c2b59e1ad7f81a1003f2f0efdcbc734bf711ebf5599a73577a282af5e8959ffcf3ec8601b601bcd2fa54915823d73130e90cb90fe1c6c7c10bf"</span>;
         <span class="kw">let </span>discriminant =
             Discriminant::try_from(-BigInt::from_str_radix(discriminant_hex, <span class="number">16</span>).unwrap()).unwrap();
-        <span class="kw">let </span>compressed_hex = <span class="string">&quot;010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100&quot;</span>;
+        <span class="kw">let </span>compressed_hex = <span class="string">"010083b82ff747c385b0e2ff91ef1bea77d3d70b74322db1cd405e457aefece6ff23961c1243f1ed69e15efd232397e467200100"</span>;
         <span class="kw">let </span>compressed_bytes = hex::decode(compressed_hex).unwrap();
         <span class="kw">let </span>compressed =
             CompressedQuadraticForm::deserialize(<span class="kw-2">&amp;</span>compressed_bytes, <span class="kw-2">&amp;</span>discriminant).unwrap();
@@ -960,10 +960,10 @@
     </span><span class="kw">fn </span>test_serialize_roundtrip() {
         <span class="comment">// 512, 1024, 2048 and 4096 bits
         </span><span class="kw">let </span>discriminants = [
-            <span class="string">&quot;-9349344414767291113687223839476811112057517254984004685948091483948469540163634423565760143454771869645957446839582874595782298614481082568123251157411687&quot;</span>,
-            <span class="string">&quot;-133945061969889266637985327980602701669957743979382571436531763623415706276402737192009754195707000763534826528470478732951439968182253841713707751680514914997731717008973123373160242352119122869810833826423629802461890931457718412113596718805448770307254626415119526466550394593324563882174686655718775270447&quot;</span>,
-            <span class="string">&quot;-29502142669795498170664913925261110998320411268548537483129113540779280561083683352182517520690699478273319868447448049966824511039919308043747877951680827633851250876773921459982042061851444137132714948181860869206531105248168224678068701295818400875143336452362204697641282000514554237783258014492731972413087647918643222949297880308212892726925365719811319120311399853900323484711428931751287527191097875770471316418233180621991992577566395542854095151545112408782988736372758594134766939199932173978149654618994408144132349550563062288824293800449098318712711815821352232797398061624841110469260018248562843766511&quot;</span>,
-            <span class="string">&quot;-1007406630399371166205680828506843661949414311260040967856089339951193128060006822186578417382690035289449410666011850863693848919000628846349158715617084456083709831037163606319682672637324840187988607127103283149127943287978050624989555034830938436492975275987366038909474637467450001207425286269651430287955788923542179414542154414299977476302876585624737430226443723554486671958211612001960238001471273685967498771059733513459006129260882122390792571950782612040307833174744553353810400760504366039499327516985390664823589969989307911300950073410116630825901270255248406423708217095849457069056140995525605401875876118373137298999494339171538428290676256719705881706431651985194776829197614940001195992054408265445358913742096341471054976467547938020859817598310858507427495592930840526330743650698223650223475256616630888604670277950241581755495006259849435974983398554883297788462241826616412920690989472098631426747304873946834232860439878253783060639505051324901511090179582728174169603085475715057689175073017095753308275310776520002427239928789097518771962660619070493257590325261876957495417502288636882538000005279327607258660706478536265303230535024676764883243771806618176424548574077467727598718632427911394987209476759&quot;</span>,
+            <span class="string">"-9349344414767291113687223839476811112057517254984004685948091483948469540163634423565760143454771869645957446839582874595782298614481082568123251157411687"</span>,
+            <span class="string">"-133945061969889266637985327980602701669957743979382571436531763623415706276402737192009754195707000763534826528470478732951439968182253841713707751680514914997731717008973123373160242352119122869810833826423629802461890931457718412113596718805448770307254626415119526466550394593324563882174686655718775270447"</span>,
+            <span class="string">"-29502142669795498170664913925261110998320411268548537483129113540779280561083683352182517520690699478273319868447448049966824511039919308043747877951680827633851250876773921459982042061851444137132714948181860869206531105248168224678068701295818400875143336452362204697641282000514554237783258014492731972413087647918643222949297880308212892726925365719811319120311399853900323484711428931751287527191097875770471316418233180621991992577566395542854095151545112408782988736372758594134766939199932173978149654618994408144132349550563062288824293800449098318712711815821352232797398061624841110469260018248562843766511"</span>,
+            <span class="string">"-1007406630399371166205680828506843661949414311260040967856089339951193128060006822186578417382690035289449410666011850863693848919000628846349158715617084456083709831037163606319682672637324840187988607127103283149127943287978050624989555034830938436492975275987366038909474637467450001207425286269651430287955788923542179414542154414299977476302876585624737430226443723554486671958211612001960238001471273685967498771059733513459006129260882122390792571950782612040307833174744553353810400760504366039499327516985390664823589969989307911300950073410116630825901270255248406423708217095849457069056140995525605401875876118373137298999494339171538428290676256719705881706431651985194776829197614940001195992054408265445358913742096341471054976467547938020859817598310858507427495592930840526330743650698223650223475256616630888604670277950241581755495006259849435974983398554883297788462241826616412920690989472098631426747304873946834232860439878253783060639505051324901511090179582728174169603085475715057689175073017095753308275310776520002427239928789097518771962660619070493257590325261876957495417502288636882538000005279327607258660706478536265303230535024676764883243771806618176424548574077467727598718632427911394987209476759"</span>,
         ].map(|s| BigInt::from_str(s).unwrap()).map(|p| Discriminant::try_from(p).unwrap());
 
         <span class="kw">for </span>discriminant <span class="kw">in </span>discriminants {

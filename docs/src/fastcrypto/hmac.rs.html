@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hmac.rs`."><title>hmac.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hmac.rs`."><title>hmac.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -141,13 +141,13 @@
 </span><span class="doccomment">//! Implementations of [HMAC](https://www.rfc-editor.org/rfc/rfc2104) and [HKDF](https://tools.ietf.org/html/rfc5869).
 
 </span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError;
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">use </span><span class="kw">crate</span>::hash::ReverseWrapper;
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">use </span><span class="kw">crate</span>::traits::{KeyPair, SigningKey};
 <span class="kw">use crate</span>::{hash::Digest, traits::ToFromBytes};
 <span class="kw">use </span>digest::OutputSizeUser;
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">use </span>digest::{
     block_buffer::Eager,
     consts::U256,
@@ -169,16 +169,16 @@
 /// use fastcrypto::ed25519::Ed25519KeyPair;
 /// use fastcrypto::hmac::hkdf_generate_from_ikm;
 /// # fn main() {
-///     let ikm = b&quot;some_ikm&quot;;
-///     let info = b&quot;my_app&quot;;
-///     let salt = b&quot;some_salt&quot;;
+///     let ikm = b"some_ikm";
+///     let info = b"my_app";
+///     let salt = b"some_salt";
 ///     let my_keypair = hkdf_generate_from_ikm::&lt;Sha3_256, Ed25519KeyPair&gt;(ikm, salt, info);
 ///
 ///     let my_keypair_default_info = hkdf_generate_from_ikm::&lt;Sha3_256, Ed25519KeyPair&gt;(ikm, salt, &amp;[]);
 /// # }
 /// ```
 ///
-/// Note: This HKDF function may not match the native library&#39;s deterministic key generation functions.
+/// Note: This HKDF function may not match the native library's deterministic key generation functions.
 /// For example, observe that in the blst library:
 /// ```rust
 /// use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
@@ -187,9 +187,9 @@
 /// use fastcrypto::hmac::hkdf_generate_from_ikm;
 ///
 /// # fn main() {
-///     let ikm = b&quot;02345678001234567890123456789012&quot;;
-///     let info = b&quot;my_app&quot;;
-///     let salt = b&quot;some_salt&quot;;
+///     let ikm = b"02345678001234567890123456789012";
+///     let info = b"my_app";
+///     let salt = b"some_salt";
 
 ///     let my_keypair = hkdf_generate_from_ikm::&lt;Sha3_256, BLS12381KeyPair&gt;(ikm, salt, info).unwrap();
 ///     let native_sk = blst::min_sig::SecretKey::key_gen_v4_5(ikm, salt, info).unwrap();
@@ -197,14 +197,14 @@
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
-</span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+</span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">pub fn </span>hkdf_generate_from_ikm&lt;H, K&gt;(
     ikm: <span class="kw-2">&amp;</span>[u8],  <span class="comment">// IKM (32 bytes).
     </span>salt: <span class="kw-2">&amp;</span>[u8], <span class="comment">// Salt (can be empty).
     </span>info: <span class="kw-2">&amp;</span>[u8], <span class="comment">// Info (can be empty).
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;K, FastCryptoError&gt;
 <span class="kw">where
-    </span><span class="comment">// This is a tad tedious, because of HKDF&#39;s use of a sealed trait. But mostly harmless since the traits exposed (H and K) are both defined in fastcrypto.
+    </span><span class="comment">// This is a tad tedious, because of HKDF's use of a sealed trait. But mostly harmless since the traits exposed (H and K) are both defined in fastcrypto.
     </span>H: ReverseWrapper,
     &lt;&lt;H <span class="kw">as </span>ReverseWrapper&gt;::Variant <span class="kw">as </span>CoreProxy&gt;::Core: HashMarker
         + UpdateCore
@@ -217,7 +217,7 @@
         NonZero,
     K: KeyPair,
 {
-    <span class="comment">// When HMAC is applied, salt is padded with zeros if shorter than the H&#39;s block size
+    <span class="comment">// When HMAC is applied, salt is padded with zeros if shorter than the H's block size
     // (both for Some(&amp;[]) and None as the value of salt).
     </span><span class="kw">let </span>hk = hkdf::Hkdf::&lt;H::Variant, Hmac&lt;H::Variant&gt;&gt;::new(<span class="prelude-val">Some</span>(salt), ikm);
 
@@ -243,7 +243,7 @@
 <span class="doccomment">/// [Keyed-Hash Message Authentication Code](https://www.rfc-editor.org/rfc/rfc2104) (HMAC) using SHA3-256.
 </span><span class="kw">pub fn </span>hmac_sha3_256(key: <span class="kw-2">&amp;</span>HmacKey, message: <span class="kw-2">&amp;</span>[u8]) -&gt; Digest&lt;<span class="number">32</span>&gt; {
     <span class="kw">let </span><span class="kw-2">mut </span>hash = Hmac::&lt;sha3::Sha3_256&gt;::new_from_slice(key.as_bytes())
-        .expect(<span class="string">&quot;HMAC can take key of any size&quot;</span>);
+        .expect(<span class="string">"HMAC can take key of any size"</span>);
     hash.update(message);
     <span class="kw">let </span>output = hash.finalize();
     Digest {

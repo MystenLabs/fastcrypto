@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/utils.rs`."><title>utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/utils.rs`."><title>utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -206,7 +206,7 @@
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::hash;
+</span><span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_zk_login;
 <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login_api::Bn254Fr;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
@@ -240,22 +240,22 @@
 <span class="doccomment">/// Calculate the Sui address based on address seed and address params.
 </span><span class="kw">pub fn </span>gen_address_seed(
     salt: <span class="kw-2">&amp;</span>str,
-    name: <span class="kw-2">&amp;</span>str,  <span class="comment">// i.e. &quot;sub&quot;
+    name: <span class="kw-2">&amp;</span>str,  <span class="comment">// i.e. "sub"
     </span>value: <span class="kw-2">&amp;</span>str, <span class="comment">// i.e. the sub value
     </span>aud: <span class="kw-2">&amp;</span>str,   <span class="comment">// i.e. the client ID
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="kw">let </span>salt_hash = hash(<span class="macro">vec!</span>[to_field(salt)<span class="question-mark">?</span>])<span class="question-mark">?</span>;
+    <span class="kw">let </span>salt_hash = poseidon_zk_login(<span class="macro">vec!</span>[to_field(salt)<span class="question-mark">?</span>])<span class="question-mark">?</span>;
     gen_address_seed_with_salt_hash(<span class="kw-2">&amp;</span>salt_hash.to_string(), name, value, aud)
 }
 
 <span class="doccomment">/// Same as [`gen_address_seed`] but takes the poseidon hash of the salt as input instead of the salt.
 </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>gen_address_seed_with_salt_hash(
     salt_hash: <span class="kw-2">&amp;</span>str,
-    name: <span class="kw-2">&amp;</span>str,  <span class="comment">// i.e. &quot;sub&quot;
+    name: <span class="kw-2">&amp;</span>str,  <span class="comment">// i.e. "sub"
     </span>value: <span class="kw-2">&amp;</span>str, <span class="comment">// i.e. the sub value
     </span>aud: <span class="kw-2">&amp;</span>str,   <span class="comment">// i.e. the client ID
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="prelude-val">Ok</span>(hash(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(poseidon_zk_login(<span class="macro">vec!</span>[
         hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)<span class="question-mark">?</span>,
         hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)<span class="question-mark">?</span>,
         hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)<span class="question-mark">?</span>,
@@ -275,12 +275,12 @@
 ) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
     <span class="kw">let </span>nonce = get_nonce(eph_pk_bytes, max_epoch, jwt_randomness)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="kw">match </span>provider {
-            OIDCProvider::Google =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://accounts.google.com/o/oauth2/v2/auth?client_id={}&amp;response_type=id_token&amp;redirect_uri={}&amp;scope=openid&amp;nonce={}&quot;</span>, client_id, redirect_url, nonce),
-            OIDCProvider::Twitch =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://id.twitch.tv/oauth2/authorize?client_id={}&amp;force_verify=true&amp;lang=en&amp;login_type=login&amp;redirect_uri={}&amp;response_type=id_token&amp;scope=openid&amp;nonce={}&quot;</span>, client_id, redirect_url, nonce),
-            OIDCProvider::Facebook =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://www.facebook.com/v17.0/dialog/oauth?client_id={}&amp;redirect_uri={}&amp;scope=openid&amp;nonce={}&amp;response_type=id_token&quot;</span>, client_id, redirect_url, nonce),
-            OIDCProvider::Kakao =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://kauth.kakao.com/oauth/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}&quot;</span>, client_id, redirect_url, nonce),
-            OIDCProvider::Apple =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://appleid.apple.com/auth/authorize?client_id={}&amp;redirect_uri={}&amp;scope=email&amp;response_mode=form_post&amp;response_type=code%20id_token&amp;nonce={}&quot;</span>, client_id, redirect_url, nonce),
-            OIDCProvider::Slack =&gt; <span class="macro">format!</span>(<span class="string">&quot;https://slack.com/openid/connect/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}&amp;scope=openid&quot;</span>, client_id, redirect_url, nonce) 
+            OIDCProvider::Google =&gt; <span class="macro">format!</span>(<span class="string">"https://accounts.google.com/o/oauth2/v2/auth?client_id={}&amp;response_type=id_token&amp;redirect_uri={}&amp;scope=openid&amp;nonce={}"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::Twitch =&gt; <span class="macro">format!</span>(<span class="string">"https://id.twitch.tv/oauth2/authorize?client_id={}&amp;force_verify=true&amp;lang=en&amp;login_type=login&amp;redirect_uri={}&amp;response_type=id_token&amp;scope=openid&amp;nonce={}"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::Facebook =&gt; <span class="macro">format!</span>(<span class="string">"https://www.facebook.com/v17.0/dialog/oauth?client_id={}&amp;redirect_uri={}&amp;scope=openid&amp;nonce={}&amp;response_type=id_token"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::Kakao =&gt; <span class="macro">format!</span>(<span class="string">"https://kauth.kakao.com/oauth/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::Apple =&gt; <span class="macro">format!</span>(<span class="string">"https://appleid.apple.com/auth/authorize?client_id={}&amp;redirect_uri={}&amp;scope=email&amp;response_mode=form_post&amp;response_type=code%20id_token&amp;nonce={}"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::Slack =&gt; <span class="macro">format!</span>(<span class="string">"https://slack.com/openid/connect/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}&amp;scope=openid"</span>, client_id, redirect_url, nonce) 
         })
 }
 
@@ -293,8 +293,8 @@
     client_secret: <span class="kw-2">&amp;</span>str, <span class="comment">// not required for Kakao, pass in empty string.
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
     <span class="kw">match </span>provider {
-        OIDCProvider::Kakao =&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">&quot;https://kauth.kakao.com/oauth/token?grant_type=authorization_code&amp;client_id={}&amp;redirect_uri={}&amp;code={}&quot;</span>, client_id, redirect_url, auth_code)),
-        OIDCProvider::Slack =&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">&quot;https://slack.com/api/openid.connect.token?code={}&amp;client_id={}&amp;client_secret={}&quot;</span>, auth_code, client_id, client_secret)),
+        OIDCProvider::Kakao =&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"https://kauth.kakao.com/oauth/token?grant_type=authorization_code&amp;client_id={}&amp;redirect_uri={}&amp;code={}"</span>, client_id, redirect_url, auth_code)),
+        OIDCProvider::Slack =&gt; <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"https://slack.com/api/openid.connect.token?code={}&amp;client_id={}&amp;client_secret={}"</span>, auth_code, client_id, client_secret)),
         <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
     }
 }
@@ -309,12 +309,12 @@
     <span class="kw">let </span>(first, second) = split_to_two_frs(eph_pk_bytes)<span class="question-mark">?</span>;
 
     <span class="kw">let </span>max_epoch = Bn254Fr::from_str(<span class="kw-2">&amp;</span>max_epoch.to_string())
-        .expect(<span class="string">&quot;max_epoch.to_string is always non empty string without trailing zeros&quot;</span>);
+        .expect(<span class="string">"max_epoch.to_string is always non empty string without trailing zeros"</span>);
     <span class="kw">let </span>jwt_randomness =
         Bn254Fr::from_str(jwt_randomness).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>hash =
-        hash(<span class="macro">vec!</span>[first, second, max_epoch, jwt_randomness]).expect(<span class="string">&quot;inputs is not too long&quot;</span>);
+    <span class="kw">let </span>hash = poseidon_zk_login(<span class="macro">vec!</span>[first, second, max_epoch, jwt_randomness])
+        .expect(<span class="string">"inputs is not too long"</span>);
     <span class="kw">let </span>data = BigUint::from(hash).to_bytes_be();
     <span class="kw">let </span>truncated = <span class="kw-2">&amp;</span>data[data.len() - <span class="number">20</span>..];
     <span class="kw">let </span><span class="kw-2">mut </span>buf = <span class="macro">vec!</span>[<span class="number">0</span>; Base64UrlUnpadded::encoded_len(truncated)];
@@ -333,11 +333,11 @@
 <span class="doccomment">/// Call the salt server for the given jwt_token and return the salt.
 </span><span class="kw">pub async fn </span>get_salt(jwt_token: <span class="kw-2">&amp;</span>str, salt_url: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
     <span class="kw">let </span>client = Client::new();
-    <span class="kw">let </span>body = <span class="macro">json!</span>({ <span class="string">&quot;token&quot;</span>: jwt_token });
+    <span class="kw">let </span>body = <span class="macro">json!</span>({ <span class="string">"token"</span>: jwt_token });
     <span class="kw">let </span>response = client
         .post(salt_url)
         .json(<span class="kw-2">&amp;</span>body)
-        .header(<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/json&quot;</span>)
+        .header(<span class="string">"Content-Type"</span>, <span class="string">"application/json"</span>)
         .send()
         .<span class="kw">await
         </span>.map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
@@ -360,17 +360,17 @@
     prover_url: <span class="kw-2">&amp;</span>str,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;ZkLoginInputsReader, FastCryptoError&gt; {
     <span class="kw">let </span>body = <span class="macro">json!</span>({
-    <span class="string">&quot;jwt&quot;</span>: jwt_token,
-    <span class="string">&quot;extendedEphemeralPublicKey&quot;</span>: eph_pubkey,
-    <span class="string">&quot;maxEpoch&quot;</span>: max_epoch,
-    <span class="string">&quot;jwtRandomness&quot;</span>: jwt_randomness,
-    <span class="string">&quot;salt&quot;</span>: salt,
-    <span class="string">&quot;keyClaimName&quot;</span>: <span class="string">&quot;sub&quot;</span>,
+    <span class="string">"jwt"</span>: jwt_token,
+    <span class="string">"extendedEphemeralPublicKey"</span>: eph_pubkey,
+    <span class="string">"maxEpoch"</span>: max_epoch,
+    <span class="string">"jwtRandomness"</span>: jwt_randomness,
+    <span class="string">"salt"</span>: salt,
+    <span class="string">"keyClaimName"</span>: <span class="string">"sub"</span>,
     });
     <span class="kw">let </span>client = Client::new();
     <span class="kw">let </span>response = client
         .post(prover_url.to_string())
-        .header(<span class="string">&quot;Content-Type&quot;</span>, <span class="string">&quot;application/json&quot;</span>)
+        .header(<span class="string">"Content-Type"</span>, <span class="string">"application/json"</span>)
         .json(<span class="kw-2">&amp;</span>body)
         .send()
         .<span class="kw">await
@@ -380,8 +380,8 @@
         .<span class="kw">await
         </span>.map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;e2e&quot;</span>)]
-    </span><span class="macro">println!</span>(<span class="string">&quot;get_proof response: {:?}&quot;</span>, full_bytes);
+    <span class="attr">#[cfg(feature = <span class="string">"e2e"</span>)]
+    </span><span class="macro">println!</span>(<span class="string">"get_proof response: {:?}"</span>, full_bytes);
 
     <span class="kw">let </span>get_proof_response: ZkLoginInputsReader =
         serde_json::from_slice(<span class="kw-2">&amp;</span>full_bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/traits.rs`."><title>traits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/traits.rs`."><title>traits.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -416,7 +416,7 @@
     error::FastCryptoError,
     hash::HashFunction,
 };
-<span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>rand::rngs::{StdRng, ThreadRng};
 <span class="kw">use </span>rand::{CryptoRng, RngCore};
@@ -427,21 +427,21 @@
     str::FromStr,
 };
 
-<span class="doccomment">/// Trait impl&#39;d by concrete types that represent digital cryptographic material
+<span class="doccomment">/// Trait impl'd by concrete types that represent digital cryptographic material
 /// (keys).
 ///
 /// Key types *must* (as mandated by the `AsRef&lt;[u8]&gt;` bound) be a thin
-/// wrapper around the &quot;bag-of-bytes&quot; serialized form of a key which can
-/// be directly parsed from or written to the &quot;wire&quot;.
+/// wrapper around the "bag-of-bytes" serialized form of a key which can
+/// be directly parsed from or written to the "wire".
 ///
 /// The [`ToFromBytes`] trait aims to provide similar simplicity by minimizing
 /// the number of steps involved to obtain a serializable key and
 /// ideally ensuring there is one signature type for any given signature system
-/// shared by all &quot;provider&quot; crates.
+/// shared by all "provider" crates.
 ///
 /// For signature systems which require a more advanced internal representation
-/// (e.g. involving decoded scalars or decompressed elliptic curve points) it&#39;s
-/// recommended that &quot;provider&quot; libraries maintain their own internal signature
+/// (e.g. involving decoded scalars or decompressed elliptic curve points) it's
+/// recommended that "provider" libraries maintain their own internal signature
 /// type and use `From` bounds to provide automatic conversions.
 ///
 </span><span class="kw">pub trait </span>ToFromBytes: AsRef&lt;[u8]&gt; + Debug + Sized {
@@ -474,7 +474,7 @@
     }
 }
 
-<span class="doccomment">/// Trait impl&#39;d by public keys in asymmetric cryptography.
+<span class="doccomment">/// Trait impl'd by public keys in asymmetric cryptography.
 ///
 /// The trait bounds are implemented so as to be symmetric and equivalent
 /// to the ones on its associated types for private and signature material.
@@ -487,10 +487,10 @@
     + Eq  <span class="comment">// required to make some cached bytes representations explicit.
     </span>+ Ord <span class="comment">// required to put keys in BTreeMap.
     </span>+ ToFromBytes
-    + <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey.
+    + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>::PrivKey&gt; <span class="comment">// conversion PrivateKey -&gt; PublicKey.
     </span>+ Send
     + Sync
-    + <span class="lifetime">&#39;static
+    + <span class="lifetime">'static
     </span>+ Clone
 {
     <span class="kw">type </span>PrivKey: SigningKey&lt;PubKey=<span class="self">Self</span>&gt;;
@@ -511,7 +511,7 @@
     /// use fastcrypto::ed25519::*;
     /// # use fastcrypto::{traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey}};
     /// use rand::thread_rng;
-    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let message: &amp;[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message);
     /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
@@ -520,18 +520,18 @@
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &amp;public_keys, &amp;signatures).is_ok());
     /// ```
-    </span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
+    </span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
     </span><span class="kw">fn </span>verify_batch_empty_fail(msg: <span class="kw-2">&amp;</span>[u8], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
         <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."</span>));
         }
         <span class="kw">if </span>pks.len() != sigs.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of signatures and public keys provided&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Mismatch between number of signatures and public keys provided"</span>));
         }
         pks.iter()
             .zip(sigs)
             .try_for_each(|(pk, sig)| pk.verify(msg, sig))
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
+            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Signature verification failed"</span>))
     }
 
     <span class="comment">// Expected to be overridden by implementations
@@ -544,10 +544,10 @@
     /// use fastcrypto::ed25519::*;
     /// # use fastcrypto::traits::{AggregateAuthenticator, KeyPair, Signer, VerifyingKey};
     /// use rand::thread_rng;
-    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let message1: &amp;[u8] = b"Hello, world!";
     /// let kp1 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message1);
-    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let message2: &amp;[u8] = b"Hello, world!!!";
     /// let kp2 = Ed25519KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message2);
     /// let messages = [message1, message2];
@@ -555,54 +555,54 @@
     /// let signatures = [signature1.clone(), signature2.clone()];
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&amp;messages, &amp;public_keys, &amp;signatures).is_ok());
     /// ```
-    </span><span class="attr">#[cfg(any(test, feature = <span class="string">&quot;experimental&quot;</span>))]
-    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">&#39;a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">&#39;a </span>{
+    </span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">'a</span>, M&gt;(msgs: <span class="kw-2">&amp;</span>[M], pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>], sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig]) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; <span class="kw">where </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">'a </span>{
         <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."</span>));
         }
         <span class="kw">if </span>pks.len() != sigs.len() || pks.len() != msgs.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">&quot;Mismatch between number of messages, signatures and public keys provided&quot;</span>));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Mismatch between number of messages, signatures and public keys provided"</span>));
         }
         pks.iter()
             .zip(sigs)
             .zip(msgs)
             .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;Signature verification failed&quot;</span>))
+            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Signature verification failed"</span>))
     }
 }
 
-<span class="doccomment">/// Trait impl&#39;d by private (secret) keys in asymmetric cryptography.
+<span class="doccomment">/// Trait impl'd by private (secret) keys in asymmetric cryptography.
 ///
 /// The trait bounds are implemented so as to be symmetric and equivalent
 /// to the ones on its associated types for public key and signature material.
 ///
-</span><span class="kw">pub trait </span>SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">&#39;static </span>{
+</span><span class="kw">pub trait </span>SigningKey: ToFromBytes + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">'static </span>{
     <span class="kw">type </span>PubKey: VerifyingKey&lt;PrivKey = <span class="self">Self</span>&gt;;
     <span class="kw">type </span>Sig: Authenticator&lt;PrivKey = <span class="self">Self</span>&gt;;
     <span class="kw">const </span>LENGTH: usize;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by signatures in asymmetric cryptography.
+<span class="doccomment">/// Trait impl'd by signatures in asymmetric cryptography.
 ///
 /// The trait bounds are implemented so as to be symmetric and equivalent
 /// to the ones on its associated types for private key and public key material.
 ///
 </span><span class="kw">pub trait </span>Authenticator:
-    ToFromBytes + Display + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">&#39;static </span>+ Clone
+    ToFromBytes + Display + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">'static </span>+ Clone
 {
     <span class="kw">type </span>PubKey: VerifyingKey&lt;Sig = <span class="self">Self</span>&gt;;
     <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>&gt;;
     <span class="kw">const </span>LENGTH: usize;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by a key/keypair that can create signatures.
+<span class="doccomment">/// Trait impl'd by a key/keypair that can create signatures.
 ///
 </span><span class="kw">pub trait </span>Signer&lt;Sig&gt; {
     <span class="doccomment">/// Create a new signature over a message.
     </span><span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; Sig;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by a public / private key pair in asymmetric cryptography.
+<span class="doccomment">/// Trait impl'd by a public / private key pair in asymmetric cryptography.
 ///
 </span><span class="kw">pub trait </span>KeyPair:
     Sized + From&lt;<span class="self">Self</span>::PrivKey&gt; + Signer&lt;<span class="self">Self</span>::Sig&gt; + EncodeDecodeBase64 + FromStr
@@ -612,18 +612,18 @@
     <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>::PubKey, PrivKey = <span class="self">Self</span>::PrivKey&gt;;
 
     <span class="doccomment">/// Get the public key.
-    </span><span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;_ </span><span class="self">Self</span>::PubKey;
+    </span><span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">Self</span>::PubKey;
     <span class="doccomment">/// Get the private key.
     </span><span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey;
 
-    <span class="attr">#[cfg(feature = <span class="string">&quot;copy_key&quot;</span>)]
+    <span class="attr">#[cfg(feature = <span class="string">"copy_key"</span>)]
     </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>;
 
     <span class="doccomment">/// Generate a new keypair using the given RNG.
     </span><span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by public / private keypairs that can generate recoverable signatures
+<span class="doccomment">/// Trait impl'd by public / private keypairs that can generate recoverable signatures
 </span><span class="kw">pub trait </span>RecoverableSigner {
     <span class="kw">type </span>PubKey;
     <span class="kw">type </span>Sig: RecoverableSignature&lt;Signer = <span class="self">Self</span>, PubKey = <span class="self">Self</span>::PubKey&gt;;
@@ -663,7 +663,7 @@
     }
 }
 
-<span class="doccomment">/// Trait impl&#39;d by recoverable signatures
+<span class="doccomment">/// Trait impl'd by recoverable signatures
 </span><span class="kw">pub trait </span>RecoverableSignature: Sized {
     <span class="kw">type </span>PubKey;
     <span class="kw">type </span>Signer: RecoverableSigner&lt;Sig = <span class="self">Self</span>, PubKey = <span class="self">Self</span>::PubKey&gt;;
@@ -683,21 +683,21 @@
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>::PubKey, FastCryptoError&gt;;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by aggregated signatures in asymmetric cryptography.
+<span class="doccomment">/// Trait impl'd by aggregated signatures in asymmetric cryptography.
 ///
 /// The trait bounds are implemented to allow the aggregation of multiple signatures,
 /// and to verify it against multiple, unaggregated public keys. For signature schemes
 /// where aggregation is not possible, a trivial implementation is provided.
 ///
 </span><span class="kw">pub trait </span>AggregateAuthenticator:
-    Display + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">&#39;static </span>+ Clone
+    Display + Serialize + DeserializeOwned + Send + Sync + <span class="lifetime">'static </span>+ Clone
 {
     <span class="kw">type </span>Sig: Authenticator&lt;PubKey = <span class="self">Self</span>::PubKey&gt;;
     <span class="kw">type </span>PubKey: VerifyingKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
     <span class="kw">type </span>PrivKey: SigningKey&lt;Sig = <span class="self">Self</span>::Sig&gt;;
 
     <span class="doccomment">/// Combine signatures into a single aggregated signature.
-    </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">&#39;a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">&#39;a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>K&gt;&gt;(
+    </span><span class="kw">fn </span>aggregate&lt;<span class="lifetime">'a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">'a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>K&gt;&gt;(
         signatures: I,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
 
@@ -712,7 +712,7 @@
     /// use rand::thread_rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
-    /// let message: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let message: &amp;[u8] = b"Hello, world!";
     /// let kp1 = BLS12381KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message);
     /// let kp2 = BLS12381KeyPair::generate(&amp;mut thread_rng());
@@ -736,10 +736,10 @@
     /// use rand::thread_rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
-    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let message1: &amp;[u8] = b"Hello, world!";
     /// let kp1 = BLS12381KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message1);
-    /// let message2: &amp;[u8] = b&quot;Hello, world!!!&quot;;
+    /// let message2: &amp;[u8] = b"Hello, world!!!";
     /// let kp2 = BLS12381KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message2);
     ///
@@ -762,11 +762,11 @@
     /// use rand::thread_rng;
     /// use fastcrypto::bls12381::min_sig::{BLS12381AggregateSignature, BLS12381KeyPair};
     ///
-    /// let message1: &amp;[u8] = b&quot;Hello, world!&quot;;
+    /// let message1: &amp;[u8] = b"Hello, world!";
     /// let kp1 = BLS12381KeyPair::generate(&amp;mut thread_rng());
     /// let signature1 = kp1.sign(message1);
     /// let aggregated_signature1 = BLS12381AggregateSignature::aggregate(vec!(&amp;signature1)).unwrap();
-    /// let message2: &amp;[u8] = b&quot;1234&quot;;
+    /// let message2: &amp;[u8] = b"1234";
     /// let kp2 = BLS12381KeyPair::generate(&amp;mut thread_rng());
     /// let signature2 = kp2.sign(message2);
     /// let aggregated_signature2 = BLS12381AggregateSignature::aggregate(vec!(&amp;signature2)).unwrap();
@@ -778,21 +778,21 @@
     /// let public_keys = vec!(pks1.iter(), pks2.iter());
     /// assert!(BLS12381AggregateSignature::batch_verify(&amp;aggregated_signatures, public_keys, &amp;messages).is_ok());
     /// ```
-    </span><span class="kw">fn </span>batch_verify&lt;<span class="lifetime">&#39;a</span>&gt;(
+    </span><span class="kw">fn </span>batch_verify&lt;<span class="lifetime">'a</span>&gt;(
         sigs: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
-        pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="self">Self</span>::PubKey&gt;&gt;,
+        pks: Vec&lt;<span class="kw">impl </span>ExactSizeIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>::PubKey&gt;&gt;,
         messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt;;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by cryptographic material that can be generated randomly such as keys and nonces.
+<span class="doccomment">/// Trait impl'd by cryptographic material that can be generated randomly such as keys and nonces.
 ///
 </span><span class="kw">pub trait </span>Generate {
     <span class="doccomment">/// Generate a new random instance using the given RNG.
     </span><span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self</span>;
 }
 
-<span class="doccomment">/// Trait impl&#39;d by a keys/secret seeds for generating a secure instance.
+<span class="doccomment">/// Trait impl'd by a keys/secret seeds for generating a secure instance.
 ///
 </span><span class="kw">pub trait </span>FromUniformBytes&lt;<span class="kw">const </span>LENGTH: usize&gt;: ToFromBytes {
     <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
@@ -810,7 +810,7 @@
 
 <span class="comment">// Whitelist the RNG our APIs accept (see https://rust-random.github.io/book/guide-rngs.html for
 // others).
-</span><span class="doccomment">/// Trait impl&#39;d by RNG&#39;s accepted by fastcrypto.
+</span><span class="doccomment">/// Trait impl'd by RNG's accepted by fastcrypto.
 </span><span class="kw">pub trait </span>AllowedRng: CryptoRng + RngCore {}
 
 <span class="comment">// StdRng uses ChaCha12 (see https://github.com/rust-random/rand/issues/932).

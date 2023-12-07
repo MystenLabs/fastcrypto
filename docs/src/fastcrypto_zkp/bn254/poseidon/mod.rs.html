@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/poseidon/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/poseidon/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -280,6 +280,28 @@
 <a href="#280" id="280">280</a>
 <a href="#281" id="281">281</a>
 <a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -288,8 +310,8 @@
 <span class="kw">use </span>ark_bn254::Fr;
 <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
 <span class="kw">use </span>byte_slice_cast::AsByteSlice;
-<span class="kw">use </span>fastcrypto::error::FastCryptoError;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
+<span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>ff::PrimeField <span class="kw">as </span>OtherPrimeField;
 <span class="kw">use </span>neptune::poseidon::HashMode::OptimizedStatic;
 <span class="kw">use </span>neptune::Poseidon;
@@ -298,19 +320,24 @@
 <span class="doccomment">/// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
 </span><span class="kw">pub const </span>FIELD_ELEMENT_SIZE_IN_BYTES: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// The degree of the Merkle tree used to hash multiple elements.
+</span><span class="kw">pub const </span>MERKLE_TREE_DEGREE: usize = <span class="number">16</span>;
+
 <span class="kw">mod </span>constants;
 
-<span class="macro">macro_rules! </span>define_poseidon_hash {
+<span class="doccomment">/// Define a macro to calculate the poseidon hash of a vector of inputs using the neptune library.
+</span><span class="macro">macro_rules! </span>define_poseidon_hash {
     (<span class="macro-nonterminal">$inputs</span>:expr, <span class="macro-nonterminal">$poseidon_constants</span>:expr) =&gt; {{
         <span class="kw">let </span><span class="kw-2">mut </span>poseidon = Poseidon::new(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$poseidon_constants</span>);
         poseidon.reset();
         <span class="kw">for </span>input <span class="kw">in </span><span class="macro-nonterminal">$inputs</span>.iter() {
-            poseidon.input(bn254_to_fr(<span class="kw-2">*</span>input)).expect(<span class="string">&quot;The number of inputs must be aligned with the constants&quot;</span>);
+            poseidon.input(bn254_to_fr(<span class="kw-2">*</span>input)).expect(<span class="string">"The number of inputs must be aligned with the constants"</span>);
         }
         poseidon.hash_in_mode(OptimizedStatic);
 
         <span class="comment">// Neptune returns the state element with index 1 but we want the first element to be aligned
-        // with poseidon-rs and circomlib&#39;s implementation which returns the 0&#39;th element.
+        // with poseidon-rs and circomlib's implementation which returns the 0'th element.
         //
         // See:
         //  * https://github.com/lurk-lab/neptune/blob/b7a9db1fc6ce096aff52b903f7d228eddea6d4e3/src/poseidon.rs#L698
@@ -322,7 +349,7 @@
 
 <span class="doccomment">/// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
 /// elements, otherwise an error is returned.
-</span><span class="kw">pub fn </span>hash(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+</span><span class="kw">pub fn </span>poseidon(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
     <span class="kw">if </span>inputs.is_empty() || inputs.len() &gt; <span class="number">16 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(inputs.len()));
     }
@@ -351,22 +378,53 @@
     <span class="prelude-val">Ok</span>(fr_to_bn254fr(result))
 }
 
-<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If the input length is &lt;= 16, calculate
-/// H(inputs), if it is &lt;= 32, calculate H(H(inputs[0..16]), H(inputs[16..])), otherwise return an
-/// error.
-</span><span class="kw">pub fn </span>to_poseidon_hash(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
-    <span class="kw">if </span>inputs.len() &lt;= <span class="number">16 </span>{
-        hash(inputs)
-    } <span class="kw">else if </span>inputs.len() &lt;= <span class="number">32 </span>{
-        <span class="kw">let </span>hash1 = hash(inputs[<span class="number">0</span>..<span class="number">16</span>].to_vec())<span class="question-mark">?</span>;
-        <span class="kw">let </span>hash2 = hash(inputs[<span class="number">16</span>..].to_vec())<span class="question-mark">?</span>;
-        hash([hash1, hash2].to_vec())
-    } <span class="kw">else </span>{
-        <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="macro">format!</span>(
-            <span class="string">&quot;Yet to implement: Unable to hash a vector of length {}&quot;</span>,
-            inputs.len()
-        )))
+<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
+/// If input length is &lt;= 16, calculate H(inputs), if it is &lt;= 32, calculate H(H(inputs[0..16]),
+/// H(inputs[16..])), otherwise return an error.
+///
+/// This functions must be equivalent with the one found in the zk_login circuit.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>poseidon_zk_login(inputs: Vec&lt;Fr&gt;) -&gt; FastCryptoResult&lt;Fr&gt; {
+    <span class="kw">if </span>inputs.is_empty() || inputs.len() &gt; <span class="number">32 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(inputs.len()));
     }
+    poseidon_merkle_tree(inputs)
+}
+
+<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If the input length is &lt;= 16, calculate
+/// H(inputs), otherwise chunk the inputs into groups of 16, hash them and input the results recursively.
+</span><span class="kw">pub fn </span>poseidon_merkle_tree(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+    <span class="kw">if </span>inputs.len() &lt;= MERKLE_TREE_DEGREE {
+        poseidon(inputs)
+    } <span class="kw">else </span>{
+        poseidon_merkle_tree(
+            inputs
+                .chunks(MERKLE_TREE_DEGREE)
+                .map(|chunk| poseidon(chunk.to_vec()))
+                .collect::&lt;FastCryptoResult&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()<span class="question-mark">?</span>,
+        )
+    }
+}
+
+<span class="doccomment">/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
+/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
+/// hash function ([poseidon_merkle_tree]) and the result is serialized as a little-endian integer (32
+/// bytes).
+///
+/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
+/// field size or is longer than 32 bytes, an error is returned.
+///
+/// This function is used as an interface to the poseidon hash function in the sui-framework.
+</span><span class="kw">pub fn </span>poseidon_bytes(
+    inputs: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;u8&gt;&gt;,
+) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>field_elements = Vec::new();
+    <span class="kw">for </span>input <span class="kw">in </span>inputs {
+        field_elements.push(canonical_le_bytes_to_field_element(input)<span class="question-mark">?</span>);
+    }
+    <span class="kw">let </span>output_as_field_element = poseidon_merkle_tree(field_elements)<span class="question-mark">?</span>;
+    <span class="prelude-val">Ok</span>(field_element_to_canonical_le_bytes(
+        <span class="kw-2">&amp;</span>output_as_field_element,
+    ))
 }
 
 <span class="doccomment">/// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
@@ -374,12 +432,12 @@
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-</span><span class="kw">fn </span>from_canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+</span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
     <span class="kw">match </span>bytes.len().cmp(<span class="kw-2">&amp;</span>FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less =&gt; <span class="prelude-val">Ok</span>(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal =&gt; {
             <span class="kw">let </span>field_element = Fr::from_le_bytes_mod_order(bytes);
-            <span class="comment">// Unfortunately, there doesn&#39;t seem to be a nice way to check if a modular reduction
+            <span class="comment">// Unfortunately, there doesn't seem to be a nice way to check if a modular reduction
             // happened without doing the extra work of serializing the field element again.
             </span><span class="kw">let </span>reduced_bytes = field_element.into_bigint().to_bytes_le();
             <span class="kw">if </span>reduced_bytes != bytes {
@@ -391,35 +449,12 @@
     }
 }
 
-<span class="doccomment">/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]).
-///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
-</span><span class="kw">pub fn </span>hash_to_field_element(inputs: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;u8&gt;&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>field_elements = Vec::new();
-    <span class="kw">for </span>input <span class="kw">in </span>inputs {
-        field_elements.push(from_canonical_le_bytes_to_field_element(input)<span class="question-mark">?</span>);
-    }
-    to_poseidon_hash(field_elements)
-}
-
-<span class="doccomment">/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([to_poseidon_hash]) and the result is serialized as a little-endian integer (32
-/// bytes).
-///
-/// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
-</span><span class="kw">pub fn </span>hash_to_bytes(
-    inputs: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;u8&gt;&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError&gt; {
-    <span class="kw">let </span>field_element = hash_to_field_element(inputs)<span class="question-mark">?</span>;
+<span class="doccomment">/// Convert a BN254 field element to a byte array as the little-endian representation of the
+/// underlying canonical integer representation of the element.
+</span><span class="kw">fn </span>field_element_to_canonical_le_bytes(field_element: <span class="kw-2">&amp;</span>Fr) -&gt; [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
     <span class="kw">let </span>bytes = field_element.into_bigint().to_bytes_le();
-    <span class="prelude-val">Ok</span>(bytes
-        .try_into()
-        .expect(<span class="string">&quot;Leading zeros are added in to_bytes_be&quot;</span>))
+    &lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES]&gt;::try_from(bytes)
+        .expect(<span class="string">"The result is guaranteed to be 32 bytes"</span>)
 }
 
 <span class="doccomment">/// Convert an ff field element to an arkworks-ff field element.
@@ -434,14 +469,14 @@
     <span class="comment">// We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
     </span>bytes.clone_from_slice(<span class="kw-2">&amp;</span>fr.into_bigint().to_bytes_be());
     <span class="kw">crate</span>::Fr::from_repr_vartime(FrRepr(bytes))
-        .expect(<span class="string">&quot;The bytes of fr are guaranteed to be canonical here&quot;</span>)
+        .expect(<span class="string">"The bytes of fr are guaranteed to be canonical here"</span>)
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>test {
-    <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::hash;
-    <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::hash_to_bytes;
-    <span class="kw">use </span><span class="kw">crate</span>::bn254::{poseidon::to_poseidon_hash, zk_login::Bn254Fr};
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_bytes;
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::{poseidon, poseidon_merkle_tree};
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::{poseidon::poseidon_zk_login, zk_login::Bn254Fr};
     <span class="kw">use </span>ark_bn254::Fr;
     <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
     <span class="kw">use </span>lazy_static::lazy_static;
@@ -455,63 +490,72 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>poseidon_test() {
-        <span class="kw">let </span>input1 = Fr::from_str(<span class="string">&quot;134696963602902907403122104327765350261&quot;</span>).unwrap();
-        <span class="kw">let </span>input2 = Fr::from_str(<span class="string">&quot;17932473587154777519561053972421347139&quot;</span>).unwrap();
-        <span class="kw">let </span>input3 = Fr::from_str(<span class="string">&quot;10000&quot;</span>).unwrap();
+        <span class="kw">let </span>input1 = Fr::from_str(<span class="string">"134696963602902907403122104327765350261"</span>).unwrap();
+        <span class="kw">let </span>input2 = Fr::from_str(<span class="string">"17932473587154777519561053972421347139"</span>).unwrap();
+        <span class="kw">let </span>input3 = Fr::from_str(<span class="string">"10000"</span>).unwrap();
         <span class="kw">let </span>input4 = Fr::from_str(
-            <span class="string">&quot;50683480294434968413708503290439057629605340925620961559740848568164438166&quot;</span>,
+            <span class="string">"50683480294434968413708503290439057629605340925620961559740848568164438166"</span>,
         )
         .unwrap();
-        <span class="kw">let </span>hash = hash(<span class="macro">vec!</span>[input1, input2, input3, input4]).unwrap();
+        <span class="kw">let </span>hash = poseidon(<span class="macro">vec!</span>[input1, input2, input3, input4]).unwrap();
         <span class="macro">assert_eq!</span>(
             hash,
             Fr::from_str(
-                <span class="string">&quot;2272550810841985018139126931041192927190568084082399473943239080305281957330&quot;
+                <span class="string">"2272550810841985018139126931041192927190568084082399473943239080305281957330"
             </span>)
             .unwrap()
         );
     }
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_to_poseidon_hash() {
+        <span class="macro">assert!</span>(poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[])).is_err());
         <span class="macro">assert_eq!</span>(
-            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>]))
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>]))
                 .unwrap()
                 .to_string(),
-            <span class="string">&quot;18586133768512220936620570745912940619677854269274689475585506675881198879027&quot;
+            <span class="string">"18586133768512220936620570745912940619677854269274689475585506675881198879027"
         </span>);
         <span class="macro">assert_eq!</span>(
-            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>]))
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>]))
                 .unwrap()
                 .to_string(),
-            <span class="string">&quot;7853200120776062878684798364095072458815029376092732009249414926327459813530&quot;
+            <span class="string">"7853200120776062878684798364095072458815029376092732009249414926327459813530"
         </span>);
         <span class="macro">assert_eq!</span>(
-            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15
             </span>]))
             .unwrap()
             .to_string(),
-            <span class="string">&quot;4203130618016961831408770638653325366880478848856764494148034853759773445968&quot;
+            <span class="string">"4203130618016961831408770638653325366880478848856764494148034853759773445968"
         </span>);
         <span class="macro">assert_eq!</span>(
-            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16
             </span>]))
             .unwrap()
             .to_string(),
-            <span class="string">&quot;9989051620750914585850546081941653841776809718687451684622678807385399211877&quot;
+            <span class="string">"9989051620750914585850546081941653841776809718687451684622678807385399211877"
         </span>);
         <span class="macro">assert_eq!</span>(
-            to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>,
                 <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29
             </span>]))
             .unwrap()
             .to_string(),
-            <span class="string">&quot;4123755143677678663754455867798672266093104048057302051129414708339780424023&quot;
+            <span class="string">"4123755143677678663754455867798672266093104048057302051129414708339780424023"
         </span>);
-
-        <span class="macro">assert!</span>(to_poseidon_hash(to_bigint_arr(<span class="macro">vec!</span>[
+        <span class="macro">assert_eq!</span>(
+            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
+                <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>,
+                <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29</span>, <span class="number">30</span>, <span class="number">31</span>, <span class="number">32
+            </span>]))
+            .unwrap()
+            .to_string(),
+            <span class="string">"15368023340287843142129781602124963668572853984788169144128906033251913623349"
+        </span>);
+        <span class="macro">assert!</span>(poseidon_zk_login(to_bigint_arr(<span class="macro">vec!</span>[
             <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>, <span class="number">23</span>,
             <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29</span>, <span class="number">30</span>, <span class="number">31</span>, <span class="number">32
         </span>]))
@@ -521,28 +565,28 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hash_to_bytes() {
         <span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">1u8</span>]];
-        <span class="kw">let </span>hash = hash_to_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
+        <span class="kw">let </span>hash = poseidon_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
         <span class="comment">// 18586133768512220936620570745912940619677854269274689475585506675881198879027 in decimal
         </span><span class="kw">let </span>expected =
-            hex::decode(<span class="string">&quot;33018202c57d898b84338b16d1a4960e133c6a4d656cfec1bd62a9ea00611729&quot;</span>)
+            hex::decode(<span class="string">"33018202c57d898b84338b16d1a4960e133c6a4d656cfec1bd62a9ea00611729"</span>)
                 .unwrap();
         <span class="macro">assert_eq!</span>(hash.as_slice(), <span class="kw-2">&amp;</span>expected);
 
         <span class="comment">// 7853200120776062878684798364095072458815029376092732009249414926327459813530 in decimal
         </span><span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">1u8</span>], <span class="macro">vec!</span>[<span class="number">2u8</span>]];
-        <span class="kw">let </span>hash = hash_to_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
+        <span class="kw">let </span>hash = poseidon_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
         <span class="kw">let </span>expected =
-            hex::decode(<span class="string">&quot;9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11&quot;</span>)
+            hex::decode(<span class="string">"9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11"</span>)
                 .unwrap();
         <span class="macro">assert_eq!</span>(hash.as_slice(), <span class="kw-2">&amp;</span>expected);
 
         <span class="comment">// Input larger than the modulus
         </span><span class="kw">let </span>inputs = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">255</span>; <span class="number">32</span>]];
-        <span class="macro">assert!</span>(hash_to_bytes(<span class="kw-2">&amp;</span>inputs).is_err());
+        <span class="macro">assert!</span>(poseidon_bytes(<span class="kw-2">&amp;</span>inputs).is_err());
 
         <span class="comment">// Input smaller than the modulus
         </span><span class="kw">let </span>inputs = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">255</span>; <span class="number">31</span>]];
-        <span class="macro">assert!</span>(hash_to_bytes(<span class="kw-2">&amp;</span>inputs).is_ok());
+        <span class="macro">assert!</span>(poseidon_bytes(<span class="kw-2">&amp;</span>inputs).is_ok());
     }
 
     <span class="attr">#[cfg(test)]
@@ -557,7 +601,7 @@
             <span class="kw">let </span>inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(<span class="kw-2">&amp;</span>ri)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
             <span class="kw">let </span>expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
-            <span class="kw">let </span>actual = hash_to_bytes(<span class="kw-2">&amp;</span>inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()).unwrap();
+            <span class="kw">let </span>actual = poseidon_bytes(<span class="kw-2">&amp;</span>inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()).unwrap();
             <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>actual, expected.as_slice());
         }
     }

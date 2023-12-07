@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/serde_helpers.rs`."><title>serde_helpers.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/serde_helpers.rs`."><title>serde_helpers.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -349,21 +349,21 @@
     traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey},
 };
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">&#39;de</span>, D, E&gt;(e: E) -&gt; D::Error
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">'de</span>, D, E&gt;(e: E) -&gt; D::Error
 <span class="kw">where
     </span>E: Debug,
-    D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
 {
-    Error::custom(<span class="macro">format!</span>(<span class="string">&quot;byte deserialization failed, cause by: {:?}&quot;</span>, e))
+    Error::custom(<span class="macro">format!</span>(<span class="string">"byte deserialization failed, cause by: {:?}"</span>, e))
 }
 
 <span class="kw">pub fn </span>keypair_decode_base64&lt;T: KeyPair&gt;(value: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;T, eyre::Report&gt; {
     <span class="kw">let </span>bytes =
-        base64ct::Base64::decode_vec(value).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">&quot;{}&quot;</span>, e.to_string()))<span class="question-mark">?</span>;
+        base64ct::Base64::decode_vec(value).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">"{}"</span>, e.to_string()))<span class="question-mark">?</span>;
     <span class="kw">let </span>sk_length = &lt;&lt;T <span class="kw">as </span>KeyPair&gt;::PrivKey <span class="kw">as </span>SigningKey&gt;::LENGTH;
     <span class="kw">let </span>pk_length = &lt;&lt;T <span class="kw">as </span>KeyPair&gt;::PubKey <span class="kw">as </span>VerifyingKey&gt;::LENGTH;
     <span class="kw">if </span>bytes.len() != pk_length + sk_length {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre::eyre!</span>(<span class="string">&quot;Invalid keypair length&quot;</span>));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre::eyre!</span>(<span class="string">"Invalid keypair length"</span>));
     }
     <span class="kw">let </span>secret = &lt;T <span class="kw">as </span>KeyPair&gt;::PrivKey::from_bytes(<span class="kw-2">&amp;</span>bytes[..sk_length])<span class="question-mark">?</span>;
     <span class="comment">// Read only sk bytes for privkey, and derive pubkey from privkey and returns keypair
@@ -373,7 +373,7 @@
 <span class="doccomment">///
 /// Serialization of internal types.
 ///
-/// Every type&#39;s serialization should work as following:
+/// Every type's serialization should work as following:
 /// - Return base64 encoded bytes for is_human_readable() serializers.
 /// - Else, return the bytes as a fixed size array. This should be the canonical representation of
 ///   the object (e.g., as defined in RFCs).
@@ -394,7 +394,7 @@
 </span><span class="attr">#[serde_as]
 #[derive(Serialize, Deserialize)]
 #[serde(transparent)]
-</span><span class="kw">pub struct </span>SerializationHelper&lt;<span class="kw">const </span>N: usize&gt;(<span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;[_; N]&quot;</span>)] </span><span class="kw">pub </span>[u8; N]);
+</span><span class="kw">pub struct </span>SerializationHelper&lt;<span class="kw">const </span>N: usize&gt;(<span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">"[_; N]"</span>)] </span><span class="kw">pub </span>[u8; N]);
 
 <span class="kw">pub trait </span>ToFromByteArray&lt;<span class="kw">const </span>LENGTH: usize&gt;: Sized {
     <span class="kw">const </span>BYTE_LENGTH: usize = LENGTH;
@@ -421,8 +421,8 @@
             }
         }
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; ::serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-            <span class="kw">fn </span><span class="macro-nonterminal">deserialize</span>&lt;D: ::serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; ::serde::Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">deserialize</span>&lt;D: ::serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(
                 deserializer: D,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
                 <span class="kw">use </span><span class="macro-nonterminal">$crate::encoding::Base64</span>;
@@ -433,10 +433,10 @@
                     <span class="bool-val">true </span>=&gt; {
                         <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
                         <span class="kw">let </span>decoded = Base64::decode(<span class="kw-2">&amp;</span>s)
-                            .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">&quot;Base64 decoding failed&quot;</span>))<span class="question-mark">?</span>;
+                            .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">"Base64 decoding failed"</span>))<span class="question-mark">?</span>;
                         <span class="kw">if </span>decoded.len() != { &lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;<span class="macro-nonterminal">::BYTE_LENGTH </span>} {
                             <span class="kw">return </span><span class="prelude-val">Err</span>(de::Error::custom(<span class="macro">format!</span>(
-                                <span class="string">&quot;Invalid buffer length {}, expecting {}&quot;</span>,
+                                <span class="string">"Invalid buffer length {}, expecting {}"</span>,
                                 decoded.len(),
                                 { &lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;<span class="macro-nonterminal">::BYTE_LENGTH </span>}
                             )));
@@ -450,7 +450,7 @@
                     </span>}
                 };
                 <span class="self">Self</span>::from_byte_array(<span class="kw-2">&amp;</span>bytes)
-                    .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">&quot;Failed in reconstructing the object&quot;</span>))
+                    .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">"Failed in reconstructing the object"</span>))
             }
         }
     };
@@ -470,8 +470,8 @@
             }
         }
 
-        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; ::serde::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
-            <span class="kw">fn </span><span class="macro-nonterminal">deserialize</span>&lt;D: ::serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;&gt;(
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; ::serde::Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span><span class="macro-nonterminal">$</span><span class="kw">type </span>{
+            <span class="kw">fn </span><span class="macro-nonterminal">deserialize</span>&lt;D: ::serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;&gt;(
                 deserializer: D,
             ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt; {
                 <span class="kw">use </span>serde::Deserialize;
@@ -507,7 +507,7 @@
 // type.
 </span><span class="attr">#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, JsonSchema, Hash)]
 #[serde(transparent)]
-</span><span class="kw">pub struct </span>BytesRepresentation&lt;<span class="kw">const </span>N: usize&gt;(<span class="attr">#[schemars(with = <span class="string">&quot;Base64&quot;</span>)] </span><span class="kw">pub </span>[u8; N]);
+</span><span class="kw">pub struct </span>BytesRepresentation&lt;<span class="kw">const </span>N: usize&gt;(<span class="attr">#[schemars(with = <span class="string">"Base64"</span>)] </span><span class="kw">pub </span>[u8; N]);
 
 <span class="doccomment">/// Macro for generating a new alias for BytesRepresentation with the given $length, and From
 /// functions for both directions.
@@ -541,7 +541,7 @@
                     // the wrong length, thus cannot be handled in runtime.
                     </span>buffer.try_into().expect(
                         <span class="macro">format!</span>(
-                            <span class="string">&quot;BytesRepresentation of length {} defined with invalid serialized length {}&quot;</span>,
+                            <span class="string">"BytesRepresentation of length {} defined with invalid serialized length {}"</span>,
                             <span class="macro-nonterminal">$length</span>, buffer_len
                         )
                         .as_ref(),
@@ -564,19 +564,19 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>BytesRepresentation&lt;N&gt; {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>BytesRepresentation&lt;N&gt; {
     <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, D::Error&gt;
     <span class="kw">where
-        </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: de::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>bytes: [u8; N] = <span class="kw">match </span>deserializer.is_human_readable() {
             <span class="bool-val">true </span>=&gt; {
                 <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
                 <span class="kw">let </span>decoded =
-                    Base64::decode(<span class="kw-2">&amp;</span>s).map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">&quot;Base64 decoding failed&quot;</span>))<span class="question-mark">?</span>;
+                    Base64::decode(<span class="kw-2">&amp;</span>s).map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">"Base64 decoding failed"</span>))<span class="question-mark">?</span>;
                 <span class="kw">if </span>decoded.len() != N {
                     <span class="kw">return </span><span class="prelude-val">Err</span>(de::Error::custom(<span class="macro">format!</span>(
-                        <span class="string">&quot;Invalid buffer length {}, expecting {}&quot;</span>,
+                        <span class="string">"Invalid buffer length {}, expecting {}"</span>,
                         decoded.len(),
                         N
                     )));
@@ -593,12 +593,12 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="kw">const </span>N: usize&gt; Display <span class="kw">for </span>BytesRepresentation&lt;N&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.<span class="number">0</span>))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, Base64::encode(<span class="self">self</span>.<span class="number">0</span>))
     }
 }
 
-<span class="comment">// This is needed in Narwhal certificates but we don&#39;t want default implementations for all BytesRepresentations.
+<span class="comment">// This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.
 </span><span class="kw">impl </span>Default <span class="kw">for </span><span class="kw">crate</span>::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
     <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
         (<span class="kw-2">&amp;</span><span class="kw">crate</span>::bls12381::min_sig::BLS12381AggregateSignature::default()).into()
@@ -625,9 +625,9 @@
         <span class="comment">// Test that we are not adding extra fields.
         </span><span class="macro">assert_eq!</span>(
             serde_json::to_string(<span class="kw-2">&amp;</span>d1).unwrap(),
-            <span class="string">r#&quot;{&quot;key&quot;:&quot;l/HTpzGX15QmlWOMT6msD8NojE+XdLkFoU46PxcbrFhsVeg/+Xoa7/s68ArbIsa7&quot;}&quot;#
+            <span class="string">r#"{"key":"l/HTpzGX15QmlWOMT6msD8NojE+XdLkFoU46PxcbrFhsVeg/+Xoa7/s68ArbIsa7"}"#
         </span>);
-        <span class="comment">// Test that we don&#39;t add extra bytes on top of the actual serialized data.
+        <span class="comment">// Test that we don't add extra bytes on top of the actual serialized data.
         </span><span class="kw">let </span>ser = bincode::serialize(<span class="kw-2">&amp;</span>d1).unwrap();
         <span class="macro">assert_eq!</span>(G1_ELEMENT_BYTE_LENGTH, ser.len());
         <span class="comment">// Check we can go back correctly.
@@ -637,25 +637,25 @@
         <span class="comment">// Check the resulting schema.
         </span><span class="kw">let </span>schema = <span class="macro">schema_for!</span>(Dummy::&lt;G1ElementAsBytes&gt;);
         <span class="macro">assert_eq!</span>(
-            <span class="string">r##&quot;{
-  &quot;$schema&quot;: &quot;http://json-schema.org/draft-07/schema#&quot;,
-  &quot;title&quot;: &quot;Dummy_for_Base64&quot;,
-  &quot;type&quot;: &quot;object&quot;,
-  &quot;required&quot;: [
-    &quot;key&quot;
+            <span class="string">r##"{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Dummy_for_Base64",
+  "type": "object",
+  "required": [
+    "key"
   ],
-  &quot;properties&quot;: {
-    &quot;key&quot;: {
-      &quot;$ref&quot;: &quot;#/definitions/Base64&quot;
+  "properties": {
+    "key": {
+      "$ref": "#/definitions/Base64"
     }
   },
-  &quot;definitions&quot;: {
-    &quot;Base64&quot;: {
-      &quot;description&quot;: &quot;Base64 encoding&quot;,
-      &quot;type&quot;: &quot;string&quot;
+  "definitions": {
+    "Base64": {
+      "description": "Base64 encoding",
+      "type": "string"
     }
   }
-}&quot;##</span>,
+}"##</span>,
             serde_json::to_string_pretty(<span class="kw-2">&amp;</span>schema).unwrap()
         );
     }

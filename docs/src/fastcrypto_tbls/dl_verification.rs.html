@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dl_verification.rs`."><title>dl_verification.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dl_verification.rs`."><title>dl_verification.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -214,7 +214,7 @@
         <span class="kw">let </span>sum = multiplies.iter().fold(S::zero(), |acc, r| acc + <span class="kw-2">*</span>r);
         res.push(sum);
         <span class="kw">if </span>i == degree {
-            <span class="comment">// Save some computation since we don&#39;t need multiplies anymore
+            <span class="comment">// Save some computation since we don't need multiplies anymore
             </span><span class="kw">break</span>;
         }
         multiplies = multiplies
@@ -246,7 +246,7 @@
         .map(|e| G::ScalarType::from(e.index.get().into()))
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="kw">let </span>coeffs = batch_coefficients(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>evals_as_scalars, poly.degree());
-    <span class="kw">let </span>rhs = G::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, poly.as_vec()).expect(<span class="string">&quot;sizes match&quot;</span>);
+    <span class="kw">let </span>rhs = G::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, poly.as_vec()).expect(<span class="string">"sizes match"</span>);
 
     <span class="kw">if </span>lhs != rhs {
         <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof)
@@ -273,13 +273,13 @@
             .zip(pairs.iter())
             .map(|(r, (k, <span class="kw">_</span>))| <span class="kw-2">*</span>r * <span class="kw-2">*</span>k)
             .reduce(|a, b| a + b)
-            .expect(<span class="string">&quot;Iterators are non-empty&quot;</span>);
+            .expect(<span class="string">"Iterators are non-empty"</span>);
     <span class="comment">// Compute r1*H1 + r2*H2 + ... + rn*Hn
     </span><span class="kw">let </span>rhs = G::multi_scalar_mul(
         <span class="kw-2">&amp;</span>rs[..],
         <span class="kw-2">&amp;</span>pairs.iter().map(|(<span class="kw">_</span>, g)| <span class="kw-2">*</span>g).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
     )
-    .expect(<span class="string">&quot;valid sizes&quot;</span>);
+    .expect(<span class="string">"valid sizes"</span>);
 
     <span class="kw">if </span>lhs == rhs {
         <span class="prelude-val">Ok</span>(())
@@ -311,13 +311,13 @@
         <span class="kw-2">&amp;</span>lhs_coeffs[..],
         <span class="kw-2">&amp;</span>triplets.iter().map(|(<span class="kw">_</span>, b, <span class="kw">_</span>)| <span class="kw-2">*</span>b).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
     )
-    .expect(<span class="string">&quot;valid sizes&quot;</span>);
+    .expect(<span class="string">"valid sizes"</span>);
     <span class="comment">// Compute r1*H1 + r2*H2 + ... + rn*Hn
     </span><span class="kw">let </span>rhs = G::multi_scalar_mul(
         <span class="kw-2">&amp;</span>rs[..],
         <span class="kw-2">&amp;</span>triplets.iter().map(|(<span class="kw">_</span>, <span class="kw">_</span>, k_b)| <span class="kw-2">*</span>k_b).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
     )
-    .expect(<span class="string">&quot;valid sizes&quot;</span>);
+    .expect(<span class="string">"valid sizes"</span>);
 
     <span class="kw">if </span>lhs == rhs {
         <span class="prelude-val">Ok</span>(())
@@ -340,14 +340,14 @@
         .enumerate()
         .map(|(i, c)| <span class="kw-2">*</span>c * poly_f.eval(NonZeroU32::new((i + <span class="number">1</span>) <span class="kw">as </span>u32).unwrap()).value)
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-    <span class="kw">let </span>lhs = G::multi_scalar_mul(<span class="kw-2">&amp;</span>coefficients[..], values).expect(<span class="string">&quot;sizes match&quot;</span>);
+    <span class="kw">let </span>lhs = G::multi_scalar_mul(<span class="kw-2">&amp;</span>coefficients[..], values).expect(<span class="string">"sizes match"</span>);
     <span class="kw">if </span>lhs != G::zero() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidProof);
     }
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="doccomment">/// Checks if vectors v1=(a1*G1, ..., an*G1) and v2=(a1&#39;*G2, ..., an&#39;*G2) use ai = ai&#39; for all i, by
+<span class="doccomment">/// Checks if vectors v1=(a1*G1, ..., an*G1) and v2=(a1'*G2, ..., an'*G2) use ai = ai' for all i, by
 /// computing &lt;v1, e&gt; and &lt;v2, e&gt; for a random e and checking if they are equal using pairing.
 </span><span class="kw">pub fn </span>verify_equal_exponents&lt;R: AllowedRng&gt;(
     v1: <span class="kw-2">&amp;</span>[bls12381::G1Element],
@@ -358,8 +358,8 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidProof);
     }
     <span class="kw">let </span>rs = get_random_scalars::&lt;bls12381::Scalar, R&gt;(v1.len() <span class="kw">as </span>u32, rng);
-    <span class="kw">let </span>lhs = bls12381::G1Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v1).expect(<span class="string">&quot;sizes match&quot;</span>);
-    <span class="kw">let </span>rhs = bls12381::G2Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v2).expect(<span class="string">&quot;sizes match&quot;</span>);
+    <span class="kw">let </span>lhs = bls12381::G1Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v1).expect(<span class="string">"sizes match"</span>);
+    <span class="kw">let </span>rhs = bls12381::G2Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v2).expect(<span class="string">"sizes match"</span>);
 
     <span class="kw">if </span>lhs.pairing(<span class="kw-2">&amp;</span>bls12381::G2Element::generator())
         != bls12381::G1Element::generator().pairing(<span class="kw-2">&amp;</span>rhs)

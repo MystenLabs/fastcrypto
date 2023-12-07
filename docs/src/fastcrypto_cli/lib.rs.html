@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/lib.rs`."><title>lib.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -82,62 +82,62 @@
 
     <span class="doccomment">/// A test vector containing a signature over MSG encoded as a hex string.
     </span><span class="kw">pub struct </span>TestVector {
-        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
-        <span class="kw">pub </span>private: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
-        <span class="kw">pub </span>public: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
-        <span class="kw">pub </span>sig: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+        <span class="kw">pub </span>name: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+        <span class="kw">pub </span>private: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+        <span class="kw">pub </span>public: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
+        <span class="kw">pub </span>sig: <span class="kw-2">&amp;</span><span class="lifetime">'static </span>str,
     }
 
-    <span class="kw">pub const </span>MSG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;00010203&quot;</span>;
-    <span class="kw">pub const </span>SEED: <span class="kw-2">&amp;</span>str = <span class="string">&quot;0101010101010101010101010101010101010101010101010101010101010101&quot;</span>;
+    <span class="kw">pub const </span>MSG: <span class="kw-2">&amp;</span>str = <span class="string">"00010203"</span>;
+    <span class="kw">pub const </span>SEED: <span class="kw-2">&amp;</span>str = <span class="string">"0101010101010101010101010101010101010101010101010101010101010101"</span>;
 
     <span class="kw">const </span>ED25519_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;ed25519&quot;</span>,
-        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
-        public: <span class="string">&quot;8c553335eee80b9bfa0c544a45fe63474a09dff9c4b0b33db2b662f934ea46c4&quot;</span>,
-        sig: <span class="string">&quot;e929370aa36bef3a6b51594b6d96e0f389f09f28807e6b3a25d0ea93f56dd4659e15995f87545ab8f7f924bc18e0502fa689a57e57e931620b79a6c9ec7b3208&quot;</span>,
+        name: <span class="string">"ed25519"</span>,
+        private: <span class="string">"3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d"</span>,
+        public: <span class="string">"8c553335eee80b9bfa0c544a45fe63474a09dff9c4b0b33db2b662f934ea46c4"</span>,
+        sig: <span class="string">"e929370aa36bef3a6b51594b6d96e0f389f09f28807e6b3a25d0ea93f56dd4659e15995f87545ab8f7f924bc18e0502fa689a57e57e931620b79a6c9ec7b3208"</span>,
     };
 
     <span class="kw">const </span>SECP256K1_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;secp256k1&quot;</span>,
-        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
-        public: <span class="string">&quot;033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62&quot;</span>,
-        sig: <span class="string">&quot;416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc9046&quot;</span>,
+        name: <span class="string">"secp256k1"</span>,
+        private: <span class="string">"3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d"</span>,
+        public: <span class="string">"033e99a541db69bd32040dfe5037fbf5210dafa8151a71e21c5204b05d95ce0a62"</span>,
+        sig: <span class="string">"416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc9046"</span>,
     };
 
     <span class="kw">const </span>SECP256K1_RECOVERABLE_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;secp256k1-rec&quot;</span>,
+        name: <span class="string">"secp256k1-rec"</span>,
         private: SECP256K1_TEST.private,
         public: SECP256K1_TEST.public,
-        sig: <span class="string">&quot;416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc904601&quot;</span>,
+        sig: <span class="string">"416a21d50b3c838328d4f03213f8ef0c3776389a972ba1ecd37b56243734eba208ea6aaa6fc076ad7accd71d355f693a6fe54fe69b3c168eace9803827bc904601"</span>,
     };
 
     <span class="kw">const </span>SECP256R1_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;secp256r1&quot;</span>,
-        private: <span class="string">&quot;3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d&quot;</span>,
-        public: <span class="string">&quot;035a8b075508c75f4a124749982a7d21f80d9a5f6893e41a9e955fe4c821e0debe&quot;</span>,
-        sig: <span class="string">&quot;54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd&quot;</span>,
+        name: <span class="string">"secp256r1"</span>,
+        private: <span class="string">"3301e8d7e754db2cf57b0a4ca73f253c7053ad2bc5398777ba039b258e59ad9d"</span>,
+        public: <span class="string">"035a8b075508c75f4a124749982a7d21f80d9a5f6893e41a9e955fe4c821e0debe"</span>,
+        sig: <span class="string">"54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd"</span>,
     };
 
     <span class="kw">const </span>SECP256R1_RECOVERABLE_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;secp256r1-rec&quot;</span>,
+        name: <span class="string">"secp256r1-rec"</span>,
         private: SECP256R1_TEST.private,
         public: SECP256R1_TEST.public,
-        sig: <span class="string">&quot;54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd01&quot;</span>,
+        sig: <span class="string">"54d7d68b43d65f718f3a92041292a514987739c36158a836b2218c505ba0e17c661642e58c996ba78f0cca493690b89658d0da3b9333a9e4fcea9ebf13da64bd01"</span>,
     };
 
     <span class="kw">const </span>BLS12381_MINSIG_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;bls12381-minsig&quot;</span>,
-        private: <span class="string">&quot;5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337&quot;</span>,
-        public: <span class="string">&quot;a57feae28362201f657ccf6cdaba629758beb0214942804d2c084967d76908fe46ce355e0e735bdde2705620c7cf4b3903177f62ba43ba39277d952d80afee4fdc439a3ce2ce6fd113196d7de7aff7d1683ed507a21e6920119c91980329925b&quot;</span>,
-        sig: <span class="string">&quot;a09f9b16ac4cfeadfd4d69b940cf9ead098a7d9f0df0a11d07820cb1dbacda6e1d0631529b1070ec1d8eb29fbc76a807&quot;</span>,
+        name: <span class="string">"bls12381-minsig"</span>,
+        private: <span class="string">"5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337"</span>,
+        public: <span class="string">"a57feae28362201f657ccf6cdaba629758beb0214942804d2c084967d76908fe46ce355e0e735bdde2705620c7cf4b3903177f62ba43ba39277d952d80afee4fdc439a3ce2ce6fd113196d7de7aff7d1683ed507a21e6920119c91980329925b"</span>,
+        sig: <span class="string">"a09f9b16ac4cfeadfd4d69b940cf9ead098a7d9f0df0a11d07820cb1dbacda6e1d0631529b1070ec1d8eb29fbc76a807"</span>,
     };
 
     <span class="kw">const </span>BLS12381_MINPK_TEST: TestVector = TestVector {
-        name: <span class="string">&quot;bls12381-minpk&quot;</span>,
-        private: <span class="string">&quot;5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337&quot;</span>,
-        public: <span class="string">&quot;83738acb2121bb33db5a178a0a56ec041ae3b3617c9f2615a4366b9e3aa4021f3bbfe02858a0a0659ef9e8312c7b7d0f&quot;</span>,
-        sig: <span class="string">&quot;ae65a019350ebbb2280d52d19d1bed3fe804b753c1dd5ce7738ca47fa90110e668dc75b6f53972a1c812f135b099fd780bdf69f18952b777d32a865cbabce270a6af400223f9558161102348f79980537c10455355a54158b44bf62b5eef8c63&quot;</span>,
+        name: <span class="string">"bls12381-minpk"</span>,
+        private: <span class="string">"5fbaab9bd5ed88305581c2926a67ac56fd987ade7658335b1fa1acd258a6f337"</span>,
+        public: <span class="string">"83738acb2121bb33db5a178a0a56ec041ae3b3617c9f2615a4366b9e3aa4021f3bbfe02858a0a0659ef9e8312c7b7d0f"</span>,
+        sig: <span class="string">"ae65a019350ebbb2280d52d19d1bed3fe804b753c1dd5ce7738ca47fa90110e668dc75b6f53972a1c812f135b099fd780bdf69f18952b777d32a865cbabce270a6af400223f9558161102348f79980537c10455355a54158b44bf62b5eef8c63"</span>,
     };
 
     <span class="kw">pub const </span>TEST_CASES: [TestVector; <span class="number">7</span>] = [

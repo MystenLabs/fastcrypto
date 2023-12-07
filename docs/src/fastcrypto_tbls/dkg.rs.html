@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -708,7 +708,7 @@
 
 <span class="kw">use </span>tap::prelude::<span class="kw-2">*</span>;
 
-<span class="doccomment">/// Generics below use `G: GroupElement&#39; for the group of the VSS public key, and `EG: GroupElement&#39;
+<span class="doccomment">/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
 </span><span class="comment">// TODO: Add a description of the protocol.
@@ -724,8 +724,8 @@
     vss_sk: PrivatePoly&lt;G&gt;,
 }
 
-<span class="doccomment">/// The higher-level protocol is responsible for verifying that the &#39;sender&#39; is correct in the
-/// following messages (based on the chain&#39;s signatures).
+<span class="doccomment">/// The higher-level protocol is responsible for verifying that the 'sender' is correct in the
+/// following messages (based on the chain's signatures).
 /// Also, the high level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
@@ -847,10 +847,10 @@
         // to reduce communication.
         </span><span class="kw">let </span>vss_sk = PrivatePoly::&lt;G&gt;::rand(t - <span class="number">1</span>, rng);
 
-        <span class="comment">// TODO: remove once the protocol is stable since it&#39;s a non negligible computation.
+        <span class="comment">// TODO: remove once the protocol is stable since it's a non negligible computation.
         </span><span class="kw">let </span>vss_pk = vss_sk.commit::&lt;G&gt;();
         <span class="macro">info!</span>(
-            <span class="string">&quot;DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}&quot;</span>,
+            <span class="string">"DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}"</span>,
             my_id,
             nodes.hash(),
             t,
@@ -878,9 +878,9 @@
     <span class="doccomment">/// 4. Create the first message to be broadcasted.
     </span><span class="kw">pub fn </span>create_message&lt;R: AllowedRng&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span>R) -&gt; Message&lt;G, EG&gt; {
         <span class="kw">let </span>vss_pk = <span class="self">self</span>.vss_sk.commit();
-        <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;encs {}&quot;</span>, <span class="self">self</span>.id));
+        <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"encs {}"</span>, <span class="self">self</span>.id));
         <span class="macro">info!</span>(
-            <span class="string">&quot;DKG: Creating message for party {} with vss pk c0 {:?}, ro {:?}&quot;</span>,
+            <span class="string">"DKG: Creating message for party {} with vss pk c0 {:?}, ro {:?}"</span>,
             <span class="self">self</span>.id,
             vss_pk.c0(),
             ro_for_enc,
@@ -895,7 +895,7 @@
                     .iter()
                     .map(|share_id| <span class="self">self</span>.vss_sk.eval(<span class="kw-2">*</span>share_id).value)
                     .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-                <span class="kw">let </span>buff = bcs::to_bytes(<span class="kw-2">&amp;</span>shares).expect(<span class="string">&quot;serialize of shares should never fail&quot;</span>);
+                <span class="kw">let </span>buff = bcs::to_bytes(<span class="kw-2">&amp;</span>shares).expect(<span class="string">"serialize of shares should never fail"</span>);
                 (node.pk.clone(), buff)
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
@@ -903,7 +903,7 @@
         </span><span class="kw">let </span>encrypted_shares = MultiRecipientEncryption::encrypt(<span class="kw-2">&amp;</span>pk_and_shares, <span class="kw-2">&amp;</span>ro_for_enc, rng);
 
         <span class="macro">debug!</span>(
-            <span class="string">&quot;DKG: Created message using {:?}, with eph key {:?} nizk {:?}&quot;</span>,
+            <span class="string">"DKG: Created message using {:?}, with eph key {:?} nizk {:?}"</span>,
             ro_for_enc,
             encrypted_shares.ephemeral_key(),
             encrypted_shares.proof(),
@@ -921,7 +921,7 @@
             .node_id_to_node(msg.sender)
             .tap_err(|<span class="kw">_</span>| {
                 <span class="macro">warn!</span>(
-                    <span class="string">&quot;DKG: Message sanity check failed, invalid id {}&quot;</span>,
+                    <span class="string">"DKG: Message sanity check failed, invalid id {}"</span>,
                     msg.sender
                 )
             })
@@ -929,7 +929,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.t != msg.vss_pk.degree() + <span class="number">1 </span>{
             <span class="macro">warn!</span>(
-                <span class="string">&quot;DKG: Message sanity check failed for id {}, expected degree={}, got {}&quot;</span>,
+                <span class="string">"DKG: Message sanity check failed for id {}, expected degree={}, got {}"</span>,
                 msg.sender,
                 <span class="self">self</span>.t - <span class="number">1</span>,
                 msg.vss_pk.degree()
@@ -939,7 +939,7 @@
 
         <span class="kw">if </span><span class="kw-2">*</span>msg.vss_pk.c0() == G::zero() {
             <span class="macro">warn!</span>(
-                <span class="string">&quot;DKG: Message sanity check failed for id {}, zero c0&quot;</span>,
+                <span class="string">"DKG: Message sanity check failed for id {}, zero c0"</span>,
                 msg.sender,
             );
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
@@ -947,7 +947,7 @@
 
         <span class="kw">if </span><span class="self">self</span>.nodes.num_nodes() != msg.encrypted_shares.len() {
             <span class="macro">warn!</span>(
-                <span class="string">&quot;DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}&quot;</span>,
+                <span class="string">"DKG: Message sanity check failed for id {}, expected encrypted_shares.len={}, got {}"</span>,
                 msg.sender,
                 <span class="self">self</span>.nodes.num_nodes(),
                 msg.encrypted_shares.len()
@@ -955,11 +955,11 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
         }
 
-        <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;encs {}&quot;</span>, msg.sender));
+        <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"encs {}"</span>, msg.sender));
         msg.encrypted_shares
             .verify(<span class="kw-2">&amp;</span>ro_for_enc)
             .tap_err(|e| {
-                <span class="macro">warn!</span>(<span class="string">&quot;DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}&quot;</span>,
+                <span class="macro">warn!</span>(<span class="string">"DKG: Message sanity check failed for id {}, verify with RO {:?}, eph key {:?} and proof {:?}, returned err: {:?}"</span>,
                     msg.sender,
                     ro_for_enc,
                     msg.encrypted_shares.ephemeral_key(),
@@ -974,7 +974,7 @@
     ///    returns a set of valid shares (so far).
     ///
     ///   Returns error InvalidMessage if the message is invalid and should be ignored (note that we
-    ///   could count it as part of the f+1 messages we wait for, but it&#39;s also safe to ignore it
+    ///   could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
     ///   and just wait for f+1 valid messages).
     </span><span class="kw">pub fn </span>process_message&lt;R: AllowedRng&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -982,7 +982,7 @@
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;ProcessedMessage&lt;G, EG&gt;&gt; {
         <span class="macro">debug!</span>(
-            <span class="string">&quot;DKG: Processing message from party {} with vss pk c0 {:?}&quot;</span>,
+            <span class="string">"DKG: Processing message from party {} with vss pk c0 {:?}"</span>,
             message.sender,
             message.vss_pk.c0()
         );
@@ -993,14 +993,14 @@
         <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>message
             .encrypted_shares
             .get_encryption(<span class="self">self</span>.id <span class="kw">as </span>usize)
-            .expect(<span class="string">&quot;checked in sanity_check_message that there are enough encryptions&quot;</span>);
+            .expect(<span class="string">"checked in sanity_check_message that there are enough encryptions"</span>);
         <span class="kw">let </span>decrypted_shares = <span class="self">Self</span>::decrypt_and_get_share(<span class="kw-2">&amp;</span><span class="self">self</span>.enc_sk, encrypted_shares).ok();
 
         <span class="kw">if </span>decrypted_shares.is_none()
             || decrypted_shares.as_ref().unwrap().len() != my_share_ids.len()
         {
             <span class="macro">warn!</span>(
-                <span class="string">&quot;DKG: Processing message from party {} failed, invalid number of decrypted shares&quot;</span>,
+                <span class="string">"DKG: Processing message from party {} failed, invalid number of decrypted shares"</span>,
                 message.sender
             );
             <span class="kw">let </span>complaint = Complaint {
@@ -1008,7 +1008,7 @@
                 proof: <span class="self">self</span>.enc_sk.create_recovery_package(
                     encrypted_shares,
                     <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                        <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                        <span class="string">"recovery of id {} received from {}"</span>,
                         <span class="self">self</span>.id, message.sender
                     )),
                     rng,
@@ -1022,7 +1022,7 @@
         }
 
         <span class="kw">let </span>decrypted_shares = decrypted_shares
-            .expect(<span class="string">&quot;checked above&quot;</span>)
+            .expect(<span class="string">"checked above"</span>)
             .iter()
             .zip(my_share_ids)
             .map(|(s, i)| Eval {
@@ -1031,13 +1031,13 @@
             })
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="macro">debug!</span>(
-            <span class="string">&quot;DKG: Successfully decrypted shares from party {}&quot;</span>,
+            <span class="string">"DKG: Successfully decrypted shares from party {}"</span>,
             message.sender
         );
         <span class="comment">// Verify all shares in a batch.
         </span><span class="kw">if </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, <span class="kw-2">&amp;</span>message.vss_pk, rng).is_err() {
             <span class="macro">debug!</span>(
-                <span class="string">&quot;DKG: Processing message from party {} failed, invalid shares&quot;</span>,
+                <span class="string">"DKG: Processing message from party {} failed, invalid shares"</span>,
                 message.sender
             );
             <span class="kw">let </span>complaint = Complaint {
@@ -1045,7 +1045,7 @@
                 proof: <span class="self">self</span>.enc_sk.create_recovery_package(
                     encrypted_shares,
                     <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                        <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                        <span class="string">"recovery of id {} received from {}"</span>,
                         <span class="self">self</span>.id, message.sender
                     )),
                     rng,
@@ -1059,7 +1059,7 @@
         }
 
         <span class="macro">info!</span>(
-            <span class="string">&quot;DKG: Successfully processed message from party {}&quot;</span>,
+            <span class="string">"DKG: Successfully processed message from party {}"</span>,
             message.sender
         );
         <span class="prelude-val">Ok</span>(ProcessedMessage {
@@ -1075,7 +1075,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         processed_messages: <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;],
     ) -&gt; FastCryptoResult&lt;(Confirmation&lt;EG&gt;, UsedProcessedMessages&lt;G, EG&gt;)&gt; {
-        <span class="macro">debug!</span>(<span class="string">&quot;DKG: Trying to merge {} messages&quot;</span>, processed_messages.len());
+        <span class="macro">debug!</span>(<span class="string">"DKG: Trying to merge {} messages"</span>, processed_messages.len());
         <span class="kw">let </span>filtered_messages = UsedProcessedMessages::from(processed_messages);
         <span class="comment">// Verify we have enough messages
         </span><span class="kw">let </span>total_weight = filtered_messages
@@ -1084,16 +1084,16 @@
             .map(|m| {
                 <span class="self">self</span>.nodes
                     .node_id_to_node(m.message.sender)
-                    .expect(<span class="string">&quot;checked in process_message&quot;</span>)
+                    .expect(<span class="string">"checked in process_message"</span>)
                     .weight <span class="kw">as </span>u32
             })
             .sum::&lt;u32&gt;();
         <span class="kw">if </span>total_weight &lt; <span class="self">self</span>.t {
-            <span class="macro">debug!</span>(<span class="string">&quot;Merge failed with total weight {total_weight}&quot;</span>);
+            <span class="macro">debug!</span>(<span class="string">"Merge failed with total weight {total_weight}"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
         }
 
-        <span class="macro">info!</span>(<span class="string">&quot;DKG: Merging messages with total weight {total_weight}&quot;</span>);
+        <span class="macro">info!</span>(<span class="string">"DKG: Merging messages with total weight {total_weight}"</span>);
 
         <span class="comment">// Log used parties.
         </span><span class="kw">let </span>used_parties = filtered_messages
@@ -1101,8 +1101,8 @@
             </span>.iter()
             .map(|m| m.message.sender.to_string())
             .collect::&lt;Vec&lt;String&gt;&gt;()
-            .join(<span class="string">&quot;,&quot;</span>);
-        <span class="macro">debug!</span>(<span class="string">&quot;DKG: Using messages from parties: {}&quot;</span>, used_parties);
+            .join(<span class="string">","</span>);
+        <span class="macro">debug!</span>(<span class="string">"DKG: Using messages from parties: {}"</span>, used_parties);
 
         <span class="kw">let </span><span class="kw-2">mut </span>conf = Confirmation {
             sender: <span class="self">self</span>.id,
@@ -1110,7 +1110,7 @@
         };
         <span class="kw">for </span>m <span class="kw">in </span><span class="kw-2">&amp;</span>filtered_messages.<span class="number">0 </span>{
             <span class="kw">if let </span><span class="prelude-val">Some</span>(complaint) = <span class="kw-2">&amp;</span>m.complaint {
-                <span class="macro">debug!</span>(<span class="string">&quot;DKG: Including a complaint on party {}&quot;</span>, m.message.sender);
+                <span class="macro">debug!</span>(<span class="string">"DKG: Including a complaint on party {}"</span>, m.message.sender);
                 conf.complaints.push(complaint.clone());
             }
         }
@@ -1132,7 +1132,7 @@
         minimal_threshold: u32,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;VerifiedProcessedMessages&lt;G, EG&gt;&gt; {
-        <span class="macro">debug!</span>(<span class="string">&quot;Processing {} confirmations&quot;</span>, confirmations.len());
+        <span class="macro">debug!</span>(<span class="string">"Processing {} confirmations"</span>, confirmations.len());
         <span class="kw">if </span>minimal_threshold &lt; <span class="self">self</span>.t || minimal_threshold == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
@@ -1148,16 +1148,16 @@
             .map(|c| {
                 <span class="self">self</span>.nodes
                     .node_id_to_node(c.sender)
-                    .expect(<span class="string">&quot;checked above&quot;</span>)
+                    .expect(<span class="string">"checked above"</span>)
                     .weight <span class="kw">as </span>u32
             })
             .sum::&lt;u32&gt;();
         <span class="kw">if </span>total_weight &lt; minimal_threshold {
-            <span class="macro">debug!</span>(<span class="string">&quot;Processing confirmations failed with total weight {total_weight}&quot;</span>);
+            <span class="macro">debug!</span>(<span class="string">"Processing confirmations failed with total weight {total_weight}"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
         }
 
-        <span class="macro">info!</span>(<span class="string">&quot;DKG: Processing confirmations with total weight {total_weight}, expected {minimal_threshold}&quot;</span>);
+        <span class="macro">info!</span>(<span class="string">"DKG: Processing confirmations with total weight {total_weight}, expected {minimal_threshold}"</span>);
 
         <span class="comment">// Two hash maps for faster access in the main loop below.
         </span><span class="kw">let </span>id_to_pk = <span class="self">self
@@ -1172,21 +1172,21 @@
             .collect::&lt;HashMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">let </span><span class="kw-2">mut </span>to_exclude = HashSet::new();
-        <span class="lifetime">&#39;outer</span>: <span class="kw">for </span>m2 <span class="kw">in </span>confirmations {
-            <span class="lifetime">&#39;inner</span>: <span class="kw">for </span>complaint <span class="kw">in </span><span class="kw-2">&amp;</span>m2.complaints {
+        <span class="lifetime">'outer</span>: <span class="kw">for </span>m2 <span class="kw">in </span>confirmations {
+            <span class="lifetime">'inner</span>: <span class="kw">for </span>complaint <span class="kw">in </span><span class="kw-2">&amp;</span>m2.complaints {
                 <span class="kw">let </span>accused = complaint.accused_sender;
                 <span class="kw">let </span>accuser = m2.sender;
-                <span class="macro">debug!</span>(<span class="string">&quot;DKG: Checking complaint from {accuser} on {accused}&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"DKG: Checking complaint from {accuser} on {accused}"</span>);
                 <span class="kw">let </span>accuser_pk = id_to_pk
                     .get(<span class="kw-2">&amp;</span>accuser)
-                    .expect(<span class="string">&quot;checked above that accuser is valid id&quot;</span>);
-                <span class="comment">// If the claim refers to a non existing message, it&#39;s an invalid complaint.
+                    .expect(<span class="string">"checked above that accuser is valid id"</span>);
+                <span class="comment">// If the claim refers to a non existing message, it's an invalid complaint.
                 </span><span class="kw">let </span>valid_complaint = <span class="kw">match </span>id_to_m1.get(<span class="kw-2">&amp;</span>accused) {
                     <span class="prelude-val">Some</span>(related_m1) =&gt; {
                         <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>related_m1
                             .encrypted_shares
                             .get_encryption(accuser <span class="kw">as </span>usize)
-                            .expect(<span class="string">&quot;checked earlier that there are enough encryptions&quot;</span>);
+                            .expect(<span class="string">"checked earlier that there are enough encryptions"</span>);
                         <span class="self">Self</span>::check_complaint_proof(
                             <span class="kw-2">&amp;</span>complaint.proof,
                             accuser_pk,
@@ -1194,7 +1194,7 @@
                             <span class="kw-2">&amp;</span>related_m1.vss_pk,
                             encrypted_shares,
                             <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
-                                <span class="string">&quot;recovery of id {} received from {}&quot;</span>,
+                                <span class="string">"recovery of id {} received from {}"</span>,
                                 accuser, accused
                             )),
                             rng,
@@ -1207,16 +1207,16 @@
                     <span class="comment">// Ignore accused from now on, and continue processing complaints from the
                     // current accuser.
                     </span><span class="bool-val">true </span>=&gt; {
-                        <span class="macro">warn!</span>(<span class="string">&quot;DKG: Processing confirmations excluded accused party {accused}&quot;</span>);
+                        <span class="macro">warn!</span>(<span class="string">"DKG: Processing confirmations excluded accused party {accused}"</span>);
                         to_exclude.insert(accused);
-                        <span class="kw">continue </span><span class="lifetime">&#39;inner</span>;
+                        <span class="kw">continue </span><span class="lifetime">'inner</span>;
                     }
                     <span class="comment">// Ignore the accuser from now on, including its other complaints (not critical
                     // for security, just saves some work).
                     </span><span class="bool-val">false </span>=&gt; {
-                        <span class="macro">warn!</span>(<span class="string">&quot;DKG: Processing confirmations excluded accuser {accuser}&quot;</span>);
+                        <span class="macro">warn!</span>(<span class="string">"DKG: Processing confirmations excluded accuser {accuser}"</span>);
                         to_exclude.insert(accuser);
-                        <span class="kw">continue </span><span class="lifetime">&#39;outer</span>;
+                        <span class="kw">continue </span><span class="lifetime">'outer</span>;
                     }
                 }
             }
@@ -1233,9 +1233,9 @@
             </span>.iter()
             .map(|m| m.message.sender.to_string())
             .collect::&lt;Vec&lt;String&gt;&gt;()
-            .join(<span class="string">&quot;,&quot;</span>);
+            .join(<span class="string">","</span>);
         <span class="macro">debug!</span>(
-            <span class="string">&quot;DKG: Using verified messages from parties: {}&quot;</span>,
+            <span class="string">"DKG: Using verified messages from parties: {}"</span>,
             used_parties
         );
 
@@ -1245,7 +1245,7 @@
     <span class="doccomment">/// 8. Aggregate the valid shares (as returned from the previous step) and the public key.
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>aggregate(<span class="kw-2">&amp;</span><span class="self">self</span>, messages: <span class="kw-2">&amp;</span>VerifiedProcessedMessages&lt;G, EG&gt;) -&gt; Output&lt;G, EG&gt; {
         <span class="macro">debug!</span>(
-            <span class="string">&quot;Aggregating shares from {} verified messages&quot;</span>,
+            <span class="string">"Aggregating shares from {} verified messages"</span>,
             messages.<span class="number">0</span>.len()
         );
         <span class="kw">let </span>id_to_m1 = messages
@@ -1273,24 +1273,24 @@
             vss_pk.add(
                 <span class="kw-2">&amp;</span>id_to_m1
                     .get(<span class="kw-2">&amp;</span>m.message.sender)
-                    .expect(<span class="string">&quot;shares only includes shares from valid first messages&quot;</span>)
+                    .expect(<span class="string">"shares only includes shares from valid first messages"</span>)
                     .vss_pk,
             );
             <span class="kw">for </span>share <span class="kw">in </span><span class="kw-2">&amp;</span>m.shares {
                 final_shares
                     .get_mut(<span class="kw-2">&amp;</span>share.index)
-                    .expect(<span class="string">&quot;created above&quot;</span>)
+                    .expect(<span class="string">"created above"</span>)
                     .value += share.value;
             }
         }
 
-        <span class="comment">// If I didn&#39;t receive a valid share for one of the verified messages (i.e., my complaint
-        // was not processed), then I don&#39;t have a valid share for the final key.
+        <span class="comment">// If I didn't receive a valid share for one of the verified messages (i.e., my complaint
+        // was not processed), then I don't have a valid share for the final key.
         </span><span class="kw">let </span>shares = <span class="kw">if </span>messages.<span class="number">0</span>.iter().all(|m| m.complaint.is_none()) {
-            <span class="macro">info!</span>(<span class="string">&quot;DKG: Aggregating my shares succeeded&quot;</span>);
+            <span class="macro">info!</span>(<span class="string">"DKG: Aggregating my shares succeeded"</span>);
             <span class="prelude-val">Some</span>(final_shares.values().cloned().collect())
         } <span class="kw">else </span>{
-            <span class="macro">warn!</span>(<span class="string">&quot;DKG: Aggregating my shares failed&quot;</span>);
+            <span class="macro">warn!</span>(<span class="string">"DKG: Aggregating my shares failed"</span>);
             <span class="prelude-val">None
         </span>};
 
@@ -1340,13 +1340,13 @@
         <span class="kw">let </span>decrypted_shares: Vec&lt;G::ScalarType&gt; = <span class="kw">match </span>bcs::from_bytes(buffer.as_slice()) {
             <span class="prelude-val">Ok</span>(s) =&gt; s,
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof failed to deserialize shares&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"DKG: check_complaint_proof failed to deserialize shares"</span>);
                 <span class="kw">return </span><span class="prelude-val">Ok</span>(());
             }
         };
 
         <span class="kw">if </span>decrypted_shares.len() != share_ids.len() {
-            <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof recovered invalid number of shares&quot;</span>);
+            <span class="macro">debug!</span>(<span class="string">"DKG: check_complaint_proof recovered invalid number of shares"</span>);
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
 
@@ -1362,7 +1362,7 @@
         <span class="kw">match </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, vss_pk, rng) {
             <span class="prelude-val">Ok</span>(()) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),
             <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
-                <span class="macro">debug!</span>(<span class="string">&quot;DKG: check_complaint_proof failed to verify shares&quot;</span>);
+                <span class="macro">debug!</span>(<span class="string">"DKG: check_complaint_proof failed to verify shares"</span>);
                 <span class="prelude-val">Ok</span>(())
             }
         }

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/wesolowski.rs`."><title>wesolowski.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/wesolowski.rs`."><title>wesolowski.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -340,12 +340,12 @@
     }
 }
 
-<span class="doccomment">/// Implementation of Wesolowski&#39;s VDF construction over a group of unknown order using a strong
+<span class="doccomment">/// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
 /// Fiat-Shamir implementation.
 </span><span class="kw">pub type </span>StrongVDF&lt;G&gt; =
     WesolowskiVDF&lt;G, StrongFiatShamir&lt;G, CHALLENGE_SIZE, DefaultPrimalityCheck&gt;&gt;;
 
-<span class="doccomment">/// Implementation of Wesolowski&#39;s VDF construction over a group of unknown order using the Fiat-Shamir
+<span class="doccomment">/// Implementation of Wesolowski's VDF construction over a group of unknown order using the Fiat-Shamir
 /// construction from chiavdf (https://github.com/Chia-Network/chiavdf).
 </span><span class="kw">pub type </span>WeakVDF&lt;G&gt; = WesolowskiVDF&lt;G, WeakFiatShamir&lt;G, CHALLENGE_SIZE, DefaultPrimalityCheck&gt;&gt;;
 
@@ -390,11 +390,11 @@
         seed.extend_from_slice(<span class="kw-2">&amp;</span>input.to_bytes());
         seed.extend_from_slice(<span class="kw-2">&amp;</span>output.to_bytes());
         hash_prime::hash_prime::&lt;P&gt;(<span class="kw-2">&amp;</span>seed, CHALLENGE_SIZE, <span class="kw-2">&amp;</span>[CHALLENGE_SIZE - <span class="number">1</span>])
-            .expect(<span class="string">&quot;The length should be a multiple of 8&quot;</span>)
+            .expect(<span class="string">"The length should be a multiple of 8"</span>)
     }
 }
 
-<span class="doccomment">/// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski&#39;s VDF construction.
+<span class="doccomment">/// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
 /// The implementation is strong, meaning that all public parameters are used in the challenge generation.
 /// See https://eprint.iacr.org/2023/691.
 </span><span class="kw">pub struct </span>StrongFiatShamir&lt;G, <span class="kw">const </span>CHALLENGE_SIZE: usize, P&gt; {
@@ -423,7 +423,7 @@
         seed.extend_from_slice(<span class="kw-2">&amp;</span>vdf.group_parameter.to_bytes());
 
         hash_prime::hash_prime::&lt;P&gt;(<span class="kw-2">&amp;</span>seed, CHALLENGE_SIZE, <span class="kw-2">&amp;</span>[CHALLENGE_SIZE - <span class="number">1</span>])
-            .expect(<span class="string">&quot;The length should be a multiple of 8&quot;</span>)
+            .expect(<span class="string">"The length should be a multiple of 8"</span>)
     }
 }
 
@@ -446,7 +446,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_prove_and_verify() {
-        <span class="kw">let </span>challenge = hex::decode(<span class="string">&quot;99c9e5e3a4449a4b4e15&quot;</span>).unwrap();
+        <span class="kw">let </span>challenge = hex::decode(<span class="string">"99c9e5e3a4449a4b4e15"</span>).unwrap();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>challenge, <span class="number">1024</span>).unwrap();
 
@@ -466,10 +466,10 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_verify_from_chain() {
         <span class="comment">// Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
-        </span><span class="kw">let </span>challenge_hex = <span class="string">&quot;ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb&quot;</span>;
+        </span><span class="kw">let </span>challenge_hex = <span class="string">"ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"</span>;
         <span class="kw">let </span>iterations = <span class="number">4194304u64</span>;
-        <span class="kw">let </span>result_hex = <span class="string">&quot;0300445cbcaa176166d9a50b9699e9394be46766c8f6494a1a9afd95bb5dc652ee42101278ad7358baf4ae727e4f5a6f732e3a8c26d9d11365081275a6d4b36dda63a905baffdaebab3311d8d6e2f356edf3bb1cf90e5654e688869d66d1c60676440100&quot;</span>;
-        <span class="kw">let </span>proof_hex = <span class="string">&quot;030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100&quot;</span>;
+        <span class="kw">let </span>result_hex = <span class="string">"0300445cbcaa176166d9a50b9699e9394be46766c8f6494a1a9afd95bb5dc652ee42101278ad7358baf4ae727e4f5a6f732e3a8c26d9d11365081275a6d4b36dda63a905baffdaebab3311d8d6e2f356edf3bb1cf90e5654e688869d66d1c60676440100"</span>;
+        <span class="kw">let </span>proof_hex = <span class="string">"030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100"</span>;
 
         <span class="kw">let </span>challenge = hex::decode(challenge_hex).unwrap();
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>challenge, <span class="number">1024</span>).unwrap();
@@ -488,10 +488,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_verify_1024() {
-        <span class="kw">let </span>challenge = hex::decode(<span class="string">&quot;99c9e5e3a4449a4b4e15&quot;</span>).unwrap();
+        <span class="kw">let </span>challenge = hex::decode(<span class="string">"99c9e5e3a4449a4b4e15"</span>).unwrap();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
-        <span class="kw">let </span>result_hex = <span class="string">&quot;030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100&quot;</span>;
-        <span class="kw">let </span>proof_hex = <span class="string">&quot;0100eb1e1b0b58bca2ceca30344321d77e6c6f995e7c9db878d63aa71348db3577634e309be81ed71cba185a0d3c6bba2945c7002cc757c29a612afec8bf95581c008d2fe1c77e5171f8b85706e5f823cd233d847117f25b53d45cb30fb036b5b0030100&quot;</span>;
+        <span class="kw">let </span>result_hex = <span class="string">"030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100"</span>;
+        <span class="kw">let </span>proof_hex = <span class="string">"0100eb1e1b0b58bca2ceca30344321d77e6c6f995e7c9db878d63aa71348db3577634e309be81ed71cba185a0d3c6bba2945c7002cc757c29a612afec8bf95581c008d2fe1c77e5171f8b85706e5f823cd233d847117f25b53d45cb30fb036b5b0030100"</span>;
 
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>challenge, <span class="number">1024</span>).unwrap();
 

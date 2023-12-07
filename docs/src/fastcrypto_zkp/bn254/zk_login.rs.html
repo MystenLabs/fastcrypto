@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -610,8 +610,8 @@
 <span class="kw">use </span>reqwest::Client;
 <span class="kw">use </span>serde_json::Value;
 
-<span class="kw">use super</span>::{poseidon::to_poseidon_hash, utils::split_to_two_frs};
-<span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::hash;
+<span class="kw">use </span><span class="kw">super</span>::utils::split_to_two_frs;
+<span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_zk_login;
 <span class="kw">use </span><span class="kw">crate</span>::circom::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
 };
@@ -627,18 +627,18 @@
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="attr">#[cfg(test)]
-#[path = <span class="string">&quot;unit_tests/zk_login_tests.rs&quot;</span>]
+#[path = <span class="string">"unit_tests/zk_login_tests.rs"</span>]
 </span><span class="kw">mod </span>zk_login_tests;
 
-<span class="attr">#[cfg(feature = <span class="string">&quot;e2e&quot;</span>)]
+<span class="attr">#[cfg(feature = <span class="string">"e2e"</span>)]
 #[cfg(test)]
-#[path = <span class="string">&quot;unit_tests/zk_login_e2e_tests.rs&quot;</span>]
+#[path = <span class="string">"unit_tests/zk_login_e2e_tests.rs"</span>]
 </span><span class="kw">mod </span>zk_login_e2e_tests;
 
 <span class="kw">const </span>MAX_HEADER_LEN: u8 = <span class="number">248</span>;
 <span class="kw">const </span>PACK_WIDTH: u8 = <span class="number">248</span>;
-<span class="kw">const </span>ISS: <span class="kw-2">&amp;</span>str = <span class="string">&quot;iss&quot;</span>;
-<span class="kw">const </span>BASE64_URL_CHARSET: <span class="kw-2">&amp;</span>str = <span class="string">&quot;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_&quot;</span>;
+<span class="kw">const </span>ISS: <span class="kw-2">&amp;</span>str = <span class="string">"iss"</span>;
+<span class="kw">const </span>BASE64_URL_CHARSET: <span class="kw-2">&amp;</span>str = <span class="string">"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"</span>;
 <span class="kw">const </span>MAX_EXT_ISS_LEN: u8 = <span class="number">165</span>;
 <span class="kw">const </span>MAX_ISS_LEN_B64: u8 = <span class="number">4 </span>* (<span class="number">1 </span>+ MAX_EXT_ISS_LEN / <span class="number">3</span>);
 
@@ -699,12 +699,12 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>s {
-            <span class="string">&quot;Google&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
-            <span class="string">&quot;Twitch&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
-            <span class="string">&quot;Facebook&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
-            <span class="string">&quot;Kakao&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
-            <span class="string">&quot;Apple&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
-            <span class="string">&quot;Slack&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
+            <span class="string">"Google" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
+            <span class="string">"Twitch" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
+            <span class="string">"Facebook" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
+            <span class="string">"Kakao" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
+            <span class="string">"Apple" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
+            <span class="string">"Slack" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
@@ -713,12 +713,12 @@
 <span class="kw">impl </span>ToString <span class="kw">for </span>OIDCProvider {
     <span class="kw">fn </span>to_string(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
         <span class="kw">match </span><span class="self">self </span>{
-            <span class="self">Self</span>::Google =&gt; <span class="string">&quot;Google&quot;</span>.to_string(),
-            <span class="self">Self</span>::Twitch =&gt; <span class="string">&quot;Twitch&quot;</span>.to_string(),
-            <span class="self">Self</span>::Facebook =&gt; <span class="string">&quot;Facebook&quot;</span>.to_string(),
-            <span class="self">Self</span>::Kakao =&gt; <span class="string">&quot;Kakao&quot;</span>.to_string(),
-            <span class="self">Self</span>::Apple =&gt; <span class="string">&quot;Apple&quot;</span>.to_string(),
-            <span class="self">Self</span>::Slack =&gt; <span class="string">&quot;Slack&quot;</span>.to_string(),
+            <span class="self">Self</span>::Google =&gt; <span class="string">"Google"</span>.to_string(),
+            <span class="self">Self</span>::Twitch =&gt; <span class="string">"Twitch"</span>.to_string(),
+            <span class="self">Self</span>::Facebook =&gt; <span class="string">"Facebook"</span>.to_string(),
+            <span class="self">Self</span>::Kakao =&gt; <span class="string">"Kakao"</span>.to_string(),
+            <span class="self">Self</span>::Apple =&gt; <span class="string">"Apple"</span>.to_string(),
+            <span class="self">Self</span>::Slack =&gt; <span class="string">"Slack"</span>.to_string(),
         }
     }
 }
@@ -728,27 +728,27 @@
     </span><span class="kw">pub fn </span>get_config(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ProviderConfig {
         <span class="kw">match </span><span class="self">self </span>{
             OIDCProvider::Google =&gt; ProviderConfig::new(
-                <span class="string">&quot;https://accounts.google.com&quot;</span>,
-                <span class="string">&quot;https://www.googleapis.com/oauth2/v2/certs&quot;</span>,
+                <span class="string">"https://accounts.google.com"</span>,
+                <span class="string">"https://www.googleapis.com/oauth2/v2/certs"</span>,
             ),
             OIDCProvider::Twitch =&gt; ProviderConfig::new(
-                <span class="string">&quot;https://id.twitch.tv/oauth2&quot;</span>,
-                <span class="string">&quot;https://id.twitch.tv/oauth2/keys&quot;</span>,
+                <span class="string">"https://id.twitch.tv/oauth2"</span>,
+                <span class="string">"https://id.twitch.tv/oauth2/keys"</span>,
             ),
             OIDCProvider::Facebook =&gt; ProviderConfig::new(
-                <span class="string">&quot;https://www.facebook.com&quot;</span>,
-                <span class="string">&quot;https://www.facebook.com/.well-known/oauth/openid/jwks/&quot;</span>,
+                <span class="string">"https://www.facebook.com"</span>,
+                <span class="string">"https://www.facebook.com/.well-known/oauth/openid/jwks/"</span>,
             ),
             OIDCProvider::Kakao =&gt; ProviderConfig::new(
-                <span class="string">&quot;https://kauth.kakao.com&quot;</span>,
-                <span class="string">&quot;https://kauth.kakao.com/.well-known/jwks.json&quot;</span>,
+                <span class="string">"https://kauth.kakao.com"</span>,
+                <span class="string">"https://kauth.kakao.com/.well-known/jwks.json"</span>,
             ),
             OIDCProvider::Apple =&gt; ProviderConfig::new(
-                <span class="string">&quot;https://appleid.apple.com&quot;</span>,
-                <span class="string">&quot;https://appleid.apple.com/auth/keys&quot;</span>,
+                <span class="string">"https://appleid.apple.com"</span>,
+                <span class="string">"https://appleid.apple.com/auth/keys"</span>,
             ),
             OIDCProvider::Slack =&gt; {
-                ProviderConfig::new(<span class="string">&quot;https://slack.com&quot;</span>, <span class="string">&quot;https://slack.com/openid/connect/keys&quot;</span>)
+                ProviderConfig::new(<span class="string">"https://slack.com"</span>, <span class="string">"https://slack.com/openid/connect/keys"</span>)
             }
         }
     }
@@ -756,12 +756,12 @@
     <span class="doccomment">/// Returns the OIDCProvider for the given iss string.
     </span><span class="kw">pub fn </span>from_iss(iss: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         <span class="kw">match </span>iss {
-            <span class="string">&quot;https://accounts.google.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
-            <span class="string">&quot;https://id.twitch.tv/oauth2&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
-            <span class="string">&quot;https://www.facebook.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
-            <span class="string">&quot;https://kauth.kakao.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
-            <span class="string">&quot;https://appleid.apple.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
-            <span class="string">&quot;https://slack.com&quot; </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
+            <span class="string">"https://accounts.google.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Google),
+            <span class="string">"https://id.twitch.tv/oauth2" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Twitch),
+            <span class="string">"https://www.facebook.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Facebook),
+            <span class="string">"https://kauth.kakao.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
+            <span class="string">"https://appleid.apple.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
+            <span class="string">"https://slack.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
@@ -787,7 +787,7 @@
 </span><span class="kw">pub struct </span>JWKReader {
     e: String,
     n: String,
-    <span class="attr">#[serde(rename = <span class="string">&quot;use&quot;</span>, skip_serializing_if = <span class="string">&quot;Option::is_none&quot;</span>)]
+    <span class="attr">#[serde(rename = <span class="string">"use"</span>, skip_serializing_if = <span class="string">"Option::is_none"</span>)]
     </span>my_use: <span class="prelude-ty">Option</span>&lt;String&gt;,
     kid: String,
     kty: String,
@@ -798,7 +798,7 @@
     <span class="doccomment">/// Parse JWK from the reader struct.
     </span><span class="kw">pub fn </span>from_reader(reader: JWKReader) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>trimmed_e = trim(reader.e);
-        <span class="kw">if </span>reader.alg != <span class="string">&quot;RS256&quot; </span>|| reader.kty != <span class="string">&quot;RSA&quot; </span>|| trimmed_e != <span class="string">&quot;AQAB&quot; </span>{
+        <span class="kw">if </span>reader.alg != <span class="string">"RS256" </span>|| reader.kty != <span class="string">"RSA" </span>|| trimmed_e != <span class="string">"AQAB" </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
@@ -810,9 +810,9 @@
     }
 }
 
-<span class="doccomment">/// Trim trailing &#39;=&#39; so that it is considered a valid base64 url encoding string by base64ct library.
+<span class="doccomment">/// Trim trailing '=' so that it is considered a valid base64 url encoding string by base64ct library.
 </span><span class="kw">fn </span>trim(str: String) -&gt; String {
-    str.trim_end_matches(<span class="string">&#39;=&#39;</span>).to_owned()
+    str.trim_end_matches(<span class="string">'='</span>).to_owned()
 }
 
 <span class="doccomment">/// Fetch JWKs from the given provider and return a list of JwkId -&gt; JWK.
@@ -824,11 +824,11 @@
         .get(provider.get_config().jwk_endpoint)
         .send()
         .<span class="kw">await
-        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Failed to get JWK&quot;</span>.to_string()))<span class="question-mark">?</span>;
+        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Failed to get JWK"</span>.to_string()))<span class="question-mark">?</span>;
     <span class="kw">let </span>bytes = response
         .bytes()
         .<span class="kw">await
-        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Failed to get bytes&quot;</span>.to_string()))<span class="question-mark">?</span>;
+        </span>.map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Failed to get bytes"</span>.to_string()))<span class="question-mark">?</span>;
     parse_jwks(<span class="kw-2">&amp;</span>bytes, provider)
 }
 
@@ -840,11 +840,11 @@
     <span class="kw">let </span>json_str = String::from_utf8_lossy(json_bytes);
     <span class="kw">let </span>parsed_list: <span class="prelude-ty">Result</span>&lt;serde_json::Value, serde_json::Error&gt; = serde_json::from_str(<span class="kw-2">&amp;</span>json_str);
     <span class="kw">if let </span><span class="prelude-val">Ok</span>(parsed_list) = parsed_list {
-        <span class="kw">if let </span><span class="prelude-val">Some</span>(keys) = parsed_list[<span class="string">&quot;keys&quot;</span>].as_array() {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(keys) = parsed_list[<span class="string">"keys"</span>].as_array() {
             <span class="kw">let </span><span class="kw-2">mut </span>ret = Vec::new();
             <span class="kw">for </span>k <span class="kw">in </span>keys {
                 <span class="kw">let </span>parsed: JWKReader = serde_json::from_value(k.clone())
-                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Parse error&quot;</span>.to_string()))<span class="question-mark">?</span>;
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Parse error"</span>.to_string()))<span class="question-mark">?</span>;
 
                 ret.push((
                     JwkId::new(provider.get_config().iss, parsed.kid.clone()),
@@ -855,13 +855,13 @@
         }
     }
     <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-        <span class="string">&quot;Invalid JWK response&quot;</span>.to_string(),
+        <span class="string">"Invalid JWK response"</span>.to_string(),
     ))
 }
 
 <span class="doccomment">/// A claim consists of value and index_mod_4.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, JsonSchema, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>Claim {
     value: String,
     index_mod_4: u8,
@@ -890,7 +890,7 @@
 
 <span class="doccomment">/// All inputs required for the zk login proof verification and other public inputs.
 </span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 
 </span><span class="kw">pub struct </span>ZkLoginInputs {
     proof_points: ZkLoginProof,
@@ -903,7 +903,7 @@
 
 <span class="doccomment">/// The reader struct for the proving service response.
 </span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
-#[serde(rename_all = <span class="string">&quot;camelCase&quot;</span>)]
+#[serde(rename_all = <span class="string">"camelCase"</span>)]
 </span><span class="kw">pub struct </span>ZkLoginInputsReader {
     proof_points: ZkLoginProof,
     iss_base64_details: Claim,
@@ -972,7 +972,7 @@
         max_epoch: u64,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
         <span class="kw">if </span><span class="self">self</span>.header_base64.len() &gt; MAX_HEADER_LEN <span class="kw">as </span>usize {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">&quot;Header too long&quot;</span>.to_string()));
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">"Header too long"</span>.to_string()));
         }
 
         <span class="kw">let </span>addr_seed = to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed)<span class="question-mark">?</span>;
@@ -985,7 +985,7 @@
             hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.value, MAX_ISS_LEN_B64)<span class="question-mark">?</span>;
         <span class="kw">let </span>header_f = hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.header_base64, MAX_HEADER_LEN)<span class="question-mark">?</span>;
         <span class="kw">let </span>modulus_f = hash_to_field(<span class="kw-2">&amp;</span>[BigUint::from_bytes_be(modulus)], <span class="number">2048</span>, PACK_WIDTH)<span class="question-mark">?</span>;
-        hash(<span class="macro">vec!</span>[
+        poseidon_zk_login(<span class="macro">vec!</span>[
             first,
             second,
             addr_seed,
@@ -1028,14 +1028,14 @@
     extended_claim: <span class="kw-2">&amp;</span>str,
     expected_key: <span class="kw-2">&amp;</span>str,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="comment">// Last character of each extracted_claim must be &#39;}&#39; or &#39;,&#39;
-    </span><span class="kw">if </span>!(extended_claim.ends_with(<span class="string">&#39;}&#39;</span>) || extended_claim.ends_with(<span class="string">&#39;,&#39;</span>)) {
+    <span class="comment">// Last character of each extracted_claim must be '}' or ','
+    </span><span class="kw">if </span>!(extended_claim.ends_with(<span class="string">'}'</span>) || extended_claim.ends_with(<span class="string">','</span>)) {
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-            <span class="string">&quot;Invalid extended claim&quot;</span>.to_string(),
+            <span class="string">"Invalid extended claim"</span>.to_string(),
         ));
     }
 
-    <span class="kw">let </span>json_str = <span class="macro">format!</span>(<span class="string">&quot;{{{}}}&quot;</span>, <span class="kw-2">&amp;</span>extended_claim[..extended_claim.len() - <span class="number">1</span>]);
+    <span class="kw">let </span>json_str = <span class="macro">format!</span>(<span class="string">"{{{}}}"</span>, <span class="kw-2">&amp;</span>extended_claim[..extended_claim.len() - <span class="number">1</span>]);
     <span class="kw">let </span>json: Value = serde_json::from_str(<span class="kw-2">&amp;</span>json_str).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
     <span class="kw">let </span>value = json
         .as_object()
@@ -1051,7 +1051,7 @@
 </span><span class="kw">fn </span>decode_base64_url(s: <span class="kw-2">&amp;</span>str, i: <span class="kw-2">&amp;</span>u8) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
     <span class="kw">if </span>s.len() &lt; <span class="number">2 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-            <span class="string">&quot;Base64 string smaller than 2&quot;</span>.to_string(),
+            <span class="string">"Base64 string smaller than 2"</span>.to_string(),
         ));
     }
     <span class="kw">let </span><span class="kw-2">mut </span>bits = base64_to_bitarray(s);
@@ -1065,7 +1065,7 @@
         }
         <span class="kw">_ </span>=&gt; {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Invalid first_char_offset&quot;</span>.to_string(),
+                <span class="string">"Invalid first_char_offset"</span>.to_string(),
             ));
         }
     }
@@ -1081,23 +1081,23 @@
         }
         <span class="kw">_ </span>=&gt; {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-                <span class="string">&quot;Invalid last_char_offset&quot;</span>.to_string(),
+                <span class="string">"Invalid last_char_offset"</span>.to_string(),
             ));
         }
     }
 
     <span class="kw">if </span>bits.len() % <span class="number">8 </span>!= <span class="number">0 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-            <span class="string">&quot;Invalid bits length&quot;</span>.to_string(),
+            <span class="string">"Invalid bits length"</span>.to_string(),
         ));
     }
 
     <span class="prelude-val">Ok</span>(std::str::from_utf8(<span class="kw-2">&amp;</span>bitarray_to_bytearray(<span class="kw-2">&amp;</span>bits))
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Invalid UTF8 string&quot;</span>.to_string()))<span class="question-mark">?
+        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Invalid UTF8 string"</span>.to_string()))<span class="question-mark">?
         </span>.to_owned())
 }
 
-<span class="doccomment">/// Map a base64 string to a bit array by taking each char&#39;s index and covert it to binary form.
+<span class="doccomment">/// Map a base64 string to a bit array by taking each char's index and covert it to binary form.
 </span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;u8&gt; {
     input
         .chars()
@@ -1125,7 +1125,7 @@
 <span class="doccomment">/// Convert a bigint string to a field element.
 </span><span class="kw">pub fn </span>to_field(val: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
     Bn254Fr::from_str(val)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">&quot;Convert to field error&quot;</span>.to_string()))
+        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Convert to field error"</span>.to_string()))
 }
 
 <span class="doccomment">/// Pads a stream of bytes and maps it to a field element
@@ -1144,7 +1144,7 @@
 
 <span class="kw">fn </span>pad_with_zeroes(in_arr: Vec&lt;BigUint&gt;, out_count: u8) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;BigUint&gt;, FastCryptoError&gt; {
     <span class="kw">if </span>in_arr.len() &gt; out_count <span class="kw">as </span>usize {
-        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">&quot;in_arr too long&quot;</span>.to_string()));
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">"in_arr too long"</span>.to_string()));
     }
     <span class="kw">let </span><span class="kw-2">mut </span>padded = in_arr;
     padded.resize(out_count <span class="kw">as </span>usize, BigUint::zero());
@@ -1152,7 +1152,7 @@
 }
 
 <span class="doccomment">/// Maps a stream of bigints to a single field element. First we convert the base from
-/// inWidth to packWidth. Then we compute the poseidon hash of the &quot;packed&quot; input.
+/// inWidth to packWidth. Then we compute the poseidon hash of the "packed" input.
 /// input is the input vector containing equal-width big ints. inWidth is the width of
 /// each input element.
 </span><span class="kw">fn </span>hash_to_field(
@@ -1161,7 +1161,7 @@
     pack_width: u8,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
     <span class="kw">let </span>packed = convert_base(input, in_width, pack_width)<span class="question-mark">?</span>;
-    to_poseidon_hash(packed)
+    poseidon_zk_login(packed)
 }
 
 <span class="kw">fn </span>div_ceil(dividend: usize, divisor: usize) -&gt; <span class="prelude-ty">Result</span>&lt;usize, FastCryptoError&gt; {

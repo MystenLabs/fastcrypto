@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["FIELD_ELEMENT_SIZE_IN_BYTES"],"fn":["hash","hash_to_bytes","hash_to_field_element","to_poseidon_hash"]};
+window.SIDEBAR_ITEMS = {"constant":["FIELD_ELEMENT_SIZE_IN_BYTES","MERKLE_TREE_DEGREE"],"fn":["poseidon","poseidon_bytes","poseidon_merkle_tree"]};

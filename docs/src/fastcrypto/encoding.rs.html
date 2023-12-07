@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/encoding.rs`."><title>encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/encoding.rs`."><title>encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -274,10 +274,10 @@
 //! # Example
 //! ```rust
 //! # use fastcrypto::encoding::*;
-//! assert_eq!(Hex::encode(&quot;Hello world!&quot;), &quot;48656c6c6f20776f726c6421&quot;);
-//! assert_eq!(encode_with_format(&quot;Hello world!&quot;), &quot;0x48656c6c6f20776f726c6421&quot;);
-//! assert_eq!(Base64::encode(&quot;Hello world!&quot;), &quot;SGVsbG8gd29ybGQh&quot;);
-//! assert_eq!(Base58::encode(&quot;Hello world!&quot;), &quot;2NEpo7TZRhna7vSvL&quot;);
+//! assert_eq!(Hex::encode("Hello world!"), "48656c6c6f20776f726c6421");
+//! assert_eq!(encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
+//! assert_eq!(Base64::encode("Hello world!"), "SGVsbG8gd29ybGQh");
+//! assert_eq!(Base58::encode("Hello world!"), "2NEpo7TZRhna7vSvL");
 //! ```
 
 </span><span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
@@ -292,12 +292,12 @@
 <span class="kw">use </span>std::fmt::Debug;
 
 <span class="attr">#[inline]
-</span><span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">&#39;de</span>, D, E&gt;(e: E) -&gt; D::Error
+</span><span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">'de</span>, D, E&gt;(e: E) -&gt; D::Error
 <span class="kw">where
     </span>E: Debug,
-    D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
 {
-    Error::custom(<span class="macro">format!</span>(<span class="string">&quot;byte deserialization failed, cause by: {:?}&quot;</span>, e))
+    Error::custom(<span class="macro">format!</span>(<span class="string">"byte deserialization failed, cause by: {:?}"</span>, e))
 }
 
 <span class="doccomment">/// Trait representing a general binary-to-string encoding.
@@ -310,7 +310,7 @@
 
 <span class="doccomment">/// Base64 encoding
 </span><span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
-#[serde(try_from = <span class="string">&quot;String&quot;</span>)]
+#[serde(try_from = <span class="string">"String"</span>)]
 </span><span class="kw">pub struct </span>Base64(String);
 
 <span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span>Base64 {
@@ -377,13 +377,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base64 {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base64 {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
+        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
     }
 }
 
@@ -399,15 +399,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Base64 {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Base64 {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>value: Vec&lt;u8&gt; = Base64::deserialize_as(deserializer)<span class="question-mark">?</span>;
         <span class="kw">if </span>value.len() != N {
             <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                <span class="string">"invalid array length {}, expecting {}"</span>,
                 value.len(),
                 N
             )));
@@ -418,25 +418,25 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Hex {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Hex {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
+        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Hex {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Hex {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>value: Vec&lt;u8&gt; = Hex::deserialize_as(deserializer)<span class="question-mark">?</span>;
         <span class="kw">if </span>value.len() != N {
             <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                <span class="string">"invalid array length {}, expecting {}"</span>,
                 value.len(),
                 N
             )));
@@ -461,18 +461,18 @@
 
 <span class="doccomment">/// Encodes bytes as a 0x prefixed hex string using lower case characters.
 </span><span class="kw">pub fn </span>encode_with_format&lt;B: AsRef&lt;[u8]&gt;&gt;(bytes: B) -&gt; String {
-    <span class="macro">format!</span>(<span class="string">&quot;0x{}&quot;</span>, hex::encode(bytes.as_ref()))
+    <span class="macro">format!</span>(<span class="string">"0x{}"</span>, hex::encode(bytes.as_ref()))
 }
 
 <span class="doccomment">/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
-</span><span class="kw">pub fn </span>decode_bytes_hex&lt;T: <span class="kw">for</span>&lt;<span class="lifetime">&#39;a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>[u8]&gt;&gt;(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt; {
-    <span class="kw">let </span>s = s.strip_prefix(<span class="string">&quot;0x&quot;</span>).unwrap_or(s);
+</span><span class="kw">pub fn </span>decode_bytes_hex&lt;T: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;&gt;(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt; {
+    <span class="kw">let </span>s = s.strip_prefix(<span class="string">"0x"</span>).unwrap_or(s);
     <span class="kw">let </span>value = hex::decode(s)<span class="question-mark">?</span>;
-    T::try_from(<span class="kw-2">&amp;</span>value[..]).map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">&quot;byte deserialization failed&quot;</span>))
+    T::try_from(<span class="kw-2">&amp;</span>value[..]).map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"byte deserialization failed"</span>))
 }
 
 <span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
-#[serde(try_from = <span class="string">&quot;String&quot;</span>)]
+#[serde(try_from = <span class="string">"String"</span>)]
 </span><span class="kw">pub struct </span>Base58(String);
 
 <span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span>Base58 {
@@ -494,13 +494,13 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base58 {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base58 {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">&#39;de</span>, D, <span class="kw">_</span>&gt;)
+        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
     }
 }
 
@@ -516,15 +516,15 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">&#39;de</span>, [u8; N]&gt; <span class="kw">for </span>Base58 {
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Base58 {
     <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
     <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
     {
         <span class="kw">let </span>value: Vec&lt;u8&gt; = Base58::deserialize_as(deserializer)<span class="question-mark">?</span>;
         <span class="kw">if </span>value.len() != N {
             <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">&quot;invalid array length {}, expecting {}&quot;</span>,
+                <span class="string">"invalid array length {}, expecting {}"</span>,
                 value.len(),
                 N
             )));

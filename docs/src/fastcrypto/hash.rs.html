@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hash.rs`."><title>hash.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/hash.rs`."><title>hash.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -342,11 +342,11 @@
 //! # Example
 //! ```
 //! # use fastcrypto::hash::*;
-//! let digest1 = Sha256::digest(b&quot;Hello, world!&quot;);
+//! let digest1 = Sha256::digest(b"Hello, world!");
 //!
 //! let mut hash_function = Sha256::default();
-//! hash_function.update(b&quot;Hello, &quot;);
-//! hash_function.update(b&quot;world!&quot;);
+//! hash_function.update(b"Hello, ");
+//! hash_function.update(b"world!");
 //! let digest2 = hash_function.finalize();
 //!
 //! assert_eq!(digest1, digest2);
@@ -366,7 +366,7 @@
 </span><span class="attr">#[serde_as]
 #[derive(Hash, PartialEq, Eq, Clone, Serialize, Deserialize, Ord, PartialOrd, Copy)]
 </span><span class="kw">pub struct </span>Digest&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
-    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">&quot;[_; DIGEST_LEN]&quot;</span>)]
+    <span class="attr">#[serde_as(<span class="kw">as </span>= <span class="string">"[_; DIGEST_LEN]"</span>)]
     </span><span class="kw">pub </span>digest: [u8; DIGEST_LEN],
 }
 
@@ -388,14 +388,14 @@
 }
 
 <span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; fmt::Debug <span class="kw">for </span>Digest&lt;DIGEST_LEN&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.digest))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, Base64::encode(<span class="self">self</span>.digest))
     }
 }
 
 <span class="kw">impl</span>&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; fmt::Display <span class="kw">for </span>Digest&lt;DIGEST_LEN&gt; {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, Base64::encode(<span class="self">self</span>.digest))
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, Base64::encode(<span class="self">self</span>.digest))
     }
 }
 
@@ -452,22 +452,22 @@
 
 <span class="doccomment">/// This wraps a [digest::Digest] as a [HashFunction].
 </span><span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">&#39;static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
+</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">'static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
 
 <span class="doccomment">/// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 </span><span class="kw">pub trait </span>ReverseWrapper {
-    <span class="kw">type </span>Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ digest::core_api::CoreProxy + OutputSizeUser;
+    <span class="kw">type </span>Variant: digest::Digest + <span class="lifetime">'static </span>+ digest::core_api::CoreProxy + OutputSizeUser;
 }
 
 <span class="kw">impl</span>&lt;
-        Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ digest::core_api::CoreProxy + OutputSizeUser,
+        Variant: digest::Digest + <span class="lifetime">'static </span>+ digest::core_api::CoreProxy + OutputSizeUser,
         <span class="kw">const </span>DIGEST_LEN: usize,
     &gt; ReverseWrapper <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">type </span>Variant = Variant;
 }
 
-<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
+<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">'static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
     <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">fn </span>update&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: Data) {
@@ -482,7 +482,7 @@
 }
 
 <span class="comment">// Impl std::io::Write for HashFunctionWrapper. Needed for compatibility in Sui.
-</span><span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">&#39;static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; std::io::Write
+</span><span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">'static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; std::io::Write
     <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buf: <span class="kw-2">&amp;</span>[u8]) -&gt; std::io::Result&lt;usize&gt; {
@@ -535,10 +535,10 @@
 /// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
 ///
 /// The hash may be computed incrementally, adding items one at a time, and the order does not affect the
-/// result. The hash of two multisets can be compared by using the Eq trait impl&#39;d for the given hash function,
+/// result. The hash of two multisets can be compared by using the Eq trait impl'd for the given hash function,
 /// and the hash function should be collision resistant. Items may also be removed again.
 ///
-/// See [&quot;Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking&quot; by D. Clarke
+/// See ["Incremental Multiset Hash Functions and Their Application to Memory Integrity Checking" by D. Clarke
 /// et al.](https://link.springer.com/chapter/10.1007/978-3-540-40061-5_12) for a discussion of this type of hash
 /// functions.
 ///
@@ -547,12 +547,12 @@
 /// use fastcrypto::hash::{EllipticCurveMultisetHash, MultisetHash};
 ///
 /// let mut hash1 = EllipticCurveMultisetHash::default();
-/// hash1.insert(b&quot;Hello&quot;);
-/// hash1.insert(b&quot;World&quot;);
+/// hash1.insert(b"Hello");
+/// hash1.insert(b"World");
 ///
 /// let mut hash2 = EllipticCurveMultisetHash::default();
-/// hash2.insert(b&quot;World&quot;);
-/// hash2.insert(b&quot;Hello&quot;);
+/// hash2.insert(b"World");
+/// hash2.insert(b"Hello");
 ///
 /// assert_eq!(hash1, hash2);
 /// assert_eq!(hash1.digest(), hash2.digest());
@@ -570,15 +570,15 @@
     <span class="doccomment">/// Add all the elements of another hash function into this hash function.
     </span><span class="kw">fn </span>union(<span class="kw-2">&amp;mut </span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>);
 
-    <span class="comment">// Note that the &quot;remove&quot; operation is safe even if an item has been removed
+    <span class="comment">// Note that the "remove" operation is safe even if an item has been removed
     // more times than it has been inserted. To see why, consider the following
-    // example: Suppose an adversary has performed two sets of &quot;insert(x)&quot; and
-    // &quot;remove(x)&quot; operations resulting in the same hash, i.e., the sum of each set
+    // example: Suppose an adversary has performed two sets of "insert(x)" and
+    // "remove(x)" operations resulting in the same hash, i.e., the sum of each set
     // is \sum_x m_x H(x), where m_x is the difference between the number of times
-    // &quot;x&quot; was inserted and removed.
+    // "x" was inserted and removed.
     // Then, one can create two new sets with the same hash by taking the original
-    // sets and subtracting m_x H(x) from both sets for every item &quot;x&quot; such that m_x
-    // was negative in any of the original sets. Since we &quot;subtract&quot; (or actually
+    // sets and subtracting m_x H(x) from both sets for every item "x" such that m_x
+    // was negative in any of the original sets. Since we "subtract" (or actually
     // insert) the same elements from both sets, the resulting hash will remain the
     // same. Moreover, since none of the values of m_x in the new sets are negative,
     // we can conclude that no item was removed more times than it was inserted in
@@ -600,7 +600,7 @@
 /// to a point on an elliptic curve on which the DL problem is hard (the Ristretto group in Curve25519),
 /// and the hash is the sum of all such points.
 ///
-/// For more information about the construction of ECMH and its security, see [&quot;Elliptic Curve Multiset Hash&quot; by J.
+/// For more information about the construction of ECMH and its security, see ["Elliptic Curve Multiset Hash" by J.
 /// Maitin-Shepard et al.](https://arxiv.org/abs/1601.06502).
 ///
 /// Under the hood, it uses an Ristretto-flavoured Elligator 2 map to map a Sha512 hash of the provided
@@ -666,8 +666,8 @@
 }
 
 <span class="kw">impl </span>Debug <span class="kw">for </span>EllipticCurveMultisetHash {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; std::fmt::Result {
-        f.debug_struct(<span class="string">&quot;Accumulator&quot;</span>).finish()
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>std::fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; std::fmt::Result {
+        f.debug_struct(<span class="string">"Accumulator"</span>).finish()
     }
 }
 </code></pre></div></section></main></body></html>

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/sigs_cli.rs`."><title>sigs_cli.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="sigs_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/sigs_cli.rs`."><title>sigs_cli.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="sigs_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -430,8 +430,8 @@
     str::FromStr,
 };
 <span class="attr">#[derive(Parser)]
-#[command(name = <span class="string">&quot;sig-cli&quot;</span>)]
-#[command(about = <span class="string">&quot;Sign or verify a signature using a signature scheme&quot;</span>, long_about = <span class="prelude-val">None</span>)]
+#[command(name = <span class="string">"sig-cli"</span>)]
+#[command(about = <span class="string">"Sign or verify a signature using a signature scheme"</span>, long_about = <span class="prelude-val">None</span>)]
 </span><span class="kw">enum </span>Command {
     <span class="doccomment">/// Generate a keypair using the signature scheme with a deterministic seed.
     </span>Keygen(KeygenArguments),
@@ -468,14 +468,14 @@
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
         <span class="kw">match </span>s {
-            <span class="string">&quot;ed25519&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Ed25519),
-            <span class="string">&quot;secp256k1&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256k1),
-            <span class="string">&quot;secp256k1-rec&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256k1Recoverable),
-            <span class="string">&quot;secp256r1&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1),
-            <span class="string">&quot;secp256r1-rec&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1Recoverable),
-            <span class="string">&quot;bls12381-minsig&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig),
-            <span class="string">&quot;bls12381-minpk&quot; </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::new(ErrorKind::Other, <span class="string">&quot;Invalid signature scheme.&quot;</span>)),
+            <span class="string">"ed25519" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Ed25519),
+            <span class="string">"secp256k1" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256k1),
+            <span class="string">"secp256k1-rec" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256k1Recoverable),
+            <span class="string">"secp256r1" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1),
+            <span class="string">"secp256r1-rec" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::Secp256r1Recoverable),
+            <span class="string">"bls12381-minsig" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinSig),
+            <span class="string">"bls12381-minpk" </span>=&gt; <span class="prelude-val">Ok</span>(SignatureScheme::BLS12381MinPk),
+            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(Error::new(ErrorKind::Other, <span class="string">"Invalid signature scheme."</span>)),
         }
     }
 }
@@ -519,7 +519,7 @@
             std::process::exit(exitcode::OK);
         }
         <span class="prelude-val">Err</span>(e) =&gt; {
-            <span class="macro">println!</span>(<span class="string">&quot;Error: {}&quot;</span>, e);
+            <span class="macro">println!</span>(<span class="string">"Error: {}"</span>, e);
             std::process::exit(exitcode::DATAERR);
         }
     }
@@ -570,8 +570,8 @@
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
             };
-            <span class="macro">println!</span>(<span class="string">&quot;Private key in hex: {:?}&quot;</span>, sk);
-            <span class="macro">println!</span>(<span class="string">&quot;Public key in hex: {:?}&quot;</span>, pk);
+            <span class="macro">println!</span>(<span class="string">"Private key in hex: {:?}"</span>, sk);
+            <span class="macro">println!</span>(<span class="string">"Public key in hex: {:?}"</span>, pk);
 
             <span class="prelude-val">Ok</span>(())
         }
@@ -636,8 +636,8 @@
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
             };
-            <span class="macro">println!</span>(<span class="string">&quot;Signature in hex: {:?}&quot;</span>, sig);
-            <span class="macro">println!</span>(<span class="string">&quot;Public key in hex: {:?}&quot;</span>, pk);
+            <span class="macro">println!</span>(<span class="string">"Signature in hex: {:?}"</span>, sig);
+            <span class="macro">println!</span>(<span class="string">"Public key in hex: {:?}"</span>, pk);
             <span class="prelude-val">Ok</span>(())
         }
 
@@ -690,7 +690,7 @@
                 }
                 <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
             };
-            <span class="macro">println!</span>(<span class="string">&quot;Verify result: {:?}&quot;</span>, res);
+            <span class="macro">println!</span>(<span class="string">"Verify result: {:?}"</span>, res);
             <span class="prelude-val">Ok</span>(())
         }
     }
@@ -717,10 +717,10 @@
         }
 
         <span class="comment">// Unknown scheme
-        </span><span class="macro">assert!</span>(test_keygen_single(<span class="string">&quot;unknown_scheme&quot;</span>, SEED).is_err());
+        </span><span class="macro">assert!</span>(test_keygen_single(<span class="string">"unknown_scheme"</span>, SEED).is_err());
 
         <span class="comment">// Invalid seed
-        </span><span class="kw">let </span>invalid_seed = <span class="string">&quot;invalid seed&quot;</span>;
+        </span><span class="kw">let </span>invalid_seed = <span class="string">"invalid seed"</span>;
         <span class="kw">for </span>test_case <span class="kw">in </span>TEST_CASES {
             <span class="macro">assert!</span>(test_keygen_single(test_case.name, invalid_seed).is_err());
         }
@@ -742,7 +742,7 @@
         }
 
         <span class="comment">// Unknown scheme
-        </span><span class="macro">assert!</span>(test_sign_single(<span class="string">&quot;unknown_scheme&quot;</span>, MSG, TEST_CASES[<span class="number">0</span>].private).is_err());
+        </span><span class="macro">assert!</span>(test_sign_single(<span class="string">"unknown_scheme"</span>, MSG, TEST_CASES[<span class="number">0</span>].private).is_err());
 
         <span class="comment">// Invalid secret key
         </span><span class="kw">for </span>test_case <span class="kw">in </span>TEST_CASES {
@@ -780,7 +780,7 @@
 
         <span class="comment">// Unknown scheme
         </span><span class="macro">assert!</span>(test_verify_single(
-            <span class="string">&quot;unknown scheme&quot;</span>,
+            <span class="string">"unknown scheme"</span>,
             MSG,
             TEST_CASES[<span class="number">0</span>].sig,
             TEST_CASES[<span class="number">0</span>].public

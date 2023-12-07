@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (0e2dac837 2023-12-04)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -332,57 +332,57 @@
 </span><span class="kw">fn </span>insecure_pvk() -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
     <span class="comment">// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     </span><span class="kw">let </span>vk_alpha_1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
-        <span class="string">&quot;20491192805390485299153009773594534940189261866228447918068658471970481763042&quot;</span>.to_string(),
-        <span class="string">&quot;9383485363053290200918347156157836566562967994039712273449902621266178545958&quot;</span>.to_string(),
-        <span class="string">&quot;1&quot;</span>.to_string(),
+        <span class="string">"20491192805390485299153009773594534940189261866228447918068658471970481763042"</span>.to_string(),
+        <span class="string">"9383485363053290200918347156157836566562967994039712273449902621266178545958"</span>.to_string(),
+        <span class="string">"1"</span>.to_string(),
     ])
     .unwrap();
     <span class="kw">let </span>vk_beta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;6375614351688725206403948262868962793625744043794305715222011528459656738731&quot;
+            <span class="string">"6375614351688725206403948262868962793625744043794305715222011528459656738731"
                 </span>.to_string(),
-            <span class="string">&quot;4252822878758300859123897981450591353533073413197771768651442665752259397132&quot;
+            <span class="string">"4252822878758300859123897981450591353533073413197771768651442665752259397132"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;10505242626370262277552901082094356697409835680220590971873171140371331206856&quot;
+            <span class="string">"10505242626370262277552901082094356697409835680220590971873171140371331206856"
                 </span>.to_string(),
-            <span class="string">&quot;21847035105528745403288232691147584728191162732299865338377159692350059136679&quot;
+            <span class="string">"21847035105528745403288232691147584728191162732299865338377159692350059136679"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
     <span class="kw">let </span>vk_gamma_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;10857046999023057135944570762232829481370756359578518086990519993285655852781&quot;
+            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 </span>.to_string(),
-            <span class="string">&quot;11559732032986387107991004021392285783925812861821192530917403151452391805634&quot;
+            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;8495653923123431417604973247489272438418190587263600148770280649306958101930&quot;
+            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
                 </span>.to_string(),
-            <span class="string">&quot;4082367875863433681332203403145435568316851327593401208105741076214120093531&quot;
+            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
     <span class="kw">let </span>vk_delta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;10857046999023057135944570762232829481370756359578518086990519993285655852781&quot;
+            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 </span>.to_string(),
-            <span class="string">&quot;11559732032986387107991004021392285783925812861821192530917403151452391805634&quot;
+            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;8495653923123431417604973247489272438418190587263600148770280649306958101930&quot;
+            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
                 </span>.to_string(),
-            <span class="string">&quot;4082367875863433681332203403145435568316851327593401208105741076214120093531&quot;
+            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
 
@@ -390,18 +390,18 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1 = Vec::new();
     <span class="kw">for </span>e <span class="kw">in </span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;20701306374481714853949730154526815782802808896228594855451770849676897643964&quot;
+            <span class="string">"20701306374481714853949730154526815782802808896228594855451770849676897643964"
                 </span>.to_string(),
-            <span class="string">&quot;2766989084754673216772682210231588284954002353414778477810174100808747060165&quot;
+            <span class="string">"2766989084754673216772682210231588284954002353414778477810174100808747060165"
                 </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
+            <span class="string">"1"</span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;501195541410525737371980194958674422793469475773065719916327137354779402600&quot;
+            <span class="string">"501195541410525737371980194958674422793469475773065719916327137354779402600"
                 </span>.to_string(),
-            <span class="string">&quot;13527631693157515024233848630878973193664410306029731429350155106228769355415&quot;
+            <span class="string">"13527631693157515024233848630878973193664410306029731429350155106228769355415"
                 </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
+            <span class="string">"1"</span>.to_string(),
         ],
     ] {
         <span class="kw">let </span>g1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span>e).unwrap();
@@ -424,57 +424,57 @@
 </span><span class="kw">fn </span>global_pvk() -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
     <span class="comment">// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     </span><span class="kw">let </span>vk_alpha_1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
-        <span class="string">&quot;21529901943976716921335152104180790524318946701278905588288070441048877064089&quot;</span>.to_string(),
-        <span class="string">&quot;7775817982019986089115946956794180159548389285968353014325286374017358010641&quot;</span>.to_string(),
-        <span class="string">&quot;1&quot;</span>.to_string(),
+        <span class="string">"21529901943976716921335152104180790524318946701278905588288070441048877064089"</span>.to_string(),
+        <span class="string">"7775817982019986089115946956794180159548389285968353014325286374017358010641"</span>.to_string(),
+        <span class="string">"1"</span>.to_string(),
     ])
     .unwrap();
     <span class="kw">let </span>vk_beta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;6600437987682835329040464538375790690815756241121776438004683031791078085074&quot;
+            <span class="string">"6600437987682835329040464538375790690815756241121776438004683031791078085074"
                 </span>.to_string(),
-            <span class="string">&quot;16207344858883952201936462217289725998755030546200154201671892670464461194903&quot;
+            <span class="string">"16207344858883952201936462217289725998755030546200154201671892670464461194903"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;17943105074568074607580970189766801116106680981075272363121544016828311544390&quot;
+            <span class="string">"17943105074568074607580970189766801116106680981075272363121544016828311544390"
                 </span>.to_string(),
-            <span class="string">&quot;18339640667362802607939727433487930605412455701857832124655129852540230493587&quot;
+            <span class="string">"18339640667362802607939727433487930605412455701857832124655129852540230493587"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
     <span class="kw">let </span>vk_gamma_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;10857046999023057135944570762232829481370756359578518086990519993285655852781&quot;
+            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
                 </span>.to_string(),
-            <span class="string">&quot;11559732032986387107991004021392285783925812861821192530917403151452391805634&quot;
+            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;8495653923123431417604973247489272438418190587263600148770280649306958101930&quot;
+            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
                 </span>.to_string(),
-            <span class="string">&quot;4082367875863433681332203403145435568316851327593401208105741076214120093531&quot;
+            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
     <span class="kw">let </span>vk_delta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;19260309516619721648285279557078789954438346514188902804737557357941293711874&quot;
+            <span class="string">"19260309516619721648285279557078789954438346514188902804737557357941293711874"
                 </span>.to_string(),
-            <span class="string">&quot;2480422554560175324649200374556411861037961022026590718777465211464278308900&quot;
+            <span class="string">"2480422554560175324649200374556411861037961022026590718777465211464278308900"
                 </span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;14489104692423540990601374549557603533921811847080812036788172274404299703364&quot;
+            <span class="string">"14489104692423540990601374549557603533921811847080812036788172274404299703364"
                 </span>.to_string(),
-            <span class="string">&quot;12564378633583954025611992187142343628816140907276948128970903673042690269191&quot;
+            <span class="string">"12564378633583954025611992187142343628816140907276948128970903673042690269191"
                 </span>.to_string(),
         ],
-        <span class="macro">vec!</span>[<span class="string">&quot;1&quot;</span>.to_string(), <span class="string">&quot;0&quot;</span>.to_string()],
+        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
     ])
     .unwrap();
 
@@ -482,18 +482,18 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1 = Vec::new();
     <span class="kw">for </span>e <span class="kw">in </span>[
         <span class="macro">vec!</span>[
-            <span class="string">&quot;1607694606386445293170795095076356565829000940041894770459712091642365695804&quot;
+            <span class="string">"1607694606386445293170795095076356565829000940041894770459712091642365695804"
                 </span>.to_string(),
-            <span class="string">&quot;18066827569413962196795937356879694709963206118612267170825707780758040578649&quot;
+            <span class="string">"18066827569413962196795937356879694709963206118612267170825707780758040578649"
                 </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
+            <span class="string">"1"</span>.to_string(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">&quot;20653794344898475822834426774542692225449366952113790098812854265588083247207&quot;
+            <span class="string">"20653794344898475822834426774542692225449366952113790098812854265588083247207"
                 </span>.to_string(),
-            <span class="string">&quot;3296759704176575765409730962060698204792513807296274014163938591826372646699&quot;
+            <span class="string">"3296759704176575765409730962060698204792513807296274014163938591826372646699"
                 </span>.to_string(),
-            <span class="string">&quot;1&quot;</span>.to_string(),
+            <span class="string">"1"</span>.to_string(),
         ],
     ] {
         <span class="kw">let </span>g1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span>e).unwrap();
@@ -525,12 +525,12 @@
     <span class="kw">let </span>jwk = all_jwk
         .get(<span class="kw-2">&amp;</span>JwkId::new(iss.clone(), kid.clone()))
         .ok_or_else(|| {
-            FastCryptoError::GeneralError(<span class="macro">format!</span>(<span class="string">&quot;JWK not found ({} - {})&quot;</span>, iss, kid))
+            FastCryptoError::GeneralError(<span class="macro">format!</span>(<span class="string">"JWK not found ({} - {})"</span>, iss, kid))
         })<span class="question-mark">?</span>;
 
     <span class="comment">// Decode modulus to bytes.
     </span><span class="kw">let </span>modulus = Base64UrlUnpadded::decode_vec(<span class="kw-2">&amp;</span>jwk.n).map_err(|<span class="kw">_</span>| {
-        FastCryptoError::GeneralError(<span class="string">&quot;Invalid Base64 encoded jwk modulus&quot;</span>.to_string())
+        FastCryptoError::GeneralError(<span class="string">"Invalid Base64 encoded jwk modulus"</span>.to_string())
     })<span class="question-mark">?</span>;
 
     <span class="comment">// Calculat all inputs hash and passed to the verification function.
@@ -541,7 +541,7 @@
     ) {
         <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>) =&gt; <span class="prelude-val">Ok</span>(()),
         <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>) | <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::GeneralError(
-            <span class="string">&quot;Groth16 proof verify failed&quot;</span>.to_string(),
+            <span class="string">"Groth16 proof verify failed"</span>.to_string(),
         )),
     }
 }
