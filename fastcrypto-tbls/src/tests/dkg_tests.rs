@@ -228,11 +228,11 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     let ver_msg5 = d5
         .process_confirmations(&used_msgs5, &all_confirmations, 3, &mut thread_rng())
         .unwrap();
-    assert_eq!(ver_msg0.0.len(), 2); // only msg0, msg5 were valid and didn't send invalid complaints
-    assert_eq!(ver_msg1.0.len(), 2);
-    assert_eq!(ver_msg2.0.len(), 2);
-    assert_eq!(ver_msg3.0.len(), 2);
-    assert_eq!(ver_msg5.0.len(), 2);
+    assert_eq!(ver_msg0.len(), 2); // only msg0, msg5 were valid and didn't send invalid complaints
+    assert_eq!(ver_msg1.len(), 2);
+    assert_eq!(ver_msg2.len(), 2);
+    assert_eq!(ver_msg3.len(), 2);
+    assert_eq!(ver_msg5.len(), 2);
 
     let o0 = d0.aggregate(&ver_msg0);
     let _o1 = d1.aggregate(&ver_msg1);
@@ -503,7 +503,7 @@ fn test_test_process_confirmations() {
     // d3 is ignored because it sent an invalid message
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),
@@ -524,7 +524,7 @@ fn test_test_process_confirmations() {
     // d3 is not ignored since conf7 is ignored
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),
@@ -546,7 +546,7 @@ fn test_test_process_confirmations() {
     // now also d2 is ignored because it sent an invalid complaint
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),

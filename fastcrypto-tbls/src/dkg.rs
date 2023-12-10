@@ -19,7 +19,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use tap::prelude::*;
 
@@ -100,7 +100,7 @@ impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
 
 /// Processed messages that were not excluded.
 pub struct VerifiedProcessedMessages<G: GroupElement, EG: GroupElement>(
-    pub Vec<ProcessedMessage<G, EG>>,
+    Vec<ProcessedMessage<G, EG>>,
 );
 
 impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
@@ -112,6 +112,14 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
             .cloned()
             .collect::<Vec<_>>();
         Self(filtered)
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn data(&self) -> &[ProcessedMessage<G, EG>] {
+        &self.0
     }
 }
 
@@ -429,6 +437,14 @@ where
                 conf.complaints.push(complaint.clone());
             }
         }
+
+        if filtered_messages.0.iter().all(|m| m.complaint.is_some()) {
+            error!("DKG: All processed messages resulted in complaints, this should never happen");
+            return Err(FastCryptoError::GeneralError(
+                "All processed messages resulted in complaints".to_string(),
+            ));
+        }
+
         Ok((conf, filtered_messages))
     }
 
@@ -541,6 +557,15 @@ where
             messages,
             &to_exclude.into_iter().collect::<Vec<_>>(),
         );
+
+        if verified_messages.len() == 0 {
+            error!(
+                "DKG: No verified messages after processing complaints, this should never happen"
+            );
+            return Err(FastCryptoError::GeneralError(
+                "No verified messages after processing complaints".to_string(),
+            ));
+        }
 
         // Log verified messages parties.
         let used_parties = verified_messages
