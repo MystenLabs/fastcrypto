@@ -147,11 +147,10 @@ where
     ) -> FastCryptoResult<Self> {
         // Check that my ecies pk is in the nodes.
         let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
-        let my_id = nodes
+        let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
-            .ok_or(FastCryptoError::InvalidInput)?
-            .id;
+            .ok_or(FastCryptoError::InvalidInput)?;
         // Check that the threshold makes sense.
         if t >= nodes.total_weight() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
@@ -162,9 +161,11 @@ where
 
         // TODO: remove once the protocol is stable since it's a non negligible computation.
         let vss_pk = vss_sk.commit::<G>();
+
         info!(
-            "DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
-            my_id,
+            "DKG: Creating party {} with weight {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
+            my_node.id,
+            my_node.weight,
             nodes.hash(),
             t,
             nodes.total_weight(),
@@ -174,7 +175,7 @@ where
         );
 
         Ok(Self {
-            id: my_id,
+            id: my_node.id,
             nodes,
             t,
             random_oracle,
