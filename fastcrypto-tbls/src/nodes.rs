@@ -16,15 +16,17 @@ pub type PartyId = u16;
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
     pub pk: ecies::PublicKey<G>,
-    pub weight: u16,
+    pub weight: u16, // May be zero
 }
 
 /// Wrapper for a set of nodes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
-    nodes: Vec<Node<G>>,           // Party ids are 0..len(nodes)-1
-    total_weight: u32,             // Share ids are 1..total_weight
+    nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1
+    total_weight: u32,   // Share ids are 1..total_weight
+    // Next two fields are used to map share ids to party ids.
     accumulated_weights: Vec<u32>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
+    nodes_with_nonzero_weight: Vec<u16>, // Indexes of nodes with non-zero weight
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
@@ -40,13 +42,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         if nodes.is_empty() || nodes.len() > 1000 {
             return Err(FastCryptoError::InvalidInput);
         }
-        // Check that all weights are non-zero
-        if nodes.iter().any(|n| n.weight == 0) {
-            return Err(FastCryptoError::InvalidInput);
-        }
 
-        // We use accumulated weights to map share ids to party ids.
+        // We use the next two to map share ids to party ids.
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
+
         let total_weight = *accumulated_weights
             .last()
             .expect("Number of nodes is non-zero");
@@ -55,13 +55,29 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             nodes,
             total_weight,
             accumulated_weights,
+            nodes_with_nonzero_weight,
         })
+    }
+
+    fn filter_nonzero_weights(nodes: &Vec<Node<G>>) -> Vec<u16> {
+        nodes
+            .iter()
+            .enumerate()
+            .filter_map(|(i, n)| if n.weight > 0 { Some(i as u16) } else { None })
+            .map(|i| i as u16)
+            .collect::<Vec<_>>()
     }
 
     fn get_accumulated_weights(nodes: &[Node<G>]) -> Vec<u32> {
         nodes
             .iter()
-            .map(|n| n.weight as u32)
+            .filter_map(|n| {
+                if n.weight > 0 {
+                    Some(n.weight as u32)
+                } else {
+                    None
+                }
+            })
             .scan(0, |accumulated_weight, weight| {
                 *accumulated_weight += weight;
                 Some(*accumulated_weight)
@@ -86,13 +102,17 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        let node_id: PartyId = match self.accumulated_weights.binary_search(&share_id.get()) {
-            Ok(i) => i,
-            Err(i) => i,
+        let nonzero_node_id: PartyId =
+            match self.accumulated_weights.binary_search(&share_id.get()) {
+                Ok(i) => i,
+                Err(i) => i,
+            }
+            .try_into()
+            .map_err(|_| InvalidInput)?;
+        match self.nodes_with_nonzero_weight.get(nonzero_node_id as usize) {
+            Some(node_id) => self.node_id_to_node(*node_id),
+            None => Err(InvalidInput),
         }
-        .try_into()
-        .map_err(|_| InvalidInput)?;
-        self.node_id_to_node(node_id)
     }
 
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
@@ -132,10 +152,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
         let mut max_d = 1;
         for d in 2..=40 {
-            // TODO: [perf] Remove once the DKG & Nodes can work with zero weights.
-            if self.nodes.iter().any(|n| n.weight < d) {
-                break;
-            }
             let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if sum <= allowed_delta {
                 max_d = d;
@@ -151,6 +167,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             })
             .collect::<Vec<_>>();
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
+        let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
         let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
         let new_t = t / max_d + (t % max_d != 0) as u16;
         (
@@ -158,6 +175,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes,
                 total_weight,
                 accumulated_weights,
+                nodes_with_nonzero_weight,
             },
             new_t,
         )

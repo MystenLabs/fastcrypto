@@ -123,10 +123,8 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
 pub struct Output<G: GroupElement, EG: GroupElement> {
     pub nodes: Nodes<EG>,
     pub vss_pk: Poly<G>,
-    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing.
+    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing or weight is zero.
 }
-
-// TODO: Handle parties with zero weights (currently rejected by Nodes::new()).
 
 /// A dealer in the DKG ceremony.
 ///
@@ -210,6 +208,7 @@ where
                     .iter()
                     .map(|share_id| self.vss_sk.eval(*share_id).value)
                     .collect::<Vec<_>>();
+                // Works even with empty shares_ids (will result in [0]).
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 (node.pk.clone(), buff)
             })
@@ -601,11 +600,19 @@ where
 
         // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
-        let shares = if messages.0.iter().all(|m| m.complaint.is_none()) {
-            info!("DKG: Aggregating my shares succeeded");
+        let has_invalid_share = messages.0.iter().any(|m| m.complaint.is_some());
+        let has_zero_shares = final_shares.is_empty();
+        info!(
+            "DKG: Aggregating my shares completed with has_invalid_share={}, has_zero_shares={}",
+            has_invalid_share, has_zero_shares
+        );
+        if has_invalid_share {
+            warn!("DKG: Aggregating my shares failed");
+        }
+
+        let shares = if !has_invalid_share && !has_zero_shares {
             Some(final_shares.values().cloned().collect())
         } else {
-            warn!("DKG: Aggregating my shares failed");
             None
         };
 
