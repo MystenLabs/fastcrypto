@@ -59,12 +59,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         })
     }
 
-    fn filter_nonzero_weights(nodes: &Vec<Node<G>>) -> Vec<u16> {
+    fn filter_nonzero_weights(nodes: &[Node<G>]) -> Vec<u16> {
         nodes
             .iter()
             .enumerate()
             .filter_map(|(i, n)| if n.weight > 0 { Some(i as u16) } else { None })
-            .map(|i| i as u16)
             .collect::<Vec<_>>()
     }
 

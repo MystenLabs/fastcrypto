@@ -118,6 +118,10 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn data(&self) -> &[ProcessedMessage<G, EG>] {
         &self.0
     }
@@ -558,7 +562,7 @@ where
             &to_exclude.into_iter().collect::<Vec<_>>(),
         );
 
-        if verified_messages.len() == 0 {
+        if verified_messages.is_empty() {
             error!(
                 "DKG: No verified messages after processing complaints, this should never happen"
             );
