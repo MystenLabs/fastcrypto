@@ -5,7 +5,8 @@
 //! See "SEC 2: Recommended Elliptic Curve Domain Parameters" for details."
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::{GroupElement, Scalar as ScalarTrait};
+use crate::groups::multiplier::ToLittleEndianBytes;
+use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -34,7 +35,9 @@ impl GroupElement for ProjectivePoint {
     fn generator() -> Self {
         Self(Projective::generator())
     }
+}
 
+impl Doubling for ProjectivePoint {
     fn double(&self) -> Self {
         ProjectivePoint::from(self.0.double())
     }
@@ -122,6 +125,12 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
             .serialize_uncompressed(&mut bytes[..])
             .expect("Byte array not large enough");
         bytes
+    }
+}
+
+impl ToLittleEndianBytes for Scalar {
+    fn to_le_bytes(&self) -> Vec<u8> {
+        self.to_byte_array().to_vec()
     }
 }
 

@@ -3,7 +3,7 @@
 
 use crate::groups::multiplier::integer_utils::{compute_base_2w_expansion, div_ceil};
 use crate::groups::multiplier::ScalarMultiplier;
-use crate::groups::GroupElement;
+use crate::groups::{Doubling, GroupElement};
 use crate::serde_helpers::ToFromByteArray;
 
 /// Performs scalar multiplication using a windowed method with a larger pre-computation table than
@@ -45,14 +45,14 @@ impl<
 }
 
 impl<
-        G: GroupElement<ScalarType = S>,
+        G: GroupElement<ScalarType = S> + Doubling,
         S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
         const WIDTH: usize,
         const HEIGHT: usize,
         const SCALAR_SIZE: usize,
-    > ScalarMultiplier<G> for BGMWScalarMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
+    > ScalarMultiplier<G, S> for BGMWScalarMultiplier<G, S, WIDTH, HEIGHT, SCALAR_SIZE>
 {
-    fn new(base_element: G) -> Self {
+    fn new(base_element: G, zero: G) -> Self {
         // Verify parameters
         let lower_limit = div_ceil(SCALAR_SIZE * 8, Self::WINDOW_WIDTH);
         if HEIGHT < lower_limit {
@@ -60,7 +60,7 @@ impl<
         }
 
         // Store cache[i][j] = 2^{i w} * j * base_element
-        let mut cache = [[G::zero(); WIDTH]; HEIGHT];
+        let mut cache = [[zero; WIDTH]; HEIGHT];
 
         // Compute cache[0][j] = j * base_element.
         for j in 1..WIDTH {
@@ -83,14 +83,17 @@ impl<
         // Scalar as bytes in little-endian representation.
         let scalar_bytes = scalar.to_byte_array();
 
-        let base_2w_expansion =
-            compute_base_2w_expansion::<SCALAR_SIZE>(&scalar_bytes, Self::WINDOW_WIDTH);
+        let base_2w_expansion = compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
         let mut result = self.get_precomputed_multiple(0, base_2w_expansion[0]);
         for (i, digit) in base_2w_expansion.iter().enumerate().skip(1) {
             result += self.get_precomputed_multiple(i, *digit);
         }
         result
+    }
+
+    fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G {
+        self.cache[0][1] * base_scalar + *other_element * *other_scalar
     }
 }
 
@@ -106,6 +109,7 @@ mod tests {
     fn test_scalar_multiplication_ristretto() {
         let multiplier = BGMWScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 64, 32>::new(
             RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
         );
 
         let scalars = [
@@ -148,18 +152,21 @@ mod tests {
 
             let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 64, 32>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
             let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 32, 52, 32>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
             let multiplier = BGMWScalarMultiplier::<ProjectivePoint, Scalar, 64, 43, 32>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
@@ -169,6 +176,7 @@ mod tests {
         assert!(std::panic::catch_unwind(|| {
             BGMWScalarMultiplier::<ProjectivePoint, Scalar, 16, 63, 32>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             )
         })
         .is_err());

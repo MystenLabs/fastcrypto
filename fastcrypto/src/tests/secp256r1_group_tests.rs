@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::GroupElement;
+use crate::groups::{Doubling, GroupElement};
 
 use crate::groups::secp256r1::{ProjectivePoint, Scalar};
 use crate::groups::{secp256r1, Scalar as ScalarTrait};

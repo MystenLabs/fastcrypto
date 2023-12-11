@@ -6,8 +6,11 @@ extern crate criterion;
 
 use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
+use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
-use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
+use fastcrypto_vdf::hash_prime::{hash_prime_with_index, verify_prime, DefaultPrimalityCheck};
+use fastcrypto_vdf::vdf::wesolowski::CHALLENGE_SIZE;
+use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongFiatShamir, StrongVDF};
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
 use num_bigint::BigInt;
@@ -29,15 +32,28 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
 
     let result_bytes = hex::decode(parameters.result).unwrap();
     let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+    let result_copy = result.clone();
 
     let proof_bytes = hex::decode(parameters.proof).unwrap();
     let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+    let proof_copy = proof.clone();
 
     let input = QuadraticForm::generator(&discriminant);
+    let input_copy = input.clone();
 
-    let vdf = StrongVDF::new(discriminant, parameters.iterations);
+    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
     c.bench_function(discriminant_size.to_string(), move |b| {
         b.iter(|| vdf.verify(&input, &result, &proof))
+    });
+
+    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
+    let fast_verify: FastVerifier<
+        QuadraticForm,
+        StrongFiatShamir<QuadraticForm, CHALLENGE_SIZE, DefaultPrimalityCheck>,
+        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
+    > = FastVerifier::new(vdf, input_copy);
+    c.bench_function(format!("{} fast", discriminant_size), move |b| {
+        b.iter(|| fast_verify.verify(&result_copy, &proof_copy))
     });
 }
 
@@ -62,16 +78,16 @@ fn verify(c: &mut Criterion) {
 }
 
 fn sample_discriminant(c: &mut Criterion) {
-    let bit_lengths = [128, 256, 512, 1024, 2048];
+    let byte_lengths = [16, 32, 64, 128, 256];
 
     let mut seed = [0u8; 32];
 
     let mut rng = thread_rng();
 
-    for bit_length in bit_lengths {
+    for byte_length in byte_lengths {
         c.bench_with_input(
-            BenchmarkId::new("Sample class group discriminant".to_string(), bit_length),
-            &bit_length,
+            BenchmarkId::new("Sample class group discriminant".to_string(), byte_length),
+            &byte_length,
             |b, n| {
                 b.iter(|| {
                     rng.try_fill_bytes(&mut seed).unwrap();
@@ -82,10 +98,39 @@ fn sample_discriminant(c: &mut Criterion) {
     }
 }
 
+fn verify_discriminant(c: &mut Criterion) {
+    let byte_lengths = [16, 32, 64, 128, 256];
+    let seed = [0u8; 32];
+
+    for byte_length in byte_lengths {
+        let (i, _) = hash_prime_with_index::<DefaultPrimalityCheck>(
+            &seed,
+            byte_length,
+            &[0, 1, 8 * byte_length - 1],
+        );
+
+        c.bench_with_input(
+            BenchmarkId::new("Verify discriminant".to_string(), byte_length),
+            &byte_length,
+            |b, n| {
+                b.iter(|| {
+                    verify_prime::<DefaultPrimalityCheck>(
+                        &seed,
+                        *n,
+                        &[0, 1, 8 * byte_length - 1],
+                        i,
+                    )
+                    .unwrap()
+                })
+            },
+        );
+    }
+}
+
 criterion_group! {
     name = vdf_benchmarks;
     config = Criterion::default().sample_size(100);
-    targets = verify, sample_discriminant
+    targets = verify, sample_discriminant, verify_discriminant
 }
 
 criterion_main!(vdf_benchmarks);

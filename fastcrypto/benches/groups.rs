@@ -40,14 +40,18 @@ mod group_benches {
         c.bench_function(&(name.to_string()), move |b| b.iter(|| x * y));
     }
 
-    fn scale_single_precomputed<G: GroupElement, Mul: ScalarMultiplier<G>, M: Measurement>(
+    fn scale_single_precomputed<
+        G: GroupElement,
+        Mul: ScalarMultiplier<G, G::ScalarType>,
+        M: Measurement,
+    >(
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
         let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
         let y = G::ScalarType::rand(&mut thread_rng());
 
-        let multiplier = Mul::new(x);
+        let multiplier = Mul::new(x, G::zero());
         c.bench_function(&(name.to_string()), move |b| b.iter(|| multiplier.mul(&y)));
     }
 
@@ -61,32 +65,36 @@ mod group_benches {
 
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Fixed window (16)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Fixed window (32)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Fixed window (64)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Fixed window (128)", &mut group);
         scale_single_precomputed::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
     }
 
-    fn double_scale_single<G: GroupElement, Mul: ScalarMultiplier<G>, M: Measurement>(
+    fn double_scale_single<
+        G: GroupElement,
+        Mul: ScalarMultiplier<G, G::ScalarType>,
+        M: Measurement,
+    >(
         name: &str,
         c: &mut BenchmarkGroup<M>,
     ) {
@@ -95,7 +103,7 @@ mod group_benches {
         let g2 = G::generator() * G::ScalarType::rand(&mut thread_rng());
         let s2 = G::ScalarType::rand(&mut thread_rng());
 
-        let multiplier = Mul::new(g1);
+        let multiplier = Mul::new(g1, G::zero());
         c.bench_function(&(name.to_string()), move |b| {
             b.iter(|| multiplier.two_scalar_mul(&s1, &g2, &s2))
         });
@@ -106,27 +114,27 @@ mod group_benches {
 
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Straus (16)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Straus (32)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Straus (64)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Straus (128)", &mut group);
         double_scale_single::<
             ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 32, 5>,
+            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Straus (256)", &mut group);
         double_scale_single::<ProjectivePoint, DefaultMultiplier<ProjectivePoint>, _>(
@@ -171,13 +179,22 @@ mod group_benches {
     /// simply calling the GroupElement implementation. Only used for benchmarking.
     struct DefaultMultiplier<G: GroupElement>(G);
 
-    impl<G: GroupElement> ScalarMultiplier<G> for DefaultMultiplier<G> {
-        fn new(base_element: G) -> Self {
+    impl<G: GroupElement> ScalarMultiplier<G, G::ScalarType> for DefaultMultiplier<G> {
+        fn new(base_element: G, _zero: G) -> Self {
             Self(base_element)
         }
 
         fn mul(&self, scalar: &G::ScalarType) -> G {
             self.0 * scalar
+        }
+
+        fn two_scalar_mul(
+            &self,
+            base_scalar: &G::ScalarType,
+            other_element: &G,
+            other_scalar: &G::ScalarType,
+        ) -> G {
+            self.0 * base_scalar + *other_element * other_scalar
         }
     }
 

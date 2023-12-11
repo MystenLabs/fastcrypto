@@ -2,101 +2,93 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::iter::successors;
+use std::marker::PhantomData;
+use std::ops::{Add, Mul};
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier};
-use crate::groups::GroupElement;
-use crate::serde_helpers::ToFromByteArray;
+use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
+use crate::groups::Doubling;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
 /// fast for double multiplications, where a sliding window method is used, but this implies that the
 /// `double_mul`, is NOT constant time. However, the single multiplication method `mul` is constant
 /// time if the group operations for `G` are constant time.
 ///
-/// The `CACHE_SIZE` should be a power of two > 1. The `SCALAR_SIZE` is the number of bytes in the byte
-/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
-/// the scalar in little-endian format.
+/// The `CACHE_SIZE` should be a power of two > 1.
 ///
 /// The `SLIDING_WINDOW_WIDTH` is the number of bits in the sliding window of the elements not already
-/// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
+/// with precomputed multiples. This should be approximately log2(sqrt(scalar size in bits)) + 1 for
 /// optimal performance.
 pub struct WindowedScalarMultiplier<
-    G: GroupElement<ScalarType = S>,
-    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+    G,
+    S,
     const CACHE_SIZE: usize,
-    const SCALAR_SIZE: usize,
     const SLIDING_WINDOW_WIDTH: usize,
 > {
     /// Precomputed multiples of the base element from 0 up to CACHE_SIZE - 1 = 2^WINDOW_WIDTH - 1.
     cache: [G; CACHE_SIZE],
+    _scalar: PhantomData<S>,
 }
 
-impl<
-        G: GroupElement<ScalarType = S>,
-        S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
-        const CACHE_SIZE: usize,
-        const SCALAR_SIZE: usize,
-        const SLIDING_WINDOW_WIDTH: usize,
-    > WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
+impl<G, S, const CACHE_SIZE: usize, const SLIDING_WINDOW_WIDTH: usize>
+    WindowedScalarMultiplier<G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH>
 {
     /// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
     const WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
 }
 
 impl<
-        G: GroupElement<ScalarType = S>,
-        S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
+        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
+        S: ToLittleEndianBytes + Clone + Debug,
         const CACHE_SIZE: usize,
-        const SCALAR_SIZE: usize,
         const SLIDING_WINDOW_WIDTH: usize,
-    > ScalarMultiplier<G>
-    for WindowedScalarMultiplier<G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH>
+    > ScalarMultiplier<G, S> for WindowedScalarMultiplier<G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH>
 {
-    fn new(base_element: G) -> Self {
+    fn new(base_element: G, zero: G) -> Self {
         if !is_power_of_2(CACHE_SIZE) || CACHE_SIZE <= 1 {
             panic!("CACHE_SIZE must be a power of two greater than 1");
         }
-        let mut cache = [G::zero(); CACHE_SIZE];
-        cache[1] = base_element;
+        let mut cache = vec![];
+        cache.push(zero);
+        cache.push(base_element.clone());
         for i in 2..CACHE_SIZE {
-            cache[i] = cache[i - 1] + base_element;
+            cache.push(cache[i - 1].clone() + &base_element);
         }
-        Self { cache }
+        let cache: [G; CACHE_SIZE] = cache.try_into().unwrap();
+        Self {
+            cache,
+            _scalar: PhantomData,
+        }
     }
 
     fn mul(&self, scalar: &S) -> G {
         // Scalar as bytes in little-endian representation.
-        let scalar_bytes = scalar.to_byte_array();
+        let scalar_bytes = scalar.to_le_bytes();
 
-        let base_2w_expansion = integer_utils::compute_base_2w_expansion::<SCALAR_SIZE>(
-            &scalar_bytes,
-            Self::WINDOW_WIDTH,
-        );
+        let base_2w_expansion =
+            integer_utils::compute_base_2w_expansion(&scalar_bytes, Self::WINDOW_WIDTH);
 
         // Computer multiplication using the fixed-window method to ensure that it's constant time.
-        let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]];
+        let mut result: G = self.cache[base_2w_expansion[base_2w_expansion.len() - 1]].clone();
         for digit in base_2w_expansion.iter().rev().skip(1) {
             for _ in 1..=Self::WINDOW_WIDTH {
                 result = result.double();
             }
-            result += self.cache[*digit];
+            result = result + &self.cache[*digit];
         }
         result
     }
 
-    fn two_scalar_mul(
-        &self,
-        base_scalar: &G::ScalarType,
-        other_element: &G,
-        other_scalar: &G::ScalarType,
-    ) -> G {
+    fn two_scalar_mul(&self, base_scalar: &S, other_element: &G, other_scalar: &S) -> G {
         // Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
         multi_scalar_mul(
-            &[*base_scalar, *other_scalar],
-            &[self.cache[1], *other_element],
+            &[base_scalar.clone(), other_scalar.clone()],
+            &[self.cache[1].clone(), other_element.clone()],
             &HashMap::from([(0, self.cache[CACHE_SIZE / 2..CACHE_SIZE].to_vec())]),
             SLIDING_WINDOW_WIDTH,
+            self.cache[0].clone(),
         )
     }
 }
@@ -114,16 +106,20 @@ impl<
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
-    G: GroupElement<ScalarType = S>,
-    S: GroupElement + ToFromByteArray<SCALAR_SIZE>,
-    const SCALAR_SIZE: usize,
+    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
+    S: ToLittleEndianBytes + Clone + Debug,
     const N: usize,
 >(
-    scalars: &[G::ScalarType; N],
+    scalars: &[S; N],
     elements: &[G; N],
     precomputed_multiples: &HashMap<usize, Vec<G>>,
     default_window_width: usize,
+    zero: G,
 ) -> G {
+    if N == 0 {
+        return zero;
+    }
+
     let mut window_sizes = [0usize; N];
 
     // Compute missing precomputation tables.
@@ -152,8 +148,14 @@ pub fn multi_scalar_mul<
     // Compute little-endian byte representations of scalars.
     let scalar_bytes = scalars
         .iter()
-        .map(|s| s.to_byte_array())
-        .collect::<Vec<[u8; SCALAR_SIZE]>>();
+        .map(|s| s.to_le_bytes())
+        .collect::<Vec<Vec<u8>>>();
+
+    let scalar_size = scalar_bytes
+        .iter()
+        .map(|b| b.len())
+        .max()
+        .expect("No scalars given.");
 
     // We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
     // beginning of a window, and we continue the iteration. When the iterations exists the window,
@@ -165,10 +167,10 @@ pub fn multi_scalar_mul<
 
     // We may skip doubling until result is non-zero.
     let mut is_zero = true;
-    let mut result = G::zero();
+    let mut result = zero;
 
     // Iterate through all bits of the scalars from the top.
-    for bit in (0..SCALAR_SIZE * 8).rev() {
+    for bit in (0..scalar_size * 8).rev() {
         if !is_zero {
             result = result.double();
         }
@@ -180,9 +182,9 @@ pub fn multi_scalar_mul<
                     // This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
                     result = if is_zero {
                         is_zero = false;
-                        all_precomputed_multiples[i][precomputed_multiple_index[i]]
+                        all_precomputed_multiples[i][precomputed_multiple_index[i]].clone()
                     } else {
-                        result + all_precomputed_multiples[i][precomputed_multiple_index[i]]
+                        result + &all_precomputed_multiples[i][precomputed_multiple_index[i]]
                     };
                     is_in_window[i] = false;
                 }
@@ -201,9 +203,9 @@ pub fn multi_scalar_mul<
                     // There is not enough room left for a window. Continue with regular double-and-add.
                     result = if is_zero {
                         is_zero = false;
-                        elements[i]
+                        elements[i].clone()
                     } else {
-                        result + elements[i]
+                        result + &elements[i]
                     };
                 }
             }
@@ -213,13 +215,19 @@ pub fn multi_scalar_mul<
 }
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
-fn compute_multiples<G: GroupElement>(base_element: &G, window_size: usize) -> Vec<G> {
+fn compute_multiples<
+    S,
+    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
+>(
+    base_element: &G,
+    window_size: usize,
+) -> Vec<G> {
     assert!(window_size > 0, "Window size must be strictly positive.");
-    let mut smallest_multiple = *base_element;
+    let mut smallest_multiple = base_element.clone();
     for _ in 1..window_size {
         smallest_multiple = smallest_multiple.double();
     }
-    successors(Some(smallest_multiple), |g| Some(*g + base_element))
+    successors(Some(smallest_multiple), |g| Some(g.clone() + base_element))
         .take(1 << (window_size - 1))
         .collect::<Vec<_>>()
 }
@@ -232,16 +240,24 @@ mod tests {
 
     use crate::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     use crate::groups::secp256r1::{ProjectivePoint, Scalar};
+    use crate::groups::GroupElement;
     use crate::groups::Scalar as ScalarTrait;
+    use crate::serde_helpers::ToFromByteArray;
 
     use super::*;
 
+    impl ToLittleEndianBytes for RistrettoScalar {
+        fn to_le_bytes(&self) -> Vec<u8> {
+            self.to_byte_array().to_vec()
+        }
+    }
+
     #[test]
     fn test_scalar_multiplication_ristretto() {
-        let multiplier =
-            WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32, 4>::new(
-                RistrettoPoint::generator(),
-            );
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 4>::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         let scalars = [
             RistrettoScalar::from(0),
@@ -281,32 +297,37 @@ mod tests {
         for scalar in scalars {
             let expected = ProjectivePoint::generator() * scalar;
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 2, 4>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 16, 4>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 32, 4>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 64, 4>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
 
-            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 32, 4>::new(
+            let multiplier = WindowedScalarMultiplier::<ProjectivePoint, Scalar, 512, 4>::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             let actual = multiplier.mul(&scalar);
             assert_eq!(expected, actual);
@@ -315,10 +336,10 @@ mod tests {
 
     #[test]
     fn test_double_mul_ristretto() {
-        let multiplier =
-            WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 32, 5>::new(
-                RistrettoPoint::generator(),
-            );
+        let multiplier = WindowedScalarMultiplier::<RistrettoPoint, RistrettoScalar, 16, 5>::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         let other_point = RistrettoPoint::generator() * RistrettoScalar::from(3);
 

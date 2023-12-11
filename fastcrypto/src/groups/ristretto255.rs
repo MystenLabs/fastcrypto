@@ -6,7 +6,7 @@
 
 use crate::error::FastCryptoResult;
 use crate::groups::{
-    FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
+    Doubling, FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
 };
 use crate::hash::Sha512;
 use crate::serde_helpers::ToFromByteArray;
@@ -23,7 +23,7 @@ use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
-use std::ops::{Div, Mul};
+use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
 
 const RISTRETTO_POINT_BYTE_LENGTH: usize = 32;
@@ -54,6 +54,12 @@ impl RistrettoPoint {
     /// Return this point in compressed form.
     pub fn decompress(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
         RistrettoPoint::try_from(bytes.as_slice())
+    }
+}
+
+impl Doubling for RistrettoPoint {
+    fn double(&self) -> Self {
+        Self(self.0.add(&self.0))
     }
 }
 
