@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["CHALLENGE_SIZE"],"struct":["StrongFiatShamir","WeakFiatShamir","WesolowskiVDF"],"trait":["FiatShamir"],"type":["StrongVDF","WeakVDF"]};
+window.SIDEBAR_ITEMS = {"constant":["CHALLENGE_SIZE"],"struct":["FastVerifier","StrongFiatShamir","WeakFiatShamir","WesolowskisVDF"],"trait":["FiatShamir"],"type":["StrongVDF","StrongVDFVerifier","WeakVDF","WeakVDFVerifier"]};

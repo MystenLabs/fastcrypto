@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/windowed.rs`."><title>windowed.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/windowed.rs`."><title>windowed.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-e883e87179a81222.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (d86d65bbc 2023-12-10)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-bc37acceda91d44a.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -329,105 +329,118 @@
 <a href="#329" id="329">329</a>
 <a href="#330" id="330">330</a>
 <a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::iter::successors;
+<span class="kw">use </span>std::marker::PhantomData;
+<span class="kw">use </span>std::ops::{Add, Mul};
 
 <span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
-<span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::{integer_utils, ScalarMultiplier};
-<span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
-<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
+<span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
+<span class="kw">use </span><span class="kw">crate</span>::groups::Doubling;
 
 <span class="doccomment">/// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
 /// fast for double multiplications, where a sliding window method is used, but this implies that the
 /// `double_mul`, is NOT constant time. However, the single multiplication method `mul` is constant
 /// time if the group operations for `G` are constant time.
 ///
-/// The `CACHE_SIZE` should be a power of two &gt; 1. The `SCALAR_SIZE` is the number of bytes in the byte
-/// representation of the scalar type `S`, and we assume that the `S::to_byte_array` method returns
-/// the scalar in little-endian format.
+/// The `CACHE_SIZE` should be a power of two &gt; 1.
 ///
 /// The `SLIDING_WINDOW_WIDTH` is the number of bits in the sliding window of the elements not already
-/// with precomputed multiples. This should be approximately log2(sqrt(SCALAR_SIZE_IN_BITS)) + 1 for
+/// with precomputed multiples. This should be approximately log2(sqrt(scalar size in bits)) + 1 for
 /// optimal performance.
 </span><span class="kw">pub struct </span>WindowedScalarMultiplier&lt;
-    G: GroupElement&lt;ScalarType = S&gt;,
-    S: GroupElement + ToFromByteArray&lt;SCALAR_SIZE&gt;,
+    G,
+    S,
     <span class="kw">const </span>CACHE_SIZE: usize,
-    <span class="kw">const </span>SCALAR_SIZE: usize,
     <span class="kw">const </span>SLIDING_WINDOW_WIDTH: usize,
 &gt; {
     <span class="doccomment">/// Precomputed multiples of the base element from 0 up to CACHE_SIZE - 1 = 2^WINDOW_WIDTH - 1.
     </span>cache: [G; CACHE_SIZE],
+    _scalar: PhantomData&lt;S&gt;,
 }
 
-<span class="kw">impl</span>&lt;
-        G: GroupElement&lt;ScalarType = S&gt;,
-        S: GroupElement + ToFromByteArray&lt;SCALAR_SIZE&gt;,
-        <span class="kw">const </span>CACHE_SIZE: usize,
-        <span class="kw">const </span>SCALAR_SIZE: usize,
-        <span class="kw">const </span>SLIDING_WINDOW_WIDTH: usize,
-    &gt; WindowedScalarMultiplier&lt;G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH&gt;
+<span class="kw">impl</span>&lt;G, S, <span class="kw">const </span>CACHE_SIZE: usize, <span class="kw">const </span>SLIDING_WINDOW_WIDTH: usize&gt;
+    WindowedScalarMultiplier&lt;G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH&gt;
 {
     <span class="doccomment">/// The number of bits in the window. This is equal to the floor of the log2 of the cache size.
     </span><span class="kw">const </span>WINDOW_WIDTH: usize = integer_utils::log2(CACHE_SIZE);
 }
 
 <span class="kw">impl</span>&lt;
-        G: GroupElement&lt;ScalarType = S&gt;,
-        S: GroupElement + ToFromByteArray&lt;SCALAR_SIZE&gt;,
+        G: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Doubling + Clone + Debug,
+        S: ToLittleEndianBytes + Clone + Debug,
         <span class="kw">const </span>CACHE_SIZE: usize,
-        <span class="kw">const </span>SCALAR_SIZE: usize,
         <span class="kw">const </span>SLIDING_WINDOW_WIDTH: usize,
-    &gt; ScalarMultiplier&lt;G&gt;
-    <span class="kw">for </span>WindowedScalarMultiplier&lt;G, S, CACHE_SIZE, SCALAR_SIZE, SLIDING_WINDOW_WIDTH&gt;
+    &gt; ScalarMultiplier&lt;G, S&gt; <span class="kw">for </span>WindowedScalarMultiplier&lt;G, S, CACHE_SIZE, SLIDING_WINDOW_WIDTH&gt;
 {
-    <span class="kw">fn </span>new(base_element: G) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>new(base_element: G, zero: G) -&gt; <span class="self">Self </span>{
         <span class="kw">if </span>!is_power_of_2(CACHE_SIZE) || CACHE_SIZE &lt;= <span class="number">1 </span>{
             <span class="macro">panic!</span>(<span class="string">"CACHE_SIZE must be a power of two greater than 1"</span>);
         }
-        <span class="kw">let </span><span class="kw-2">mut </span>cache = [G::zero(); CACHE_SIZE];
-        cache[<span class="number">1</span>] = base_element;
+        <span class="kw">let </span><span class="kw-2">mut </span>cache = <span class="macro">vec!</span>[];
+        cache.push(zero);
+        cache.push(base_element.clone());
         <span class="kw">for </span>i <span class="kw">in </span><span class="number">2</span>..CACHE_SIZE {
-            cache[i] = cache[i - <span class="number">1</span>] + base_element;
+            cache.push(cache[i - <span class="number">1</span>].clone() + <span class="kw-2">&amp;</span>base_element);
         }
-        <span class="self">Self </span>{ cache }
+        <span class="kw">let </span>cache: [G; CACHE_SIZE] = cache.try_into().unwrap();
+        <span class="self">Self </span>{
+            cache,
+            _scalar: PhantomData,
+        }
     }
 
     <span class="kw">fn </span>mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scalar: <span class="kw-2">&amp;</span>S) -&gt; G {
         <span class="comment">// Scalar as bytes in little-endian representation.
-        </span><span class="kw">let </span>scalar_bytes = scalar.to_byte_array();
+        </span><span class="kw">let </span>scalar_bytes = scalar.to_le_bytes();
 
-        <span class="kw">let </span>base_2w_expansion = integer_utils::compute_base_2w_expansion::&lt;SCALAR_SIZE&gt;(
-            <span class="kw-2">&amp;</span>scalar_bytes,
-            <span class="self">Self</span>::WINDOW_WIDTH,
-        );
+        <span class="kw">let </span>base_2w_expansion =
+            integer_utils::compute_base_2w_expansion(<span class="kw-2">&amp;</span>scalar_bytes, <span class="self">Self</span>::WINDOW_WIDTH);
 
         <span class="comment">// Computer multiplication using the fixed-window method to ensure that it's constant time.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>result: G = <span class="self">self</span>.cache[base_2w_expansion[base_2w_expansion.len() - <span class="number">1</span>]];
+        </span><span class="kw">let </span><span class="kw-2">mut </span>result: G = <span class="self">self</span>.cache[base_2w_expansion[base_2w_expansion.len() - <span class="number">1</span>]].clone();
         <span class="kw">for </span>digit <span class="kw">in </span>base_2w_expansion.iter().rev().skip(<span class="number">1</span>) {
             <span class="kw">for _ in </span><span class="number">1</span>..=<span class="self">Self</span>::WINDOW_WIDTH {
                 result = result.double();
             }
-            result += <span class="self">self</span>.cache[<span class="kw-2">*</span>digit];
+            result = result + <span class="kw-2">&amp;</span><span class="self">self</span>.cache[<span class="kw-2">*</span>digit];
         }
         result
     }
 
-    <span class="kw">fn </span>two_scalar_mul(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        base_scalar: <span class="kw-2">&amp;</span>G::ScalarType,
-        other_element: <span class="kw-2">&amp;</span>G,
-        other_scalar: <span class="kw-2">&amp;</span>G::ScalarType,
-    ) -&gt; G {
+    <span class="kw">fn </span>two_scalar_mul(<span class="kw-2">&amp;</span><span class="self">self</span>, base_scalar: <span class="kw-2">&amp;</span>S, other_element: <span class="kw-2">&amp;</span>G, other_scalar: <span class="kw-2">&amp;</span>S) -&gt; G {
         <span class="comment">// Compute the sum of the two multiples using Straus' algorithm combined with a sliding window algorithm.
         </span>multi_scalar_mul(
-            <span class="kw-2">&amp;</span>[<span class="kw-2">*</span>base_scalar, <span class="kw-2">*</span>other_scalar],
-            <span class="kw-2">&amp;</span>[<span class="self">self</span>.cache[<span class="number">1</span>], <span class="kw-2">*</span>other_element],
+            <span class="kw-2">&amp;</span>[base_scalar.clone(), other_scalar.clone()],
+            <span class="kw-2">&amp;</span>[<span class="self">self</span>.cache[<span class="number">1</span>].clone(), other_element.clone()],
             <span class="kw-2">&amp;</span>HashMap::from([(<span class="number">0</span>, <span class="self">self</span>.cache[CACHE_SIZE / <span class="number">2</span>..CACHE_SIZE].to_vec())]),
             SLIDING_WINDOW_WIDTH,
+            <span class="self">self</span>.cache[<span class="number">0</span>].clone(),
         )
     }
 }
@@ -445,16 +458,20 @@
 /// table and may be set to any value &gt;= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 </span><span class="kw">pub fn </span>multi_scalar_mul&lt;
-    G: GroupElement&lt;ScalarType = S&gt;,
-    S: GroupElement + ToFromByteArray&lt;SCALAR_SIZE&gt;,
-    <span class="kw">const </span>SCALAR_SIZE: usize,
+    G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Clone + Debug,
+    S: ToLittleEndianBytes + Clone + Debug,
     <span class="kw">const </span>N: usize,
 &gt;(
-    scalars: <span class="kw-2">&amp;</span>[G::ScalarType; N],
+    scalars: <span class="kw-2">&amp;</span>[S; N],
     elements: <span class="kw-2">&amp;</span>[G; N],
     precomputed_multiples: <span class="kw-2">&amp;</span>HashMap&lt;usize, Vec&lt;G&gt;&gt;,
     default_window_width: usize,
+    zero: G,
 ) -&gt; G {
+    <span class="kw">if </span>N == <span class="number">0 </span>{
+        <span class="kw">return </span>zero;
+    }
+
     <span class="kw">let </span><span class="kw-2">mut </span>window_sizes = [<span class="number">0usize</span>; N];
 
     <span class="comment">// Compute missing precomputation tables.
@@ -483,8 +500,14 @@
     <span class="comment">// Compute little-endian byte representations of scalars.
     </span><span class="kw">let </span>scalar_bytes = scalars
         .iter()
-        .map(|s| s.to_byte_array())
-        .collect::&lt;Vec&lt;[u8; SCALAR_SIZE]&gt;&gt;();
+        .map(|s| s.to_le_bytes())
+        .collect::&lt;Vec&lt;Vec&lt;u8&gt;&gt;&gt;();
+
+    <span class="kw">let </span>scalar_size = scalar_bytes
+        .iter()
+        .map(|b| b.len())
+        .max()
+        .expect(<span class="string">"No scalars given."</span>);
 
     <span class="comment">// We iterate from the top bit and down for all scalars until we reach a set bit. This marks the
     // beginning of a window, and we continue the iteration. When the iterations exists the window,
@@ -496,10 +519,10 @@
 
     <span class="comment">// We may skip doubling until result is non-zero.
     </span><span class="kw">let </span><span class="kw-2">mut </span>is_zero = <span class="bool-val">true</span>;
-    <span class="kw">let </span><span class="kw-2">mut </span>result = G::zero();
+    <span class="kw">let </span><span class="kw-2">mut </span>result = zero;
 
     <span class="comment">// Iterate through all bits of the scalars from the top.
-    </span><span class="kw">for </span>bit <span class="kw">in </span>(<span class="number">0</span>..SCALAR_SIZE * <span class="number">8</span>).rev() {
+    </span><span class="kw">for </span>bit <span class="kw">in </span>(<span class="number">0</span>..scalar_size * <span class="number">8</span>).rev() {
         <span class="kw">if </span>!is_zero {
             result = result.double();
         }
@@ -511,9 +534,9 @@
                     <span class="comment">// This window is finished. Add the right precomputed value and indicate that we are ready for a new window.
                     </span>result = <span class="kw">if </span>is_zero {
                         is_zero = <span class="bool-val">false</span>;
-                        all_precomputed_multiples[i][precomputed_multiple_index[i]]
+                        all_precomputed_multiples[i][precomputed_multiple_index[i]].clone()
                     } <span class="kw">else </span>{
-                        result + all_precomputed_multiples[i][precomputed_multiple_index[i]]
+                        result + <span class="kw-2">&amp;</span>all_precomputed_multiples[i][precomputed_multiple_index[i]]
                     };
                     is_in_window[i] = <span class="bool-val">false</span>;
                 }
@@ -532,9 +555,9 @@
                     <span class="comment">// There is not enough room left for a window. Continue with regular double-and-add.
                     </span>result = <span class="kw">if </span>is_zero {
                         is_zero = <span class="bool-val">false</span>;
-                        elements[i]
+                        elements[i].clone()
                     } <span class="kw">else </span>{
-                        result + elements[i]
+                        result + <span class="kw-2">&amp;</span>elements[i]
                     };
                 }
             }
@@ -544,13 +567,19 @@
 }
 
 <span class="doccomment">/// Compute multiples &lt;i&gt;2&lt;sup&gt;w-1&lt;/sup&gt; base_element, (2&lt;sup&gt;w-1&lt;/sup&gt; + 1) base_element, ..., (2&lt;sup&gt;w&lt;/sup&gt; - 1) base_element&lt;/i&gt;.
-</span><span class="kw">fn </span>compute_multiples&lt;G: GroupElement&gt;(base_element: <span class="kw-2">&amp;</span>G, window_size: usize) -&gt; Vec&lt;G&gt; {
+</span><span class="kw">fn </span>compute_multiples&lt;
+    S,
+    G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Clone + Debug,
+&gt;(
+    base_element: <span class="kw-2">&amp;</span>G,
+    window_size: usize,
+) -&gt; Vec&lt;G&gt; {
     <span class="macro">assert!</span>(window_size &gt; <span class="number">0</span>, <span class="string">"Window size must be strictly positive."</span>);
-    <span class="kw">let </span><span class="kw-2">mut </span>smallest_multiple = <span class="kw-2">*</span>base_element;
+    <span class="kw">let </span><span class="kw-2">mut </span>smallest_multiple = base_element.clone();
     <span class="kw">for _ in </span><span class="number">1</span>..window_size {
         smallest_multiple = smallest_multiple.double();
     }
-    successors(<span class="prelude-val">Some</span>(smallest_multiple), |g| <span class="prelude-val">Some</span>(<span class="kw-2">*</span>g + base_element))
+    successors(<span class="prelude-val">Some</span>(smallest_multiple), |g| <span class="prelude-val">Some</span>(g.clone() + base_element))
         .take(<span class="number">1 </span>&lt;&lt; (window_size - <span class="number">1</span>))
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
 }
@@ -563,16 +592,24 @@
 
     <span class="kw">use </span><span class="kw">crate</span>::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
     <span class="kw">use </span><span class="kw">crate</span>::groups::secp256r1::{ProjectivePoint, Scalar};
+    <span class="kw">use </span><span class="kw">crate</span>::groups::GroupElement;
     <span class="kw">use </span><span class="kw">crate</span>::groups::Scalar <span class="kw">as </span>ScalarTrait;
+    <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
 
     <span class="kw">use super</span>::<span class="kw-2">*</span>;
 
+    <span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>RistrettoScalar {
+        <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+            <span class="self">self</span>.to_byte_array().to_vec()
+        }
+    }
+
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_scalar_multiplication_ristretto() {
-        <span class="kw">let </span>multiplier =
-            WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
-                RistrettoPoint::generator(),
-            );
+        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         <span class="kw">let </span>scalars = [
             RistrettoScalar::from(<span class="number">0</span>),
@@ -612,32 +649,37 @@
         <span class="kw">for </span>scalar <span class="kw">in </span>scalars {
             <span class="kw">let </span>expected = ProjectivePoint::generator() * scalar;
 
-            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">2</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">2</span>, <span class="number">4</span>&gt;::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
             <span class="macro">assert_eq!</span>(expected, actual);
 
-            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">16</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">16</span>, <span class="number">4</span>&gt;::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
             <span class="macro">assert_eq!</span>(expected, actual);
 
-            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">32</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
             <span class="macro">assert_eq!</span>(expected, actual);
 
-            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">64</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">64</span>, <span class="number">4</span>&gt;::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
             <span class="macro">assert_eq!</span>(expected, actual);
 
-            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">512</span>, <span class="number">32</span>, <span class="number">4</span>&gt;::new(
+            <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;ProjectivePoint, Scalar, <span class="number">512</span>, <span class="number">4</span>&gt;::new(
                 ProjectivePoint::generator(),
+                ProjectivePoint::zero(),
             );
             <span class="kw">let </span>actual = multiplier.mul(<span class="kw-2">&amp;</span>scalar);
             <span class="macro">assert_eq!</span>(expected, actual);
@@ -646,10 +688,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_double_mul_ristretto() {
-        <span class="kw">let </span>multiplier =
-            WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">32</span>, <span class="number">5</span>&gt;::new(
-                RistrettoPoint::generator(),
-            );
+        <span class="kw">let </span>multiplier = WindowedScalarMultiplier::&lt;RistrettoPoint, RistrettoScalar, <span class="number">16</span>, <span class="number">5</span>&gt;::new(
+            RistrettoPoint::generator(),
+            RistrettoPoint::zero(),
+        );
 
         <span class="kw">let </span>other_point = RistrettoPoint::generator() * RistrettoScalar::from(<span class="number">3</span>);
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e883e87179a81222.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (d86d65bbc 2023-12-10)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../static.files/storage-bc37acceda91d44a.js"></script><script defer src="../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -479,6 +479,12 @@
 <a href="#479" id="479">479</a>
 <a href="#480" id="480">480</a>
 <a href="#481" id="481">481</a>
+<a href="#482" id="482">482</a>
+<a href="#483" id="483">483</a>
+<a href="#484" id="484">484</a>
+<a href="#485" id="485">485</a>
+<a href="#486" id="486">486</a>
+<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -490,12 +496,14 @@
 <span class="kw">use crate</span>::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
+<span class="kw">use </span>fastcrypto::groups::Doubling;
 <span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
+<span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::mem::swap;
-<span class="kw">use </span>std::ops::{Add, Neg};
+<span class="kw">use </span>std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
 
 <span class="kw">mod </span>compressed;
 
@@ -547,21 +555,15 @@
     }
 
     <span class="doccomment">/// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    </span><span class="kw">fn </span>normalize(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         </span><span class="kw">if </span><span class="self">self</span>.is_normal() {
-            <span class="kw">return </span><span class="self">self</span>;
+            <span class="kw">return</span>;
         }
-        <span class="kw">let </span>r = (<span class="kw-2">&amp;</span><span class="self">self</span>.a - <span class="kw-2">&amp;</span><span class="self">self</span>.b).div_floor(<span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.a * <span class="number">2</span>));
-        <span class="kw">let </span>ra = <span class="kw-2">&amp;</span>r * <span class="kw-2">&amp;</span><span class="self">self</span>.a;
-        <span class="kw">let </span>c = <span class="self">self</span>.c + (<span class="kw-2">&amp;</span>ra + <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>r;
-        <span class="kw">let </span>b = <span class="self">self</span>.b + <span class="kw-2">&amp;</span>ra * <span class="number">2</span>;
-        <span class="self">Self </span>{
-            a: <span class="self">self</span>.a,
-            b,
-            c,
-            partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit,
-        }
+        <span class="kw">let </span>r = (<span class="kw-2">&amp;</span><span class="self">self</span>.a - <span class="kw-2">&amp;</span><span class="self">self</span>.b).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.a).shr(<span class="number">1</span>);
+        <span class="kw">let </span>ra: BigInt = <span class="kw-2">&amp;</span>r * <span class="kw-2">&amp;</span><span class="self">self</span>.a;
+        <span class="self">self</span>.c.add_assign((<span class="kw-2">&amp;</span>ra + <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>r);
+        <span class="self">self</span>.b.add_assign(<span class="kw-2">&amp;</span>ra.shl(<span class="number">1</span>));
     }
 
     <span class="doccomment">/// Return true if this form is reduced: A form is reduced if it is normal (see
@@ -575,18 +577,16 @@
     }
 
     <span class="doccomment">/// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    </span><span class="kw">fn </span>reduce(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
+    </span><span class="kw">fn </span>reduce(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>form = <span class="self">self</span>.normalize();
-        <span class="kw">while </span>!form.is_reduced() {
-            <span class="kw">let </span>s = (<span class="kw-2">&amp;</span>form.b + <span class="kw-2">&amp;</span>form.c).div_floor(<span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>form.c * <span class="number">2</span>));
-            <span class="kw">let </span>cs = <span class="kw-2">&amp;</span>form.c * <span class="kw-2">&amp;</span>s;
-            <span class="kw">let </span>old_c = form.c.clone();
-            form.c = (<span class="kw-2">&amp;</span>cs - <span class="kw-2">&amp;</span>form.b) * <span class="kw-2">&amp;</span>s + <span class="kw-2">&amp;</span>form.a;
-            form.a = old_c;
-            form.b = <span class="kw-2">&amp;</span>cs * <span class="number">2 </span>- <span class="kw-2">&amp;</span>form.b;
+        </span><span class="self">self</span>.normalize();
+        <span class="kw">while </span>!<span class="self">self</span>.is_reduced() {
+            <span class="kw">let </span>s = (<span class="kw-2">&amp;</span><span class="self">self</span>.b + <span class="kw-2">&amp;</span><span class="self">self</span>.c).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.c).shr(<span class="number">1</span>);
+            <span class="kw">let </span>cs: BigInt = <span class="kw-2">&amp;</span><span class="self">self</span>.c * <span class="kw-2">&amp;</span>s;
+            swap(<span class="kw-2">&amp;mut </span><span class="self">self</span>.a, <span class="kw-2">&amp;mut </span><span class="self">self</span>.c);
+            <span class="self">self</span>.c += (<span class="kw-2">&amp;</span>cs - <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>s;
+            <span class="self">self</span>.b = cs.shl(<span class="number">1</span>) - <span class="kw-2">&amp;</span><span class="self">self</span>.b;
         }
-        form
     }
 
     <span class="doccomment">/// Compute the composition of this quadratic form with another quadratic form.
@@ -697,27 +697,19 @@
             v3 = <span class="kw-2">&amp;</span>g * (<span class="kw-2">&amp;</span>q3 + <span class="kw-2">&amp;</span>q4) - <span class="kw-2">&amp;</span>q1 - <span class="kw-2">&amp;</span>q2;
         }
 
-        QuadraticForm {
+        <span class="kw">let </span><span class="kw-2">mut </span>form = QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
-        }
-        .reduce()
+        };
+        form.reduce();
+        form
     }
 }
 
-<span class="kw">impl </span>ParameterizedGroupElement <span class="kw">for </span>QuadraticForm {
-    <span class="doccomment">/// The discriminant of a quadratic form defines the class group.
-    </span><span class="kw">type </span>ParameterType = Discriminant;
-
-    <span class="kw">type </span>ScalarType = BigInt;
-
-    <span class="kw">fn </span>zero(discriminant: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
-    }
-
-    <span class="kw">fn </span>double(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>Doubling <span class="kw">for </span>QuadraticForm {
+    <span class="kw">fn </span>double(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="comment">// Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael &amp; Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
@@ -781,13 +773,33 @@
             w3 = <span class="kw-2">&amp;</span>w3 - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>x * <span class="kw-2">&amp;</span>dx;
         }
 
-        QuadraticForm {
+        <span class="kw">let </span><span class="kw-2">mut </span>form = QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
-        }
-        .reduce()
+        };
+        form.reduce();
+        form
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BigInt&gt; <span class="kw">for </span>QuadraticForm {
+    <span class="kw">type </span>Output = <span class="self">Self</span>;
+
+    <span class="kw">fn </span>mul(<span class="self">self</span>, rhs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BigInt) -&gt; <span class="self">Self</span>::Output {
+        <span class="self">self</span>.borrow().mul(rhs)
+    }
+}
+
+<span class="kw">impl </span>ParameterizedGroupElement <span class="kw">for </span>QuadraticForm {
+    <span class="doccomment">/// The discriminant of a quadratic form defines the class group.
+    </span><span class="kw">type </span>ParameterType = Discriminant;
+
+    <span class="kw">type </span>ScalarType = BigInt;
+
+    <span class="kw">fn </span>zero(discriminant: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
     }
 
     <span class="kw">fn </span>mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scale: <span class="kw-2">&amp;</span>BigInt) -&gt; <span class="self">Self </span>{
@@ -917,14 +929,14 @@
             QuadraticForm::from_a_b_discriminant(BigInt::from(<span class="number">11</span>), BigInt::from(<span class="number">49</span>), <span class="kw-2">&amp;</span>discriminant);
         <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">55</span>));
 
-        quadratic_form = quadratic_form.normalize();
+        quadratic_form.normalize();
 
         <span class="comment">// Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
         </span><span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">11</span>));
         <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(<span class="number">5</span>));
         <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">1</span>));
 
-        quadratic_form = quadratic_form.reduce();
+        quadratic_form.reduce();
 
         <span class="comment">// Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
         </span><span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">1</span>));

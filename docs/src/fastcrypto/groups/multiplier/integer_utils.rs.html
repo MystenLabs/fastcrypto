@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/integer_utils.rs`."><title>integer_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-c67e44d78ab2db17.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (1fdfe1234 2023-12-06)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-fec3eaa3851e447d.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/multiplier/integer_utils.rs`."><title>integer_utils.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-e883e87179a81222.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (d86d65bbc 2023-12-10)" data-channel="nightly" data-search-js="search-5a66c239c06b3a66.js" data-settings-js="settings-fe03fdc259827cd2.js" ><script src="../../../../static.files/storage-bc37acceda91d44a.js"></script><script defer src="../../../../static.files/src-script-3280b574d94e47b4.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-77dede896d6ac08e.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-5d8b3c7633ad77ba.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><a href="../../../../help.html">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -189,23 +189,35 @@
 <a href="#189" id="189">189</a>
 <a href="#190" id="190">190</a>
 <a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="doccomment">/// Given a binary representation of a number in little-endian format, return the digits of its base
+</span><span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::ToLittleEndianBytes;
+<span class="kw">use </span>num_bigint::BigInt;
+
+<span class="doccomment">/// Given a binary representation of a number in little-endian format, return the digits of its base
 /// `2^bits_per_digit` expansion.
-</span><span class="kw">pub fn </span>compute_base_2w_expansion&lt;<span class="kw">const </span>N: usize&gt;(
-    bytes: <span class="kw-2">&amp;</span>[u8; N],
-    bits_per_digit: usize,
-) -&gt; Vec&lt;usize&gt; {
+</span><span class="kw">pub fn </span>compute_base_2w_expansion(bytes: <span class="kw-2">&amp;</span>[u8], bits_per_digit: usize) -&gt; Vec&lt;usize&gt; {
     <span class="macro">assert!</span>(<span class="number">0 </span>&lt; bits_per_digit &amp;&amp; bits_per_digit &lt;= usize::BITS <span class="kw">as </span>usize);
 
     <span class="comment">// The base 2^window_size expansions digits in little-endian representation.
     </span><span class="kw">let </span><span class="kw-2">mut </span>digits = Vec::new();
 
+    <span class="kw">let </span>n = bytes.len();
+
     <span class="comment">// Compute the number of digits needed to represent the numbed in base 2^w. This is equal to
     // ceil(8*N / window_size), and we compute like this because div_ceil is unstable as of rustc 1.69.0.
-    </span><span class="kw">let </span>digits_count = div_ceil(<span class="number">8 </span>* N, bits_per_digit);
+    </span><span class="kw">let </span>digits_count = div_ceil(<span class="number">8 </span>* n, bits_per_digit);
 
     <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..digits_count {
         digits.push(get_bits_from_bytes(
@@ -242,10 +254,10 @@
 
 <span class="doccomment">/// Get the integer represented by a given range of bits of a an integer represented by a little-endian
 /// byte array from start to end (exclusive). The `end` argument may be arbitrarily large, but if it
-/// is larger than 8*N, the remaining bits of the byte array will be assumed to be zero.
+/// is larger than 8*bytes.len(), the remaining bits of the byte array will be assumed to be zero.
 </span><span class="attr">#[inline]
-</span><span class="kw">pub fn </span>get_bits_from_bytes&lt;<span class="kw">const </span>N: usize&gt;(bytes: <span class="kw-2">&amp;</span>[u8; N], start: usize, end: usize) -&gt; usize {
-    <span class="macro">assert!</span>(start &lt;= end &amp;&amp; start &lt; <span class="number">8 </span>* N);
+</span><span class="kw">pub fn </span>get_bits_from_bytes(bytes: <span class="kw-2">&amp;</span>[u8], start: usize, end: usize) -&gt; usize {
+    <span class="macro">assert!</span>(start &lt;= end &amp;&amp; start &lt; <span class="number">8 </span>* bytes.len());
 
     <span class="kw">let </span><span class="kw-2">mut </span>result: usize = <span class="number">0</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>bits_added = <span class="number">0</span>;
@@ -253,7 +265,7 @@
     <span class="kw">let </span><span class="kw-2">mut </span>current_bit = start % <span class="number">8</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>current_byte = start / <span class="number">8</span>;
 
-    <span class="kw">while </span>bits_added &lt; end - start &amp;&amp; current_byte &lt; N {
+    <span class="kw">while </span>bits_added &lt; end - start &amp;&amp; current_byte &lt; bytes.len() {
         <span class="kw">let </span>remaining_bits = end - start - bits_added;
         <span class="kw">let </span>(bits_to_read, next_byte, next_bit) = <span class="kw">if </span>remaining_bits &lt; <span class="number">8 </span>- current_bit {
             <span class="comment">// There are enough bits left in the current byte
@@ -281,8 +293,8 @@
 
 <span class="doccomment">/// Return true iff the bit at the given index is set.
 </span><span class="attr">#[inline]
-</span><span class="kw">pub fn </span>test_bit&lt;<span class="kw">const </span>N: usize&gt;(bytes: <span class="kw-2">&amp;</span>[u8; N], index: usize) -&gt; bool {
-    <span class="macro">assert!</span>(index &lt; <span class="number">8 </span>* N);
+</span><span class="kw">pub fn </span>test_bit(bytes: <span class="kw-2">&amp;</span>[u8], index: usize) -&gt; bool {
+    <span class="macro">assert!</span>(index &lt; <span class="number">8 </span>* bytes.len());
     <span class="kw">let </span>byte = index &gt;&gt; <span class="number">3</span>;
     <span class="kw">let </span>shifted = bytes[byte] &gt;&gt; (index &amp; <span class="number">7</span>);
     shifted &amp; <span class="number">1 </span>!= <span class="number">0
@@ -339,7 +351,7 @@
         <span class="kw">let </span>bytes = value.to_le_bytes();
 
         <span class="comment">// Is w = 8, the base 2^w expansion should be equal to the le bytes.
-        </span><span class="kw">let </span>expansion = compute_base_2w_expansion::&lt;<span class="number">16</span>&gt;(<span class="kw-2">&amp;</span>bytes, <span class="number">8</span>);
+        </span><span class="kw">let </span>expansion = compute_base_2w_expansion(<span class="kw-2">&amp;</span>bytes, <span class="number">8</span>);
         <span class="macro">assert_eq!</span>(
             bytes.to_vec(),
             expansion.iter().map(|x| <span class="kw-2">*</span>x <span class="kw">as </span>u8).collect::&lt;Vec&lt;u8&gt;&gt;()
@@ -347,7 +359,7 @@
 
         <span class="comment">// Verify that the expansion is correct for w = 1, ..., 64
         </span><span class="kw">for </span>window_size <span class="kw">in </span><span class="number">1</span>..=<span class="number">64 </span>{
-            <span class="kw">let </span>expansion = compute_base_2w_expansion::&lt;<span class="number">16</span>&gt;(<span class="kw-2">&amp;</span>bytes, window_size);
+            <span class="kw">let </span>expansion = compute_base_2w_expansion(<span class="kw-2">&amp;</span>bytes, window_size);
             <span class="kw">let </span><span class="kw-2">mut </span>sum = <span class="number">0u128</span>;
             <span class="kw">for </span>(i, value) <span class="kw">in </span>expansion.iter().enumerate() {
                 sum += (<span class="number">1 </span>&lt;&lt; (window_size * i)) * <span class="kw-2">*</span>value <span class="kw">as </span>u128;
@@ -379,5 +391,13 @@
         <span class="macro">assert!</span>(!is_power_of_2(<span class="number">513</span>));
         <span class="macro">assert!</span>(is_power_of_2(<span class="number">4096</span>));
     }
+}
+
+<span class="comment">// We implementation `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
+// multi-scalar multiplication.
+</span><span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>BigInt {
+    <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
+        <span class="self">self</span>.to_bytes_le().<span class="number">1
+    </span>}
 }
 </code></pre></div></section></main></body></html>
