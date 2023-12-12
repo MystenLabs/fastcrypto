@@ -34,11 +34,11 @@ fn test_tbls_e2e() {
         ThresholdBls12381MinSig::partial_verify(&public_poly, b"other message", &sig1).is_err()
     );
     // Aggregate should fail if we don't have enough signatures.
-    assert!(ThresholdBls12381MinSig::aggregate(t, &[sig1.clone(), sig2.clone()]).is_err());
+    assert!(ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone()].iter()).is_err());
 
     // Signatures should be the same no matter if calculated with the private key or from a
     // threshold of partial signatures.
-    let full_sig = ThresholdBls12381MinSig::aggregate(t, &[sig1, sig2, sig3]).unwrap();
+    let full_sig = ThresholdBls12381MinSig::aggregate(t, [sig1, sig2, sig3].iter()).unwrap();
     assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &full_sig).is_ok());
     assert_eq!(
         full_sig,
@@ -69,26 +69,26 @@ fn test_partial_verify_batch() {
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &[],
+        [].iter(),
         &mut thread_rng()
     )
     .is_ok());
     // standard sigs should pass
-    let sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_ok());
     // even if repeated
-    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     sigs[0] = sigs[2].clone();
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_ok());
@@ -96,48 +96,48 @@ fn test_partial_verify_batch() {
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         b"other message",
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_err());
     // invalid signatures according to the polynomial should fail
-    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     (sigs[0].index, sigs[1].index) = (sigs[1].index, sigs[0].index);
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_err());
     // identity as the signature should fail
-    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     sigs[1].value = G1Element::zero();
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_err());
     // generator as the signature should fail
-    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     sigs[1].value = G1Element::generator();
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_err());
     // even if the sum of sigs is ok, should fail since not consistent with the polynomial
-    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+    let mut sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
     sigs[0].value -= G1Element::generator();
     sigs[1].value += G1Element::generator();
     assert!(ThresholdBls12381MinSig::partial_verify_batch(
         &public_poly,
         msg,
-        &sigs,
+        sigs.iter(),
         &mut thread_rng()
     )
     .is_err());

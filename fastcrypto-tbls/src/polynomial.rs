@@ -10,6 +10,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
+use std::borrow::Borrow;
 use std::collections::HashSet;
 
 /// Types
@@ -81,21 +82,24 @@ impl<C: GroupElement> Poly<C> {
     // Expects exactly t unique shares.
     fn get_lagrange_coefficients_for_c0(
         t: u32,
-        shares: &[Eval<C>],
+        mut shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<Vec<C::ScalarType>> {
-        if shares.len() != t as usize {
+        let mut ids_set = HashSet::new();
+        let (shares_size_lower, shares_size_upper) = shares.size_hint();
+        let indices = shares.try_fold(
+            Vec::with_capacity(shares_size_upper.unwrap_or(shares_size_lower)),
+            |mut vec, s| {
+                // Check for duplicates.
+                if !ids_set.insert(s.borrow().index) {
+                    return Err(FastCryptoError::InvalidInput); // expected unique ids
+                }
+                vec.push(C::ScalarType::from(s.borrow().index.get() as u64));
+                Ok(vec)
+            },
+        )?;
+        if indices.len() != t as usize {
             return Err(FastCryptoError::InvalidInput);
         }
-        // Check for duplicates.
-        let mut ids_set = HashSet::new();
-        if !shares.iter().map(|s| &s.index).all(|id| ids_set.insert(id)) {
-            return Err(FastCryptoError::InvalidInput); // expected unique ids
-        }
-
-        let indices = shares
-            .iter()
-            .map(|s| C::ScalarType::from(s.index.get() as u64))
-            .collect::<Vec<_>>();
 
         let full_numerator = indices
             .iter()
@@ -113,13 +117,16 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
-    pub fn recover_c0(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
-        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares)?;
-        let plain_shares = shares.iter().map(|s| s.value).collect::<Vec<_>>();
+    pub fn recover_c0(
+        t: u32,
+        shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
+    ) -> Result<C, FastCryptoError> {
+        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
+        let plain_shares = shares.map(|s| s.borrow().value);
         let res = coeffs
             .iter()
-            .zip(plain_shares.iter())
-            .fold(C::zero(), |acc, (c, s)| acc + (*s * *c));
+            .zip(plain_shares)
+            .fold(C::zero(), |acc, (c, s)| acc + (s * *c));
         Ok(res)
     }
 
@@ -172,9 +179,12 @@ impl<C: Scalar> Poly<C> {
 impl<C: GroupElement + MultiScalarMul> Poly<C> {
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's
     /// constant term.
-    pub fn recover_c0_msm(t: u32, shares: &[Eval<C>]) -> Result<C, FastCryptoError> {
-        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares)?;
-        let plain_shares = shares.iter().map(|s| s.value).collect::<Vec<_>>();
+    pub fn recover_c0_msm(
+        t: u32,
+        shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
+    ) -> Result<C, FastCryptoError> {
+        let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
+        let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
         let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
         Ok(res)
     }
