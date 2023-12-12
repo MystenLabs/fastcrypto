@@ -73,7 +73,6 @@ mod scalar_tests {
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
             let used_shares = shares.iter().take(124);
-            // TODO-DNS verify
             assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
     }

@@ -9,7 +9,7 @@ use std::borrow::Borrow;
 use crate::dl_verification::{batch_coefficients, get_random_scalars};
 use crate::polynomial::Poly;
 use crate::types::IndexedValue;
-use fastcrypto::error::FastCryptoResult;
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
@@ -97,10 +97,9 @@ pub trait ThresholdBls {
         let unique_partials = partials
             .unique_by(|p| p.borrow().index)
             .take(threshold as usize);
-        // TODO-DNS: I think this can be removed because it's already verified in `get_lagrange_coefficients_for_c0`, correct?
-        // if unique_partials.len() != threshold as usize {
-        //     return Err(FastCryptoError::NotEnoughInputs);
-        // }
+        if unique_partials.clone().count() != threshold as usize {
+            return Err(FastCryptoError::NotEnoughInputs);
+        }
         // No conversion is required since PartialSignature<S> and Eval<S> are different aliases to
         // IndexedValue<S>.
         Poly::<Self::Signature>::recover_c0_msm(threshold, unique_partials)
