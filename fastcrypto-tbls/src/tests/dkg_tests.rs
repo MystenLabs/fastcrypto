@@ -119,7 +119,6 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     msg1.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
     // d2 and d3 are ignored here (emulating slow parties).
-    let _msg2 = d2.create_message(&mut thread_rng());
 
     let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg4.clone(), msg5.clone()]; // duplicates should be ignored
 

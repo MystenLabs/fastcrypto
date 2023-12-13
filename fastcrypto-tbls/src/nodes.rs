@@ -22,8 +22,8 @@ pub struct Node<G: GroupElement> {
 /// Wrapper for a set of nodes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
-    nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1
-    total_weight: u32,   // Share ids are 1..total_weight
+    nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1 (inclusive)
+    total_weight: u32,   // Share ids are 1..total_weight (inclusive)
     // Next two fields are used to map share ids to party ids.
     accumulated_weights: Vec<u32>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
     nodes_with_nonzero_weight: Vec<u16>, // Indexes of nodes with non-zero weight
