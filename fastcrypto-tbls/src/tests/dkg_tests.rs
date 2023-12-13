@@ -34,7 +34,7 @@ fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
         .map(|(id, _sk, pk)| Node::<EG> {
             id: *id,
             pk: pk.clone(),
-            weight: 2 + id,
+            weight: if *id == 2 { 0 } else { 2 + id },
         })
         .collect();
     let nodes = Nodes::new(nodes).unwrap();
@@ -67,7 +67,15 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
         &mut thread_rng(),
     )
     .unwrap();
-    // The third party (d2) is ignored (emulating a byzantine party).
+    // Party with weight 0
+    let d2 = Party::<G, EG>::new(
+        keys.get(2_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut thread_rng(),
+    )
+    .unwrap();
     let d3 = Party::<G, EG>::new(
         keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
@@ -141,6 +149,13 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
         .collect::<Vec<_>>();
     let (conf1, used_msgs1) = d1.merge(proc_msg1).unwrap();
 
+    let proc_msg2 = &all_messages
+        .iter()
+        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf2, used_msgs2) = d2.merge(proc_msg2).unwrap();
+    assert!(conf2.complaints.is_empty());
+
     // Note that d3's first round message is not included but it should still be able to receive
     // shares and post complaints.
     let proc_msg3 = &all_messages
@@ -203,24 +218,33 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     let ver_msg1 = d1
         .process_confirmations(&used_msgs1, &all_confirmations, 3, &mut thread_rng())
         .unwrap();
+    let ver_msg2 = d2
+        .process_confirmations(&used_msgs2, &all_confirmations, 3, &mut thread_rng())
+        .unwrap();
     let ver_msg3 = d3
         .process_confirmations(&used_msgs3, &all_confirmations, 3, &mut thread_rng())
         .unwrap();
     let ver_msg5 = d5
         .process_confirmations(&used_msgs5, &all_confirmations, 3, &mut thread_rng())
         .unwrap();
-    assert_eq!(ver_msg0.0.len(), 2); // only msg0, msg5 were valid and didn't send invalid complaints
-    assert_eq!(ver_msg1.0.len(), 2);
-    assert_eq!(ver_msg3.0.len(), 2);
-    assert_eq!(ver_msg5.0.len(), 2);
+    assert_eq!(ver_msg0.len(), 2); // only msg0, msg5 were valid and didn't send invalid complaints
+    assert_eq!(ver_msg1.len(), 2);
+    assert_eq!(ver_msg2.len(), 2);
+    assert_eq!(ver_msg3.len(), 2);
+    assert_eq!(ver_msg5.len(), 2);
 
     let o0 = d0.aggregate(&ver_msg0);
     let _o1 = d1.aggregate(&ver_msg1);
+    let o2 = d2.aggregate(&ver_msg2);
     let o3 = d3.aggregate(&ver_msg3);
     let o5 = d5.aggregate(&ver_msg5);
     assert!(o0.shares.is_some());
+    assert!(o2.shares.is_none());
     assert!(o3.shares.is_some());
     assert!(o5.shares.is_none()); // recall that it didn't receive valid share from msg0
+    assert_eq!(o0.vss_pk, o2.vss_pk);
+    assert_eq!(o0.vss_pk, o3.vss_pk);
+    assert_eq!(o0.vss_pk, o5.vss_pk);
 
     // check the resulting vss pk
     let mut poly = msg0.vss_pk.clone();
@@ -478,7 +502,7 @@ fn test_test_process_confirmations() {
     // d3 is ignored because it sent an invalid message
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),
@@ -499,7 +523,7 @@ fn test_test_process_confirmations() {
     // d3 is not ignored since conf7 is ignored
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),
@@ -521,7 +545,7 @@ fn test_test_process_confirmations() {
     // now also d2 is ignored because it sent an invalid complaint
     assert_eq!(
         ver_msg
-            .0
+            .data()
             .iter()
             .map(|m| m.message.sender)
             .collect::<Vec<_>>(),

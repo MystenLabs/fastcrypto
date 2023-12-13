@@ -19,7 +19,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use tracing::{debug, info, warn};
+use tracing::{debug, error, info, warn};
 
 use tap::prelude::*;
 
@@ -100,7 +100,7 @@ impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
 
 /// Processed messages that were not excluded.
 pub struct VerifiedProcessedMessages<G: GroupElement, EG: GroupElement>(
-    pub Vec<ProcessedMessage<G, EG>>,
+    Vec<ProcessedMessage<G, EG>>,
 );
 
 impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
@@ -113,6 +113,18 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
             .collect::<Vec<_>>();
         Self(filtered)
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn data(&self) -> &[ProcessedMessage<G, EG>] {
+        &self.0
+    }
 }
 
 /// [Output] is the final output of the DKG protocol in case it runs
@@ -123,10 +135,8 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
 pub struct Output<G: GroupElement, EG: GroupElement> {
     pub nodes: Nodes<EG>,
     pub vss_pk: Poly<G>,
-    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing.
+    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing or weight is zero.
 }
-
-// TODO: Handle parties with zero weights (currently rejected by Nodes::new()).
 
 /// A dealer in the DKG ceremony.
 ///
@@ -149,11 +159,10 @@ where
     ) -> FastCryptoResult<Self> {
         // Check that my ecies pk is in the nodes.
         let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
-        let my_id = nodes
+        let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
-            .ok_or(FastCryptoError::InvalidInput)?
-            .id;
+            .ok_or(FastCryptoError::InvalidInput)?;
         // Check that the threshold makes sense.
         if t >= nodes.total_weight() || t == 0 {
             return Err(FastCryptoError::InvalidInput);
@@ -164,9 +173,11 @@ where
 
         // TODO: remove once the protocol is stable since it's a non negligible computation.
         let vss_pk = vss_sk.commit::<G>();
+
         info!(
-            "DKG: Creating party {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
-            my_id,
+            "DKG: Creating party {} with weight {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}",
+            my_node.id,
+            my_node.weight,
             nodes.hash(),
             t,
             nodes.total_weight(),
@@ -176,7 +187,7 @@ where
         );
 
         Ok(Self {
-            id: my_id,
+            id: my_node.id,
             nodes,
             t,
             random_oracle,
@@ -210,6 +221,7 @@ where
                     .iter()
                     .map(|share_id| self.vss_sk.eval(*share_id).value)
                     .collect::<Vec<_>>();
+                // Works even with empty shares_ids (will result in [0]).
                 let buff = bcs::to_bytes(&shares).expect("serialize of shares should never fail");
                 (node.pk.clone(), buff)
             })
@@ -429,6 +441,14 @@ where
                 conf.complaints.push(complaint.clone());
             }
         }
+
+        if filtered_messages.0.iter().all(|m| m.complaint.is_some()) {
+            error!("DKG: All processed messages resulted in complaints, this should never happen");
+            return Err(FastCryptoError::GeneralError(
+                "All processed messages resulted in complaints".to_string(),
+            ));
+        }
+
         Ok((conf, filtered_messages))
     }
 
@@ -542,6 +562,15 @@ where
             &to_exclude.into_iter().collect::<Vec<_>>(),
         );
 
+        if verified_messages.is_empty() {
+            error!(
+                "DKG: No verified messages after processing complaints, this should never happen"
+            );
+            return Err(FastCryptoError::GeneralError(
+                "No verified messages after processing complaints".to_string(),
+            ));
+        }
+
         // Log verified messages parties.
         let used_parties = verified_messages
             .0
@@ -601,11 +630,19 @@ where
 
         // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
-        let shares = if messages.0.iter().all(|m| m.complaint.is_none()) {
-            info!("DKG: Aggregating my shares succeeded");
+        let has_invalid_share = messages.0.iter().any(|m| m.complaint.is_some());
+        let has_zero_shares = final_shares.is_empty();
+        info!(
+            "DKG: Aggregating my shares completed with has_invalid_share={}, has_zero_shares={}",
+            has_invalid_share, has_zero_shares
+        );
+        if has_invalid_share {
+            warn!("DKG: Aggregating my shares failed");
+        }
+
+        let shares = if !has_invalid_share && !has_zero_shares {
             Some(final_shares.values().cloned().collect())
         } else {
-            warn!("DKG: Aggregating my shares failed");
             None
         };
 

@@ -48,10 +48,6 @@ fn test_new_failures() {
     // too little
     let nodes_vec: Vec<Node<G2Element>> = Vec::new();
     assert!(Nodes::new(nodes_vec).is_err());
-    // with zero weight
-    let mut nodes_vec = get_nodes::<G2Element>(20);
-    nodes_vec[19].weight = 0;
-    assert!(Nodes::new(nodes_vec).is_err());
 }
 
 #[test]
@@ -64,6 +60,74 @@ fn test_new_order() {
     let nodes2 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(nodes1, nodes2);
     assert_eq!(nodes1.hash(), nodes2.hash());
+}
+
+#[test]
+fn test_zero_weight() {
+    // The basic case
+    let nodes_vec = get_nodes::<G2Element>(10);
+    let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(1).unwrap())
+            .unwrap()
+            .id,
+        0
+    );
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(2).unwrap())
+            .unwrap()
+            .id,
+        1
+    );
+    assert_eq!(nodes1.share_ids_of(0), vec![NonZeroU32::new(1).unwrap()]);
+
+    // first node's weight is 0
+    let mut nodes_vec = get_nodes::<G2Element>(10);
+    nodes_vec[0].weight = 0;
+    let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(1).unwrap())
+            .unwrap()
+            .id,
+        1
+    );
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(2).unwrap())
+            .unwrap()
+            .id,
+        1
+    );
+    assert_eq!(nodes1.share_ids_of(0), vec![]);
+
+    // last node's weight is 0
+    let mut nodes_vec = get_nodes::<G2Element>(10);
+    nodes_vec[9].weight = 0;
+    let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(nodes1.total_weight()).unwrap())
+            .unwrap()
+            .id,
+        8
+    );
+    assert_eq!(nodes1.share_ids_of(9), vec![]);
+
+    // third node's weight is 0
+    let mut nodes_vec = get_nodes::<G2Element>(10);
+    nodes_vec[2].weight = 0;
+    let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
+    assert_eq!(
+        nodes1
+            .share_id_to_node(&NonZeroU32::new(4).unwrap())
+            .unwrap()
+            .id,
+        3
+    );
+    assert_eq!(nodes1.share_ids_of(2), vec![]);
 }
 
 #[test]
