@@ -219,11 +219,20 @@ pub async fn fetch_jwks(
         .get(provider.get_config().jwk_endpoint)
         .send()
         .await
-        .map_err(|_| FastCryptoError::GeneralError("Failed to get JWK".to_string()))?;
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|_| FastCryptoError::GeneralError("Failed to get bytes".to_string()))?;
+        .map_err(|e| {
+            FastCryptoError::GeneralError(format!(
+                "Failed to get JWK {:?} {:?}",
+                e.to_string(),
+                provider
+            ))
+        })?;
+    let bytes = response.bytes().await.map_err(|e| {
+        FastCryptoError::GeneralError(format!(
+            "Failed to get bytes {:?} {:?}",
+            e.to_string(),
+            provider
+        ))
+    })?;
     parse_jwks(&bytes, provider)
 }
 
