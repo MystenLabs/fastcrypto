@@ -105,14 +105,15 @@
 <a href="#105" id="105">105</a>
 <a href="#106" id="106">106</a>
 <a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
 // Some of the code below is based on code from https://github.com/celo-org/celo-threshold-bls-rs,
 // modified for our needs.
 
-</span><span class="kw">use </span><span class="kw">crate</span>::dl_verification::{batch_coefficients, get_random_scalars};
+</span><span class="kw">use </span>std::borrow::Borrow;
+
+<span class="kw">use </span><span class="kw">crate</span>::dl_verification::{batch_coefficients, get_random_scalars};
 <span class="kw">use </span><span class="kw">crate</span>::polynomial::Poly;
 <span class="kw">use </span><span class="kw">crate</span>::types::IndexedValue;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -137,20 +138,22 @@
 
     <span class="doccomment">/// Sign a message using the private share/partial key.
     </span><span class="kw">fn </span>partial_sign(share: <span class="kw-2">&amp;</span>Share&lt;<span class="self">Self</span>::Private&gt;, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; PartialSignature&lt;<span class="self">Self</span>::Signature&gt; {
-        <span class="self">Self</span>::partial_sign_batch(<span class="kw-2">&amp;</span>[share.clone()], msg)[<span class="number">0</span>].clone()
+        <span class="self">Self</span>::partial_sign_batch(std::iter::once(share), msg)[<span class="number">0</span>].clone()
     }
 
     <span class="doccomment">/// Sign a message using one of more private share/partial keys.
     </span><span class="kw">fn </span>partial_sign_batch(
-        shares: <span class="kw-2">&amp;</span>[Share&lt;<span class="self">Self</span>::Private&gt;],
+        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Share&lt;<span class="self">Self</span>::Private&gt;&gt;&gt;,
         msg: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; Vec&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt; {
         <span class="kw">let </span>h = <span class="self">Self</span>::Signature::hash_to_group_element(msg);
         shares
-            .iter()
-            .map(|share| PartialSignature {
-                index: share.index,
-                value: h * share.value,
+            .map(|share| {
+                <span class="kw">let </span>share = share.borrow();
+                PartialSignature {
+                    index: share.index,
+                    value: h * share.value,
+                }
             })
             .collect()
     }
@@ -171,26 +174,24 @@
     </span><span class="kw">fn </span>partial_verify_batch&lt;R: AllowedRng&gt;(
         vss_pk: <span class="kw-2">&amp;</span>Poly&lt;<span class="self">Self</span>::Public&gt;,
         msg: <span class="kw-2">&amp;</span>[u8],
-        partial_sigs: <span class="kw-2">&amp;</span>[PartialSignature&lt;<span class="self">Self</span>::Signature&gt;],
+        partial_sigs: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt;,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;()&gt; {
         <span class="macro">assert!</span>(vss_pk.degree() &gt; <span class="number">0 </span>|| !msg.is_empty());
-        <span class="kw">if </span>partial_sigs.is_empty() {
+        <span class="kw">let </span>(evals_as_scalars, points): (Vec&lt;<span class="kw">_</span>&gt;, Vec&lt;<span class="kw">_</span>&gt;) = partial_sigs
+            .map(|sig| {
+                <span class="kw">let </span>sig = sig.borrow();
+                (<span class="self">Self</span>::Private::from(sig.index.get().into()), sig.value)
+            })
+            .unzip();
+        <span class="kw">if </span>points.is_empty() {
             <span class="kw">return </span><span class="prelude-val">Ok</span>(());
         }
-        <span class="kw">let </span>rs = get_random_scalars::&lt;<span class="self">Self</span>::Private, R&gt;(partial_sigs.len() <span class="kw">as </span>u32, rng);
-        <span class="kw">let </span>evals_as_scalars = partial_sigs
-            .iter()
-            .map(|e| <span class="self">Self</span>::Private::from(e.index.get().into()))
-            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">let </span>rs = get_random_scalars::&lt;<span class="self">Self</span>::Private, R&gt;(points.len() <span class="kw">as </span>u32, rng);
         <span class="comment">// TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
         </span><span class="kw">let </span>coeffs = batch_coefficients(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>evals_as_scalars, vss_pk.degree());
         <span class="kw">let </span>pk = <span class="self">Self</span>::Public::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, vss_pk.as_vec()).expect(<span class="string">"sizes match"</span>);
-        <span class="kw">let </span>aggregated_sig = <span class="self">Self</span>::Signature::multi_scalar_mul(
-            <span class="kw-2">&amp;</span>rs,
-            <span class="kw-2">&amp;</span>partial_sigs.iter().map(|s| s.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-        )
-        .expect(<span class="string">"sizes match"</span>);
+        <span class="kw">let </span>aggregated_sig = <span class="self">Self</span>::Signature::multi_scalar_mul(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>points).expect(<span class="string">"sizes match"</span>);
 
         <span class="self">Self</span>::verify(<span class="kw-2">&amp;</span>pk, msg, <span class="kw-2">&amp;</span>aggregated_sig)
     }
@@ -198,20 +199,17 @@
     <span class="doccomment">/// Interpolate partial signatures to recover the full signature.
     </span><span class="kw">fn </span>aggregate(
         threshold: u32,
-        partials: <span class="kw-2">&amp;</span>[PartialSignature&lt;<span class="self">Self</span>::Signature&gt;],
+        partials: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt; + Clone,
     ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>::Signature&gt; {
         <span class="kw">let </span>unique_partials = partials
-            .iter()
-            .unique_by(|p| p.index)
-            .take(threshold <span class="kw">as </span>usize)
-            .cloned()
-            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-        <span class="kw">if </span>unique_partials.len() != threshold <span class="kw">as </span>usize {
+            .unique_by(|p| p.borrow().index)
+            .take(threshold <span class="kw">as </span>usize);
+        <span class="kw">if </span>unique_partials.clone().count() != threshold <span class="kw">as </span>usize {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
         }
         <span class="comment">// No conversion is required since PartialSignature&lt;S&gt; and Eval&lt;S&gt; are different aliases to
         // IndexedValue&lt;S&gt;.
-        </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0_msm(threshold, <span class="kw-2">&amp;</span>unique_partials)
+        </span>Poly::&lt;<span class="self">Self</span>::Signature&gt;::recover_c0_msm(threshold, unique_partials)
     }
 }
 </code></pre></div></section></main></body></html>

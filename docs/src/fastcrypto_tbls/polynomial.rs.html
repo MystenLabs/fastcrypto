@@ -179,6 +179,16 @@
 <a href="#179" id="179">179</a>
 <a href="#180" id="180">180</a>
 <a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -191,6 +201,7 @@
 <span class="kw">use </span>fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 <span class="kw">use </span>fastcrypto::traits::AllowedRng;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::collections::HashSet;
 
 <span class="doccomment">/// Types
@@ -262,21 +273,24 @@
     <span class="comment">// Expects exactly t unique shares.
     </span><span class="kw">fn </span>get_lagrange_coefficients_for_c0(
         t: u32,
-        shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;],
+        <span class="kw-2">mut </span>shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt;,
     ) -&gt; FastCryptoResult&lt;Vec&lt;C::ScalarType&gt;&gt; {
-        <span class="kw">if </span>shares.len() != t <span class="kw">as </span>usize {
+        <span class="kw">let </span><span class="kw-2">mut </span>ids_set = HashSet::new();
+        <span class="kw">let </span>(shares_size_lower, shares_size_upper) = shares.size_hint();
+        <span class="kw">let </span>indices = shares.try_fold(
+            Vec::with_capacity(shares_size_upper.unwrap_or(shares_size_lower)),
+            |<span class="kw-2">mut </span>vec, s| {
+                <span class="comment">// Check for duplicates.
+                </span><span class="kw">if </span>!ids_set.insert(s.borrow().index) {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput); <span class="comment">// expected unique ids
+                </span>}
+                vec.push(C::ScalarType::from(s.borrow().index.get() <span class="kw">as </span>u64));
+                <span class="prelude-val">Ok</span>(vec)
+            },
+        )<span class="question-mark">?</span>;
+        <span class="kw">if </span>indices.len() != t <span class="kw">as </span>usize {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
-        <span class="comment">// Check for duplicates.
-        </span><span class="kw">let </span><span class="kw-2">mut </span>ids_set = HashSet::new();
-        <span class="kw">if </span>!shares.iter().map(|s| <span class="kw-2">&amp;</span>s.index).all(|id| ids_set.insert(id)) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput); <span class="comment">// expected unique ids
-        </span>}
-
-        <span class="kw">let </span>indices = shares
-            .iter()
-            .map(|s| C::ScalarType::from(s.index.get() <span class="kw">as </span>u64))
-            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
 
         <span class="kw">let </span>full_numerator = indices
             .iter()
@@ -294,13 +308,16 @@
     }
 
     <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
-    </span><span class="kw">pub fn </span>recover_c0(t: u32, shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
-        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares)<span class="question-mark">?</span>;
-        <span class="kw">let </span>plain_shares = shares.iter().map(|s| s.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    </span><span class="kw">pub fn </span>recover_c0(
+        t: u32,
+        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
+        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares.clone())<span class="question-mark">?</span>;
+        <span class="kw">let </span>plain_shares = shares.map(|s| s.borrow().value);
         <span class="kw">let </span>res = coeffs
             .iter()
-            .zip(plain_shares.iter())
-            .fold(C::zero(), |acc, (c, s)| acc + (<span class="kw-2">*</span>s * <span class="kw-2">*</span>c));
+            .zip(plain_shares)
+            .fold(C::zero(), |acc, (c, s)| acc + (s * <span class="kw-2">*</span>c));
         <span class="prelude-val">Ok</span>(res)
     }
 
@@ -353,9 +370,12 @@
 <span class="kw">impl</span>&lt;C: GroupElement + MultiScalarMul&gt; Poly&lt;C&gt; {
     <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's
     /// constant term.
-    </span><span class="kw">pub fn </span>recover_c0_msm(t: u32, shares: <span class="kw-2">&amp;</span>[Eval&lt;C&gt;]) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
-        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares)<span class="question-mark">?</span>;
-        <span class="kw">let </span>plain_shares = shares.iter().map(|s| s.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    </span><span class="kw">pub fn </span>recover_c0_msm(
+        t: u32,
+        shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
+    ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
+        <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares.clone())<span class="question-mark">?</span>;
+        <span class="kw">let </span>plain_shares = shares.map(|s| s.borrow().value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>res = C::multi_scalar_mul(<span class="kw-2">&amp;</span>coeffs, <span class="kw-2">&amp;</span>plain_shares).expect(<span class="string">"sizes match"</span>);
         <span class="prelude-val">Ok</span>(res)
     }
