@@ -332,9 +332,8 @@ where
             .map(|(i, pk)| Eval {
                 index: NonZeroU32::new((i + 1) as u32).expect("non zero"),
                 value: *pk,
-            })
-            .collect::<Vec<Eval<G>>>();
-        let pk = Poly::<G>::recover_c0(self.t, &evals).expect("enough shares");
+            });
+        let pk = Poly::<G>::recover_c0(self.t, evals).expect("enough shares");
 
         (pk, partial_pks)
     }

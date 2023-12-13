@@ -261,7 +261,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     S::partial_verify(&o3.vss_pk, &MSG, &sig31).unwrap();
 
     let sigs = vec![sig00, sig30, sig31];
-    let sig = S::aggregate(d0.t(), &sigs).unwrap();
+    let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 

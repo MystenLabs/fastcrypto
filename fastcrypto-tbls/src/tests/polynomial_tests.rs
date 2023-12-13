@@ -53,16 +53,13 @@ mod scalar_tests {
         let threshold = degree + 1;
         let poly = Poly::<S>::rand(4, &mut thread_rng());
         // insufficient shares gathered
-        let shares = (1..threshold)
-            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
-            .collect::<Vec<_>>();
-        Poly::<S>::recover_c0(threshold, &shares).unwrap_err();
+        let shares = (1..threshold).map(|i| poly.eval(ShareIndex::new(i).unwrap()));
+        Poly::<S>::recover_c0(threshold, shares).unwrap_err();
         // duplications
-        let mut shares = (1..=threshold)
+        let shares = (1..=threshold)
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
-            .collect::<Vec<_>>();
-        shares.push(shares[0].clone());
-        Poly::<S>::recover_c0(threshold, &shares).unwrap_err();
+            .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap()))); // duplicate value 1
+        Poly::<S>::recover_c0(threshold, shares).unwrap_err();
     }
 
     #[test]
@@ -75,7 +72,7 @@ mod scalar_tests {
         let c0 = poly.c0();
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
-            let used_shares = &shares[..124];
+            let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
     }
@@ -112,7 +109,10 @@ mod points_tests {
         let s2 = p.eval(NonZeroU32::new(20).unwrap());
         let s3 = p.eval(NonZeroU32::new(30).unwrap());
         let shares = vec![s1, s2, s3];
-        assert_eq!(Poly::<G::ScalarType>::recover_c0(3, &shares).unwrap(), one);
+        assert_eq!(
+            Poly::<G::ScalarType>::recover_c0(3, shares.iter()).unwrap(),
+            one
+        );
     }
 
     #[test]
@@ -122,16 +122,13 @@ mod points_tests {
         let poly = Poly::<G::ScalarType>::rand(4, &mut thread_rng());
         let poly_g = poly.commit();
         // insufficient shares gathered
+        let shares = (1..threshold).map(|i| poly_g.eval(ShareIndex::new(i).unwrap()));
+        Poly::<G>::recover_c0_msm(threshold, shares).unwrap_err();
+        // duplications
         let shares = (1..threshold)
             .map(|i| poly_g.eval(ShareIndex::new(i).unwrap()))
-            .collect::<Vec<_>>();
-        Poly::<G>::recover_c0_msm(threshold, &shares).unwrap_err();
-        // duplications
-        let mut shares = (1..threshold)
-            .map(|i| poly_g.eval(ShareIndex::new(i).unwrap()))
-            .collect::<Vec<_>>();
-        shares.push(shares[0].clone());
-        Poly::<G>::recover_c0_msm(threshold, &shares).unwrap_err();
+            .chain(std::iter::once(poly_g.eval(ShareIndex::new(1).unwrap()))); // duplicate value 1
+        Poly::<G>::recover_c0_msm(threshold, shares).unwrap_err();
     }
 
     #[test]
@@ -144,7 +141,7 @@ mod points_tests {
         let s2 = p.eval(NonZeroU32::new(20).unwrap());
         let s3 = p.eval(NonZeroU32::new(30).unwrap());
         let shares = vec![s1, s2, s3];
-        assert_eq!(Poly::<G>::recover_c0_msm(3, &shares).unwrap(), one);
+        assert_eq!(Poly::<G>::recover_c0_msm(3, shares.iter()).unwrap(), one);
 
         // and random tests
         let poly = Poly::<G::ScalarType>::rand(123, &mut thread_rng());
@@ -156,7 +153,7 @@ mod points_tests {
         let c0 = poly_g.c0();
         for _ in 0..10 {
             shares.shuffle(&mut thread_rng());
-            let used_shares = &shares[..124];
+            let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
         }
     }

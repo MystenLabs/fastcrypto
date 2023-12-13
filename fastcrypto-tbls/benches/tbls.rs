@@ -25,7 +25,7 @@ mod tbls_benches {
                     .collect::<Vec<_>>();
 
                 create.bench_function(format!("w={}", w).as_str(), |b| {
-                    b.iter(|| ThresholdBls12381MinSig::partial_sign_batch(&shares, msg))
+                    b.iter(|| ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg))
                 });
             }
         }
@@ -39,10 +39,10 @@ mod tbls_benches {
                     .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
                     .collect::<Vec<_>>();
 
-                let sigs = ThresholdBls12381MinSig::partial_sign_batch(&shares, msg);
+                let sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
 
                 create.bench_function(format!("w={}", w).as_str(), |b| {
-                    b.iter(|| ThresholdBls12381MinSig::aggregate(w as u32, &sigs).unwrap())
+                    b.iter(|| ThresholdBls12381MinSig::aggregate(w as u32, sigs.iter()).unwrap())
                 });
             }
         }
