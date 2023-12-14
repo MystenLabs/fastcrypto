@@ -9,7 +9,7 @@ use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
-const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 1024;
+const DEFAULT_DISCRIMINANT_BYTE_LENGTH: u64 = 128;
 
 #[derive(Parser)]
 #[command(name = "vdf-cli")]
@@ -31,9 +31,9 @@ struct DiscriminantArguments {
     #[clap(short, long)]
     seed: String,
 
-    /// Bit length of the discriminant (default is 1024).
-    #[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
-    bit_length: u64,
+    /// Bit length of the discriminant (default is 128).
+    #[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BYTE_LENGTH)]
+    byte_length: u64,
 }
 
 #[derive(Parser, Clone)]
@@ -85,7 +85,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
             let seed = hex::decode(arguments.seed)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid seed."))?;
             let discriminant =
-                Discriminant::from_seed(&seed, arguments.bit_length as usize).unwrap();
+                Discriminant::from_seed(&seed, arguments.byte_length as usize).unwrap();
             let discriminant_string = hex::encode(discriminant.to_bytes());
             let mut result = "Discriminant: ".to_string();
             result.push_str(&discriminant_string);
@@ -158,7 +158,7 @@ mod tests {
         let seed = "abcd".to_string();
         let result = execute(Command::Discriminant(DiscriminantArguments {
             seed,
-            bit_length: 1024,
+            byte_length: 128,
         }))
         .unwrap();
         let expected = "Discriminant: ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();

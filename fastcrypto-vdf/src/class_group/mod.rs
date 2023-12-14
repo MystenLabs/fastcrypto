@@ -296,7 +296,6 @@ impl Doubling for QuadraticForm {
         form
     }
 }
-
 impl<'a> Mul<&'a BigInt> for QuadraticForm {
     type Output = Self;
 
@@ -386,6 +385,7 @@ impl UnknownOrderGroupElement for QuadraticForm {}
 pub struct Discriminant(BigInt);
 
 impl ToBytes for Discriminant {
+    /// Return a big-endian byte representation of the absolute value of this discriminant.
     fn to_bytes(&self) -> Vec<u8> {
         self.0.to_bytes_be().1
     }
@@ -479,7 +479,7 @@ mod tests {
         let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
 
-        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 256).unwrap();
+        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 64).unwrap();
         let bytes = discriminant.to_bytes();
         let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);

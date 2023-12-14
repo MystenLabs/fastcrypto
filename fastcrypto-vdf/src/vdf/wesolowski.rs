@@ -165,9 +165,9 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>
     /// Create a new VDF over an group of unknown where the discriminant has a given size and
     /// is generated based on a seed. The `iterations` parameters specifies the number of group
     /// operations the evaluation function requires.
-    pub fn from_seed(seed: &[u8], size_in_bits: usize, iterations: u64) -> FastCryptoResult<Self> {
+    pub fn from_seed(seed: &[u8], size_in_bytes: usize, iterations: u64) -> FastCryptoResult<Self> {
         Ok(Self::new(
-            G::ParameterType::from_seed(seed, size_in_bits)?,
+            G::ParameterType::from_seed(seed, size_in_bytes)?,
             iterations,
         ))
     }
@@ -240,12 +240,9 @@ impl<
 impl Parameter for Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
     /// The size_in_bits must be divisible by 8.
-    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
-        if size_in_bits % 8 != 0 {
-            return Err(InvalidInput);
-        }
+    fn from_seed(seed: &[u8], size_in_bytes: usize) -> FastCryptoResult<Discriminant> {
         Self::try_from(
-            hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
+            hash_prime::hash_prime_default(seed, size_in_bytes, &[0, 1, 2, 8 * size_in_bytes - 1])
                 .to_bigint()
                 .expect("Never fails")
                 .neg(),
@@ -258,20 +255,26 @@ mod tests {
     use crate::class_group::{Discriminant, QuadraticForm};
     use crate::vdf::wesolowski::{StrongVDF, StrongVDFVerifier, WeakVDF, WeakVDFVerifier};
     use crate::vdf::VDF;
-    use crate::{Parameter, ParameterizedGroupElement};
+    use crate::{Parameter, ParameterizedGroupElement, ToBytes};
     use num_bigint::BigInt;
 
     #[test]
     fn test_prove_and_verify() {
         let challenge = hex::decode("99c9e5e3a4449a4b4e15").unwrap();
         let iterations = 1000u64;
-        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+        let discriminant = Discriminant::from_seed(&challenge, 128).unwrap();
 
         let input = QuadraticForm::generator(&discriminant);
 
         let vdf = StrongVDF::<QuadraticForm>::new(discriminant, iterations);
         let (output, proof) = vdf.evaluate(&input).unwrap();
         assert!(vdf.verify(&input, &output, &proof).is_ok());
+
+        // Regression tests
+        let expected_output = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
+        assert_eq!(output.to_bytes(), hex::decode(expected_output).unwrap());
+        let expected_proof = "03001a967ce490545d31cbd13ef87edbeac3c90f61f3fa0efc1dd6aab5a62007593a8bfba9aee82966a8f056c38334eeeafaa1afbb5c98eb9c97bf42bfcce90b0b5c9d32f743b735e1179f2ef169301906fe4acaa95755171b223af2c04038a983630100";
+        assert_eq!(proof.to_bytes(), hex::decode(expected_proof).unwrap());
 
         // A modified output or proof fails to verify
         let modified_output = output.mul(&BigInt::from(2));
@@ -292,7 +295,7 @@ mod tests {
         let proof_hex = "030040c178e0d3470733621c74dde8614c0421d03ad2ce3bb7cad3616646e3762b35568fbae23139119f7affdc7201f45ee284cc76be6e341c795ccb5779cf102305a31bae2f870ea52c87fb0803a4493a2eb1a2cbbce7e467938cb73447edde2d1b0100";
 
         let challenge = hex::decode(challenge_hex).unwrap();
-        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+        let discriminant = Discriminant::from_seed(&challenge, 128).unwrap();
 
         let result_bytes = hex::decode(result_hex).unwrap();
         let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
@@ -302,7 +305,7 @@ mod tests {
 
         let input = QuadraticForm::generator(&discriminant);
 
-        let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 1024, iterations).unwrap();
+        let vdf = WeakVDF::<QuadraticForm>::from_seed(&challenge, 128, iterations).unwrap();
         assert!(vdf.verify(&input, &result, &proof).is_ok());
 
         let fast_verifier = WeakVDFVerifier::new(vdf, input);
@@ -316,7 +319,7 @@ mod tests {
         let result_hex = "030039c78c39cff6c29052bfc1453616ec7a47251509b9dbc33d1036bebd4d12e6711a51deb327120310f96be04c90fd4c3b1dab9617c3133132b827abe7bb2348707da8164b964e1b95cd6a8eaf36ffb80bab1f750410e793daec8228b222bd00370100";
         let proof_hex = "03001a967ce490545d31cbd13ef87edbeac3c90f61f3fa0efc1dd6aab5a62007593a8bfba9aee82966a8f056c38334eeeafaa1afbb5c98eb9c97bf42bfcce90b0b5c9d32f743b735e1179f2ef169301906fe4acaa95755171b223af2c04038a983630100";
 
-        let discriminant = Discriminant::from_seed(&challenge, 1024).unwrap();
+        let discriminant = Discriminant::from_seed(&challenge, 128).unwrap();
 
         let result_bytes = hex::decode(result_hex).unwrap();
         let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
