@@ -424,6 +424,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "bech32"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d86b93f97252c47b41663388e6d155714a9d0c398b99f1005cbc5f978b29f445"
+
+[[package]]
 name = "bellpepper"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1389,6 +1395,7 @@ dependencies = [
  "base64 0.21.0",
  "base64ct",
  "bcs",
+ "bech32",
  "bincode",
  "blake2",
  "blake3",

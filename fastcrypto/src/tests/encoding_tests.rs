@@ -1,10 +1,24 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::encoding::{encode_with_format, Base58, Base64, Encoding, Hex};
+use crate::encoding::{encode_with_format, Base58, Base64, Bech32, Encoding, Hex};
 use proptest::{arbitrary::Arbitrary, prop_assert_eq};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
+
+macro_rules! check_valid_address_roundtrip {
+    ($($test_name:ident, $addr:literal);* $(;)?) => {
+        $(
+            #[test]
+            #[cfg(feature = "alloc")]
+            fn $test_name() {
+                let decoded = Bech32::decode($addr, "bc").unwrap();
+                let encoded = Bech32::encode(decoded, "bc").unwrap();
+                assert_eq!(encoded, $addr);
+            }
+        )*
+    }
+}
 
 #[test]
 fn test_hex_roundtrip() {
@@ -143,6 +157,38 @@ fn test_base58_err() {
     assert!(Base58::try_from("invalid\0".to_string()).is_err());
 }
 
+#[test]
+fn test_bech32() {
+    // Test vectors from https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki#test-vectors
+    let bytes = [0; 32];
+    let encoded = Bech32::encode(bytes, "suiprivkey").unwrap();
+    let decoded = Bech32::decode(&encoded, "suiprivkey").unwrap();
+    assert_eq!(bytes, decoded.as_slice());
+
+    assert!(Bech32::decode("A12UEL5L", "a").is_ok());
+    assert!(Bech32::decode("a12uel5l", "a").is_ok());
+    assert!(Bech32::decode("an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1tt5tgs", "an83characterlonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio").is_ok());
+    assert!(Bech32::decode("abcdef1qpzry9x8gf2tvdw0s3jn54khce6mua7lmqqqxw", "abcdef").is_ok());
+    assert!(Bech32::decode("11qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqc8247j", "1").is_ok());
+    assert!(Bech32::decode(
+        "split1checkupstagehandshakeupstreamerranterredcaperred2y9e3w",
+        "split"
+    )
+    .is_ok());
+    assert!(Bech32::decode("?1ezyfcl", "?").is_ok());
+    assert!(Bech32::decode("an84characterslonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1569pvx", "an84characterslonghumanreadablepartthatcontainsthenumber").is_err());
+    assert!(Bech32::decode("pzry9x0s0muk", "").is_err());
+
+    check_valid_address_roundtrip! {
+        bip_173_valid_address_roundtrip_0, "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4";
+        bip_173_valid_address_roundtrip_1, "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
+        bip_173_valid_address_roundtrip_2, "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx";
+        bip_173_valid_address_roundtrip_3, "BC1SW50QA3JX3S";
+        bip_173_valid_address_roundtrip_4, "bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj";
+        bip_173_valid_address_roundtrip_5, "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy";
+    }
+}
+
 proptest::proptest! {
     #[test]
     fn roundtrip_hex(bytes in <[u8; 20]>::arbitrary()) {
@@ -162,6 +208,13 @@ proptest::proptest! {
     fn roundtrip_base58(bytes in <[u8; 20]>::arbitrary()) {
         let encoded = Base58::encode(bytes);
         let decoded = Base58::decode(&encoded).unwrap();
+        prop_assert_eq!(bytes, decoded.as_slice());
+    }
+
+    #[test]
+    fn roundtrip_bech32(bytes in <[u8; 20]>::arbitrary()) {
+        let encoded = Bech32::encode(bytes, "suiprivkey").unwrap();
+        let decoded = Bech32::decode(&encoded, "suiprivkey").unwrap();
         prop_assert_eq!(bytes, decoded.as_slice());
     }
 }
