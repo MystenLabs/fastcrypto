@@ -272,6 +272,13 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base58 {
 pub struct Bech32(String);
 
 impl Bech32 {
+    /// Decodes the Bech32 string to bytes, validating the given human readable part (hrp). See spec: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+    /// # Example:
+    /// ```
+    /// use fastcrypto::encoding::Bech32;
+    /// let bytes = Bech32::decode("split1qqqqsk5gh5","split").unwrap();
+    /// assert_eq!(bytes, vec![0, 0]);
+    /// ```
     pub fn decode(s: &str, hrp: &str) -> Result<Vec<u8>, eyre::Report> {
         let (parsed, data, variant) = bech32::decode(s).map_err(|e| eyre::eyre!(e))?;
         if parsed != hrp || variant != Variant::Bech32 {
@@ -281,6 +288,13 @@ impl Bech32 {
         }
     }
 
+    /// Encodes bytes into a Bech32 encoded string, with the given human readable part (hrp). See spec: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+    /// # Example:
+    /// ```
+    /// use fastcrypto::encoding::Bech32;
+    /// let str = Bech32::encode(vec![0, 0],"split").unwrap();
+    /// assert_eq!(str, "split1qqqqsk5gh5".to_string());
+    /// ```
     pub fn encode<T: AsRef<[u8]>>(data: T, hrp: &str) -> Result<String> {
         use bech32::ToBase32;
         bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|e| eyre::eyre!(e))
