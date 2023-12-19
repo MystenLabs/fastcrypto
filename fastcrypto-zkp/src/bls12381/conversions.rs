@@ -3,9 +3,9 @@
 use ark_ff::{BigInteger384, Fp384, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, Compress, EmptyFlags};
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
-use blst::{blst_fp2, blst_p1_deserialize};
+use blst::{blst_fp2};
 use blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
-use blst::{blst_p2_affine, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
+use blst::{blst_p2_affine};
 
 pub use ark_bls12_381::Fr as BlsFr;
 use ark_bls12_381::{Fq, Fq2};
@@ -175,26 +175,10 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     if pt.infinity {
         return blst_g1_affine_infinity();
     }
-    let tmp_p1 = blst_p1_affine {
+    blst_p1_affine {
         x: bls_fq_to_blst_fp(&pt.x),
         y: bls_fq_to_blst_fp(&pt.y),
-    };
-    // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
-    // we're in fact applying correct masks that arkworks does not use. This may be solved
-    // alternatively using https://github.com/arkworks-rs/algebra/issues/308 in a later release of
-    // Arkworks.
-    // Note: this is an uncompressed serialization - deserialization.
-    let mut tmp2 = [0u8; 96];
-    unsafe {
-        blst_p1_affine_serialize(tmp2.as_mut_ptr(), &tmp_p1);
-    };
-
-    let mut g1 = blst_p1_affine::default();
-    debug_assert_eq!(
-        unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) },
-        BLST_ERROR::BLST_SUCCESS
-    );
-    g1
+    }
 }
 
 /// Convert a blst affine G1 point to an Arkworks BLS12-381 affine G1 point.
@@ -245,26 +229,10 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     if pt.infinity {
         return blst_g2_affine_infinity();
     }
-    let tmp_p2 = blst_p2_affine {
+    blst_p2_affine {
         x: bls_fq2_to_blst_fp2(&pt.x),
         y: bls_fq2_to_blst_fp2(&pt.y),
-    };
-    // See https://github.com/arkworks-rs/curves/issues/14 for why the double serialize
-    // we're in fact applying correct masks that arkworks does not use. This may be solved
-    // alternatively using https://github.com/arkworks-rs/algebra/issues/308 in a later release of
-    // Arkworks.
-    // Note: this is an uncompressed serialization - deserialization.
-    let mut tmp2 = [0u8; G2_UNCOMPRESSED_SIZE];
-    unsafe {
-        blst_p2_affine_serialize(tmp2.as_mut_ptr(), &tmp_p2);
-    };
-
-    let mut g2 = blst_p2_affine::default();
-    debug_assert_eq!(
-        unsafe { blst_p2_deserialize(&mut g2, tmp2.as_ptr()) },
-        BLST_ERROR::BLST_SUCCESS
-    );
-    g2
+    }
 }
 
 /// Convert a blst affine G2 point to an Arkworks BLS12-381 affine G2 point.
@@ -453,11 +421,7 @@ pub(crate) mod tests {
     use ark_bls12_381::Fr as BlsFr;
     use ark_ec::AffineRepr;
     use ark_ff::Field;
-    use blst::{
-        blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
-        blst_p1, blst_p1_affine_compress, blst_p1_to_affine, blst_p1_uncompress, blst_p2,
-        blst_p2_affine_compress, blst_p2_to_affine, blst_p2_uncompress,
-    };
+    use blst::{blst_encode_to_g1, blst_encode_to_g2, BLST_ERROR, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64, blst_p1, blst_p1_affine_compress, blst_p1_deserialize, blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_affine_compress, blst_p2_deserialize, blst_p2_to_affine, blst_p2_uncompress};
     use proptest::{collection, prelude::*};
     use std::ops::Mul;
 
