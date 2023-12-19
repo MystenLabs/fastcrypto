@@ -11,8 +11,8 @@ use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
-use std::ops::Mul;
 use fastcrypto::encoding::{Encoding, Hex};
+use std::ops::Mul;
 
 #[test]
 fn test_verify_groth16_in_bytes_api() {

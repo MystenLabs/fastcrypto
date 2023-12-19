@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 use ark_ff::{BigInteger384, Fp384, PrimeField, Zero};
 use ark_serialize::{CanonicalSerialize, CanonicalSerializeWithFlags, Compress, EmptyFlags};
+use blst::blst_fp2;
+use blst::blst_p2_affine;
 use blst::{blst_fp, blst_fp12, blst_fp6, blst_fp_from_lendian, blst_p1_affine};
-use blst::{blst_fp2};
 use blst::{blst_p1_affine_serialize, blst_uint64_from_fp};
-use blst::{blst_p2_affine};
 
 pub use ark_bls12_381::Fr as BlsFr;
 use ark_bls12_381::{Fq, Fq2};
@@ -421,7 +421,12 @@ pub(crate) mod tests {
     use ark_bls12_381::Fr as BlsFr;
     use ark_ec::AffineRepr;
     use ark_ff::Field;
-    use blst::{blst_encode_to_g1, blst_encode_to_g2, BLST_ERROR, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64, blst_p1, blst_p1_affine_compress, blst_p1_deserialize, blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_affine_compress, blst_p2_deserialize, blst_p2_to_affine, blst_p2_uncompress};
+    use blst::{
+        blst_encode_to_g1, blst_encode_to_g2, blst_fp_from_uint64, blst_fr, blst_fr_from_uint64,
+        blst_p1, blst_p1_affine_compress, blst_p1_deserialize, blst_p1_to_affine,
+        blst_p1_uncompress, blst_p2, blst_p2_affine_compress, blst_p2_deserialize,
+        blst_p2_to_affine, blst_p2_uncompress, BLST_ERROR,
+    };
     use proptest::{collection, prelude::*};
     use std::ops::Mul;
 
