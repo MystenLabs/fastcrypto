@@ -160,7 +160,7 @@ impl MultiScalarMul for G1Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Inspired by blstrs.
-        let points = to_blst_p1_slice(points);
+        let points = to_blst_type_slice(points);
         let points = p1_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
         for a in scalars.iter().map(|s| s.0) {
@@ -177,11 +177,11 @@ impl MultiScalarMul for G1Element {
 }
 
 // Bound the lifetime of points to the output slice.
-fn to_blst_p1_slice(points: &[G1Element]) -> &[blst_p1] {
+fn to_blst_type_slice<From, To>(points: &[From]) -> &[To] {
     // SAFETY: the cast from `&[G1Element]` to `&[blst_p1]` is safe because
     // G1Element is a transparent wrapper around blst_p1. The lifetime of
     // output slice is the same as the input slice.
-    unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) }
+    unsafe { std::slice::from_raw_parts(points.as_ptr() as *const To, points.len()) }
 }
 
 impl GroupElement for G1Element {
@@ -355,7 +355,7 @@ impl MultiScalarMul for G2Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Inspired by blstrs.
-        let points = to_blst_p2_slice(points);
+        let points = to_blst_type_slice(points);
         let points = p2_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
         for a in scalars.iter().map(|s| s.0) {
@@ -369,14 +369,6 @@ impl MultiScalarMul for G2Element {
         let res = points.mult(scalar_bytes.as_slice(), 255);
         Ok(Self::from(res))
     }
-}
-
-// Bound the lifetime of points to the output slice.
-fn to_blst_p2_slice(points: &[G2Element]) -> &[blst_p2] {
-    // SAFETY: the cast from `&[G2Element]` to `&[blst_p2]` is safe because
-    // G2Element is a transparent wrapper around blst_p2. The lifetime of
-    // output slice is the same as the input slice.
-    unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p2, points.len()) }
 }
 
 impl GroupElement for G2Element {
