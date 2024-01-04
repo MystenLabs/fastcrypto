@@ -23,4 +23,5 @@ pub mod bn254;
 /// Simple circuits used in benchmarks and demos
 pub mod dummy_circuits;
 
+/// Circom-compatible deserialization of points
 pub mod circom;
