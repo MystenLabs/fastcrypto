@@ -5,7 +5,7 @@ use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bls12381::verifier::PreparedVerifyingKey;
 use crate::bls12381::FieldElement;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use ark_bls12_381::{Bls12_381, Fr};
+use ark_bls12_381::{Bls12_381, Fr, G1Affine};
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
@@ -27,9 +27,10 @@ fn test_verify_groth16_in_bytes_api() {
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
     let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
     let v = c.a.unwrap().mul(c.b.unwrap());
-    let blst_pvk = PreparedVerifyingKey::from(&vk.into());
+    let mut vk_bytes = vec![];
+    vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-    let bytes = blst_pvk.serialize().unwrap();
+    let bytes = prepare_pvk_bytes(vk_bytes.as_slice()).unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -50,7 +51,22 @@ fn test_verify_groth16_in_bytes_api() {
         &proof_inputs_bytes,
         &proof_points_bytes
     )
-    .is_ok());
+    .unwrap());
+
+    // Negative test: Replace the A element with a random point.
+    let mut modified_proof_points_bytes = proof_points_bytes.clone();
+    let _ = &G1Affine::rand(rng)
+        .serialize_compressed(&mut modified_proof_points_bytes[0..48])
+        .unwrap();
+    assert!(!verify_groth16_in_bytes(
+        vk_gamma_abc_g1_bytes,
+        alpha_g1_beta_g2_bytes,
+        gamma_g2_neg_pc_bytes,
+        delta_g2_neg_pc_bytes,
+        &proof_inputs_bytes,
+        &modified_proof_points_bytes
+    )
+    .unwrap());
 
     // Length of verifying key is incorrect.
     let mut modified_bytes = bytes[0].clone();
