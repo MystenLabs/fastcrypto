@@ -1,5 +1,6 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/circom.rs`."><title>circom.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-804b98a1284a310a.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.76.0-nightly (3f28fe133 2023-12-18)" data-channel="nightly" data-search-js="search-2b6ce74ff89ae146.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-39ed315d46fb705f.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-305769736d49e732.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-feafe1bb7466e4bd.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"></nav><div class="sidebar-resizer"></div>
-    <main><nav class="sub"><form class="search-form"><span></span><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/circom.rs`."><title>circom.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-bf502f66ec635d5d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (e51e98dde 2023-12-31)" data-channel="nightly" data-search-js="search-c17e98913a53b3b7.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-0b2e2def73e61cbe.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+            <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
+    <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto_zkp/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -58,61 +59,85 @@
 <a href="#57" id="57">57</a>
 <a href="#58" id="58">58</a>
 <a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span>ark_bn254::{Fq, Fq2, G1Affine, G1Projective, G2Affine};
+</span><span class="kw">use </span>ark_bn254::{Fq, Fq2, G1Affine, G1Projective, G2Affine, G2Projective};
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
 
-<span class="kw">pub type </span>CircomG1 = Vec&lt;String&gt;;
-<span class="kw">pub type </span>CircomG2 = Vec&lt;Vec&lt;String&gt;&gt;;
+<span class="doccomment">/// A G1 point in BN254 serialized as a vector of three strings which is the canonical decimal
+/// representation of the projective coordinates in Fq.
+</span><span class="kw">pub type </span>CircomG1 = Vec&lt;String&gt;;
 
-<span class="kw">pub fn </span>g1_affine_from_str_projective(s: <span class="kw-2">&amp;</span>CircomG1) -&gt; <span class="prelude-ty">Result</span>&lt;G1Affine, FastCryptoError&gt; {
-    <span class="kw">if </span>s.len() != <span class="number">3 </span>{
+<span class="doccomment">/// A G2 point in BN254 serialized as a vector of three vectors each being a vector of two strings
+/// which are the canonical decimal representation of the coefficients of the projective coordinates
+/// in Fq2.
+</span><span class="kw">pub type </span>CircomG2 = Vec&lt;Vec&lt;String&gt;&gt;;
+
+<span class="doccomment">/// Parse a string as a field element in BN254. Return an `FastCryptoError::InvalidInput` error if
+/// the parsing fails.
+</span><span class="kw">fn </span>parse_field_element(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Fq, FastCryptoError&gt; {
+    s.parse::&lt;Fq&gt;().map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+}
+
+<span class="doccomment">/// Deserialize a G1 projective point in BN254 serialized as a vector of three strings into an affine
+/// G1 point in arkworks format. Return an error if the input is not a vector of three strings or if
+/// any of the strings cannot be parsed as a field element.
+</span><span class="kw">pub fn </span>g1_affine_from_str_projective(s: <span class="kw-2">&amp;</span>CircomG1) -&gt; <span class="prelude-ty">Result</span>&lt;G1Affine, FastCryptoError&gt; {
+    <span class="comment">// There are three projective coordinates
+    </span><span class="kw">if </span>s.len() != <span class="number">3 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
     }
+
     <span class="prelude-val">Ok</span>(G1Projective::new_unchecked(
-        s[<span class="number">0</span>].parse::&lt;Fq&gt;()
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
-        s[<span class="number">1</span>].parse::&lt;Fq&gt;()
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
-        s[<span class="number">2</span>].parse::&lt;Fq&gt;()
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
+        parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">0</span>])<span class="question-mark">?</span>,
+        parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">1</span>])<span class="question-mark">?</span>,
+        parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">2</span>])<span class="question-mark">?</span>,
     )
     .into())
 }
 
-<span class="kw">pub fn </span>g2_affine_from_str_projective(s: <span class="kw-2">&amp;</span>CircomG2) -&gt; <span class="prelude-ty">Result</span>&lt;G2Affine, FastCryptoError&gt; {
-    <span class="kw">use </span>ark_bn254::G2Projective;
-    <span class="kw">if </span>s.len() != <span class="number">3 </span>{
+<span class="doccomment">/// Deserialize a G2 projective point from the BN254 construction serialized as a vector of three
+/// vectors each being a vector of two strings into an affine G2 point in arkworks format. Return an
+/// error if the input is not a vector of the right format or if any of the strings cannot be parsed
+/// as a field element.
+</span><span class="kw">pub fn </span>g2_affine_from_str_projective(s: <span class="kw-2">&amp;</span>CircomG2) -&gt; <span class="prelude-ty">Result</span>&lt;G2Affine, FastCryptoError&gt; {
+    <span class="comment">// There are three projective coordinates
+    </span><span class="kw">if </span>s.len() != <span class="number">3 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
     }
 
-    <span class="kw">for </span>x <span class="kw">in </span>s {
+    <span class="comment">// Each coordinate in Fq2 is represented by two coefficients in Fq
+    </span><span class="kw">for </span>x <span class="kw">in </span>s {
         <span class="kw">if </span>x.len() != <span class="number">2 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
     }
+
     <span class="prelude-val">Ok</span>(G2Projective::new_unchecked(
         Fq2::new(
-            s[<span class="number">0</span>][<span class="number">0</span>]
-                .parse::&lt;Fq&gt;()
-                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
-            s[<span class="number">0</span>][<span class="number">1</span>]
-                .parse::&lt;Fq&gt;()
-                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">0</span>][<span class="number">0</span>])<span class="question-mark">?</span>,
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">0</span>][<span class="number">1</span>])<span class="question-mark">?</span>,
         ),
         Fq2::new(
-            s[<span class="number">1</span>][<span class="number">0</span>]
-                .parse::&lt;Fq&gt;()
-                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
-            s[<span class="number">1</span>][<span class="number">1</span>]
-                .parse::&lt;Fq&gt;()
-                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">1</span>][<span class="number">0</span>])<span class="question-mark">?</span>,
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">1</span>][<span class="number">1</span>])<span class="question-mark">?</span>,
         ),
         Fq2::new(
-            s[<span class="number">2</span>][<span class="number">0</span>].parse::&lt;Fq&gt;().unwrap(),
-            s[<span class="number">2</span>][<span class="number">1</span>].parse::&lt;Fq&gt;().unwrap(),
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">2</span>][<span class="number">0</span>])<span class="question-mark">?</span>,
+            parse_field_element(<span class="kw-2">&amp;</span>s[<span class="number">2</span>][<span class="number">1</span>])<span class="question-mark">?</span>,
         ),
     )
     .into())
