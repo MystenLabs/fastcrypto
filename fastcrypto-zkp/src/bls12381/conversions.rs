@@ -149,8 +149,8 @@ pub fn blst_fp12_to_bls_fq12(f: &blst_fp12) -> Fq12 {
     Fq12::new(c0, c1)
 }
 
-/// Affine point translations: those mostly allow us to receive the
-/// proof points, provided in affine form.
+// Affine point translations: those mostly allow us to receive the
+// proof points, provided in affine form.
 
 fn blst_g1_affine_infinity() -> blst_p1_affine {
     blst_p1_affine {
@@ -190,10 +190,8 @@ pub fn bls_g1_affine_to_blst_g1_affine(pt: &BlsG1Affine) -> blst_p1_affine {
     };
 
     let mut g1 = blst_p1_affine::default();
-    debug_assert_eq!(
-        unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) },
-        BLST_ERROR::BLST_SUCCESS
-    );
+    let result = unsafe { blst_p1_deserialize(&mut g1, tmp2.as_ptr()) };
+    debug_assert_eq!(result, BLST_ERROR::BLST_SUCCESS);
     g1
 }
 
@@ -260,10 +258,8 @@ pub fn bls_g2_affine_to_blst_g2_affine(pt: &BlsG2Affine) -> blst_p2_affine {
     };
 
     let mut g2 = blst_p2_affine::default();
-    debug_assert_eq!(
-        unsafe { blst_p2_deserialize(&mut g2, tmp2.as_ptr()) },
-        BLST_ERROR::BLST_SUCCESS
-    );
+    let result = unsafe { blst_p2_deserialize(&mut g2, tmp2.as_ptr()) };
+    debug_assert_eq!(result, BLST_ERROR::BLST_SUCCESS);
     g2
 }
 
@@ -434,7 +430,7 @@ pub fn bls_g2_affine_to_zcash_bytes(p: &BlsG2Affine) -> [u8; G2_COMPRESSED_SIZE]
     bytes
 }
 
-// Attempt to obtain x_coordinate
+/// Attempt to obtain x_coordinate
 fn obtain_x_coordinate(bytes: &[u8]) -> Option<Fq> {
     let mut tmp = [0; G1_COMPRESSED_SIZE];
     // this is safe as the private obtain_x_coordinate function is only invoked with G1 (48) and
