@@ -15,6 +15,7 @@ bs58 = "0.4.0"
 ed25519-consensus = { version = "2.1.0", features = ["serde"] }
 eyre = "0.6.8"
 hex = "0.4.3"
+hex-literal = "0.4.1"
 hkdf = { version = "0.12.3", features = ["std"] }
 rand.workspace = true
 rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
@@ -103,7 +104,6 @@ experimental = []
 
 [dev-dependencies]
 criterion = "0.4.0"
-hex-literal = "0.3.4"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
 proptest = "1.1.0"
 serde-reflection = "0.3.6"

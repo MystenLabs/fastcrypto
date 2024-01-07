@@ -559,7 +559,7 @@ impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
                     let slice = &bytes[current..current + FP_BYTE_LENGTH];
                     // We compare with P_AS_BYTES to ensure that we process a canonical representation
                     // which is uses mod p elements.
-                    if slice >= &P_AS_BYTES {
+                    if *slice >= P_AS_BYTES[..] {
                         return Err(FastCryptoError::InvalidInput);
                     }
                     unsafe {
@@ -571,7 +571,10 @@ impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
             }
         }
 
-        Ok(Self::from(gt))
+        match gt.in_group() {
+            true => Ok(Self::from(gt)),
+            false => Err(FastCryptoError::InvalidInput),
+        }
     }
 
     fn to_byte_array(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
