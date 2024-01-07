@@ -378,7 +378,7 @@ fn test_serialization_gt() {
     assert!(GTElement::from_byte_array(&bytes).is_err());
 
     // to and from_byte_array should be inverses.
-    let mut bytes = GTElement::generator().to_byte_array();
+    let bytes = GTElement::generator().to_byte_array();
     assert_eq!(
         GTElement::generator(),
         GTElement::from_byte_array(&bytes).unwrap()
