@@ -21,8 +21,11 @@ use wycheproof::TestResult;
 use crate::encoding::Base64;
 use crate::hash::{Blake2b256, Keccak256};
 use crate::secp256k1::Secp256k1SignatureAsBytes;
+use crate::secp256k1::recoverable::Secp256k1RecoverableSignature;
 use crate::test_helpers::verify_serialization;
+use crate::traits::RecoverableSignature;
 use crate::traits::Signer;
+use crate::traits::VerifyRecoverable;
 use crate::{
     encoding::{Encoding, Hex},
     hash::{HashFunction, Sha256},
@@ -340,6 +343,48 @@ fn verify_hashed_failed_if_different_hash() {
         .is_err());
 }
 
+#[test]
+fn v() {
+    let message = Hex::decode("0000000000000000000000000000000000000000000000006124fee993bc000000000000000000001bc16d674ec80000000000000000000000060e098f0cb8440000018ccf402905c66aaa8043d726bc22ba4752b222f87f8c2b588542046fceb43a5952c1f599b630b7baece69ecd1b1bea5c965f22e52ffbb3dd28b15b79449971945b2687fc3510426c756566696e").unwrap();
+    // let digest = Sha256::digest(message.clone());
+    let pk = Secp256k1PublicKey::from_bytes(&Hex::decode("0315866ec7213d71b43caf3f4e0c9f0d3477dea675e97ea40770a7eab83868920e").unwrap()).unwrap();
+    let signature = Secp256k1Signature::from_bytes(&Hex::decode("66683bff7aeafd83381363ff4ea79bc144a8b9961b744244c1be1190d2072533ceb681c2758860ba353f9967fd87e1cc8da540a36f67e2d1149f828c82b026ca").unwrap()).unwrap();
+    let res = pk.verify_with_hash::<Sha256>(&message, &signature);
+    println!("res1={:?}", res);
+    
+    let rec_sig = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("66683bff7aeafd83381363ff4ea79bc144a8b9961b744244c1be1190d2072533ceb681c2758860ba353f9967fd87e1cc8da540a36f67e2d1149f828c82b026ca00").unwrap()).unwrap();
+    let rec_sig1 = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("66683bff7aeafd83381363ff4ea79bc144a8b9961b744244c1be1190d2072533ceb681c2758860ba353f9967fd87e1cc8da540a36f67e2d1149f828c82b026ca01").unwrap()).unwrap();
+    let rec_sig2 = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("66683bff7aeafd83381363ff4ea79bc144a8b9961b744244c1be1190d2072533ceb681c2758860ba353f9967fd87e1cc8da540a36f67e2d1149f828c82b026ca02").unwrap()).unwrap();
+    let rec_sig3 = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("66683bff7aeafd83381363ff4ea79bc144a8b9961b744244c1be1190d2072533ceb681c2758860ba353f9967fd87e1cc8da540a36f67e2d1149f828c82b026ca03").unwrap()).unwrap();
+    let res = pk.verify_recoverable_with_hash::<Sha256>(&message, &rec_sig);
+    let res1 = pk.verify_recoverable_with_hash::<Sha256>(&message, &rec_sig1);
+    let res2 = pk.verify_recoverable_with_hash::<Sha256>(&message, &rec_sig2);
+    let res3 = pk.verify_recoverable_with_hash::<Sha256>(&message, &rec_sig3);
+    println!("res={:?}", res);
+    println!("res1={:?}", res1);
+    println!("res2={:?}", res2);
+    println!("res3={:?}", res3);
+
+
+    let rec_pk = rec_sig.recover_with_hash::<Sha256>(&message);
+    let rec_pk1 = rec_sig1.recover_with_hash::<Sha256>(&message);
+    let rec_pk2 = rec_sig2.recover_with_hash::<Sha256>(&message);
+    let rec_pk3 = rec_sig3.recover_with_hash::<Sha256>(&message);
+    println!("rec_pk={:?}", rec_pk);
+    println!("rec_pk1={:?}", rec_pk1);
+    println!("rec_pk2={:?}", rec_pk2);
+    println!("rec_pk3={:?}", rec_pk3);
+
+    // let rec_sig = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("36b39b8acd468ca093568f599f42228c2ddc2193c4c4fbf2bedbb64df6d5d34e12ca1118b10da66be2298975c08b5ccb019571b8332bb3400dd7865524e309e90").unwrap()).unwrap();
+    // let rec_sig1 = Secp256k1RecoverableSignature::from_bytes(&Hex::decode("36b39b8acd468ca093568f599f42228c2ddc2193c4c4fbf2bedbb64df6d5d34e12ca1118b10da66be2298975c08b5ccb019571b8332bb3400dd7865524e309e9001").unwrap()).unwrap();
+    // let message = Hex::decode("0000000000000000000000000000000000000000000000006124fee993bc000000000000000000001bc16d674ec80000000000000000000000060e098f0cb8440000018ccf402905c66aaa8043d726bc22ba4752b222f87f8c2b588542046fceb43a5952c1f599b630b7baece69ecd1b1bea5c965f22e52ffbb3dd28b15b79449971945b2687fc3510426c756566696e").unwrap();
+    // let rec_pk = rec_sig.recover_with_hash::<Sha256>(&message);
+    // println!("expected=024734c81fde00b931f474cca4d7f8eb067b2ebcd40f870cf625d665e587e9742b");
+    // println!("rec_pk={:?}", rec_pk);
+    // let rec_pk1 = rec_sig1.recover_with_hash::<Sha256>(&message);
+    // println!("rec_pk1={:?}", rec_pk1);
+
+}
 #[test]
 fn verify_invalid_signature() {
     // Get a keypair.
