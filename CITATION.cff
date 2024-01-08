@@ -1,0 +1,20 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: fastcrypto
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - name: Mysten Labs
+    website: 'https://mystenlabs.com'
+repository-code: 'https://github.com/MystenLabs/fastcrypto'
+abstract: >-
+  fastcrypto is a common cryptography library used in
+  software at Mysten Labs.
+keywords:
+  - cryptography
+license: Apache-2.0
+
