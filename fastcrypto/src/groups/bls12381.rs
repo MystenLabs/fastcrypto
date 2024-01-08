@@ -28,6 +28,7 @@ use blst::{
 };
 use derive_more::From;
 use fastcrypto_derive::GroupOpsExtend;
+use hex_literal::hex;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::fmt::Debug;
@@ -57,6 +58,7 @@ pub const SCALAR_LENGTH: usize = 32;
 pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
 pub const GT_ELEMENT_BYTE_LENGTH: usize = 576;
+pub const FP_BYTE_LENGTH: usize = 48;
 
 impl Add for G1Element {
     type Output = Self;
@@ -160,8 +162,7 @@ impl MultiScalarMul for G1Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Inspired by blstrs.
-        let points =
-            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p1, points.len()) };
+        let points = to_blst_type_slice(points);
         let points = p1_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
         for a in scalars.iter().map(|s| s.0) {
@@ -175,6 +176,14 @@ impl MultiScalarMul for G1Element {
         let res = points.mult(scalar_bytes.as_slice(), 255);
         Ok(Self::from(res))
     }
+}
+
+// Bound the lifetime of points to the output slice.
+fn to_blst_type_slice<From, To>(points: &[From]) -> &[To] {
+    // SAFETY: the cast from `&[G1Element]` to `&[blst_p1]` is safe because
+    // G1Element is a transparent wrapper around blst_p1. The lifetime of
+    // output slice is the same as the input slice.
+    unsafe { std::slice::from_raw_parts(points.as_ptr() as *const To, points.len()) }
 }
 
 impl GroupElement for G1Element {
@@ -348,8 +357,7 @@ impl MultiScalarMul for G2Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Inspired by blstrs.
-        let points =
-            unsafe { std::slice::from_raw_parts(points.as_ptr() as *const blst_p2, points.len()) };
+        let points = to_blst_type_slice(points);
         let points = p2_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
         for a in scalars.iter().map(|s| s.0) {
@@ -535,6 +543,8 @@ impl GTElement {
     }
 }
 
+const P_AS_BYTES: [u8; FP_BYTE_LENGTH] = hex!("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab");
+
 // Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
 impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
     fn from_byte_array(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
@@ -546,14 +556,21 @@ impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
             for j in 0..2 {
                 for k in 0..2 {
                     let mut fp = blst_fp::default();
+                    let slice = &bytes[current..current + FP_BYTE_LENGTH];
+                    // We compare with P_AS_BYTES to ensure that we process a canonical representation
+                    // which is uses mod p elements.
+                    if *slice >= P_AS_BYTES[..] {
+                        return Err(FastCryptoError::InvalidInput);
+                    }
                     unsafe {
-                        blst_fp_from_bendian(&mut fp, bytes[current..current + 48].as_ptr());
+                        blst_fp_from_bendian(&mut fp, slice.as_ptr());
                     }
                     gt.fp6[j].fp2[i].fp[k] = fp;
-                    current += 48;
+                    current += FP_BYTE_LENGTH;
                 }
             }
         }
+
         match gt.in_group() {
             true => Ok(Self::from(gt)),
             false => Err(FastCryptoError::InvalidInput),

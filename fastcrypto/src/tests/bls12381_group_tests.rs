@@ -370,3 +370,31 @@ fn test_reduce_mod_uniform_buffer() {
         hex::decode("21015212b5c7a44c04c39447bf7d2addc5035a9b118f07a29956bf00fa65bd74").unwrap();
     assert_eq!(expected, reduce_mod_uniform_buffer(&bytes).to_byte_array());
 }
+
+#[test]
+fn test_serialization_gt() {
+    // All zero serialization for GT should fail.
+    let bytes = [0u8; 576];
+    assert!(GTElement::from_byte_array(&bytes).is_err());
+
+    // to and from_byte_array should be inverses.
+    let bytes = GTElement::generator().to_byte_array();
+    assert_eq!(
+        GTElement::generator(),
+        GTElement::from_byte_array(&bytes).unwrap()
+    );
+
+    // reject if one of the elements >= P
+    let mut bytes = GTElement::generator().to_byte_array();
+    let p = hex::decode("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab").unwrap();
+    let mut carry = 0;
+    let mut target = [0; 48];
+    for i in (0..48).rev() {
+        let sum = (bytes[i] as u16) + (p[i] as u16) + carry;
+        target[i] = (sum % 256) as u8;
+        carry = sum / 256;
+    }
+    assert_eq!(carry, 0);
+    bytes[0..48].copy_from_slice(&target);
+    assert!(GTElement::from_byte_array(&bytes).is_err());
+}
