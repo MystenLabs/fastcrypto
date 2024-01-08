@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-bf502f66ec635d5d.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (e51e98dde 2023-12-31)" data-channel="nightly" data-search-js="search-c17e98913a53b3b7.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-0b2e2def73e61cbe.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-4e54bb2b497cc83f.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.0-nightly (75c68cfd2 2024-01-07)" data-channel="nightly" data-search-js="search-1cefe72944ee87e6.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-f2adc0d6ca4d09fb.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-0b2e2def73e61cbe.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -754,6 +754,23 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -784,6 +801,7 @@
 };
 <span class="kw">use </span>derive_more::From;
 <span class="kw">use </span>fastcrypto_derive::GroupOpsExtend;
+<span class="kw">use </span>hex_literal::hex;
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>serde::{de, Deserialize};
 <span class="kw">use </span>std::fmt::Debug;
@@ -813,6 +831,7 @@
 <span class="kw">pub const </span>G1_ELEMENT_BYTE_LENGTH: usize = <span class="number">48</span>;
 <span class="kw">pub const </span>G2_ELEMENT_BYTE_LENGTH: usize = <span class="number">96</span>;
 <span class="kw">pub const </span>GT_ELEMENT_BYTE_LENGTH: usize = <span class="number">576</span>;
+<span class="kw">pub const </span>FP_BYTE_LENGTH: usize = <span class="number">48</span>;
 
 <span class="kw">impl </span>Add <span class="kw">for </span>G1Element {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
@@ -916,8 +935,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// Inspired by blstrs.
-        </span><span class="kw">let </span>points =
-            <span class="kw">unsafe </span>{ std::slice::from_raw_parts(points.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>blst_p1, points.len()) };
+        </span><span class="kw">let </span>points = to_blst_type_slice(points);
         <span class="kw">let </span>points = p1_affines::from(points);
         <span class="kw">let </span><span class="kw-2">mut </span>scalar_bytes: Vec&lt;u8&gt; = Vec::with_capacity(scalars.len() * <span class="number">32</span>);
         <span class="kw">for </span>a <span class="kw">in </span>scalars.iter().map(|s| s.<span class="number">0</span>) {
@@ -931,6 +949,14 @@
         </span><span class="kw">let </span>res = points.mult(scalar_bytes.as_slice(), <span class="number">255</span>);
         <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(res))
     }
+}
+
+<span class="comment">// Bound the lifetime of points to the output slice.
+</span><span class="kw">fn </span>to_blst_type_slice&lt;From, To&gt;(points: <span class="kw-2">&amp;</span>[From]) -&gt; <span class="kw-2">&amp;</span>[To] {
+    <span class="comment">// SAFETY: the cast from `&amp;[G1Element]` to `&amp;[blst_p1]` is safe because
+    // G1Element is a transparent wrapper around blst_p1. The lifetime of
+    // output slice is the same as the input slice.
+    </span><span class="kw">unsafe </span>{ std::slice::from_raw_parts(points.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>To, points.len()) }
 }
 
 <span class="kw">impl </span>GroupElement <span class="kw">for </span>G1Element {
@@ -1104,8 +1130,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// Inspired by blstrs.
-        </span><span class="kw">let </span>points =
-            <span class="kw">unsafe </span>{ std::slice::from_raw_parts(points.as_ptr() <span class="kw">as </span><span class="kw-2">*const </span>blst_p2, points.len()) };
+        </span><span class="kw">let </span>points = to_blst_type_slice(points);
         <span class="kw">let </span>points = p2_affines::from(points);
         <span class="kw">let </span><span class="kw-2">mut </span>scalar_bytes: Vec&lt;u8&gt; = Vec::with_capacity(scalars.len() * <span class="number">32</span>);
         <span class="kw">for </span>a <span class="kw">in </span>scalars.iter().map(|s| s.<span class="number">0</span>) {
@@ -1291,6 +1316,8 @@
     }
 }
 
+<span class="kw">const </span>P_AS_BYTES: [u8; FP_BYTE_LENGTH] = <span class="macro">hex!</span>(<span class="string">"1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab"</span>);
+
 <span class="comment">// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
 </span><span class="kw">impl </span>ToFromByteArray&lt;GT_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>GTElement {
     <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; GT_ELEMENT_BYTE_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
@@ -1302,14 +1329,21 @@
             <span class="kw">for </span>j <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
                 <span class="kw">for </span>k <span class="kw">in </span><span class="number">0</span>..<span class="number">2 </span>{
                     <span class="kw">let </span><span class="kw-2">mut </span>fp = blst_fp::default();
+                    <span class="kw">let </span>slice = <span class="kw-2">&amp;</span>bytes[current..current + FP_BYTE_LENGTH];
+                    <span class="comment">// We compare with P_AS_BYTES to ensure that we process a canonical representation
+                    // which is uses mod p elements.
+                    </span><span class="kw">if </span><span class="kw-2">*</span>slice &gt;= P_AS_BYTES[..] {
+                        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+                    }
                     <span class="kw">unsafe </span>{
-                        blst_fp_from_bendian(<span class="kw-2">&amp;mut </span>fp, bytes[current..current + <span class="number">48</span>].as_ptr());
+                        blst_fp_from_bendian(<span class="kw-2">&amp;mut </span>fp, slice.as_ptr());
                     }
                     gt.fp6[j].fp2[i].fp[k] = fp;
-                    current += <span class="number">48</span>;
+                    current += FP_BYTE_LENGTH;
                 }
             }
         }
+
         <span class="kw">match </span>gt.in_group() {
             <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(gt)),
             <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
