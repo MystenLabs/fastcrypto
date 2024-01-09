@@ -78,12 +78,12 @@ Input
 <circle cx="481" cy="396" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="310" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
 <polyline fill="none" opacity="1" stroke="#068B57" stroke-width="1" points="86,462 142,452 255,433 481,396 933,310 "/>
-<circle cx="86" cy="472" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
+<circle cx="86" cy="473" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="471" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
-<circle cx="255" cy="468" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
+<circle cx="255" cy="469" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="463" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="452" r="3" opacity="1" fill="#008B8B" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#008B8B" stroke-width="1" points="86,472 142,471 255,468 481,463 933,452 "/>
+<polyline fill="none" opacity="1" stroke="#008B8B" stroke-width="1" points="86,473 142,471 255,469 481,463 933,452 "/>
 <circle cx="86" cy="473" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="473" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="472" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
@@ -93,9 +93,9 @@ Input
 <circle cx="86" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
-<circle cx="481" cy="472" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
+<circle cx="481" cy="471" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="469" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#00008B" stroke-width="1" points="86,473 142,473 255,473 481,472 933,469 "/>
+<polyline fill="none" opacity="1" stroke="#00008B" stroke-width="1" points="86,473 142,473 255,473 481,471 933,469 "/>
 <circle cx="86" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
@@ -103,29 +103,29 @@ Input
 <circle cx="933" cy="469" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <polyline fill="none" opacity="1" stroke="#00143C" stroke-width="1" points="86,473 142,473 255,473 481,472 933,469 "/>
 <circle cx="86" cy="468" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<circle cx="142" cy="464" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<circle cx="255" cy="455" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<circle cx="481" cy="438" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<circle cx="933" cy="405" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#09008B" stroke-width="1" points="86,468 142,464 255,455 481,438 933,405 "/>
-<circle cx="86" cy="466" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
+<circle cx="142" cy="463" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
+<circle cx="255" cy="454" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
+<circle cx="481" cy="437" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
+<circle cx="933" cy="401" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#09008B" stroke-width="1" points="86,468 142,463 255,454 481,437 933,401 "/>
+<circle cx="86" cy="465" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="459" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="446" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
-<circle cx="481" cy="420" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
-<circle cx="933" cy="367" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#00FF7F" stroke-width="1" points="86,466 142,459 255,446 481,420 933,367 "/>
+<circle cx="481" cy="419" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
+<circle cx="933" cy="366" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#00FF7F" stroke-width="1" points="86,465 142,459 255,446 481,419 933,366 "/>
 <circle cx="86" cy="469" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
-<circle cx="142" cy="467" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="142" cy="466" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="461" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="450" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="428" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#082222" stroke-width="1" points="86,469 142,467 255,461 481,450 933,428 "/>
+<polyline fill="none" opacity="1" stroke="#082222" stroke-width="1" points="86,469 142,466 255,461 481,450 933,428 "/>
 <circle cx="86" cy="468" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="464" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
-<circle cx="255" cy="456" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
+<circle cx="255" cy="455" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="439" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
-<circle cx="933" cy="407" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#068B57" stroke-width="1" points="86,468 142,464 255,456 481,439 933,407 "/>
+<circle cx="933" cy="406" r="3" opacity="1" fill="#068B57" stroke="none" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#068B57" stroke-width="1" points="86,468 142,464 255,455 481,439 933,406 "/>
 <text x="131" y="67" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 BLS12377_batch
 </text>
