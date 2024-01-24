@@ -11,9 +11,9 @@ Bit array: "0000000100000 0010000011001 0001000101101 0111111010000 000000000000
 8 word mnemonic: "33word-0 1050word-0 558word-0 4049word-4 1word-5 1word-0 1word-0 5word-1"
 8 word partial mnemonic: "33word- 1050word- 558word- 4049word- 1word- 1word- 1word- 5word-"
 
-# to convert a partial 8-word to 12-word with a target pk
+# recover a partial 8-word without digits to 12-word with a target pk
 
-target/release/mnemonics-cli convert-mnemonics --short "33word- 1050word- 558word- 4049word- 1word- 1word- 1word- 5word-" --target-pk hgacKLTiEEvy34Dm2T6Wbq30IX/l/tLEmfFXPx0Ia7s=
+target/release/mnemonics-cli recover-full-mnemonics --short "33word- 1050word- 558word- 4049word- 1word- 1word- 1word- 5word-" --target-pk hgacKLTiEEvy34Dm2T6Wbq30IX/l/tLEmfFXPx0Ia7s=
 
 Partial bit array (missing last 24 bit): "0000000100000 0010000011001 0001000101101 0111111010000 0000000000000 0000000000000 0000000000000 0000000000100 0000000000000 00000000000"
 Private key found, 12-word legacy mnemonics: "absurd amused much remove source abandon abandon abandon abandon cactus barely actual"

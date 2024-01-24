@@ -19,7 +19,7 @@ use std::{fs::File, time::Instant};
 #[command(name = "mnemonics-cli")]
 #[command(about = "Try to derive the 12-word mnemonics from 8-word", long_about = None)]
 enum Command {
-    ConvertMnemonics(PartialMnemonics),
+    RecoverFullMnemonics(PartialMnemonics),
     Generate,
 }
 
@@ -47,7 +47,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
     match cmd {
         Command::Generate => {
             // uncomment to define a deterministic entropy.
-            // let entropy = [1, 1, 6, 68, 90, 253, 0, 0, 0, 0, 0, 0, 4, 0, 74, 1];
+            // let entropy = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
             // let mnemonic = Mnemonic::from_entropy(&entropy, Language::English).unwrap();
             let mnemonic = Mnemonic::new(MnemonicType::Words12, Language::English);
             let seed = Seed::new(&mnemonic, "");
@@ -60,7 +60,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             let arr = mnemonic.entropy();
             let mut sized = [0u8; 16];
             sized.copy_from_slice(arr);
-            println!("Entropy: {:?}", sized);
+            println!("Entropy: {:?}", hex::encode(sized));
 
             let bitarray_str = to_bitarray_string(&sized);
             println!("Bit array: {:?}", bitarray_str);
@@ -92,7 +92,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             println!("8 word mnemonic: {:?}", full.join(" "));
             println!("8 word partial mnemonic: {:?}", words.join(" "));
             println!(
-                "target/release/mnemonics-cli convert-mnemonics --short {:?} --target-pk {:?}",
+                "target/release/mnemonics-cli recover-full-mnemonics --short {:?} --target-pk {:?}",
                 words.join(" "),
                 kp.public()
             );
@@ -100,7 +100,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             Ok(())
         }
 
-        Command::ConvertMnemonics(arg) => {
+        Command::RecoverFullMnemonics(arg) => {
             let wordlist = load();
             let mut indices = Vec::new();
 
@@ -109,7 +109,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                     indices.push(index);
                 } else {
                     return Err(FastCryptoError::GeneralError(format!(
-                        "cannot find word {:?}",
+                        "Invalid word {:?}",
                         m
                     )));
                 }
@@ -128,7 +128,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             let total_combinations: u32 = 1 << 24;
             let start_time = Instant::now();
 
-            let res = (0..total_combinations).into_par_iter().find_first(|i| {
+            let res = (0..total_combinations).into_par_iter().find_any(|i| {
                 let mut bytes = bytes[..13].to_vec().clone();
                 let digit_bytes = i.to_be_bytes();
                 bytes.extend_from_slice(&digit_bytes[1..]);
@@ -148,6 +148,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                 }
                 false
             });
+            println!("Target digit found: {:?}", res);
             match res {
                 Some(val) => {
                     let mut digits = Vec::new();
@@ -174,6 +175,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
     }
 }
 
+/// Print the byte array into a human readable bit array.
 fn to_bitarray_string(bytes: &[u8]) -> String {
     let mut bit_array = Vec::new();
     for &byte in bytes.iter() {
@@ -194,6 +196,7 @@ fn to_bitarray_string(bytes: &[u8]) -> String {
     res
 }
 
+/// Load the wordlist from the json file.
 fn load() -> Vec<String> {
     let mut file = File::open("fastcrypto-cli/src/english_8192.json").unwrap();
     let mut contents = String::new();
