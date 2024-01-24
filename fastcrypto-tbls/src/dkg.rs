@@ -55,7 +55,7 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Complaint<EG: GroupElement> {
     accused_sender: PartyId,
     proof: RecoveryPackage<EG>,
@@ -63,7 +63,7 @@ pub struct Complaint<EG: GroupElement> {
 
 /// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
 /// created by receiver of invalid encrypted shares (if any).
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
     /// List of complaints against other parties. Empty if there are none.
@@ -71,7 +71,7 @@ pub struct Confirmation<EG: GroupElement> {
 }
 
 /// Wrapper for collecting everything related to a processed message.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     pub message: Message<G, EG>,
     pub shares: Vec<Share<G::ScalarType>>, //possibly empty
@@ -79,7 +79,7 @@ pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
 }
 
 /// Unique processed messages that are being used in the protocol.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
     pub Vec<ProcessedMessage<G, EG>>,
 );
