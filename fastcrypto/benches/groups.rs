@@ -5,13 +5,15 @@ extern crate criterion;
 
 mod group_benches {
     use criterion::measurement::Measurement;
-    use criterion::{measurement, BenchmarkGroup, Criterion};
+    use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
     use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
-    use fastcrypto::groups::{secp256r1, GroupElement, HashToGroupElement, Pairing, Scalar};
+    use fastcrypto::groups::{
+        secp256r1, GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar,
+    };
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
@@ -88,6 +90,35 @@ mod group_benches {
             WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
+    }
+
+    fn blst_msm_single<G: GroupElement + MultiScalarMul, M: Measurement>(
+        name: &str,
+        len: &usize,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let (scalars, points): (Vec<G::ScalarType>, Vec<G>) = (0..*len)
+            .map(|_| {
+                (
+                    G::ScalarType::generator() * G::ScalarType::rand(&mut thread_rng()),
+                    G::generator() * G::ScalarType::rand(&mut thread_rng()),
+                )
+            })
+            .unzip();
+        c.bench_function(BenchmarkId::new(name.to_string(), len), move |b| {
+            b.iter(|| G::multi_scalar_mul(&scalars, &points).unwrap())
+        });
+    }
+
+    fn blst_msm(c: &mut Criterion) {
+        static INPUT_SIZES: [usize; 6] = [32, 64, 128, 256, 512, 1024];
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM using BLST");
+        for size in INPUT_SIZES.iter() {
+            blst_msm_single::<G1Element, _>("BLS12381-G1", size, &mut group);
+        }
+        for size in INPUT_SIZES.iter() {
+            blst_msm_single::<G2Element, _>("BLS12381-G2", size, &mut group);
+        }
     }
 
     fn double_scale_single<
@@ -207,6 +238,7 @@ mod group_benches {
             hash_to_group,
             pairing,
             double_scale,
+            blst_msm,
     }
 }
 
