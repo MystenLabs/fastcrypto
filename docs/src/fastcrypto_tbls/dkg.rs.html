@@ -779,7 +779,7 @@
 }
 
 <span class="doccomment">/// A complaint/fraud claim against a dealer that created invalid encrypted share.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Complaint&lt;EG: GroupElement&gt; {
     accused_sender: PartyId,
     proof: RecoveryPackage&lt;EG&gt;,
@@ -787,7 +787,7 @@
 
 <span class="doccomment">/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
 /// created by receiver of invalid encrypted shares (if any).
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Confirmation&lt;EG: GroupElement&gt; {
     <span class="kw">pub </span>sender: PartyId,
     <span class="doccomment">/// List of complaints against other parties. Empty if there are none.
@@ -795,7 +795,7 @@
 }
 
 <span class="doccomment">/// Wrapper for collecting everything related to a processed message.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProcessedMessage&lt;G: GroupElement, EG: GroupElement&gt; {
     <span class="kw">pub </span>message: Message&lt;G, EG&gt;,
     <span class="kw">pub </span>shares: Vec&lt;Share&lt;G::ScalarType&gt;&gt;, <span class="comment">//possibly empty
@@ -803,7 +803,7 @@
 }
 
 <span class="doccomment">/// Unique processed messages that are being used in the protocol.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>UsedProcessedMessages&lt;G: GroupElement, EG: GroupElement&gt;(
     <span class="kw">pub </span>Vec&lt;ProcessedMessage&lt;G, EG&gt;&gt;,
 );
