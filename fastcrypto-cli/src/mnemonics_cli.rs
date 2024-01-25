@@ -61,6 +61,7 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
             let mut sized = [0u8; 16];
             sized.copy_from_slice(arr);
             println!("Entropy: {:?}", hex::encode(sized));
+            println!("Seed: {:?}", hex::encode(seed.as_bytes()));
 
             let bitarray_str = to_bitarray_string(&sized);
             println!("Bit array: {:?}", bitarray_str);
