@@ -70,7 +70,7 @@ pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Opti
 }
 
 /// Compute a mod 8.
-pub fn mod8(a: &BigInt) -> u8 {
+fn mod8(a: &BigInt) -> u8 {
     (a & &7.into()).to_u8().expect("Is smaller than 8")
 }
 
