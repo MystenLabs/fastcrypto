@@ -32,7 +32,7 @@ pub fn solve_simple_equation(a: &BigInt, p: &BigInt, b: &BigInt, q: &BigInt) -> 
 }
 
 /// Find the unique x such that x = a_i mod p_i for relatively prime p_i and 0 <= x < Prod p_i.
-pub fn solve_equation(a: &Vec<BigInt>, p: &Vec<BigInt>) -> Option<BigInt> {
+pub fn solve_equation(a: &[BigInt], p: &[BigInt]) -> Option<BigInt> {
     assert_eq!(a.len(), p.len());
     match a.len() {
         0 => None,
@@ -63,8 +63,8 @@ mod tests {
 
     #[test]
     fn test_crt() {
-        let a = vec![0, 3, 4].into_iter().map(BigInt::from).collect();
-        let p = vec![3, 4, 5].into_iter().map(BigInt::from).collect();
+        let a: Vec<BigInt> = vec![0, 3, 4].into_iter().map(BigInt::from).collect();
+        let p: Vec<BigInt> = vec![3, 4, 5].into_iter().map(BigInt::from).collect();
         let x = super::solve_equation(&a, &p).unwrap();
         assert_eq!(x, BigInt::from(39));
     }
