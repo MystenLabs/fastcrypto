@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::math::extended_gcd::extended_euclidean_algorithm;
 use num_bigint::BigInt;
 use num_integer::Integer;

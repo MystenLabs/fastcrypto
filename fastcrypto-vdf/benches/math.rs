@@ -1,5 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Criterion};
 use fastcrypto_vdf::math::jacobi::jacobi;
 use num_bigint::{BigInt, RandBigInt, ToBigInt};

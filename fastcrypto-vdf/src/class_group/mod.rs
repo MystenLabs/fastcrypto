@@ -40,7 +40,7 @@ impl QuadraticForm {
         b: BigInt,
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        let numerator = (&b).pow(2) - &discriminant.0;
+        let numerator = b.pow(2) - &discriminant.0;
         let denominator = &a << 2;
         if !numerator.is_multiple_of(&denominator) {
             return Err(InvalidInput);
@@ -59,7 +59,7 @@ impl QuadraticForm {
     /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
-            .expect("Only possible when the discriminant is 1 mod 8")
+            .expect("Always succeeds when the discriminant is 1 mod 8")
     }
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
@@ -392,7 +392,7 @@ impl ToBytes for QuadraticForm {
 impl UnknownOrderGroupElement for QuadraticForm {}
 
 /// A discriminant for an imaginary class group. The discriminant is a negative integer which is
-/// equal to 1 mod 4.
+/// equal to 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Discriminant(BigInt);
 
