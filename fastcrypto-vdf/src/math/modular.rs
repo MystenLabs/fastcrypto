@@ -13,7 +13,7 @@ pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Opti
     // Algorithm 2.3.8 in Crandall & Pomerance, "Prime Numbers: A Computational Perspective"
 
     // Handle special cases
-    if !p.is_positive() {
+    if !p.is_positive() || !p.is_odd() {
         return None;
     }
 
@@ -22,7 +22,7 @@ pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Opti
     }
 
     // Check that a is a quadratic residue modulo p
-    if check_legendre && jacobi(a, p) != 1 {
+    if check_legendre && jacobi(a, p).unwrap() != 1 {
         return None;
     }
 
@@ -39,7 +39,7 @@ pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Opti
         }
         1 => {
             let mut d: BigInt = 2.into();
-            while jacobi::jacobi(&d, p) != -1 {
+            while jacobi::jacobi(&d, p).expect("p is positive and odd") != -1 {
                 d += 1;
                 if &d >= p {
                     return None;

@@ -1495,8 +1495,6 @@ dependencies = [
 name = "fastcrypto-vdf"
 version = "0.1.0"
 dependencies = [
- "ark-bn254",
- "ark-ff",
  "criterion 0.5.1",
  "fastcrypto",
  "hex",

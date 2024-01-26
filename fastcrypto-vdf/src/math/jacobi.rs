@@ -1,3 +1,5 @@
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoResult;
 use num_bigint::{BigInt, BigUint};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
@@ -5,9 +7,11 @@ use std::mem::swap;
 use std::ops::{RemAssign, ShrAssign};
 
 /// Compute the Jacobi symbol (a/m) for odd m. If m is prime, this is the same as the Legendre symbol.
-pub fn jacobi(a: &BigInt, m: &BigInt) -> i8 {
-    assert!(m.is_positive());
-    assert!(m.is_odd());
+/// m must be odd and positive.
+pub fn jacobi(a: &BigInt, m: &BigInt) -> FastCryptoResult<i8> {
+    if !m.is_positive() || m.is_even() {
+        return Err(InvalidInput);
+    }
 
     // After the reduction, we know that both a and m are positive
     let mut a = a.mod_floor(m).into_parts().1;
@@ -20,8 +24,8 @@ pub fn jacobi(a: &BigInt, m: &BigInt) -> i8 {
     let mut m_2nd_bit = m.bit(1);
 
     while !a.is_zero() {
-        // Shift a to the right until odd and let s be the number of shifts
-        let s_odd = into_odd_part(&mut a) & 1 != 0;
+        // Shift a to the right until odd and store the parity of the number of shifts
+        let s_odd = into_odd_part_and_2_adic_valuation(&mut a);
 
         // To check if m is 3 or 5 mod 8 we check that only one of the second and third bits are set
         if s_odd && (m_2nd_bit ^ m.bit(2)) {
@@ -42,18 +46,18 @@ pub fn jacobi(a: &BigInt, m: &BigInt) -> i8 {
     }
 
     if m.is_one() {
-        return if t { 1 } else { -1 };
+        return Ok(if t { 1 } else { -1 });
     }
-    0
+    Ok(0)
 }
 
 /// Given an integer a, find the largest power of two s such that a = 2^s * b for some odd b. Set
-/// a = b and return s.
-fn into_odd_part(a: &mut BigUint) -> u8 {
-    let mut s = 0;
+/// a = b and return a boolean indicating whether s is odd.
+fn into_odd_part_and_2_adic_valuation(a: &mut BigUint) -> bool {
+    let mut s = false;
     while a.is_even() {
         a.shr_assign(1);
-        s += 1;
+        s = !s;
     }
     s
 }
@@ -65,7 +69,7 @@ mod tests {
     fn test_jacobi_single(a: &str, m: &str, expected: i8) {
         let a = BigInt::parse_bytes(a.as_bytes(), 10).unwrap();
         let m = BigInt::parse_bytes(m.as_bytes(), 10).unwrap();
-        assert_eq!(super::jacobi(&a, &m), expected);
+        assert_eq!(super::jacobi(&a, &m).unwrap(), expected);
     }
 
     #[test]

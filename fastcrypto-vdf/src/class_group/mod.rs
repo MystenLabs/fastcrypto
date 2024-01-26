@@ -40,8 +40,8 @@ impl QuadraticForm {
         b: BigInt,
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        let numerator = (&b * &b) - &discriminant.0;
-        let denominator = BigInt::from(4) * &a;
+        let numerator = (&b).pow(2) - &discriminant.0;
+        let denominator = &a << 2;
         if !numerator.is_multiple_of(&denominator) {
             return Err(InvalidInput);
         }
@@ -51,13 +51,12 @@ impl QuadraticForm {
             b,
             c,
             // This limit is used by `partial_euclidean_algorithm` in the add method.
-            partial_gcd_limit: discriminant.0.abs().sqrt().sqrt(),
+            partial_gcd_limit: discriminant.0.abs().nth_root(4),
         })
     }
 
-    /// Return a generator (or, more precisely, an element with a presumed large order) in a class
-    /// group with a given discriminant. We use the element `(2, 1, c)` where `c` is determined from
-    /// the discriminant.
+    /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
+    /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
             .expect("Only possible when the discriminant is 1 mod 8")
@@ -65,7 +64,7 @@ impl QuadraticForm {
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
     pub fn discriminant(&self) -> Discriminant {
-        Discriminant::try_from(self.b.pow(2) - (BigInt::from(4) * &self.a * &self.c))
+        Discriminant::try_from(self.b.pow(2) - ((&self.a * &self.c) << 2))
             .expect("The discriminant is checked in the constructors")
     }
 
@@ -407,7 +406,7 @@ impl TryFrom<BigInt> for Discriminant {
     type Error = FastCryptoError;
 
     fn try_from(value: BigInt) -> FastCryptoResult<Self> {
-        if !value.is_negative() || value.mod_floor(&BigInt::from(4)) != BigInt::from(1) {
+        if !value.is_negative() || value.mod_floor(&BigInt::from(8)) != BigInt::from(1) {
             return Err(InvalidInput);
         }
         Ok(Self(value))
@@ -421,7 +420,7 @@ impl Discriminant {
     }
 
     /// Try to create a discriminant from a big-endian byte representation of the absolute value.
-    /// Fails if the discriminant is not equal to 1 mod 4.
+    /// Fails if the discriminant is not equal to 1 mod 8.
     pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         let discriminant = BigInt::from_bytes_be(num_bigint::Sign::Minus, bytes);
         Self::try_from(discriminant)
@@ -449,25 +448,23 @@ mod tests {
 
     #[test]
     fn test_normalization_and_reduction() {
-        let discriminant = Discriminant::try_from(BigInt::from(-19)).unwrap();
+        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
         let mut quadratic_form =
-            QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant)
+            QuadraticForm::from_a_b_discriminant(BigInt::from(41), BigInt::from(49), &discriminant)
                 .unwrap();
-        assert_eq!(quadratic_form.c, BigInt::from(55));
+        assert_eq!(quadratic_form.c, BigInt::from(16));
 
         quadratic_form.normalize();
-
-        // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-        assert_eq!(quadratic_form.a, BigInt::from(11));
-        assert_eq!(quadratic_form.b, BigInt::from(5));
-        assert_eq!(quadratic_form.c, BigInt::from(1));
+        assert!(quadratic_form.is_normal());
+        assert_eq!(quadratic_form.a, BigInt::from(41));
+        assert_eq!(quadratic_form.b, BigInt::from(-33));
+        assert_eq!(quadratic_form.c, BigInt::from(8));
 
         quadratic_form.reduce();
-
-        // Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-        assert_eq!(quadratic_form.a, BigInt::from(1));
-        assert_eq!(quadratic_form.b, BigInt::from(1));
-        assert_eq!(quadratic_form.c, BigInt::from(5));
+        assert!(quadratic_form.is_reduced());
+        assert_eq!(quadratic_form.a, BigInt::from(7));
+        assert_eq!(quadratic_form.b, BigInt::from(-1));
+        assert_eq!(quadratic_form.c, BigInt::from(8));
     }
 
     #[test]
@@ -485,7 +482,7 @@ mod tests {
     #[test]
     fn test_discriminant_to_from_bytes() {
         assert!(Discriminant::try_from_be_bytes(&[0x01]).is_err());
-        assert!(Discriminant::try_from_be_bytes(&[0x03]).is_ok());
+        assert!(Discriminant::try_from_be_bytes(&[0x07]).is_ok());
 
         let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
         let bytes = discriminant.to_bytes();
@@ -496,8 +493,5 @@ mod tests {
         let bytes = discriminant.to_bytes();
         let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
-
-        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 2400).unwrap();
-        println!("discriminant: {}", discriminant.0);
     }
 }

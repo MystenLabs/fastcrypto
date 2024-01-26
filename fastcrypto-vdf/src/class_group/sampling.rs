@@ -66,7 +66,8 @@ fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, 
         loop {
             factor = sample_odd(&bound, &mut rng);
             if !factors.contains(&factor)
-                && jacobi::jacobi(&discriminant.0, &factor) == 1
+                && jacobi::jacobi(&discriminant.0, &factor).expect("factor is odd and positive")
+                    == 1
                 && DefaultPrimalityCheck::is_probable_prime(factor.magnitude())
             {
                 // Found a valid factor
