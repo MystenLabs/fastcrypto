@@ -9,7 +9,7 @@ use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
-const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 1024;
+const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 2400;
 
 #[derive(Parser)]
 #[command(name = "vdf-cli")]
@@ -31,7 +31,7 @@ struct DiscriminantArguments {
     #[clap(short, long)]
     seed: String,
 
-    /// Bit length of the discriminant (default is 1024).
+    /// Bit length of the discriminant (default is 2400).
     #[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
     bit_length: u64,
 }

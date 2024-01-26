@@ -244,6 +244,7 @@ impl Parameter for Discriminant {
         if size_in_bits % 8 != 0 {
             return Err(InvalidInput);
         }
+        // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
         Self::try_from(
             hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
                 .to_bigint()

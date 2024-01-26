@@ -143,11 +143,11 @@ impl CompressedQuadraticForm {
                 } = form;
 
                 if t_prime.is_zero() {
-                    return Ok(QuadraticForm::from_a_b_discriminant(
+                    return QuadraticForm::from_a_b_discriminant(
                         a_prime.clone(),
                         a_prime.clone(),
                         discriminant,
-                    ));
+                    );
                 }
 
                 if a_prime.is_zero() {
@@ -187,11 +187,7 @@ impl CompressedQuadraticForm {
                     out_b = -out_b;
                 }
 
-                Ok(QuadraticForm::from_a_b_discriminant(
-                    out_a,
-                    out_b,
-                    discriminant,
-                ))
+                QuadraticForm::from_a_b_discriminant(out_a, out_b, discriminant)
             }
         }
     }

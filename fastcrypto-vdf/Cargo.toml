@@ -16,6 +16,9 @@ num-traits = "0.2.17"
 num-integer = "0.1.45"
 num-modular = "0.6.1"
 num-prime = { version = "0.4.3", features = ["big-int"] }
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+itertools = { version = "0.12.0", features = [] }
 
 [features]
 experimental = []
@@ -24,6 +27,9 @@ experimental = []
 hex = "0.4.3"
 criterion = "0.5.1"
 rand = "0.8.4"
+num-bigint-dig = "0.8.4"
+ark-ff = "0.4.2"
+ark-bn254 = "0.4.0"
 
 [[bench]]
 name = "vdf"
@@ -32,5 +38,10 @@ required-features = ["experimental"]
 
 [[bench]]
 name = "class_group"
+harness = false
+required-features = ["experimental"]
+
+[[bench]]
+name = "math"
 harness = false
 required-features = ["experimental"]

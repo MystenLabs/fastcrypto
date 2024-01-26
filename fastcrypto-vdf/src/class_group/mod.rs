@@ -5,7 +5,7 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -19,6 +19,7 @@ use std::mem::swap;
 use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
 
 mod compressed;
+pub mod sampling;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -34,15 +35,24 @@ pub struct QuadraticForm {
 
 impl QuadraticForm {
     /// Create a new quadratic form given only the a and b coefficients and the discriminant.
-    pub fn from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: &Discriminant) -> Self {
-        let c = ((&b * &b) - &discriminant.0) / (BigInt::from(4) * &a);
-        Self {
+    pub fn from_a_b_discriminant(
+        a: BigInt,
+        b: BigInt,
+        discriminant: &Discriminant,
+    ) -> FastCryptoResult<Self> {
+        let numerator = (&b * &b) - &discriminant.0;
+        let denominator = BigInt::from(4) * &a;
+        if !numerator.is_multiple_of(&denominator) {
+            return Err(InvalidInput);
+        }
+        let c = numerator / denominator;
+        Ok(Self {
             a,
             b,
             c,
             // This limit is used by `partial_euclidean_algorithm` in the add method.
             partial_gcd_limit: discriminant.0.abs().sqrt().sqrt(),
-        }
+        })
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class
@@ -50,6 +60,7 @@ impl QuadraticForm {
     /// the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
+            .expect("Only possible when the discriminant is 1 mod 8")
     }
 
     /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
@@ -313,6 +324,7 @@ impl ParameterizedGroupElement for QuadraticForm {
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+            .expect("Doesn't fail")
     }
 
     fn mul(&self, scale: &BigInt) -> Self {
@@ -439,7 +451,8 @@ mod tests {
     fn test_normalization_and_reduction() {
         let discriminant = Discriminant::try_from(BigInt::from(-19)).unwrap();
         let mut quadratic_form =
-            QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant);
+            QuadraticForm::from_a_b_discriminant(BigInt::from(11), BigInt::from(49), &discriminant)
+                .unwrap();
         assert_eq!(quadratic_form.c, BigInt::from(55));
 
         quadratic_form.normalize();
@@ -479,9 +492,12 @@ mod tests {
         let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
 
-        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 256).unwrap();
+        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 512).unwrap();
         let bytes = discriminant.to_bytes();
         let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
+
+        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 2400).unwrap();
+        println!("discriminant: {}", discriminant.0);
     }
 }
