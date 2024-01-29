@@ -18,7 +18,10 @@ use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
 
-pub mod sampling;
+mod sampling;
+
+#[cfg(test)]
+mod tests;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -99,7 +102,27 @@ impl QuadraticForm {
             return Err(InvalidInput);
         }
 
-        Self::from_a_b_discriminant(a, b, &discriminant)
+        Self::from_a_b_discriminant(a, b, discriminant)
+    }
+
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is
+    /// deterministic and has a large co-domain, meaning that it is unfeasible for an adversary to
+    /// guess the output and that it is collision resistant. It is, however, not a random function
+    /// since only a small subset of the output space is reachable, namely the numbers whose a coordinate
+    /// is smaller than sqrt(|discriminant|)/2 and is the product of K primes all smaller than
+    /// (sqrt(|discriminant|)/2)^{1/k}, and the function output is not uniform among these.
+    pub fn from_seed(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
+        // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
+        // discriminant modulo a.
+        let (a, mut b) = sampling::sample_modulus(discriminant, seed, k);
+
+        // b must be odd
+        if b.is_even() {
+            b -= &a;
+        }
+
+        QuadraticForm::from_a_b_discriminant(a, b, discriminant)
+            .expect("a and b are constructed such that this never fails")
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -481,74 +504,5 @@ impl Discriminant {
     pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
         let discriminant = BigInt::from_bytes_be(Sign::Minus, bytes);
         Self::try_from(discriminant)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::class_group::{Discriminant, QuadraticForm};
-    use crate::Parameter;
-    use crate::ParameterizedGroupElement;
-    use crate::ToBytes;
-    use num_bigint::BigInt;
-
-    #[test]
-    fn test_multiplication() {
-        let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
-        let generator = QuadraticForm::generator(&discriminant);
-        let mut current = QuadraticForm::zero(&discriminant);
-        for i in 0..10000 {
-            assert_eq!(current, generator.mul(&BigInt::from(i)));
-            current = current + &generator;
-        }
-    }
-
-    #[test]
-    fn test_normalization_and_reduction() {
-        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
-        let mut quadratic_form =
-            QuadraticForm::from_a_b_discriminant(BigInt::from(41), BigInt::from(49), &discriminant)
-                .unwrap();
-        assert_eq!(quadratic_form.c, BigInt::from(16));
-
-        quadratic_form.normalize();
-        assert!(quadratic_form.is_normal());
-        assert_eq!(quadratic_form.a, BigInt::from(41));
-        assert_eq!(quadratic_form.b, BigInt::from(-33));
-        assert_eq!(quadratic_form.c, BigInt::from(8));
-
-        quadratic_form.reduce();
-        assert!(quadratic_form.is_reduced());
-        assert_eq!(quadratic_form.a, BigInt::from(7));
-        assert_eq!(quadratic_form.b, BigInt::from(-1));
-        assert_eq!(quadratic_form.c, BigInt::from(8));
-    }
-
-    #[test]
-    fn test_composition() {
-        // The order of the class group (the class number) for -223 is 7 (see https://mathworld.wolfram.com/ClassNumber.html).
-        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
-        let g = QuadraticForm::generator(&discriminant);
-
-        for i in 1..=6 {
-            assert_ne!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(i)));
-        }
-        assert_eq!(QuadraticForm::zero(&discriminant), g.mul(&BigInt::from(7)));
-    }
-
-    #[test]
-    fn test_discriminant_to_from_bytes() {
-        assert!(Discriminant::try_from_be_bytes(&[0x01]).is_err());
-        assert!(Discriminant::try_from_be_bytes(&[0x07]).is_ok());
-
-        let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
-        let bytes = discriminant.to_bytes();
-        let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
-        assert_eq!(discriminant, discriminant2);
-
-        let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 512).unwrap();
-        let bytes = discriminant.to_bytes();
-        let discriminant2 = Discriminant::try_from_be_bytes(&bytes).unwrap();
-        assert_eq!(discriminant, discriminant2);
     }
 }

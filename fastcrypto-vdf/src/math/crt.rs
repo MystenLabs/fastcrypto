@@ -40,7 +40,7 @@ pub fn solve_equation(a: &[BigInt], p: &[BigInt]) -> Option<BigInt> {
         2 => solve_simple_equation(&a[0], &p[0], &a[1], &p[1]),
         _ => {
             let x = solve_simple_equation(&a[0], &p[0], &a[1], &p[1])?;
-            let y = solve_equation(&a[2..].to_vec(), &p[2..].to_vec())?;
+            let y = solve_equation(&a[2..], &p[2..])?;
             solve_simple_equation(&x, &(&p[0] * &p[1]), &y, &p[2..].iter().product())
         }
     }
