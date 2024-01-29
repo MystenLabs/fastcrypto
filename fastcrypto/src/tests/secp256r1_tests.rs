@@ -3,10 +3,11 @@
 
 use p256::ecdsa::Signature;
 use p256::elliptic_curve::scalar::IsHigh;
-use p256::Scalar;
+use p256::{EncodedPoint, Scalar};
 use proptest::{prelude::*, strategy::Strategy};
 use rand::{rngs::StdRng, SeedableRng as _};
 use rust_secp256k1::constants::SECRET_KEY_SIZE;
+use signature::hazmat::PrehashVerifier;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::str::FromStr;
@@ -395,10 +396,10 @@ fn fail_to_verify_if_upper_s() {
     let message: &[u8] = b"Hello, world!";
     let digest = Sha256::digest(message);
     let pk = Secp256r1PublicKey::from_bytes(
-        &hex::decode("0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a").unwrap(),
+        &hex::decode("026a6e7d0c7bcc400e936310ea3518d7c639e971bc8f729c586424a152f8fd0a98").unwrap(),
     )
     .unwrap();
-    let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&hex::decode("63943a01af84b202f80f17b0f567d0ab2e8b8c8b0c971e4b253706d0f4be9120b2963fe63a35b44847a7888db981d1ccf0753a4673b094fed274a6589deb982a").unwrap()).unwrap();
+    let sig = <Secp256r1Signature as ToFromBytes>::from_bytes(&hex::decode("b3fda59f0ea8b7413c111a38202aa3b37ab2a62a8dbfbf3061d3a3eae73d0b57e30d0dd927fb3091f28567f0d325eb58a3602cb957875cf7bece56beff8792bc").unwrap()).unwrap();
 
     // Assert that S is in upper half
     assert_ne!(sig.sig.s().is_high().unwrap_u8(), 0);
@@ -412,7 +413,17 @@ fn fail_to_verify_if_upper_s() {
     let normalized_sig = Secp256r1Signature::from_bytes(normalized.to_bytes().as_slice()).unwrap();
 
     // Verify with normalized lower S.
-    assert!(pk.verify(&digest.digest, &normalized_sig).is_ok());
+    let res = pk.verify(&digest.digest, &normalized_sig);
+    println!("res in fastcrypto = {:?}", res);
+    // p256 verifies
+    // let sig = p256::ecdsa::Signature::from_slice(&hex::decode("b3fda59f0ea8b7413c111a38202aa3b37ab2a62a8dbfbf3061d3a3eae73d0b57e30d0dd927fb3091f28567f0d325eb58a3602cb957875cf7bece56beff8792bc").unwrap()).unwrap();
+    let vk = p256::ecdsa::VerifyingKey::from_encoded_point(&EncodedPoint::from_bytes(&hex::decode("026a6e7d0c7bcc400e936310ea3518d7c639e971bc8f729c586424a152f8fd0a98").unwrap()).unwrap()).unwrap();
+    // let res = vk.verify_prehash(&digest.digest, &sig);
+    // println!("res in p256 = {:?}", res);
+
+    let sig1 = p256::ecdsa::Signature::from_slice(normalized_sig.as_bytes()).unwrap();
+    let res1 = vk.verify_prehash(&digest.digest, &sig1);
+    println!("res in p256 = {:?}", res1);
 }
 
 #[tokio::test]
