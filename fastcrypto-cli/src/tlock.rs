@@ -95,13 +95,13 @@ fn encrypt(round: u64, msg: &[u8]) -> Encryption {
         sigma = thread_rng().gen();
         let mut hash_function = Blake2b256::default();
         hash_function.update(b"HASH3 - ");
-        hash_function.update(&sigma);
-        hash_function.update(&msg);
+        hash_function.update(sigma);
+        hash_function.update(msg);
         let hash = hash_function.finalize().digest;
         let r_as_res = bls12381::Scalar::from_byte_array(&hash);
         // rejection sampling until we find a sigma that results in a valid r
-        if r_as_res.is_ok() {
-            r = r_as_res.unwrap();
+        if let Ok(valid_r) = r_as_res {
+            r = valid_r;
             break;
         }
     }
@@ -113,16 +113,16 @@ fn encrypt(round: u64, msg: &[u8]) -> Encryption {
     let pk_rho_r = pk_rho * r;
     let mut hash_function = Blake2b256::default();
     hash_function.update(b"HASH2 - ");
-    hash_function.update(&pk_rho_r.to_byte_array());
+    hash_function.update(pk_rho_r.to_byte_array());
     let hash = hash_function.finalize().digest;
     let v = xor_arrays(&sigma, &hash).try_into().unwrap();
 
     // W = m xor H4(sigma)
     let mut hash_function = Blake2b256::default();
     hash_function.update(b"HASH4 - ");
-    hash_function.update(&sigma);
+    hash_function.update(sigma);
     let hash = hash_function.finalize().digest;
-    let w = xor_arrays(&msg, &hash).try_into().unwrap();
+    let w = xor_arrays(msg, &hash).try_into().unwrap();
 
     Encryption { u, v, w }
 }
@@ -132,7 +132,7 @@ fn decrypt(enc: Encryption, target_key: bls12381::G1Element) -> Option<Vec<u8>> 
     let e = target_key.pairing(&enc.u);
     let mut hash_function = Blake2b256::default();
     hash_function.update(b"HASH2 - ");
-    hash_function.update(&e.to_byte_array());
+    hash_function.update(e.to_byte_array());
     let hash = hash_function.finalize().digest;
     let sigma_prime = xor_arrays(&enc.v, &hash);
 
@@ -190,7 +190,7 @@ fn execute(cmd: Command) -> Result<String, std::io::Error> {
             let enc = bcs::to_bytes(&enc).unwrap();
 
             let mut result = "Encryption: ".to_string();
-            result.push_str(&hex::encode(&enc));
+            result.push_str(&hex::encode(enc));
             Ok(result)
         }
 
