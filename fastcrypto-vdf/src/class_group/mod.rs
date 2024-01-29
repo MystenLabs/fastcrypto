@@ -10,7 +10,7 @@ use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::Doubling;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::borrow::Borrow;
@@ -18,7 +18,6 @@ use std::cmp::Ordering;
 use std::mem::swap;
 use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
 
-mod compressed;
 pub mod sampling;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
@@ -53,6 +52,54 @@ impl QuadraticForm {
             // This limit is used by `partial_euclidean_algorithm` in the add method.
             partial_gcd_limit: discriminant.0.abs().nth_root(4),
         })
+    }
+
+    /// Create a new quadratic form from a serialization. The format is a byte array with the following structure:
+    ///
+    /// `a_len` (4 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (4 bytes, big endian) | `b` as signed big endian bytes
+    ///
+    /// The c coefficient is computed from a and b and the discriminant. If the format is not followed or if the
+    /// coefficients do not form a valid quadratic form, an error is returned.
+    ///
+    /// See also [`QuadraticForm::to_bytes`].
+    pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
+        let mut index = 0;
+
+        if bytes.len() < 2 {
+            return Err(InvalidInput);
+        }
+
+        let a_len = u16::from_be_bytes(bytes[index..2].try_into().expect("Never fails")) as usize;
+        index += 2;
+
+        if bytes.len() < index + a_len {
+            return Err(InvalidInput);
+        }
+
+        let a = BigInt::from_bytes_be(Sign::Plus, &bytes[index..index + a_len]);
+        index += a_len;
+
+        if bytes.len() < index + 2 {
+            return Err(InvalidInput);
+        }
+
+        let b_len =
+            u16::from_be_bytes(bytes[index..index + 4].try_into().expect("Never fails")) as usize;
+        index += 2;
+
+        if bytes.len() < index + b_len {
+            return Err(InvalidInput);
+        }
+
+        let b = BigInt::from_signed_bytes_be(&bytes[index..index + b_len]);
+        index += b_len;
+
+        // Check that all bytes are used
+        if index != bytes.len() {
+            return Err(InvalidInput);
+        }
+
+        Self::from_a_b_discriminant(a, b, &discriminant)
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -385,7 +432,17 @@ impl Neg for QuadraticForm {
 
 impl ToBytes for QuadraticForm {
     fn to_bytes(&self) -> Vec<u8> {
-        self.serialize().to_vec()
+        // a is always positive
+        let a_bytes = self.a.to_bytes_be().1;
+        let b_bytes = self.b.to_signed_bytes_be();
+
+        let mut result = Vec::with_capacity(a_bytes.len() + b_bytes.len() + 8);
+        result.extend_from_slice(&(a_bytes.len() as u16).to_be_bytes());
+        result.extend_from_slice(&a_bytes);
+        result.extend_from_slice(&(b_bytes.len() as u16).to_be_bytes());
+        result.extend_from_slice(&b_bytes);
+
+        result
     }
 }
 
@@ -422,7 +479,7 @@ impl Discriminant {
     /// Try to create a discriminant from a big-endian byte representation of the absolute value.
     /// Fails if the discriminant is not equal to 1 mod 8.
     pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let discriminant = BigInt::from_bytes_be(num_bigint::Sign::Minus, bytes);
+        let discriminant = BigInt::from_bytes_be(Sign::Minus, bytes);
         Self::try_from(discriminant)
     }
 }
