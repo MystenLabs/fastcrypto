@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
+use fastcrypto_vdf::class_group::QuadraticForm;
 use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
+use fastcrypto_vdf::class_group::discriminant::Discriminant;
 
 const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 2400;
 
@@ -151,7 +152,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{execute, Command, DiscriminantArguments, EvaluateArguments, VerifyArguments};
+    use crate::{Command, DiscriminantArguments, EvaluateArguments, execute, VerifyArguments};
 
     #[test]
     fn test_discriminant() {
@@ -174,7 +175,7 @@ mod tests {
             iterations,
         }))
         .unwrap();
-        let expected = "Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0200a79fea1d00b2d1bf7863098980146ad080d400141ff2333652cbcee96b524f273461f8e2e65d8b713663f7083954ef6246ea08d09e6909a047f34065bcfe1e2013c8e523a8a59a01fafa008c637240097d082486c8cc52803d5cad3d4e2aa9130402";
+        let expected = "Output: 0040365f0a0ae44fc2cc952bbf3f351a55d79921f45437a2142fab447e1e402e4b1d0bfa70e1ab2d8db95ab2cbe9c49c2d086846008015532232b75be26c904f549c0040efdd7e38615ef6dbe5dc6202755cd634943e7f0b6e3b9701cc84fc5d41d4064440ed27fc5c16ff95a9c9527a6b037a8c2992c7ce40bf192e7518756050b41875\nProof:  00405f86e2ea77d24d63080f5bd6c4fd978904a7af1534c167d3cc6d00e32b700dfa76900c505c0d33b28b7e209254714f3825165170225ed70bff867434c3083b3f0040aaba221a7671183fdbfa132c15d381273003a98d7a221ace226bb6f8f0b751845fbc2d29dabb051d15dfecdc4ec3f69f065fb7192d0f09da48ad688fe023f921";
         assert_eq!(expected, result);
 
         let invalid_discriminant = "abcx".to_string();
@@ -189,10 +190,10 @@ mod tests {
     fn test_verify() {
         let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
         let iterations = 1000u64;
-        let output = "010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401".to_string();
-        let proof = "0200a79fea1d00b2d1bf7863098980146ad080d400141ff2333652cbcee96b524f273461f8e2e65d8b713663f7083954ef6246ea08d09e6909a047f34065bcfe1e2013c8e523a8a59a01fafa008c637240097d082486c8cc52803d5cad3d4e2aa9130402".to_string();
+        let output = "0040365f0a0ae44fc2cc952bbf3f351a55d79921f45437a2142fab447e1e402e4b1d0bfa70e1ab2d8db95ab2cbe9c49c2d086846008015532232b75be26c904f549c0040efdd7e38615ef6dbe5dc6202755cd634943e7f0b6e3b9701cc84fc5d41d4064440ed27fc5c16ff95a9c9527a6b037a8c2992c7ce40bf192e7518756050b41875".to_string();
+        let proof = "00405f86e2ea77d24d63080f5bd6c4fd978904a7af1534c167d3cc6d00e32b700dfa76900c505c0d33b28b7e209254714f3825165170225ed70bff867434c3083b3f0040aaba221a7671183fdbfa132c15d381273003a98d7a221ace226bb6f8f0b751845fbc2d29dabb051d15dfecdc4ec3f69f065fb7192d0f09da48ad688fe023f921".to_string();
         let result = execute(Command::Verify(VerifyArguments {
-            discriminant,
+            discriminant: discriminant.clone(),
             iterations,
             output: output.clone(),
             proof: proof.clone(),
@@ -205,25 +206,19 @@ mod tests {
         assert!(execute(Command::Verify(VerifyArguments {
             discriminant: invalid_discriminant,
             iterations,
-            output,
-            proof,
+            output: output.clone(),
+            proof: proof.clone(),
         }))
         .is_err());
-    }
 
-    #[test]
-    fn test_invalid_proof() {
-        let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
-        let iterations = 2000u64;
-        let output = "010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401".to_string();
-        let proof = "0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100".to_string();
+        let other_iterations = 2000u64;
         let result = execute(Command::Verify(VerifyArguments {
             discriminant,
-            iterations,
+            iterations: other_iterations,
             output,
             proof,
         }))
-        .unwrap();
+            .unwrap();
         let expected = "Verified: false";
         assert_eq!(expected, result);
     }

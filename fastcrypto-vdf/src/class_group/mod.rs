@@ -7,21 +7,30 @@
 
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::borrow::Borrow;
-use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
+use std::ops::{Add, Mul, Neg};
 
 mod sampling;
 
 #[cfg(test)]
 mod tests;
+
+/// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
+/// one reduced form. This module contains methods to reduce quadratic forms. This also ensures that the coefficients
+/// does not become too large.
+pub mod reduction;
+
+/// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
+/// discriminants and methods to create them.
+pub mod discriminant;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -42,24 +51,30 @@ impl QuadraticForm {
         b: BigInt,
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        let numerator = b.pow(2) - &discriminant.0;
+        if !a.is_positive() {
+            return Err(InvalidInput);
+        }
+
+        let numerator = b.pow(2) - discriminant.as_bigint();
         let denominator = &a << 2;
         if !numerator.is_multiple_of(&denominator) {
             return Err(InvalidInput);
         }
+
         let c = numerator / denominator;
         Ok(Self {
             a,
             b,
             c,
             // This limit is used by `partial_euclidean_algorithm` in the add method.
-            partial_gcd_limit: discriminant.0.abs().nth_root(4),
+            partial_gcd_limit: discriminant.as_bigint().abs().nth_root(4),
         })
     }
 
     /// Create a new quadratic form from a serialization. The format is a byte array with the following structure:
     ///
-    /// `a_len` (4 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (4 bytes, big endian) | `b` as signed big endian bytes
+    /// `a_len` (2 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (2 bytes, big endian) | `b` as signed
+    /// big endian bytes
     ///
     /// The c coefficient is computed from a and b and the discriminant. If the format is not followed or if the
     /// coefficients do not form a valid quadratic form, an error is returned.
@@ -87,7 +102,7 @@ impl QuadraticForm {
         }
 
         let b_len =
-            u16::from_be_bytes(bytes[index..index + 4].try_into().expect("Never fails")) as usize;
+            u16::from_be_bytes(bytes[index..index + 2].try_into().expect("Never fails")) as usize;
         index += 2;
 
         if bytes.len() < index + b_len {
@@ -105,26 +120,6 @@ impl QuadraticForm {
         Self::from_a_b_discriminant(a, b, discriminant)
     }
 
-    /// Generate a random quadratic form from a seed with the given discriminant. This method is
-    /// deterministic and has a large co-domain, meaning that it is unfeasible for an adversary to
-    /// guess the output and that it is collision resistant. It is, however, not a random function
-    /// since only a small subset of the output space is reachable, namely the numbers whose a coordinate
-    /// is smaller than sqrt(|discriminant|)/2 and is the product of K primes all smaller than
-    /// (sqrt(|discriminant|)/2)^{1/k}, and the function output is not uniform among these.
-    pub fn from_seed(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
-        // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
-        // discriminant modulo a.
-        let (a, mut b) = sampling::sample_modulus(discriminant, seed, k);
-
-        // b must be odd
-        if b.is_even() {
-            b -= &a;
-        }
-
-        QuadraticForm::from_a_b_discriminant(a, b, discriminant)
-            .expect("a and b are constructed such that this never fails")
-    }
-
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
     /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
@@ -136,50 +131,6 @@ impl QuadraticForm {
     pub fn discriminant(&self) -> Discriminant {
         Discriminant::try_from(self.b.pow(2) - ((&self.a * &self.c) << 2))
             .expect("The discriminant is checked in the constructors")
-    }
-
-    /// Return true if this form is in normal form: -a < b <= a.
-    fn is_normal(&self) -> bool {
-        match self.b.magnitude().cmp(self.a.magnitude()) {
-            Ordering::Less => true,
-            Ordering::Equal => !self.b.is_negative(),
-            Ordering::Greater => false,
-        }
-    }
-
-    /// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    fn normalize(&mut self) {
-        // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        if self.is_normal() {
-            return;
-        }
-        let r = (&self.a - &self.b).div_floor(&self.a).shr(1);
-        let ra: BigInt = &r * &self.a;
-        self.c.add_assign((&ra + &self.b) * &r);
-        self.b.add_assign(&ra.shl(1));
-    }
-
-    /// Return true if this form is reduced: A form is reduced if it is normal (see
-    /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
-    fn is_reduced(&self) -> bool {
-        match self.a.cmp(&self.c) {
-            Ordering::Less => true,
-            Ordering::Equal => !self.b.is_negative(),
-            Ordering::Greater => false,
-        }
-    }
-
-    /// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    fn reduce(&mut self) {
-        // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        self.normalize();
-        while !self.is_reduced() {
-            let s = (&self.b + &self.c).div_floor(&self.c).shr(1);
-            let cs: BigInt = &self.c * &s;
-            swap(&mut self.a, &mut self.c);
-            self.c += (&cs - &self.b) * &s;
-            self.b = cs.shl(1) - &self.b;
-        }
     }
 
     /// Compute the composition of this quadratic form with another quadratic form.
@@ -470,39 +421,3 @@ impl ToBytes for QuadraticForm {
 }
 
 impl UnknownOrderGroupElement for QuadraticForm {}
-
-/// A discriminant for an imaginary class group. The discriminant is a negative integer which is
-/// equal to 1 mod 8.
-#[derive(PartialEq, Eq, Debug, Clone)]
-pub struct Discriminant(BigInt);
-
-impl ToBytes for Discriminant {
-    fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes_be().1
-    }
-}
-
-impl TryFrom<BigInt> for Discriminant {
-    type Error = FastCryptoError;
-
-    fn try_from(value: BigInt) -> FastCryptoResult<Self> {
-        if !value.is_negative() || value.mod_floor(&BigInt::from(8)) != BigInt::from(1) {
-            return Err(InvalidInput);
-        }
-        Ok(Self(value))
-    }
-}
-
-impl Discriminant {
-    /// Return the number of bits needed to represent this discriminant, not including the sign bit.
-    pub fn bits(&self) -> usize {
-        self.0.bits() as usize
-    }
-
-    /// Try to create a discriminant from a big-endian byte representation of the absolute value.
-    /// Fails if the discriminant is not equal to 1 mod 8.
-    pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let discriminant = BigInt::from_bytes_be(Sign::Minus, bytes);
-        Self::try_from(discriminant)
-    }
-}

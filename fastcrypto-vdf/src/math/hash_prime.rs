@@ -102,7 +102,7 @@ fn compute_number_of_rounds(bits: u64) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use crate::hash_prime::hash_prime_default;
+    use super::*;
     use num_bigint::BigUint;
     use num_integer::Integer;
     use num_prime::PrimalityTestConfig;

@@ -1,4 +1,8 @@
-use crate::class_group::{Discriminant, QuadraticForm};
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+use crate::class_group::discriminant::Discriminant;
+use crate::class_group::QuadraticForm;
 use crate::Parameter;
 use crate::ParameterizedGroupElement;
 use crate::ToBytes;

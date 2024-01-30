@@ -1,24 +1,48 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::Discriminant;
-use crate::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
+use crate::class_group::discriminant::Discriminant;
+use crate::class_group::{sampling, QuadraticForm};
 use crate::math::crt::solve_equation;
+use crate::math::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
 use crate::math::jacobi;
 use crate::math::modular::modular_square_root;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::hash::Sha256;
 use num_bigint::{BigInt, UniformBigInt};
+use num_integer::Integer;
 use num_traits::Signed;
 use rand::distributions::uniform::UniformSampler;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use std::ops::{AddAssign, ShlAssign, Shr};
 
+impl QuadraticForm {
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is
+    /// deterministic and has a large co-domain, meaning that it is unfeasible for an adversary to
+    /// guess the output and that it is collision resistant. It is, however, not a random function
+    /// since only a small subset of the output space is reachable, namely the numbers whose a coordinate
+    /// is smaller than sqrt(|discriminant|)/2 and is the product of K primes all smaller than
+    /// (sqrt(|discriminant|)/2)^{1/k}, and the function output is not uniform among these.
+    pub fn from_seed(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
+        // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
+        // discriminant modulo a.
+        let (a, mut b) = sampling::sample_modulus(discriminant, seed, k);
+
+        // b must be odd
+        if b.is_even() {
+            b -= &a;
+        }
+
+        QuadraticForm::from_a_b_discriminant(a, b, discriminant)
+            .expect("a and b are constructed such that this never fails")
+    }
+}
+
 /// Sample a product of K primes and return this along with the square root of the discriminant modulo a.
 pub(super) fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, BigInt) {
     // If a is smaller than this bound and |b| < a, the form is guaranteed to be reduced.
-    let mut bound: BigInt = discriminant.0.abs().sqrt().shr(1);
+    let mut bound: BigInt = discriminant.as_bigint().abs().sqrt().shr(1);
     if k > 1 {
         bound = bound.nth_root(k as u32);
     }
@@ -43,7 +67,8 @@ pub(super) fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -
 
             // TODO: The duplicates check takes some time for large k where it is typically not needed. Maybe parameterize this?
             if !factors.contains(&factor)
-                && jacobi::jacobi(&discriminant.0, &factor).expect("factor is odd and positive")
+                && jacobi::jacobi(discriminant.as_bigint(), &factor)
+                    .expect("factor is odd and positive")
                     == 1
                 && DefaultPrimalityCheck::is_probable_prime(factor.magnitude())
             {
@@ -51,7 +76,7 @@ pub(super) fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -
                 break;
             }
         }
-        let square_root = modular_square_root(&discriminant.0, &factor, false)
+        let square_root = modular_square_root(discriminant.as_bigint(), &factor, false)
             .expect("Legendre symbol checked above");
         factors.push(factor);
         square_roots.push(square_root);

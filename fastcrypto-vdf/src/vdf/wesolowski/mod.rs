@@ -1,18 +1,22 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::Discriminant;
-use crate::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
+use crate::math::hash_prime::DefaultPrimalityCheck;
 use crate::vdf::VDF;
-use crate::{hash_prime, Parameter, ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
-use num_bigint::{BigInt, ToBigInt};
+use fiat_shamir::{FiatShamir, StrongFiatShamir};
+use num_bigint::BigInt;
 use num_integer::Integer;
 use std::marker::PhantomData;
-use std::ops::Neg;
+
+mod fiat_shamir;
+
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
+pub const CHALLENGE_SIZE: usize = 33;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -149,67 +153,10 @@ pub type StrongVDFVerifier<G> = FastVerifier<
     WindowedScalarMultiplier<G, BigInt, 256, 5>,
 >;
 
-pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: Sized {
-    /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
-    /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> G::ScalarType;
-}
-
-/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
-pub const CHALLENGE_SIZE: usize = 33;
-
-/// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
-/// The implementation is strong, meaning that all public parameters are used in the challenge generation.
-/// See https://eprint.iacr.org/2023/691.
-pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize, P> {
-    _group: PhantomData<G>,
-    _primality_check: PhantomData<P>,
-}
-
-impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
-        const CHALLENGE_SIZE: usize,
-        P: PrimalityCheck,
-    > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
-{
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> BigInt {
-        let mut seed = vec![];
-
-        let input_bytes = input.to_bytes();
-        seed.extend_from_slice(&(input_bytes.len() as u64).to_be_bytes());
-        seed.extend_from_slice(&input_bytes);
-
-        let output_bytes = output.to_bytes();
-        seed.extend_from_slice(&(output_bytes.len() as u64).to_be_bytes());
-        seed.extend_from_slice(&output_bytes);
-
-        seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
-        seed.extend_from_slice(&vdf.group_parameter.to_bytes());
-
-        hash_prime::hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1]).into()
-    }
-}
-
-impl Parameter for Discriminant {
-    /// Compute a valid discriminant (aka a negative prime equal to 3 mod 4) based on the given seed.
-    /// The size_in_bits must be divisible by 8.
-    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
-        if size_in_bits % 8 != 0 {
-            return Err(InvalidInput);
-        }
-        // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
-        Self::try_from(
-            hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
-                .to_bigint()
-                .expect("Never fails")
-                .neg(),
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use crate::class_group::{Discriminant, QuadraticForm};
+    use crate::class_group::discriminant::Discriminant;
+    use crate::class_group::QuadraticForm;
     use crate::vdf::wesolowski::{StrongVDF, StrongVDFVerifier};
     use crate::vdf::VDF;
     use crate::{Parameter, ParameterizedGroupElement, ToBytes};

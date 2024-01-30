@@ -36,7 +36,8 @@ pub trait VDF {
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group::{Discriminant, QuadraticForm};
+    use crate::class_group::discriminant::Discriminant;
+    use crate::class_group::QuadraticForm;
     use crate::vdf::wesolowski::StrongVDF;
     use crate::vdf::VDF;
     use crate::ToBytes;
