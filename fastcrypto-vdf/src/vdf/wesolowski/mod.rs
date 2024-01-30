@@ -13,7 +13,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use std::marker::PhantomData;
 
-mod fiat_shamir;
+pub mod fiat_shamir;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
 pub const CHALLENGE_SIZE: usize = 33;

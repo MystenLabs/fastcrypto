@@ -18,13 +18,10 @@ use rand_chacha::ChaCha8Rng;
 use std::ops::{AddAssign, ShlAssign, Shr};
 
 impl QuadraticForm {
-    /// Generate a random quadratic form from a seed with the given discriminant. This method is
-    /// deterministic and has a large co-domain, meaning that it is unfeasible for an adversary to
-    /// guess the output and that it is collision resistant. It is, however, not a random function
-    /// since only a small subset of the output space is reachable, namely the numbers whose a coordinate
-    /// is smaller than sqrt(|discriminant|)/2 and is the product of K primes all smaller than
-    /// (sqrt(|discriminant|)/2)^{1/k}, and the function output is not uniform among these.
-    pub fn from_seed(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
+    /// a random oracle on a large subset of the class group, namely the group elements whose `a` coordinate is a
+    /// product of K primes all smaller than (sqrt(|discriminant|)/2)^{1/k}.
+    pub fn hash_to_group(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
         // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
         // discriminant modulo a.
         let (a, mut b) = hash::sample_modulus(discriminant, seed, k);
@@ -40,7 +37,7 @@ impl QuadraticForm {
 }
 
 /// Sample a product of K primes and return this along with the square root of the discriminant modulo a.
-pub(super) fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, BigInt) {
+fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, BigInt) {
     // If a is smaller than this bound and |b| < a, the form is guaranteed to be reduced.
     let mut bound: BigInt = discriminant.as_bigint().abs().sqrt().shr(1);
     if k > 1 {

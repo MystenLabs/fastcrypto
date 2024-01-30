@@ -9,7 +9,7 @@ use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::hash_prime::DefaultPrimalityCheck;
+use fastcrypto_vdf::math::hash_prime::DefaultPrimalityCheck;
 use fastcrypto_vdf::vdf::wesolowski::fiat_shamir::StrongFiatShamir;
 use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongVDF, CHALLENGE_SIZE};
 use fastcrypto_vdf::vdf::VDF;

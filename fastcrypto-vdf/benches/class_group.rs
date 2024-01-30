@@ -6,7 +6,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Crit
 use fastcrypto::groups::Doubling;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
+use fastcrypto_vdf::math::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
 use fastcrypto_vdf::ParameterizedGroupElement;
 use num_bigint::{BigInt, UniformBigInt};
 use num_traits::Num;
@@ -51,7 +51,7 @@ fn qf_from_seed_single<M: Measurement>(discriminant_string: &str, group: &mut Be
         group.bench_function(format!("{} bits/{}", bits, k), move |b| {
             let mut seed = [0u8; 32];
             thread_rng().fill_bytes(&mut seed);
-            b.iter(|| QuadraticForm::from_seed(&seed, &discriminant, k))
+            b.iter(|| QuadraticForm::hash_to_group(&seed, &discriminant, k))
         });
     }
 }

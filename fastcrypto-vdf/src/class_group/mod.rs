@@ -18,14 +18,17 @@ use std::borrow::Borrow;
 use std::mem::swap;
 use std::ops::{Add, Mul, Neg};
 
-mod hash;
-
 #[cfg(test)]
 mod tests;
 
+/// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
+/// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
+/// group but not the entire class group.
+pub mod hash;
+
 /// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
-/// one reduced form. This module contains methods to reduce quadratic forms. This also ensures that the coefficients
-/// does not become too large.
+/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
+/// the coefficients does not become too large.
 pub mod reduction;
 
 /// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
