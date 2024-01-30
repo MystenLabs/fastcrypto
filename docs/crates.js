@@ -1,1 +1,1 @@
-window.ALL_CRATES = ["ecvrf_cli","encode_cli","fastcrypto","fastcrypto_cli","fastcrypto_derive","fastcrypto_tbls","fastcrypto_vdf","fastcrypto_zkp","sigs_cli","vdf_cli"];
+window.ALL_CRATES = ["ecvrf_cli","encode_cli","fastcrypto","fastcrypto_cli","fastcrypto_derive","fastcrypto_tbls","fastcrypto_vdf","fastcrypto_zkp","sigs_cli","tlock_cli","vdf_cli"];

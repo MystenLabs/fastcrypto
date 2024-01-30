@@ -8,6 +8,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["fastcrypto_vdf",["",[["class_group",[],["compressed.rs","mod.rs"]],["vdf",[],["mod.rs","wesolowski.rs"]]],["extended_gcd.rs","hash_prime.rs","lib.rs"]]],\
 ["fastcrypto_zkp",["",[["bls12381",[],["api.rs","conversions.rs","mod.rs","verifier.rs"]],["bn254",[["poseidon",[],["constants.rs","mod.rs"]]],["api.rs","mod.rs","utils.rs","verifier.rs","zk_login.rs","zk_login_api.rs"]]],["circom.rs","dummy_circuits.rs","lib.rs"]]],\
 ["sigs_cli",["",[],["sigs_cli.rs"]]],\
+["tlock_cli",["",[],["tlock.rs"]]],\
 ["vdf_cli",["",[],["vdf.rs"]]]\
 ]'));
 createSrcSidebar();
