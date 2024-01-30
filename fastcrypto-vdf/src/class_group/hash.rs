@@ -44,13 +44,18 @@ fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, 
         bound = bound.nth_root(k as u32);
     }
 
-    // TODO: Check this bound
-    if bound < 8 * BigInt::from(k) * bound.bits() {
+    // This heuristic bound ensures that there will be enough distinct primes to sample from so we wont end up in an
+    // infinite loop. Consult the paper for details on how to pick the parameters.
+    if k > (discriminant.bits() >> 5) as u16 {
         panic!(
             "The bound, {}, is too small to sample {} distinct primes",
             bound, k
         );
     }
+
+    // If k is small, we can skip the duplicate check because they will only happen with negligible probability,
+    // approximately ~2^{-40}. Consult the paper for details.
+    let check_duplicates = k >= (discriminant.bits() / 100) as u16;
 
     // Seed a rng with the hash of the seed
     let mut rng = ChaCha8Rng::from_seed(Sha256::digest(seed).digest);
@@ -62,11 +67,13 @@ fn sample_modulus(discriminant: &Discriminant, seed: &[u8], k: u16) -> (BigInt, 
         loop {
             factor = sample_odd_number(&bound, &mut rng);
 
-            // TODO: The duplicates check takes some time for large k where it is typically not needed. Maybe parameterize this?
-            if !factors.contains(&factor)
-                && jacobi::jacobi(discriminant.as_bigint(), &factor)
-                    .expect("factor is odd and positive")
-                    == 1
+            if check_duplicates && factors.contains(&factor) {
+                continue;
+            }
+
+            if jacobi::jacobi(discriminant.as_bigint(), &factor)
+                .expect("factor is odd and positive")
+                == 1
                 && DefaultPrimalityCheck::is_probable_prime(factor.magnitude())
             {
                 // Found a valid factor

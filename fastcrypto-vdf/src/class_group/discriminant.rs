@@ -33,8 +33,8 @@ impl TryFrom<BigInt> for Discriminant {
 
 impl Discriminant {
     /// Return the number of bits needed to represent this discriminant, not including the sign bit.
-    pub fn bits(&self) -> usize {
-        self.0.bits() as usize
+    pub fn bits(&self) -> u64 {
+        self.0.bits()
     }
 
     /// Try to create a discriminant from a big-endian byte representation of the absolute value.
