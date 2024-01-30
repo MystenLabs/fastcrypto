@@ -17,6 +17,7 @@ bincode.workspace = true
 rand.workspace = true
 exitcode = "1.1.2"
 bcs.workspace = true
+serde = { version = "1.0.156", features = ["derive"] }
 
 [dev-dependencies]
 assert_cmd = "2.0.0"
@@ -37,3 +38,7 @@ path = "src/sigs_cli.rs"
 [[bin]]
 name = "vdf-cli"
 path = "src/vdf.rs"
+
+[[bin]]
+name = "tlock-cli"
+path = "src/tlock.rs"
