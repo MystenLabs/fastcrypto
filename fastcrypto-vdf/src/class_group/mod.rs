@@ -18,7 +18,7 @@ use std::borrow::Borrow;
 use std::mem::swap;
 use std::ops::{Add, Mul, Neg};
 
-mod sampling;
+mod hash;
 
 #[cfg(test)]
 mod tests;

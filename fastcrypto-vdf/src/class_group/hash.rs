@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::discriminant::Discriminant;
-use crate::class_group::{sampling, QuadraticForm};
+use crate::class_group::{hash, QuadraticForm};
 use crate::math::crt::solve_equation;
 use crate::math::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
 use crate::math::jacobi;
@@ -27,7 +27,7 @@ impl QuadraticForm {
     pub fn from_seed(seed: &[u8], discriminant: &Discriminant, k: u16) -> Self {
         // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
         // discriminant modulo a.
-        let (a, mut b) = sampling::sample_modulus(discriminant, seed, k);
+        let (a, mut b) = hash::sample_modulus(discriminant, seed, k);
 
         // b must be odd
         if b.is_even() {
