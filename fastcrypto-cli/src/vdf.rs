@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
+use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
 use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
-use fastcrypto_vdf::class_group::discriminant::Discriminant;
 
 const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 2400;
 
@@ -152,7 +152,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{Command, DiscriminantArguments, EvaluateArguments, execute, VerifyArguments};
+    use crate::{execute, Command, DiscriminantArguments, EvaluateArguments, VerifyArguments};
 
     #[test]
     fn test_discriminant() {
@@ -218,7 +218,7 @@ mod tests {
             output,
             proof,
         }))
-            .unwrap();
+        .unwrap();
         let expected = "Verified: false";
         assert_eq!(expected, result);
     }
