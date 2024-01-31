@@ -88,13 +88,13 @@ In `fastcrypto`, one can compare all currently implemented signature schemes for
 $ cargo bench
 ```
 
-A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in `fastcrypto`. As an example, we get these timings for signing messages and verifying the signature for the different schemes in `fastcrypto` as of revision [a6e3e8](https://github.com/MystenLabs/fastcrypto/commit/a6e3e8bceed47c3b32de60e3cd13e63c44ab7577):
+A [report of the benchmarks](https://mystenlabs.github.io/fastcrypto/benchmarks/criterion/reports/) is generated for each release, allowing easy comparison of the performance of the different cryptographic primitives and schemes available in `fastcrypto`. As an example, we get these timings for signing messages and verifying the signature for the different schemes in `fastcrypto` as of revision [dd5adb](https://github.com/MystenLabs/fastcrypto/commit/dd5adb669b895785d3f34abc562fca26c943154a):
 
-![Signature schemes comparison.](https://github.com/MystenLabs/fastcrypto/blob/plots/signatures-a6e3e8.svg)
+![Signature schemes comparison.](https://github.com/MystenLabs/fastcrypto/blob/plots/signatures-dd5adb.svg)
 
 Below is another plot made using data from the benchmark report, showing benchmarks for batched signature verification where all signatures are on the same message:
 
-![Batched signature verification with all signatures on same message.](https://github.com/MystenLabs/fastcrypto/blob/plots/batch-a6e3e8.svg)
+![Batched signature verification with all signatures on same message.](https://github.com/MystenLabs/fastcrypto/blob/plots/batch-dd5adb.svg)
 
 In `fastcrypto-zkp`, benchmarks can be ran for Arkworks to `blst` representation of field elements, and verifying Groth16 in BN254 and BLS12381:
 
