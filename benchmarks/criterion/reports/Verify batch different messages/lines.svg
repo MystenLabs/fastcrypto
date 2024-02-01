@@ -93,9 +93,9 @@ Input
 <circle cx="86" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
-<circle cx="481" cy="471" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
+<circle cx="481" cy="472" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="469" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#00008B" stroke-width="1" points="86,473 142,473 255,473 481,471 933,469 "/>
+<polyline fill="none" opacity="1" stroke="#00008B" stroke-width="1" points="86,473 142,473 255,473 481,472 933,469 "/>
 <circle cx="86" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="473" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>

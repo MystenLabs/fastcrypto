@@ -84,8 +84,8 @@ Input
 <circle cx="142" cy="449" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="419" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="358" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
-<circle cx="933" cy="239" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#05D700" stroke-width="1" points="86,466 142,449 255,419 481,358 933,239 "/>
+<circle cx="933" cy="238" r="3" opacity="1" fill="#05D700" stroke="none" stroke-width="1"/>
+<polyline fill="none" opacity="1" stroke="#05D700" stroke-width="1" points="86,466 142,449 255,419 481,358 933,238 "/>
 <circle cx="86" cy="473" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="470" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="464" r="3" opacity="1" fill="#00008B" stroke="none" stroke-width="1"/>
@@ -98,12 +98,12 @@ Input
 <circle cx="481" cy="445" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="443" r="3" opacity="1" fill="#00143C" stroke="none" stroke-width="1"/>
 <polyline fill="none" opacity="1" stroke="#00143C" stroke-width="1" points="86,447 142,446 255,446 481,445 933,443 "/>
-<circle cx="86" cy="443" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
+<circle cx="86" cy="442" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="442" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="442" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="441" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="439" r="3" opacity="1" fill="#09008B" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#09008B" stroke-width="1" points="86,443 142,442 255,442 481,441 933,439 "/>
+<polyline fill="none" opacity="1" stroke="#09008B" stroke-width="1" points="86,442 142,442 255,442 481,441 933,439 "/>
 <circle cx="86" cy="447" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="447" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
 <circle cx="255" cy="446" r="3" opacity="1" fill="#00FF7F" stroke="none" stroke-width="1"/>
@@ -112,10 +112,10 @@ Input
 <polyline fill="none" opacity="1" stroke="#00FF7F" stroke-width="1" points="86,447 142,447 255,446 481,446 933,444 "/>
 <circle cx="86" cy="443" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="142" cy="443" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
-<circle cx="255" cy="443" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
+<circle cx="255" cy="442" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="481" cy="442" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
 <circle cx="933" cy="442" r="3" opacity="1" fill="#082222" stroke="none" stroke-width="1"/>
-<polyline fill="none" opacity="1" stroke="#082222" stroke-width="1" points="86,443 142,443 255,443 481,442 933,442 "/>
+<polyline fill="none" opacity="1" stroke="#082222" stroke-width="1" points="86,443 142,443 255,442 481,442 933,442 "/>
 <text x="131" y="67" dy="0.76em" text-anchor="start" font-family="sans-serif" font-size="9.67741935483871" opacity="1" fill="#000000">
 BLS12377_aggregated
 </text>
