@@ -40,7 +40,7 @@ struct DiscriminantArguments {
     #[clap(short, long)]
     seed: String,
 
-    /// Bit length of the discriminant (default is 2400).
+    /// Bit length of the discriminant (default is 3072).
     #[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
     bit_length: u64,
 }
