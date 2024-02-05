@@ -92,7 +92,7 @@ const BAD_JWK_BYTES: &[u8] = r#"{
 async fn test_verify_zk_login_google() {
     let user_salt = "206703048842351542647799591018316385612";
 
-    // Generate an ephermeral key pair.
+    // Generate an ephemeral key pair.
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());

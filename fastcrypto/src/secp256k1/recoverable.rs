@@ -163,7 +163,7 @@ impl RecoverableSigner for Secp256k1KeyPair {
         let secp = Secp256k1::signing_only();
         let message = Message::from_slice(H::digest(msg).as_ref()).unwrap();
 
-        // Creates a 65-bytes sigature of shape [r, s, v] where v can be 0 or 1.
+        // Creates a 65-bytes signature of shape [r, s, v] where v can be 0 or 1.
         // Pseudo-random deterministic nonce generation is used according to RFC6979.
         Secp256k1RecoverableSignature {
             sig: secp.sign_ecdsa_recoverable(&message, &self.secret.privkey),
