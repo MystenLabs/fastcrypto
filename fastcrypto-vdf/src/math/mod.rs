@@ -6,4 +6,4 @@ pub mod extended_gcd;
 #[cfg(any(test, feature = "experimental"))]
 pub mod hash_prime;
 pub mod jacobi;
-pub mod modular;
+pub mod modular_sqrt;

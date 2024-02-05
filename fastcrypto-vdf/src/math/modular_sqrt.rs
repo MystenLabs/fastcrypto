@@ -3,6 +3,8 @@
 
 use crate::math::jacobi;
 use crate::math::jacobi::jacobi;
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoResult;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{Signed, ToPrimitive, Zero};
@@ -12,40 +14,44 @@ use num_traits::{Signed, ToPrimitive, Zero};
 /// true, the function verifies that a is a quadratic residue modulo p and returns None otherwise.
 /// If check_legendre is set to false, the function assumes that a is a quadratic residue modulo p
 /// and if this is not the case, the result is undefined.
-pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Option<BigInt> {
+pub fn modular_square_root(
+    a: &BigInt,
+    p: &BigInt,
+    check_legendre: bool,
+) -> FastCryptoResult<BigInt> {
     // Algorithm 2.3.8 in Crandall & Pomerance, "Prime Numbers: A Computational Perspective"
 
     // Handle special cases
     if !p.is_positive() || !p.is_odd() {
-        return None;
+        return Err(InvalidInput);
     }
 
     if a.is_zero() {
-        return Some(BigInt::zero());
+        return Ok(BigInt::zero());
     }
 
     // Check that a is a quadratic residue modulo p
     if check_legendre && jacobi(a, p).unwrap() != 1 {
-        return None;
+        return Err(InvalidInput);
     }
 
     let a = a.mod_floor(p);
     match mod8(p) {
-        3 | 7 => Some(a.modpow(&((p + 1) >> 2), p)),
+        3 | 7 => Ok(a.modpow(&((p + 1) >> 2), p)),
         5 => {
             let mut x = a.modpow(&((p + 3) >> 3), p);
             let c = x.modpow(&2.into(), p);
             if c != a {
                 x = x * BigInt::from(2).modpow(&((p - 1) >> 2), p) % p;
             }
-            Some(x)
+            Ok(x)
         }
         1 => {
             let mut d: BigInt = 2.into();
             while jacobi::jacobi(&d, p).expect("p is positive and odd") != -1 {
                 d += 1;
                 if &d >= p {
-                    return None;
+                    return Err(InvalidInput);
                 }
             }
             let p_minus_1: BigInt = p - 1;
@@ -63,9 +69,9 @@ pub fn modular_square_root(a: &BigInt, p: &BigInt, check_legendre: bool) -> Opti
                 }
             }
             let x = a.modpow(&((t + 1) >> 1), p) * d_t.modpow(&(m >> 1), p) % p;
-            Some(x)
+            Ok(x)
         }
-        _ => None,
+        _ => Err(InvalidInput),
     }
 }
 

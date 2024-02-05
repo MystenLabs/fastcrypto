@@ -80,7 +80,7 @@ mod tests {
         );
 
         // Compute the VDF input from the combined randomness
-        let input = QuadraticForm::hash_to_group(&combined_randomness, &discriminant, k);
+        let input = QuadraticForm::hash_to_group(&combined_randomness, &discriminant, k).unwrap();
         assert_eq!(input.to_bytes(), hex::decode("003f0dd96f00382016209d7073d324903c1c769d1c68beeeaeb88c22252236d4a6f60cee389f3c9ebfc9b599556d850d02eb3aeabb0c330e7e8e07a882e77b3cff005f009643dcf5bc3584db554f8352a8178cae3e0aa2e6358c5321ae160a632fdc61c0888d918a510361e3542ed1ad27908683e89aa1ddf03b76abf174071fead13845470bcf0957ee97f3695fcfdcbe330f59d5e7d30672fdab30c4afe2d1ad91").unwrap());
 
         // Compute the output of the VDF
@@ -93,7 +93,7 @@ mod tests {
 
         // Try with another input. This should fail.
         let another_input =
-            QuadraticForm::hash_to_group(b"some other randomness", &discriminant, k);
+            QuadraticForm::hash_to_group(b"some other randomness", &discriminant, k).unwrap();
 
         // Verify the output and proof
         assert!(vdf.verify(&another_input, &output, &proof).is_err());

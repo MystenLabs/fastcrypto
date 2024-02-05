@@ -10,7 +10,12 @@ use fastcrypto_vdf::Parameter;
 use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
-const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 2400;
+/// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
+/// (https://inria.hal.science/hal-02882161/file/unknown-order.pdf)
+///
+/// A discriminant size of 3072 bits ensures that the computational hardness of computing the group order of a group
+/// with a randomly chosen discriminant is at least 128 bits with probability at least 1 - 2^{-40}.
+const DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = 3072;
 
 #[derive(Parser)]
 #[command(name = "vdf-cli")]
@@ -24,6 +29,9 @@ enum Command {
 
     /// Verify an output .
     Verify(VerifyArguments),
+
+    /// Hash a binary message to a quadratic form.
+    Hash(HashArguments),
 }
 
 #[derive(Parser, Clone)]
@@ -43,8 +51,12 @@ struct EvaluateArguments {
     #[clap(short, long)]
     discriminant: String,
 
+    /// The hex encoded input to the VDF.
+    #[clap(long)]
+    input: String,
+
     /// The number of iterations.
-    #[clap(short, long)]
+    #[clap(long)]
     iterations: u64,
 }
 
@@ -55,8 +67,12 @@ struct VerifyArguments {
     discriminant: String,
 
     /// Iterations
-    #[clap(short, long)]
+    #[clap(long)]
     iterations: u64,
+
+    /// The input to the VDF.
+    #[clap(long)]
+    input: String,
 
     /// The output of the VDF.
     #[clap(short, long)]
@@ -65,6 +81,21 @@ struct VerifyArguments {
     /// The proof of the correctness of the VDF output.
     #[clap(short, long)]
     proof: String,
+}
+
+#[derive(Parser, Clone)]
+struct HashArguments {
+    /// The hex encoded discriminant.
+    #[clap(short, long)]
+    discriminant: String,
+
+    /// The hex encoded input to the hash function.
+    #[clap(short, long)]
+    message: String,
+
+    /// Number of parallel prime samplings in the hash function.
+    #[clap(short, long, default_value_t = 64)]
+    k: u16,
 }
 
 fn main() {
@@ -99,7 +130,14 @@ fn execute(cmd: Command) -> Result<String, Error> {
             let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
-            let g = QuadraticForm::generator(&discriminant);
+            let input_bytes = hex::decode(arguments.input)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input point."))?;
+            let g = QuadraticForm::from_bytes(&input_bytes, &discriminant).map_err(|_| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    "Invalid input point or discriminant.",
+                )
+            })?;
 
             let vdf = StrongVDF::new(discriminant, arguments.iterations);
             let (output, proof) = vdf
@@ -122,6 +160,14 @@ fn execute(cmd: Command) -> Result<String, Error> {
             let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
+            let input = QuadraticForm::from_bytes(
+                &hex::decode(arguments.input).map_err(|_| {
+                    Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
+                })?,
+                &discriminant,
+            )
+            .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
+
             let output = QuadraticForm::from_bytes(
                 &hex::decode(arguments.output).map_err(|_| {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
@@ -137,13 +183,28 @@ fn execute(cmd: Command) -> Result<String, Error> {
             )
             .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid proof."))?;
 
-            let g = QuadraticForm::generator(&discriminant);
-
             let vdf = StrongVDF::new(discriminant, arguments.iterations);
-            let verifies = vdf.verify(&g, &output, &proof).is_ok();
+            let verifies = vdf.verify(&input, &output, &proof).is_ok();
 
             let mut result = "Verified: ".to_string();
             result.push_str(&verifies.to_string());
+            Ok(result)
+        }
+        Command::Hash(arguments) => {
+            let discriminant_bytes = hex::decode(arguments.discriminant)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
+            let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
+
+            let input = hex::decode(arguments.message)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid message."))?;
+            let output = QuadraticForm::hash_to_group(&input, &discriminant, arguments.k)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "The k parameter was too big"))?;
+
+            let output_bytes = hex::encode(output.to_bytes());
+
+            let mut result = "Output: ".to_string();
+            result.push_str(&output_bytes);
             Ok(result)
         }
     }
@@ -169,18 +230,21 @@ mod tests {
     #[test]
     fn test_evaluate() {
         let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
+        let input = "003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79".to_string();
         let iterations = 1000u64;
         let result = execute(Command::Evaluate(EvaluateArguments {
             discriminant,
+            input: input.clone(),
             iterations,
         }))
         .unwrap();
-        let expected = "Output: 0040365f0a0ae44fc2cc952bbf3f351a55d79921f45437a2142fab447e1e402e4b1d0bfa70e1ab2d8db95ab2cbe9c49c2d086846008015532232b75be26c904f549c0040efdd7e38615ef6dbe5dc6202755cd634943e7f0b6e3b9701cc84fc5d41d4064440ed27fc5c16ff95a9c9527a6b037a8c2992c7ce40bf192e7518756050b41875\nProof:  00405f86e2ea77d24d63080f5bd6c4fd978904a7af1534c167d3cc6d00e32b700dfa76900c505c0d33b28b7e209254714f3825165170225ed70bff867434c3083b3f0040aaba221a7671183fdbfa132c15d381273003a98d7a221ace226bb6f8f0b751845fbc2d29dabb051d15dfecdc4ec3f69f065fb7192d0f09da48ad688fe023f921";
+        let expected = "Output: 004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611\nProof:  0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143";
         assert_eq!(expected, result);
 
         let invalid_discriminant = "abcx".to_string();
         assert!(execute(Command::Evaluate(EvaluateArguments {
             discriminant: invalid_discriminant,
+            input,
             iterations,
         }))
         .is_err());
@@ -190,11 +254,13 @@ mod tests {
     fn test_verify() {
         let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
         let iterations = 1000u64;
-        let output = "0040365f0a0ae44fc2cc952bbf3f351a55d79921f45437a2142fab447e1e402e4b1d0bfa70e1ab2d8db95ab2cbe9c49c2d086846008015532232b75be26c904f549c0040efdd7e38615ef6dbe5dc6202755cd634943e7f0b6e3b9701cc84fc5d41d4064440ed27fc5c16ff95a9c9527a6b037a8c2992c7ce40bf192e7518756050b41875".to_string();
-        let proof = "00405f86e2ea77d24d63080f5bd6c4fd978904a7af1534c167d3cc6d00e32b700dfa76900c505c0d33b28b7e209254714f3825165170225ed70bff867434c3083b3f0040aaba221a7671183fdbfa132c15d381273003a98d7a221ace226bb6f8f0b751845fbc2d29dabb051d15dfecdc4ec3f69f065fb7192d0f09da48ad688fe023f921".to_string();
+        let input = "003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79".to_string();
+        let output = "004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611".to_string();
+        let proof = "0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143".to_string();
         let result = execute(Command::Verify(VerifyArguments {
             discriminant: discriminant.clone(),
             iterations,
+            input: input.clone(),
             output: output.clone(),
             proof: proof.clone(),
         }))
@@ -206,6 +272,7 @@ mod tests {
         assert!(execute(Command::Verify(VerifyArguments {
             discriminant: invalid_discriminant,
             iterations,
+            input: input.clone(),
             output: output.clone(),
             proof: proof.clone(),
         }))
@@ -215,6 +282,7 @@ mod tests {
         let result = execute(Command::Verify(VerifyArguments {
             discriminant,
             iterations: other_iterations,
+            input,
             output,
             proof,
         }))
