@@ -12,9 +12,7 @@ pub mod class_group;
 pub mod vdf;
 
 #[cfg(any(test, feature = "experimental"))]
-mod extended_gcd;
-#[cfg(any(test, feature = "experimental"))]
-pub mod hash_prime;
+pub mod math;
 
 /// This trait is implemented by types which can be used as parameters for a parameterized group.
 /// See [ParameterizedGroupElement].
