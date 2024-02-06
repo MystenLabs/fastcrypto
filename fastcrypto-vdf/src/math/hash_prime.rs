@@ -105,6 +105,7 @@ mod tests {
         assert!(
             num_prime::nt_funcs::is_prime(&prime, Some(PrimalityTestConfig::strict())).probably()
         );
+        
         // Regression test
         assert_eq!(prime, BigUint::from_str("7904272817142338150419757415334055106926417574777773392214522399425467199262039794276651240832053626391864792937889238336287002167559810128294881253078163").unwrap());
     }
