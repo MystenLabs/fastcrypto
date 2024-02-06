@@ -59,7 +59,7 @@ fn sample_modulus(
 
     // This heuristic bound ensures that there will be enough distinct primes to sample from, so we won't end up in an
     // infinite loop. Consult the paper for details on how to pick the parameters.
-    if k > (discriminant.bits() / 32) as u16 {
+    if k > (discriminant.bits() >> 5) as u16 {
         return Err(InvalidInput);
     }
 
