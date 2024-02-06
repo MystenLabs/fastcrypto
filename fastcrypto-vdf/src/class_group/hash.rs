@@ -101,6 +101,7 @@ fn sample_modulus(
     let result = factors.iter().product();
     let square_root = solve_congruence_equation_system(&square_roots, &factors)
         .expect("The factors are distinct primes");
+
     Ok((result, square_root))
 }
 
