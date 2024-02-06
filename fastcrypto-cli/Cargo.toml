@@ -13,7 +13,6 @@ clap = { version = "4.1.8", features = ["derive"] }
 fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
 fastcrypto-vdf = { path = "../fastcrypto-vdf", features = ["experimental"] }
 hex = "0.4.3"
-bincode.workspace = true
 rand.workspace = true
 exitcode = "1.1.2"
 bcs.workspace = true

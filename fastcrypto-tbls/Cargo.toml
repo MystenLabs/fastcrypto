@@ -10,12 +10,9 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto", features = ["beacon-dkg"]}
-fastcrypto-derive = { path = "../fastcrypto-derive" }
 
-zeroize.workspace = true
 rand.workspace = true
 serde.workspace = true
-bincode.workspace = true
 typenum.workspace = true
 sha3.workspace = true
 digest.workspace = true
@@ -28,7 +25,6 @@ tap = { version = "1.0.1", features = [] }
 
 [dev-dependencies]
 criterion = "0.4.0"
-tracing-test = "0.2.4"
 generic-tests = "0.1.2"
 
 [[bench]]
