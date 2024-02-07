@@ -57,15 +57,11 @@ fn sample_modulus(
         bound = bound.nth_root(k as u32);
     }
 
-    // This heuristic bound ensures that there will be enough distinct primes to sample from so we wont end up in an
+    // This heuristic bound ensures that there will be enough distinct primes to sample from, so we won't end up in an
     // infinite loop. Consult the paper for details on how to pick the parameters.
     if k > (discriminant.bits() >> 5) as u16 {
         return Err(InvalidInput);
     }
-
-    // If k is small, we can skip the duplicate check because they will only happen with negligible probability,
-    // approximately ~2^{-40}. Consult the paper for details.
-    let check_duplicates = k >= (discriminant.bits() / 100) as u16;
 
     // Seed a rng with the hash of the seed
     let mut rng = ChaCha8Rng::from_seed(Sha256::digest(seed).digest);
@@ -77,7 +73,13 @@ fn sample_modulus(
         loop {
             factor = sample_odd_number(&bound, &mut rng);
 
-            if check_duplicates && factors.contains(&factor) {
+            if factors.contains(&factor) {
+                continue;
+            }
+
+            // The primality check does not try divisions with small primes, so we do it here. This speeds up the
+            // algorithm significantly.
+            if !trial_division(&factor, &PRIMES) {
                 continue;
             }
 
@@ -109,4 +111,19 @@ fn sample_odd_number<R: Rng>(bound: &BigInt, rng: &mut R) -> BigInt {
     a.shl_assign(1);
     a.add_assign(1);
     a
+}
+
+/// The odd primes smaller than 100.
+const PRIMES: [u64; 24] = [
+    3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
+];
+
+/// Perform trial division on `n` with the given primes. Returns true if neither of the divisors divide `n`
+fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
+    for p in divisors {
+        if n.is_multiple_of(&BigInt::from(*p)) {
+            return false;
+        }
+    }
+    true
 }

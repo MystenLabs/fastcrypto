@@ -72,31 +72,10 @@ pub struct DefaultPrimalityCheck {}
 
 impl PrimalityCheck for DefaultPrimalityCheck {
     fn is_probable_prime(x: &BigUint) -> bool {
-        let rounds = compute_number_of_rounds(x.bits());
-        let mut config = PrimalityTestConfig::default();
-        config.sprp_trials = 0;
-        config.sprp_random_trials = rounds as usize;
-        is_prime(x, Some(config)).probably()
-    }
-}
-
-fn compute_number_of_rounds(bits: u64) -> u64 {
-    // Assuming that the input is a random odd number, we get the following estimates Damgård,
-    // Landrock & Pomerance (1993), "Average Case Error Estimates for the Strong Probable Prime
-    // Test" for the necessary number of rounds for the Miller-Rabin test in order to ensure that
-    // the probability of a false positive is at most 2^(-40).
-    if bits < 100 {
-        9
-    } else if bits < 150 {
-        6
-    } else if bits < 200 {
-        4
-    } else if bits < 350 {
-        3
-    } else if bits < 1025 {
-        2
-    } else {
-        1
+        // We use the Baillie-PSW primality test here. This is accordance with the recommendations of "Prime and
+        // Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
+        // because this test is also used in use cases where an adversary could influence the input.
+        is_prime(x, Some(PrimalityTestConfig::bpsw())).probably()
     }
 }
 
