@@ -31,11 +31,10 @@ impl QuadraticForm {
         discriminant: &Discriminant,
         k: u16,
     ) -> FastCryptoResult<Self> {
-        // Sample a and b such that a < sqrt(|discriminant|)/2 and b' is the square root of the
-        // discriminant modulo a.
+        // Sample a and b such that a < sqrt(|discriminant|)/2 and b is the square root of the discriminant modulo a.
         let (a, mut b) = sample_modulus(discriminant, seed, k)?;
 
-        // b must be odd
+        // b must be odd but may be negative
         if b.is_even() {
             b -= &a;
         }
@@ -45,22 +44,32 @@ impl QuadraticForm {
     }
 }
 
+/// Increasing k reduces the range of the hash function. This function returns true if k is picked such that the range
+/// is at least 2^256. Consult the paper for details.
+fn largest_allowed_k(discriminant: &Discriminant) -> u16 {
+    let bits = discriminant.bits();
+    let lambda = 256.0;
+    let log_b = bits as f64 / 2.0 - 1.0;
+    let numerator = log_b - lambda;
+    let denominator = (log_b * 2.0_f64.ln()).log2() + 1.0;
+    (numerator / denominator).floor() as u16
+}
+
 /// Sample a product of K primes and return this along with the square root of the discriminant modulo a.
 fn sample_modulus(
     discriminant: &Discriminant,
     seed: &[u8],
     k: u16,
 ) -> FastCryptoResult<(BigInt, BigInt)> {
+    // This heuristic bound ensures that the range of the hash function has size at least 2^256.
+    if k > largest_allowed_k(&discriminant) {
+        return Err(InvalidInput);
+    }
+
     // If a is smaller than this bound and |b| < a, the form is guaranteed to be reduced.
     let mut bound: BigInt = discriminant.as_bigint().abs().sqrt().shr(1);
     if k > 1 {
         bound = bound.nth_root(k as u32);
-    }
-
-    // This heuristic bound ensures that there will be enough distinct primes to sample from, so we won't end up in an
-    // infinite loop. Consult the paper for details on how to pick the parameters.
-    if k > (discriminant.bits() >> 5) as u16 {
-        return Err(InvalidInput);
     }
 
     // Seed a rng with the hash of the seed
