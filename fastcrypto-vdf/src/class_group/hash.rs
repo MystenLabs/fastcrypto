@@ -42,6 +42,19 @@ impl QuadraticForm {
         Ok(QuadraticForm::from_a_b_discriminant(a, b, discriminant)
             .expect("a and b are constructed such that this never fails"))
     }
+
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
+    /// a random oracle on a large subset of the class group. This method picks a default k parameter and calls the
+    /// function [hash_to_group](QuadraticForm::hash_to_group) with this k.
+    pub fn hash_to_group_default_parameters(
+        seed: &[u8],
+        discriminant: &Discriminant,
+    ) -> FastCryptoResult<Self> {
+        // Let k be the largest power of two in the range
+        let largest_k = largest_allowed_k(discriminant) + 1;
+        let k = largest_k.next_power_of_two() << 1;
+        Self::hash_to_group(seed, discriminant, k)
+    }
 }
 
 /// Increasing k reduces the range of the hash function. This function returns true if k is picked such that the range
