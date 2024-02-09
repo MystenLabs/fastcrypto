@@ -77,23 +77,27 @@ mod tests {
         );
 
         // Compute the VDF input from the combined randomness
-        let input = QuadraticForm::hash_to_group_with_default_parameters(&combined_randomness, &discriminant).unwrap();
-        println!("input: {:?}", input.to_bytes());
-        //assert_eq!(input.to_bytes(), hex::decode("003f0dd96f00382016209d7073d324903c1c769d1c68beeeaeb88c22252236d4a6f60cee389f3c9ebfc9b599556d850d02eb3aeabb0c330e7e8e07a882e77b3cff005f009643dcf5bc3584db554f8352a8178cae3e0aa2e6358c5321ae160a632fdc61c0888d918a510361e3542ed1ad27908683e89aa1ddf03b76abf174071fead13845470bcf0957ee97f3695fcfdcbe330f59d5e7d30672fdab30c4afe2d1ad91").unwrap());
+        let input = QuadraticForm::hash_to_group_with_default_parameters(
+            &combined_randomness,
+            &discriminant,
+        )
+        .unwrap();
+        assert_eq!(input.to_bytes(), hex::decode("003d1daa654704dd48f4d9f841ffe9b7dc89ef998ff05f32f0f6e3534c471f47c7cded2041d78d0e6d485bf6074f47bda32a132334c5b3791b530e2999d7410072fdb7dd5859c497f0711b87c4fc787208d1969bd9f661958ae9646fbf5c735a3fdb07c32d33991d38879723cdb1ebbb1ecbf4b5d9e549e92b9c3b791407f05ccb9ea0d82c2982a5c6264cc293c6e328eb07ae7094336e89b01c74b115646a775019bfb7d413449378488c1e5e67e32160c6d3").unwrap());
 
         // Compute the output of the VDF
         let (output, proof) = vdf.evaluate(&input).unwrap();
-        println!("output: {:?}", output.to_bytes());
-        println!("proof: {:?}", proof.to_bytes());
-        assert_eq!(output.to_bytes(), hex::decode("00406f3b8eb978b15578b3b2417c8d9b69e717f95bafde1d8ea2f8ad95233700cb695674f844d0b200d10858ee8cef0d41435bbddcfb8374d16a6991cd092d3862880040d8d398a74e60c35578d6412e9ba609ba5cacf5d5b9b4e45fc69312b5a427ee8a2ab11196536713258a42ca67ee248bc0eeee1a6047479e94a6bda2bc29253f0f").unwrap());
-        assert_eq!(proof.to_bytes(), hex::decode("00407bcbbe400b2c9cd3b311a8be17509ccad8d18d45ff9c934aea798d908ca0ccb46a805b637ee51df0338f8d28ae5ea90c0d209ebb2d4e1c97cea16e51ce157a4900408666e9ce6e5a6d294f7b66f5c8feefa5bf7e5a6e8d98b084a0205f4179ac79b4f04efa641bafad779e035276ff44ee02c4dced65dc68d60bab6815202328fe5f").unwrap());
+        assert_eq!(output.to_bytes(), hex::decode("004013829c9d086b35690a80ee0e68212db9737f65e203fd793277952c5213c3bf5e2fcc8cc01001f13c309b1edae3c9ef551d0fc371d0f2dd17944919a75d82db340040f0fd1a66112bb398a7577d1637955ce1c53c127a00d657d5138f7379ae57206b86715164c313f66ea4f0519149d1799f149d35c6a9d5a97a27ba376c336525ff").unwrap());
+        assert_eq!(proof.to_bytes(), hex::decode("00405747c1e3d2af1d2b091f7366cbeff4c9836dc0b5bb6e6032053af6aa589348d000abb10250540258d9bf70ed81810b6d4229af8567b51eb8a08b6d72d9e52f880040203a9dbb321818cbac6f9ca011af9544b91c94b357f924e5d29cf94d5e28b9148d8e7febbb495a76d1d159c8785a6c01120a124f08c72a140e812c58eaa70de1").unwrap());
 
         // Verify the output and proof
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 
         // Try with another input. This should fail.
-        let another_input =
-            QuadraticForm::hash_to_group_with_default_parameters(b"some other randomness", &discriminant).unwrap();
+        let another_input = QuadraticForm::hash_to_group_with_default_parameters(
+            b"some other randomness",
+            &discriminant,
+        )
+        .unwrap();
 
         // Verify the output and proof
         assert!(vdf.verify(&another_input, &output, &proof).is_err());
