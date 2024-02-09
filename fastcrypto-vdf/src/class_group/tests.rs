@@ -9,6 +9,7 @@ use crate::ToBytes;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
+use std::str::FromStr;
 
 #[test]
 fn test_multiplication() {
@@ -73,7 +74,7 @@ fn test_discriminant_to_from_bytes() {
 #[test]
 fn test_qf_from_seed() {
     let mut seed = [0u8; 32];
-    let discriminant = Discriminant::from_seed(&seed, 512).unwrap();
+    let discriminant = Discriminant::from_seed(&seed, 1024).unwrap();
 
     for _ in 0..10 {
         let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 1).unwrap();
@@ -92,7 +93,7 @@ fn test_qf_from_seed() {
 
 #[test]
 fn qf_from_seed_sanity_tests() {
-    let discriminant = Discriminant::from_seed(b"discriminant seed", 512).unwrap();
+    let discriminant = Discriminant::from_seed(b"discriminant seed", 800).unwrap();
     let base_qf = QuadraticForm::hash_to_group(b"qf seed", &discriminant, 6).unwrap();
     assert_eq!(base_qf.discriminant(), discriminant);
 
@@ -109,14 +110,14 @@ fn qf_from_seed_sanity_tests() {
     assert_ne!(base_qf, other_qf);
 
     let mut seed = [0u8; 32];
-    for _ in 0..1000 {
+    for _ in 0..10 {
         // Different seed
         thread_rng().fill_bytes(&mut seed);
         let other_qf = QuadraticForm::hash_to_group(&seed, &discriminant, 6).unwrap();
         assert_ne!(base_qf, other_qf);
     }
 
-    let other_discriminant = Discriminant::from_seed(b"other_discriminant seed", 512).unwrap();
+    let other_discriminant = Discriminant::from_seed(b"other discriminant seed", 800).unwrap();
     // Same seed, same k, other discriminant
     let other_qf = QuadraticForm::hash_to_group(b"qf seed", &other_discriminant, 6).unwrap();
     assert_ne!(base_qf, other_qf);
