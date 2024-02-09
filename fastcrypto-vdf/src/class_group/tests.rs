@@ -12,10 +12,10 @@ use rand::{thread_rng, RngCore};
 
 #[test]
 fn test_multiplication() {
-    let discriminant = Discriminant::try_from(BigInt::from(-47)).unwrap();
+    let discriminant = Discriminant::from_seed(b"discriminant seed", 800).unwrap();
     let generator = QuadraticForm::generator(&discriminant);
     let mut current = QuadraticForm::zero(&discriminant);
-    for i in 0..10000 {
+    for i in 0..1000 {
         assert_eq!(current, generator.mul(&BigInt::from(i)));
         current = current + &generator;
     }
