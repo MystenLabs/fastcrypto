@@ -41,9 +41,9 @@ pub mod discriminant;
 /// the composition algorithm.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct QuadraticForm {
-    a: BigInt,
-    b: BigInt,
-    c: BigInt,
+    pub a: BigInt,
+    pub b: BigInt,
+    pub c: BigInt,
     partial_gcd_limit: BigInt,
 }
 
