@@ -17,6 +17,7 @@ use num_traits::Signed;
 use rand::distributions::uniform::UniformSampler;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
+use std::cmp::min;
 use std::ops::{AddAssign, ShlAssign, Shr};
 
 impl QuadraticForm {
@@ -46,13 +47,13 @@ impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
     /// a random oracle on a large subset of the class group. This method picks a default k parameter and calls the
     /// function [hash_to_group](QuadraticForm::hash_to_group) with this k.
-    pub fn hash_to_group_default_parameters(
+    pub fn hash_to_group_with_default_parameters(
         seed: &[u8],
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        // Let k be the largest power of two in the range
+        // Let k be the largest power of two in the range up to 64
         let largest_k = largest_allowed_k(discriminant) + 1;
-        let k = largest_k.next_power_of_two() << 1;
+        let k = min(64, largest_k.next_power_of_two() << 1);
         Self::hash_to_group(seed, discriminant, k)
     }
 }
