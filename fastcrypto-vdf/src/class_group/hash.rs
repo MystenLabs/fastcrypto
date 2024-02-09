@@ -62,7 +62,7 @@ fn sample_modulus(
     k: u16,
 ) -> FastCryptoResult<(BigInt, BigInt)> {
     // This heuristic bound ensures that the range of the hash function has size at least 2^256.
-    if k > largest_allowed_k(&discriminant) {
+    if k > largest_allowed_k(discriminant) {
         return Err(InvalidInput);
     }
 
