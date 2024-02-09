@@ -9,7 +9,6 @@ use crate::ToBytes;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
-use std::str::FromStr;
 
 #[test]
 fn test_multiplication() {
