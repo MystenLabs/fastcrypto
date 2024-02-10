@@ -87,6 +87,7 @@ mod scalar_tests {
 #[generic_tests::define]
 mod points_tests {
     use super::*;
+    use itertools::Either;
     #[test]
     fn test_eval_and_commit<G: GroupElement>() {
         // test zero
@@ -156,6 +157,39 @@ mod points_tests {
             let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<G>::recover_c0_msm(124, used_shares).unwrap());
         }
+    }
+
+    #[test]
+    fn test_fast_mult<G: GroupElement>() {
+        let x = 1u128 << 109; // 110 bit set
+        let y = 1u128 << 17; // 18 bit set
+        assert!(Poly::<G::ScalarType>::fast_mult(x, y) == Either::Right(x * y));
+
+        let x = 1u128 << 17;
+        let y = 1u128 << 109;
+        assert!(Poly::<G::ScalarType>::fast_mult(x, y) == Either::Right(x * y));
+
+        let x = 1u128 << 109 - 1; // all 109 bits set
+        let y = 1u128 << 19 - 1; // all 19 bits set
+        assert!(Poly::<G::ScalarType>::fast_mult(x, y) == Either::Right(x * y));
+
+        let x = 1u128 << 120;
+        let y = 1u128 << 13;
+        assert!(
+            Poly::<G::ScalarType>::fast_mult(x, y) == Either::Left((G::ScalarType::from(x), y))
+        );
+
+        let x = 1u128 << 21;
+        let y = 1u128 << 120;
+        assert!(
+            Poly::<G::ScalarType>::fast_mult(x, y) == Either::Left((G::ScalarType::from(x), y))
+        );
+
+        let x = std::u128::MAX;
+        let y = 1u128;
+        assert!(
+            Poly::<G::ScalarType>::fast_mult(x, y) == Either::Left((G::ScalarType::from(x), y))
+        );
     }
 
     #[instantiate_tests(<RistrettoPoint>)]
