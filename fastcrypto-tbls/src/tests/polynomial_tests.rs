@@ -169,8 +169,8 @@ mod points_tests {
         let y = 1u128 << 109;
         assert!(Poly::<G::ScalarType>::fast_mult(x, y) == Either::Right(x * y));
 
-        let x = 1u128 << 109 - 1; // all 109 bits set
-        let y = 1u128 << 19 - 1; // all 19 bits set
+        let x = 1u128 << (109 - 1); // all 109 bits set
+        let y = 1u128 << (19 - 1); // all 19 bits set
         assert!(Poly::<G::ScalarType>::fast_mult(x, y) == Either::Right(x * y));
 
         let x = 1u128 << 120;
