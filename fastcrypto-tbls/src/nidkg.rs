@@ -113,7 +113,7 @@ where
 
         // Precompute the dual code coefficients.
         let ids_as_scalars = (1..=n)
-            .map(|i| (i, G::ScalarType::from(i as u64)))
+            .map(|i| (i, G::ScalarType::from(i as u128)))
             .collect::<HashMap<_, _>>();
         let precomputed_dual_code_coefficients = (1..=n)
             .map(|i| {

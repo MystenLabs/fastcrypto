@@ -158,8 +158,8 @@ impl RistrettoScalar {
     }
 }
 
-impl From<u64> for RistrettoScalar {
-    fn from(value: u64) -> RistrettoScalar {
+impl From<u128> for RistrettoScalar {
+    fn from(value: u128) -> RistrettoScalar {
         RistrettoScalar(ExternalRistrettoScalar::from(value))
     }
 }

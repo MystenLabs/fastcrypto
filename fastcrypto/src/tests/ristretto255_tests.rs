@@ -50,6 +50,12 @@ fn test_arithmetic() {
         &(RistrettoScalar::group_order() - RistrettoScalar::from(1)).to_byte_array()
     )
     .is_ok());
+
+    // Check that u128 is decoded correctly.
+    let x: u128 = 2 << 66;
+    let x_scalar = RistrettoScalar::from(x);
+    let in_u64 = x_scalar / RistrettoScalar::from(8);
+    assert_eq!(in_u64.unwrap(), RistrettoScalar::from(2 << 63));
 }
 
 #[test]
@@ -91,7 +97,7 @@ fn test_vectors() {
     ];
 
     for (i, item) in VEC_MULGEN.iter().enumerate() {
-        let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u64);
+        let actual = RistrettoPoint::generator() * RistrettoScalar::from(i as u128);
         let expected = RistrettoPoint::try_from(hex::decode(item).unwrap().as_slice()).unwrap();
         assert_eq!(expected, actual);
     }

@@ -183,5 +183,7 @@ pub fn verify_equal_exponents<R: AllowedRng>(
 }
 
 pub(crate) fn get_random_scalars<S: Scalar, R: AllowedRng>(n: u32, rng: &mut R) -> Vec<S> {
-    (0..n).map(|_| S::from(rng.next_u64())).collect::<Vec<_>>()
+    (0..n)
+        .map(|_| S::from(rng.next_u64() as u128))
+        .collect::<Vec<_>>()
 }

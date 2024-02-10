@@ -24,6 +24,12 @@ fn test_arithmetic() {
     assert_eq!(two_p, p.double());
     assert_eq!(two_p, p * s);
     assert_eq!(p, two_p * (Scalar::generator() / s).unwrap());
+
+    // Check that u128 is decoded correctly.
+    let x: u128 = 2 << 66;
+    let x_scalar = Scalar::from(x);
+    let res = x_scalar / Scalar::from(8);
+    assert_eq!(res.unwrap(), Scalar::from(2 << 63));
 }
 
 // TODO: add serde tests & regression
