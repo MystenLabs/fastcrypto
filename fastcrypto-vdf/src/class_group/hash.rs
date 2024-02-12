@@ -23,10 +23,11 @@ use std::ops::{AddAssign, ShlAssign, Shr};
 impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
     /// a random oracle on a large subset of the class group, namely the group elements whose `a` coordinate is a
-    /// product of K primes all smaller than (sqrt(|discriminant|)/2)^{1/k}.
+    /// product of `k` primes all smaller than `(sqrt(|discriminant|)/2)^{1/k}`.
     ///
-    /// The K parameter must be smaller than the number of bits in the discriminant divided by 32 to ensure that the
-    /// sample space for the primes is large enough. Otherwise an error is returned.
+    /// Increasing `k` speeds-up the function (at least up to some break even point), but it also decreases the size of
+    /// the range of the hash function, so `k` must be picked no larger than the `k` computed in [largest_allowed_k]. If
+    /// it is larger, an [InvalidInput] error is returned.
     pub fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -44,9 +45,9 @@ impl QuadraticForm {
             .expect("a and b are constructed such that this never fails"))
     }
 
-    /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
-    /// a random oracle on a large subset of the class group. This method picks a default k parameter and calls the
-    /// function [hash_to_group](QuadraticForm::hash_to_group) with this k.
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic, and it
+    /// is a random oracle on a large subset of the class group. This method picks a default `k` parameter and calls the
+    /// [hash_to_group](QuadraticForm::hash_to_group) function with this `k`.
     pub fn hash_to_group_with_default_parameters(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -58,8 +59,9 @@ impl QuadraticForm {
     }
 }
 
-/// Increasing k reduces the range of the hash function. This function returns true if k is picked such that the range
-/// is at least 2^256. Consult the paper for details.
+/// Increasing `k` reduces the range of the hash function for a given discriminant. This function returns a choice of
+/// `k` such that the range is at least `2^256`, and chooses this it as large as possible. Consult the paper for
+/// details.
 fn largest_allowed_k(discriminant: &Discriminant) -> u16 {
     let bits = discriminant.bits();
     let lambda = 256.0;
@@ -69,7 +71,9 @@ fn largest_allowed_k(discriminant: &Discriminant) -> u16 {
     (numerator / denominator).floor() as u16
 }
 
-/// Sample a product of K primes and return this along with the square root of the discriminant modulo a.
+/// Sample a product of `k` primes and return this along with the square root of the discriminant modulo `a`. If `k` is
+/// larger than the largest allowed `k` (as computed in [largest_allowed_k]) for the given discriminant, an
+/// [InvalidInput] error is returned.
 fn sample_modulus(
     discriminant: &Discriminant,
     seed: &[u8],
@@ -150,3 +154,6 @@ fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
     }
     true
 }
+
+#[cfg(test)]
+fn test_bound() {}
