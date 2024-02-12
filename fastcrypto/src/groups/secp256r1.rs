@@ -93,8 +93,8 @@ impl Div<Scalar> for Scalar {
     }
 }
 
-impl From<u64> for Scalar {
-    fn from(value: u64) -> Self {
+impl From<u128> for Scalar {
+    fn from(value: u128) -> Self {
         Scalar(Fr::from(value))
     }
 }

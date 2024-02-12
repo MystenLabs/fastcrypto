@@ -9,6 +9,7 @@ use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
+use itertools::Either;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -79,6 +80,15 @@ impl<C: GroupElement> Poly<C> {
         }
     }
 
+    // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
+    pub fn fast_mult(x: u128, y: u128) -> Either<(C::ScalarType, u128), u128> {
+        if x.leading_zeros() >= (128 - y.leading_zeros()) {
+            Either::Right(x * y)
+        } else {
+            Either::Left((C::ScalarType::from(x), y))
+        }
+    }
+
     // Expects exactly t unique shares.
     fn get_lagrange_coefficients_for_c0(
         t: u32,
@@ -93,7 +103,7 @@ impl<C: GroupElement> Poly<C> {
                 if !ids_set.insert(s.borrow().index) {
                     return Err(FastCryptoError::InvalidInput); // expected unique ids
                 }
-                vec.push(C::ScalarType::from(s.borrow().index.get() as u64));
+                vec.push(s.borrow().index.get() as u128);
                 Ok(vec)
             },
         )?;
@@ -101,15 +111,35 @@ impl<C: GroupElement> Poly<C> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let full_numerator = indices
-            .iter()
-            .fold(C::ScalarType::generator(), |acc, i| acc * i);
+        let full_numerator = indices.iter().fold(C::ScalarType::generator(), |acc, i| {
+            acc * C::ScalarType::from(*i)
+        });
+
         let mut coeffs = Vec::new();
         for i in &indices {
-            let denominator = indices
-                .iter()
-                .filter(|j| *j != i)
-                .fold(*i, |acc, j| acc * (*j - i));
+            let mut negative = false;
+            let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
+                (C::ScalarType::from(*i), 1u128),
+                |(prev_acc, remaining), j| {
+                    let diff = if i > j {
+                        negative = !negative;
+                        i - j
+                    } else {
+                        j - i
+                    };
+                    debug_assert_ne!(diff, 0);
+                    let either = Self::fast_mult(remaining, diff);
+                    match either {
+                        Either::Left((remaining, diff)) => (prev_acc * remaining, diff),
+                        Either::Right(diff) => (prev_acc, diff),
+                    }
+                },
+            );
+
+            denominator = denominator * C::ScalarType::from(remaining); // remaining != 0
+            if negative {
+                denominator = -denominator;
+            }
             let coeff = full_numerator / denominator;
             coeffs.push(coeff.expect("safe since i != j"));
         }

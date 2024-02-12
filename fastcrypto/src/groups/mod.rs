@@ -47,7 +47,7 @@ pub trait GroupElement:
 
 /// Trait impl'd by scalars to be used with [GroupElement].
 pub trait Scalar:
-    GroupElement<ScalarType = Self> + Copy + From<u64> + Sized + Debug + Serialize + DeserializeOwned
+    GroupElement<ScalarType = Self> + Copy + From<u128> + Sized + Debug + Serialize + DeserializeOwned
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;

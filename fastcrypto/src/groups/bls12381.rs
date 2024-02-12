@@ -651,10 +651,10 @@ impl Mul<Scalar> for Scalar {
     }
 }
 
-impl From<u64> for Scalar {
-    fn from(value: u64) -> Self {
+impl From<u128> for Scalar {
+    fn from(value: u128) -> Self {
         let mut ret = blst_fr::default();
-        let buff = [value, 0u64, 0u64, 0u64];
+        let buff = [value as u64, (value >> 64) as u64, 0u64, 0u64];
         unsafe {
             blst_fr_from_uint64(&mut ret, buff.as_ptr());
         }

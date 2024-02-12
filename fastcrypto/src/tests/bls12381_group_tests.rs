@@ -50,6 +50,12 @@ fn test_scalar_arithmetic() {
     let order =
         hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
     assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
+
+    // Check that u128 is decoded correctly.
+    let x: u128 = 2 << 66;
+    let x_scalar = Scalar::from(x);
+    let res = x_scalar / Scalar::from(8);
+    assert_eq!(res.unwrap(), Scalar::from(2 << 63));
 }
 
 #[test]
