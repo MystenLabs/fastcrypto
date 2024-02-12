@@ -117,12 +117,12 @@ impl<C: GroupElement> Poly<C> {
 
         let mut coeffs = Vec::new();
         for i in &indices {
-            let mut sign = 1;
+            let mut negative = false;
             let (mut denominator, remaining) = indices.iter().filter(|j| *j != i).fold(
                 (C::ScalarType::from(*i), 1u128),
                 |(prev_acc, remaining), j| {
                     let diff = if i > j {
-                        sign *= -1;
+                        negative = !negative;
                         i - j
                     } else {
                         j - i
@@ -137,7 +137,7 @@ impl<C: GroupElement> Poly<C> {
             );
 
             denominator = denominator * C::ScalarType::from(remaining); // remaining != 0
-            if sign == -1 {
+            if negative {
                 denominator = -denominator;
             }
             let coeff = full_numerator / denominator;
