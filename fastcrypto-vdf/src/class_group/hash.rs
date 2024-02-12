@@ -154,6 +154,3 @@ fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
     }
     true
 }
-
-#[cfg(test)]
-fn test_bound() {}
