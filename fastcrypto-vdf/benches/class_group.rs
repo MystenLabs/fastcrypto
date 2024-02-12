@@ -46,11 +46,6 @@ fn qf_from_seed_single<M: Measurement>(discriminant_string: &str, group: &mut Be
             Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap())
                 .unwrap();
 
-        // The hash function fails if k is too large
-        if k > (discriminant.bits() >> 5) as u16 {
-            continue;
-        }
-
         let bits = discriminant.bits();
         group.bench_function(format!("{} bits/{}", bits, k), move |b| {
             let mut seed = [0u8; 32];
