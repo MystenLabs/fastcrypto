@@ -413,7 +413,7 @@ fn fail_to_verify_if_upper_s() {
     let normalized_sig = Secp256r1Signature::from_bytes(normalized.to_bytes().as_slice()).unwrap();
 
     // Verify with normalized lower S.
-    let res = pk.verify(&digest.digest, &normalized_sig);
+    let res = pk.verify(&message, &normalized_sig);
     println!("res in fastcrypto = {:?}", res);
     // p256 verifies
     // let sig = p256::ecdsa::Signature::from_slice(&hex::decode("b3fda59f0ea8b7413c111a38202aa3b37ab2a62a8dbfbf3061d3a3eae73d0b57e30d0dd927fb3091f28567f0d325eb58a3602cb957875cf7bece56beff8792bc").unwrap()).unwrap();
