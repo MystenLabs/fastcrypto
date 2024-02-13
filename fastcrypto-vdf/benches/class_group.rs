@@ -41,12 +41,13 @@ fn class_group_ops(c: &mut Criterion) {
 }
 
 fn qf_from_seed_single<M: Measurement>(discriminant_string: &str, group: &mut BenchmarkGroup<M>) {
+    let discriminant =
+        Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap()).unwrap();
+    let bits = discriminant.bits();
     for k in [1, 2, 4, 8, 16, 32, 64] {
-        let discriminant =
-            Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap())
-                .unwrap();
-
-        let bits = discriminant.bits();
+        if bits < 2048 && k > 32 {
+            continue;
+        }
         group.bench_function(format!("{} bits/{}", bits, k), move |b| {
             let mut seed = [0u8; 32];
             thread_rng().fill_bytes(&mut seed);

@@ -52,23 +52,18 @@ impl QuadraticForm {
         seed: &[u8],
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        // Let k be the largest power of two in the range up to 64
-        let largest_k = largest_allowed_k(discriminant) + 1;
-        let k = min(64, largest_k.next_power_of_two() >> 1);
-        Self::hash_to_group(seed, discriminant, k)
+        Self::hash_to_group(seed, discriminant, get_default_k(discriminant.bits()))
     }
 }
 
-/// Increasing `k` reduces the range of the hash function for a given discriminant. This function returns a choice of
-/// `k` such that the range is at least `2^256`, and chooses this it as large as possible. Consult the paper for
-/// details.
-fn largest_allowed_k(discriminant: &Discriminant) -> u16 {
-    let bits = discriminant.bits();
-    let lambda = 256.0;
-    let log_b = bits as f64 / 2.0 - 1.0;
-    let numerator = log_b - lambda;
-    let denominator = (log_b * 2.0_f64.ln()).log2() + 1.0;
-    (numerator / denominator).floor() as u16
+fn get_default_k(discriminant_bits: usize) -> u16 {
+    // This is chosen to ensure that the range of the hash function is large (at least 2^256) but also that the
+    // performance is near optimal based on benchmarks.
+    if discriminant_bits <= 2048 {
+        16
+    } else {
+        32
+    }
 }
 
 /// Sample a product of `k` primes and return this along with the square root of the discriminant modulo `a`. If `k` is
