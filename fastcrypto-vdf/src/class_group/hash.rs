@@ -17,7 +17,6 @@ use num_traits::Signed;
 use rand::distributions::uniform::UniformSampler;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::cmp::min;
 use std::ops::{AddAssign, ShlAssign, Shr};
 
 impl QuadraticForm {
@@ -27,7 +26,8 @@ impl QuadraticForm {
     ///
     /// Increasing `k` speeds-up the function (at least up to some break even point), but it also decreases the size of
     /// the range of the hash function, so `k` must be picked no larger than the `k` computed in [largest_allowed_k]. If
-    /// it is larger, an [InvalidInput] error is returned.
+    /// it is larger, an [InvalidInput] error is returned. If in doubt, use the [hash_to_group_with_default_parameters]
+    /// instead.
     pub fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -52,10 +52,18 @@ impl QuadraticForm {
         seed: &[u8],
         discriminant: &Discriminant,
     ) -> FastCryptoResult<Self> {
-        // Let k be the largest power of two in the range up to 64
-        let largest_k = largest_allowed_k(discriminant) + 1;
-        let k = min(64, largest_k.next_power_of_two() >> 1);
+        let k = get_default_k(discriminant.bits() as usize);
         Self::hash_to_group(seed, discriminant, k)
+    }
+}
+
+fn get_default_k(discriminant_bits: usize) -> u16 {
+    // This is chosen to ensure that the range of the hash function is large (at least 2^256) but also that the
+    // performance is near optimal, based on benchmarks.
+    if discriminant_bits <= 2048 {
+        16
+    } else {
+        32
     }
 }
 
@@ -80,7 +88,7 @@ fn sample_modulus(
     k: u16,
 ) -> FastCryptoResult<(BigInt, BigInt)> {
     // This heuristic bound ensures that the range of the hash function has size at least 2^256.
-    if k > largest_allowed_k(discriminant) {
+    if discriminant.bits() < 800 || k > largest_allowed_k(discriminant) {
         return Err(InvalidInput);
     }
 
