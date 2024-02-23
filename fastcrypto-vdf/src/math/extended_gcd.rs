@@ -14,6 +14,26 @@ use std::ops::Neg;
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
+pub struct EuclideanAlgorithmOutputPartial {
+    pub gcd: BigInt,
+    pub y: BigInt,
+    pub a_divided_by_gcd: BigInt,
+    pub b_divided_by_gcd: BigInt,
+}
+
+impl EuclideanAlgorithmOutputPartial {
+    fn neg(self) -> Self {
+        Self {
+            gcd: -self.gcd,
+            y: -self.y,
+            a_divided_by_gcd: self.a_divided_by_gcd,
+            b_divided_by_gcd: self.b_divided_by_gcd,
+        }
+    }
+}
+
+/// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
+/// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
 pub struct EuclideanAlgorithmOutput {
     pub gcd: BigInt,
     pub x: BigInt,
@@ -23,13 +43,13 @@ pub struct EuclideanAlgorithmOutput {
 }
 
 impl EuclideanAlgorithmOutput {
-    fn flip(self) -> Self {
+    fn neg(self) -> Self {
         Self {
-            gcd: self.gcd,
-            x: self.y,
-            y: self.x,
-            a_divided_by_gcd: self.b_divided_by_gcd,
-            b_divided_by_gcd: self.a_divided_by_gcd,
+            gcd: -self.gcd,
+            x: -self.x,
+            y: -self.y,
+            a_divided_by_gcd: self.a_divided_by_gcd,
+            b_divided_by_gcd: self.b_divided_by_gcd,
         }
     }
 }
@@ -37,10 +57,6 @@ impl EuclideanAlgorithmOutput {
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
-    if b < a {
-        return extended_euclidean_algorithm(b, a).flip();
-    }
-
     let mut s = (BigInt::zero(), BigInt::one());
     let mut t = (BigInt::one(), BigInt::zero());
     let mut r = (a.clone(), b.clone());
@@ -69,22 +85,53 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
         t.0
     };
 
-    if !r.1.is_negative() {
-        EuclideanAlgorithmOutput {
-            gcd: r.1,
-            x: t.1,
-            y: s.1,
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+    let negate = r.1.is_negative();
+    let result = EuclideanAlgorithmOutput {
+        gcd: r.1,
+        x: t.1,
+        y: s.1,
+        a_divided_by_gcd,
+        b_divided_by_gcd,
+    };
+    if negate {
+        result.neg()
     } else {
-        EuclideanAlgorithmOutput {
-            gcd: r.1.neg(),
-            x: t.1.neg(),
-            y: s.1.neg(),
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+        result
+    }
+}
+
+/// Compute the greatest common divisor gcd of a and b. The output also returns only the Bezout coefficients for b and
+/// but also the quotients a / gcd and b / gcd.
+pub fn extended_euclidean_algorithm_partial(
+    a: &BigInt,
+    b: &BigInt,
+) -> EuclideanAlgorithmOutputPartial {
+    let mut s = (BigInt::zero(), BigInt::one());
+    let mut r = (a.clone(), b.clone());
+
+    while !r.0.is_zero() {
+        let (q, r_prime) = r.1.div_rem(&r.0);
+        r.1 = r.0;
+        r.0 = r_prime;
+
+        mem::swap(&mut s.0, &mut s.1);
+        s.0 -= &q * &s.1;
+    }
+
+    // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
+    let a_divided_by_gcd = if a.sign() != s.0.sign() { -s.0 } else { s.0 };
+    let negate = r.1.is_negative();
+    let b_divided_by_gcd = if negate { -b / &r.1 } else { b / &r.1 };
+    let result = EuclideanAlgorithmOutputPartial {
+        gcd: r.1,
+        y: s.1,
+        a_divided_by_gcd,
+        b_divided_by_gcd,
+    };
+    if negate {
+        result.neg()
+    } else {
+        result
     }
 }
 

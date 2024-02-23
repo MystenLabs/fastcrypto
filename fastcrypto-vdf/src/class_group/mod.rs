@@ -5,7 +5,10 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+use crate::math::extended_gcd::{
+    extended_euclidean_algorithm, extended_euclidean_algorithm_partial, EuclideanAlgorithmOutput,
+    EuclideanAlgorithmOutputPartial,
+};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -171,13 +174,12 @@ impl QuadraticForm {
             (f, &m * &b, q)
         } else {
             // 3.
-            let EuclideanAlgorithmOutput {
+            let EuclideanAlgorithmOutputPartial {
                 gcd: g,
-                x: _,
                 y,
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
-            } = extended_euclidean_algorithm(&f, &s);
+            } = extended_euclidean_algorithm_partial(&f, &s);
             capital_by *= &h;
             capital_cy *= &h;
 
@@ -266,13 +268,12 @@ impl Doubling for QuadraticForm {
         let v = &self.b;
         let w = &self.c;
 
-        let EuclideanAlgorithmOutput {
+        let EuclideanAlgorithmOutputPartial {
             gcd: g,
-            x: _,
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm(u, v);
+        } = extended_euclidean_algorithm_partial(u, v);
 
         let mut bx = (&y * w).mod_floor(&capital_by);
         let mut by = capital_by.clone();
