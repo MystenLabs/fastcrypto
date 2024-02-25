@@ -8,6 +8,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 pub type PartyId = u16;
 
@@ -146,13 +147,44 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
     pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
+        self.internal_reduce(t, allowed_delta, 1) // ignores total_weight_lower_bound
+    }
+
+    /// This function should be used for e2e benchmarks only, allows limiting the level of reduction.
+    pub fn reduce_for_benchmarks(
+        &self,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u32,
+    ) -> (Self, u16) {
+        self.internal_reduce(t, allowed_delta, total_weight_lower_bound)
+    }
+
+    fn internal_reduce(
+        &self,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u32,
+    ) -> (Self, u16) {
+        assert!(total_weight_lower_bound <= self.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {
-            let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
-            if sum <= allowed_delta {
+            // Break if we reached the lower bound.
+            let new_total_weight = self.nodes.iter().map(|n| n.weight / d).sum::<u16>();
+            if new_total_weight <= total_weight_lower_bound as u16 {
+                break;
+            }
+            // Compute the precision loss.
+            let delta = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
+            if delta <= allowed_delta {
                 max_d = d;
             }
         }
+        debug!(
+            "Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}",
+            self.total_weight, max_d, allowed_delta, total_weight_lower_bound
+        );
+
         let nodes = self
             .nodes
             .iter()

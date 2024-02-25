@@ -201,3 +201,27 @@ fn test_reduce() {
         assert!((d - 1) / 2 * number_of_nodes < ((nodes.total_weight() / 9) as u16));
     }
 }
+
+#[test]
+fn test_reduce_for_benchmarks() {
+    let number_of_nodes = 100;
+    let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
+    let nodes = Nodes::new(node_vec).unwrap();
+    let t = (nodes.total_weight() / 3) as u16;
+
+    // No extra gap, should return the inputs
+    let (new_nodes, new_t) = nodes.reduce_for_benchmarks(t, 1, 1);
+    assert_eq!(nodes, new_nodes);
+    assert_eq!(t, new_t);
+
+    // 10% gap
+    let (new_nodes1, _new_t1) = nodes.reduce(t, (nodes.total_weight() / 20) as u16);
+    let (new_nodes2, _new_t2) = nodes.reduce_for_benchmarks(
+        t,
+        (nodes.total_weight() / 20) as u16,
+        nodes.total_weight() / 3,
+    );
+    assert!(new_nodes1.total_weight() < new_nodes2.total_weight());
+    assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);
+    assert!(new_nodes2.total_weight() < nodes.total_weight());
+}
