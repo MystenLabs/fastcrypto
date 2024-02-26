@@ -119,7 +119,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         }
     }
 
-    /// Get the share ids of a node.
+    /// Get the share ids of a node (ordered).
     pub fn share_ids_of(&self, id: PartyId) -> Vec<ShareIndex> {
         // TODO: [perf opt] Cache this
         self.share_ids_iter()
