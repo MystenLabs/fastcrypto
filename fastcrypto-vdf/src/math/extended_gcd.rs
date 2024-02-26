@@ -6,11 +6,13 @@
 //! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
 //! and come out for free while computing the Bezout coefficients.
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
-use std::mem;
-use std::ops::Neg;
+use rand::{thread_rng, RngCore};
+use std::cmp::min;
+use std::ops::{BitAnd, ShrAssign};
+use std::str::FromStr;
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
@@ -22,12 +24,22 @@ pub struct EuclideanAlgorithmOutput {
     pub b_divided_by_gcd: BigInt,
 }
 
+#[inline]
+fn odd_part(x: &mut BigInt) -> u64 {
+    if x.is_odd() {
+        return 0;
+    }
+    let s = x.trailing_zeros().unwrap();
+    x.shr_assign(s);
+    s
+}
+
 impl EuclideanAlgorithmOutput {
-    fn flip(self) -> Self {
+    fn neg(self) -> Self {
         Self {
-            gcd: self.gcd,
-            x: self.y,
-            y: self.x,
+            gcd: -self.gcd,
+            x: -self.y,
+            y: -self.x,
             a_divided_by_gcd: self.b_divided_by_gcd,
             b_divided_by_gcd: self.a_divided_by_gcd,
         }
@@ -37,54 +49,103 @@ impl EuclideanAlgorithmOutput {
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
 pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
-    if b < a {
-        return extended_euclidean_algorithm(b, a).flip();
+    if a.is_zero() {
+        return EuclideanAlgorithmOutput {
+            gcd: b.clone(),
+            x: BigInt::zero(),
+            y: BigInt::one(),
+            a_divided_by_gcd: BigInt::zero(),
+            b_divided_by_gcd: BigInt::one(),
+        };
+    } else if b.is_zero() {
+        return EuclideanAlgorithmOutput {
+            gcd: a.clone(),
+            x: BigInt::one(),
+            y: BigInt::zero(),
+            a_divided_by_gcd: BigInt::one(),
+            b_divided_by_gcd: BigInt::zero(),
+        };
+    } else if a.is_negative() {
+        let result = extended_euclidean_algorithm(&-a, b);
+        return EuclideanAlgorithmOutput {
+            gcd: result.gcd,
+            x: -result.x,
+            y: result.y,
+            a_divided_by_gcd: -result.a_divided_by_gcd,
+            b_divided_by_gcd: result.b_divided_by_gcd,
+        };
+    } else if b.is_negative() {
+        let result = extended_euclidean_algorithm(a, &-b);
+        return EuclideanAlgorithmOutput {
+            gcd: result.gcd,
+            x: result.x,
+            y: -result.y,
+            a_divided_by_gcd: result.a_divided_by_gcd,
+            b_divided_by_gcd: -result.b_divided_by_gcd,
+        };
     }
 
-    let mut s = (BigInt::zero(), BigInt::one());
-    let mut t = (BigInt::one(), BigInt::zero());
-    let mut r = (a.clone(), b.clone());
+    let mut s = (BigInt::one(), BigInt::zero());
+    let mut t = (BigInt::zero(), BigInt::one());
 
-    while !r.0.is_zero() {
-        let (q, r_prime) = r.1.div_rem(&r.0);
-        r.1 = r.0;
-        r.0 = r_prime;
+    let mut u = a.clone();
+    let mut v = b.clone();
 
-        mem::swap(&mut s.0, &mut s.1);
-        s.0 -= &q * &s.1;
+    let u_zeros = odd_part(&mut u);
+    let v_zeros = odd_part(&mut v);
+    let zeros = min(u_zeros, v_zeros);
 
-        mem::swap(&mut t.0, &mut t.1);
-        t.0 -= &q * &t.1;
+    let mut shifts = u_zeros.abs_diff(v_zeros);
+    if u_zeros > v_zeros {
+        t.1 <<= shifts;
+    } else if u_zeros < v_zeros {
+        s.0 <<= shifts;
+    };
+
+    while &u != &v {
+        let zeros;
+        if u > v {
+            u -= &v;
+            zeros = odd_part(&mut u);
+            t.0 += &t.1;
+            t.1 <<= zeros;
+            s.0 += &s.1;
+            s.1 <<= zeros;
+        } else {
+            v -= &u;
+            zeros = odd_part(&mut v);
+            t.1 += &t.0;
+            t.0 <<= zeros;
+            s.1 += &s.0;
+            s.0 <<= zeros;
+        }
+        shifts += zeros;
     }
 
-    // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    let a_divided_by_gcd = if a.sign() != s.0.sign() {
-        s.0.neg()
-    } else {
-        s.0
-    };
-    let b_divided_by_gcd = if b.sign() != t.0.sign() {
-        t.0.neg()
-    } else {
-        t.0
-    };
+    let ug = &t.0 + &t.1;
+    let vg = &s.0 + &s.1;
 
-    if !r.1.is_negative() {
-        EuclideanAlgorithmOutput {
-            gcd: r.1,
-            x: t.1,
-            y: s.1,
-            a_divided_by_gcd,
-            b_divided_by_gcd,
+    for _ in 0..shifts {
+        if s.0.is_odd() | t.0.is_odd() {
+            s.0 += &vg;
+            t.0 += &ug;
         }
-    } else {
-        EuclideanAlgorithmOutput {
-            gcd: r.1.neg(),
-            x: t.1.neg(),
-            y: s.1.neg(),
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+        // TODO: 35% of the time, the following two lines are executed
+        s.0 >>= 1;
+        t.0 >>= 1;
+    }
+
+    if &s.0 * 2 > vg {
+        s.0 -= &vg;
+        t.0 -= &ug;
+    }
+
+    EuclideanAlgorithmOutput {
+        gcd: u << zeros,
+        x: s.0,
+        y: -t.0,
+        a_divided_by_gcd: ug,
+        b_divided_by_gcd: vg,
     }
 }
 
@@ -94,6 +155,20 @@ fn test_xgcd() {
     test_xgcd_single(BigInt::from(-240), BigInt::from(46));
     test_xgcd_single(BigInt::from(240), BigInt::from(-46));
     test_xgcd_single(BigInt::from(-240), BigInt::from(-46));
+}
+
+#[test]
+fn test_large_xgcd() {
+    let bytes = 1024;
+
+    let mut a_bytes = vec![0u8; bytes];
+    thread_rng().fill_bytes(&mut a_bytes);
+    let a = BigInt::from_bytes_be(Sign::Plus, &a_bytes);
+
+    let mut b_bytes = vec![0u8; bytes];
+    thread_rng().fill_bytes(&mut b_bytes);
+    let b = BigInt::from_bytes_be(Sign::Plus, &b_bytes);
+    test_xgcd_single(a, b);
 }
 
 #[cfg(test)]

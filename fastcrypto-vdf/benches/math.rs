@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Criterion};
+use fastcrypto_vdf::math::extended_gcd::extended_euclidean_algorithm;
 use fastcrypto_vdf::math::jacobi::jacobi;
 use num_bigint::{BigInt, RandBigInt, ToBigInt};
 use num_bigint_dig::Sign;
-use rand::thread_rng;
+use rand::{thread_rng, RngCore};
 use std::str::FromStr;
 
 fn jacobi_benchmark(c: &mut Criterion) {
@@ -48,10 +49,34 @@ fn jacobi_benchmark(c: &mut Criterion) {
     }
 }
 
+fn euclid_benchmark(c: &mut Criterion) {
+    let mut group: BenchmarkGroup<_> = c.benchmark_group("GCD".to_string());
+
+    for bytes in [256, 512, 1024, 2048] {
+        group.bench_function(format!("{} bits", bytes), move |b| {
+            b.iter_batched(
+                || {
+                    let mut bytes = vec![0u8; bytes];
+
+                    thread_rng().fill_bytes(&mut bytes);
+                    let a = BigInt::from_bytes_be(num_bigint::Sign::Plus, &bytes);
+
+                    thread_rng().fill_bytes(&mut bytes);
+                    let b = BigInt::from_bytes_be(num_bigint::Sign::Plus, &bytes);
+
+                    (a, b)
+                },
+                |(a, b)| extended_euclidean_algorithm(&a, &b),
+                BatchSize::SmallInput,
+            );
+        });
+    }
+}
+
 criterion_group! {
     name = class_group_benchmarks;
     config = Criterion::default().sample_size(100);
-    targets = jacobi_benchmark
+    targets = jacobi_benchmark, euclid_benchmark,
 }
 
 criterion_main!(class_group_benchmarks);
