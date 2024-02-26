@@ -11,8 +11,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use rand::{thread_rng, RngCore};
 use std::cmp::min;
-use std::ops::{BitAnd, ShrAssign};
-use std::str::FromStr;
+use std::ops::ShrAssign;
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
@@ -35,11 +34,11 @@ fn odd_part(x: &mut BigInt) -> u64 {
 }
 
 impl EuclideanAlgorithmOutput {
-    fn neg(self) -> Self {
+    fn flip(self) -> Self {
         Self {
-            gcd: -self.gcd,
-            x: -self.y,
-            y: -self.x,
+            gcd: self.gcd,
+            x: self.y,
+            y: self.x,
             a_divided_by_gcd: self.b_divided_by_gcd,
             b_divided_by_gcd: self.a_divided_by_gcd,
         }
@@ -85,10 +84,26 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
         };
     }
 
+    // From here, we may assume that both inputs are positive integers.
+    if a < b {
+        return extended_euclidean_algorithm(b, a).flip();
+    }
+
+    let (q, r) = a.div_rem(&b);
+    if r.is_zero() {
+        return EuclideanAlgorithmOutput {
+            gcd: b.clone(),
+            x: BigInt::zero(),
+            y: BigInt::one(),
+            a_divided_by_gcd: q,
+            b_divided_by_gcd: BigInt::one(),
+        };
+    }
+
     let mut s = (BigInt::one(), BigInt::zero());
     let mut t = (BigInt::zero(), BigInt::one());
 
-    let mut u = a.clone();
+    let mut u = r;
     let mut v = b.clone();
 
     let u_zeros = odd_part(&mut u);
@@ -142,9 +157,9 @@ pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorith
 
     EuclideanAlgorithmOutput {
         gcd: u << zeros,
+        y: -t.0 - &q * &s.0,
         x: s.0,
-        y: -t.0,
-        a_divided_by_gcd: ug,
+        a_divided_by_gcd: ug + &q * &vg,
         b_divided_by_gcd: vg,
     }
 }
@@ -161,14 +176,16 @@ fn test_xgcd() {
 fn test_large_xgcd() {
     let bytes = 1024;
 
-    let mut a_bytes = vec![0u8; bytes];
-    thread_rng().fill_bytes(&mut a_bytes);
-    let a = BigInt::from_bytes_be(Sign::Plus, &a_bytes);
+    for _ in 0..1000 {
+        let mut a_bytes = vec![0u8; bytes];
+        thread_rng().fill_bytes(&mut a_bytes);
+        let a = BigInt::from_bytes_be(Sign::Plus, &a_bytes);
 
-    let mut b_bytes = vec![0u8; bytes];
-    thread_rng().fill_bytes(&mut b_bytes);
-    let b = BigInt::from_bytes_be(Sign::Plus, &b_bytes);
-    test_xgcd_single(a, b);
+        let mut b_bytes = vec![0u8; bytes];
+        thread_rng().fill_bytes(&mut b_bytes);
+        let b = BigInt::from_bytes_be(Sign::Plus, &b_bytes);
+        test_xgcd_single(a, b);
+    }
 }
 
 #[cfg(test)]
