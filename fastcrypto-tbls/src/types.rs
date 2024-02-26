@@ -50,6 +50,41 @@ pub struct IndexedValue<A> {
     pub value: A,
 }
 
+/// Basic wrapper of a set of values that are not associated with indexes, assuming the indexes are known to all
+/// parties. Used to reduce the size of the messages in the protocol.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UnindexedValues<A> {
+    pub values: Vec<A>,
+}
+
+impl<A> From<Vec<IndexedValue<A>>> for UnindexedValues<A> {
+    fn from(index_values: Vec<IndexedValue<A>>) -> Self {
+        let mut values: Vec<A> = Vec::new();
+        for v in index_values {
+            values.push(v.value);
+        }
+        Self { values }
+    }
+}
+
+impl<A> UnindexedValues<A> {
+    pub fn add_indexes(self, indexes: &[ShareIndex]) -> FastCryptoResult<Vec<IndexedValue<A>>> {
+        if self.values.len() != indexes.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let values = self
+            .values
+            .into_iter()
+            .zip(indexes)
+            .map(|(value, index)| IndexedValue {
+                index: *index,
+                value,
+            })
+            .collect();
+        Ok(values)
+    }
+}
+
 /// ECIES related types with Ristretto points.
 ///
 pub type PrivateEciesKey = ecies::PrivateKey<RistrettoPoint>;
