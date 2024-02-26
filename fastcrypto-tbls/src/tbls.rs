@@ -16,7 +16,7 @@ use itertools::Itertools;
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
-pub type CompactPartialSignatures<S> = UnindexedValues<S>;
+pub type UnindexedPartialSignatures<S> = UnindexedValues<S>;
 
 /// Trait [ThresholdBls] provides sign & verify functions for standard and partial BLS signatures.
 pub trait ThresholdBls {

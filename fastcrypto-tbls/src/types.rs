@@ -59,7 +59,7 @@ pub struct UnindexedValues<A> {
 
 impl<A> From<Vec<IndexedValue<A>>> for UnindexedValues<A> {
     fn from(index_values: Vec<IndexedValue<A>>) -> Self {
-        let mut values: Vec<A> = Vec::new();
+        let mut values: Vec<A> = Vec::with_capacity(index_values.len());
         for v in index_values {
             values.push(v.value);
         }

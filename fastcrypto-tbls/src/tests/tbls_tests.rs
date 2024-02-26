@@ -3,7 +3,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::polynomial::Poly;
-use crate::tbls::{CompactPartialSignatures, Share};
+use crate::tbls::{Share, UnindexedPartialSignatures};
 use crate::types::ShareIndex;
 use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
@@ -196,7 +196,7 @@ fn test_verify_poly_evals() {
 }
 
 #[test]
-fn test_compact() {
+fn test_unindexed() {
     let private_poly = Poly::<bls12381::Scalar>::rand(99, &mut thread_rng());
     let share_ids = (1..=1)
         .map(|i| ShareIndex::new(i).unwrap())
@@ -211,7 +211,7 @@ fn test_compact() {
         .map(|s| ThresholdBls12381MinSig::partial_sign(s, msg))
         .collect::<Vec<_>>();
 
-    let compact: CompactPartialSignatures<G1Element> = sigs.clone().into();
+    let compact: UnindexedPartialSignatures<G1Element> = sigs.clone().into();
     let sigs2 = compact.add_indexes(&share_ids).unwrap();
     assert_eq!(sigs, sigs2);
 }
