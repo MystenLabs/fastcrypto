@@ -146,26 +146,9 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-    pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
-        self.internal_reduce(t, allowed_delta, 1) // ignores total_weight_lower_bound
-    }
-
-    /// This function should be used for e2e benchmarks only, allows limiting the level of reduction.
-    pub fn reduce_for_benchmarks(
-        &self,
-        t: u16,
-        allowed_delta: u16,
-        total_weight_lower_bound: u32,
-    ) -> (Self, u16) {
-        self.internal_reduce(t, allowed_delta, total_weight_lower_bound)
-    }
-
-    fn internal_reduce(
-        &self,
-        t: u16,
-        allowed_delta: u16,
-        total_weight_lower_bound: u32,
-    ) -> (Self, u16) {
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To get the best results,
+    /// set it to 1.
+    pub fn reduce(&self, t: u16, allowed_delta: u16, total_weight_lower_bound: u32) -> (Self, u16) {
         assert!(total_weight_lower_bound <= self.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {
