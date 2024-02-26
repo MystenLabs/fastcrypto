@@ -8,7 +8,7 @@ use std::borrow::Borrow;
 
 use crate::dl_verification::{batch_coefficients, get_random_scalars};
 use crate::polynomial::Poly;
-use crate::types::IndexedValue;
+use crate::types::{IndexedValue, UnindexedValues};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, HashToGroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
@@ -16,6 +16,7 @@ use itertools::Itertools;
 
 pub type Share<S> = IndexedValue<S>;
 pub type PartialSignature<S> = IndexedValue<S>;
+pub type UnindexedPartialSignatures<S> = UnindexedValues<S>;
 
 /// Trait [ThresholdBls] provides sign & verify functions for standard and partial BLS signatures.
 pub trait ThresholdBls {
