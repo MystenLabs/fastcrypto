@@ -154,7 +154,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         for d in 2..=40 {
             // Break if we reached the lower bound.
             let new_total_weight = self.nodes.iter().map(|n| n.weight / d).sum::<u16>();
-            if new_total_weight <= total_weight_lower_bound as u16 {
+            if new_total_weight < total_weight_lower_bound as u16 {
                 break;
             }
             // Compute the precision loss.
