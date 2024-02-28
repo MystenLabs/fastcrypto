@@ -576,7 +576,7 @@ fn create_message_generates_valid_message() {
 #[test]
 fn test_mock() {
     let (_, nodes) = gen_keys_and_nodes(4);
-    let sk = 1;
+    let sk = 321;
     let t: u32 = 6;
     let p0: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 0);
     let p1: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 1);
