@@ -1,10 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::{Message, Party, ProcessedMessage};
+use crate::dkg::{Message, Output, Party, ProcessedMessage};
 use crate::ecies;
 use crate::ecies::{MultiRecipientEncryption, PublicKey};
+use crate::mocked_dkg::generate_mocked_output;
 use crate::nodes::{Node, Nodes, PartyId};
+use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
@@ -569,4 +571,37 @@ fn create_message_generates_valid_message() {
     assert_eq!(msg.sender, 1);
     assert_eq!(msg.encrypted_shares.len(), 4);
     assert_eq!(msg.vss_pk.degree(), 2);
+}
+
+#[test]
+fn test_mock() {
+    let (_, nodes) = gen_keys_and_nodes(4);
+    let sk = 1;
+    let t: u32 = 6;
+    let p0: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 0);
+    let p1: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 1);
+    let p2: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 2);
+    let p3: Output<G, EG> = generate_mocked_output(nodes.clone(), 5, sk, 3);
+
+    assert_eq!(p0.vss_pk, p1.vss_pk);
+    assert_eq!(p0.vss_pk, p2.vss_pk);
+    assert_eq!(p0.vss_pk, p3.vss_pk);
+
+    let shares = p0
+        .shares
+        .unwrap()
+        .iter()
+        .chain(p1.shares.unwrap().iter())
+        .chain(p2.shares.unwrap().iter())
+        .chain(p3.shares.unwrap().iter())
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let shares = shares.iter().take(t as usize);
+
+    let recovered_sk = Poly::<
+        <fastcrypto::groups::bls12381::G2Element as fastcrypto::groups::GroupElement>::ScalarType,
+    >::recover_c0(t, shares.into_iter())
+    .unwrap();
+    assert_eq!(recovered_sk, sk.into());
 }

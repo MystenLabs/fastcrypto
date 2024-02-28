@@ -14,6 +14,7 @@
 pub mod dkg;
 pub mod dl_verification;
 pub mod ecies;
+pub mod mocked_dkg;
 pub mod nizk;
 pub mod nodes;
 pub mod polynomial;
