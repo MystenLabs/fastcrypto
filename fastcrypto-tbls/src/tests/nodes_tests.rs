@@ -188,16 +188,40 @@ fn test_reduce() {
         let t = (nodes.total_weight() / 3) as u16;
 
         // No extra gap, should return the inputs
-        let (new_nodes, new_t) = nodes.reduce(t, 1);
+        let (new_nodes, new_t) = nodes.reduce(t, 1, 1);
         assert_eq!(nodes, new_nodes);
         assert_eq!(t, new_t);
 
         // 10% gap
-        let (new_nodes, _new_t) = nodes.reduce(t, (nodes.total_weight() / 10) as u16);
+        let (new_nodes, _new_t) = nodes.reduce(t, (nodes.total_weight() / 10) as u16, 1);
         // Estimate the real factor d
         let d = nodes.iter().last().unwrap().weight / new_nodes.iter().last().unwrap().weight;
         // The loss per node is on average (d - 1) / 2
         // We use 9 instead of 10 to compensate wrong value of d
         assert!((d - 1) / 2 * number_of_nodes < ((nodes.total_weight() / 9) as u16));
     }
+}
+
+#[test]
+fn test_reduce_with_lower_bounds() {
+    let number_of_nodes = 100;
+    let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
+    let nodes = Nodes::new(node_vec).unwrap();
+    let t = (nodes.total_weight() / 3) as u16;
+
+    // No extra gap, should return the inputs
+    let (new_nodes, new_t) = nodes.reduce(t, 1, 1);
+    assert_eq!(nodes, new_nodes);
+    assert_eq!(t, new_t);
+
+    // 10% gap
+    let (new_nodes1, _new_t1) = nodes.reduce(t, (nodes.total_weight() / 20) as u16, 1);
+    let (new_nodes2, _new_t2) = nodes.reduce(
+        t,
+        (nodes.total_weight() / 20) as u16,
+        nodes.total_weight() / 3,
+    );
+    assert!(new_nodes1.total_weight() < new_nodes2.total_weight());
+    assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);
+    assert!(new_nodes2.total_weight() < nodes.total_weight());
 }

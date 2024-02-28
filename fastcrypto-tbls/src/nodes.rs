@@ -8,6 +8,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
+use tracing::debug;
 
 pub type PartyId = u16;
 
@@ -145,14 +146,28 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-    pub fn reduce(&self, t: u16, allowed_delta: u16) -> (Self, u16) {
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To get the best results,
+    /// set it to 1.
+    pub fn reduce(&self, t: u16, allowed_delta: u16, total_weight_lower_bound: u32) -> (Self, u16) {
+        assert!(total_weight_lower_bound <= self.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {
-            let sum = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
-            if sum <= allowed_delta {
+            // Break if we reached the lower bound.
+            let new_total_weight = self.nodes.iter().map(|n| n.weight / d).sum::<u16>();
+            if new_total_weight < total_weight_lower_bound as u16 {
+                break;
+            }
+            // Compute the precision loss.
+            let delta = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
+            if delta <= allowed_delta {
                 max_d = d;
             }
         }
+        debug!(
+            "Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}",
+            self.total_weight, max_d, allowed_delta, total_weight_lower_bound
+        );
+
         let nodes = self
             .nodes
             .iter()
