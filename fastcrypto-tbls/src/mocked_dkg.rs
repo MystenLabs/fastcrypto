@@ -15,7 +15,6 @@ pub fn generate_mocked_output<G: GroupElement + Serialize, EG: GroupElement + Se
     party: PartyId,
 ) -> Output<G, EG> {
     let mut coefficients: Vec<G::ScalarType> = (0..t)
-        .into_iter()
         .map(|i| G::ScalarType::from((i + 1) as u128))
         .collect();
     *coefficients.get_mut(0).unwrap() = G::ScalarType::from(full_private_key);
