@@ -5,10 +5,7 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-use crate::math::extended_gcd::{
-    extended_euclidean_algorithm, extended_euclidean_algorithm_partial, EuclideanAlgorithmOutput,
-    EuclideanAlgorithmOutputPartial,
-};
+use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -19,7 +16,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::borrow::Borrow;
 use std::mem::swap;
-use std::ops::{Add, Mul, Neg};
+use std::ops::{Add, Mul, Neg, Shl};
 
 #[cfg(test)]
 mod tests;
@@ -167,29 +164,27 @@ impl QuadraticForm {
             y: c,
             a_divided_by_gcd: mut capital_cy,
             b_divided_by_gcd: mut capital_by,
-        } = extended_euclidean_algorithm(u2, u1);
+        } = extended_euclidean_algorithm(u2, u1, true);
 
         let (q, r) = s.div_rem(&f);
         let (g, capital_bx, capital_dy) = if r.is_zero() {
             (f, &m * &b, q)
         } else {
             // 3.
-            let EuclideanAlgorithmOutputPartial {
+            let EuclideanAlgorithmOutput {
                 gcd: g,
+                x: _,
                 y,
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
-            } = extended_euclidean_algorithm_partial(&f, &s);
-            capital_by *= &h;
+            } = extended_euclidean_algorithm(&f, &s, false);
             capital_cy *= &h;
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
-            (
-                g,
-                &b * (&m / &h) + &l * (&capital_by / &h),
-                b_divided_by_gcd,
-            )
+            let result = (g, &b * (&m / &h) + &l * &capital_by, b_divided_by_gcd);
+            capital_by *= &h;
+            result
         };
 
         // 5. (partial xgcd)
@@ -268,12 +263,13 @@ impl Doubling for QuadraticForm {
         let v = &self.b;
         let w = &self.c;
 
-        let EuclideanAlgorithmOutputPartial {
+        let EuclideanAlgorithmOutput {
             gcd: g,
+            x: _,
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm_partial(u, v);
+        } = extended_euclidean_algorithm(u, v, false);
 
         let mut bx = (&y * w).mod_floor(&capital_by);
         let mut by = capital_by.clone();
@@ -296,29 +292,23 @@ impl Doubling for QuadraticForm {
             y = -y;
         }
 
-        let mut u3: BigInt;
-        let mut w3: BigInt;
-        let mut v3: BigInt;
+        let u3: BigInt;
+        let w3: BigInt;
+        let v3: BigInt;
 
         if z == 0 {
             let dx = (&bx * &capital_dy - w) / &capital_by;
             u3 = &by * &by;
-            w3 = &bx * &bx;
-            let s = &bx + &by;
-            v3 = v - &s * &s + &u3 + &w3;
-            w3 = &w3 - &g * &dx;
+            w3 = &bx * &bx - &g * &dx;
+            v3 = v - &bx * &by.shl(1);
         } else {
             let dx = (&bx * &capital_dy - w * &x) / &capital_by;
             let q1 = &dx * &y;
             let mut dy = &q1 + &capital_dy;
-            v3 = &g * (&dy + &q1);
+            v3 = &g * (&dy + &q1) - (&bx * &by).shl(1);
             dy = &dy / &x;
-            u3 = &by * &by;
-            w3 = &bx * &bx;
-            v3 = &v3 - (&bx + &by).pow(2) + &u3 + &w3;
-
-            u3 = &u3 - &g * &y * &dy;
-            w3 = &w3 - &g * &x * &dx;
+            u3 = &by * &by - &g * &y * &dy;
+            w3 = &bx * &bx - &g * &x * &dx;
         }
 
         let mut form = QuadraticForm {

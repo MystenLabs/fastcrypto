@@ -24,7 +24,7 @@ pub fn solve_simple_congruence_equation_system(
     }
 
     // The moduli must be relatively prime
-    let output = extended_euclidean_algorithm(p, q);
+    let output = extended_euclidean_algorithm(p, q, true);
     if !output.gcd.is_one() {
         return Err(InvalidInput);
     }
