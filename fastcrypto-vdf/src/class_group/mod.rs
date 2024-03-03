@@ -188,32 +188,14 @@ impl QuadraticForm {
         };
 
         // 5. (partial xgcd)
-        let mut bx = capital_bx.mod_floor(&capital_by);
-        let mut by = capital_by.clone();
-
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
-            let (q, t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            swap(&mut x, &mut y);
-            x -= &q * &y;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        let (bx, by, x, y, iterated) =
+            partial_xgcd(&capital_bx, &capital_by, &self.partial_gcd_limit);
 
         let u3: BigInt;
         let w3: BigInt;
         let v3: BigInt;
 
-        if z == 0 {
+        if !iterated {
             // 6.
             let q = &capital_cy * &bx;
             let cx = (&q - &m) / &capital_by;
@@ -271,32 +253,14 @@ impl Doubling for QuadraticForm {
             b_divided_by_gcd: capital_dy,
         } = extended_euclidean_algorithm(u, v, false);
 
-        let mut bx = (&y * w).mod_floor(&capital_by);
-        let mut by = capital_by.clone();
-
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
-            let (q, t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            swap(&mut x, &mut y);
-            x -= &q * &y;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        let (bx, by, x, y, iterated) =
+            partial_xgcd(&(&y * w), &capital_by, &self.partial_gcd_limit);
 
         let u3: BigInt;
         let w3: BigInt;
         let v3: BigInt;
 
-        if z == 0 {
+        if !iterated {
             let dx = (&bx * &capital_dy - w) / &capital_by;
             u3 = &by * &by;
             w3 = &bx * &bx - &g * &dx;
@@ -320,6 +284,31 @@ impl Doubling for QuadraticForm {
         form.reduce();
         form
     }
+}
+
+fn partial_xgcd(a: &BigInt, b: &BigInt, limit: &BigInt) -> (BigInt, BigInt, BigInt, BigInt, bool) {
+    let mut bx = a.mod_floor(&b);
+    let mut by = b.clone();
+
+    let mut x = BigInt::one();
+    let mut y = BigInt::zero();
+    let mut z = 0u32;
+
+    while by.abs() > *limit && !bx.is_zero() {
+        let (q, t) = by.div_rem(&bx);
+        by = bx;
+        bx = t;
+        swap(&mut x, &mut y);
+        x -= &q * &y;
+        z += 1;
+    }
+
+    if z.is_odd() {
+        by = -by;
+        y = -y;
+    }
+
+    (bx, by, x, y, !z.is_zero())
 }
 
 impl<'a> Mul<&'a BigInt> for QuadraticForm {
