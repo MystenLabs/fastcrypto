@@ -187,7 +187,7 @@ mod tests {
         let p256_s = fq_arkworks_to_p256(&s);
         let reduced_s = p256::Scalar::reduce_bytes(&p256_s);
         assert_eq!(fr_arkworks_to_p256(&s_fr), reduced_s);
-        assert_eq!(reduce_bytes(&p256_s.try_into().unwrap()), s_fr);
+        assert_eq!(reduce_bytes(&p256_s.into()), s_fr);
     }
 
     #[test]
