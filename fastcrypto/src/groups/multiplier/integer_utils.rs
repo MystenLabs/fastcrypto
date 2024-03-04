@@ -112,6 +112,14 @@ pub fn is_power_of_2(x: usize) -> bool {
     x & (x - 1) == 0
 }
 
+// We implementation `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
+// multi-scalar multiplication.
+impl ToLittleEndianBytes for BigInt {
+    fn to_le_bytes(&self) -> Vec<u8> {
+        self.to_bytes_le().1
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -189,13 +197,5 @@ mod tests {
         assert!(is_power_of_2(512));
         assert!(!is_power_of_2(513));
         assert!(is_power_of_2(4096));
-    }
-}
-
-// We implementation `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
-// multi-scalar multiplication.
-impl ToLittleEndianBytes for BigInt {
-    fn to_le_bytes(&self) -> Vec<u8> {
-        self.to_bytes_le().1
     }
 }

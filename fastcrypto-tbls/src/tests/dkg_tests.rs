@@ -53,7 +53,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
 
     // Create the parties
     let d0 = Party::<G, EG>::new(
-        keys.get(0_usize).unwrap().1.clone(),
+        keys.first().unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -291,7 +291,7 @@ fn test_party_new_errors() {
 
     // t is zero
     assert!(Party::<G, EG>::new(
-        keys.get(0_usize).unwrap().1.clone(),
+        keys.first().unwrap().1.clone(),
         nodes.clone(),
         0,
         ro.clone(),
@@ -300,7 +300,7 @@ fn test_party_new_errors() {
     .is_err());
     // t is too large
     assert!(Party::<G, EG>::new(
-        keys.get(0_usize).unwrap().1.clone(),
+        keys.first().unwrap().1.clone(),
         nodes.clone(),
         100,
         ro.clone(),
@@ -325,7 +325,7 @@ fn test_process_message_failures() {
     let (keys, nodes) = gen_keys_and_nodes(4);
 
     let d0 = Party::<G, EG>::new(
-        keys.get(0_usize).unwrap().1.clone(),
+        keys.first().unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
@@ -425,7 +425,7 @@ fn test_test_process_confirmations() {
     let (keys, nodes) = gen_keys_and_nodes(6);
 
     let d0 = Party::<G, EG>::new(
-        keys.get(0_usize).unwrap().1.clone(),
+        keys.first().unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
