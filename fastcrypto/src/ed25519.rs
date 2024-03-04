@@ -479,7 +479,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         let mut batch = batch::Verifier::new();
 
         for (i, pk) in pks.iter().enumerate() {
-            let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
+            let vk_bytes = VerificationKeyBytes::from(pk.0);
             batch.queue((vk_bytes, self.sigs[i], message));
         }
 
@@ -499,7 +499,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         let mut batch = batch::Verifier::new();
 
         for (i, (pk, msg)) in pks.iter().zip(messages).enumerate() {
-            let vk_bytes = VerificationKeyBytes::try_from(pk.0).unwrap();
+            let vk_bytes = VerificationKeyBytes::from(pk.0);
             batch.queue((vk_bytes, self.sigs[i], msg));
         }
 

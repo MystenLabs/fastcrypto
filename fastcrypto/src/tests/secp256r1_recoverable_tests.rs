@@ -382,7 +382,7 @@ fn test_recoverable_nonrecoverable_conversion() {
     let signature = kp.sign_recoverable(message);
     assert!(kp.public().verify_recoverable(message, &signature).is_ok());
 
-    let nonrecoverable_signature = Secp256r1Signature::try_from(&signature).unwrap();
+    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
     assert!(kp
         .public()
         .verify(message, &nonrecoverable_signature)
@@ -408,7 +408,7 @@ fn test_invalid_nonrecoverable_conversion() {
     // Sign over raw message.
     let message: &[u8] = b"Hello, world!";
     let signature = kp.sign_recoverable(message);
-    let nonrecoverable_signature = Secp256r1Signature::try_from(&signature).unwrap();
+    let nonrecoverable_signature = Secp256r1Signature::from(&signature);
 
     // Try to convert a nonrecoverable signature to a recoverable one with a different message.
     let other_message: &[u8] = b"Hello, other world!";
