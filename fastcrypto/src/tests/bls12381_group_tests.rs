@@ -46,11 +46,6 @@ fn test_scalar_arithmetic() {
     let inv_two = two.inverse().unwrap();
     assert_eq!(inv_two * two, one);
 
-    // Scalar::from_byte_array should not accept the order.
-    let order =
-        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
-    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
-
     // Check that u128 is decoded correctly.
     let x: u128 = 2 << 66;
     let x_scalar = Scalar::from(x);
@@ -82,10 +77,15 @@ fn test_g1_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(G1Element::zero(), p6);
 
+    let sc = Scalar::rand(&mut thread_rng());
+    let p7 = g * sc;
+    assert_eq!(p7 * Scalar::from(1), p7);
+
     assert_ne!(G1Element::zero(), g);
     assert_eq!(G1Element::zero(), g - g);
 
     assert!((G1Element::generator() / Scalar::zero()).is_err());
+    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
 
     let identity = G1Element::zero();
     assert_eq!(identity, identity - identity);
@@ -136,7 +136,12 @@ fn test_g2_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(G2Element::zero(), p6);
 
+    let sc = Scalar::rand(&mut thread_rng());
+    let p7 = g * sc;
+    assert_eq!(p7 * Scalar::from(1), p7);
+
     assert!((G2Element::generator() / Scalar::zero()).is_err());
+    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
 
     assert_ne!(G2Element::zero(), g);
     assert_eq!(G2Element::zero(), g - g);
@@ -190,11 +195,16 @@ fn test_gt_arithmetic() {
     let p6 = g * Scalar::zero();
     assert_eq!(GTElement::zero(), p6);
 
+    let sc = Scalar::rand(&mut thread_rng());
+    let p7 = g * sc;
+    assert_eq!(p7 * Scalar::from(1), p7);
+
     assert_ne!(GTElement::zero(), g);
     assert_eq!(GTElement::zero(), g - g);
     assert_eq!(GTElement::zero(), GTElement::zero() - GTElement::zero());
 
     assert!((GTElement::generator() / Scalar::zero()).is_err());
+    assert_eq!((p5 / Scalar::from(5)).unwrap(), g);
 }
 
 #[test]
@@ -210,17 +220,37 @@ fn test_pairing_and_hash_to_curve() {
     let pk2 = G1Element::generator() * sk2;
     let sig2 = e2 * sk2;
     assert_eq!(pk2.pairing(&e2), G1Element::generator().pairing(&sig2));
+
+    assert_eq!(
+        G1Element::zero().pairing(&G2Element::zero()),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::zero().pairing(&G2Element::generator()),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::generator().pairing(&G2Element::zero()),
+        GTElement::zero()
+    );
+
+    // next should not fail
+    let _ = G1Element::hash_to_group_element(&[]);
+    let _ = G2Element::hash_to_group_element(&[]);
+    let _ = G1Element::hash_to_group_element(&[1]);
+    let _ = G2Element::hash_to_group_element(&[1]);
 }
 
 #[test]
 fn test_serde_and_regression() {
-    let s1 = Scalar::from(1);
+    let s1 = Scalar::generator();
     let g1 = G1Element::generator();
     let g2 = G2Element::generator();
     let gt = GTElement::generator();
     let id1 = G1Element::zero();
     let id2 = G2Element::zero();
     let id3 = GTElement::zero();
+    let id4 = Scalar::zero();
 
     verify_serialization(
         &s1,
@@ -236,6 +266,14 @@ fn test_serde_and_regression() {
     verify_serialization(&id1, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(&id2, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(&id3, Some(hex::decode("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
+    verify_serialization(
+        &id4,
+        Some(
+            hex::decode("0000000000000000000000000000000000000000000000000000000000000000")
+                .unwrap()
+                .as_slice(),
+        ),
+    );
 }
 
 #[test]
@@ -263,6 +301,35 @@ fn test_consistent_bls12381_serialization() {
     let sig3 = <BLS12381Signature as ToFromBytes>::from_bytes(sig2_as_bytes.as_slice()).unwrap();
     pk1.verify(MSG, &sig3).unwrap();
     assert_eq!(sig1, sig3);
+}
+
+#[test]
+fn test_serialization_scalar() {
+    let bytes = [0u8; 32];
+    assert_eq!(Scalar::from_byte_array(&bytes).unwrap(), Scalar::zero());
+
+    // Scalar::from_byte_array should not accept the order or above it.
+    let order =
+        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001").unwrap();
+    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
+    let order =
+        hex::decode("73eda753299d9d483339d80809a1d80553bda402fffe5bfeffffffff11000001").unwrap();
+    assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
+
+    // Scalar::from_byte_array should accept the order - 1.
+    let order_minus_one =
+        hex::decode("73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000000").unwrap();
+    assert_eq!(
+        Scalar::from_byte_array(<&[u8; 32]>::try_from(order_minus_one.as_slice()).unwrap())
+            .unwrap(),
+        Scalar::zero() - Scalar::generator()
+    );
+
+    for _ in 0..100 {
+        let s = Scalar::rand(&mut thread_rng());
+        let bytes = s.to_byte_array();
+        assert_eq!(s, Scalar::from_byte_array(&bytes).unwrap());
+    }
 }
 
 #[test]
