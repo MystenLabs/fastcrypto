@@ -84,3 +84,8 @@ pub trait HashToGroupElement {
 pub trait MultiScalarMul: GroupElement {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self>;
 }
+
+/// Faster deserialization in case the input is trusted (otherwise it can be insecure).
+pub trait FromTrustedByteArray<const LENGTH: usize>: Sized {
+    fn from_trusted_byte_array(bytes: &[u8; LENGTH]) -> Result<Self, FastCryptoError>;
+}

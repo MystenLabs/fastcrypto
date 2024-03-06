@@ -4,7 +4,8 @@
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar};
 use crate::groups::{
-    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
+    FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+    Scalar as ScalarTrait,
 };
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
@@ -378,6 +379,11 @@ fn test_serialization_g1() {
         G1Element::generator(),
         G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).unwrap()
     );
+
+    // Test FromTrustedByteArray.
+    let bytes = G1Element::generator().to_byte_array();
+    let g1 = G1Element::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(g1, G1Element::generator());
 }
 
 #[test]
@@ -426,6 +432,11 @@ fn test_serialization_g2() {
         G2Element::generator(),
         G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).unwrap()
     );
+
+    // Test FromTrustedByteArray.
+    let bytes = G2Element::generator().to_byte_array();
+    let g2 = G2Element::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(g2, G2Element::generator());
 }
 
 #[test]
@@ -470,4 +481,9 @@ fn test_serialization_gt() {
     assert_eq!(carry, 0);
     bytes[0..48].copy_from_slice(&target);
     assert!(GTElement::from_byte_array(&bytes).is_err());
+
+    // Test FromTrustedByteArray.
+    let bytes = GTElement::generator().to_byte_array();
+    let gt = GTElement::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(gt, GTElement::generator());
 }
