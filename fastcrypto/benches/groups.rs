@@ -7,8 +7,8 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
     use fastcrypto::groups::bls12381::{
-        G1Element, G2Element, GTElement, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
-        GT_ELEMENT_BYTE_LENGTH,
+        G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
+        G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
@@ -257,6 +257,12 @@ mod group_benches {
 
     fn deserialize(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Deserialize");
+        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>(
+            "BLS12381-Scalar-trusted",
+            true,
+            &mut group,
+        );
+        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>("BLS12381-Scalar", false, &mut group);
         deser_single::<G1Element, _, { G1_ELEMENT_BYTE_LENGTH }>(
             "BLS12381-G1-trusted",
             true,

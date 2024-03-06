@@ -744,6 +744,18 @@ impl FiatShamirChallenge for Scalar {
     }
 }
 
+impl FromTrustedByteArray<SCALAR_LENGTH> for Scalar {
+    fn from_trusted_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
+        let mut ret = blst_fr::default();
+        unsafe {
+            let mut scalar = blst_scalar::default();
+            blst_scalar_from_bendian(&mut scalar, bytes.as_ptr());
+            blst_fr_from_scalar(&mut ret, &scalar);
+        }
+        Ok(Scalar(ret))
+    }
+}
+
 impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
         let mut ret = blst_fr::default();
