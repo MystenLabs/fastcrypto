@@ -113,7 +113,7 @@ fn size_in_bits(scalar: &blst_scalar, size_in_bytes: usize) -> usize {
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for G1Element {
-    type Output = Result<Self, FastCryptoError>;
+    type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
         let inv = rhs.inverse()?;
@@ -238,9 +238,7 @@ impl HashToGroupElement for G1Element {
 }
 
 impl FromTrustedByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
-    fn from_trusted_byte_array(
-        bytes: &[u8; G1_ELEMENT_BYTE_LENGTH],
-    ) -> Result<Self, FastCryptoError> {
+    fn from_trusted_byte_array(bytes: &[u8; G1_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
@@ -254,7 +252,7 @@ impl FromTrustedByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
 }
 
 impl ToFromByteArray<G1_ELEMENT_BYTE_LENGTH> for G1Element {
-    fn from_byte_array(bytes: &[u8; G1_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+    fn from_byte_array(bytes: &[u8; G1_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         let ret = Self::from_trusted_byte_array(bytes)?;
         unsafe {
             // Verify that the deserialized element is in G1
@@ -318,7 +316,7 @@ impl Neg for G2Element {
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for G2Element {
-    type Output = Result<Self, FastCryptoError>;
+    type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
         let inv = rhs.inverse()?;
@@ -418,9 +416,7 @@ impl HashToGroupElement for G2Element {
 }
 
 impl FromTrustedByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
-    fn from_trusted_byte_array(
-        bytes: &[u8; G2_ELEMENT_BYTE_LENGTH],
-    ) -> Result<Self, FastCryptoError> {
+    fn from_trusted_byte_array(bytes: &[u8; G2_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         let mut ret = blst_p2::default();
         unsafe {
             let mut affine = blst_p2_affine::default();
@@ -434,7 +430,7 @@ impl FromTrustedByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
 }
 
 impl ToFromByteArray<G2_ELEMENT_BYTE_LENGTH> for G2Element {
-    fn from_byte_array(bytes: &[u8; G2_ELEMENT_BYTE_LENGTH]) -> Result<Self, FastCryptoError> {
+    fn from_byte_array(bytes: &[u8; G2_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         let ret = Self::from_trusted_byte_array(bytes)?;
         unsafe {
             // Verify that the deserialized element is in G2
@@ -498,7 +494,7 @@ impl Neg for GTElement {
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for GTElement {
-    type Output = Result<Self, FastCryptoError>;
+    type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
         let inv = rhs.inverse()?;
@@ -568,9 +564,7 @@ const P_AS_BYTES: [u8; FP_BYTE_LENGTH] = hex!("1a0111ea397fe69a4b1ba7b6434bacd76
 
 // Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
 impl FromTrustedByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
-    fn from_trusted_byte_array(
-        bytes: &[u8; GT_ELEMENT_BYTE_LENGTH],
-    ) -> Result<Self, FastCryptoError> {
+    fn from_trusted_byte_array(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         // The following is based on the order from
         // https://github.com/supranational/blst/blob/b4ebf88014251f1cfefeb6cf1cd4df7c40dc568f/src/fp12_tower.c#L773-L786C2
         let mut gt: blst_fp12 = Default::default();
@@ -694,7 +688,7 @@ impl From<u128> for Scalar {
 
 #[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for Scalar {
-    type Output = Result<Self, FastCryptoError>;
+    type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Self) -> Self::Output {
         let inv = rhs.inverse()?;
@@ -745,7 +739,7 @@ impl FiatShamirChallenge for Scalar {
 }
 
 impl FromTrustedByteArray<SCALAR_LENGTH> for Scalar {
-    fn from_trusted_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
+    fn from_trusted_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> FastCryptoResult<Self> {
         let mut ret = blst_fr::default();
         unsafe {
             let mut scalar = blst_scalar::default();
@@ -757,7 +751,7 @@ impl FromTrustedByteArray<SCALAR_LENGTH> for Scalar {
 }
 
 impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
-    fn from_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
+    fn from_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> FastCryptoResult<Self> {
         let mut ret = blst_fr::default();
         unsafe {
             let mut scalar = blst_scalar::default();

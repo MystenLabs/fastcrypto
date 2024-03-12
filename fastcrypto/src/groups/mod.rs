@@ -87,5 +87,5 @@ pub trait MultiScalarMul: GroupElement {
 
 /// Faster deserialization in case the input is trusted (otherwise it can be insecure).
 pub trait FromTrustedByteArray<const LENGTH: usize>: Sized {
-    fn from_trusted_byte_array(bytes: &[u8; LENGTH]) -> Result<Self, FastCryptoError>;
+    fn from_trusted_byte_array(bytes: &[u8; LENGTH]) -> FastCryptoResult<Self>;
 }
