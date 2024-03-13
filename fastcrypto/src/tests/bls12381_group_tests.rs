@@ -13,8 +13,9 @@ use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
 use blst::{
-    blst_p1_affine_generator, blst_p1_affine_serialize, blst_p2_affine_generator,
-    blst_p2_affine_serialize,
+    blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize,
+    blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
+    blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
 };
 use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
 
@@ -387,6 +388,12 @@ fn test_serialization_g1() {
     // Also when the input is not a valid point.
     bytes[bytes.len() - 1] += 2;
     assert!(G1Element::from_trusted_byte_array(&bytes).is_ok());
+    // Verify that this is a valid point on the curve.
+    unsafe {
+        let mut p: blst_p1_affine = blst_p1_affine::default();
+        assert!(blst_p1_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
+        assert!(blst_p1_affine_on_curve(&p));
+    };
     assert!(G1Element::from_byte_array(&bytes).is_err());
 }
 
@@ -444,6 +451,12 @@ fn test_serialization_g2() {
     // Also when the input is not a valid point.
     bytes[bytes.len() - 1] += 2;
     assert!(G2Element::from_trusted_byte_array(&bytes).is_ok());
+    // Verify that this is a valid point on the curve.
+    unsafe {
+        let mut p: blst_p2_affine = blst_p2_affine::default();
+        assert!(blst_p2_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
+        assert!(blst_p2_affine_on_curve(&p));
+    };
     assert!(G2Element::from_byte_array(&bytes).is_err());
 }
 
