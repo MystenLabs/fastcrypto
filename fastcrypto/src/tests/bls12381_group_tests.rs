@@ -381,9 +381,13 @@ fn test_serialization_g1() {
     );
 
     // Test FromTrustedByteArray.
-    let bytes = G1Element::generator().to_byte_array();
+    let mut bytes = G1Element::generator().to_byte_array();
     let g1 = G1Element::from_trusted_byte_array(&bytes).unwrap();
     assert_eq!(g1, G1Element::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(G1Element::from_trusted_byte_array(&bytes).is_ok());
+    assert!(G1Element::from_byte_array(&bytes).is_err());
 }
 
 #[test]
@@ -434,9 +438,13 @@ fn test_serialization_g2() {
     );
 
     // Test FromTrustedByteArray.
-    let bytes = G2Element::generator().to_byte_array();
+    let mut bytes = G2Element::generator().to_byte_array();
     let g2 = G2Element::from_trusted_byte_array(&bytes).unwrap();
     assert_eq!(g2, G2Element::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(G2Element::from_trusted_byte_array(&bytes).is_ok());
+    assert!(G2Element::from_byte_array(&bytes).is_err());
 }
 
 #[test]
@@ -483,7 +491,11 @@ fn test_serialization_gt() {
     assert!(GTElement::from_byte_array(&bytes).is_err());
 
     // Test FromTrustedByteArray.
-    let bytes = GTElement::generator().to_byte_array();
+    let mut bytes = GTElement::generator().to_byte_array();
     let gt = GTElement::from_trusted_byte_array(&bytes).unwrap();
     assert_eq!(gt, GTElement::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(GTElement::from_trusted_byte_array(&bytes).is_ok());
+    assert!(GTElement::from_byte_array(&bytes).is_err());
 }
