@@ -4,7 +4,8 @@
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar};
 use crate::groups::{
-    GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar as ScalarTrait,
+    FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+    Scalar as ScalarTrait,
 };
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
@@ -12,8 +13,9 @@ use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
 use blst::{
-    blst_p1_affine_generator, blst_p1_affine_serialize, blst_p2_affine_generator,
-    blst_p2_affine_serialize,
+    blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize,
+    blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
+    blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
 };
 use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
 
@@ -378,6 +380,21 @@ fn test_serialization_g1() {
         G1Element::generator(),
         G1Element::from_byte_array(&(uncompressed_bytes[0..48].try_into().unwrap())).unwrap()
     );
+
+    // Test FromTrustedByteArray.
+    let mut bytes = G1Element::generator().to_byte_array();
+    let g1 = G1Element::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(g1, G1Element::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(G1Element::from_trusted_byte_array(&bytes).is_ok());
+    // Verify that this is a valid point on the curve.
+    unsafe {
+        let mut p: blst_p1_affine = blst_p1_affine::default();
+        assert!(blst_p1_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
+        assert!(blst_p1_affine_on_curve(&p));
+    };
+    assert!(G1Element::from_byte_array(&bytes).is_err());
 }
 
 #[test]
@@ -426,6 +443,21 @@ fn test_serialization_g2() {
         G2Element::generator(),
         G2Element::from_byte_array(&(uncompressed_bytes[0..96].try_into().unwrap())).unwrap()
     );
+
+    // Test FromTrustedByteArray.
+    let mut bytes = G2Element::generator().to_byte_array();
+    let g2 = G2Element::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(g2, G2Element::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(G2Element::from_trusted_byte_array(&bytes).is_ok());
+    // Verify that this is a valid point on the curve.
+    unsafe {
+        let mut p: blst_p2_affine = blst_p2_affine::default();
+        assert!(blst_p2_deserialize(&mut p, bytes.as_ptr()) == BLST_ERROR::BLST_SUCCESS);
+        assert!(blst_p2_affine_on_curve(&p));
+    };
+    assert!(G2Element::from_byte_array(&bytes).is_err());
 }
 
 #[test]
@@ -469,5 +501,14 @@ fn test_serialization_gt() {
     }
     assert_eq!(carry, 0);
     bytes[0..48].copy_from_slice(&target);
+    assert!(GTElement::from_byte_array(&bytes).is_err());
+
+    // Test FromTrustedByteArray.
+    let mut bytes = GTElement::generator().to_byte_array();
+    let gt = GTElement::from_trusted_byte_array(&bytes).unwrap();
+    assert_eq!(gt, GTElement::generator());
+    // Also when the input is not a valid point.
+    bytes[bytes.len() - 1] += 2;
+    assert!(GTElement::from_trusted_byte_array(&bytes).is_ok());
     assert!(GTElement::from_byte_array(&bytes).is_err());
 }

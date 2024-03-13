@@ -6,14 +6,19 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
-    use fastcrypto::groups::bls12381::{G1Element, G2Element, GTElement};
+    use fastcrypto::groups::bls12381::{
+        G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
+        G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
+    };
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
     use fastcrypto::groups::{
-        secp256r1, GroupElement, HashToGroupElement, MultiScalarMul, Pairing, Scalar,
+        secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
+        Scalar,
     };
+    use fastcrypto::serde_helpers::ToFromByteArray;
     use rand::thread_rng;
 
     fn add_single<G: GroupElement, M: measurement::Measurement>(
@@ -229,10 +234,60 @@ mod group_benches {
         }
     }
 
+    fn deser_single<
+        G: GroupElement + ToFromByteArray<LENGTH> + FromTrustedByteArray<LENGTH>,
+        M: Measurement,
+        const LENGTH: usize,
+    >(
+        name: &str,
+        trusted: bool,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        let as_bytes = G::generator().to_byte_array();
+        c.bench_function(&(name.to_string()), move |b| {
+            b.iter(|| {
+                if trusted {
+                    G::from_trusted_byte_array(&as_bytes).unwrap()
+                } else {
+                    G::from_byte_array(&as_bytes).unwrap()
+                }
+            })
+        });
+    }
+
+    fn deserialize(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Deserialize");
+        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>(
+            "BLS12381-Scalar-trusted",
+            true,
+            &mut group,
+        );
+        deser_single::<BlsScalar, _, { SCALAR_LENGTH }>("BLS12381-Scalar", false, &mut group);
+        deser_single::<G1Element, _, { G1_ELEMENT_BYTE_LENGTH }>(
+            "BLS12381-G1-trusted",
+            true,
+            &mut group,
+        );
+        deser_single::<G1Element, _, { G1_ELEMENT_BYTE_LENGTH }>("BLS12381-G1", false, &mut group);
+        deser_single::<G2Element, _, { G2_ELEMENT_BYTE_LENGTH }>(
+            "BLS12381-G2-trusted",
+            true,
+            &mut group,
+        );
+        deser_single::<G2Element, _, { G2_ELEMENT_BYTE_LENGTH }>("BLS12381-G2", false, &mut group);
+        deser_single::<GTElement, _, { GT_ELEMENT_BYTE_LENGTH }>(
+            "BLS12381-GT-trusted",
+            true,
+            &mut group,
+        );
+        deser_single::<GTElement, _, { GT_ELEMENT_BYTE_LENGTH }>("BLS12381-GT", false, &mut group);
+    }
+
     criterion_group! {
         name = group_benches;
         config = Criterion::default().sample_size(100);
         targets =
+            deserialize,
             add,
             scale,
             hash_to_group,
