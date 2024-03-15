@@ -181,7 +181,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "hashbrown 0.13.2",
- "itertools 0.10.5",
+ "itertools",
  "num-traits",
  "zeroize",
 ]
@@ -198,7 +198,7 @@ dependencies = [
  "ark-std",
  "derivative",
  "digest 0.10.6",
- "itertools 0.10.5",
+ "itertools",
  "num-bigint 0.4.4",
  "num-traits",
  "paste",
@@ -937,7 +937,7 @@ dependencies = [
  "ciborium",
  "clap 3.2.23",
  "criterion-plot",
- "itertools 0.10.5",
+ "itertools",
  "lazy_static",
  "num-traits",
  "oorandom",
@@ -963,7 +963,7 @@ dependencies = [
  "clap 4.1.8",
  "criterion-plot",
  "is-terminal",
- "itertools 0.10.5",
+ "itertools",
  "num-traits",
  "once_cell",
  "oorandom",
@@ -984,7 +984,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6b50826342786a51a89e2da3a28f1c32b06e387201bc2d19791f622c673706b1"
 dependencies = [
  "cast",
- "itertools 0.10.5",
+ "itertools",
 ]
 
 [[package]]
@@ -1501,7 +1501,7 @@ dependencies = [
  "fastcrypto",
  "generic-tests",
  "hex",
- "itertools 0.10.5",
+ "itertools",
  "rand",
  "serde",
  "sha3 0.10.6",
@@ -1517,7 +1517,6 @@ dependencies = [
  "criterion 0.5.1",
  "fastcrypto",
  "hex",
- "itertools 0.12.0",
  "num-bigint 0.4.4",
  "num-bigint-dig",
  "num-integer",
@@ -2102,15 +2101,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25db6b064527c5d482d0423354fcd07a89a2dfe07b67892e62411946db7f07b0"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2630,7 +2620,7 @@ checksum = "09963355b9f467184c04017ced4a2ba2d75cbcb4e7462690d388233253d4b1a9"
 dependencies = [
  "anstyle",
  "difflib",
- "itertools 0.10.5",
+ "itertools",
  "predicates-core",
 ]
 
