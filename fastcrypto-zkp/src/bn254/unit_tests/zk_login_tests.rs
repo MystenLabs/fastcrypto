@@ -132,7 +132,6 @@ async fn test_verify_zk_login_google() {
         kty: "RSA".to_string(),
         e: "AQAB".to_string(),
         n: "oUriU8GqbRw-avcMn95DGW1cpZR1IoM6L7krfrWvLSSCcSX6Ig117o25Yk7QWBiJpaPV0FbP7Y5-DmThZ3SaF0AXW-3BsKPEXfFfeKVc6vBqk3t5mKlNEowjdvNTSzoOXO5UIHwsXaxiJlbMRalaFEUm-2CKgmXl1ss_yGh1OHkfnBiGsfQUndKoHiZuDzBMGw8Sf67am_Ok-4FShK0NuR3-q33aB_3Z7obC71dejSLWFOEcKUVCaw6DGVuLog3x506h1QQ1r0FXKOQxnmqrRgpoHqGSouuG35oZve1vgCU4vLZ6EAgBAbC0KL35I7_0wUDSMpiAvf7iZxzJVbspkQ".to_string(),
-        alg: "RS256".to_string(),
     };
 
     map.insert(
@@ -429,12 +428,13 @@ async fn test_get_jwks() {
         OIDCProvider::Slack,
         OIDCProvider::Kakao,
         OIDCProvider::Apple,
+        OIDCProvider::Microsoft,
+        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
         res.unwrap().iter().for_each(|e| {
             assert_eq!(e.0.iss, p.get_config().iss);
-            assert_eq!(e.1.alg, "RS256".to_string());
         });
     }
 }
@@ -449,15 +449,25 @@ fn test_get_nonce() {
 }
 
 #[test]
-fn test_get_provider() {
+fn test_get_provider_to_from_iss_to_from_str() {
     for p in [
         OIDCProvider::Google,
         OIDCProvider::Twitch,
         OIDCProvider::Facebook,
+        OIDCProvider::Slack,
+        OIDCProvider::Kakao,
+        OIDCProvider::Apple,
+        OIDCProvider::Microsoft,
+        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
+        OIDCProvider::TestIssuer,
     ] {
+        // to/from iss
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
+        // to/from string
+        assert_eq!(p, OIDCProvider::from_str(&p.to_string()).unwrap());
     }
-    assert!(OIDCProvider::from_iss("Amazon").is_err());
+    assert!(OIDCProvider::from_iss("random").is_err());
+    assert!(OIDCProvider::from_str("random").is_err());
 }
 
 #[test]
@@ -596,7 +606,6 @@ fn test_alternative_iss_for_google() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "whYOFK2Ocbbpb_zVypi9SeKiNUqKQH0zTKN1-6fpCTu6ZalGI82s7XK3tan4dJt90ptUPKD2zvxqTzFNfx4HHHsrYCf2-FMLn1VTJfQazA2BvJqAwcpW1bqRUEty8tS_Yv4hRvWfQPcc2Gc3-_fQOOW57zVy-rNoJc744kb30NjQxdGp03J2S3GLQu7oKtSDDPooQHD38PEMNnITf0pj-KgDPjymkMGoJlO3aKppsjfbt_AH6GGdRghYRLOUwQU-h-ofWHR3lbYiKtXPn5dN24kiHy61e3VAQ9_YAZlwXC_99GGtw_NpghFAuM4P1JDn0DppJldy3PGFC0GfBCZASw".to_string(),
-            alg: "RS256".to_string(),
         },
     );
 
