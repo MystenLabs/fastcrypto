@@ -3,8 +3,8 @@
 
 use crate::encoding::{Base64, Encoding};
 use crate::hash::{
-    Blake2b256, Blake3, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash,
-    Sha256, Sha3_256, Sha3_512, Sha512,
+    Blake2b256, Digest, EllipticCurveMultisetHash, HashFunction, Keccak256, MultisetHash, Sha256,
+    Sha3_256, Sha3_512, Sha512,
 };
 use std::io::Write;
 
@@ -135,17 +135,6 @@ fn test_blake2b_256() {
     assert_eq!(
         digest.as_ref(),
         hex::decode("cc4e83cd4f030b0aabe27cf65a3ff92d0b5445f6466282e6b83a529b66094ebb").unwrap()
-    );
-}
-
-#[test]
-fn test_blake3() {
-    let data =
-        hex::decode("301d56460954541aab6dd7ddc0dd08f8cb3ebd884784a0e797905107533cae62").unwrap();
-    let digest = Blake3::digest(data);
-    assert_eq!(
-        digest.as_ref(),
-        hex::decode("1b6d57a5017077b00cc9ce0641fb8ddcc136fbdb83325b31597fbe9441d9b269").unwrap()
     );
 }
 

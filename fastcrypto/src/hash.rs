@@ -177,28 +177,6 @@ pub type Keccak256 = HashFunctionWrapper<sha3::Keccak256, 32>;
 /// The [BLAKE2-256](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2) hash function with 256 bit digests.
 pub type Blake2b256 = HashFunctionWrapper<blake2::Blake2b<typenum::U32>, 32>;
 
-// Note: This has been audited but is not used in sui currently.
-#[cfg(any(test, feature = "experimental"))]
-/// The [BLAKE3](https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE3) hash function with 256 bit digests.
-#[derive(Default)]
-pub struct Blake3 {
-    instance: blake3::Hasher,
-}
-
-// Note: This has been audited but is not used in sui currently.
-#[cfg(any(test, feature = "experimental"))]
-impl HashFunction<32> for Blake3 {
-    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
-        self.instance.update(data.as_ref());
-    }
-
-    fn finalize(self) -> Digest<32> {
-        Digest {
-            digest: self.instance.finalize().into(),
-        }
-    }
-}
-
 /// A Multiset Hash is a homomorphic hash function, which hashes arbitrary multisets of objects such
 /// that the hash of the union of two multisets is easy to compute from the hashes of the two multisets.
 ///
