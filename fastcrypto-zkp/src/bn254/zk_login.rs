@@ -572,26 +572,22 @@ fn hash_to_field(
     poseidon_zk_login(packed)
 }
 
-fn div_ceil(dividend: usize, divisor: usize) -> FastCryptoResult<usize> {
-    if divisor == 0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    Ok(dividend.div_ceil(divisor))
-}
-
 /// Helper function to pack field elements from big ints.
 fn convert_base(
     in_arr: &[BigUint],
     in_width: u16,
     out_width: u8,
 ) -> Result<Vec<Bn254Fr>, FastCryptoError> {
+    if out_width == 0 {
+        return Err(FastCryptoError::InvalidInput);
+    }
     let bits = big_int_array_to_bits(in_arr, in_width as usize);
     let mut packed: Vec<Bn254Fr> = bits
         .rchunks(out_width as usize)
         .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
         .collect();
     packed.reverse();
-    match packed.len() != div_ceil(in_arr.len() * in_width as usize, out_width as usize).unwrap() {
+    match packed.len() != (in_arr.len() * in_width as usize).div_ceil(out_width as usize) {
         true => Err(FastCryptoError::InvalidInput),
         false => Ok(packed),
     }
