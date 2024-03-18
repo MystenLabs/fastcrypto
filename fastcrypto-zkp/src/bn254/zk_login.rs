@@ -292,6 +292,83 @@ impl JWTDetails {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct AddressSeed([u8; 32]);
+
+// AddressSeed's serialized format is as a radix10 encoded string
+impl Serialize for AddressSeed {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_string().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for AddressSeed {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = std::borrow::Cow::<'de, str>::deserialize(deserializer)?;
+        std::str::FromStr::from_str(&s).map_err(serde::de::Error::custom)
+    }
+}
+
+impl AddressSeed {
+    pub fn unpadded(&self) -> &[u8] {
+        let mut buf = self.0.as_slice();
+
+        while !buf.is_empty() && buf[0] == 0 {
+            buf = &buf[1..];
+        }
+
+        // If the value is '0' then just return a slice of length 1 of the final byte
+        if buf.is_empty() {
+            &self.0[31..]
+        } else {
+            buf
+        }
+    }
+
+    pub fn padded(&self) -> &[u8] {
+        &self.0
+    }
+}
+
+impl std::fmt::Display for AddressSeed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let big_int = num_bigint::BigUint::from_bytes_be(&self.0);
+        let radix10 = big_int.to_str_radix(10);
+        f.write_str(&radix10)
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum AddressSeedParseError {
+    #[error("unable to parse radix10 encoded value `{0}`")]
+    Parse(#[from] num_bigint::ParseBigIntError),
+    #[error("larger than 32 bytes")]
+    TooBig,
+}
+
+impl std::str::FromStr for AddressSeed {
+    type Err = AddressSeedParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let big_int = <num_bigint::BigUint as num_traits::Num>::from_str_radix(s, 10)?;
+        let be_bytes = big_int.to_bytes_be();
+        let len = be_bytes.len();
+        let mut buf = [0; 32];
+
+        if len > 32 {
+            return Err(AddressSeedParseError::TooBig);
+        }
+
+        buf[32 - len..].copy_from_slice(&be_bytes);
+        Ok(Self(buf))
+    }
+}
 /// All inputs required for the zk login proof verification and other public inputs.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -300,7 +377,7 @@ pub struct ZkLoginInputs {
     proof_points: ZkLoginProof,
     iss_base64_details: Claim,
     header_base64: String,
-    address_seed: String,
+    address_seed: AddressSeed,
     #[serde(skip)]
     jwt_details: JWTDetails,
 }
