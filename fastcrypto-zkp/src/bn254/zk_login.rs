@@ -16,6 +16,7 @@ use ark_ff::Zero;
 use ark_groth16::Proof;
 pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
+use itertools::Itertools;
 use num_bigint::BigUint;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -458,7 +459,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
             "Base64 string smaller than 2".to_string(),
         ));
     }
-    let mut bits = base64_to_bitarray(s);
+    let mut bits = base64_to_bitarray(s)?;
     match i {
         0 => {}
         1 => {
@@ -502,13 +503,16 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
 }
 
 /// Map a base64 string to a bit array by taking each char's index and covert it to binary form.
-fn base64_to_bitarray(input: &str) -> Vec<u8> {
+fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
     input
         .chars()
-        .flat_map(|c| {
-            let index = BASE64_URL_CHARSET.find(c).unwrap() as u8; // TODO: could panic
-            (0..6).rev().map(move |i| index >> i & 1)
+        .map(|c| {
+            BASE64_URL_CHARSET
+                .find(c)
+                .map(|index| (0..6).rev().map(move |i| index as u8 >> i & 1))
+                .ok_or(FastCryptoError::InvalidInput)
         })
+        .flatten_ok()
         .collect()
 }
 
@@ -568,13 +572,11 @@ fn hash_to_field(
     poseidon_zk_login(packed)
 }
 
-fn div_ceil(dividend: usize, divisor: usize) -> Result<usize, FastCryptoError> {
+fn div_ceil(dividend: usize, divisor: usize) -> FastCryptoResult<usize> {
     if divisor == 0 {
-        // Handle division by zero as needed for your application.
         return Err(FastCryptoError::InvalidInput);
     }
-
-    Ok(1 + ((dividend - 1) / divisor))
+    Ok(dividend.div_ceil(divisor))
 }
 
 /// Helper function to pack field elements from big ints.

@@ -9,8 +9,8 @@ use crate::bn254::utils::{
     get_zk_login_address,
 };
 use crate::bn254::zk_login::{
-    convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field, parse_jwks, to_field,
-    trim, verify_extended_claim, Claim, JWTDetails, JwkId,
+    base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
+    parse_jwks, to_field, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::ZkLoginEnv;
@@ -617,4 +617,14 @@ fn test_alternative_iss_for_google() {
         &ZkLoginEnv::Test,
     );
     assert!(invalid_res.is_err());
+}
+
+#[test]
+fn test_base64_to_bitarray() {
+    let input = "a";
+    let expected = vec![0, 1, 1, 0, 1, 0];
+    assert_eq!(base64_to_bitarray(input).unwrap(), expected);
+
+    let input = ".";
+    assert!(base64_to_bitarray(input).is_err());
 }
