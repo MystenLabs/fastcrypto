@@ -9,7 +9,7 @@ description = "Threshold BLS and DKG protocols"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-fastcrypto = { path = "../fastcrypto", features = ["beacon-dkg"]}
+fastcrypto = { path = "../fastcrypto", features = ["aes"]}
 
 rand.workspace = true
 serde.workspace = true

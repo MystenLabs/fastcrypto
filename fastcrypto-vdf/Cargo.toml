@@ -17,7 +17,6 @@ num-integer = "0.1.45"
 num-prime = { version = "0.4.3", features = ["big-int"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
-itertools = { version = "0.12.0", features = [] }
 
 [features]
 experimental = []
