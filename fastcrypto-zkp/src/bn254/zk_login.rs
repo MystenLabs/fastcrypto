@@ -296,7 +296,6 @@ impl JWTDetails {
 /// All inputs required for the zk login proof verification and other public inputs.
 #[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-
 pub struct ZkLoginInputs {
     proof_points: ZkLoginProof,
     iss_base64_details: Claim,
