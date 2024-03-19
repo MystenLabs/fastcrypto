@@ -230,10 +230,11 @@ pub fn verify_zk_login(
 ) -> Result<(), FastCryptoError> {
     // Load the expected JWK based on (iss, kid).
     let (iss, kid) = (input.get_iss().to_string(), input.get_kid().to_string());
+    let jwk_id = JwkId::new(iss.clone(), kid.clone());
     let jwk = all_jwk
-        .get(&JwkId::new(iss.clone(), kid.clone()))
+        .get(&jwk_id)
         .ok_or_else(|| {
-            FastCryptoError::GeneralError(format!("JWK not found ({} - {})", iss, kid))
+            FastCryptoError::GeneralError(format!("JWK not found ({:?})", jwk_id))
         })?;
 
     // Decode modulus to bytes.
