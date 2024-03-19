@@ -20,6 +20,7 @@ use itertools::Itertools;
 use num_bigint::BigUint;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering::{Equal, Greater, Less};
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -496,7 +497,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         ));
     }
 
-    Ok(std::str::from_utf8(&bitarray_to_bytearray(&bits))
+    Ok(std::str::from_utf8(&bitarray_to_bytearray(&bits)?)
         .map_err(|_| FastCryptoError::GeneralError("Invalid UTF8 string".to_string()))?
         .to_owned())
 }
@@ -508,25 +509,30 @@ fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
         .map(|c| {
             BASE64_URL_CHARSET
                 .find(c)
-                .map(|index| (0..6).rev().map(move |i| index as u8 >> i & 1))
+                .map(|index| index as u8)
+                .map(|index| (0..6).rev().map(move |i| index >> i & 1))
                 .ok_or(FastCryptoError::InvalidInput)
         })
         .flatten_ok()
         .collect()
 }
 
-/// Convert a bitarray (each bit is represented by u8) to a byte array by taking each 8 bits as a
+/// Convert a bitarray (each bit is represented by a u8) to a byte array by taking each 8 bits as a
 /// byte in big-endian format.
-fn bitarray_to_bytearray(bits: &[u8]) -> Vec<u8> {
-    let mut bytes: Vec<u8> = Vec::new();
-    for bits in bits.chunks(8) {
-        let mut byte = 0u8;
-        for (i, bit) in bits.iter().rev().enumerate() {
-            byte |= bit << i;
-        }
-        bytes.push(byte);
+fn bitarray_to_bytearray(bits: &[u8]) -> FastCryptoResult<Vec<u8>> {
+    if bits.len() % 8 != 0 {
+        return Err(FastCryptoError::InvalidInput);
     }
-    bytes
+    Ok(bits
+        .chunks(8)
+        .map(|chunk| {
+            let mut byte = 0u8;
+            for (i, bit) in chunk.iter().rev().enumerate() {
+                byte |= bit << i;
+            }
+            byte
+        })
+        .collect())
 }
 
 /// Convert a bigint string to a field element.
@@ -580,7 +586,7 @@ fn convert_base(
     if out_width == 0 {
         return Err(FastCryptoError::InvalidInput);
     }
-    let bits = big_int_array_to_bits(in_arr, in_width as usize);
+    let bits = big_int_array_to_bits(in_arr, in_width as usize)?;
     let mut packed: Vec<Bn254Fr> = bits
         .rchunks(out_width as usize)
         .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, 2).unwrap()))
@@ -593,19 +599,22 @@ fn convert_base(
 }
 
 /// Convert a big int array to a bit array with 0 paddings.
-fn big_int_array_to_bits(arr: &[BigUint], int_size: usize) -> Vec<u8> {
-    let mut bitarray: Vec<u8> = Vec::new();
-    for num in arr {
-        let val = num.to_radix_be(2);
-        let extra_bits = if val.len() < int_size {
-            int_size - val.len()
-        } else {
-            0
-        };
-
-        let mut padded = vec![0; extra_bits];
-        padded.extend(val);
-        bitarray.extend(padded)
-    }
-    bitarray
+fn big_int_array_to_bits(integers: &[BigUint], intended_size: usize) -> FastCryptoResult<Vec<u8>> {
+    integers
+        .iter()
+        .map(|integer| {
+            let bits = integer.to_radix_be(2);
+            match bits.len().cmp(&intended_size) {
+                Less => {
+                    let extra_bits = intended_size - bits.len();
+                    let mut padded = vec![0; extra_bits];
+                    padded.extend(bits);
+                    Ok(padded)
+                }
+                Equal => Ok(bits),
+                Greater => Err(FastCryptoError::InvalidInput),
+            }
+        })
+        .flatten_ok()
+        .collect()
 }
