@@ -64,28 +64,3 @@ pub(crate) fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, Fa
 
     Ok(g2)
 }
-
-#[test]
-fn test_to_json() {
-    let g1_str = ["1".to_string(), "2".to_string(), "3".to_string()];
-    let g2_str = [
-        ["4".to_string(), "5".to_string()],
-        ["6".to_string(), "7".to_string()],
-        ["8".to_string(), "9".to_string()],
-    ];
-
-    let g1_str2 = vec!["1".to_string(), "2".to_string(), "3".to_string()];
-    let g2_str2 = vec![
-        vec!["4".to_string(), "5".to_string()],
-        vec!["6".to_string(), "7".to_string()],
-        vec!["8".to_string(), "9".to_string()],
-    ];
-    let g1_json = serde_json::to_string(&g1_str).unwrap();
-    println!("{}", g1_json);
-    let g2_json = serde_json::to_string(&g2_str).unwrap();
-    println!("{}", g2_json);
-    let g1_json2 = serde_json::to_string(&g1_str2).unwrap();
-    println!("{}", g1_json2);
-    let g2_json2 = serde_json::to_string(&g2_str2).unwrap();
-    println!("{}", g2_json2);
-}
