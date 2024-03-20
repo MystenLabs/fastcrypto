@@ -25,7 +25,7 @@ fn gen_ecies_keys(n: u16) -> Vec<(PartyId, ecies::PrivateKey<EG>, ecies::PublicK
 
 pub fn setup_party(
     id: PartyId,
-    threshold: u32,
+    threshold: u16,
     weight: u16,
     keys: &[(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)],
 ) -> Party<G, EG> {
@@ -58,7 +58,7 @@ mod dkg_benches {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("DKG create");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
-                let t = (total_w / 3) as u32;
+                let t = (total_w / 3) as u16;
                 let keys = gen_ecies_keys(*n);
                 let d0 = setup_party(0, t, w, &keys);
 
@@ -67,7 +67,7 @@ mod dkg_benches {
                     |b| b.iter(|| d0.create_message(&mut thread_rng())),
                 );
 
-                let message = d0.create_message(&mut thread_rng());
+                let message = d0.create_message(&mut thread_rng()).unwrap();
                 println!(
                     "Message size for n={}, t={}: {}",
                     n,
@@ -81,11 +81,11 @@ mod dkg_benches {
             let mut verify: BenchmarkGroup<_> = c.benchmark_group("DKG message processing");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
-                let t = (total_w / 3) as u32;
+                let t = (total_w / 3) as u16;
                 let keys = gen_ecies_keys(*n);
                 let d0 = setup_party(0, t, w, &keys);
                 let d1 = setup_party(1, t, w, &keys);
-                let message = d0.create_message(&mut thread_rng());
+                let message = d0.create_message(&mut thread_rng()).unwrap();
 
                 verify.bench_function(
                     format!("n={}, total_weight={}, t={}, w={}", n, total_w, t, w).as_str(),

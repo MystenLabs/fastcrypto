@@ -5,7 +5,7 @@ use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::polynomial::Poly;
 use rand::thread_rng;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 mod polynomial_benches {
     use super::*;
@@ -19,7 +19,7 @@ mod polynomial_benches {
             for n in SIZES {
                 let t = n / 3;
                 vss_sk_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
-                    b.iter(|| Poly::<bls12381::Scalar>::rand(t as u32, &mut thread_rng()))
+                    b.iter(|| Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng()))
                 });
             }
         }
@@ -28,7 +28,7 @@ mod polynomial_benches {
             let mut vss_pk_gen: BenchmarkGroup<_> = c.benchmark_group("VSS public key generation");
             for n in SIZES {
                 let t = n / 3;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u32, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 vss_pk_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| vss_sk.commit::<G>())
                 });
@@ -39,11 +39,11 @@ mod polynomial_benches {
             let mut shares_gen: BenchmarkGroup<_> = c.benchmark_group("Shares generation");
             for n in SIZES {
                 let t = n / 3;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u32, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 shares_gen.bench_function(format!("n={}, t={}", n, t).as_str(), |b| {
                     b.iter(|| {
-                        (1u32..=(n as u32)).for_each(|i| {
-                            vss_sk.eval(NonZeroU32::new(i).unwrap());
+                        (1u16..=(n as u16)).for_each(|i| {
+                            vss_sk.eval(NonZeroU16::new(i).unwrap());
                         })
                     })
                 });
@@ -58,14 +58,14 @@ mod polynomial_benches {
             for n in SIZES {
                 let t = n / 3;
                 let k = n / 10;
-                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u32, &mut thread_rng());
+                let vss_sk = Poly::<bls12381::Scalar>::rand(t as u16, &mut thread_rng());
                 let vss_pk = vss_sk.commit::<G>();
                 shares_verification.bench_function(
                     format!("n={}, t={}, k={}", n, t, k).as_str(),
                     |b| {
                         b.iter(|| {
-                            (1u32..=(k as u32)).for_each(|i| {
-                                vss_pk.eval(NonZeroU32::new(i).unwrap());
+                            (1u16..=(k as u16)).for_each(|i| {
+                                vss_pk.eval(NonZeroU16::new(i).unwrap());
                             })
                         })
                     },

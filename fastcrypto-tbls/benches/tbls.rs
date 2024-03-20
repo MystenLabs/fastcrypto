@@ -4,7 +4,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
 use rand::thread_rng;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 mod tbls_benches {
     use super::*;
@@ -21,7 +21,7 @@ mod tbls_benches {
             const WEIGHTS: [usize; 5] = [10, 20, 30, 40, 50];
             for w in WEIGHTS {
                 let shares = (1..=w)
-                    .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
+                    .map(|i| private_poly.eval(NonZeroU16::new(i as u16).unwrap()))
                     .collect::<Vec<_>>();
 
                 create.bench_function(format!("w={}", w).as_str(), |b| {
@@ -34,15 +34,15 @@ mod tbls_benches {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("Recover full signature");
             const TOTAL_WEIGHTS: [usize; 4] = [666, 833, 1111, 1666];
             for w in TOTAL_WEIGHTS {
-                let private_poly = Poly::<bls12381::Scalar>::rand(w as u32, &mut thread_rng());
+                let private_poly = Poly::<bls12381::Scalar>::rand(w as u16, &mut thread_rng());
                 let shares = (1..=w)
-                    .map(|i| private_poly.eval(NonZeroU32::new(i as u32).unwrap()))
+                    .map(|i| private_poly.eval(NonZeroU16::new(i as u16).unwrap()))
                     .collect::<Vec<_>>();
 
                 let sigs = ThresholdBls12381MinSig::partial_sign_batch(shares.iter(), msg);
 
                 create.bench_function(format!("w={}", w).as_str(), |b| {
-                    b.iter(|| ThresholdBls12381MinSig::aggregate(w as u32, sigs.iter()).unwrap())
+                    b.iter(|| ThresholdBls12381MinSig::aggregate(w as u16, sigs.iter()).unwrap())
                 });
             }
         }
