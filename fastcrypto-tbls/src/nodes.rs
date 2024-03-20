@@ -99,12 +99,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        let nonzero_node_id = match self.accumulated_weights.binary_search(
-            &share_id
-                .get()
-                .try_into()
-                .expect("Num of shares should fit u16"),
-        ) {
+        let nonzero_node_id = match self.accumulated_weights.binary_search(&share_id.get()) {
             Ok(i) => i,
             Err(i) => i,
         };
