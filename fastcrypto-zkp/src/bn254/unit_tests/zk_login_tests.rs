@@ -9,6 +9,7 @@ use crate::bn254::utils::{
     get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
+use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, to_field, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
@@ -636,4 +637,17 @@ fn test_big_int_array_to_bits() {
     assert!(big_int_array_to_bits(&input, 2).is_err());
     assert_eq!(big_int_array_to_bits(&input, 3).unwrap(), vec![1, 1, 1]);
     assert_eq!(big_int_array_to_bits(&input, 4).unwrap(), vec![0, 1, 1, 1]);
+}
+
+#[test]
+fn test_bitarray_to_bytearray() {
+    let input = vec![0, 0, 0, 0, 0, 1, 1, 1];
+    assert_eq!(bitarray_to_bytearray(&input).unwrap(), vec![7]);
+
+    let input = vec![0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1];
+    assert_eq!(bitarray_to_bytearray(&input).unwrap(), vec![7, 11]);
+
+    assert!(bitarray_to_bytearray(&vec![0; 15]).is_err());
+    assert!(bitarray_to_bytearray(&vec![0; 16]).is_ok());
+    assert!(bitarray_to_bytearray(&vec![0; 17]).is_err());
 }
