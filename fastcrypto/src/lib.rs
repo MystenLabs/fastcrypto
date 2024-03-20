@@ -32,11 +32,11 @@ pub mod secp256r1_recoverable_tests;
 #[path = "tests/bls12381_tests.rs"]
 pub mod bls12381_tests;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "experimental"))]
 #[path = "tests/bulletproofs_tests.rs"]
 pub mod bulletproofs_tests;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "aes"))]
 #[path = "tests/aes_tests.rs"]
 pub mod aes_tests;
 
@@ -52,8 +52,7 @@ pub mod hmac_tests;
 #[path = "tests/encoding_tests.rs"]
 pub mod encoding_tests;
 
-#[cfg(feature = "experimental")]
-#[cfg(test)]
+#[cfg(all(test, feature = "experimental"))]
 #[path = "tests/mskr_tests.rs"]
 pub mod mskr_tests;
 
@@ -87,10 +86,10 @@ pub mod secp256r1_group_tests;
 
 pub mod traits;
 
-#[cfg(any(test, feature = "aes"))]
+#[cfg(feature = "aes")]
 pub mod aes;
 pub mod bls12381;
-#[cfg(any(test, feature = "experimental"))]
+#[cfg(feature = "experimental")]
 pub mod bulletproofs;
 pub mod ed25519;
 pub mod encoding;
