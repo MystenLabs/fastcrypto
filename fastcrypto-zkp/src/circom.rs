@@ -34,7 +34,7 @@ pub(crate) fn g1_affine_from_str_projective(s: &CircomG1) -> Result<G1Affine, Fa
     )
     .into();
 
-    if !g1.is_on_curve() || !g1.is_in_correct_subgroup_assuming_on_curve() {
+    if !g1.is_on_curve() {
         return Err(FastCryptoError::InvalidInput);
     }
 
