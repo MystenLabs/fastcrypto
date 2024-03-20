@@ -114,11 +114,6 @@ experimental = ["dep:bulletproofs", "dep:merlin"]
 # Include AES and its modes.
 aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr"]
 
-[[test]]
-name = "whatever"
-path = "tests/whatever.rs"
-required-features = ["mycoolfeature"]
-
 [dev-dependencies]
 criterion = "0.4.0"
 k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
