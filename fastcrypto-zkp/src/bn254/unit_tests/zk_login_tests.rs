@@ -8,6 +8,7 @@ use crate::bn254::utils::{
     big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
     get_zk_login_address,
 };
+use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, to_field, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
@@ -627,4 +628,12 @@ fn test_base64_to_bitarray() {
 
     let input = ".";
     assert!(base64_to_bitarray(input).is_err());
+}
+
+#[test]
+fn test_big_int_array_to_bits() {
+    let input = vec![BigUint::from(7u8)];
+    assert!(big_int_array_to_bits(&input, 2).is_err());
+    assert_eq!(big_int_array_to_bits(&input, 3).unwrap(), vec![1, 1, 1]);
+    assert_eq!(big_int_array_to_bits(&input, 4).unwrap(), vec![0, 1, 1, 1]);
 }
