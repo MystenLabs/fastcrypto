@@ -11,9 +11,9 @@ use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use rand::prelude::*;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
-const I10: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(10) };
+const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
 
 #[generic_tests::define]
 mod scalar_tests {
@@ -21,7 +21,7 @@ mod scalar_tests {
 
     #[test]
     fn test_degree<S: Scalar>() {
-        let s: u32 = 5;
+        let s: u16 = 5;
         let p = Poly::<S>::rand(s, &mut thread_rng());
         assert_eq!(p.degree(), s);
     }
@@ -106,9 +106,9 @@ mod points_tests {
         let coeff = vec![one, one, one];
         let p = Poly::<G::ScalarType>::from(coeff);
         assert_eq!(p.degree(), 2);
-        let s1 = p.eval(NonZeroU32::new(10).unwrap());
-        let s2 = p.eval(NonZeroU32::new(20).unwrap());
-        let s3 = p.eval(NonZeroU32::new(30).unwrap());
+        let s1 = p.eval(NonZeroU16::new(10).unwrap());
+        let s2 = p.eval(NonZeroU16::new(20).unwrap());
+        let s3 = p.eval(NonZeroU16::new(30).unwrap());
         let shares = vec![s1, s2, s3];
         assert_eq!(
             Poly::<G::ScalarType>::recover_c0(3, shares.iter()).unwrap(),
@@ -138,9 +138,9 @@ mod points_tests {
         let coeff = vec![one, one, one];
         let p = Poly::<G>::from(coeff);
         assert_eq!(p.degree(), 2);
-        let s1 = p.eval(NonZeroU32::new(10).unwrap());
-        let s2 = p.eval(NonZeroU32::new(20).unwrap());
-        let s3 = p.eval(NonZeroU32::new(30).unwrap());
+        let s1 = p.eval(NonZeroU16::new(10).unwrap());
+        let s2 = p.eval(NonZeroU16::new(20).unwrap());
+        let s3 = p.eval(NonZeroU16::new(30).unwrap());
         let shares = vec![s1, s2, s3];
         assert_eq!(Poly::<G>::recover_c0_msm(3, shares.iter()).unwrap(), one);
 

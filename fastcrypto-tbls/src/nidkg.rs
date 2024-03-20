@@ -18,7 +18,7 @@ use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use itertools::izip;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 /// Party in the DKG protocol.
 pub struct Party<G: GroupElement>
@@ -27,7 +27,7 @@ where
 {
     id: PartyId,
     nodes: Nodes<G>,
-    t: u32,
+    t: u16,
     random_oracle: RandomOracle,
     ecies_sk: ecies::PrivateKey<G>,
     vss_sk: PrivatePoly<G>,
@@ -94,7 +94,7 @@ where
     pub fn new<R: AllowedRng>(
         ecies_sk: ecies::PrivateKey<G>,
         nodes: Vec<Node<G>>,
-        t: u32, // The number of shares that are needed to reconstruct the full signature.
+        t: u16, // The number of shares that are needed to reconstruct the full signature.
         random_oracle: RandomOracle,
         rng: &mut R,
     ) -> Result<Self, FastCryptoError> {
@@ -225,7 +225,7 @@ where
         msg: &Message<G>,
         rng: &mut R,
     ) -> FastCryptoResult<()> {
-        // Check the degree of the sender's polynomial..
+        // Check the degree of the sender's polynomial.
         verify_deg_t_poly(
             self.nodes.total_weight() - self.t - 1,
             &msg.partial_pks,
@@ -302,8 +302,8 @@ where
             .collect::<HashMap<_, _>>();
         let sum = messages
             .iter()
-            .map(|m| id_to_weight[&m.sender] as u32)
-            .sum::<u32>();
+            .map(|m| id_to_weight[&m.sender])
+            .sum::<u16>();
         if sum < self.t {
             Err(FastCryptoError::InvalidInput)
         } else {
@@ -330,7 +330,7 @@ where
             .take(self.t as usize)
             .enumerate()
             .map(|(i, pk)| Eval {
-                index: NonZeroU32::new((i + 1) as u32).expect("non zero"),
+                index: NonZeroU16::new((i + 1) as u16).expect("non zero"),
                 value: *pk,
             });
         let pk = Poly::<G>::recover_c0(self.t, evals).expect("enough shares");
@@ -428,7 +428,7 @@ where
     }
 
     // Returns deterministic n pairs of challenge bits 00/01/11.
-    fn challenge(seed: &[u8], n: u32) -> Vec<[bool; NUM_OF_ENCRYPTIONS_PER_SHARE]> {
+    fn challenge(seed: &[u8], n: u16) -> Vec<[bool; NUM_OF_ENCRYPTIONS_PER_SHARE]> {
         let hmac_key = HmacKey::from_bytes(seed).expect("HMAC key should be valid");
         let mut res = Vec::new();
         let mut i: u32 = 0;

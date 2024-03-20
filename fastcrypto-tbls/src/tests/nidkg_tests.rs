@@ -24,7 +24,7 @@ pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKe
 
 pub fn setup_party(
     id: usize,
-    threshold: u32,
+    threshold: u16,
     keys: &[(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)],
 ) -> Party<G> {
     let nodes = keys

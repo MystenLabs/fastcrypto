@@ -5,7 +5,7 @@ use crate::polynomial::{Eval, Poly, PrivatePoly};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{bls12381, GroupElement, MultiScalarMul, Pairing, Scalar};
 use fastcrypto::traits::AllowedRng;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 /// Helper functions for checking relations between scalars and group elements.
 
@@ -19,7 +19,7 @@ fn dot<S: Scalar>(v1: &[S], v2: &[S]) -> S {
 /// Given a set of indexes (a1, a2, ..., an) and a vector of random scalars (r1, r2, ..., rn),
 /// returns the vector v such that <v, c> = \sum ri * p(ai) for the polynomial p with coefficients c
 /// and the given degree.
-pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u32) -> Vec<S> {
+pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u16) -> Vec<S> {
     assert!(r.len() == indexes.len() && degree > 0); // Should never happen
     let mut multiplies = r.to_vec();
     let mut res = Vec::<S>::new();
@@ -50,7 +50,7 @@ pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     if evals.is_empty() {
         return Ok(());
     }
-    let rs = get_random_scalars::<G::ScalarType, R>(evals.len() as u32, rng);
+    let rs = get_random_scalars::<G::ScalarType, R>(evals.len(), rng);
 
     let lhs = G::generator() * dot(&rs, &evals.iter().map(|e| e.value).collect::<Vec<_>>());
 
@@ -79,7 +79,7 @@ pub fn verify_pairs<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     }
     // Denote the inputs by (k1, H1), (k2, H2), ..., (kn, Hn)
     // Generate random r1, r2, ..., rn
-    let rs = get_random_scalars::<G::ScalarType, R>(pairs.len() as u32, rng);
+    let rs = get_random_scalars::<G::ScalarType, R>(pairs.len(), rng);
     // Compute (r1*k1 + r2*k2 + ... + rn*kn)*G
     let lhs = G::generator()
         * rs.iter()
@@ -112,7 +112,7 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     }
     // Denote the inputs by (k1, G1, H1), (k2, G2, H2), ..., (kn, Gn, Hn)
     // Generate random r1, r2, ..., rn
-    let rs = get_random_scalars::<G::ScalarType, R>(triplets.len() as u32, rng);
+    let rs = get_random_scalars::<G::ScalarType, R>(triplets.len(), rng);
     // Compute r1*k1, r2*k2, ..., rn*kn
     let lhs_coeffs = rs
         .iter()
@@ -142,7 +142,7 @@ pub fn verify_triplets<G: GroupElement + MultiScalarMul, R: AllowedRng>(
 /// Check that partial public keys form a polynomial of the right degree using the protocol of
 /// https://eprint.iacr.org/2017/216.pdf. deg_f should be n-k-2 if the polynomial is of degree k.
 pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
-    deg_f: u32,
+    deg_f: u16,
     values: &[G],
     precomputed_dual_code_coefficients: &[G::ScalarType],
     rng: &mut R,
@@ -151,7 +151,7 @@ pub fn verify_deg_t_poly<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     let coefficients = precomputed_dual_code_coefficients
         .iter()
         .enumerate()
-        .map(|(i, c)| *c * poly_f.eval(NonZeroU32::new((i + 1) as u32).unwrap()).value)
+        .map(|(i, c)| *c * poly_f.eval(NonZeroU16::new((i + 1) as u16).unwrap()).value)
         .collect::<Vec<_>>();
     let lhs = G::multi_scalar_mul(&coefficients[..], values).expect("sizes match");
     if lhs != G::zero() {
@@ -170,7 +170,7 @@ pub fn verify_equal_exponents<R: AllowedRng>(
     if v1.len() != v2.len() {
         return Err(FastCryptoError::InvalidProof);
     }
-    let rs = get_random_scalars::<bls12381::Scalar, R>(v1.len() as u32, rng);
+    let rs = get_random_scalars::<bls12381::Scalar, R>(v1.len(), rng);
     let lhs = bls12381::G1Element::multi_scalar_mul(&rs[..], v1).expect("sizes match");
     let rhs = bls12381::G2Element::multi_scalar_mul(&rs[..], v2).expect("sizes match");
 
@@ -182,7 +182,7 @@ pub fn verify_equal_exponents<R: AllowedRng>(
     Ok(())
 }
 
-pub(crate) fn get_random_scalars<S: Scalar, R: AllowedRng>(n: u32, rng: &mut R) -> Vec<S> {
+pub(crate) fn get_random_scalars<S: Scalar, R: AllowedRng>(n: usize, rng: &mut R) -> Vec<S> {
     (0..n)
         .map(|_| S::from(rng.next_u64() as u128))
         .collect::<Vec<_>>()

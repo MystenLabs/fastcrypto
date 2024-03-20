@@ -48,6 +48,10 @@ pub enum FastCryptoError {
     #[error("Invalid message was given to the function")]
     InvalidMessage,
 
+    /// Message should be ignored
+    #[error("Message should be ignored")]
+    IgnoredMessage,
+
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),

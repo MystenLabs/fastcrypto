@@ -9,7 +9,7 @@ use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
 use fastcrypto::groups::{bls12381, GroupElement};
 use rand::prelude::*;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 #[test]
 fn test_tbls_e2e() {
@@ -17,9 +17,9 @@ fn test_tbls_e2e() {
     let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut thread_rng());
     let public_poly = private_poly.commit();
 
-    let share1 = private_poly.eval(NonZeroU32::new(1).unwrap());
-    let share2 = private_poly.eval(NonZeroU32::new(10).unwrap());
-    let share3 = private_poly.eval(NonZeroU32::new(100).unwrap());
+    let share1 = private_poly.eval(NonZeroU16::new(1).unwrap());
+    let share2 = private_poly.eval(NonZeroU16::new(10).unwrap());
+    let share3 = private_poly.eval(NonZeroU16::new(100).unwrap());
 
     let msg = b"test";
     let sig1 = ThresholdBls12381MinSig::partial_sign(&share1, msg);
@@ -45,7 +45,7 @@ fn test_tbls_e2e() {
         full_sig,
         ThresholdBls12381MinSig::partial_sign(
             &Share {
-                index: NonZeroU32::new(1234).unwrap(),
+                index: NonZeroU16::new(1234).unwrap(),
                 value: *private_poly.c0()
             },
             msg
@@ -60,9 +60,9 @@ fn test_partial_verify_batch() {
     let private_poly = Poly::<bls12381::Scalar>::rand(t - 1, &mut thread_rng());
     let public_poly = private_poly.commit();
 
-    let share1 = private_poly.eval(NonZeroU32::new(1).unwrap());
-    let share2 = private_poly.eval(NonZeroU32::new(10).unwrap());
-    let share3 = private_poly.eval(NonZeroU32::new(100).unwrap());
+    let share1 = private_poly.eval(NonZeroU16::new(1).unwrap());
+    let share2 = private_poly.eval(NonZeroU16::new(10).unwrap());
+    let share3 = private_poly.eval(NonZeroU16::new(100).unwrap());
     let shares = [share1, share2, share3];
 
     let msg = b"test";
@@ -155,40 +155,40 @@ fn test_verify_poly_evals() {
     // standard evals should pass
     let shares = [1, 10, 100]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_ok());
     // even if repeated
     let shares = [1, 10, 10]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_ok());
     // invalid evals according to the polynomial should fail
     let mut shares = [1, 10, 100]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     (shares[0].index, shares[1].index) = (shares[1].index, shares[0].index);
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
     // identity as the eval should fail
     let mut shares = [1, 10, 100]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     shares[0].value = Scalar::zero();
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
     // generator as the eval should fail
     let mut shares = [1, 10, 100]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     shares[0].value = Scalar::generator();
     assert!(verify_poly_evals(&shares, &public_poly, &mut thread_rng()).is_err());
     // even if the sum of evals is ok, should fail since not consistent with the polynomial
     let mut shares = [1, 10, 100]
         .into_iter()
-        .map(|i| private_poly.eval(NonZeroU32::new(i).unwrap()))
+        .map(|i| private_poly.eval(NonZeroU16::new(i).unwrap()))
         .collect::<Vec<_>>();
     shares[0].value += Scalar::generator();
     shares[1].value -= Scalar::generator();

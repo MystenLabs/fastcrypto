@@ -125,7 +125,6 @@ impl<G: GroupElement> From<G> for PublicKey<G> {
 impl<G: GroupElement + Serialize> Encryption<G> {
     fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
         let hkdf_result = Self::hkdf(r_x_g);
-        // TODO: Should we just xor with the hkdf output and append with hmac?
         let cipher = Aes256Ctr::new(
             AesKey::<U32>::from_bytes(&hkdf_result)
                 .expect("New shouldn't fail as use fixed size key is used"),

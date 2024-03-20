@@ -33,7 +33,7 @@ use tap::prelude::*;
 pub struct Party<G: GroupElement, EG: GroupElement> {
     id: PartyId,
     nodes: Nodes<EG>,
-    t: u32,
+    t: u16,
     random_oracle: RandomOracle,
     enc_sk: ecies::PrivateKey<EG>,
     vss_sk: PrivatePoly<G>,
@@ -153,7 +153,7 @@ where
     pub fn new<R: AllowedRng>(
         enc_sk: ecies::PrivateKey<EG>,
         nodes: Nodes<EG>,
-        t: u32, // The number of parties that are needed to reconstruct the full key/signature.
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature.
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
@@ -197,12 +197,19 @@ where
     }
 
     /// The threshold needed to reconstruct the full key/signature.
-    pub fn t(&self) -> u32 {
+    pub fn t(&self) -> u16 {
         self.t
     }
 
     /// 4. Create the first message to be broadcasted.
-    pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> Message<G, EG> {
+    ///
+    ///    Returns IgnoredMessage if the party has zero weight (so no need to create a message).
+    pub fn create_message<R: AllowedRng>(&self, rng: &mut R) -> FastCryptoResult<Message<G, EG>> {
+        let node = self.nodes.node_id_to_node(self.id).expect("my id is valid");
+        if node.weight == 0 {
+            return Err(FastCryptoError::IgnoredMessage);
+        }
+
         let vss_pk = self.vss_sk.commit();
         let ro_for_enc = self.random_oracle.extend(&format!("encs {}", self.id));
         info!(
@@ -236,15 +243,16 @@ where
             encrypted_shares.proof(),
         );
 
-        Message {
+        Ok(Message {
             sender: self.id,
             vss_pk,
             encrypted_shares,
-        }
+        })
     }
 
     fn sanity_check_message(&self, msg: &Message<G, EG>) -> FastCryptoResult<()> {
-        self.nodes
+        let node = self
+            .nodes
             .node_id_to_node(msg.sender)
             .tap_err(|_| {
                 warn!(
@@ -253,6 +261,13 @@ where
                 )
             })
             .map_err(|_| FastCryptoError::InvalidMessage)?;
+        if node.weight == 0 {
+            warn!(
+                "DKG: Message sanity check failed for id {}, zero weight",
+                msg.sender
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        };
 
         if self.t != msg.vss_pk.degree() + 1 {
             warn!(
@@ -300,9 +315,11 @@ where
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
     ///
-    ///   Returns error InvalidMessage if the message is invalid and should be ignored (note that we
-    ///   could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
-    ///   and just wait for f+1 valid messages).
+    ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
+    ///    could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
+    ///    and just wait for f+1 valid messages).
+    ///
+    ///    Assumption on caller: Called only once per sender.
     pub fn process_message<R: AllowedRng>(
         &self,
         message: Message<G, EG>,
@@ -398,6 +415,9 @@ where
 
     /// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
     ///    Returns NotEnoughInputs if the threshold t is not met.
+    ///
+    ///    Assumption on caller: processed messages was computed on the same set of messages
+    ///    on all parties.
     pub fn merge(
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
@@ -405,6 +425,7 @@ where
         debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
+        // U16 is safe here since the total weight fits 2^16.
         let total_weight = filtered_messages
             .0
             .iter()
@@ -412,9 +433,9 @@ where
                 self.nodes
                     .node_id_to_node(m.message.sender)
                     .expect("checked in process_message")
-                    .weight as u32
+                    .weight
             })
-            .sum::<u32>();
+            .sum::<u16>();
         if total_weight < self.t {
             debug!("Merge failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
@@ -455,44 +476,45 @@ where
     /// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
     ///
-    ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
-    ///    application dependent but in most cases it should be at least t+f to guarantee that at
-    ///    least t honest nodes have valid shares.
-    ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
+    ///
+    ///    Assumption on caller: All parties use the same set of confirmations (and outputs from merge).
     pub(crate) fn process_confirmations<R: AllowedRng>(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
         confirmations: &[Confirmation<EG>],
-        minimal_threshold: u32,
         rng: &mut R,
     ) -> FastCryptoResult<VerifiedProcessedMessages<G, EG>> {
         debug!("Processing {} confirmations", confirmations.len());
-        if minimal_threshold < self.t || minimal_threshold == 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
+        let required_threshold = self.t + self.t - 1; // guarantee that at least t honest nodes have valid shares.
+
         // Ignore confirmations with invalid sender
         let confirmations = confirmations
             .iter()
-            .filter(|c| self.nodes.node_id_to_node(c.sender).is_ok())
+            .filter(|c| {
+                self.nodes
+                    .node_id_to_node(c.sender)
+                    .is_ok_and(|n| n.weight > 0)
+            })
             .unique_by(|m| m.sender)
             .collect::<Vec<_>>();
         // Verify we have enough confirmations
+        // U16 is safe here since the total weight fits 2^16.
         let total_weight = confirmations
             .iter()
             .map(|c| {
                 self.nodes
                     .node_id_to_node(c.sender)
                     .expect("checked above")
-                    .weight as u32
+                    .weight
             })
-            .sum::<u32>();
-        if total_weight < minimal_threshold {
+            .sum::<u16>();
+        if total_weight < required_threshold {
             debug!("Processing confirmations failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
         }
 
-        info!("DKG: Processing confirmations with total weight {total_weight}, expected {minimal_threshold}");
+        info!("DKG: Processing confirmations with total weight {total_weight}, expected {required_threshold}");
 
         // Two hash maps for faster access in the main loop below.
         let id_to_pk = self
@@ -658,11 +680,9 @@ where
         &self,
         messages: &UsedProcessedMessages<G, EG>,
         confirmations: &[Confirmation<EG>],
-        minimal_threshold: u32,
         rng: &mut R,
     ) -> FastCryptoResult<Output<G, EG>> {
-        let verified_messages =
-            self.process_confirmations(messages, confirmations, minimal_threshold, rng)?;
+        let verified_messages = self.process_confirmations(messages, confirmations, rng)?;
         Ok(self.aggregate(&verified_messages))
     }
 
