@@ -647,7 +647,7 @@ fn test_bitarray_to_bytearray() {
     let input = vec![0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 1, 1];
     assert_eq!(bitarray_to_bytearray(&input).unwrap(), vec![7, 11]);
 
-    assert!(bitarray_to_bytearray(&vec![0; 15]).is_err());
-    assert!(bitarray_to_bytearray(&vec![0; 16]).is_ok());
-    assert!(bitarray_to_bytearray(&vec![0; 17]).is_err());
+    assert!(bitarray_to_bytearray(&[0; 15]).is_err());
+    assert!(bitarray_to_bytearray(&[0; 16]).is_ok());
+    assert!(bitarray_to_bytearray(&[0; 17]).is_err());
 }
