@@ -502,7 +502,8 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         .to_owned())
 }
 
-/// Map a base64 string to a bit array by taking each char's index and covert it to binary form.
+/// Map a base64 string to a bit array by taking each char's index and covert it to binary form with one bit per u8
+/// element in the output. Returns [FastCryptoError::InvalidInput] if one of the characters is not in the base64 charset.
 fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
     input
         .chars()
