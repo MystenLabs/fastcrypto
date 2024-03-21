@@ -14,9 +14,10 @@ pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use im::hashmap::HashMap as ImHashMap;
 use once_cell::sync::Lazy;
+use serde::{Deserialize, Serialize};
 
 /// Enum to specify the environment to use for verifying keys.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ZkLoginEnv {
     /// Use the secure global verifying key derived from ceremony.
     Prod,
