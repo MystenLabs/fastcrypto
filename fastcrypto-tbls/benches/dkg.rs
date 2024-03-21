@@ -58,7 +58,7 @@ mod dkg_benches {
             let mut create: BenchmarkGroup<_> = c.benchmark_group("DKG create");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
-                let t = (total_w / 3) as u16;
+                let t = total_w / 3;
                 let keys = gen_ecies_keys(*n);
                 let d0 = setup_party(0, t, w, &keys);
 
@@ -81,7 +81,7 @@ mod dkg_benches {
             let mut verify: BenchmarkGroup<_> = c.benchmark_group("DKG message processing");
             for (n, total_w) in iproduct!(SIZES.iter(), TOTAL_WEIGHTS.iter()) {
                 let w = total_w / n;
-                let t = (total_w / 3) as u16;
+                let t = total_w / 3;
                 let keys = gen_ecies_keys(*n);
                 let d0 = setup_party(0, t, w, &keys);
                 let d1 = setup_party(1, t, w, &keys);

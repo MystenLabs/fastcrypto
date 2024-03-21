@@ -107,6 +107,11 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     // later because of an invalid complaint
     let msg4 = d4.create_message(&mut thread_rng()).unwrap();
     let msg5 = d5.create_message(&mut thread_rng()).unwrap();
+    // zero weight
+    assert_eq!(
+        d2.create_message(&mut thread_rng()).err(),
+        Some(FastCryptoError::IgnoredMessage)
+    );
     // d5 will receive invalid shares from d0, but its complaint will not be processed on time.
     let mut msg0 = d0.create_message(&mut thread_rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg0);
@@ -188,7 +193,14 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     let mut conf4 = conf1.clone();
     conf4.sender = 4;
 
-    let all_confirmations = vec![conf0.clone(), conf1.clone(), conf3, conf1.clone(), conf4]; // duplicates should be ignored
+    let all_confirmations = vec![
+        conf0.clone(),
+        conf2.clone(),
+        conf1.clone(),
+        conf3,
+        conf1.clone(),
+        conf4,
+    ]; // duplicates and zero weights should be ignored
 
     // expect failure - process_confirmations() should receive enough messages (non duplicated).
     assert_eq!(
@@ -334,6 +346,21 @@ fn test_process_message_failures() {
     invalid_msg.sender = 50;
     assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
 
+    // zero weight
+    let d1 = Party::<G, EG>::new(
+        keys.get(1_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut thread_rng(),
+    )
+    .unwrap();
+    let mut fake_msg_from_d2 = d1.create_message(&mut thread_rng()).unwrap();
+    fake_msg_from_d2.sender = 2;
+    assert!(d0
+        .process_message(fake_msg_from_d2, &mut thread_rng())
+        .is_err());
+
     // invalid degree
     let d1 = Party::<G, EG>::new(
         keys.get(1_usize).unwrap().1.clone(),
@@ -447,7 +474,10 @@ fn test_test_process_confirmations() {
 
     let msg0 = d0.create_message(&mut thread_rng()).unwrap();
     let msg1 = d1.create_message(&mut thread_rng()).unwrap();
-    assert!(d2.create_message(&mut thread_rng()).is_err()); // zero weight
+    assert_eq!(
+        d2.create_message(&mut thread_rng()).err(),
+        Some(FastCryptoError::IgnoredMessage)
+    ); // zero weight
     let mut msg3 = d3.create_message(&mut thread_rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg3);
     pk_and_msgs.swap(0, 1);

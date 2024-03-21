@@ -7,7 +7,7 @@ use crate::polynomial::PrivatePoly;
 use fastcrypto::groups::GroupElement;
 use serde::Serialize;
 
-/// Emulates the output of an insecure DKG protocol.
+/// Emulates the output of an insecure DKG protocol (to be used in tests).
 pub fn generate_mocked_output<G: GroupElement + Serialize, EG: GroupElement + Serialize>(
     nodes: Nodes<EG>,
     t: u32,

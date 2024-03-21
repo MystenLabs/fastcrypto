@@ -33,15 +33,13 @@ impl<C> Poly<C> {
     pub fn degree(&self) -> u16 {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
-        (self.0.len() - 1)
-            .try_into()
-            .expect("Degree should be at most 2^16")
+        (self.0.len() - 1) as u16
     }
 }
 
 impl<C> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
-        assert!((c.len() - 1) < u16::MAX as usize);
+        assert!((c.len() - 1) <= u16::MAX as usize);
         Self(c)
     }
 }
@@ -128,6 +126,7 @@ impl<C: GroupElement> Poly<C> {
                         negative = !negative;
                         i - j
                     } else {
+                        // i < j (but not equal)
                         j - i
                     };
                     debug_assert_ne!(diff, 0);
@@ -138,8 +137,8 @@ impl<C: GroupElement> Poly<C> {
                     }
                 },
             );
-
-            denominator = denominator * C::ScalarType::from(remaining); // remaining != 0
+            debug_assert_ne!(remaining, 0);
+            denominator = denominator * C::ScalarType::from(remaining);
             if negative {
                 denominator = -denominator;
             }

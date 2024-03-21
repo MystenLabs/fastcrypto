@@ -183,6 +183,7 @@ pub fn verify_equal_exponents<R: AllowedRng>(
 }
 
 pub(crate) fn get_random_scalars<S: Scalar, R: AllowedRng>(n: usize, rng: &mut R) -> Vec<S> {
+    // We use rng directly since we want only u64 numbers, which will be cheaper to multiply.
     (0..n)
         .map(|_| S::from(rng.next_u64() as u128))
         .collect::<Vec<_>>()

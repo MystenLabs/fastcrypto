@@ -3,7 +3,6 @@
 
 use crate::ecies;
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -17,7 +16,7 @@ pub type PartyId = u16;
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
     pub pk: ecies::PublicKey<G>,
-    pub weight: u16, // May be zero
+    pub weight: u16, // May be zero after reduce()
 }
 
 /// Wrapper for a set of nodes.
@@ -31,6 +30,9 @@ pub struct Nodes<G: GroupElement> {
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
+    // We don't expect to have more than 1000 nodes (simplifies some checks).
+    const MAX_NODES: usize = 1000;
+
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     pub fn new(nodes: Vec<Node<G>>) -> FastCryptoResult<Self> {
         let mut nodes = nodes;
@@ -39,12 +41,11 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         if (0..nodes.len()).any(|i| (nodes[i].id as usize) != i) {
             return Err(FastCryptoError::InvalidInput);
         }
-        // Make sure we never overflow, as we don't expect to have more than 1000 nodes
-        if nodes.is_empty() || nodes.len() > 1000 {
+        // Make sure we never overflow in the functions below.
+        if nodes.is_empty() || nodes.len() > Self::MAX_NODES {
             return Err(FastCryptoError::InvalidInput);
         }
-
-        // Make sure we never overflow, as we don't expect to have more than u16::MAX total weight.
+        // Make sure we never overflow in the functions below, as we don't expect to have more than u16::MAX total weight.
         let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
         if total_weight > u16::MAX as u32 || total_weight == 0 {
             return Err(FastCryptoError::InvalidInput);
@@ -99,27 +100,25 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        let nonzero_node_id = match self.accumulated_weights.binary_search(&share_id.get()) {
-            Ok(i) => i,
-            Err(i) => i,
-        };
+        let nonzero_node_id = self
+            .accumulated_weights
+            .binary_search(&share_id.get())
+            .unwrap_or_else(|i| i);
         match self.nodes_with_nonzero_weight.get(nonzero_node_id) {
             Some(node_id) => self.node_id_to_node(*node_id),
-            None => Err(InvalidInput),
+            None => Err(FastCryptoError::InvalidInput),
         }
     }
 
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
-        if party_id as usize >= self.nodes.len() {
-            Err(InvalidInput)
-        } else {
-            Ok(&self.nodes[party_id as usize])
-        }
+        self.nodes
+            .get(party_id as usize)
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     /// Get the share ids of a node (ordered).
     pub fn share_ids_of(&self, id: PartyId) -> Vec<ShareIndex> {
-        // TODO: [perf opt] Cache this
+        // TODO: [perf opt] Cache this or impl differently.
         self.share_ids_iter()
             .filter(|node_id| self.share_id_to_node(node_id).expect("valid ids").id == id)
             .collect::<Vec<_>>()

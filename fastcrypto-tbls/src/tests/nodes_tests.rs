@@ -48,6 +48,15 @@ fn test_new_failures() {
     // too little
     let nodes_vec: Vec<Node<G2Element>> = Vec::new();
     assert!(Nodes::new(nodes_vec).is_err());
+    // too large total weight
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec[19].weight = u16::MAX - 5;
+    assert!(Nodes::new(nodes_vec).is_err());
+    // zero total weight
+    let mut nodes_vec = get_nodes::<G2Element>(2);
+    nodes_vec[0].weight = 0;
+    nodes_vec[1].weight = 0;
+    assert!(Nodes::new(nodes_vec).is_err());
 }
 
 #[test]
