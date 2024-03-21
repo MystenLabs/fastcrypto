@@ -29,7 +29,7 @@ use tracing::{debug, error, info, warn};
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Party<G: GroupElement, EG: GroupElement> {
-    id: PartyId,
+    pub id: PartyId,
     nodes: Nodes<EG>,
     t: u16,
     random_oracle: RandomOracle,

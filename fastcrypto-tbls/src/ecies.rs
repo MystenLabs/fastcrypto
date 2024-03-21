@@ -58,7 +58,6 @@ where
         Self(G::ScalarType::rand(rng))
     }
 
-    #[cfg(test)]
     pub fn from(sc: G::ScalarType) -> Self {
         Self(sc)
     }
@@ -117,7 +116,6 @@ where
     }
 }
 
-#[cfg(test)]
 impl<G: GroupElement> From<G> for PublicKey<G> {
     fn from(p: G) -> Self {
         Self(p)
