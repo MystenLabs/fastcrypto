@@ -48,9 +48,9 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
 pub struct Message<G: GroupElement, EG: GroupElement> {
     pub sender: PartyId,
     /// The commitment of the secret polynomial created by the sender.
-    pub(crate) vss_pk: PublicPoly<G>,
+    pub vss_pk: PublicPoly<G>,
     /// The encrypted shares created by the sender. Sorted according to the receivers.
-    pub(crate) encrypted_shares: MultiRecipientEncryption<EG>,
+    pub encrypted_shares: MultiRecipientEncryption<EG>,
 }
 
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
@@ -66,21 +66,21 @@ pub struct Complaint<EG: GroupElement> {
 pub struct Confirmation<EG: GroupElement> {
     pub sender: PartyId,
     /// List of complaints against other parties. Empty if there are none.
-    pub(crate) complaints: Vec<Complaint<EG>>,
+    pub complaints: Vec<Complaint<EG>>,
 }
 
 /// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
-    pub(crate) message: Message<G, EG>,
-    pub(crate) shares: Vec<Share<G::ScalarType>>, //possibly empty
-    pub(crate) complaint: Option<Complaint<EG>>,
+    pub message: Message<G, EG>,
+    pub shares: Vec<Share<G::ScalarType>>, //possibly empty
+    pub complaint: Option<Complaint<EG>>,
 }
 
 /// Unique processed messages that are being used in the protocol.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
-    pub(crate) Vec<ProcessedMessage<G, EG>>,
+    pub Vec<ProcessedMessage<G, EG>>,
 );
 
 impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
