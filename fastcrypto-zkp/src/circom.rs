@@ -1,10 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::zk_login_api::Bn254Fr;
 use ark_bn254::{Fq, Fq2, G1Affine, G1Projective, G2Affine, G2Projective};
 use ark_ec::{AffineRepr, CurveGroup, Group};
-use ark_ff::{BigInt, Field, Fp};
+use ark_ff::{BigInt, Field, Fp, Zero};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use std::ops::Mul;
 
@@ -72,14 +71,14 @@ pub(crate) fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, Fa
 /// Convert a G2 projective point in BN254 to an affine G2 point in arkworks format. Return an error
 /// if the input is not a valid projective point, if it's not on the curve or in the G2 subgroup.
 fn g2_unchecked_projective_to_affine(x: Fq2, y: Fq2, z: Fq2) -> FastCryptoResult<G2Affine> {
+    if z.is_zero() {
+        return Ok(G2Affine::zero());
+    }
+
     let projective = G2Projective::new_unchecked(x, y, z);
 
     // This is safe to do, even if z = 0 in which case it is interpreted as the point at infinity
     let affine = projective.into_affine();
-
-    if affine.is_zero() {
-        return Ok(affine);
-    }
 
     if !affine.is_on_curve() {
         return Err(FastCryptoError::InvalidInput);
