@@ -10,7 +10,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 fn get_nodes<G>(n: u16) -> Vec<Node<G>>
 where
@@ -23,7 +23,7 @@ where
         .map(|i| Node {
             id: i,
             pk: pk.clone(),
-            weight: 1 + i,
+            weight: if i > 10 { 10 + i % 10 } else { 1 + i },
         })
         .collect()
 }
@@ -48,6 +48,15 @@ fn test_new_failures() {
     // too little
     let nodes_vec: Vec<Node<G2Element>> = Vec::new();
     assert!(Nodes::new(nodes_vec).is_err());
+    // too large total weight
+    let mut nodes_vec = get_nodes::<G2Element>(20);
+    nodes_vec[19].weight = u16::MAX - 5;
+    assert!(Nodes::new(nodes_vec).is_err());
+    // zero total weight
+    let mut nodes_vec = get_nodes::<G2Element>(2);
+    nodes_vec[0].weight = 0;
+    nodes_vec[1].weight = 0;
+    assert!(Nodes::new(nodes_vec).is_err());
 }
 
 #[test]
@@ -69,19 +78,19 @@ fn test_zero_weight() {
     let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(1).unwrap())
+            .share_id_to_node(&NonZeroU16::new(1).unwrap())
             .unwrap()
             .id,
         0
     );
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(2).unwrap())
+            .share_id_to_node(&NonZeroU16::new(2).unwrap())
             .unwrap()
             .id,
         1
     );
-    assert_eq!(nodes1.share_ids_of(0), vec![NonZeroU32::new(1).unwrap()]);
+    assert_eq!(nodes1.share_ids_of(0), vec![NonZeroU16::new(1).unwrap()]);
 
     // first node's weight is 0
     let mut nodes_vec = get_nodes::<G2Element>(10);
@@ -89,14 +98,14 @@ fn test_zero_weight() {
     let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(1).unwrap())
+            .share_id_to_node(&NonZeroU16::new(1).unwrap())
             .unwrap()
             .id,
         1
     );
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(2).unwrap())
+            .share_id_to_node(&NonZeroU16::new(2).unwrap())
             .unwrap()
             .id,
         1
@@ -109,7 +118,7 @@ fn test_zero_weight() {
     let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(nodes1.total_weight()).unwrap())
+            .share_id_to_node(&NonZeroU16::new(nodes1.total_weight()).unwrap())
             .unwrap()
             .id,
         8
@@ -122,7 +131,7 @@ fn test_zero_weight() {
     let nodes1 = Nodes::new(nodes_vec.clone()).unwrap();
     assert_eq!(
         nodes1
-            .share_id_to_node(&NonZeroU32::new(4).unwrap())
+            .share_id_to_node(&NonZeroU16::new(4).unwrap())
             .unwrap()
             .id,
         3
@@ -134,49 +143,49 @@ fn test_zero_weight() {
 fn test_interfaces() {
     let nodes_vec = get_nodes::<G2Element>(100);
     let nodes = Nodes::new(nodes_vec.clone()).unwrap();
-    assert_eq!(nodes.total_weight(), 5050);
+    assert_eq!(nodes.total_weight(), 1361);
     assert_eq!(nodes.num_nodes(), 100);
     assert!(nodes
         .share_ids_iter()
-        .zip(1u32..=5050)
+        .zip(1u16..=5050)
         .all(|(a, b)| a.get() == b));
 
     assert_eq!(
         nodes
-            .share_id_to_node(&NonZeroU32::new(1).unwrap())
+            .share_id_to_node(&NonZeroU16::new(1).unwrap())
             .unwrap(),
         &nodes_vec[0]
     );
     assert_eq!(
         nodes
-            .share_id_to_node(&NonZeroU32::new(3).unwrap())
+            .share_id_to_node(&NonZeroU16::new(3).unwrap())
             .unwrap(),
         &nodes_vec[1]
     );
     assert_eq!(
         nodes
-            .share_id_to_node(&NonZeroU32::new(4).unwrap())
+            .share_id_to_node(&NonZeroU16::new(4).unwrap())
             .unwrap(),
         &nodes_vec[2]
     );
     assert_eq!(
         nodes
-            .share_id_to_node(&NonZeroU32::new(5050).unwrap())
+            .share_id_to_node(&NonZeroU16::new(1361).unwrap())
             .unwrap(),
         &nodes_vec[99]
     );
     assert!(nodes
-        .share_id_to_node(&NonZeroU32::new(5051).unwrap())
+        .share_id_to_node(&NonZeroU16::new(1362).unwrap())
         .is_err());
     assert!(nodes
-        .share_id_to_node(&NonZeroU32::new(15051).unwrap())
+        .share_id_to_node(&NonZeroU16::new(15051).unwrap())
         .is_err());
 
     assert_eq!(nodes.node_id_to_node(1).unwrap(), &nodes_vec[1]);
 
     assert_eq!(
         nodes.share_ids_of(1),
-        vec![NonZeroU32::new(2).unwrap(), NonZeroU32::new(3).unwrap()]
+        vec![NonZeroU16::new(2).unwrap(), NonZeroU16::new(3).unwrap()]
     );
 }
 
@@ -215,11 +224,17 @@ fn test_reduce_with_lower_bounds() {
     assert_eq!(t, new_t);
 
     // 10% gap
-    let (new_nodes1, _new_t1) = nodes.reduce(t, (nodes.total_weight() / 20) as u16, 1);
+    let (new_nodes1, _new_t1) = nodes.reduce(t, (nodes.total_weight() / 10) as u16, 1);
     let (new_nodes2, _new_t2) = nodes.reduce(
         t,
-        (nodes.total_weight() / 20) as u16,
+        (nodes.total_weight() / 10) as u16,
         nodes.total_weight() / 3,
+    );
+    println!(
+        "new_nodes1.total_weight() = {}, new_nodes2.total_weight() = {}, nodes.total_weight() = {}",
+        new_nodes1.total_weight(),
+        new_nodes2.total_weight(),
+        nodes.total_weight()
     );
     assert!(new_nodes1.total_weight() < new_nodes2.total_weight());
     assert!(new_nodes2.total_weight() >= nodes.total_weight() / 3);

@@ -3,7 +3,6 @@
 
 use crate::ecies;
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::hash::{Blake2b256, Digest, HashFunction};
@@ -17,20 +16,23 @@ pub type PartyId = u16;
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
     pub pk: ecies::PublicKey<G>,
-    pub weight: u16, // May be zero
+    pub weight: u16, // May be zero after reduce()
 }
 
 /// Wrapper for a set of nodes.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Nodes<G: GroupElement> {
     nodes: Vec<Node<G>>, // Party ids are 0..len(nodes)-1 (inclusive)
-    total_weight: u32,   // Share ids are 1..total_weight (inclusive)
+    total_weight: u16,   // Share ids are 1..total_weight (inclusive)
     // Next two fields are used to map share ids to party ids.
-    accumulated_weights: Vec<u32>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
+    accumulated_weights: Vec<u16>, // Accumulated sum of all nodes' weights. Used to map share ids to party ids.
     nodes_with_nonzero_weight: Vec<u16>, // Indexes of nodes with non-zero weight
 }
 
 impl<G: GroupElement + Serialize> Nodes<G> {
+    // We don't expect to have more than 1000 nodes (simplifies some checks).
+    const MAX_NODES: usize = 1000;
+
     /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     pub fn new(nodes: Vec<Node<G>>) -> FastCryptoResult<Self> {
         let mut nodes = nodes;
@@ -39,18 +41,20 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         if (0..nodes.len()).any(|i| (nodes[i].id as usize) != i) {
             return Err(FastCryptoError::InvalidInput);
         }
-        // Make sure we never overflow, as we don't expect to have more than 1000 nodes
-        if nodes.is_empty() || nodes.len() > 1000 {
+        // Make sure we never overflow in the functions below.
+        if nodes.is_empty() || nodes.len() > Self::MAX_NODES {
             return Err(FastCryptoError::InvalidInput);
         }
+        // Make sure we never overflow in the functions below, as we don't expect to have more than u16::MAX total weight.
+        let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        if total_weight > u16::MAX as u32 || total_weight == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let total_weight = total_weight as u16;
 
         // We use the next two to map share ids to party ids.
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
         let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-
-        let total_weight = *accumulated_weights
-            .last()
-            .expect("Number of nodes is non-zero");
 
         Ok(Self {
             nodes,
@@ -68,16 +72,10 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .collect::<Vec<_>>()
     }
 
-    fn get_accumulated_weights(nodes: &[Node<G>]) -> Vec<u32> {
+    fn get_accumulated_weights(nodes: &[Node<G>]) -> Vec<u16> {
         nodes
             .iter()
-            .filter_map(|n| {
-                if n.weight > 0 {
-                    Some(n.weight as u32)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|n| if n.weight > 0 { Some(n.weight) } else { None })
             .scan(0, |accumulated_weight, weight| {
                 *accumulated_weight += weight;
                 Some(*accumulated_weight)
@@ -86,7 +84,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Total weight of the nodes.
-    pub fn total_weight(&self) -> u32 {
+    pub fn total_weight(&self) -> u16 {
         self.total_weight
     }
 
@@ -102,27 +100,25 @@ impl<G: GroupElement + Serialize> Nodes<G> {
 
     /// Get the node corresponding to a share id.
     pub fn share_id_to_node(&self, share_id: &ShareIndex) -> FastCryptoResult<&Node<G>> {
-        let nonzero_node_id = match self.accumulated_weights.binary_search(&share_id.get()) {
-            Ok(i) => i,
-            Err(i) => i,
-        };
+        let nonzero_node_id = self
+            .accumulated_weights
+            .binary_search(&share_id.get())
+            .unwrap_or_else(|i| i);
         match self.nodes_with_nonzero_weight.get(nonzero_node_id) {
             Some(node_id) => self.node_id_to_node(*node_id),
-            None => Err(InvalidInput),
+            None => Err(FastCryptoError::InvalidInput),
         }
     }
 
     pub fn node_id_to_node(&self, party_id: PartyId) -> FastCryptoResult<&Node<G>> {
-        if party_id as usize >= self.nodes.len() {
-            Err(InvalidInput)
-        } else {
-            Ok(&self.nodes[party_id as usize])
-        }
+        self.nodes
+            .get(party_id as usize)
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
     /// Get the share ids of a node (ordered).
     pub fn share_ids_of(&self, id: PartyId) -> Vec<ShareIndex> {
-        // TODO: [perf opt] Cache this
+        // TODO: [perf opt] Cache this or impl differently.
         self.share_ids_iter()
             .filter(|node_id| self.share_id_to_node(node_id).expect("valid ids").id == id)
             .collect::<Vec<_>>()
@@ -146,18 +142,23 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
+    ///
     /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To get the best results,
     /// set it to 1.
-    pub fn reduce(&self, t: u16, allowed_delta: u16, total_weight_lower_bound: u32) -> (Self, u16) {
+    ///
+    /// Assumption: reduce is called only once per a set of parameters (and not repeatedly).
+    pub fn reduce(&self, t: u16, allowed_delta: u16, total_weight_lower_bound: u16) -> (Self, u16) {
         assert!(total_weight_lower_bound <= self.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {
             // Break if we reached the lower bound.
+            // U16 is safe here since total_weight is u16.
             let new_total_weight = self.nodes.iter().map(|n| n.weight / d).sum::<u16>();
-            if new_total_weight < total_weight_lower_bound as u16 {
+            if new_total_weight < total_weight_lower_bound {
                 break;
             }
             // Compute the precision loss.
+            // U16 is safe here since total_weight is u16.
             let delta = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if delta <= allowed_delta {
                 max_d = d;
@@ -179,7 +180,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .collect::<Vec<_>>();
         let accumulated_weights = Self::get_accumulated_weights(&nodes);
         let nodes_with_nonzero_weight = Self::filter_nonzero_weights(&nodes);
-        let total_weight = nodes.iter().map(|n| n.weight as u32).sum::<u32>();
+        // U16 is safe here since the original total_weight is u16.
+        let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t / max_d + (t % max_d != 0) as u16;
         (
             Self {

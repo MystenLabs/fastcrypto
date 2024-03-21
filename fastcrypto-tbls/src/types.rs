@@ -7,7 +7,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
 use serde::{Deserialize, Serialize};
-use std::num::NonZeroU32;
+use std::num::NonZeroU16;
 
 /// Implementation of [ThresholdBls] for BLS12-381-min-sig. A variant for BLS12-381-min-pk can be
 /// defined in a similar way if needed in the future.
@@ -41,7 +41,7 @@ pub type Signature = <ThresholdBls12381MinSig as tbls::ThresholdBls>::Signature;
 pub type RawSignature = bls12381::G1ElementAsBytes;
 
 /// Indexes of shares/private keys (0 is reserved for the secret itself).
-pub type ShareIndex = NonZeroU32;
+pub type ShareIndex = NonZeroU16;
 
 /// Wrapper of a value that is associated with a specific index.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

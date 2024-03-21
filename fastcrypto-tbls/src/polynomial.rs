@@ -30,15 +30,16 @@ pub type PublicPoly<C> = Poly<C>;
 
 impl<C> Poly<C> {
     /// Returns the degree of the polynomial
-    pub fn degree(&self) -> u32 {
+    pub fn degree(&self) -> u16 {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
-        (self.0.len() - 1) as u32
+        (self.0.len() - 1) as u16
     }
 }
 
 impl<C> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
+        assert!((c.len() - 1) <= u16::MAX as usize);
         Self(c)
     }
 }
@@ -91,7 +92,7 @@ impl<C: GroupElement> Poly<C> {
 
     // Expects exactly t unique shares.
     fn get_lagrange_coefficients_for_c0(
-        t: u32,
+        t: u16,
         mut shares: impl Iterator<Item = impl Borrow<Eval<C>>>,
     ) -> FastCryptoResult<Vec<C::ScalarType>> {
         let mut ids_set = HashSet::new();
@@ -125,6 +126,7 @@ impl<C: GroupElement> Poly<C> {
                         negative = !negative;
                         i - j
                     } else {
+                        // i < j (but not equal)
                         j - i
                     };
                     debug_assert_ne!(diff, 0);
@@ -135,11 +137,12 @@ impl<C: GroupElement> Poly<C> {
                     }
                 },
             );
-
-            denominator = denominator * C::ScalarType::from(remaining); // remaining != 0
+            debug_assert_ne!(remaining, 0);
+            denominator = denominator * C::ScalarType::from(remaining);
             if negative {
                 denominator = -denominator;
             }
+            // TODO: Consider returning full_numerator and dividing once outside instead of here per iteration.
             let coeff = full_numerator / denominator;
             coeffs.push(coeff.expect("safe since i != j"));
         }
@@ -148,7 +151,7 @@ impl<C: GroupElement> Poly<C> {
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
     pub fn recover_c0(
-        t: u32,
+        t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> Result<C, FastCryptoError> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
@@ -188,7 +191,7 @@ impl<C: Scalar> Poly<C> {
     /// Returns a new polynomial of the given degree where each coefficients is
     /// sampled at random from the given RNG.
     /// In the context of secret sharing, the threshold is the degree + 1.
-    pub fn rand<R: AllowedRng>(degree: u32, rng: &mut R) -> Self {
+    pub fn rand<R: AllowedRng>(degree: u16, rng: &mut R) -> Self {
         let coeffs: Vec<C> = (0..=degree).map(|_| C::rand(rng)).collect();
         Self::from(coeffs)
     }
@@ -210,7 +213,7 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's
     /// constant term.
     pub fn recover_c0_msm(
-        t: u32,
+        t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> Result<C, FastCryptoError> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;

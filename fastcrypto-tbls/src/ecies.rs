@@ -58,6 +58,7 @@ where
         Self(G::ScalarType::rand(rng))
     }
 
+    #[cfg(test)]
     pub fn from(sc: G::ScalarType) -> Self {
         Self(sc)
     }
@@ -116,6 +117,7 @@ where
     }
 }
 
+#[cfg(test)]
 impl<G: GroupElement> From<G> for PublicKey<G> {
     fn from(p: G) -> Self {
         Self(p)
@@ -123,13 +125,14 @@ impl<G: GroupElement> From<G> for PublicKey<G> {
 }
 
 impl<G: GroupElement + Serialize> Encryption<G> {
-    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
-        let hkdf_result = Self::hkdf(r_x_g);
-        // TODO: Should we just xor with the hkdf output and append with hmac?
-        let cipher = Aes256Ctr::new(
-            AesKey::<U32>::from_bytes(&hkdf_result)
+    fn sym_encrypt(k: &G) -> Aes256Ctr {
+        Aes256Ctr::new(
+            AesKey::<U32>::from_bytes(&Self::hkdf(k))
                 .expect("New shouldn't fail as use fixed size key is used"),
-        );
+        )
+    }
+    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
+        let cipher = Self::sym_encrypt(r_x_g);
         let encrypted_message = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
         Self(*r_g, encrypted_message)
     }
@@ -147,11 +150,7 @@ impl<G: GroupElement + Serialize> Encryption<G> {
     }
 
     pub fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
-        let hkdf_result = Self::hkdf(partial_key);
-        let cipher = Aes256Ctr::new(
-            AesKey::<U32>::from_bytes(&hkdf_result)
-                .expect("New shouldn't fail as use fixed size key is used"),
-        );
+        let cipher = Self::sym_encrypt(partial_key);
         cipher
             .decrypt(&Self::fixed_zero_nonce(), &self.1)
             .expect("Decrypt should never fail for CTR mode")

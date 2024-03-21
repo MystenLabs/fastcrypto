@@ -81,7 +81,7 @@ pub trait ThresholdBls {
         if points.is_empty() {
             return Ok(());
         }
-        let rs = get_random_scalars::<Self::Private, R>(points.len() as u32, rng);
+        let rs = get_random_scalars::<Self::Private, R>(points.len(), rng);
         // TODO: should we cache it instead? that would replace t-wide msm with w-wide msm.
         let coeffs = batch_coefficients(&rs, &evals_as_scalars, vss_pk.degree());
         let pk = Self::Public::multi_scalar_mul(&coeffs, vss_pk.as_vec()).expect("sizes match");
@@ -92,7 +92,7 @@ pub trait ThresholdBls {
 
     /// Interpolate partial signatures to recover the full signature.
     fn aggregate(
-        threshold: u32,
+        threshold: u16,
         partials: impl Iterator<Item = impl Borrow<PartialSignature<Self::Signature>>> + Clone,
     ) -> FastCryptoResult<Self::Signature> {
         let unique_partials = partials
