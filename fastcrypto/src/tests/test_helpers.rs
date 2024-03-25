@@ -3,8 +3,8 @@
 
 use crate::hash::{HashFunction, Sha256};
 use crate::traits::KeyPair;
-use aes::cipher::crypto_common::rand_core::SeedableRng;
 use rand::prelude::StdRng;
+use rand::SeedableRng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::fmt::Debug;
