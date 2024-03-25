@@ -18,7 +18,7 @@ use fastcrypto::{
     traits::{KeyPair, RecoverableSigner, ToFromBytes, VerifyRecoverable, VerifyingKey},
 };
 use rand::rngs::StdRng;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use std::{
     io::{Error, ErrorKind},
     str::FromStr,
@@ -35,6 +35,15 @@ enum Command {
 
     /// Verify the signature against the message and public key using the signature scheme.
     Verify(VerifiyingArguments),
+
+    Raffle(RaffleArgments),
+}
+
+
+#[derive(Parser, Clone)]
+struct RaffleArgments {
+    #[clap(long)]
+    drand_result: String,
 }
 
 #[derive(Parser, Clone)]
@@ -285,6 +294,15 @@ fn execute(cmd: Command) -> Result<(), FastCryptoError> {
                 Err(_) => return Err(FastCryptoError::InvalidInput),
             };
             println!("Verify result: {:?}", res);
+            Ok(())
+        }
+        Command::Raffle(arg) => {
+            let drand_result = Hex::decode(&arg.drand_result).map_err(|_| FastCryptoError::InvalidInput)?;
+            let mut array_u8: [u8; 32] = [0; 32]; // Initialize array with default values
+            array_u8.copy_from_slice(&drand_result);
+            let mut rng: StdRng = StdRng::from_seed(array_u8);
+            let n = rng.gen_range(1..=47);
+            println!("The winner is: {:?}", n);
             Ok(())
         }
     }
