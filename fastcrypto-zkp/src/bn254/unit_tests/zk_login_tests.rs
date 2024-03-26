@@ -5,14 +5,13 @@ use std::str::FromStr;
 
 use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::utils::{
-    big_int_str_to_bytes, gen_address_seed, gen_address_seed_with_salt_hash, get_nonce,
-    get_zk_login_address,
+    gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
-    parse_jwks, to_field, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
+    parse_fr_field_element, parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
 };
 use crate::bn254::zk_login::{fetch_jwks, OIDCProvider};
 use crate::bn254::zk_login_api::ZkLoginEnv;
@@ -21,6 +20,7 @@ use crate::bn254::{
     zk_login::{ZkLoginInputs, JWK},
     zk_login_api::verify_zk_login,
 };
+use crate::circom::Bn254FrElement;
 use ark_bn254::Fr;
 use ark_std::rand::rngs::StdRng;
 use ark_std::rand::SeedableRng;
@@ -109,7 +109,7 @@ async fn test_verify_zk_login_google() {
     .unwrap();
 
     // Get a proof from endpoint and serialize it.
-    let zk_login_inputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"8247215875293406890829839156897863742504615191361518281091302475904551111016\",\"6872980335748205979379321982220498484242209225765686471076081944034292159666\",\"1\"],\"b\":[[\"21419680064642047510915171723230639588631899775315750803416713283740137406807\",\"21566716915562037737681888858382287035712341650647439119820808127161946325890\"],[\"17867714710686394159919998503724240212517838710399045289784307078087926404555\",\"21812769875502013113255155836896615164559280911997219958031852239645061854221\"],[\"1\",\"0\"]],\"c\":[\"7530826803702928198368421787278524256623871560746240215547076095911132653214\",\"16244547936249959771862454850485726883972969173921727256151991751860694123976\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjZmNzI1NDEwMWY1NmU0MWNmMzVjOTkyNmRlODRhMmQ1NTJiNGM2ZjEiLCJ0eXAiOiJKV1QifQ\"}", &address_seed).unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_json("{\"proofPoints\":{\"a\":[\"8247215875293406890829839156897863742504615191361518281091302475904551111016\",\"6872980335748205979379321982220498484242209225765686471076081944034292159666\",\"1\"],\"b\":[[\"21419680064642047510915171723230639588631899775315750803416713283740137406807\",\"21566716915562037737681888858382287035712341650647439119820808127161946325890\"],[\"17867714710686394159919998503724240212517838710399045289784307078087926404555\",\"21812769875502013113255155836896615164559280911997219958031852239645061854221\"],[\"1\",\"0\"]],\"c\":[\"7530826803702928198368421787278524256623871560746240215547076095911132653214\",\"16244547936249959771862454850485726883972969173921727256151991751860694123976\",\"1\"]},\"issBase64Details\":{\"value\":\"yJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLC\",\"indexMod4\":1},\"headerBase64\":\"eyJhbGciOiJSUzI1NiIsImtpZCI6IjZmNzI1NDEwMWY1NmU0MWNmMzVjOTkyNmRlODRhMmQ1NTJiNGM2ZjEiLCJ0eXAiOiJKV1QifQ\"}", &address_seed.to_string()).unwrap();
     assert_eq!(
         zk_login_inputs.get_kid(),
         "6f7254101f56e41cf35c9926de84a2d552b4c6f1".to_string()
@@ -118,7 +118,10 @@ async fn test_verify_zk_login_google() {
         zk_login_inputs.get_iss(),
         OIDCProvider::Google.get_config().iss
     );
-    assert_eq!(zk_login_inputs.get_address_seed(), address_seed);
+    assert_eq!(
+        zk_login_inputs.get_address_seed().to_string(),
+        address_seed.to_string()
+    );
     assert_eq!(
         get_zk_login_address(
             zk_login_inputs.get_address_seed(),
@@ -190,6 +193,11 @@ fn test_parse_jwt_details() {
 
 #[test]
 fn test_decode_base64() {
+    assert_eq!(
+        decode_base64_url("aa", &1).unwrap_err(),
+        FastCryptoError::GeneralError("Invalid UTF8 string".to_string())
+    );
+
     assert_eq!(
         decode_base64_url("", &0).unwrap_err(),
         FastCryptoError::GeneralError("Base64 string smaller than 2".to_string())
@@ -472,7 +480,7 @@ fn test_gen_seed() {
     )
     .unwrap();
     assert_eq!(
-        address_seed,
+        address_seed.to_string(),
         "16657007263003735230240998439420301694514420923267872433517882233836276100450".to_string()
     );
 }
@@ -487,9 +495,12 @@ fn test_verify_zk_login() {
     let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
     let salt = "6588741469050502421550140105345050859";
     let iss = "https://accounts.google.com";
-    let salt_hash = poseidon_zk_login(vec![to_field(salt).unwrap()])
-        .unwrap()
-        .to_string();
+    let salt_hash = poseidon_zk_login(vec![parse_fr_field_element(
+        &Bn254FrElement::from_str(salt).unwrap(),
+    )
+    .unwrap()])
+    .unwrap()
+    .to_string();
     assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
 
     let address_seed = gen_address_seed_with_salt_hash(&salt_hash, name, value, aud).unwrap();
@@ -583,10 +594,11 @@ fn test_alternative_iss_for_google() {
 
     let mut eph_pubkey_bytes = vec![0];
     eph_pubkey_bytes.extend(
-        big_int_str_to_bytes(
+        BigUint::from_str(
             "3598866369818193253063936208363210863933653800990958031560302098730308306242903464",
         )
-        .unwrap(),
+        .unwrap()
+        .to_bytes_be(),
     );
     let mut all_jwk = ImHashMap::new();
     all_jwk.insert(

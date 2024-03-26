@@ -212,6 +212,6 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
-    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs)
 }
