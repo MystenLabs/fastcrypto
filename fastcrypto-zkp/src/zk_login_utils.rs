@@ -130,13 +130,17 @@ impl<'de> Deserialize<'de> for Bn254FrElement {
 }
 
 /// Convert Bn254FqElement type to arkworks' Fq.
-fn parse_fq_field_element(s: &Bn254FqElement) -> Result<Fq, FastCryptoError> {
-    Ok(Fq::from_be_bytes_mod_order(&s.0))
+impl From<&Bn254FqElement> for Fq {
+    fn from(f: &Bn254FqElement) -> Self {
+        Fq::from_be_bytes_mod_order(&f.0)
+    }
 }
 
 /// Convert Bn254FrElement type to arkworks' Fr.
-pub fn parse_fr_field_element(s: &Bn254FrElement) -> Result<Fr, FastCryptoError> {
-    Ok(Fr::from_be_bytes_mod_order(&s.0))
+impl From<&Bn254FrElement> for Fr {
+    fn from(f: &Bn254FrElement) -> Self {
+        Fr::from_be_bytes_mod_order(&f.0)
+    }
 }
 
 /// Deserialize a G1 projective point in BN254 serialized as a vector of three strings into an affine
@@ -147,12 +151,8 @@ pub(crate) fn g1_affine_from_str_projective(s: &CircomG1) -> Result<G1Affine, Fa
         return Err(FastCryptoError::InvalidInput);
     }
 
-    let g1: G1Affine = G1Projective::new_unchecked(
-        parse_fq_field_element(&s[0])?,
-        parse_fq_field_element(&s[1])?,
-        parse_fq_field_element(&s[2])?,
-    )
-    .into();
+    let g1: G1Affine =
+        G1Projective::new_unchecked((&s[0]).into(), (&s[1]).into(), (&s[2]).into()).into();
 
     if !g1.is_on_curve() || !g1.is_in_correct_subgroup_assuming_on_curve() {
         return Err(FastCryptoError::InvalidInput);
@@ -171,18 +171,9 @@ pub(crate) fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, Fa
     }
 
     let g2: G2Affine = G2Projective::new_unchecked(
-        Fq2::new(
-            parse_fq_field_element(&s[0][0])?,
-            parse_fq_field_element(&s[0][1])?,
-        ),
-        Fq2::new(
-            parse_fq_field_element(&s[1][0])?,
-            parse_fq_field_element(&s[1][1])?,
-        ),
-        Fq2::new(
-            parse_fq_field_element(&s[2][0])?,
-            parse_fq_field_element(&s[2][1])?,
-        ),
+        Fq2::new((&s[0][0]).into(), (&s[0][1]).into()),
+        Fq2::new((&s[1][0]).into(), (&s[1][1]).into()),
+        Fq2::new((&s[2][0]).into(), (&s[2][1]).into()),
     )
     .into();
 
@@ -195,7 +186,7 @@ pub(crate) fn g2_affine_from_str_projective(s: &CircomG2) -> Result<G2Affine, Fa
 
 #[cfg(test)]
 mod test {
-    use crate::circom::Bn254FqElement;
+    use crate::zk_login_utils::Bn254FqElement;
     use std::str::FromStr;
 
     use super::Bn254FrElement;
@@ -205,9 +196,12 @@ mod test {
     fn from_str_on_digits_only() {
         // do not allow non digit results.
         assert!(Bn254FrElement::from_str("10_________0").is_err());
+        assert!(Bn254FqElement::from_str("10_________0").is_err());
         // do not allow leading zeros.
         assert!(Bn254FrElement::from_str("000001").is_err());
+        assert!(Bn254FqElement::from_str("000001").is_err());
         assert!(Bn254FrElement::from_str("garbage").is_err());
+        assert!(Bn254FqElement::from_str("garbage").is_err());
     }
     #[test]
     fn unpadded_slice() {

@@ -7,9 +7,9 @@ use serde_json::Value;
 
 use super::utils::split_to_two_frs;
 use crate::bn254::poseidon::poseidon_zk_login;
-use crate::circom::{
-    g1_affine_from_str_projective, g2_affine_from_str_projective, parse_fr_field_element,
-    Bn254FrElement, CircomG1, CircomG2,
+use crate::zk_login_utils::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
+    CircomG2,
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
@@ -379,14 +379,12 @@ impl ZkLoginInputs {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let addr_seed = parse_fr_field_element(&self.address_seed)?;
+        let addr_seed = (&self.address_seed).into();
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let max_epoch_f =
-            parse_fr_field_element(&Bn254FrElement::from_str(&max_epoch.to_string())?)?;
-        let index_mod_4_f = parse_fr_field_element(&Bn254FrElement::from_str(
-            &self.iss_base64_details.index_mod_4.to_string(),
-        )?)?;
+        let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
+        let index_mod_4_f =
+            (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?).into();
 
         let iss_base64_f =
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;

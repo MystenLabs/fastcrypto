@@ -24,4 +24,4 @@ pub mod bn254;
 pub mod dummy_circuits;
 
 /// Circom-compatible deserialization of points
-pub mod circom;
+pub mod zk_login_utils;

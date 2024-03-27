@@ -4,7 +4,7 @@
 use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
-use crate::circom::{parse_fr_field_element, Bn254FrElement};
+use crate::zk_login_utils::Bn254FrElement;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::rsa::Base64UrlUnpadded;
@@ -43,9 +43,7 @@ pub fn gen_address_seed(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    let salt_hash = poseidon_zk_login(vec![parse_fr_field_element(&Bn254FrElement::from_str(
-        salt,
-    )?)?])?;
+    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt)?).into()])?;
     gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
 }
 
@@ -60,7 +58,7 @@ pub(crate) fn gen_address_seed_with_salt_hash(
         hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
         hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
         hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
-        parse_fr_field_element(&Bn254FrElement::from_str(salt_hash)?)?,
+        (&Bn254FrElement::from_str(salt_hash)?).into(),
     ])?
     .to_string())
 }

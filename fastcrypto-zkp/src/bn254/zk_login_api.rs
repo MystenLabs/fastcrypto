@@ -8,7 +8,7 @@ use fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
 use super::zk_login::{JwkId, ZkLoginInputs, JWK};
 use crate::bn254::utils::{gen_address_seed_with_salt_hash, get_zk_login_address};
-use crate::circom::{
+use crate::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FqElement, Bn254FrElement,
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
