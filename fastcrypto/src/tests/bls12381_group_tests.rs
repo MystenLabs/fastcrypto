@@ -137,7 +137,7 @@ fn test_g1_msm_identity() {
         &[Scalar::zero(), Scalar::generator()],
         &[G1Element::generator(), G1Element::generator()],
     )
-        .unwrap();
+    .unwrap();
     assert_eq!(G1Element::generator(), actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
@@ -231,7 +231,7 @@ fn test_g2_msm_identity() {
         &[Scalar::zero(), Scalar::generator()],
         &[G2Element::generator(), G2Element::generator()],
     )
-        .unwrap();
+    .unwrap();
     assert_eq!(G2Element::generator(), actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
