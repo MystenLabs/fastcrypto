@@ -4,6 +4,7 @@
 use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
+use crate::zk_login_utils::Bn254FrElement;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::hash::{Blake2b256, HashFunction};
 use fastcrypto::rsa::Base64UrlUnpadded;
@@ -14,7 +15,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::str::FromStr;
 
-use super::zk_login::{hash_ascii_str_to_field, to_field};
+use super::zk_login::hash_ascii_str_to_field;
 
 const ZK_LOGIN_AUTHENTICATOR_FLAG: u8 = 0x05;
 const MAX_KEY_CLAIM_NAME_LENGTH: u8 = 32;
@@ -22,13 +23,16 @@ const MAX_KEY_CLAIM_VALUE_LENGTH: u8 = 115;
 const MAX_AUD_VALUE_LENGTH: u8 = 145;
 
 /// Calculate the Sui address based on address seed and address params.
-pub fn get_zk_login_address(address_seed: &str, iss: &str) -> Result<[u8; 32], FastCryptoError> {
+pub fn get_zk_login_address(
+    address_seed: &Bn254FrElement,
+    iss: &str,
+) -> Result<[u8; 32], FastCryptoError> {
     let mut hasher = Blake2b256::default();
     hasher.update([ZK_LOGIN_AUTHENTICATOR_FLAG]);
     let bytes = iss.as_bytes();
     hasher.update([bytes.len() as u8]);
     hasher.update(bytes);
-    hasher.update(big_int_str_to_bytes(address_seed)?);
+    hasher.update(address_seed.padded());
     Ok(hasher.finalize().digest)
 }
 
@@ -39,7 +43,7 @@ pub fn gen_address_seed(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    let salt_hash = poseidon_zk_login(vec![to_field(salt)?])?;
+    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt)?).into()])?;
     gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
 }
 
@@ -54,7 +58,7 @@ pub(crate) fn gen_address_seed_with_salt_hash(
         hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
         hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
         hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
-        to_field(salt_hash)?,
+        (&Bn254FrElement::from_str(salt_hash)?).into(),
     ])?
     .to_string())
 }
@@ -195,11 +199,4 @@ pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastC
     let eph_public_key_0 = Bn254Fr::from(first_bigint);
     let eph_public_key_1 = Bn254Fr::from(second_bigint);
     Ok((eph_public_key_0, eph_public_key_1))
-}
-
-/// Convert a big int string to a big endian bytearray.
-pub fn big_int_str_to_bytes(value: &str) -> Result<Vec<u8>, FastCryptoError> {
-    Ok(BigUint::from_str(value)
-        .map_err(|_| FastCryptoError::InvalidInput)?
-        .to_bytes_be())
 }

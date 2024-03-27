@@ -7,8 +7,9 @@ use serde_json::Value;
 
 use super::utils::split_to_two_frs;
 use crate::bn254::poseidon::poseidon_zk_login;
-use crate::circom::{
-    g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
+use crate::zk_login_utils::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
+    CircomG2,
 };
 pub use ark_bn254::{Bn254, Fr as Bn254Fr};
 pub use ark_ff::ToConstraintField;
@@ -301,7 +302,7 @@ pub struct ZkLoginInputs {
     proof_points: ZkLoginProof,
     iss_base64_details: Claim,
     header_base64: String,
-    address_seed: String,
+    address_seed: Bn254FrElement,
     #[serde(skip)]
     jwt_details: JWTDetails,
 }
@@ -334,7 +335,8 @@ impl ZkLoginInputs {
             proof_points: reader.proof_points,
             iss_base64_details: reader.iss_base64_details,
             header_base64: reader.header_base64,
-            address_seed: address_seed.to_owned(),
+            address_seed: Bn254FrElement::from_str(address_seed)
+                .map_err(|_| FastCryptoError::InvalidInput)?,
             jwt_details: reader.jwt_details,
         }
         .init()
@@ -342,9 +344,6 @@ impl ZkLoginInputs {
 
     /// Initialize JWTDetails by parsing header_base64 and iss_base64_details.
     pub fn init(&mut self) -> Result<Self, FastCryptoError> {
-        if BigUint::from_str(&self.address_seed).is_err() {
-            return Err(FastCryptoError::InvalidInput);
-        }
         self.jwt_details = JWTDetails::new(&self.header_base64, &self.iss_base64_details)?;
         Ok(self.to_owned())
     }
@@ -365,7 +364,7 @@ impl ZkLoginInputs {
     }
 
     /// Get the address seed string.
-    pub fn get_address_seed(&self) -> &str {
+    pub fn get_address_seed(&self) -> &Bn254FrElement {
         &self.address_seed
     }
 
@@ -380,11 +379,12 @@ impl ZkLoginInputs {
             return Err(FastCryptoError::GeneralError("Header too long".to_string()));
         }
 
-        let addr_seed = to_field(&self.address_seed)?;
+        let addr_seed = (&self.address_seed).into();
         let (first, second) = split_to_two_frs(eph_pk_bytes)?;
 
-        let max_epoch_f = to_field(&max_epoch.to_string())?;
-        let index_mod_4_f = to_field(&self.iss_base64_details.index_mod_4.to_string())?;
+        let max_epoch_f = (&Bn254FrElement::from_str(&max_epoch.to_string())?).into();
+        let index_mod_4_f =
+            (&Bn254FrElement::from_str(&self.iss_base64_details.index_mod_4.to_string())?).into();
 
         let iss_base64_f =
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
@@ -534,12 +534,6 @@ fn bitarray_to_bytearray(bits: &[u8]) -> FastCryptoResult<Vec<u8>> {
             byte
         })
         .collect())
-}
-
-/// Convert a bigint string to a field element.
-pub fn to_field(val: &str) -> Result<Bn254Fr, FastCryptoError> {
-    Bn254Fr::from_str(val)
-        .map_err(|_| FastCryptoError::GeneralError("Convert to field error".to_string()))
 }
 
 /// Pads a stream of bytes and maps it to a field element
