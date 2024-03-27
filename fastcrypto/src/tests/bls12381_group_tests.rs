@@ -121,7 +121,7 @@ fn test_g1_msm_single() {
     assert_eq!(G1Element::generator(), actual);
 
     let r = Scalar::rand(&mut thread_rng());
-    let actual = G1Element::multi_scalar_mul(&[r.clone()], &[G1Element::generator()]).unwrap();
+    let actual = G1Element::multi_scalar_mul(&[r], &[G1Element::generator()]).unwrap();
     assert_eq!(G1Element::generator() * r, actual);
 }
 
@@ -137,7 +137,7 @@ fn test_g1_msm_identity() {
         &[Scalar::zero(), Scalar::generator()],
         &[G1Element::generator(), G1Element::generator()],
     )
-    .unwrap();
+        .unwrap();
     assert_eq!(G1Element::generator(), actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
@@ -215,7 +215,7 @@ fn test_g2_msm_single() {
     assert_eq!(G2Element::generator(), actual);
 
     let r = Scalar::rand(&mut thread_rng());
-    let actual = G2Element::multi_scalar_mul(&[r.clone()], &[G2Element::generator()]).unwrap();
+    let actual = G2Element::multi_scalar_mul(&[r], &[G2Element::generator()]).unwrap();
     assert_eq!(G2Element::generator() * r, actual);
 }
 
@@ -231,7 +231,7 @@ fn test_g2_msm_identity() {
         &[Scalar::zero(), Scalar::generator()],
         &[G2Element::generator(), G2Element::generator()],
     )
-    .unwrap();
+        .unwrap();
     assert_eq!(G2Element::generator(), actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
