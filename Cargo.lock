@@ -1537,6 +1537,7 @@ dependencies = [
  "once_cell",
  "poseidon-ark",
  "proptest",
+ "regex",
  "reqwest",
  "schemars",
  "serde",
