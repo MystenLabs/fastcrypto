@@ -19,7 +19,7 @@ pub type CircomG2 = Vec<Vec<Bn254FqElement>>;
 
 /// A struct that stores a Bn254 Fq field element as 32 bytes.
 #[derive(Debug, Clone, JsonSchema, Eq, PartialEq)]
-pub struct Bn254FqElement([u8; 32]);
+pub struct Bn254FqElement(#[schemars(with = "String")] [u8; 32]);
 
 impl std::str::FromStr for Bn254FqElement {
     type Err = FastCryptoError;
@@ -64,7 +64,7 @@ impl<'de> Deserialize<'de> for Bn254FqElement {
 
 /// A struct that stores a Bn254 Fr field element as 32 bytes.
 #[derive(Debug, Clone, JsonSchema, Eq, PartialEq)]
-pub struct Bn254FrElement([u8; 32]);
+pub struct Bn254FrElement(#[schemars(with = "String")] [u8; 32]);
 
 impl Bn254FrElement {
     /// Returns the unpadded version of the field element. This returns with leading zeros removed.
