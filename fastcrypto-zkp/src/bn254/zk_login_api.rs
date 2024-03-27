@@ -332,9 +332,7 @@ pub fn verify_zk_login(
     let jwk_id = JwkId::new(iss.clone(), kid.clone());
     let jwk = all_jwk
         .get(&jwk_id)
-        .ok_or_else(|| {
-            FastCryptoError::GeneralError(format!("JWK not found ({:?})", jwk_id))
-        })?;
+        .ok_or_else(|| FastCryptoError::GeneralError(format!("JWK not found ({:?})", jwk_id)))?;
 
     // Decode modulus to bytes.
     let modulus = Base64UrlUnpadded::decode_vec(&jwk.n).map_err(|_| {

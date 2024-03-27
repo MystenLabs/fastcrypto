@@ -253,6 +253,8 @@ pub struct JWK {
     pub e: String,
     /// RSA modulus, https://datatracker.ietf.org/doc/html/rfc7517#section-9.3
     pub n: String,
+    /// Algorithm parameter, https://datatracker.ietf.org/doc/html/rfc7517#section-4.4
+    pub alg: String,
 }
 
 /// Reader struct to parse all fields in a JWK from JSON.
@@ -289,6 +291,7 @@ impl JWK {
             kty: reader.kty,
             e: trimmed_e,
             n: trim(reader.n),
+            alg: "RS256".to_string(),
         })
     }
 }

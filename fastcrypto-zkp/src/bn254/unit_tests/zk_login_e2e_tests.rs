@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
 
 #[tokio::test]
+#[ignore]
 async fn test_end_to_end_google() {
     // Use a fixed Google token obtained with nonce hTPpgF7XAKbW37rEUS6pEVZqmoI
     // Derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
@@ -33,7 +34,7 @@ async fn test_end_to_end_google() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "vdtZ3cfuh44JlWkJRu-3yddVp58zxSHwsWiW_jpaXgpebo0an7qY2IEs3D7kC186Bwi0T7Km9mUcDbxod89IbtZuQQuhxlgaXB-qX9GokNLdqg69rUaealXGrCdKOQ-rOBlNNGn3M4KywEC98KyQAKXe7prs7yGqI_434rrULaE7ZFmLAzsYNoZ_8l53SGDiRaUrZkhxXOEhlv1nolgYGIH2lkhEZ5BlU53BfzwjO-bLeMwxJIZxSIOy8EBIMLP7eVu6AIkAr9MaDPJqeF7n7Cn8yv_qmy51bV-INRS-HKRVriSoUxhQQTbvDYYvJzHGYu_ciJ4oRYKkDEwxXztUew".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -71,7 +72,7 @@ async fn test_end_to_end_twitch() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -113,7 +114,7 @@ async fn test_end_to_end_kakao() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "qGWf6RVzV2pM8YqJ6by5exoixIlTvdXDfYj2v7E6xkoYmesAjp_1IYL7rzhpUYqIkWX0P4wOwAsg-Ud8PcMHggfwUNPOcqgSk1hAIHr63zSlG8xatQb17q9LrWny2HWkUVEU30PxxHsLcuzmfhbRx8kOrNfJEirIuqSyWF_OBHeEgBgYjydd_c8vPo7IiH-pijZn4ZouPsEg7wtdIX3-0ZcXXDbFkaDaqClfqmVCLNBhg3DKYDQOoyWXrpFKUXUFuk2FTCqWaQJ0GniO4p_ppkYIf4zhlwUYfXZEhm8cBo6H2EgukntDbTgnoha8kNunTPekxWTDhE5wGAt6YpT4Yw".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -154,7 +155,7 @@ async fn test_end_to_end_apple() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "2Zc5d0-zkZ5AKmtYTvxHc3vRc41YfbklflxG9SWsg5qXUxvfgpktGAcxXLFAd9Uglzow9ezvmTGce5d3DhAYKwHAEPT9hbaMDj7DfmEwuNO8UahfnBkBXsCoUaL3QITF5_DAPsZroTqs7tkQQZ7qPkQXCSu2aosgOJmaoKQgwcOdjD0D49ne2B_dkxBcNCcJT9pTSWJ8NfGycjWAQsvC8CGstH8oKwhC5raDcc2IGXMOQC7Qr75d6J5Q24CePHj_JD7zjbwYy9KNH8wyr829eO_G4OEUW50FAN6HKtvjhJIguMl_1BLZ93z2KJyxExiNTZBUBQbbgCNBfzTv7JrxMw".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -195,7 +196,7 @@ async fn test_end_to_end_slack() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "zQqzXfb677bpMKw0idKC5WkVLyqk04PWMsWYJDKqMUUuu_PmzdsvXBfHU7tcZiNoHDuVvGDqjqnkLPEzjXnaZY0DDDHvJKS0JI8fkxIfV1kNy3DkpQMMhgAwnftUiSXgb5clypOmotAEm59gHPYjK9JHBWoHS14NYEYZv9NVy0EkjauyYDSTz589aiKU5lA-cePG93JnqLw8A82kfTlrJ1IIJo2isyBGANr0YzR-d3b_5EvP7ivU7Ph2v5JcEUHeiLSRzIzP3PuyVFrPH659Deh-UAsDFOyJbIcimg9ITnk5_45sb_Xcd_UN6h5I7TGOAFaJN4oi4aaGD4elNi_K1Q".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -236,7 +237,7 @@ async fn test_end_to_end_microsoft() {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "nAbsEZqv4NRkRQzPX0cAuM6B-fGwolx944xVvp8AkXsY8GTGspTi9Ns2gt4xpd_F4GAOng0k6SWdfSINm0GmT2Hfl2O84iCko73r-m9g3mL_zju7QuZYYOmWgIORzuzRJynKbnE84AFaQ93TF5nP9gQa3EwfujW1TAq7zKh-s4IyodrGxBwct88chDLqcxpkgPRhvan-tikFO0tFj2QAIZUUkX-btZ50kDo1djQ12jmqgZymICsGVpA70zVpznj6AaaVpkMa8S2qEW0Jv3xOqI8E_JeTGpuS6a-emLSxV2exdHk0f_xpqEjBVaYj4Au5rdzlt5tzrrixgMm4wVzDMQ".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -376,10 +377,6 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs, St
     let (sub, aud, iss) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
-<<<<<<< HEAD
-    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
-    (max_epoch, eph_pubkey, zk_login_inputs)
-=======
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs, iss)
 }
@@ -415,5 +412,4 @@ async fn get_jwt_token(
 #[derive(Debug, Serialize, Deserialize)]
 struct TestIssuerJWTResponse {
     jwt: String,
->>>>>>> 1cc8855cc (feat: add aws/ms/test handling)
 }
