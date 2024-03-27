@@ -116,7 +116,8 @@ fn test_g1_msm() {
 
 #[test]
 fn test_g1_msm_single() {
-    let actual = G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::generator()]).unwrap();
+    let actual =
+        G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::generator()]).unwrap();
     assert_eq!(G1Element::generator(), actual);
 
     let r = Scalar::rand(&mut thread_rng());
@@ -132,8 +133,20 @@ fn test_g1_msm_identity() {
     let actual = G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::zero()]).unwrap();
     assert_eq!(G1Element::zero(), actual);
 
-    let actual = G1Element::multi_scalar_mul(&[Scalar::zero(), Scalar::generator()], &[G1Element::generator(), G1Element::generator()]).unwrap();
+    let actual = G1Element::multi_scalar_mul(
+        &[Scalar::zero(), Scalar::generator()],
+        &[G1Element::generator(), G1Element::generator()],
+    )
+    .unwrap();
     assert_eq!(G1Element::generator(), actual);
+
+    // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
+    // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
+    let ones = vec![Scalar::generator(); 100];
+    let mut points = vec![G1Element::generator(); 99];
+    points.push(G1Element::zero());
+    let actual = G1Element::multi_scalar_mul(&ones, &points).unwrap();
+    assert_eq!(G1Element::generator() * Scalar::from(99), actual);
 }
 
 #[test]
@@ -197,7 +210,8 @@ fn test_g2_msm() {
 
 #[test]
 fn test_g2_msm_single() {
-    let actual = G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::generator()]).unwrap();
+    let actual =
+        G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::generator()]).unwrap();
     assert_eq!(G2Element::generator(), actual);
 
     let r = Scalar::rand(&mut thread_rng());
@@ -213,8 +227,20 @@ fn test_g2_msm_identity() {
     let actual = G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::zero()]).unwrap();
     assert_eq!(G2Element::zero(), actual);
 
-    let actual = G2Element::multi_scalar_mul(&[Scalar::zero(), Scalar::generator()], &[G2Element::generator(), G2Element::generator()]).unwrap();
+    let actual = G2Element::multi_scalar_mul(
+        &[Scalar::zero(), Scalar::generator()],
+        &[G2Element::generator(), G2Element::generator()],
+    )
+    .unwrap();
     assert_eq!(G2Element::generator(), actual);
+
+    // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
+    // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
+    let ones = vec![Scalar::generator(); 100];
+    let mut points = vec![G2Element::generator(); 99];
+    points.push(G2Element::zero());
+    let actual = G2Element::multi_scalar_mul(&ones, &points).unwrap();
+    assert_eq!(G2Element::generator() * Scalar::from(99), actual);
 }
 
 #[test]
