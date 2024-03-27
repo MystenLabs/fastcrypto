@@ -160,8 +160,20 @@ impl MultiScalarMul for G1Element {
         if scalars.len() != points.len() || scalars.is_empty() {
             return Err(FastCryptoError::InvalidInput);
         }
+        // Unfortunately we copy since blst does not filter out inf
+        // https://github.com/supranational/blst/blob/704c7f6d5f99ebb6bda84f635122e449ee51aa48/src/multi_scalar.c#L11
+        let (scalars, points): (Vec<_>, Vec<_>) = scalars.iter().zip(points.iter())
+            .filter(|(&s, &p)| s != Scalar::zero() && p != Self::zero())
+            .map(|(&s, &p)| (s, p))
+            .unzip();
+        // We already checked that scalars is not empty above so if it's empty here, it means
+        // that all the points are zero.
+        if scalars.is_empty() {
+            return Ok(G1Element::zero());
+        }
+
         // Inspired by blstrs.
-        let points = to_blst_type_slice(points);
+        let points = to_blst_type_slice(&points);
         let points = p1_affines::from(points);
         let mut scalar_bytes: Vec<u8> = Vec::with_capacity(scalars.len() * 32);
         for a in scalars.iter().map(|s| s.0) {

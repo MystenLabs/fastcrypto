@@ -115,6 +115,28 @@ fn test_g1_msm() {
 }
 
 #[test]
+fn test_g1_msm_single() {
+    let actual = G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::generator()]).unwrap();
+    assert_eq!(G1Element::generator(), actual);
+
+    let r = Scalar::rand(&mut thread_rng());
+    let actual = G1Element::multi_scalar_mul(&[r.clone()], &[G1Element::generator()]).unwrap();
+    assert_eq!(G1Element::generator() * r, actual);
+}
+
+#[test]
+fn test_g1_msm_identity() {
+    let actual = G1Element::multi_scalar_mul(&[Scalar::zero()], &[G1Element::generator()]).unwrap();
+    assert_eq!(G1Element::zero(), actual);
+
+    let actual = G1Element::multi_scalar_mul(&[Scalar::generator()], &[G1Element::zero()]).unwrap();
+    assert_eq!(G1Element::zero(), actual);
+
+    let actual = G1Element::multi_scalar_mul(&[Scalar::zero(), Scalar::generator()], &[G1Element::generator(), G1Element::generator()]).unwrap();
+    assert_eq!(G1Element::generator(), actual);
+}
+
+#[test]
 fn test_g2_arithmetic() {
     // Test that different ways of computing [5]G gives the expected result
     let g = G2Element::generator();
@@ -171,6 +193,28 @@ fn test_g2_msm() {
 
     assert!(G2Element::multi_scalar_mul(&scalars[1..], &points).is_err());
     assert!(G2Element::multi_scalar_mul(&[], &[]).is_err());
+}
+
+#[test]
+fn test_g2_msm_single() {
+    let actual = G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::generator()]).unwrap();
+    assert_eq!(G2Element::generator(), actual);
+
+    let r = Scalar::rand(&mut thread_rng());
+    let actual = G2Element::multi_scalar_mul(&[r.clone()], &[G2Element::generator()]).unwrap();
+    assert_eq!(G2Element::generator() * r, actual);
+}
+
+#[test]
+fn test_g2_msm_identity() {
+    let actual = G2Element::multi_scalar_mul(&[Scalar::zero()], &[G2Element::generator()]).unwrap();
+    assert_eq!(G2Element::zero(), actual);
+
+    let actual = G2Element::multi_scalar_mul(&[Scalar::generator()], &[G2Element::zero()]).unwrap();
+    assert_eq!(G2Element::zero(), actual);
+
+    let actual = G2Element::multi_scalar_mul(&[Scalar::zero(), Scalar::generator()], &[G2Element::generator(), G2Element::generator()]).unwrap();
+    assert_eq!(G2Element::generator(), actual);
 }
 
 #[test]
