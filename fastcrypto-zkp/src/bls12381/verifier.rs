@@ -1,15 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use std::borrow::Borrow;
-use std::{iter, ops::Neg, ptr};
+use std::{iter, ops::Neg};
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr as BlsFr, G1Affine, G2Affine};
 
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use blst::{
     blst_final_exp, blst_fp, blst_fp12, blst_fr, blst_miller_loop, blst_p1, blst_p1_add_or_double,
-    blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_p1s_mult_pippenger,
-    blst_p1s_mult_pippenger_scratch_sizeof, blst_scalar, blst_scalar_from_fr, limb_t, Pairing,
+    blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine, blst_scalar,
+    blst_scalar_from_fr, Pairing,
 };
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::{error::FastCryptoError, utils::log2_byte};
@@ -269,45 +269,15 @@ fn g1_linear_combination(
     coeffs: &[blst_fr],
     len: usize,
 ) {
-    if len < 8 {
-        // Direct approach
-        let mut tmp;
-        *out = G1_IDENTITY;
-        for i in 0..len {
-            let mut p = blst_p1::default();
-            unsafe { blst_p1_from_affine(&mut p, &p_affine[i]) };
+    // Direct approach
+    let mut tmp;
+    *out = G1_IDENTITY;
+    for i in 0..len {
+        let mut p = blst_p1::default();
+        unsafe { blst_p1_from_affine(&mut p, &p_affine[i]) };
 
-            tmp = mul(&p, &coeffs[i]);
-            *out = add_or_dbl(out, &tmp);
-        }
-    } else {
-        let mut scratch: Vec<u8>;
-        unsafe {
-            scratch = vec![0u8; blst_p1s_mult_pippenger_scratch_sizeof(len)];
-        }
-
-        let mut scalars = vec![blst_scalar::default(); len];
-
-        for i in 0..len {
-            let mut scalar: blst_scalar = blst_scalar::default();
-            unsafe {
-                blst_scalar_from_fr(&mut scalar, &coeffs[i]);
-            }
-            scalars[i] = scalar
-        }
-
-        let scalars_arg: [*const blst_scalar; 2] = [scalars.as_ptr(), ptr::null()];
-        let points_arg: [*const blst_p1_affine; 2] = [p_affine.as_ptr(), ptr::null()];
-        unsafe {
-            blst_p1s_mult_pippenger(
-                out,
-                points_arg.as_ptr(),
-                len,
-                scalars_arg.as_ptr() as *const *const u8,
-                256,
-                scratch.as_mut_ptr() as *mut limb_t,
-            );
-        }
+        tmp = mul(&p, &coeffs[i]);
+        *out = add_or_dbl(out, &tmp);
     }
 }
 
