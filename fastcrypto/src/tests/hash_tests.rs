@@ -19,7 +19,6 @@ fn test_new_update_finalize() {
         digest.as_ref(),
         hex::decode("2196d60feda3cd3787885c10a905e11fae911c32a0eb67fd290ade5df7eab140").unwrap()
     );
-    println!("{}", digest);
 }
 
 #[test]
