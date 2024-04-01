@@ -464,6 +464,10 @@ fn test_get_provider() {
         OIDCProvider::Google,
         OIDCProvider::Twitch,
         OIDCProvider::Facebook,
+        OIDCProvider::Slack,
+        OIDCProvider::Kakao,
+        OIDCProvider::Apple,
+        OIDCProvider::TestIssuer,
     ] {
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
     }

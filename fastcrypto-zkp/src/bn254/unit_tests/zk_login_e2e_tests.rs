@@ -3,6 +3,8 @@
 
 use std::env;
 
+use crate::bn254::utils::get_test_issuer_jwt_token;
+use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
     utils::{gen_address_seed, get_proof},
     zk_login::{JwkId, OIDCProvider, ZkLoginInputs, JWK},
@@ -12,7 +14,6 @@ use ark_std::rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::{ed25519::Ed25519KeyPair, jwt_utils::parse_and_validate_jwt, traits::KeyPair};
 use im::HashMap as ImHashMap;
 use num_bigint::BigUint;
-
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
 
 #[tokio::test]
@@ -214,4 +215,38 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs)
+}
+
+#[tokio::test]
+async fn test_end_to_end_test_issuer() {
+    // Nonce derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
+    let client = reqwest::Client::new();
+    let parsed_token = get_test_issuer_jwt_token(
+        &client,
+        "hTPpgF7XAKbW37rEUS6pEVZqmoI",
+        "https://oauth.sui.io",
+        "12345",
+    )
+    .await
+    .unwrap()
+    .jwt;
+    // Make a map of jwk ids to jwks just for Microsoft.
+    let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&parsed_token).await;
+    let iss = zk_login_inputs.get_iss();
+    let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client)
+        .await
+        .unwrap();
+    let mut map = ImHashMap::new();
+    for (id, jwk) in jwks {
+        map.insert(id, jwk);
+    }
+    // Verify it against test vk ok.
+    let res = verify_zk_login(
+        &zk_login_inputs,
+        max_epoch,
+        &eph_pubkey,
+        &map,
+        &ZkLoginEnv::Test,
+    );
+    assert!(res.is_ok());
 }

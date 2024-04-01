@@ -90,6 +90,8 @@ pub enum OIDCProvider {
     Apple,
     /// See https://slack.com/.well-known/openid-configuration
     Slack,
+    /// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
+    TestIssuer,
 }
 
 impl FromStr for OIDCProvider {
@@ -103,6 +105,7 @@ impl FromStr for OIDCProvider {
             "Kakao" => Ok(Self::Kakao),
             "Apple" => Ok(Self::Apple),
             "Slack" => Ok(Self::Slack),
+            "TestIssuer" => Ok(Self::TestIssuer),
             _ => Err(FastCryptoError::InvalidInput),
         }
     }
@@ -117,6 +120,7 @@ impl ToString for OIDCProvider {
             Self::Kakao => "Kakao".to_string(),
             Self::Apple => "Apple".to_string(),
             Self::Slack => "Slack".to_string(),
+            Self::TestIssuer => "TestIssuer".to_string(),
         }
     }
 }
@@ -148,6 +152,10 @@ impl OIDCProvider {
             OIDCProvider::Slack => {
                 ProviderConfig::new("https://slack.com", "https://slack.com/openid/connect/keys")
             }
+            OIDCProvider::TestIssuer => ProviderConfig::new(
+                "https://oauth.sui.io",
+                "https://jwt-tester.mystenlabs.com/.well-known/jwks.json",
+            ),
         }
     }
 
@@ -160,6 +168,7 @@ impl OIDCProvider {
             "https://kauth.kakao.com" => Ok(Self::Kakao),
             "https://appleid.apple.com" => Ok(Self::Apple),
             "https://slack.com" => Ok(Self::Slack),
+            "https://oauth.sui.io" => Ok(Self::TestIssuer),
             _ => Err(FastCryptoError::InvalidInput),
         }
     }
