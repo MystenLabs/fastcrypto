@@ -194,6 +194,8 @@ impl GroupElement for RistrettoScalar {
 }
 
 impl Scalar for RistrettoScalar {
+    const SIZE_IN_BYTES: usize = RISTRETTO_SCALAR_BYTE_LENGTH;
+
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         Self(ExternalRistrettoScalar::random(rng))
     }
