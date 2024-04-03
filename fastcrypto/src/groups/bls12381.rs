@@ -768,6 +768,8 @@ impl Div<Scalar> for Scalar {
 }
 
 impl ScalarType for Scalar {
+    const SIZE_IN_BYTES: usize = SCALAR_LENGTH;
+
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         let mut buffer = [0u8; 64];
         rng.fill_bytes(&mut buffer);
