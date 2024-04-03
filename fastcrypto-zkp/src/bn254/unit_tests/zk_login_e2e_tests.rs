@@ -3,6 +3,7 @@
 
 use std::env;
 
+use crate::bn254::utils::get_nonce;
 use crate::bn254::utils::get_test_issuer_jwt_token;
 use crate::bn254::zk_login::fetch_jwks;
 use crate::bn254::{
@@ -14,6 +15,8 @@ use ark_std::rand::{rngs::StdRng, SeedableRng};
 use fastcrypto::{ed25519::Ed25519KeyPair, jwt_utils::parse_and_validate_jwt, traits::KeyPair};
 use im::HashMap as ImHashMap;
 use num_bigint::BigUint;
+use test_strategy::proptest;
+use test_strategy::Arbitrary;
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
 
 #[tokio::test]
@@ -217,36 +220,88 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     (max_epoch, eph_pubkey, zk_login_inputs)
 }
 
-#[tokio::test]
-async fn test_end_to_end_test_issuer() {
-    // Nonce derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
-    let client = reqwest::Client::new();
-    let parsed_token = get_test_issuer_jwt_token(
-        &client,
-        "hTPpgF7XAKbW37rEUS6pEVZqmoI",
-        "https://oauth.sui.io",
-        "12345",
-    )
-    .await
-    .unwrap()
-    .jwt;
-    // Make a map of jwk ids to jwks just for Microsoft.
-    let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&parsed_token).await;
-    let iss = zk_login_inputs.get_iss();
-    let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client)
+#[derive(Arbitrary, Debug)]
+struct TestInputStruct {
+    // the epoch that last till 10000 years assuming epoch duration is ~24 hours.
+    #[strategy(0..3650000u64)]
+    max_epoch: u64,
+    jwt_rand_bytes: [u8; 16],
+    salt_bytes: [u8; 16],
+    seed_ephemeral_kp: [u8; 32],
+    sub: [u8; 32],
+}
+
+#[proptest(async = "tokio")]
+async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
+    async {
+        let jwt_randomness = BigUint::from_bytes_be(&test_input.jwt_rand_bytes).to_string();
+        let user_salt = BigUint::from_bytes_be(&test_input.salt_bytes).to_string();
+        let sub = BigUint::from_bytes_be(&test_input.sub).to_string();
+        let max_epoch = test_input.max_epoch;
+
+        // Generate an ephermeral key pair.
+        let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed(test_input.seed_ephemeral_kp));
+        let mut eph_pk_bytes = vec![0x00];
+        eph_pk_bytes.extend(kp.public().as_ref());
+        let kp_bigint = BigUint::from_bytes_be(&eph_pk_bytes).to_string();
+
+        let client = reqwest::Client::new();
+
+        // Get JWT from test issuer with nonce.
+        let nonce = get_nonce(&eph_pk_bytes, max_epoch, &jwt_randomness).unwrap();
+        println!("jwt_randomness: {:?}", jwt_randomness);
+        println!("user_salt: {:?}", user_salt);
+        println!("sub: {:?}", sub);
+        println!("max_epoch: {:?}", max_epoch);
+        println!("kp_bigint: {:?}", kp_bigint);
+        println!("nonce: {:?}", nonce);
+        let parsed_token = get_test_issuer_jwt_token(
+            &client,
+            &nonce,
+            &OIDCProvider::TestIssuer.get_config().iss,
+            &sub,
+        )
+        .await
+        .unwrap()
+        .jwt;
+
+        // Get a proof from endpoint and serialize it.
+        let url = &env::var("URL").unwrap_or_else(|_| PROVER_DEV_SERVER_URL.to_owned());
+        println!("using URL: {:?}", url);
+        let reader = get_proof(
+            &parsed_token,
+            max_epoch,
+            &jwt_randomness,
+            &kp_bigint,
+            &user_salt,
+            url,
+        )
         .await
         .unwrap();
-    let mut map = ImHashMap::new();
-    for (id, jwk) in jwks {
-        map.insert(id, jwk);
+        let (sub, aud) = parse_and_validate_jwt(&parsed_token).unwrap();
+        // Get the address seed.
+        let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
+        let zk_login_inputs =
+            ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
+
+        // Make a map of jwk ids to jwks just for Microsoft.
+        let iss = zk_login_inputs.get_iss();
+        let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client)
+            .await
+            .unwrap();
+        let mut map = ImHashMap::new();
+        for (id, jwk) in jwks {
+            map.insert(id, jwk);
+        }
+        // Verify it against test vk ok.
+        let res = verify_zk_login(
+            &zk_login_inputs,
+            max_epoch,
+            &eph_pk_bytes,
+            &map,
+            &ZkLoginEnv::Test,
+        );
+        assert!(res.is_ok());
     }
-    // Verify it against test vk ok.
-    let res = verify_zk_login(
-        &zk_login_inputs,
-        max_epoch,
-        &eph_pubkey,
-        &map,
-        &ZkLoginEnv::Test,
-    );
-    assert!(res.is_ok());
+    .await;
 }
