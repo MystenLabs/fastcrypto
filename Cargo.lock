@@ -1504,6 +1504,7 @@ dependencies = [
  "ark-serialize",
  "ark-snark",
  "ark-std",
+ "bcs",
  "bincode",
  "blake2",
  "blst",
