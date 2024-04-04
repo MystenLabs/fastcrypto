@@ -1,11 +1,13 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::groups::{GroupElement, Pairing};
-use serde::Deserialize;
 use std::fmt::Debug;
 
-pub mod api;
+use serde::Deserialize;
+
+use fastcrypto::groups::{GroupElement, Pairing};
+
+pub(crate) mod generic_api;
 mod prepared_vk;
 
 #[derive(Debug, Deserialize)]

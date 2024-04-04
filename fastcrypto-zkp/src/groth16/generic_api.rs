@@ -25,9 +25,8 @@ pub fn prepare_pvk_bytes<
 where
     G1: Pairing + MultiScalarMul + for<'a> Deserialize<'a> + ToFromByteArray<G1_SIZE>,
     <G1 as Pairing>::Other: for<'a> Deserialize<'a> + ToFromByteArray<G2_SIZE>,
-    <G1 as Pairing>::Output: GroupElement + for<'a> Deserialize<'a> + ToFromByteArray<GT_SIZE>,
+    <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
 {
-    // TODO: The serialization does not match Arkworks' format.
     let vk = VerifyingKey::<G1>::from_arkworks_format::<G1_SIZE, G2_SIZE>(vk_bytes)?;
     Ok(PreparedVerifyingKey::from(&vk).serialize_into_parts())
 }
@@ -53,21 +52,21 @@ pub fn verify_groth16_in_bytes<
 where
     G1: Pairing + MultiScalarMul + ToFromByteArray<G1_SIZE> + for<'a> Deserialize<'a>,
     <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + for<'a> Deserialize<'a>,
-    <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE> + for<'a> Deserialize<'a>,
-    G1::ScalarType: ToFromByteArray<FR_SIZE> + for<'a> Deserialize<'a>,
+    <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
+    G1::ScalarType: ToFromByteArray<FR_SIZE>,
 {
     let x = deserialize_vector::<FR_SIZE, G1::ScalarType>(proof_public_inputs_as_bytes)?;
     let proof =
         bincode::deserialize(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
-    println!("proof: {:?}", proof);
 
-    let blst_pvk = PreparedVerifyingKey::<G1>::deserialize_from_parts(&vec![
+    let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(&vec![
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
     ])?;
-    Ok(blst_pvk.verify(x.as_slice(), &proof).is_ok())
+
+    Ok(prepared_vk.verify(x.as_slice(), &proof).is_ok())
 }
 
 impl<G1: Pairing> VerifyingKey<G1> {
@@ -78,6 +77,17 @@ impl<G1: Pairing> VerifyingKey<G1> {
         G1: ToFromByteArray<G1_SIZE>,
         <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE>,
     {
+        // The verifying key consists of:
+        // - alpha: G1
+        // - beta: G2
+        // - gamma: G2
+        // - delta: G2
+        // - n: u64 lendian (size of gamma_abc)
+        // - gamma_abc: Vec<G1>
+
+        // We need to implement this instead of using bincode because the length of the vector is
+        // not in the default bincode format where only one byte is used to represent the length.
+
         if (vk_bytes.len() - (G1_SIZE + 3 * G2_SIZE + 8)) % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -89,7 +99,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
-
         i += G1_SIZE;
 
         let beta = G1::Other::from_byte_array(
@@ -97,7 +106,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
-
         i += G2_SIZE;
 
         let gamma = G1::Other::from_byte_array(
@@ -105,7 +113,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
-
         i += G2_SIZE;
 
         let delta = G1::Other::from_byte_array(
@@ -113,7 +120,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
-
         i += G2_SIZE;
 
         let n = u64::from_le_bytes(
@@ -121,7 +127,6 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
-
         i += 8;
 
         let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&vk_bytes[i..])
@@ -216,18 +221,26 @@ mod tests {
     use ark_snark::SNARK;
     use ark_std::rand::thread_rng;
     use ark_std::UniformRand;
-    use blake2::digest::Mac;
 
     use fastcrypto::groups::bls12381::{
         G1Element, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH,
         SCALAR_LENGTH,
     };
     use fastcrypto::groups::serialize_vector;
+    use fastcrypto::serde_helpers::ToFromByteArray;
 
-    use crate::bls12381::conversions::bls_fr_to_blst_fr;
     use crate::dummy_circuits::DummyCircuit;
-    use crate::groth16::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+    use crate::groth16::generic_api::{prepare_pvk_bytes, verify_groth16_in_bytes};
     use crate::groth16::{PreparedVerifyingKey, Proof, VerifyingKey};
+
+    fn scalar_from_arkworks(scalar: &Fr) -> Scalar {
+        let mut scalar_bytes = [0u8; SCALAR_LENGTH];
+        scalar
+            .serialize_compressed(scalar_bytes.as_mut_slice())
+            .unwrap();
+        scalar_bytes.reverse();
+        Scalar::from_byte_array(&scalar_bytes).unwrap()
+    }
 
     #[test]
     fn test_verify_groth16_in_bytes_api() {
@@ -243,7 +256,8 @@ mod tests {
         let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
         let ark_proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
         let result = c.a.unwrap().mul(c.b.unwrap());
-        let public_inputs = vec![Scalar(bls_fr_to_blst_fr(&result))];
+        let public_inputs = vec![scalar_from_arkworks(&result)];
+
         let mut vk_bytes = vec![];
         vk.serialize_compressed(&mut vk_bytes).unwrap();
 
@@ -255,14 +269,13 @@ mod tests {
             SCALAR_LENGTH,
         >(vk_bytes.as_slice())
         .unwrap();
+
         let vk_gamma_abc_g1_bytes = &bytes[0];
         let alpha_g1_beta_g2_bytes = &bytes[1];
         let gamma_g2_neg_pc_bytes = &bytes[2];
         let delta_g2_neg_pc_bytes = &bytes[3];
 
-        let mut public_inputs_bytes = serialize_vector(&public_inputs);
-
-        println!("ark proof: {:?}", ark_proof);
+        let public_inputs_bytes = serialize_vector(&public_inputs);
 
         let mut proof_bytes = Vec::new();
         ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
@@ -271,6 +284,7 @@ mod tests {
 
         let prepared_vk = PreparedVerifyingKey::from(&vk);
 
+        // Check that the proof verifies without using the API
         assert!(prepared_vk.verify(&public_inputs, &proof).is_ok());
 
         // Success case.
