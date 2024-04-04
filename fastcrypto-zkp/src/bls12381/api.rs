@@ -9,10 +9,6 @@ use fastcrypto::groups::bls12381::{
 
 use crate::groth16::generic_api;
 
-#[cfg(test)]
-#[path = "unit_tests/api_tests.rs"]
-mod api_tests;
-
 /// Deserialize bytes as an Arkwork representation of a verifying key, and return a vector of the four components of a prepared verified key (see more at [`crate::verifier::PreparedVerifyingKey`]).
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {
     generic_api::prepare_pvk_bytes::<

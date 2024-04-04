@@ -16,7 +16,7 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::verifier_tests::scalar_from_arkworks;
+use crate::bls12381::test_helpers::from_arkworks_scalar;
 use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use crate::groth16::Proof;
@@ -34,21 +34,24 @@ fn test_verify_groth16_in_bytes_api() {
 
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
     let proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
-    let v = c.a.unwrap().mul(c.b.unwrap());
+    let public_input = c.a.unwrap().mul(c.b.unwrap());
+
     let mut vk_bytes = vec![];
     vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-    let bytes = prepare_pvk_bytes(vk_bytes.as_slice()).unwrap();
+    let bytes = prepare_pvk_bytes(&vk_bytes).unwrap();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
     let delta_g2_neg_pc_bytes = &bytes[3];
 
-    let mut proof_inputs_bytes = vec![];
-    v.serialize_compressed(&mut proof_inputs_bytes).unwrap();
+    let mut public_inputs_bytes = vec![];
+    public_input
+        .serialize_compressed(&mut public_inputs_bytes)
+        .unwrap();
 
-    let mut proof_points_bytes = vec![];
-    proof.serialize_compressed(&mut proof_points_bytes).unwrap();
+    let mut proof_bytes = vec![];
+    proof.serialize_compressed(&mut proof_bytes).unwrap();
 
     // Success case.
     assert!(verify_groth16_in_bytes(
@@ -56,13 +59,13 @@ fn test_verify_groth16_in_bytes_api() {
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &proof_inputs_bytes,
-        &proof_points_bytes
+        &public_inputs_bytes,
+        &proof_bytes
     )
     .unwrap());
 
     // Negative test: Replace the A element with a random point.
-    let mut modified_proof_points_bytes = proof_points_bytes.clone();
+    let mut modified_proof_points_bytes = proof_bytes.clone();
     let _ = &G1Affine::rand(rng)
         .serialize_compressed(&mut modified_proof_points_bytes[0..48])
         .unwrap();
@@ -71,7 +74,7 @@ fn test_verify_groth16_in_bytes_api() {
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &proof_inputs_bytes,
+        &public_inputs_bytes,
         &modified_proof_points_bytes
     )
     .unwrap());
@@ -84,13 +87,13 @@ fn test_verify_groth16_in_bytes_api() {
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &proof_inputs_bytes,
-        &proof_points_bytes
+        &public_inputs_bytes,
+        &proof_bytes
     )
     .is_err());
 
     // Length of public inputs is incorrect.
-    let mut modified_proof_inputs_bytes = proof_inputs_bytes.clone();
+    let mut modified_proof_inputs_bytes = public_inputs_bytes.clone();
     modified_proof_inputs_bytes.pop();
     assert!(verify_groth16_in_bytes(
         vk_gamma_abc_g1_bytes,
@@ -98,19 +101,19 @@ fn test_verify_groth16_in_bytes_api() {
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
         &modified_proof_inputs_bytes,
-        &proof_points_bytes
+        &proof_bytes
     )
     .is_err());
 
     // length of proof is incorrect
-    let mut modified_proof_points_bytes = proof_points_bytes.to_vec();
+    let mut modified_proof_points_bytes = proof_bytes.to_vec();
     modified_proof_points_bytes.pop();
     assert!(verify_groth16_in_bytes(
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &proof_inputs_bytes,
+        &public_inputs_bytes,
         &modified_proof_points_bytes
     )
     .is_err());
@@ -256,7 +259,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
     let pvk = PreparedVerifyingKey::from(&vk);
 
-    let inputs: Vec<_> = vec![scalar_from_arkworks(&a), scalar_from_arkworks(&b)];
+    let inputs: Vec<_> = vec![from_arkworks_scalar(&a), from_arkworks_scalar(&b)];
 
     let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
     assert!(pvk.verify(&inputs, &proof).is_ok());
