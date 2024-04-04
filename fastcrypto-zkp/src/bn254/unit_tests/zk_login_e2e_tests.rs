@@ -233,6 +233,8 @@ struct TestInputStruct {
 
 #[proptest(async = "tokio")]
 async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
+    // URL="https://prover-dev.mystenlabs.com/v1" cargo test test_end_to_end_test_issuer --features e2e -- --nocapture
+    // URL="https://prover-ci.mystenlabs.com/v1" cargo test test_end_to_end_test_issuer --features e2e -- --nocapture
     async {
         let jwt_randomness = BigUint::from_bytes_be(&test_input.jwt_rand_bytes).to_string();
         let user_salt = BigUint::from_bytes_be(&test_input.salt_bytes).to_string();
@@ -268,7 +270,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         // Get a proof from endpoint and serialize it.
         let url = &env::var("URL").unwrap_or_else(|_| PROVER_DEV_SERVER_URL.to_owned());
         println!("using URL: {:?}", url);
-        let reader = get_proof(
+        let reader_res = get_proof(
             &parsed_token,
             max_epoch,
             &jwt_randomness,
@@ -276,15 +278,16 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
             &user_salt,
             url,
         )
-        .await
-        .unwrap();
+        .await;
+        assert!(reader_res.is_ok());
+        let reader = reader_res.unwrap();
         let (sub, aud) = parse_and_validate_jwt(&parsed_token).unwrap();
         // Get the address seed.
         let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
         let zk_login_inputs =
             ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
 
-        // Make a map of jwk ids to jwks just for Microsoft.
+        // Fetch jwk from test issuer
         let iss = zk_login_inputs.get_iss();
         let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client)
             .await
