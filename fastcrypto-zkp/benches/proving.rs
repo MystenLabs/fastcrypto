@@ -1,7 +1,8 @@
-use std::ops::Mul;
-
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+
+use std::ops::Mul;
+
 use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_bn254::{Bn254, Fr as Bn254Fr};
