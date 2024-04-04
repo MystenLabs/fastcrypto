@@ -1378,7 +1378,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto"
-version = "0.1.7"
+version = "0.1.8"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -1507,7 +1507,7 @@ dependencies = [
 
 [[package]]
 name = "fastcrypto-zkp"
-version = "0.1.2"
+version = "0.1.3"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-381",
