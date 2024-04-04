@@ -1,9 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::fmt::Debug;
 use fastcrypto::groups::{GroupElement, Pairing};
 use serde::Deserialize;
+use std::fmt::Debug;
 
 pub mod api;
 mod prepared_vk;
@@ -18,7 +18,7 @@ where
     c: G1,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug)]
 pub struct VerifyingKey<G1: Pairing>
 where
     G1::Other: Debug,

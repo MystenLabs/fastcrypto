@@ -51,7 +51,7 @@ pub struct GTElement(blst_fp12);
 /// This represents a scalar modulo r = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
 /// which is the order of the groups G1, G2 and GT. Note that r is a 255 bit prime.
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
-pub struct Scalar(blst_fr);
+pub struct Scalar(pub blst_fr);
 
 pub const SCALAR_LENGTH: usize = 32;
 pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
@@ -725,8 +725,6 @@ impl Div<Scalar> for Scalar {
 }
 
 impl ScalarType for Scalar {
-    const SIZE_IN_BYTES: usize = SCALAR_LENGTH;
-
     fn rand<R: AllowedRng>(rng: &mut R) -> Self {
         let mut buffer = [0u8; 64];
         rng.fill_bytes(&mut buffer);
