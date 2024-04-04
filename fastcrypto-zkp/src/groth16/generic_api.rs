@@ -4,9 +4,7 @@
 use serde::Deserialize;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{
-    GroupElement, MultiScalarMul, Pairing,
-};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
 use fastcrypto::serde_helpers::{deserialize_vector, serialize_vector, ToFromByteArray};
 
 use crate::groth16::{PreparedVerifyingKey, VerifyingKey};

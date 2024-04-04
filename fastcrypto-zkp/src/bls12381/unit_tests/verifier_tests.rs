@@ -25,8 +25,7 @@ fn test_verify_with_processed_vk() {
     };
 
     let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-    let ark_proof: ArkworksProof<Bls12_381> =
-        Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap().into();
+    let ark_proof: ArkworksProof<Bls12_381> = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
     let public_input = c.a.unwrap().mul(c.b.unwrap());
 
     let mut proof_bytes = Vec::new();

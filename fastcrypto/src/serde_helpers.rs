@@ -267,6 +267,37 @@ impl<const N: usize> Display for BytesRepresentation<N> {
     }
 }
 
+/// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
+/// of type `T`.
+pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+    bytes: &[u8],
+) -> FastCryptoResult<Vec<T>> {
+    if bytes.len() % SIZE_IN_BYTES != 0 {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    bytes
+        .chunks(SIZE_IN_BYTES)
+        .map(|chunk| {
+            T::from_byte_array(
+                &chunk
+                    .try_into()
+                    .map_err(|_| FastCryptoError::InvalidInput)?,
+            )
+        })
+        .collect::<FastCryptoResult<Vec<T>>>()
+}
+
+/// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
+/// representations.
+pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+    elements: &[T],
+) -> Vec<u8> {
+    elements
+        .iter()
+        .flat_map(|e| e.to_byte_array().to_vec())
+        .collect()
+}
+
 // This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.
 impl Default for crate::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
     fn default() -> Self {
@@ -277,7 +308,7 @@ impl Default for crate::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::groups::bls12381::{G1_ELEMENT_BYTE_LENGTH, G1Element, G1ElementAsBytes};
+    use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
     use schemars::schema_for;
 
@@ -328,35 +359,4 @@ mod tests {
             serde_json::to_string_pretty(&schema).unwrap()
         );
     }
-}
-
-/// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
-/// of type `T`.
-pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
-    bytes: &[u8],
-) -> FastCryptoResult<Vec<T>> {
-    if bytes.len() % SIZE_IN_BYTES != 0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    bytes
-        .chunks(SIZE_IN_BYTES)
-        .map(|chunk| {
-            T::from_byte_array(
-                &chunk
-                    .try_into()
-                    .map_err(|_| FastCryptoError::InvalidInput)?,
-            )
-        })
-        .collect::<FastCryptoResult<Vec<T>>>()
-}
-
-/// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
-/// representations.
-pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
-    elements: &[T],
-) -> Vec<u8> {
-    elements
-        .iter()
-        .flat_map(|e| e.to_byte_array().to_vec())
-        .collect()
 }

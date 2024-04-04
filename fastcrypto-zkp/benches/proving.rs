@@ -1,9 +1,10 @@
+use std::ops::Mul;
+
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_bn254::{Bn254, Fr as Bn254Fr};
-
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
@@ -14,11 +15,12 @@ use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
-use fastcrypto::groups::bls12381::G1Element;
+
+use fastcrypto::groups::bls12381::{G1Element, Scalar};
+use fastcrypto::serde_helpers::ToFromByteArray;
+use fastcrypto_zkp::bn254;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
-use fastcrypto_zkp::groth16::Proof;
-use fastcrypto_zkp::{bls12381, bn254};
-use std::ops::Mul;
+use fastcrypto_zkp::groth16::{Proof, VerifyingKey};
 
 #[path = "./utils.rs"]
 mod utils;
@@ -431,10 +433,17 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         let ark_proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
         let mut proof_bytes = Vec::new();
         ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
-        let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
+        let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
 
         let v = c.a.unwrap().mul(c.b.unwrap());
-        let vk = ark_vk.into();
+        let mut v_bytes = [0u8; 32];
+        v.serialize_compressed(v_bytes.as_mut_slice()).unwrap();
+        v_bytes.reverse();
+        let v = Scalar::from_byte_array(&v_bytes).unwrap();
+
+        let mut vk_bytes = Vec::new();
+        ark_vk.serialize_compressed(&mut vk_bytes).unwrap();
+        let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
@@ -449,7 +458,7 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
-                b.iter(|| pvk.verify(&[(*v).into()], &proof).unwrap());
+                b.iter(|| pvk.verify(&[*v], &proof).unwrap());
             },
         );
     }
