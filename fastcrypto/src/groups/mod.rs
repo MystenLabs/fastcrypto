@@ -54,7 +54,8 @@ pub trait Scalar:
     fn inverse(&self) -> FastCryptoResult<Self>;
 }
 
-/// Assuming that the serialization of
+/// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
+/// of type `T`.
 pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
     bytes: &[u8],
 ) -> FastCryptoResult<Vec<T>> {
@@ -73,8 +74,10 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
         .collect::<FastCryptoResult<Vec<T>>>()
 }
 
+/// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
+/// representations.
 pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
-    elements: &Vec<T>,
+    elements: &[T],
 ) -> Vec<u8> {
     elements
         .iter()
