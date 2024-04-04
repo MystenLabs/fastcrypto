@@ -7,18 +7,18 @@ use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
+use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
+use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
+use fastcrypto_zkp::groth16::Proof;
 use fastcrypto_zkp::{bls12381, bn254};
 use std::ops::Mul;
-
-#[path = "./conversions.rs"]
-mod conversions;
 
 #[path = "./utils.rs"]
 mod utils;
@@ -427,19 +427,23 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         };
 
         let (pk, ark_vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-        let proof = bls12381::Proof::from(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
-        let v = c.a.unwrap().mul(c.b.unwrap());
 
+        let ark_proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
+        let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
+
+        let v = c.a.unwrap().mul(c.b.unwrap());
         let vk = ark_vk.into();
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
-                b.iter(|| bls12381::verifier::PreparedVerifyingKey::from(vk));
+                b.iter(|| fastcrypto_zkp::bls12381::PreparedVerifyingKey::from(vk));
             },
         );
-        let pvk = bls12381::verifier::PreparedVerifyingKey::from(&vk);
+        let pvk = fastcrypto_zkp::bls12381::PreparedVerifyingKey::from(&vk);
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
@@ -501,4 +505,4 @@ criterion_group! {
        prove,
 }
 
-criterion_main!(conversions::conversion_benches, proving_benches,);
+criterion_main!(proving_benches,);

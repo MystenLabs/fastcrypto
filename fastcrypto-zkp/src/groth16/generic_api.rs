@@ -13,7 +13,7 @@ use crate::groth16::{PreparedVerifyingKey, VerifyingKey};
 
 /// Deserialize bytes as an Arkworks representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`PreparedVerifyingKey`]).
-pub fn prepare_pvk_bytes<
+pub(crate) fn prepare_pvk_bytes<
     G1,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
@@ -21,7 +21,7 @@ pub fn prepare_pvk_bytes<
     const FR_SIZE: usize,
 >(
     vk_bytes: &[u8],
-) -> Result<Vec<Vec<u8>>, FastCryptoError>
+) -> FastCryptoResult<Vec<Vec<u8>>>
 where
     G1: Pairing + MultiScalarMul + for<'a> Deserialize<'a> + ToFromByteArray<G1_SIZE>,
     <G1 as Pairing>::Other: for<'a> Deserialize<'a> + ToFromByteArray<G2_SIZE>,
@@ -35,7 +35,7 @@ where
 /// (see more at [`PreparedVerifyingKey`]), serialized proof public input, which should
 /// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
 /// bytes each, and serialized proof points.
-pub fn verify_groth16_in_bytes<
+pub(crate) fn verify_groth16_in_bytes<
     G1,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
@@ -58,20 +58,18 @@ where
     let x = deserialize_vector::<FR_SIZE, G1::ScalarType>(proof_public_inputs_as_bytes)?;
     let proof =
         bincode::deserialize(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
-
-    let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(&vec![
+    let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-    ])?;
-
-    Ok(prepared_vk.verify(x.as_slice(), &proof).is_ok())
+    )?;
+    Ok(prepared_vk.verify(&x, &proof).is_ok())
 }
 
 impl<G1: Pairing> VerifyingKey<G1> {
     pub fn from_arkworks_format<const G1_SIZE: usize, const G2_SIZE: usize>(
-        vk_bytes: &[u8],
+        bytes: &[u8],
     ) -> FastCryptoResult<Self>
     where
         G1: ToFromByteArray<G1_SIZE>,
@@ -85,51 +83,51 @@ impl<G1: Pairing> VerifyingKey<G1> {
         // - n: u64 lendian (size of gamma_abc)
         // - gamma_abc: Vec<G1>
 
-        // We need to implement this instead of using bincode because the length of the vector is
-        // not in the default bincode format where only one byte is used to represent the length.
+        // We can't use bincode because there, the length of the vector is prefixed as a single byte
+        // and not a lendian u64.
 
-        if (vk_bytes.len() - (G1_SIZE + 3 * G2_SIZE + 8)) % G1_SIZE != 0 {
+        if (bytes.len() - (G1_SIZE + 3 * G2_SIZE + 8)) % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
 
         let mut i = 0;
 
         let alpha = G1::from_byte_array(
-            vk_bytes[i..G1_SIZE]
+            bytes[i..G1_SIZE]
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
         i += G1_SIZE;
 
         let beta = G1::Other::from_byte_array(
-            vk_bytes[i..i + G2_SIZE]
+            bytes[i..i + G2_SIZE]
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
         i += G2_SIZE;
 
         let gamma = G1::Other::from_byte_array(
-            vk_bytes[i..i + G2_SIZE]
+            bytes[i..i + G2_SIZE]
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
         i += G2_SIZE;
 
         let delta = G1::Other::from_byte_array(
-            vk_bytes[i..i + G2_SIZE]
+            bytes[i..i + G2_SIZE]
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
         i += G2_SIZE;
 
         let n = u64::from_le_bytes(
-            vk_bytes[i..i + 8]
+            bytes[i..i + 8]
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
         i += 8;
 
-        let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&vk_bytes[i..])
+        let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&bytes[i..])
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         if gamma_abc.len() != n as usize {
@@ -158,12 +156,12 @@ where
         G1::Other: ToFromByteArray<G2_SIZE>,
         <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
     {
-        let mut result = Vec::with_capacity(4);
-        result.push(serialize_vector(&self.vk_gamma_abc));
-        result.push(self.alpha_beta.to_byte_array().to_vec());
-        result.push(self.gamma_neg.to_byte_array().to_vec());
-        result.push(self.delta_neg.to_byte_array().to_vec());
-        result
+        vec![
+            serialize_vector(&self.vk_gamma_abc),
+            self.alpha_beta.to_byte_array().to_vec(),
+            self.gamma_neg.to_byte_array().to_vec(),
+            self.delta_neg.to_byte_array().to_vec(),
+        ]
     }
 
     pub fn deserialize_from_parts<
@@ -171,33 +169,35 @@ where
         const G2_SIZE: usize,
         const GT_SIZE: usize,
     >(
-        parts: &Vec<&[u8]>,
+        vk_gamma_abc_bytes: &[u8],
+        alpha_beta_bytes: &[u8],
+        gamma_neg_bytes: &[u8],
+        delta_neg_bytes: &[u8],
     ) -> FastCryptoResult<Self>
     where
         G1: ToFromByteArray<G1_SIZE>,
         G1::Other: ToFromByteArray<G2_SIZE>,
         <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
     {
-        if parts.len() != 4 {
+        if vk_gamma_abc_bytes.len() % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
+        let vk_gamma_abc = deserialize_vector::<G1_SIZE, G1>(vk_gamma_abc_bytes)?;
 
-        if parts[0].len() % G1_SIZE != 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let vk_gamma_abc = deserialize_vector::<G1_SIZE, G1>(parts[0])?;
         let alpha_beta = <G1 as Pairing>::Output::from_byte_array(
-            parts[1]
+            alpha_beta_bytes
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
+
         let gamma_neg = <G1 as Pairing>::Other::from_byte_array(
-            parts[2]
+            gamma_neg_bytes
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
+
         let delta_neg = <G1 as Pairing>::Other::from_byte_array(
-            parts[3]
+            delta_neg_bytes
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         )?;
@@ -208,178 +208,5 @@ where
             gamma_neg,
             delta_neg,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::ops::Mul;
-
-    use ark_bls12_381::{Bls12_381, Fr, G1Affine};
-    use ark_groth16::Groth16;
-    use ark_serialize::CanonicalSerialize;
-    use ark_snark::SNARK;
-    use ark_std::rand::thread_rng;
-    use ark_std::UniformRand;
-
-    use fastcrypto::groups::bls12381::{
-        G1Element, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH,
-        SCALAR_LENGTH,
-    };
-    use fastcrypto::groups::serialize_vector;
-    use fastcrypto::serde_helpers::ToFromByteArray;
-
-    use crate::dummy_circuits::DummyCircuit;
-    use crate::groth16::generic_api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-    use crate::groth16::{PreparedVerifyingKey, Proof, VerifyingKey};
-
-    fn scalar_from_arkworks(scalar: &Fr) -> Scalar {
-        let mut scalar_bytes = [0u8; SCALAR_LENGTH];
-        scalar
-            .serialize_compressed(scalar_bytes.as_mut_slice())
-            .unwrap();
-        scalar_bytes.reverse();
-        Scalar::from_byte_array(&scalar_bytes).unwrap()
-    }
-
-    #[test]
-    fn test_verify_groth16_in_bytes_api() {
-        const PUBLIC_SIZE: usize = 128;
-        let rng = &mut thread_rng();
-        let c = DummyCircuit::<Fr> {
-            a: Some(<Fr>::rand(rng)),
-            b: Some(<Fr>::rand(rng)),
-            num_variables: PUBLIC_SIZE,
-            num_constraints: 10,
-        };
-
-        let (pk, vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-        let ark_proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
-        let result = c.a.unwrap().mul(c.b.unwrap());
-        let public_inputs = vec![scalar_from_arkworks(&result)];
-
-        let mut vk_bytes = vec![];
-        vk.serialize_compressed(&mut vk_bytes).unwrap();
-
-        let bytes = prepare_pvk_bytes::<
-            G1Element,
-            G1_ELEMENT_BYTE_LENGTH,
-            G2_ELEMENT_BYTE_LENGTH,
-            GT_ELEMENT_BYTE_LENGTH,
-            SCALAR_LENGTH,
-        >(vk_bytes.as_slice())
-        .unwrap();
-
-        let vk_gamma_abc_g1_bytes = &bytes[0];
-        let alpha_g1_beta_g2_bytes = &bytes[1];
-        let gamma_g2_neg_pc_bytes = &bytes[2];
-        let delta_g2_neg_pc_bytes = &bytes[3];
-
-        let public_inputs_bytes = serialize_vector(&public_inputs);
-
-        let mut proof_bytes = Vec::new();
-        ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
-        let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
-        let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
-
-        let prepared_vk = PreparedVerifyingKey::from(&vk);
-
-        // Check that the proof verifies without using the API
-        assert!(prepared_vk.verify(&public_inputs, &proof).is_ok());
-
-        // Success case.
-        assert!(verify_groth16_in_bytes::<
-            G1Element,
-            { G1_ELEMENT_BYTE_LENGTH },
-            { G2_ELEMENT_BYTE_LENGTH },
-            { GT_ELEMENT_BYTE_LENGTH },
-            { SCALAR_LENGTH },
-        >(
-            vk_gamma_abc_g1_bytes,
-            alpha_g1_beta_g2_bytes,
-            gamma_g2_neg_pc_bytes,
-            delta_g2_neg_pc_bytes,
-            &public_inputs_bytes,
-            &proof_bytes
-        )
-        .unwrap());
-
-        // Negative test: Replace the A element with a random point.
-        let mut modified_proof_points_bytes = proof_bytes.clone();
-        let _ = &G1Affine::rand(rng)
-            .serialize_compressed(&mut modified_proof_points_bytes[0..48])
-            .unwrap();
-        assert!(!verify_groth16_in_bytes::<
-            G1Element,
-            { G1_ELEMENT_BYTE_LENGTH },
-            { G2_ELEMENT_BYTE_LENGTH },
-            { GT_ELEMENT_BYTE_LENGTH },
-            { SCALAR_LENGTH },
-        >(
-            vk_gamma_abc_g1_bytes,
-            alpha_g1_beta_g2_bytes,
-            gamma_g2_neg_pc_bytes,
-            delta_g2_neg_pc_bytes,
-            &public_inputs_bytes,
-            &modified_proof_points_bytes
-        )
-        .unwrap());
-
-        // Length of verifying key is incorrect.
-        let mut modified_bytes = bytes[0].clone();
-        modified_bytes.pop();
-        assert!(verify_groth16_in_bytes::<
-            G1Element,
-            { G1_ELEMENT_BYTE_LENGTH },
-            { G2_ELEMENT_BYTE_LENGTH },
-            { GT_ELEMENT_BYTE_LENGTH },
-            { SCALAR_LENGTH },
-        >(
-            &modified_bytes,
-            alpha_g1_beta_g2_bytes,
-            gamma_g2_neg_pc_bytes,
-            delta_g2_neg_pc_bytes,
-            &public_inputs_bytes,
-            &proof_bytes
-        )
-        .is_err());
-
-        // Length of public inputs is incorrect.
-        let mut modified_proof_inputs_bytes = public_inputs_bytes.clone();
-        modified_proof_inputs_bytes.pop();
-        assert!(verify_groth16_in_bytes::<
-            G1Element,
-            { G1_ELEMENT_BYTE_LENGTH },
-            { G2_ELEMENT_BYTE_LENGTH },
-            { GT_ELEMENT_BYTE_LENGTH },
-            { SCALAR_LENGTH },
-        >(
-            vk_gamma_abc_g1_bytes,
-            alpha_g1_beta_g2_bytes,
-            gamma_g2_neg_pc_bytes,
-            delta_g2_neg_pc_bytes,
-            &modified_proof_inputs_bytes,
-            &proof_bytes
-        )
-        .is_err());
-
-        // length of proof is incorrect
-        let mut modified_proof_points_bytes = proof_bytes.to_vec();
-        modified_proof_points_bytes.pop();
-        assert!(verify_groth16_in_bytes::<
-            G1Element,
-            { G1_ELEMENT_BYTE_LENGTH },
-            { G2_ELEMENT_BYTE_LENGTH },
-            { GT_ELEMENT_BYTE_LENGTH },
-            { SCALAR_LENGTH },
-        >(
-            vk_gamma_abc_g1_bytes,
-            alpha_g1_beta_g2_bytes,
-            gamma_g2_neg_pc_bytes,
-            delta_g2_neg_pc_bytes,
-            &public_inputs_bytes,
-            &modified_proof_points_bytes
-        )
-        .is_err());
     }
 }

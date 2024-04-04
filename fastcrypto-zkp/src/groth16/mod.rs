@@ -3,12 +3,12 @@
 
 use std::fmt::Debug;
 
+use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use serde::Deserialize;
 
-use fastcrypto::groups::{GroupElement, Pairing};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
 
 pub(crate) mod generic_api;
-mod prepared_vk;
 
 #[derive(Debug, Deserialize)]
 pub struct Proof<G1: Pairing>
@@ -68,5 +68,45 @@ where
             gamma_neg: -vk.gamma,
             delta_neg: -vk.delta,
         }
+    }
+}
+
+impl<G1> PreparedVerifyingKey<G1>
+where
+    G1: Pairing + MultiScalarMul,
+    <G1 as Pairing>::Output: GroupElement,
+{
+    pub fn verify(
+        &self,
+        public_inputs: &[G1::ScalarType],
+        proof: &Proof<G1>,
+    ) -> FastCryptoResult<()> {
+        let prepared_inputs = self.prepare_inputs(public_inputs)?;
+        self.verify_with_prepared_inputs(&prepared_inputs, proof)
+    }
+
+    pub fn verify_with_prepared_inputs(
+        &self,
+        prepared_inputs: &G1,
+        proof: &Proof<G1>,
+    ) -> FastCryptoResult<()> {
+        let lhs = proof.a.pairing(&proof.b)
+            + prepared_inputs.pairing(&self.gamma_neg)
+            + proof.c.pairing(&self.delta_neg);
+
+        if lhs == self.alpha_beta {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidProof)
+        }
+    }
+
+    pub fn prepare_inputs(&self, public_inputs: &[G1::ScalarType]) -> FastCryptoResult<G1> {
+        if (public_inputs.len() + 1) != self.vk_gamma_abc.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let prepared_input =
+            self.vk_gamma_abc[0] + G1::multi_scalar_mul(public_inputs, &self.vk_gamma_abc[1..])?;
+        Ok(prepared_input)
     }
 }
