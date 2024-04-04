@@ -76,6 +76,8 @@ where
     G1: Pairing + MultiScalarMul,
     <G1 as Pairing>::Output: GroupElement,
 {
+    /// Verify Groth16 proof using the prepared verifying key (see more at
+    /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and the proof.
     pub fn verify(
         &self,
         public_inputs: &[G1::ScalarType],
@@ -85,6 +87,9 @@ where
         self.verify_with_prepared_inputs(&prepared_inputs, proof)
     }
 
+    /// Verify Groth16 proof using the prepared verifying key (see more at
+    /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a prepared public input (see
+    /// [`prepare_inputs`]) and the proof.
     pub fn verify_with_prepared_inputs(
         &self,
         prepared_inputs: &G1,
@@ -101,6 +106,7 @@ where
         }
     }
 
+    /// Prepare the public inputs for use in [`verify_with_prepared_inputs`].
     pub fn prepare_inputs(&self, public_inputs: &[G1::ScalarType]) -> FastCryptoResult<G1> {
         if (public_inputs.len() + 1) != self.vk_gamma_abc.len() {
             return Err(FastCryptoError::InvalidInput);
