@@ -31,7 +31,7 @@ fn test_verify_with_processed_vk() {
 
     let mut proof_bytes = Vec::new();
     ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
-    let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
+    let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
 
     let mut vk_bytes = Vec::new();
     vk.serialize_compressed(&mut vk_bytes).unwrap();

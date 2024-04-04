@@ -57,7 +57,7 @@ where
 {
     let x = deserialize_vector::<FR_SIZE, G1::ScalarType>(proof_public_inputs_as_bytes)?;
     let proof =
-        bincode::deserialize(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+        bcs::from_bytes(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
     let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
