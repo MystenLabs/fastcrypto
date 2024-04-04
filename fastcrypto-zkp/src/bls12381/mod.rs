@@ -15,6 +15,11 @@ pub mod api;
 #[path = "unit_tests/verifier_tests.rs"]
 mod verifier_tests;
 
+/// A prepared Groth16 verifying key in the BLS12-381 construction.
 pub type PreparedVerifyingKey = groth16::PreparedVerifyingKey<G1Element>;
+
+/// A Groth16 verifying key in the BLS12-381 construction.
 pub type VerifyingKey = groth16::VerifyingKey<G1Element>;
+
+/// A Groth16 proof in the BLS12-381 construction.
 pub type Proof = groth16::Proof<G1Element>;
