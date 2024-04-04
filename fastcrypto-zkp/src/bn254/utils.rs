@@ -11,7 +11,7 @@ use fastcrypto::rsa::Base64UrlUnpadded;
 use fastcrypto::rsa::Encoding;
 use num_bigint::BigUint;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::str::FromStr;
 
@@ -79,7 +79,8 @@ pub fn get_oidc_url(
             OIDCProvider::Facebook => format!("https://www.facebook.com/v17.0/dialog/oauth?client_id={}&redirect_uri={}&scope=openid&nonce={}&response_type=id_token", client_id, redirect_url, nonce),
             OIDCProvider::Kakao => format!("https://kauth.kakao.com/oauth/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::Apple => format!("https://appleid.apple.com/auth/authorize?client_id={}&redirect_uri={}&scope=email&response_mode=form_post&response_type=code%20id_token&nonce={}", client_id, redirect_url, nonce),
-            OIDCProvider::Slack => format!("https://slack.com/openid/connect/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}&scope=openid", client_id, redirect_url, nonce) 
+            OIDCProvider::Slack => format!("https://slack.com/openid/connect/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}&scope=openid", client_id, redirect_url, nonce),
+            OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput)
         })
 }
 
@@ -199,4 +200,39 @@ pub fn split_to_two_frs(eph_pk_bytes: &[u8]) -> Result<(Bn254Fr, Bn254Fr), FastC
     let eph_public_key_0 = Bn254Fr::from(first_bigint);
     let eph_public_key_1 = Bn254Fr::from(second_bigint);
     Ok((eph_public_key_0, eph_public_key_1))
+}
+
+/// Call test issuer for a JWT token based on the request parameters.
+pub async fn get_test_issuer_jwt_token(
+    client: &reqwest::Client,
+    nonce: &str,
+    iss: &str,
+    sub: &str,
+) -> Result<TestIssuerJWTResponse, FastCryptoError> {
+    let response = client
+        .post(format!(
+            "https://jwt-tester.mystenlabs.com/jwt?nonce={}&iss={}&sub={}",
+            nonce, iss, sub
+        ))
+        .header("Content-Type", "application/json")
+        .send()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+    let full_bytes = response
+        .bytes()
+        .await
+        .map_err(|_| FastCryptoError::InvalidInput)?;
+
+    println!("get_jwt_response response: {:?}", full_bytes);
+
+    let get_jwt_response: TestIssuerJWTResponse =
+        serde_json::from_slice(&full_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
+    Ok(get_jwt_response)
+}
+
+/// The response struct for the test issuer JWT token.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TestIssuerJWTResponse {
+    /// JWT token string.
+    pub jwt: String,
 }

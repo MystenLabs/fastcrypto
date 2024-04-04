@@ -54,10 +54,11 @@ ark-std = "0.4.0"
 blake2 = "0.10.6"
 criterion = "0.5.1"
 hex = "0.4.3"
-proptest = "1.1.0"
+test-strategy = "0.3.1"
 poseidon-ark = { git = "https://github.com/arnaucube/poseidon-ark.git", rev = "ff7f5e05d55667b4ffba129b837da780c4c5c849" }
-tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
+tokio = { version = "1.24.1", features = ["sync", "rt", "macros", "rt-multi-thread"] }
 lazy_static = "1.4.0"
+proptest = "1.1.0"
 
 [features]
 e2e = []
