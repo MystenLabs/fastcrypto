@@ -52,7 +52,6 @@ mod tests {
     use ark_groth16::Groth16;
     use ark_serialize::CanonicalSerialize;
     use ark_std::rand::rngs::mock::StepRng;
-    use ark_std::rand::thread_rng;
 
     use fastcrypto::groups::bls12381::{G1Element, Scalar};
 
@@ -82,11 +81,8 @@ mod tests {
         ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
         let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
 
-        println!("proof: {:?}", proof);
-
         let mut vk_bytes = Vec::new();
         params.vk.serialize_compressed(&mut vk_bytes).unwrap();
-
         let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
 
         let prepared_vk = PreparedVerifyingKey::from(&vk);
