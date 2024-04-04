@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use serde::de::DeserializeOwned;
