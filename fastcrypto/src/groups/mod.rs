@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::serde_helpers::ToFromByteArray;
 use crate::traits::AllowedRng;
 use core::ops::{Add, Div, Mul, Neg, Sub};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
-use crate::serde_helpers::ToFromByteArray;
 
 pub mod bls12381;
 pub mod ristretto255;
@@ -50,24 +50,36 @@ pub trait GroupElement:
 pub trait Scalar:
     GroupElement<ScalarType = Self> + Copy + From<u128> + Sized + Debug + Serialize + DeserializeOwned
 {
-    const SIZE_IN_BYTES: usize;
-
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;
 }
 
-
-/// Assuming that
-pub fn deserialize_vector<T: for<'a> Deserialize<'a>>(bytes: &[u8], size: usize) -> FastCryptoResult<Vec<T>> {
-    if bytes.len() % size != 0 {
+/// Assuming that the serialization of
+pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+    bytes: &[u8],
+) -> FastCryptoResult<Vec<T>> {
+    if bytes.len() % SIZE_IN_BYTES != 0 {
         return Err(FastCryptoError::InvalidInput);
     }
-    bytes.chunks(size)
-        .map(|chunk|
-            bincode::deserialize(chunk)
-                .map_err(|_| FastCryptoError::InvalidInput)
-        )
+    bytes
+        .chunks(SIZE_IN_BYTES)
+        .map(|chunk| {
+            T::from_byte_array(
+                &chunk
+                    .try_into()
+                    .map_err(|_| FastCryptoError::InvalidInput)?,
+            )
+        })
         .collect::<FastCryptoResult<Vec<T>>>()
+}
+
+pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+    elements: &Vec<T>,
+) -> Vec<u8> {
+    elements
+        .iter()
+        .flat_map(|e| e.to_byte_array().to_vec())
+        .collect()
 }
 
 /// Trait for group elements that has a fast doubling operation.

@@ -1,58 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
-
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{deserialize_vector, GroupElement, MultiScalarMul, Pairing, Scalar};
-use fastcrypto::serde_helpers::ToFromByteArray;
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
 
 use crate::groth16::{PreparedVerifyingKey, Proof};
-
-impl<G1> PreparedVerifyingKey<G1>
-where
-    G1: Pairing + MultiScalarMul + Serialize + for<'a> Deserialize<'a>,
-    <G1 as Pairing>::Other: Serialize + for<'a> Deserialize<'a>,
-    <G1 as Pairing>::Output: GroupElement + Serialize + for<'a> Deserialize<'a>,
-{
-    pub fn serialize_into_parts(&self) -> FastCryptoResult<Vec<Vec<u8>>> {
-        let mut result = Vec::with_capacity(4);
-        result.push(
-            self.vk_gamma_abc
-                .iter()
-                .map(|g1| bcs::to_bytes(g1).map_err(|_| FastCryptoError::InvalidInput))
-                .flatten_ok()
-                .collect::<FastCryptoResult<Vec<u8>>>()?,
-        );
-        result.push(bcs::to_bytes(&self.alpha_beta).map_err(|_| FastCryptoError::InvalidInput)?);
-        result.push(bcs::to_bytes(&self.gamma_neg).map_err(|_| FastCryptoError::InvalidInput)?);
-        result.push(bcs::to_bytes(&self.delta_neg).map_err(|_| FastCryptoError::InvalidInput)?);
-        Ok(result)
-    }
-
-    pub fn deserialize_from_parts(parts: &Vec<&[u8]>, g1_size_in_bytes: usize) -> FastCryptoResult<Self> {
-        if parts.len() != 4 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        if parts[0].len() % g1_size_in_bytes != 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let vk_gamma_abc = deserialize_vector::<G1>(parts[0], g1_size_in_bytes)?;
-        let alpha_beta = bcs::from_bytes(parts[1]).map_err(|_| FastCryptoError::InvalidInput)?;
-        let gamma_neg = bcs::from_bytes(parts[2]).map_err(|_| FastCryptoError::InvalidInput)?;
-        let delta_neg = bcs::from_bytes(parts[3]).map_err(|_| FastCryptoError::InvalidInput)?;
-
-        Ok(Self {
-            vk_gamma_abc,
-            alpha_beta,
-            gamma_neg,
-            delta_neg,
-        })
-    }
-}
 
 impl<G1> PreparedVerifyingKey<G1>
 where
@@ -99,16 +51,17 @@ mod tests {
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_groth16::Groth16;
     use ark_serialize::CanonicalSerialize;
+    use ark_std::rand::rngs::mock::StepRng;
     use ark_std::rand::thread_rng;
 
     use fastcrypto::groups::bls12381::{G1Element, Scalar};
 
     use crate::dummy_circuits::Fibonacci;
-    use crate::groth16::{PreparedVerifyingKey, Proof};
+    use crate::groth16::{PreparedVerifyingKey, Proof, VerifyingKey};
 
     #[test]
     fn test_verification() {
-        let mut rng = thread_rng();
+        let mut rng = StepRng::new(2, 1);
 
         let a = Fr::from(123);
         let b = Fr::from(456);
@@ -129,9 +82,12 @@ mod tests {
         ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
         let proof: Proof<G1Element> = bincode::deserialize(&proof_bytes).unwrap();
 
+        println!("proof: {:?}", proof);
+
         let mut vk_bytes = Vec::new();
         params.vk.serialize_compressed(&mut vk_bytes).unwrap();
-        let vk = bincode::deserialize(&vk_bytes).unwrap();
+
+        let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
 
         let prepared_vk = PreparedVerifyingKey::from(&vk);
         let public_inputs = vec![Scalar::from(123), Scalar::from(456)];
