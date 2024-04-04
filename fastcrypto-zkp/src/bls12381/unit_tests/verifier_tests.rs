@@ -42,7 +42,7 @@ fn test_verify_with_processed_vk() {
     prepared_vk.verify(&public_inputs, &proof).unwrap()
 }
 
-fn scalar_from_arkworks(scalar: &Fr) -> Scalar {
+pub(crate) fn scalar_from_arkworks(scalar: &Fr) -> Scalar {
     let mut scalar_bytes = [0u8; SCALAR_LENGTH];
     scalar
         .serialize_compressed(scalar_bytes.as_mut_slice())
