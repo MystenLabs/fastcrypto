@@ -76,14 +76,13 @@ mod tests {
         let b = 456;
         let c = 789;
 
-        let arkworks_scalars = vec![Fr::from(a), Fr::from(b), Fr::from(c)]
+        let arkworks_scalars = [Fr::from(a), Fr::from(b), Fr::from(c)]
             .iter()
-            .map(|x| {
+            .flat_map(|x| {
                 let mut bytes = [0u8; SCALAR_LENGTH];
                 x.serialize_compressed(bytes.as_mut_slice()).unwrap();
                 bytes.to_vec()
             })
-            .flatten()
             .collect::<Vec<u8>>();
 
         let as_big_endian = reverse_endianness(&arkworks_scalars).unwrap();

@@ -276,12 +276,12 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
         return Err(FastCryptoError::InvalidInput);
     }
     bytes
-        .chunks(SIZE_IN_BYTES)
+        .chunks_exact(SIZE_IN_BYTES)
         .map(|chunk| {
             T::from_byte_array(
                 &chunk
                     .try_into()
-                    .map_err(|_| FastCryptoError::InvalidInput)?,
+                    .map_err(|_| FastCryptoError::InvalidInput)?, // This will never fail
             )
         })
         .collect::<FastCryptoResult<Vec<T>>>()
@@ -292,10 +292,7 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
 pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
     elements: &[T],
 ) -> Vec<u8> {
-    elements
-        .iter()
-        .flat_map(|e| e.to_byte_array().to_vec())
-        .collect()
+    elements.iter().flat_map(|e| e.to_byte_array()).collect()
 }
 
 // This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.

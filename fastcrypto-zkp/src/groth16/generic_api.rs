@@ -54,7 +54,6 @@ where
     G1::ScalarType: ToFromByteArray<FR_SIZE>,
 {
     let x = deserialize_vector::<FR_SIZE, G1::ScalarType>(proof_public_inputs_as_bytes)?;
-    println!("x: {:?}", x);
     let proof =
         bcs::from_bytes(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
     let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(

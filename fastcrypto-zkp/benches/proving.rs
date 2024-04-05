@@ -3,7 +3,6 @@
 
 use std::ops::Mul;
 
-use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_bn254::{Bn254, Fr as Bn254Fr};
 use ark_ec::pairing::Pairing;
@@ -478,12 +477,6 @@ fn prove(c: &mut Criterion) {
     group.sample_size(10);
     bench_prove::<Bn254Fr, Bn254, _>(&mut group);
     group.finish();
-
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Proving");
-    group.sampling_mode(SamplingMode::Flat); // This can take a *while*
-    group.sample_size(10);
-    bench_prove::<Bls377Fr, Bls12_377, _>(&mut group);
-    group.finish();
 }
 
 fn verify(c: &mut Criterion) {
@@ -496,10 +489,6 @@ fn verify(c: &mut Criterion) {
     // Add fields and pairing engines here
     let mut group: BenchmarkGroup<_> = c.benchmark_group("BN254 Verification");
     bench_verify::<Bn254Fr, Bn254, _>(&mut group);
-    group.finish();
-
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Verification");
-    bench_verify::<Bls377Fr, Bls12_377, _>(&mut group);
     group.finish();
 
     let mut group: BenchmarkGroup<_> = c.benchmark_group("Elusiv Circuit Verification");
