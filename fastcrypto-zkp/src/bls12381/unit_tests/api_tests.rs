@@ -254,7 +254,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     proof.b.serialize_compressed(&mut proof_bytes).unwrap();
     proof.c.serialize_compressed(&mut proof_bytes).unwrap();
 
-    let mut vk_bytes = vec![];
+    let mut vk_bytes = Vec::new();
     params.vk.serialize_compressed(&mut vk_bytes).unwrap();
     let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
     let pvk = PreparedVerifyingKey::from(&vk);
