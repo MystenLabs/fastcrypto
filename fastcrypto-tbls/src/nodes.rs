@@ -94,7 +94,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get an iterator on the share ids.
-    pub fn share_ids_iter(&self) -> impl Iterator<Item = ShareIndex> {
+    pub fn share_ids_iter(&self) -> impl Iterator<Item=ShareIndex> {
         (1..=self.total_weight).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
@@ -125,7 +125,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get an iterator on the nodes.
-    pub fn iter(&self) -> impl Iterator<Item = &Node<G>> {
+    pub fn iter(&self) -> impl Iterator<Item=&Node<G>> {
         self.nodes.iter()
     }
 
@@ -135,7 +135,8 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         hash.finalize()
     }
 
-    /// Reduce weights up to an allowed delta in the original total weight.
+    /// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+    /// Reduces weights up to an allowed delta in the original total weight.
     /// Finds the largest d such that:
     /// - The new threshold is ceil(t / d)
     /// - The new weights are all divided by d (floor division)
@@ -143,33 +144,38 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
     ///
-    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To get the best results,
-    /// set it to 1.
-    ///
-    /// Assumption: reduce is called only once per a set of parameters (and not repeatedly).
-    pub fn reduce(&self, t: u16, allowed_delta: u16, total_weight_lower_bound: u16) -> (Self, u16) {
-        assert!(total_weight_lower_bound <= self.total_weight && total_weight_lower_bound > 0);
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+    /// get the best results, set it to 1.
+    pub fn new_reduced(
+        nodes_vec: Vec<Node<G>>,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -> FastCryptoResult<(Self, u16)> {
+        let n = Self::new(nodes_vec)?; // checks the input, etc
+
+        assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {
             // Break if we reached the lower bound.
             // U16 is safe here since total_weight is u16.
-            let new_total_weight = self.nodes.iter().map(|n| n.weight / d).sum::<u16>();
+            let new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::<u16>();
             if new_total_weight < total_weight_lower_bound {
                 break;
             }
             // Compute the precision loss.
             // U16 is safe here since total_weight is u16.
-            let delta = self.nodes.iter().map(|n| n.weight % d).sum::<u16>();
+            let delta = n.nodes.iter().map(|n| n.weight % d).sum::<u16>();
             if delta <= allowed_delta {
                 max_d = d;
             }
         }
         debug!(
             "Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}",
-            self.total_weight, max_d, allowed_delta, total_weight_lower_bound
+            n.total_weight, max_d, allowed_delta, total_weight_lower_bound
         );
 
-        let nodes = self
+        let nodes = n
             .nodes
             .iter()
             .map(|n| Node {
@@ -183,7 +189,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         // U16 is safe here since the original total_weight is u16.
         let total_weight = nodes.iter().map(|n| n.weight).sum::<u16>();
         let new_t = t / max_d + (t % max_d != 0) as u16;
-        (
+        Ok((
             Self {
                 nodes,
                 total_weight,
@@ -191,6 +197,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
                 nodes_with_nonzero_weight,
             },
             new_t,
-        )
+        ))
     }
 }

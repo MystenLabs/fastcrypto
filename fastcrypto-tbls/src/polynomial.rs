@@ -30,16 +30,15 @@ pub type PublicPoly<C> = Poly<C>;
 
 impl<C> Poly<C> {
     /// Returns the degree of the polynomial
-    pub fn degree(&self) -> u16 {
+    pub fn degree(&self) -> usize {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
-        (self.0.len() - 1) as u16
+        self.0.len() - 1
     }
 }
 
 impl<C> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
-        assert!((c.len() - 1) <= u16::MAX as usize);
         Self(c)
     }
 }

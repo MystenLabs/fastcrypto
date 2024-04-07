@@ -19,7 +19,7 @@ fn dot<S: Scalar>(v1: &[S], v2: &[S]) -> S {
 /// Given a set of indexes (a1, a2, ..., an) and a vector of random scalars (r1, r2, ..., rn),
 /// returns the vector v such that <v, c> = \sum ri * p(ai) for the polynomial p with coefficients c
 /// and the given degree.
-pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u16) -> Vec<S> {
+pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: usize) -> Vec<S> {
     assert!(r.len() == indexes.len() && degree > 0); // Should never happen
     let mut multiplies = r.to_vec();
     let mut res = Vec::<S>::new();
@@ -41,6 +41,7 @@ pub(crate) fn batch_coefficients<S: Scalar>(r: &[S], indexes: &[S], degree: u16)
 
 /// Checks that a given set of evaluations is consistent with a given polynomial in the exp by
 /// checking that (\sum r_i v_i)*G = \sum r_i p(i) for a random set of scalars r_i.
+// TODO: Consider generating the random scalars deterministically using Fiat-Shamir.
 pub fn verify_poly_evals<G: GroupElement + MultiScalarMul, R: AllowedRng>(
     evals: &[Eval<G::ScalarType>],
     poly: &Poly<G>,
