@@ -142,10 +142,10 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
 ///
 /// Can be instantiated with G1Curve or G2Curve.
 impl<G, EG> Party<G, EG>
-    where
-        G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
-        EG: GroupElement + Serialize + DeserializeOwned,
-        EG::ScalarType: FiatShamirChallenge,
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
@@ -563,7 +563,7 @@ impl<G, EG> Party<G, EG>
                             )),
                             rng,
                         )
-                            .is_ok()
+                        .is_ok()
                     }
                     None => false,
                 };

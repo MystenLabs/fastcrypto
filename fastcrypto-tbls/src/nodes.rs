@@ -94,7 +94,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get an iterator on the share ids.
-    pub fn share_ids_iter(&self) -> impl Iterator<Item=ShareIndex> {
+    pub fn share_ids_iter(&self) -> impl Iterator<Item = ShareIndex> {
         (1..=self.total_weight).map(|i| ShareIndex::new(i).expect("nonzero"))
     }
 
@@ -125,7 +125,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     }
 
     /// Get an iterator on the nodes.
-    pub fn iter(&self) -> impl Iterator<Item=&Node<G>> {
+    pub fn iter(&self) -> impl Iterator<Item = &Node<G>> {
         self.nodes.iter()
     }
 
