@@ -73,8 +73,8 @@ pub struct Confirmation<EG: GroupElement> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     pub message: Message<G, EG>,
+    /// Possibly empty
     pub shares: Vec<Share<G::ScalarType>>,
-    //possibly empty
     pub complaint: Option<Complaint<EG>>,
 }
 
@@ -85,7 +85,7 @@ pub struct UsedProcessedMessages<G: GroupElement, EG: GroupElement>(
 );
 
 impl<G: GroupElement, EG: GroupElement> From<&[ProcessedMessage<G, EG>]>
-    for UsedProcessedMessages<G, EG>
+for UsedProcessedMessages<G, EG>
 {
     // Assumes all parties see the same order of messages.
     fn from(msgs: &[ProcessedMessage<G, EG>]) -> Self {
@@ -143,10 +143,10 @@ pub struct Output<G: GroupElement, EG: GroupElement> {
 ///
 /// Can be instantiated with G1Curve or G2Curve.
 impl<G, EG> Party<G, EG>
-where
-    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
-    EG: GroupElement + Serialize + DeserializeOwned,
-    EG::ScalarType: FiatShamirChallenge,
+    where
+        G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+        EG: GroupElement + Serialize + DeserializeOwned,
+        EG::ScalarType: FiatShamirChallenge,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
@@ -562,7 +562,7 @@ where
                             )),
                             rng,
                         )
-                        .is_ok()
+                            .is_ok()
                     }
                     None => false,
                 };
