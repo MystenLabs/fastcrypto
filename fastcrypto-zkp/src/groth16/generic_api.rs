@@ -4,7 +4,7 @@
 use serde::Deserialize;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
+use fastcrypto::groups::{GroupElement, Pairing};
 use fastcrypto::serde_helpers::{deserialize_vector, serialize_vector, ToFromByteArray};
 
 use crate::groth16::{PreparedVerifyingKey, VerifyingKey};
@@ -21,7 +21,7 @@ pub(crate) fn prepare_pvk_bytes<
     vk_bytes: &[u8],
 ) -> FastCryptoResult<Vec<Vec<u8>>>
 where
-    G1: Pairing + MultiScalarMul + for<'a> Deserialize<'a> + ToFromByteArray<G1_SIZE>,
+    G1: Pairing + for<'a> Deserialize<'a> + ToFromByteArray<G1_SIZE>,
     <G1 as Pairing>::Other: for<'a> Deserialize<'a> + ToFromByteArray<G2_SIZE>,
     <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
 {
@@ -48,7 +48,7 @@ pub(crate) fn verify_groth16_in_bytes<
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError>
 where
-    G1: Pairing + MultiScalarMul + ToFromByteArray<G1_SIZE> + for<'a> Deserialize<'a>,
+    G1: Pairing + ToFromByteArray<G1_SIZE> + for<'a> Deserialize<'a>,
     <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + for<'a> Deserialize<'a>,
     <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
     G1::ScalarType: ToFromByteArray<FR_SIZE>,

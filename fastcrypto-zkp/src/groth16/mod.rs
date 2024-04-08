@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use serde::Deserialize;
 
-use fastcrypto::groups::{GroupElement, MultiScalarMul, Pairing};
+use fastcrypto::groups::{GroupElement, Pairing};
 
 pub(crate) mod generic_api;
 
@@ -73,7 +73,7 @@ where
 
 impl<G1> PreparedVerifyingKey<G1>
 where
-    G1: Pairing + MultiScalarMul,
+    G1: Pairing,
     <G1 as Pairing>::Output: GroupElement,
 {
     /// Verify Groth16 proof using the prepared verifying key (see more at
