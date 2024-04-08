@@ -73,7 +73,8 @@ pub struct Confirmation<EG: GroupElement> {
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProcessedMessage<G: GroupElement, EG: GroupElement> {
     pub message: Message<G, EG>,
-    pub shares: Vec<Share<G::ScalarType>>, //possibly empty
+    pub shares: Vec<Share<G::ScalarType>>,
+    //possibly empty
     pub complaint: Option<Complaint<EG>>,
 }
 
@@ -164,8 +165,8 @@ where
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)?;
-        // Check that the threshold makes sense.
-        if t >= nodes.total_weight() || t == 0 {
+        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
+        if t > (nodes.total_weight() / 2) || t == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -432,7 +433,6 @@ where
         debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
-        // U16 is safe here since the total weight fits 2^16.
         let total_weight = filtered_messages
             .0
             .iter()
@@ -440,10 +440,10 @@ where
                 self.nodes
                     .node_id_to_node(m.message.sender)
                     .expect("checked in process_message")
-                    .weight
+                    .weight as u32
             })
-            .sum::<u16>();
-        if total_weight < self.t {
+            .sum::<u32>();
+        if total_weight < (self.t as u32) {
             debug!("Merge failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
         }
@@ -493,7 +493,7 @@ where
         rng: &mut R,
     ) -> FastCryptoResult<VerifiedProcessedMessages<G, EG>> {
         debug!("Processing {} confirmations", confirmations.len());
-        let required_threshold = self.t + self.t - 1; // guarantee that at least t honest nodes have valid shares.
+        let required_threshold = 2 * (self.t as u32) - 1; // guarantee that at least t honest nodes have valid shares.
 
         // Ignore confirmations with invalid sender or zero weights
         let confirmations = confirmations
@@ -506,16 +506,15 @@ where
             .unique_by(|m| m.sender)
             .collect::<Vec<_>>();
         // Verify we have enough confirmations
-        // U16 is safe here since the total weight fits 2^16.
         let total_weight = confirmations
             .iter()
             .map(|c| {
                 self.nodes
                     .node_id_to_node(c.sender)
                     .expect("checked above")
-                    .weight
+                    .weight as u32
             })
-            .sum::<u16>();
+            .sum::<u32>();
         if total_weight < required_threshold {
             debug!("Processing confirmations failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
