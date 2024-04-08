@@ -3,6 +3,7 @@
 
 use crate::bls12381::{Proof, VerifyingKey};
 use ark_bls12_381::{Bls12_381, Fr};
+use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
 use fastcrypto::groups::bls12381::{Scalar, SCALAR_LENGTH};
 use fastcrypto::serde_helpers::ToFromByteArray;
@@ -20,10 +21,5 @@ pub(crate) fn from_arkworks_vk(ark_vk: &ark_groth16::VerifyingKey<Bls12_381>) ->
 }
 
 pub(crate) fn from_arkworks_scalar(scalar: &Fr) -> Scalar {
-    let mut scalar_bytes = [0u8; SCALAR_LENGTH];
-    scalar
-        .serialize_compressed(scalar_bytes.as_mut_slice())
-        .unwrap();
-    scalar_bytes.reverse();
-    Scalar::from_byte_array(&scalar_bytes).unwrap()
+    Scalar::from_byte_array(&scalar.into_bigint().to_bytes_be().try_into().unwrap()).unwrap()
 }
