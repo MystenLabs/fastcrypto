@@ -1,12 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bls12381::{Proof, VerifyingKey};
 use ark_bls12_381::{Bls12_381, Fr};
 use ark_ff::{BigInteger, PrimeField};
 use ark_serialize::CanonicalSerialize;
-use fastcrypto::groups::bls12381::{Scalar, SCALAR_LENGTH};
+
+use fastcrypto::groups::bls12381::Scalar;
 use fastcrypto::serde_helpers::ToFromByteArray;
+
+use crate::bls12381::{Proof, VerifyingKey};
 
 pub(crate) fn from_arkworks_proof(ark_proof: &ark_groth16::Proof<Bls12_381>) -> Proof {
     let mut proof_bytes = Vec::new();
