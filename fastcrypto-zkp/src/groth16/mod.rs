@@ -111,8 +111,9 @@ where
         if (public_inputs.len() + 1) != self.vk_gamma_abc.len() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let prepared_input =
-            self.vk_gamma_abc[0] + G1::multi_scalar_mul(public_inputs, &self.vk_gamma_abc[1..])?;
-        Ok(prepared_input)
+        Ok(public_inputs
+            .iter()
+            .zip(self.vk_gamma_abc.iter().skip(1))
+            .fold(self.vk_gamma_abc[0], |acc, (s, g1)| acc + *g1 * s))
     }
 }
