@@ -346,16 +346,17 @@ fn test_serialization_gt() {
 
     // reject if one of the elements >= P
     let mut bytes = GTElement::generator().to_byte_array();
-    let p = hex::decode("1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab").unwrap();
+    let p =
+        hex::decode("30644e72e131a029b85045b68181585d97816a916871ca8d3c208c16d87cfd47").unwrap();
     let mut carry = 0;
-    let mut target = [0; 48];
-    for i in (0..48).rev() {
+    let mut target = [0; 32];
+    for i in (0..32).rev() {
         let sum = (bytes[i] as u16) + (p[i] as u16) + carry;
         target[i] = (sum % 256) as u8;
         carry = sum / 256;
     }
     assert_eq!(carry, 0);
-    bytes[0..48].copy_from_slice(&target);
+    bytes[0..32].copy_from_slice(&target);
     assert!(GTElement::from_byte_array(&bytes).is_err());
 
     // Test FromTrustedByteArray.
