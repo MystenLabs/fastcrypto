@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Blake3","Digest","EllipticCurveMultisetHash","HashFunctionWrapper"],"trait":["Hash","HashFunction","MultisetHash","ReverseWrapper"],"type":["Blake2b256","Keccak256","Sha256","Sha3_256","Sha3_512","Sha512"]};
+window.SIDEBAR_ITEMS = {"struct":["Digest","EllipticCurveMultisetHash","HashFunctionWrapper"],"trait":["Hash","HashFunction","MultisetHash","ReverseWrapper"],"type":["Blake2b256","Keccak256","Sha256","Sha3_256","Sha3_512","Sha512"]};

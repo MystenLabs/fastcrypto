@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Bn254FqElement","Bn254FrElement"],"type":["CircomG1","CircomG2"]};

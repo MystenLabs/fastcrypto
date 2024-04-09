@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/groups/bls12381.rs`."><title>bls12381.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -771,6 +771,42 @@
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
 <a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
+<a href="#773" id="773">773</a>
+<a href="#774" id="774">774</a>
+<a href="#775" id="775">775</a>
+<a href="#776" id="776">776</a>
+<a href="#777" id="777">777</a>
+<a href="#778" id="778">778</a>
+<a href="#779" id="779">779</a>
+<a href="#780" id="780">780</a>
+<a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
+<a href="#791" id="791">791</a>
+<a href="#792" id="792">792</a>
+<a href="#793" id="793">793</a>
+<a href="#794" id="794">794</a>
+<a href="#795" id="795">795</a>
+<a href="#796" id="796">796</a>
+<a href="#797" id="797">797</a>
+<a href="#798" id="798">798</a>
+<a href="#799" id="799">799</a>
+<a href="#800" id="800">800</a>
+<a href="#801" id="801">801</a>
+<a href="#802" id="802">802</a>
+<a href="#803" id="803">803</a>
+<a href="#804" id="804">804</a>
+<a href="#805" id="805">805</a>
+<a href="#806" id="806">806</a>
+<a href="#807" id="807">807</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -779,8 +815,8 @@
 <span class="kw">use </span><span class="kw">crate</span>::encoding::{Encoding, Hex};
 <span class="kw">use </span><span class="kw">crate</span>::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span><span class="kw">crate</span>::groups::{
-    FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-    Scalar <span class="kw">as </span>ScalarType,
+    FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
+    Pairing, Scalar <span class="kw">as </span>ScalarType,
 };
 <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
 <span class="kw">use </span><span class="kw">crate</span>::serde_helpers::ToFromByteArray;
@@ -799,7 +835,6 @@
     blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
     blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
-<span class="kw">use </span>derive_more::From;
 <span class="kw">use </span>fastcrypto_derive::GroupOpsExtend;
 <span class="kw">use </span>hex_literal::hex;
 <span class="kw">use </span>once_cell::sync::OnceCell;
@@ -809,22 +844,22 @@
 <span class="kw">use </span>std::ptr;
 
 <span class="doccomment">/// Elements of the group G_1 in BLS 12-381.
-</span><span class="attr">#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+</span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 #[repr(transparent)]
 </span><span class="kw">pub struct </span>G1Element(blst_p1);
 
 <span class="doccomment">/// Elements of the group G_2 in BLS 12-381.
-</span><span class="attr">#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+</span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 #[repr(transparent)]
 </span><span class="kw">pub struct </span>G2Element(blst_p2);
 
 <span class="doccomment">/// Elements of the subgroup G_T of F_q^{12} in BLS 12-381. Note that it is written in additive notation here.
-</span><span class="attr">#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+</span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 </span><span class="kw">pub struct </span>GTElement(blst_fp12);
 
 <span class="doccomment">/// This represents a scalar modulo r = 0x73eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001
 /// which is the order of the groups G1, G2 and GT. Note that r is a 255 bit prime.
-</span><span class="attr">#[derive(From, Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
+</span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
 </span><span class="kw">pub struct </span>Scalar(blst_fr);
 
 <span class="kw">pub const </span>SCALAR_LENGTH: usize = <span class="number">32</span>;
@@ -841,7 +876,7 @@
         <span class="kw">unsafe </span>{
             blst_p1_add_or_double(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -861,14 +896,14 @@
         <span class="kw">unsafe </span>{
             blst_p1_cneg(<span class="kw-2">&amp;mut </span>ret, <span class="bool-val">true</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
 <span class="doccomment">/// The size of this scalar in bytes.
 </span><span class="kw">fn </span>size_in_bytes(scalar: <span class="kw-2">&amp;</span>blst_scalar) -&gt; usize {
     <span class="kw">let </span><span class="kw-2">mut </span>i = scalar.b.len();
-    <span class="macro">assert_eq!</span>(i, <span class="number">32</span>);
+    <span class="macro">debug_assert_eq!</span>(i, <span class="number">32</span>);
     <span class="kw">while </span>i != <span class="number">0 </span>&amp;&amp; scalar.b[i - <span class="number">1</span>] == <span class="number">0 </span>{
         i -= <span class="number">1</span>;
     }
@@ -887,7 +922,7 @@
 
 <span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
 </span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>G1Element {
-    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+    <span class="kw">type </span>Output = FastCryptoResult&lt;<span class="self">Self</span>&gt;;
 
     <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
         <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
@@ -925,7 +960,7 @@
             );
         }
 
-        <span class="self">Self</span>::from(result)
+        <span class="self">Self</span>(result)
     }
 }
 
@@ -947,7 +982,7 @@
         }
         <span class="comment">// The scalar field size is smaller than 2^255, so we need at most 255 bits.
         </span><span class="kw">let </span>res = points.mult(scalar_bytes.as_slice(), <span class="number">255</span>);
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(res))
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(res))
     }
 }
 
@@ -963,7 +998,7 @@
     <span class="kw">type </span>ScalarType = Scalar;
 
     <span class="kw">fn </span>zero() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from(blst_p1::default())
+        <span class="self">Self</span>(blst_p1::default())
     }
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
@@ -971,7 +1006,7 @@
         <span class="kw">unsafe </span>{
             blst_p1_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>BLS12_381_G1);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -989,7 +1024,7 @@
             blst_miller_loop(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>other_affine, <span class="kw-2">&amp;</span>self_affine);
             blst_final_exp(<span class="kw-2">&amp;mut </span>res, <span class="kw-2">&amp;</span>res);
         }
-        &lt;<span class="self">Self </span><span class="kw">as </span>Pairing&gt;::Output::from(res)
+        GTElement(res)
     }
 }
 
@@ -1007,12 +1042,12 @@
                 <span class="number">0</span>,
             );
         }
-        <span class="self">Self</span>::from(res)
+        <span class="self">Self</span>(res)
     }
 }
 
-<span class="kw">impl </span>ToFromByteArray&lt;G1_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G1Element {
-    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G1_ELEMENT_BYTE_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+<span class="kw">impl </span>FromTrustedByteArray&lt;G1_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G1Element {
+    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G1_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_p1::default();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>affine = blst_p1_affine::default();
@@ -1020,12 +1055,21 @@
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
             blst_p1_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>affine);
+        }
+        <span class="prelude-val">Ok</span>(G1Element(ret))
+    }
+}
+
+<span class="kw">impl </span>ToFromByteArray&lt;G1_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G1Element {
+    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G1_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>ret = <span class="self">Self</span>::from_trusted_byte_array(bytes)<span class="question-mark">?</span>;
+        <span class="kw">unsafe </span>{
             <span class="comment">// Verify that the deserialized element is in G1
-            </span><span class="kw">if </span>!blst_p1_in_g1(<span class="kw-2">&amp;</span>ret) {
+            </span><span class="kw">if </span>!blst_p1_in_g1(<span class="kw-2">&amp;</span>ret.<span class="number">0</span>) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
         }
-        <span class="prelude-val">Ok</span>(G1Element::from(ret))
+        <span class="prelude-val">Ok</span>(ret)
     }
 
     <span class="kw">fn </span>to_byte_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; G1_ELEMENT_BYTE_LENGTH] {
@@ -1055,7 +1099,7 @@
         <span class="kw">unsafe </span>{
             blst_p2_add_or_double(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1075,13 +1119,13 @@
         <span class="kw">unsafe </span>{
             blst_p2_cneg(<span class="kw-2">&amp;mut </span>ret, <span class="bool-val">true</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
 <span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
 </span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>G2Element {
-    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+    <span class="kw">type </span>Output = FastCryptoResult&lt;<span class="self">Self</span>&gt;;
 
     <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
         <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
@@ -1120,7 +1164,7 @@
             );
         }
 
-        <span class="self">Self</span>::from(result)
+        <span class="self">Self</span>(result)
     }
 }
 
@@ -1142,7 +1186,7 @@
         }
         <span class="comment">// The scalar field size is smaller than 2^255, so we need at most 255 bits.
         </span><span class="kw">let </span>res = points.mult(scalar_bytes.as_slice(), <span class="number">255</span>);
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(res))
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(res))
     }
 }
 
@@ -1150,7 +1194,7 @@
     <span class="kw">type </span>ScalarType = Scalar;
 
     <span class="kw">fn </span>zero() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from(blst_p2::default())
+        <span class="self">Self</span>(blst_p2::default())
     }
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
@@ -1158,7 +1202,7 @@
         <span class="kw">unsafe </span>{
             blst_p2_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>BLS12_381_G2);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1176,12 +1220,12 @@
                 <span class="number">0</span>,
             );
         }
-        <span class="self">Self</span>::from(res)
+        <span class="self">Self</span>(res)
     }
 }
 
-<span class="kw">impl </span>ToFromByteArray&lt;G2_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G2Element {
-    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G2_ELEMENT_BYTE_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+<span class="kw">impl </span>FromTrustedByteArray&lt;G2_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G2Element {
+    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G2_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_p2::default();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>affine = blst_p2_affine::default();
@@ -1189,12 +1233,21 @@
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
             blst_p2_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>affine);
+        }
+        <span class="prelude-val">Ok</span>(G2Element(ret))
+    }
+}
+
+<span class="kw">impl </span>ToFromByteArray&lt;G2_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>G2Element {
+    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; G2_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>ret = <span class="self">Self</span>::from_trusted_byte_array(bytes)<span class="question-mark">?</span>;
+        <span class="kw">unsafe </span>{
             <span class="comment">// Verify that the deserialized element is in G2
-            </span><span class="kw">if </span>!blst_p2_in_g2(<span class="kw-2">&amp;</span>ret) {
+            </span><span class="kw">if </span>!blst_p2_in_g2(<span class="kw-2">&amp;</span>ret.<span class="number">0</span>) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
             }
         }
-        <span class="prelude-val">Ok</span>(G2Element::from(ret))
+        <span class="prelude-val">Ok</span>(ret)
     }
 
     <span class="kw">fn </span>to_byte_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; G2_ELEMENT_BYTE_LENGTH] {
@@ -1224,7 +1277,7 @@
         <span class="kw">unsafe </span>{
             blst_fp12_mul(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1244,13 +1297,13 @@
         <span class="kw">unsafe </span>{
             blst_fp12_inverse(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
 <span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
 </span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>GTElement {
-    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+    <span class="kw">type </span>Output = FastCryptoResult&lt;<span class="self">Self</span>&gt;;
 
     <span class="kw">fn </span>div(<span class="self">self</span>, rhs: Scalar) -&gt; <span class="self">Self</span>::Output {
         <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
@@ -1286,7 +1339,7 @@
                 blst_fr_rshift(<span class="kw-2">&amp;mut </span>n, <span class="kw-2">&amp;</span>n, <span class="number">1</span>);
             }
             y <span class="kw-2">*</span>= x;
-            <span class="self">Self</span>::from(y)
+            <span class="self">Self</span>(y)
         }
     }
 }
@@ -1295,12 +1348,12 @@
     <span class="kw">type </span>ScalarType = Scalar;
 
     <span class="kw">fn </span>zero() -&gt; <span class="self">Self </span>{
-        <span class="kw">unsafe </span>{ <span class="self">Self</span>::from(<span class="kw-2">*</span>blst_fp12_one()) }
+        <span class="kw">unsafe </span>{ <span class="self">Self</span>(<span class="kw-2">*</span>blst_fp12_one()) }
     }
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
         <span class="kw">static </span>G: OnceCell&lt;blst_fp12&gt; = OnceCell::new();
-        <span class="self">Self</span>::from(<span class="kw-2">*</span>G.get_or_init(<span class="self">Self</span>::compute_generator))
+        <span class="self">Self</span>(<span class="kw-2">*</span>G.get_or_init(<span class="self">Self</span>::compute_generator))
     }
 }
 
@@ -1319,8 +1372,8 @@
 <span class="kw">const </span>P_AS_BYTES: [u8; FP_BYTE_LENGTH] = <span class="macro">hex!</span>(<span class="string">"1a0111ea397fe69a4b1ba7b6434bacd764774b84f38512bf6730d2a0f6b0f6241eabfffeb153ffffb9feffffffffaaab"</span>);
 
 <span class="comment">// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
-</span><span class="kw">impl </span>ToFromByteArray&lt;GT_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>GTElement {
-    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; GT_ELEMENT_BYTE_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+</span><span class="kw">impl </span>FromTrustedByteArray&lt;GT_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>GTElement {
+    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; GT_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="comment">// The following is based on the order from
         // https://github.com/supranational/blst/blob/b4ebf88014251f1cfefeb6cf1cd4df7c40dc568f/src/fp12_tower.c#L773-L786C2
         </span><span class="kw">let </span><span class="kw-2">mut </span>gt: blst_fp12 = Default::default();
@@ -1331,7 +1384,7 @@
                     <span class="kw">let </span><span class="kw-2">mut </span>fp = blst_fp::default();
                     <span class="kw">let </span>slice = <span class="kw-2">&amp;</span>bytes[current..current + FP_BYTE_LENGTH];
                     <span class="comment">// We compare with P_AS_BYTES to ensure that we process a canonical representation
-                    // which is uses mod p elements.
+                    // which uses mod p elements.
                     </span><span class="kw">if </span><span class="kw-2">*</span>slice &gt;= P_AS_BYTES[..] {
                         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
                     }
@@ -1343,9 +1396,16 @@
                 }
             }
         }
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(gt))
+    }
+}
 
-        <span class="kw">match </span>gt.in_group() {
-            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(gt)),
+<span class="comment">// Note that the serialization below is uncompressed, i.e. it uses 576 bytes.
+</span><span class="kw">impl </span>ToFromByteArray&lt;GT_ELEMENT_BYTE_LENGTH&gt; <span class="kw">for </span>GTElement {
+    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; GT_ELEMENT_BYTE_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span>gt = <span class="self">Self</span>::from_trusted_byte_array(bytes)<span class="question-mark">?</span>;
+        <span class="kw">match </span>gt.<span class="number">0</span>.in_group() {
+            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(gt),
             <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
@@ -1368,11 +1428,11 @@
     <span class="kw">type </span>ScalarType = <span class="self">Self</span>;
 
     <span class="kw">fn </span>zero() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from(blst_fr::default())
+        <span class="self">Self</span>(blst_fr::default())
     }
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from(BLST_FR_ONE)
+        <span class="self">Self</span>(BLST_FR_ONE)
     }
 }
 
@@ -1384,7 +1444,7 @@
         <span class="kw">unsafe </span>{
             blst_fr_add(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1396,7 +1456,7 @@
         <span class="kw">unsafe </span>{
             blst_fr_sub(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1408,7 +1468,7 @@
         <span class="kw">unsafe </span>{
             blst_fr_cneg(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="bool-val">true</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
@@ -1420,24 +1480,24 @@
         <span class="kw">unsafe </span>{
             blst_fr_mul(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>, <span class="kw-2">&amp;</span>rhs.<span class="number">0</span>);
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
-<span class="kw">impl </span>From&lt;u64&gt; <span class="kw">for </span>Scalar {
-    <span class="kw">fn </span>from(value: u64) -&gt; <span class="self">Self </span>{
+<span class="kw">impl </span>From&lt;u128&gt; <span class="kw">for </span>Scalar {
+    <span class="kw">fn </span>from(value: u128) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
-        <span class="kw">let </span>buff = [value, <span class="number">0u64</span>, <span class="number">0u64</span>, <span class="number">0u64</span>];
+        <span class="kw">let </span>buff = [value <span class="kw">as </span>u64, (value &gt;&gt; <span class="number">64</span>) <span class="kw">as </span>u64, <span class="number">0u64</span>, <span class="number">0u64</span>];
         <span class="kw">unsafe </span>{
             blst_fr_from_uint64(<span class="kw-2">&amp;mut </span>ret, buff.as_ptr());
         }
-        <span class="self">Self</span>::from(ret)
+        <span class="self">Self</span>(ret)
     }
 }
 
 <span class="attr">#[allow(clippy::suspicious_arithmetic_impl)]
 </span><span class="kw">impl </span>Div&lt;Scalar&gt; <span class="kw">for </span>Scalar {
-    <span class="kw">type </span>Output = <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt;;
+    <span class="kw">type </span>Output = FastCryptoResult&lt;<span class="self">Self</span>&gt;;
 
     <span class="kw">fn </span>div(<span class="self">self</span>, rhs: <span class="self">Self</span>) -&gt; <span class="self">Self</span>::Output {
         <span class="kw">let </span>inv = rhs.inverse()<span class="question-mark">?</span>;
@@ -1460,7 +1520,7 @@
         <span class="kw">unsafe </span>{
             blst_fr_inverse(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>);
         }
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>::from(ret))
+        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(ret))
     }
 }
 
@@ -1478,7 +1538,7 @@
         blst_scalar_from_be_bytes(<span class="kw-2">&amp;mut </span>tmp, buffer.as_ptr(), buffer.len());
         blst_fr_from_scalar(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>tmp);
     }
-    Scalar::from(ret)
+    Scalar(ret)
 }
 
 <span class="kw">impl </span>FiatShamirChallenge <span class="kw">for </span>Scalar {
@@ -1487,8 +1547,20 @@
     }
 }
 
+<span class="kw">impl </span>FromTrustedByteArray&lt;SCALAR_LENGTH&gt; <span class="kw">for </span>Scalar {
+    <span class="kw">fn </span>from_trusted_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; SCALAR_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
+        <span class="kw">unsafe </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>scalar = blst_scalar::default();
+            blst_scalar_from_bendian(<span class="kw-2">&amp;mut </span>scalar, bytes.as_ptr());
+            blst_fr_from_scalar(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>scalar);
+        }
+        <span class="prelude-val">Ok</span>(Scalar(ret))
+    }
+}
+
 <span class="kw">impl </span>ToFromByteArray&lt;SCALAR_LENGTH&gt; <span class="kw">for </span>Scalar {
-    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; SCALAR_LENGTH]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+    <span class="kw">fn </span>from_byte_array(bytes: <span class="kw-2">&amp;</span>[u8; SCALAR_LENGTH]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_fr::default();
         <span class="kw">unsafe </span>{
             <span class="kw">let </span><span class="kw-2">mut </span>scalar = blst_scalar::default();
@@ -1498,7 +1570,7 @@
             }
             blst_fr_from_scalar(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>scalar);
         }
-        <span class="prelude-val">Ok</span>(Scalar::from(ret))
+        <span class="prelude-val">Ok</span>(Scalar(ret))
     }
 
     <span class="kw">fn </span>to_byte_array(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; [u8; SCALAR_LENGTH] {

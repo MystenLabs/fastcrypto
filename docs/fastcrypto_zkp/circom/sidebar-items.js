@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["g1_affine_from_str_projective","g2_affine_from_str_projective"],"type":["CircomG1","CircomG2"]};

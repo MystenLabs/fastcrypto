@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login.rs`."><title>zk_login.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto_zkp/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -614,6 +614,16 @@
 <a href="#612" id="612">612</a>
 <a href="#613" id="613">613</a>
 <a href="#614" id="614">614</a>
+<a href="#615" id="615">615</a>
+<a href="#616" id="616">616</a>
+<a href="#617" id="617">617</a>
+<a href="#618" id="618">618</a>
+<a href="#619" id="619">619</a>
+<a href="#620" id="620">620</a>
+<a href="#621" id="621">621</a>
+<a href="#622" id="622">622</a>
+<a href="#623" id="623">623</a>
+<a href="#624" id="624">624</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -623,8 +633,9 @@
 
 <span class="kw">use </span><span class="kw">super</span>::utils::split_to_two_frs;
 <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_zk_login;
-<span class="kw">use </span><span class="kw">crate</span>::circom::{
-    g1_affine_from_str_projective, g2_affine_from_str_projective, CircomG1, CircomG2,
+<span class="kw">use </span><span class="kw">crate</span>::zk_login_utils::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
+    CircomG2,
 };
 <span class="kw">pub use </span>ark_bn254::{Bn254, Fr <span class="kw">as </span>Bn254Fr};
 <span class="kw">pub use </span>ark_ff::ToConstraintField;
@@ -632,9 +643,11 @@
 <span class="kw">use </span>ark_groth16::Proof;
 <span class="kw">pub use </span>ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
+<span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>num_bigint::BigUint;
 <span class="kw">use </span>schemars::JsonSchema;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::cmp::Ordering::{Equal, Greater, Less};
 <span class="kw">use </span>std::str::FromStr;
 
 <span class="attr">#[cfg(test)]
@@ -703,6 +716,8 @@
     </span>Apple,
     <span class="doccomment">/// See https://slack.com/.well-known/openid-configuration
     </span>Slack,
+    <span class="doccomment">/// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
+    </span>TestIssuer,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
@@ -716,6 +731,7 @@
             <span class="string">"Kakao" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
             <span class="string">"Apple" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
             <span class="string">"Slack" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
+            <span class="string">"TestIssuer" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
@@ -730,6 +746,7 @@
             <span class="self">Self</span>::Kakao =&gt; <span class="string">"Kakao"</span>.to_string(),
             <span class="self">Self</span>::Apple =&gt; <span class="string">"Apple"</span>.to_string(),
             <span class="self">Self</span>::Slack =&gt; <span class="string">"Slack"</span>.to_string(),
+            <span class="self">Self</span>::TestIssuer =&gt; <span class="string">"TestIssuer"</span>.to_string(),
         }
     }
 }
@@ -761,6 +778,10 @@
             OIDCProvider::Slack =&gt; {
                 ProviderConfig::new(<span class="string">"https://slack.com"</span>, <span class="string">"https://slack.com/openid/connect/keys"</span>)
             }
+            OIDCProvider::TestIssuer =&gt; ProviderConfig::new(
+                <span class="string">"https://oauth.sui.io"</span>,
+                <span class="string">"https://jwt-tester.mystenlabs.com/.well-known/jwks.json"</span>,
+            ),
         }
     }
 
@@ -773,6 +794,7 @@
             <span class="string">"https://kauth.kakao.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Kakao),
             <span class="string">"https://appleid.apple.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
             <span class="string">"https://slack.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
+            <span class="string">"https://oauth.sui.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
             <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
@@ -911,12 +933,11 @@
 <span class="doccomment">/// All inputs required for the zk login proof verification and other public inputs.
 </span><span class="attr">#[derive(Debug, Clone, JsonSchema, Serialize, Deserialize)]
 #[serde(rename_all = <span class="string">"camelCase"</span>)]
-
 </span><span class="kw">pub struct </span>ZkLoginInputs {
     proof_points: ZkLoginProof,
     iss_base64_details: Claim,
     header_base64: String,
-    address_seed: String,
+    address_seed: Bn254FrElement,
     <span class="attr">#[serde(skip)]
     </span>jwt_details: JWTDetails,
 }
@@ -949,7 +970,8 @@
             proof_points: reader.proof_points,
             iss_base64_details: reader.iss_base64_details,
             header_base64: reader.header_base64,
-            address_seed: address_seed.to_owned(),
+            address_seed: Bn254FrElement::from_str(address_seed)
+                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>,
             jwt_details: reader.jwt_details,
         }
         .init()
@@ -957,9 +979,6 @@
 
     <span class="doccomment">/// Initialize JWTDetails by parsing header_base64 and iss_base64_details.
     </span><span class="kw">pub fn </span>init(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="kw">if </span>BigUint::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed).is_err() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-        }
         <span class="self">self</span>.jwt_details = JWTDetails::new(<span class="kw-2">&amp;</span><span class="self">self</span>.header_base64, <span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.to_owned())
     }
@@ -980,7 +999,7 @@
     }
 
     <span class="doccomment">/// Get the address seed string.
-    </span><span class="kw">pub fn </span>get_address_seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>str {
+    </span><span class="kw">pub fn </span>get_address_seed(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Bn254FrElement {
         <span class="kw-2">&amp;</span><span class="self">self</span>.address_seed
     }
 
@@ -995,11 +1014,12 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::GeneralError(<span class="string">"Header too long"</span>.to_string()));
         }
 
-        <span class="kw">let </span>addr_seed = to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed)<span class="question-mark">?</span>;
+        <span class="kw">let </span>addr_seed = (<span class="kw-2">&amp;</span><span class="self">self</span>.address_seed).into();
         <span class="kw">let </span>(first, second) = split_to_two_frs(eph_pk_bytes)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>max_epoch_f = to_field(<span class="kw-2">&amp;</span>max_epoch.to_string())<span class="question-mark">?</span>;
-        <span class="kw">let </span>index_mod_4_f = to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.index_mod_4.to_string())<span class="question-mark">?</span>;
+        <span class="kw">let </span>max_epoch_f = (<span class="kw-2">&amp;</span>Bn254FrElement::from_str(<span class="kw-2">&amp;</span>max_epoch.to_string())<span class="question-mark">?</span>).into();
+        <span class="kw">let </span>index_mod_4_f =
+            (<span class="kw-2">&amp;</span>Bn254FrElement::from_str(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.index_mod_4.to_string())<span class="question-mark">?</span>).into();
 
         <span class="kw">let </span>iss_base64_f =
             hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.value, MAX_ISS_LEN_B64)<span class="question-mark">?</span>;
@@ -1074,7 +1094,7 @@
             <span class="string">"Base64 string smaller than 2"</span>.to_string(),
         ));
     }
-    <span class="kw">let </span><span class="kw-2">mut </span>bits = base64_to_bitarray(s);
+    <span class="kw">let </span><span class="kw-2">mut </span>bits = base64_to_bitarray(s)<span class="question-mark">?</span>;
     <span class="kw">match </span>i {
         <span class="number">0 </span>=&gt; {}
         <span class="number">1 </span>=&gt; {
@@ -1112,40 +1132,43 @@
         ));
     }
 
-    <span class="prelude-val">Ok</span>(std::str::from_utf8(<span class="kw-2">&amp;</span>bitarray_to_bytearray(<span class="kw-2">&amp;</span>bits))
+    <span class="prelude-val">Ok</span>(std::str::from_utf8(<span class="kw-2">&amp;</span>bitarray_to_bytearray(<span class="kw-2">&amp;</span>bits)<span class="question-mark">?</span>)
         .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Invalid UTF8 string"</span>.to_string()))<span class="question-mark">?
         </span>.to_owned())
 }
 
-<span class="doccomment">/// Map a base64 string to a bit array by taking each char's index and covert it to binary form.
-</span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; Vec&lt;u8&gt; {
+<span class="doccomment">/// Map a base64 string to a bit array by taking each char's index and covert it to binary form with one bit per u8
+/// element in the output. Returns [FastCryptoError::InvalidInput] if one of the characters is not in the base64 charset.
+</span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
     input
         .chars()
-        .flat_map(|c| {
-            <span class="kw">let </span>index = BASE64_URL_CHARSET.find(c).unwrap() <span class="kw">as </span>u8; <span class="comment">// TODO: could panic
-            </span>(<span class="number">0</span>..<span class="number">6</span>).rev().map(<span class="kw">move </span>|i| index &gt;&gt; i &amp; <span class="number">1</span>)
+        .map(|c| {
+            BASE64_URL_CHARSET
+                .find(c)
+                .map(|index| index <span class="kw">as </span>u8)
+                .map(|index| (<span class="number">0</span>..<span class="number">6</span>).rev().map(<span class="kw">move </span>|i| index &gt;&gt; i &amp; <span class="number">1</span>))
+                .ok_or(FastCryptoError::InvalidInput)
         })
+        .flatten_ok()
         .collect()
 }
 
-<span class="doccomment">/// Convert a bitarray (each bit is represented by u8) to a byte array by taking each 8 bits as a
+<span class="doccomment">/// Convert a bitarray (each bit is represented by a u8) to a byte array by taking each 8 bits as a
 /// byte in big-endian format.
-</span><span class="kw">fn </span>bitarray_to_bytearray(bits: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>bytes: Vec&lt;u8&gt; = Vec::new();
-    <span class="kw">for </span>bits <span class="kw">in </span>bits.chunks(<span class="number">8</span>) {
-        <span class="kw">let </span><span class="kw-2">mut </span>byte = <span class="number">0u8</span>;
-        <span class="kw">for </span>(i, bit) <span class="kw">in </span>bits.iter().rev().enumerate() {
-            byte |= bit &lt;&lt; i;
-        }
-        bytes.push(byte);
+</span><span class="kw">fn </span>bitarray_to_bytearray(bits: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+    <span class="kw">if </span>bits.len() % <span class="number">8 </span>!= <span class="number">0 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
     }
-    bytes
-}
-
-<span class="doccomment">/// Convert a bigint string to a field element.
-</span><span class="kw">pub fn </span>to_field(val: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
-    Bn254Fr::from_str(val)
-        .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Convert to field error"</span>.to_string()))
+    <span class="prelude-val">Ok</span>(bits
+        .chunks(<span class="number">8</span>)
+        .map(|chunk| {
+            <span class="kw">let </span><span class="kw-2">mut </span>byte = <span class="number">0u8</span>;
+            <span class="kw">for </span>(i, bit) <span class="kw">in </span>chunk.iter().rev().enumerate() {
+                byte |= bit &lt;&lt; i;
+            }
+            byte
+        })
+        .collect())
 }
 
 <span class="doccomment">/// Pads a stream of bytes and maps it to a field element
@@ -1184,48 +1207,45 @@
     poseidon_zk_login(packed)
 }
 
-<span class="kw">fn </span>div_ceil(dividend: usize, divisor: usize) -&gt; <span class="prelude-ty">Result</span>&lt;usize, FastCryptoError&gt; {
-    <span class="kw">if </span>divisor == <span class="number">0 </span>{
-        <span class="comment">// Handle division by zero as needed for your application.
-        </span><span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-    }
-
-    <span class="prelude-val">Ok</span>(<span class="number">1 </span>+ ((dividend - <span class="number">1</span>) / divisor))
-}
-
 <span class="doccomment">/// Helper function to pack field elements from big ints.
 </span><span class="kw">fn </span>convert_base(
     in_arr: <span class="kw-2">&amp;</span>[BigUint],
     in_width: u16,
     out_width: u8,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;Bn254Fr&gt;, FastCryptoError&gt; {
-    <span class="kw">let </span>bits = big_int_array_to_bits(in_arr, in_width <span class="kw">as </span>usize);
+    <span class="kw">if </span>out_width == <span class="number">0 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+    }
+    <span class="kw">let </span>bits = big_int_array_to_bits(in_arr, in_width <span class="kw">as </span>usize)<span class="question-mark">?</span>;
     <span class="kw">let </span><span class="kw-2">mut </span>packed: Vec&lt;Bn254Fr&gt; = bits
         .rchunks(out_width <span class="kw">as </span>usize)
         .map(|chunk| Bn254Fr::from(BigUint::from_radix_be(chunk, <span class="number">2</span>).unwrap()))
         .collect();
     packed.reverse();
-    <span class="kw">match </span>packed.len() != div_ceil(in_arr.len() * in_width <span class="kw">as </span>usize, out_width <span class="kw">as </span>usize).unwrap() {
+    <span class="kw">match </span>packed.len() != (in_arr.len() * in_width <span class="kw">as </span>usize).div_ceil(out_width <span class="kw">as </span>usize) {
         <span class="bool-val">true </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         <span class="bool-val">false </span>=&gt; <span class="prelude-val">Ok</span>(packed),
     }
 }
 
 <span class="doccomment">/// Convert a big int array to a bit array with 0 paddings.
-</span><span class="kw">fn </span>big_int_array_to_bits(arr: <span class="kw-2">&amp;</span>[BigUint], int_size: usize) -&gt; Vec&lt;u8&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>bitarray: Vec&lt;u8&gt; = Vec::new();
-    <span class="kw">for </span>num <span class="kw">in </span>arr {
-        <span class="kw">let </span>val = num.to_radix_be(<span class="number">2</span>);
-        <span class="kw">let </span>extra_bits = <span class="kw">if </span>val.len() &lt; int_size {
-            int_size - val.len()
-        } <span class="kw">else </span>{
-            <span class="number">0
-        </span>};
-
-        <span class="kw">let </span><span class="kw-2">mut </span>padded = <span class="macro">vec!</span>[<span class="number">0</span>; extra_bits];
-        padded.extend(val);
-        bitarray.extend(padded)
-    }
-    bitarray
+</span><span class="kw">fn </span>big_int_array_to_bits(integers: <span class="kw-2">&amp;</span>[BigUint], intended_size: usize) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+    integers
+        .iter()
+        .map(|integer| {
+            <span class="kw">let </span>bits = integer.to_radix_be(<span class="number">2</span>);
+            <span class="kw">match </span>bits.len().cmp(<span class="kw-2">&amp;</span>intended_size) {
+                Less =&gt; {
+                    <span class="kw">let </span>extra_bits = intended_size - bits.len();
+                    <span class="kw">let </span><span class="kw-2">mut </span>padded = <span class="macro">vec!</span>[<span class="number">0</span>; extra_bits];
+                    padded.extend(bits);
+                    <span class="prelude-val">Ok</span>(padded)
+                }
+                Equal =&gt; <span class="prelude-val">Ok</span>(bits),
+                Greater =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+            }
+        })
+        .flatten_ok()
+        .collect()
 }
 </code></pre></div></section></main></body></html>

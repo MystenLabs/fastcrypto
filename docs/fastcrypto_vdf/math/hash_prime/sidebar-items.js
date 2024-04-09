@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["hash_prime","hash_prime_default"],"struct":["DefaultPrimalityCheck"],"trait":["PrimalityCheck"]};

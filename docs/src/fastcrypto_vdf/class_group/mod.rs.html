@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/class_group/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto_vdf/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -426,67 +426,6 @@
 <a href="#424" id="424">424</a>
 <a href="#425" id="425">425</a>
 <a href="#426" id="426">426</a>
-<a href="#427" id="427">427</a>
-<a href="#428" id="428">428</a>
-<a href="#429" id="429">429</a>
-<a href="#430" id="430">430</a>
-<a href="#431" id="431">431</a>
-<a href="#432" id="432">432</a>
-<a href="#433" id="433">433</a>
-<a href="#434" id="434">434</a>
-<a href="#435" id="435">435</a>
-<a href="#436" id="436">436</a>
-<a href="#437" id="437">437</a>
-<a href="#438" id="438">438</a>
-<a href="#439" id="439">439</a>
-<a href="#440" id="440">440</a>
-<a href="#441" id="441">441</a>
-<a href="#442" id="442">442</a>
-<a href="#443" id="443">443</a>
-<a href="#444" id="444">444</a>
-<a href="#445" id="445">445</a>
-<a href="#446" id="446">446</a>
-<a href="#447" id="447">447</a>
-<a href="#448" id="448">448</a>
-<a href="#449" id="449">449</a>
-<a href="#450" id="450">450</a>
-<a href="#451" id="451">451</a>
-<a href="#452" id="452">452</a>
-<a href="#453" id="453">453</a>
-<a href="#454" id="454">454</a>
-<a href="#455" id="455">455</a>
-<a href="#456" id="456">456</a>
-<a href="#457" id="457">457</a>
-<a href="#458" id="458">458</a>
-<a href="#459" id="459">459</a>
-<a href="#460" id="460">460</a>
-<a href="#461" id="461">461</a>
-<a href="#462" id="462">462</a>
-<a href="#463" id="463">463</a>
-<a href="#464" id="464">464</a>
-<a href="#465" id="465">465</a>
-<a href="#466" id="466">466</a>
-<a href="#467" id="467">467</a>
-<a href="#468" id="468">468</a>
-<a href="#469" id="469">469</a>
-<a href="#470" id="470">470</a>
-<a href="#471" id="471">471</a>
-<a href="#472" id="472">472</a>
-<a href="#473" id="473">473</a>
-<a href="#474" id="474">474</a>
-<a href="#475" id="475">475</a>
-<a href="#476" id="476">476</a>
-<a href="#477" id="477">477</a>
-<a href="#478" id="478">478</a>
-<a href="#479" id="479">479</a>
-<a href="#480" id="480">480</a>
-<a href="#481" id="481">481</a>
-<a href="#482" id="482">482</a>
-<a href="#483" id="483">483</a>
-<a href="#484" id="484">484</a>
-<a href="#485" id="485">485</a>
-<a href="#486" id="486">486</a>
-<a href="#487" id="487">487</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -494,20 +433,35 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
-</span><span class="kw">use </span><span class="kw">crate</span>::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
+</span><span class="kw">use </span><span class="kw">crate</span>::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
 <span class="kw">use crate</span>::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+<span class="kw">use </span>discriminant::Discriminant;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
-<span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
+<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 <span class="kw">use </span>fastcrypto::groups::Doubling;
-<span class="kw">use </span>num_bigint::BigInt;
+<span class="kw">use </span>num_bigint::{BigInt, Sign};
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
 <span class="kw">use </span>std::borrow::Borrow;
-<span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::mem::swap;
-<span class="kw">use </span>std::ops::{Add, AddAssign, Mul, Neg, Shl, Shr};
+<span class="kw">use </span>std::ops::{Add, Mul, Neg};
 
-<span class="kw">mod </span>compressed;
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests;
+
+<span class="doccomment">/// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
+/// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
+/// group but not the entire class group.
+</span><span class="kw">pub mod </span>hash;
+
+<span class="doccomment">/// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
+/// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
+/// the coefficients does not become too large.
+</span><span class="kw">pub mod </span>reduction;
+
+<span class="doccomment">/// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
+/// discriminants and methods to create them.
+</span><span class="kw">pub mod </span>discriminant;
 
 <span class="doccomment">/// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
@@ -515,80 +469,99 @@
 /// the composition algorithm.
 </span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone)]
 </span><span class="kw">pub struct </span>QuadraticForm {
-    a: BigInt,
-    b: BigInt,
-    c: BigInt,
+    <span class="kw">pub </span>a: BigInt,
+    <span class="kw">pub </span>b: BigInt,
+    <span class="kw">pub </span>c: BigInt,
     partial_gcd_limit: BigInt,
 }
 
 <span class="kw">impl </span>QuadraticForm {
     <span class="doccomment">/// Create a new quadratic form given only the a and b coefficients and the discriminant.
-    </span><span class="kw">pub fn </span>from_a_b_discriminant(a: BigInt, b: BigInt, discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>c = ((<span class="kw-2">&amp;</span>b * <span class="kw-2">&amp;</span>b) - <span class="kw-2">&amp;</span>discriminant.<span class="number">0</span>) / (BigInt::from(<span class="number">4</span>) * <span class="kw-2">&amp;</span>a);
-        <span class="self">Self </span>{
+    </span><span class="kw">pub fn </span>from_a_b_discriminant(
+        a: BigInt,
+        b: BigInt,
+        discriminant: <span class="kw-2">&amp;</span>Discriminant,
+    ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">if </span>!a.is_positive() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>numerator = b.pow(<span class="number">2</span>) - discriminant.as_bigint();
+        <span class="kw">let </span>denominator = <span class="kw-2">&amp;</span>a &lt;&lt; <span class="number">2</span>;
+        <span class="kw">if </span>!numerator.is_multiple_of(<span class="kw-2">&amp;</span>denominator) {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>c = numerator / denominator;
+        <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             a,
             b,
             c,
             <span class="comment">// This limit is used by `partial_euclidean_algorithm` in the add method.
-            </span>partial_gcd_limit: discriminant.<span class="number">0</span>.abs().sqrt().sqrt(),
-        }
+            </span>partial_gcd_limit: discriminant.as_bigint().abs().nth_root(<span class="number">4</span>),
+        })
     }
 
-    <span class="doccomment">/// Return a generator (or, more precisely, an element with a presumed large order) in a class
-    /// group with a given discriminant. We use the element `(2, 1, c)` where `c` is determined from
-    /// the discriminant.
+    <span class="doccomment">/// Create a new quadratic form from a serialization. The format is a byte array with the following structure:
+    ///
+    /// `a_len` (2 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (2 bytes, big endian) | `b` as signed
+    /// big endian bytes
+    ///
+    /// The c coefficient is computed from a and b and the discriminant. If the format is not followed or if the
+    /// coefficients do not form a valid quadratic form, an error is returned.
+    ///
+    /// See also [`QuadraticForm::to_bytes`].
+    </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8], discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>index = <span class="number">0</span>;
+
+        <span class="kw">if </span>bytes.len() &lt; <span class="number">2 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>a_len = u16::from_be_bytes(bytes[index..<span class="number">2</span>].try_into().expect(<span class="string">"Never fails"</span>)) <span class="kw">as </span>usize;
+        index += <span class="number">2</span>;
+
+        <span class="kw">if </span>bytes.len() &lt; index + a_len {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>a = BigInt::from_bytes_be(Sign::Plus, <span class="kw-2">&amp;</span>bytes[index..index + a_len]);
+        index += a_len;
+
+        <span class="kw">if </span>bytes.len() &lt; index + <span class="number">2 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>b_len =
+            u16::from_be_bytes(bytes[index..index + <span class="number">2</span>].try_into().expect(<span class="string">"Never fails"</span>)) <span class="kw">as </span>usize;
+        index += <span class="number">2</span>;
+
+        <span class="kw">if </span>bytes.len() &lt; index + b_len {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span>b = BigInt::from_signed_bytes_be(<span class="kw-2">&amp;</span>bytes[index..index + b_len]);
+        index += b_len;
+
+        <span class="comment">// Check that all bytes are used
+        </span><span class="kw">if </span>index != bytes.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="self">Self</span>::from_a_b_discriminant(a, b, discriminant)
+    }
+
+    <span class="doccomment">/// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
+    /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     </span><span class="kw">pub fn </span>generator(discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::from_a_b_discriminant(BigInt::from(<span class="number">2</span>), BigInt::one(), discriminant)
+            .expect(<span class="string">"Always succeeds when the discriminant is 1 mod 8"</span>)
     }
 
     <span class="doccomment">/// Compute the discriminant `b^2 - 4ac` for this quadratic form.
     </span><span class="kw">pub fn </span>discriminant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Discriminant {
-        Discriminant::try_from(<span class="self">self</span>.b.pow(<span class="number">2</span>) - (BigInt::from(<span class="number">4</span>) * <span class="kw-2">&amp;</span><span class="self">self</span>.a * <span class="kw-2">&amp;</span><span class="self">self</span>.c))
+        Discriminant::try_from(<span class="self">self</span>.b.pow(<span class="number">2</span>) - ((<span class="kw-2">&amp;</span><span class="self">self</span>.a * <span class="kw-2">&amp;</span><span class="self">self</span>.c) &lt;&lt; <span class="number">2</span>))
             .expect(<span class="string">"The discriminant is checked in the constructors"</span>)
-    }
-
-    <span class="doccomment">/// Return true if this form is in normal form: -a &lt; b &lt;= a.
-    </span><span class="kw">fn </span>is_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.b.magnitude().cmp(<span class="self">self</span>.a.magnitude()) {
-            Ordering::Less =&gt; <span class="bool-val">true</span>,
-            Ordering::Equal =&gt; !<span class="self">self</span>.b.is_negative(),
-            Ordering::Greater =&gt; <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        </span><span class="kw">if </span><span class="self">self</span>.is_normal() {
-            <span class="kw">return</span>;
-        }
-        <span class="kw">let </span>r = (<span class="kw-2">&amp;</span><span class="self">self</span>.a - <span class="kw-2">&amp;</span><span class="self">self</span>.b).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.a).shr(<span class="number">1</span>);
-        <span class="kw">let </span>ra: BigInt = <span class="kw-2">&amp;</span>r * <span class="kw-2">&amp;</span><span class="self">self</span>.a;
-        <span class="self">self</span>.c.add_assign((<span class="kw-2">&amp;</span>ra + <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>r);
-        <span class="self">self</span>.b.add_assign(<span class="kw-2">&amp;</span>ra.shl(<span class="number">1</span>));
-    }
-
-    <span class="doccomment">/// Return true if this form is reduced: A form is reduced if it is normal (see
-    /// [`QuadraticForm::is_normal`]) and a &lt;= c and if a == c then b &gt;= 0.
-    </span><span class="kw">fn </span>is_reduced(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
-        <span class="kw">match </span><span class="self">self</span>.a.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.c) {
-            Ordering::Less =&gt; <span class="bool-val">true</span>,
-            Ordering::Equal =&gt; !<span class="self">self</span>.b.is_negative(),
-            Ordering::Greater =&gt; <span class="bool-val">false</span>,
-        }
-    }
-
-    <span class="doccomment">/// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    </span><span class="kw">fn </span>reduce(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
-        <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
-        </span><span class="self">self</span>.normalize();
-        <span class="kw">while </span>!<span class="self">self</span>.is_reduced() {
-            <span class="kw">let </span>s = (<span class="kw-2">&amp;</span><span class="self">self</span>.b + <span class="kw-2">&amp;</span><span class="self">self</span>.c).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.c).shr(<span class="number">1</span>);
-            <span class="kw">let </span>cs: BigInt = <span class="kw-2">&amp;</span><span class="self">self</span>.c * <span class="kw-2">&amp;</span>s;
-            swap(<span class="kw-2">&amp;mut </span><span class="self">self</span>.a, <span class="kw-2">&amp;mut </span><span class="self">self</span>.c);
-            <span class="self">self</span>.c += (<span class="kw-2">&amp;</span>cs - <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>s;
-            <span class="self">self</span>.b = cs.shl(<span class="number">1</span>) - <span class="kw-2">&amp;</span><span class="self">self</span>.b;
-        }
     }
 
     <span class="doccomment">/// Compute the composition of this quadratic form with another quadratic form.
@@ -802,6 +775,7 @@
 
     <span class="kw">fn </span>zero(discriminant: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+            .expect(<span class="string">"Doesn't fail"</span>)
     }
 
     <span class="kw">fn </span>mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scale: <span class="kw-2">&amp;</span>BigInt) -&gt; <span class="self">Self </span>{
@@ -863,115 +837,19 @@
 
 <span class="kw">impl </span>ToBytes <span class="kw">for </span>QuadraticForm {
     <span class="kw">fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.serialize().to_vec()
+        <span class="comment">// a is always positive
+        </span><span class="kw">let </span>a_bytes = <span class="self">self</span>.a.to_bytes_be().<span class="number">1</span>;
+        <span class="kw">let </span>b_bytes = <span class="self">self</span>.b.to_signed_bytes_be();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(a_bytes.len() + b_bytes.len() + <span class="number">8</span>);
+        result.extend_from_slice(<span class="kw-2">&amp;</span>(a_bytes.len() <span class="kw">as </span>u16).to_be_bytes());
+        result.extend_from_slice(<span class="kw-2">&amp;</span>a_bytes);
+        result.extend_from_slice(<span class="kw-2">&amp;</span>(b_bytes.len() <span class="kw">as </span>u16).to_be_bytes());
+        result.extend_from_slice(<span class="kw-2">&amp;</span>b_bytes);
+
+        result
     }
 }
 
 <span class="kw">impl </span>UnknownOrderGroupElement <span class="kw">for </span>QuadraticForm {}
-
-<span class="doccomment">/// A discriminant for an imaginary class group. The discriminant is a negative integer which is
-/// equal to 1 mod 4.
-</span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone)]
-</span><span class="kw">pub struct </span>Discriminant(BigInt);
-
-<span class="kw">impl </span>ToBytes <span class="kw">for </span>Discriminant {
-    <span class="kw">fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.<span class="number">0</span>.to_bytes_be().<span class="number">1
-    </span>}
-}
-
-<span class="kw">impl </span>TryFrom&lt;BigInt&gt; <span class="kw">for </span>Discriminant {
-    <span class="kw">type </span>Error = FastCryptoError;
-
-    <span class="kw">fn </span>try_from(value: BigInt) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if </span>!value.is_negative() || value.mod_floor(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">4</span>)) != BigInt::from(<span class="number">1</span>) {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(value))
-    }
-}
-
-<span class="kw">impl </span>Discriminant {
-    <span class="doccomment">/// Return the number of bits needed to represent this discriminant, not including the sign bit.
-    </span><span class="kw">pub fn </span>bits(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; usize {
-        <span class="self">self</span>.<span class="number">0</span>.bits() <span class="kw">as </span>usize
-    }
-
-    <span class="doccomment">/// Try to create a discriminant from a big-endian byte representation of the absolute value.
-    /// Fails if the discriminant is not equal to 1 mod 4.
-    </span><span class="kw">pub fn </span>try_from_be_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span>discriminant = BigInt::from_bytes_be(num_bigint::Sign::Minus, bytes);
-        <span class="self">Self</span>::try_from(discriminant)
-    }
-}
-
-<span class="attr">#[cfg(test)]
-</span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::{Discriminant, QuadraticForm};
-    <span class="kw">use </span><span class="kw">crate</span>::Parameter;
-    <span class="kw">use </span><span class="kw">crate</span>::ParameterizedGroupElement;
-    <span class="kw">use </span><span class="kw">crate</span>::ToBytes;
-    <span class="kw">use </span>num_bigint::BigInt;
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_multiplication() {
-        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">47</span>)).unwrap();
-        <span class="kw">let </span>generator = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
-        <span class="kw">let </span><span class="kw-2">mut </span>current = QuadraticForm::zero(<span class="kw-2">&amp;</span>discriminant);
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">10000 </span>{
-            <span class="macro">assert_eq!</span>(current, generator.mul(<span class="kw-2">&amp;</span>BigInt::from(i)));
-            current = current + <span class="kw-2">&amp;</span>generator;
-        }
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_normalization_and_reduction() {
-        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">19</span>)).unwrap();
-        <span class="kw">let </span><span class="kw-2">mut </span>quadratic_form =
-            QuadraticForm::from_a_b_discriminant(BigInt::from(<span class="number">11</span>), BigInt::from(<span class="number">49</span>), <span class="kw-2">&amp;</span>discriminant);
-        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">55</span>));
-
-        quadratic_form.normalize();
-
-        <span class="comment">// Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-        </span><span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">11</span>));
-        <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(<span class="number">5</span>));
-        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">1</span>));
-
-        quadratic_form.reduce();
-
-        <span class="comment">// Test vector from https://github.com/Chia-Network/vdf-competition/blob/main/classgroups.pdf
-        </span><span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">1</span>));
-        <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(<span class="number">1</span>));
-        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">5</span>));
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_composition() {
-        <span class="comment">// The order of the class group (the class number) for -223 is 7 (see https://mathworld.wolfram.com/ClassNumber.html).
-        </span><span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">223</span>)).unwrap();
-        <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
-
-        <span class="kw">for </span>i <span class="kw">in </span><span class="number">1</span>..=<span class="number">6 </span>{
-            <span class="macro">assert_ne!</span>(QuadraticForm::zero(<span class="kw-2">&amp;</span>discriminant), g.mul(<span class="kw-2">&amp;</span>BigInt::from(i)));
-        }
-        <span class="macro">assert_eq!</span>(QuadraticForm::zero(<span class="kw-2">&amp;</span>discriminant), g.mul(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">7</span>)));
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_discriminant_to_from_bytes() {
-        <span class="macro">assert!</span>(Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>]).is_err());
-        <span class="macro">assert!</span>(Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>[<span class="number">0x03</span>]).is_ok());
-
-        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">223</span>)).unwrap();
-        <span class="kw">let </span>bytes = discriminant.to_bytes();
-        <span class="kw">let </span>discriminant2 = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
-        <span class="macro">assert_eq!</span>(discriminant, discriminant2);
-
-        <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>], <span class="number">256</span>).unwrap();
-        <span class="kw">let </span>bytes = discriminant.to_bytes();
-        <span class="kw">let </span>discriminant2 = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
-        <span class="macro">assert_eq!</span>(discriminant, discriminant2);
-    }
-}
 </code></pre></div></section></main></body></html>

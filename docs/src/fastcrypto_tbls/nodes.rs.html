@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/nodes.rs`."><title>nodes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/nodes.rs`."><title>nodes.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto_tbls/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -179,16 +179,39 @@
 <a href="#177" id="177">177</a>
 <a href="#178" id="178">178</a>
 <a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::ecies;
 <span class="kw">use </span><span class="kw">crate</span>::types::ShareIndex;
-<span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::GroupElement;
 <span class="kw">use </span>fastcrypto::hash::{Blake2b256, Digest, HashFunction};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>tracing::debug;
 
 <span class="kw">pub type </span>PartyId = u16;
 
@@ -197,20 +220,23 @@
 </span><span class="kw">pub struct </span>Node&lt;G: GroupElement&gt; {
     <span class="kw">pub </span>id: PartyId,
     <span class="kw">pub </span>pk: ecies::PublicKey&lt;G&gt;,
-    <span class="kw">pub </span>weight: u16, <span class="comment">// May be zero
+    <span class="kw">pub </span>weight: u16, <span class="comment">// May be zero after reduce()
 </span>}
 
 <span class="doccomment">/// Wrapper for a set of nodes.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Nodes&lt;G: GroupElement&gt; {
     nodes: Vec&lt;Node&lt;G&gt;&gt;, <span class="comment">// Party ids are 0..len(nodes)-1 (inclusive)
-    </span>total_weight: u32,   <span class="comment">// Share ids are 1..total_weight (inclusive)
+    </span>total_weight: u16,   <span class="comment">// Share ids are 1..total_weight (inclusive)
     // Next two fields are used to map share ids to party ids.
-    </span>accumulated_weights: Vec&lt;u32&gt;, <span class="comment">// Accumulated sum of all nodes' weights. Used to map share ids to party ids.
+    </span>accumulated_weights: Vec&lt;u16&gt;, <span class="comment">// Accumulated sum of all nodes' weights. Used to map share ids to party ids.
     </span>nodes_with_nonzero_weight: Vec&lt;u16&gt;, <span class="comment">// Indexes of nodes with non-zero weight
 </span>}
 
 <span class="kw">impl</span>&lt;G: GroupElement + Serialize&gt; Nodes&lt;G&gt; {
+    <span class="comment">// We don't expect to have more than 1000 nodes (simplifies some checks).
+    </span><span class="kw">const </span>MAX_NODES: usize = <span class="number">1000</span>;
+
     <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
     </span><span class="kw">pub fn </span>new(nodes: Vec&lt;Node&lt;G&gt;&gt;) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>nodes = nodes;
@@ -219,18 +245,20 @@
         </span><span class="kw">if </span>(<span class="number">0</span>..nodes.len()).any(|i| (nodes[i].id <span class="kw">as </span>usize) != i) {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
-        <span class="comment">// Make sure we never overflow, as we don't expect to have more than 1000 nodes
-        </span><span class="kw">if </span>nodes.is_empty() || nodes.len() &gt; <span class="number">1000 </span>{
+        <span class="comment">// Make sure we never overflow in the functions below.
+        </span><span class="kw">if </span>nodes.is_empty() || nodes.len() &gt; <span class="self">Self</span>::MAX_NODES {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
+        <span class="comment">// Make sure we never overflow in the functions below, as we don't expect to have more than u16::MAX total weight.
+        </span><span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight <span class="kw">as </span>u32).sum::&lt;u32&gt;();
+        <span class="kw">if </span>total_weight &gt; u16::MAX <span class="kw">as </span>u32 || total_weight == <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
+        }
+        <span class="kw">let </span>total_weight = total_weight <span class="kw">as </span>u16;
 
         <span class="comment">// We use the next two to map share ids to party ids.
         </span><span class="kw">let </span>accumulated_weights = <span class="self">Self</span>::get_accumulated_weights(<span class="kw-2">&amp;</span>nodes);
         <span class="kw">let </span>nodes_with_nonzero_weight = <span class="self">Self</span>::filter_nonzero_weights(<span class="kw-2">&amp;</span>nodes);
-
-        <span class="kw">let </span>total_weight = <span class="kw-2">*</span>accumulated_weights
-            .last()
-            .expect(<span class="string">"Number of nodes is non-zero"</span>);
 
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             nodes,
@@ -248,16 +276,10 @@
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
     }
 
-    <span class="kw">fn </span>get_accumulated_weights(nodes: <span class="kw-2">&amp;</span>[Node&lt;G&gt;]) -&gt; Vec&lt;u32&gt; {
+    <span class="kw">fn </span>get_accumulated_weights(nodes: <span class="kw-2">&amp;</span>[Node&lt;G&gt;]) -&gt; Vec&lt;u16&gt; {
         nodes
             .iter()
-            .filter_map(|n| {
-                <span class="kw">if </span>n.weight &gt; <span class="number">0 </span>{
-                    <span class="prelude-val">Some</span>(n.weight <span class="kw">as </span>u32)
-                } <span class="kw">else </span>{
-                    <span class="prelude-val">None
-                </span>}
-            })
+            .filter_map(|n| <span class="kw">if </span>n.weight &gt; <span class="number">0 </span>{ <span class="prelude-val">Some</span>(n.weight) } <span class="kw">else </span>{ <span class="prelude-val">None </span>})
             .scan(<span class="number">0</span>, |accumulated_weight, weight| {
                 <span class="kw-2">*</span>accumulated_weight += weight;
                 <span class="prelude-val">Some</span>(<span class="kw-2">*</span>accumulated_weight)
@@ -266,7 +288,7 @@
     }
 
     <span class="doccomment">/// Total weight of the nodes.
-    </span><span class="kw">pub fn </span>total_weight(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    </span><span class="kw">pub fn </span>total_weight(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u16 {
         <span class="self">self</span>.total_weight
     }
 
@@ -282,27 +304,25 @@
 
     <span class="doccomment">/// Get the node corresponding to a share id.
     </span><span class="kw">pub fn </span>share_id_to_node(<span class="kw-2">&amp;</span><span class="self">self</span>, share_id: <span class="kw-2">&amp;</span>ShareIndex) -&gt; FastCryptoResult&lt;<span class="kw-2">&amp;</span>Node&lt;G&gt;&gt; {
-        <span class="kw">let </span>nonzero_node_id = <span class="kw">match </span><span class="self">self</span>.accumulated_weights.binary_search(<span class="kw-2">&amp;</span>share_id.get()) {
-            <span class="prelude-val">Ok</span>(i) =&gt; i,
-            <span class="prelude-val">Err</span>(i) =&gt; i,
-        };
+        <span class="kw">let </span>nonzero_node_id = <span class="self">self
+            </span>.accumulated_weights
+            .binary_search(<span class="kw-2">&amp;</span>share_id.get())
+            .unwrap_or_else(|i| i);
         <span class="kw">match </span><span class="self">self</span>.nodes_with_nonzero_weight.get(nonzero_node_id) {
             <span class="prelude-val">Some</span>(node_id) =&gt; <span class="self">self</span>.node_id_to_node(<span class="kw-2">*</span>node_id),
-            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(InvalidInput),
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
         }
     }
 
     <span class="kw">pub fn </span>node_id_to_node(<span class="kw-2">&amp;</span><span class="self">self</span>, party_id: PartyId) -&gt; FastCryptoResult&lt;<span class="kw-2">&amp;</span>Node&lt;G&gt;&gt; {
-        <span class="kw">if </span>party_id <span class="kw">as </span>usize &gt;= <span class="self">self</span>.nodes.len() {
-            <span class="prelude-val">Err</span>(InvalidInput)
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Ok</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.nodes[party_id <span class="kw">as </span>usize])
-        }
+        <span class="self">self</span>.nodes
+            .get(party_id <span class="kw">as </span>usize)
+            .ok_or(FastCryptoError::InvalidInput)
     }
 
-    <span class="doccomment">/// Get the share ids of a node.
+    <span class="doccomment">/// Get the share ids of a node (ordered).
     </span><span class="kw">pub fn </span>share_ids_of(<span class="kw-2">&amp;</span><span class="self">self</span>, id: PartyId) -&gt; Vec&lt;ShareIndex&gt; {
-        <span class="comment">// TODO: [perf opt] Cache this
+        <span class="comment">// TODO: [perf opt] Cache this or impl differently.
         </span><span class="self">self</span>.share_ids_iter()
             .filter(|node_id| <span class="self">self</span>.share_id_to_node(node_id).expect(<span class="string">"valid ids"</span>).id == id)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
@@ -319,23 +339,48 @@
         hash.finalize()
     }
 
-    <span class="doccomment">/// Reduce weights up to an allowed delta in the original total weight.
+    <span class="doccomment">/// Create a new set of nodes. Nodes must have consecutive ids starting from 0.
+    /// Reduces weights up to an allowed delta in the original total weight.
     /// Finds the largest d such that:
     /// - The new threshold is ceil(t / d)
     /// - The new weights are all divided by d (floor division)
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
-    </span><span class="kw">pub fn </span>reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, t: u16, allowed_delta: u16) -&gt; (<span class="self">Self</span>, u16) {
+    ///
+    /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To
+    /// get the best results, set it to 1.
+    </span><span class="kw">pub fn </span>new_reduced(
+        nodes_vec: Vec&lt;Node&lt;G&gt;&gt;,
+        t: u16,
+        allowed_delta: u16,
+        total_weight_lower_bound: u16,
+    ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16)&gt; {
+        <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
+
+        </span><span class="macro">assert!</span>(total_weight_lower_bound &lt;= n.total_weight &amp;&amp; total_weight_lower_bound &gt; <span class="number">0</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>max_d = <span class="number">1</span>;
         <span class="kw">for </span>d <span class="kw">in </span><span class="number">2</span>..=<span class="number">40 </span>{
-            <span class="kw">let </span>sum = <span class="self">self</span>.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;();
-            <span class="kw">if </span>sum &lt;= allowed_delta {
+            <span class="comment">// Break if we reached the lower bound.
+            // U16 is safe here since total_weight is u16.
+            </span><span class="kw">let </span>new_total_weight = n.nodes.iter().map(|n| n.weight / d).sum::&lt;u16&gt;();
+            <span class="kw">if </span>new_total_weight &lt; total_weight_lower_bound {
+                <span class="kw">break</span>;
+            }
+            <span class="comment">// Compute the precision loss.
+            // U16 is safe here since total_weight is u16.
+            </span><span class="kw">let </span>delta = n.nodes.iter().map(|n| n.weight % d).sum::&lt;u16&gt;();
+            <span class="kw">if </span>delta &lt;= allowed_delta {
                 max_d = d;
             }
         }
-        <span class="kw">let </span>nodes = <span class="self">self
-            </span>.nodes
+        <span class="macro">debug!</span>(
+            <span class="string">"Nodes::reduce reducing from {} with max_d {}, allowed_delta {}, total_weight_lower_bound {}"</span>,
+            n.total_weight, max_d, allowed_delta, total_weight_lower_bound
+        );
+
+        <span class="kw">let </span>nodes = n
+            .nodes
             .iter()
             .map(|n| Node {
                 id: n.id,
@@ -345,9 +390,10 @@
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span>accumulated_weights = <span class="self">Self</span>::get_accumulated_weights(<span class="kw-2">&amp;</span>nodes);
         <span class="kw">let </span>nodes_with_nonzero_weight = <span class="self">Self</span>::filter_nonzero_weights(<span class="kw-2">&amp;</span>nodes);
-        <span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight <span class="kw">as </span>u32).sum::&lt;u32&gt;();
+        <span class="comment">// U16 is safe here since the original total_weight is u16.
+        </span><span class="kw">let </span>total_weight = nodes.iter().map(|n| n.weight).sum::&lt;u16&gt;();
         <span class="kw">let </span>new_t = t / max_d + (t % max_d != <span class="number">0</span>) <span class="kw">as </span>u16;
-        (
+        <span class="prelude-val">Ok</span>((
             <span class="self">Self </span>{
                 nodes,
                 total_weight,
@@ -355,7 +401,7 @@
                 nodes_with_nonzero_weight,
             },
             new_t,
-        )
+        ))
     }
 }
 </code></pre></div></section></main></body></html>

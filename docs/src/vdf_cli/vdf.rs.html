@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../vdf_cli/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -230,18 +230,87 @@
 <a href="#228" id="228">228</a>
 <a href="#229" id="229">229</a>
 <a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
+<a href="#266" id="266">266</a>
+<a href="#267" id="267">267</a>
+<a href="#268" id="268">268</a>
+<a href="#269" id="269">269</a>
+<a href="#270" id="270">270</a>
+<a href="#271" id="271">271</a>
+<a href="#272" id="272">272</a>
+<a href="#273" id="273">273</a>
+<a href="#274" id="274">274</a>
+<a href="#275" id="275">275</a>
+<a href="#276" id="276">276</a>
+<a href="#277" id="277">277</a>
+<a href="#278" id="278">278</a>
+<a href="#279" id="279">279</a>
+<a href="#280" id="280">280</a>
+<a href="#281" id="281">281</a>
+<a href="#282" id="282">282</a>
+<a href="#283" id="283">283</a>
+<a href="#284" id="284">284</a>
+<a href="#285" id="285">285</a>
+<a href="#286" id="286">286</a>
+<a href="#287" id="287">287</a>
+<a href="#288" id="288">288</a>
+<a href="#289" id="289">289</a>
+<a href="#290" id="290">290</a>
+<a href="#291" id="291">291</a>
+<a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>clap::Parser;
-<span class="kw">use </span>fastcrypto_vdf::class_group::{Discriminant, QuadraticForm};
+<span class="kw">use </span>fastcrypto_vdf::class_group::discriminant::Discriminant;
+<span class="kw">use </span>fastcrypto_vdf::class_group::QuadraticForm;
 <span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::StrongVDF;
 <span class="kw">use </span>fastcrypto_vdf::vdf::VDF;
 <span class="kw">use </span>fastcrypto_vdf::Parameter;
 <span class="kw">use </span>fastcrypto_vdf::ToBytes;
 <span class="kw">use </span>std::io::{Error, ErrorKind};
 
-<span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">1024</span>;
+<span class="doccomment">/// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
+/// (https://inria.hal.science/hal-02882161/file/unknown-order.pdf)
+///
+/// A discriminant size of 3072 bits ensures that the computational hardness of computing the group order of a group
+/// with a randomly chosen discriminant is at least 128 bits with probability at least 1 - 2^{-40}.
+</span><span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">3072</span>;
 
 <span class="attr">#[derive(Parser)]
 #[command(name = <span class="string">"vdf-cli"</span>)]
@@ -255,6 +324,9 @@
 
     <span class="doccomment">/// Verify an output .
     </span>Verify(VerifyArguments),
+
+    <span class="doccomment">/// Hash a binary message to a quadratic form.
+    </span>Hash(HashArguments),
 }
 
 <span class="attr">#[derive(Parser, Clone)]
@@ -263,7 +335,7 @@
     </span><span class="attr">#[clap(short, long)]
     </span>seed: String,
 
-    <span class="doccomment">/// Bit length of the discriminant (default is 1024).
+    <span class="doccomment">/// Bit length of the discriminant (default is 3072).
     </span><span class="attr">#[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
     </span>bit_length: u64,
 }
@@ -274,8 +346,12 @@
     </span><span class="attr">#[clap(short, long)]
     </span>discriminant: String,
 
+    <span class="doccomment">/// The hex encoded input to the VDF.
+    </span><span class="attr">#[clap(long)]
+    </span>input: String,
+
     <span class="doccomment">/// The number of iterations.
-    </span><span class="attr">#[clap(short, long)]
+    </span><span class="attr">#[clap(long)]
     </span>iterations: u64,
 }
 
@@ -286,8 +362,12 @@
     </span>discriminant: String,
 
     <span class="doccomment">/// Iterations
-    </span><span class="attr">#[clap(short, long)]
+    </span><span class="attr">#[clap(long)]
     </span>iterations: u64,
+
+    <span class="doccomment">/// The input to the VDF.
+    </span><span class="attr">#[clap(long)]
+    </span>input: String,
 
     <span class="doccomment">/// The output of the VDF.
     </span><span class="attr">#[clap(short, long)]
@@ -296,6 +376,21 @@
     <span class="doccomment">/// The proof of the correctness of the VDF output.
     </span><span class="attr">#[clap(short, long)]
     </span>proof: String,
+}
+
+<span class="attr">#[derive(Parser, Clone)]
+</span><span class="kw">struct </span>HashArguments {
+    <span class="doccomment">/// The hex encoded discriminant.
+    </span><span class="attr">#[clap(short, long)]
+    </span>discriminant: String,
+
+    <span class="doccomment">/// The hex encoded input to the hash function.
+    </span><span class="attr">#[clap(short, long)]
+    </span>message: String,
+
+    <span class="doccomment">/// Number of parallel prime samplings in the hash function.
+    </span><span class="attr">#[clap(short, long, default_value_t = <span class="number">64</span>)]
+    </span>k: u16,
 }
 
 <span class="kw">fn </span>main() {
@@ -330,7 +425,14 @@
             <span class="kw">let </span>discriminant = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>discriminant_bytes)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
+            <span class="kw">let </span>input_bytes = hex::decode(arguments.input)
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input point."</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>g = QuadraticForm::from_bytes(<span class="kw-2">&amp;</span>input_bytes, <span class="kw-2">&amp;</span>discriminant).map_err(|<span class="kw">_</span>| {
+                Error::new(
+                    ErrorKind::InvalidInput,
+                    <span class="string">"Invalid input point or discriminant."</span>,
+                )
+            })<span class="question-mark">?</span>;
 
             <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
             <span class="kw">let </span>(output, proof) = vdf
@@ -353,6 +455,14 @@
             <span class="kw">let </span>discriminant = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>discriminant_bytes)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
 
+            <span class="kw">let </span>input = QuadraticForm::from_bytes(
+                <span class="kw-2">&amp;</span>hex::decode(arguments.input).map_err(|<span class="kw">_</span>| {
+                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
+                })<span class="question-mark">?</span>,
+                <span class="kw-2">&amp;</span>discriminant,
+            )
+            .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
+
             <span class="kw">let </span>output = QuadraticForm::from_bytes(
                 <span class="kw-2">&amp;</span>hex::decode(arguments.output).map_err(|<span class="kw">_</span>| {
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
@@ -368,13 +478,28 @@
             )
             .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
 
-            <span class="kw">let </span>g = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
-
             <span class="kw">let </span>vdf = StrongVDF::new(discriminant, arguments.iterations);
-            <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>g, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
+            <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
 
             <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Verified: "</span>.to_string();
             result.push_str(<span class="kw-2">&amp;</span>verifies.to_string());
+            <span class="prelude-val">Ok</span>(result)
+        }
+        Command::Hash(arguments) =&gt; {
+            <span class="kw">let </span>discriminant_bytes = hex::decode(arguments.discriminant)
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>discriminant = Discriminant::try_from_be_bytes(<span class="kw-2">&amp;</span>discriminant_bytes)
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid discriminant."</span>))<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>input = hex::decode(arguments.message)
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid message."</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>output = QuadraticForm::hash_to_group(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>discriminant, arguments.k)
+                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"The k parameter was too big"</span>))<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>output_bytes = hex::encode(output.to_bytes());
+
+            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
+            result.push_str(<span class="kw-2">&amp;</span>output_bytes);
             <span class="prelude-val">Ok</span>(result)
         }
     }
@@ -400,18 +525,21 @@
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_evaluate() {
         <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
+        <span class="kw">let </span>input = <span class="string">"003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79"</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
         <span class="kw">let </span>result = execute(Command::Evaluate(EvaluateArguments {
             discriminant,
+            input: input.clone(),
             iterations,
         }))
         .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Output: 010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401\nProof:  0200a79fea1d00b2d1bf7863098980146ad080d400141ff2333652cbcee96b524f273461f8e2e65d8b713663f7083954ef6246ea08d09e6909a047f34065bcfe1e2013c8e523a8a59a01fafa008c637240097d082486c8cc52803d5cad3d4e2aa9130402"</span>;
+        <span class="kw">let </span>expected = <span class="string">"Output: 004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611\nProof:  0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143"</span>;
         <span class="macro">assert_eq!</span>(expected, result);
 
         <span class="kw">let </span>invalid_discriminant = <span class="string">"abcx"</span>.to_string();
         <span class="macro">assert!</span>(execute(Command::Evaluate(EvaluateArguments {
             discriminant: invalid_discriminant,
+            input,
             iterations,
         }))
         .is_err());
@@ -421,11 +549,13 @@
     </span><span class="kw">fn </span>test_verify() {
         <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
         <span class="kw">let </span>iterations = <span class="number">1000u64</span>;
-        <span class="kw">let </span>output = <span class="string">"010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401"</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">"0200a79fea1d00b2d1bf7863098980146ad080d400141ff2333652cbcee96b524f273461f8e2e65d8b713663f7083954ef6246ea08d09e6909a047f34065bcfe1e2013c8e523a8a59a01fafa008c637240097d082486c8cc52803d5cad3d4e2aa9130402"</span>.to_string();
+        <span class="kw">let </span>input = <span class="string">"003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79"</span>.to_string();
+        <span class="kw">let </span>output = <span class="string">"004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611"</span>.to_string();
+        <span class="kw">let </span>proof = <span class="string">"0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143"</span>.to_string();
         <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
-            discriminant,
+            discriminant: discriminant.clone(),
             iterations,
+            input: input.clone(),
             output: output.clone(),
             proof: proof.clone(),
         }))
@@ -437,21 +567,17 @@
         <span class="macro">assert!</span>(execute(Command::Verify(VerifyArguments {
             discriminant: invalid_discriminant,
             iterations,
-            output,
-            proof,
+            input: input.clone(),
+            output: output.clone(),
+            proof: proof.clone(),
         }))
         .is_err());
-    }
 
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_invalid_proof() {
-        <span class="kw">let </span>discriminant = <span class="string">"ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27"</span>.to_string();
-        <span class="kw">let </span>iterations = <span class="number">2000u64</span>;
-        <span class="kw">let </span>output = <span class="string">"010027d513249bf8d6ad8cc854052080111a420b2771fab2ac566e63cb6a389cfe42c7920b90871fd1ea0b85e80d157d48e6759546cdcfef4a25b3f013b982c2970dfaa8d67e5f87564a91698ffd1407c505372fc52b0313f444937991c63b6b00040401"</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">"0300999cca180ec6e2e51b5fb42b9d9b95e9c8b3407ee08f181d8a2699513d4d5d543c9918df4f7e9e9c476191e85a2a7bfdb5b7706c2866daafd9194c741c3f345aa9ab9731fca61eb863401a76966e9deecf5c79112351e99d27cfcdd108a41d1a0100"</span>.to_string();
+        <span class="kw">let </span>other_iterations = <span class="number">2000u64</span>;
         <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
             discriminant,
-            iterations,
+            iterations: other_iterations,
+            input,
             output,
             proof,
         }))

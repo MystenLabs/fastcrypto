@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"trait":["ThresholdBls"],"type":["PartialSignature","Share"]};
+window.SIDEBAR_ITEMS = {"trait":["ThresholdBls"],"type":["PartialSignature","Share","UnindexedPartialSignatures"]};

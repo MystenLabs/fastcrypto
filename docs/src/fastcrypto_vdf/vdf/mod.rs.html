@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto_vdf/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -35,6 +35,76 @@
 <a href="#33" id="33">33</a>
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
+<a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
+<a href="#38" id="38">38</a>
+<a href="#39" id="39">39</a>
+<a href="#40" id="40">40</a>
+<a href="#41" id="41">41</a>
+<a href="#42" id="42">42</a>
+<a href="#43" id="43">43</a>
+<a href="#44" id="44">44</a>
+<a href="#45" id="45">45</a>
+<a href="#46" id="46">46</a>
+<a href="#47" id="47">47</a>
+<a href="#48" id="48">48</a>
+<a href="#49" id="49">49</a>
+<a href="#50" id="50">50</a>
+<a href="#51" id="51">51</a>
+<a href="#52" id="52">52</a>
+<a href="#53" id="53">53</a>
+<a href="#54" id="54">54</a>
+<a href="#55" id="55">55</a>
+<a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
+<a href="#88" id="88">88</a>
+<a href="#89" id="89">89</a>
+<a href="#90" id="90">90</a>
+<a href="#91" id="91">91</a>
+<a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -69,5 +139,75 @@
         output: <span class="kw-2">&amp;</span><span class="self">Self</span>::OutputType,
         proof: <span class="kw-2">&amp;</span><span class="self">Self</span>::ProofType,
     ) -&gt; FastCryptoResult&lt;()&gt;;
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+    <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::StrongVDF;
+    <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
+    <span class="kw">use </span><span class="kw">crate</span>::ToBytes;
+    <span class="kw">use </span>fastcrypto::hash::{HashFunction, Sha256};
+    <span class="kw">use </span>num_bigint::BigInt;
+    <span class="kw">use </span>num_traits::Num;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>vdf_e2e_test_1024() {
+        <span class="comment">// This test runs an e2e test of the VDF protocol as it is supposed to be run on SUI with a smaller discriminant
+        // and a smaller number of iterations.
+
+        // Fixed 1024 bit discriminant. In production this should be bigger.
+        </span><span class="kw">let </span>discriminant_bytes = <span class="string">"fdf4aa9b7f49b85fc71f6fbf31a3d51e6828afb9d06165f5814bb5142485853abb52f50b7c8a937bba09ce75b51a639886d997d561b7a654f1a9e6b66645d76fad093381d464eccf28d599fb5a938bb99101c30e374f5f786c9232f56d0118826d113400b080bb4737018b088af5203a18da25d106fffdad7e8f660e141dd11f"</span>;
+        <span class="kw">let </span>discriminant =
+            Discriminant::try_from(-BigInt::from_str_radix(discriminant_bytes, <span class="number">16</span>).unwrap())
+                .unwrap();
+
+        <span class="comment">// Number of iterations for the VDF
+        </span><span class="kw">let </span>t = <span class="number">500</span>;
+
+        <span class="comment">// VDF construction
+        </span><span class="kw">let </span>vdf = StrongVDF::new(discriminant.clone(), t);
+
+        <span class="comment">// Add some randomness
+        </span><span class="kw">let </span><span class="kw-2">mut </span>combined_randomness = Vec::new();
+        <span class="kw">let </span>some_randomness = <span class="string">b"some randomness"</span>;
+        combined_randomness =
+            Sha256::digest([<span class="kw-2">&amp;</span>combined_randomness, some_randomness.as_ref()].concat()).to_vec();
+        <span class="kw">let </span>more_randomness = <span class="string">b"more randomness"</span>;
+        combined_randomness =
+            Sha256::digest([<span class="kw-2">&amp;</span>combined_randomness, more_randomness.as_ref()].concat()).to_vec();
+        <span class="macro">assert_eq!</span>(
+            combined_randomness,
+            hex::decode(<span class="string">"2ef29e01809053dcfc89e7acad77e13c2bf03b5a9a0bbfea555a1423f1f1ae23"</span>)
+                .unwrap()
+        );
+
+        <span class="comment">// Compute the VDF input from the combined randomness
+        </span><span class="kw">let </span>input = QuadraticForm::hash_to_group_with_default_parameters(
+            <span class="kw-2">&amp;</span>combined_randomness,
+            <span class="kw-2">&amp;</span>discriminant,
+        )
+        .unwrap();
+        <span class="macro">assert_eq!</span>(input.to_bytes(), hex::decode(<span class="string">"003d1daa654704dd48f4d9f841ffe9b7dc89ef998ff05f32f0f6e3534c471f47c7cded2041d78d0e6d485bf6074f47bda32a132334c5b3791b530e2999d7410072fdb7dd5859c497f0711b87c4fc787208d1969bd9f661958ae9646fbf5c735a3fdb07c32d33991d38879723cdb1ebbb1ecbf4b5d9e549e92b9c3b791407f05ccb9ea0d82c2982a5c6264cc293c6e328eb07ae7094336e89b01c74b115646a775019bfb7d413449378488c1e5e67e32160c6d3"</span>).unwrap());
+
+        <span class="comment">// Compute the output of the VDF
+        </span><span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
+        <span class="macro">assert_eq!</span>(output.to_bytes(), hex::decode(<span class="string">"004013829c9d086b35690a80ee0e68212db9737f65e203fd793277952c5213c3bf5e2fcc8cc01001f13c309b1edae3c9ef551d0fc371d0f2dd17944919a75d82db340040f0fd1a66112bb398a7577d1637955ce1c53c127a00d657d5138f7379ae57206b86715164c313f66ea4f0519149d1799f149d35c6a9d5a97a27ba376c336525ff"</span>).unwrap());
+        <span class="macro">assert_eq!</span>(proof.to_bytes(), hex::decode(<span class="string">"00405747c1e3d2af1d2b091f7366cbeff4c9836dc0b5bb6e6032053af6aa589348d000abb10250540258d9bf70ed81810b6d4229af8567b51eb8a08b6d72d9e52f880040203a9dbb321818cbac6f9ca011af9544b91c94b357f924e5d29cf94d5e28b9148d8e7febbb495a76d1d159c8785a6c01120a124f08c72a140e812c58eaa70de1"</span>).unwrap());
+
+        <span class="comment">// Verify the output and proof
+        </span><span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+
+        <span class="comment">// Try with another input. This should fail.
+        </span><span class="kw">let </span>another_input = QuadraticForm::hash_to_group_with_default_parameters(
+            <span class="string">b"some other randomness"</span>,
+            <span class="kw-2">&amp;</span>discriminant,
+        )
+        .unwrap();
+
+        <span class="comment">// Verify the output and proof
+        </span><span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>another_input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_err());
+    }
 }
 </code></pre></div></section></main></body></html>

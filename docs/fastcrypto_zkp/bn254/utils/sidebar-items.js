@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["big_int_str_to_bytes","gen_address_seed","get_nonce","get_oidc_url","get_proof","get_salt","get_token_exchange_url","get_zk_login_address","split_to_two_frs"],"struct":["GetSaltResponse"]};
+window.SIDEBAR_ITEMS = {"fn":["gen_address_seed","get_nonce","get_oidc_url","get_proof","get_salt","get_test_issuer_jwt_token","get_token_exchange_url","get_zk_login_address","split_to_two_frs"],"struct":["GetSaltResponse","TestIssuerJWTResponse"]};

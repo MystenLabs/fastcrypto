@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dkg.rs`."><title>dkg.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto_tbls/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -722,6 +722,32 @@
 <a href="#720" id="720">720</a>
 <a href="#721" id="721">721</a>
 <a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
+<a href="#730" id="730">730</a>
+<a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -743,29 +769,28 @@
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>std::collections::{HashMap, HashSet};
-<span class="kw">use </span>tracing::{debug, error, info, warn};
 
 <span class="kw">use </span>tap::prelude::<span class="kw-2">*</span>;
+<span class="kw">use </span>tracing::{debug, error, info, warn};
 
 <span class="doccomment">/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
-</span><span class="comment">// TODO: Add a description of the protocol.
-
-</span><span class="doccomment">/// Party in the DKG protocol.
+/// Party in the DKG protocol.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Party&lt;G: GroupElement, EG: GroupElement&gt; {
-    id: PartyId,
+    <span class="kw">pub </span>id: PartyId,
     nodes: Nodes&lt;EG&gt;,
-    t: u32,
+    t: u16,
     random_oracle: RandomOracle,
     enc_sk: ecies::PrivateKey&lt;EG&gt;,
     vss_sk: PrivatePoly&lt;G&gt;,
 }
 
-<span class="doccomment">/// The higher-level protocol is responsible for verifying that the 'sender' is correct in the
-/// following messages (based on the chain's signatures).
-/// Also, the high level protocol is responsible that all parties see the same order of messages.
+<span class="doccomment">/// Assumptions:
+/// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
+///   following messages (based on the chain's authentication).
+/// - The high-level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -798,8 +823,9 @@
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProcessedMessage&lt;G: GroupElement, EG: GroupElement&gt; {
     <span class="kw">pub </span>message: Message&lt;G, EG&gt;,
-    <span class="kw">pub </span>shares: Vec&lt;Share&lt;G::ScalarType&gt;&gt;, <span class="comment">//possibly empty
-    </span><span class="kw">pub </span>complaint: <span class="prelude-ty">Option</span>&lt;Complaint&lt;EG&gt;&gt;,
+    <span class="doccomment">/// Possibly empty
+    </span><span class="kw">pub </span>shares: Vec&lt;Share&lt;G::ScalarType&gt;&gt;,
+    <span class="kw">pub </span>complaint: <span class="prelude-ty">Option</span>&lt;Complaint&lt;EG&gt;&gt;,
 }
 
 <span class="doccomment">/// Unique processed messages that are being used in the protocol.
@@ -815,14 +841,14 @@
     </span><span class="kw">fn </span>from(msgs: <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;]) -&gt; <span class="self">Self </span>{
         <span class="kw">let </span>filtered = msgs
             .iter()
-            .unique_by(|<span class="kw-2">&amp;</span>m| m.message.sender)
-            .cloned()
+            .unique_by(|<span class="kw-2">&amp;</span>m| m.message.sender) <span class="comment">// stable
+            </span>.cloned()
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="self">Self</span>(filtered)
     }
 }
 
-<span class="doccomment">/// Processed messages that were not excluded.
+<span class="doccomment">/// Processed messages that were not excluded after the third phase of the protocol.
 </span><span class="kw">pub struct </span>VerifiedProcessedMessages&lt;G: GroupElement, EG: GroupElement&gt;(
     Vec&lt;ProcessedMessage&lt;G, EG&gt;&gt;,
 );
@@ -846,7 +872,8 @@
         <span class="self">self</span>.<span class="number">0</span>.is_empty()
     }
 
-    <span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;] {
+    <span class="attr">#[cfg(test)]
+    </span><span class="kw">pub fn </span>data(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 }
@@ -873,22 +900,23 @@
 {
     <span class="doccomment">/// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
+
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     </span><span class="kw">pub fn </span>new&lt;R: AllowedRng&gt;(
         enc_sk: ecies::PrivateKey&lt;EG&gt;,
         nodes: Nodes&lt;EG&gt;,
-        t: u32, <span class="comment">// The number of parties that are needed to reconstruct the full key/signature.
+        t: u16, <span class="comment">// The number of parties that are needed to reconstruct the full key/signature (f+1).
         </span>random_oracle: RandomOracle, <span class="comment">// Should be unique for each invocation, but the same for all parties.
         </span>rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-        <span class="comment">// Check that my ecies pk is in the nodes.
+        <span class="comment">// Confirm that my ecies pk is in the nodes.
         </span><span class="kw">let </span>enc_pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>enc_sk);
         <span class="kw">let </span>my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="comment">// Check that the threshold makes sense.
-        </span><span class="kw">if </span>t &gt;= nodes.total_weight() || t == <span class="number">0 </span>{
+        <span class="comment">// Sanity check that the threshold makes sense (t &lt;= n/2 since we later wait for 2t-1).
+        </span><span class="kw">if </span>t &gt; (nodes.total_weight() / <span class="number">2</span>) || t == <span class="number">0 </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="comment">// TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
@@ -897,7 +925,6 @@
 
         <span class="comment">// TODO: remove once the protocol is stable since it's a non negligible computation.
         </span><span class="kw">let </span>vss_pk = vss_sk.commit::&lt;G&gt;();
-
         <span class="macro">info!</span>(
             <span class="string">"DKG: Creating party {} with weight {}, nodes hash {:?}, t {}, n {}, ro {:?}, enc pk {:?}, vss pk c0 {:?}"</span>,
             my_node.id,
@@ -921,12 +948,19 @@
     }
 
     <span class="doccomment">/// The threshold needed to reconstruct the full key/signature.
-    </span><span class="kw">pub fn </span>t(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u32 {
+    </span><span class="kw">pub fn </span>t(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; u16 {
         <span class="self">self</span>.t
     }
 
     <span class="doccomment">/// 4. Create the first message to be broadcasted.
-    </span><span class="kw">pub fn </span>create_message&lt;R: AllowedRng&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span>R) -&gt; Message&lt;G, EG&gt; {
+    ///
+    ///    Returns IgnoredMessage if the party has zero weight (so no need to create a message).
+    </span><span class="kw">pub fn </span>create_message&lt;R: AllowedRng&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, rng: <span class="kw-2">&amp;mut </span>R) -&gt; FastCryptoResult&lt;Message&lt;G, EG&gt;&gt; {
+        <span class="kw">let </span>node = <span class="self">self</span>.nodes.node_id_to_node(<span class="self">self</span>.id).expect(<span class="string">"my id is valid"</span>);
+        <span class="kw">if </span>node.weight == <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::IgnoredMessage);
+        }
+
         <span class="kw">let </span>vss_pk = <span class="self">self</span>.vss_sk.commit();
         <span class="kw">let </span>ro_for_enc = <span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"encs {}"</span>, <span class="self">self</span>.id));
         <span class="macro">info!</span>(
@@ -960,15 +994,17 @@
             encrypted_shares.proof(),
         );
 
-        Message {
+        <span class="prelude-val">Ok</span>(Message {
             sender: <span class="self">self</span>.id,
             vss_pk,
             encrypted_shares,
-        }
+        })
     }
 
-    <span class="kw">fn </span>sanity_check_message(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>Message&lt;G, EG&gt;) -&gt; FastCryptoResult&lt;()&gt; {
-        <span class="self">self</span>.nodes
+    <span class="comment">// Sanity checks that can be done by any party on a received message.
+    </span><span class="kw">fn </span>sanity_check_message(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>Message&lt;G, EG&gt;) -&gt; FastCryptoResult&lt;()&gt; {
+        <span class="kw">let </span>node = <span class="self">self
+            </span>.nodes
             .node_id_to_node(msg.sender)
             .tap_err(|<span class="kw">_</span>| {
                 <span class="macro">warn!</span>(
@@ -977,8 +1013,15 @@
                 )
             })
             .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidMessage)<span class="question-mark">?</span>;
+        <span class="kw">if </span>node.weight == <span class="number">0 </span>{
+            <span class="macro">warn!</span>(
+                <span class="string">"DKG: Message sanity check failed for id {}, zero weight"</span>,
+                msg.sender
+            );
+            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidMessage);
+        };
 
-        <span class="kw">if </span><span class="self">self</span>.t != msg.vss_pk.degree() + <span class="number">1 </span>{
+        <span class="kw">if </span><span class="self">self</span>.t <span class="kw">as </span>usize != msg.vss_pk.degree() + <span class="number">1 </span>{
             <span class="macro">warn!</span>(
                 <span class="string">"DKG: Message sanity check failed for id {}, expected degree={}, got {}"</span>,
                 msg.sender,
@@ -1024,9 +1067,16 @@
     ///    The second message contains the list of complaints on invalid shares. In addition, it
     ///    returns a set of valid shares (so far).
     ///
-    ///   Returns error InvalidMessage if the message is invalid and should be ignored (note that we
-    ///   could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
-    ///   and just wait for f+1 valid messages).
+    ///    We split this function into two parts: process_message and merge, so that the caller can
+    ///    process messages concurrently and then merge the results.
+
+    ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
+    ///
+    ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we
+    ///    could count it as part of the f+1 messages we wait for, but it's also safe to ignore it
+    ///    and just wait for f+1 valid messages).
+    ///
+    ///    Assumptions: Called only once per sender (the high level protocol is responsible for deduplication).
     </span><span class="kw">pub fn </span>process_message&lt;R: AllowedRng&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         message: Message&lt;G, EG&gt;,
@@ -1087,7 +1137,7 @@
         );
         <span class="comment">// Verify all shares in a batch.
         </span><span class="kw">if </span>verify_poly_evals(<span class="kw-2">&amp;</span>decrypted_shares, <span class="kw-2">&amp;</span>message.vss_pk, rng).is_err() {
-            <span class="macro">debug!</span>(
+            <span class="macro">warn!</span>(
                 <span class="string">"DKG: Processing message from party {} failed, invalid shares"</span>,
                 message.sender
             );
@@ -1121,7 +1171,11 @@
     }
 
     <span class="doccomment">/// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
+    ///
     ///    Returns NotEnoughInputs if the threshold t is not met.
+    ///
+    ///    Assumptions: processed_messages is the result of process_message on the same set of messages
+    ///    on all parties.
     </span><span class="kw">pub fn </span>merge(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         processed_messages: <span class="kw-2">&amp;</span>[ProcessedMessage&lt;G, EG&gt;],
@@ -1139,7 +1193,7 @@
                     .weight <span class="kw">as </span>u32
             })
             .sum::&lt;u32&gt;();
-        <span class="kw">if </span>total_weight &lt; <span class="self">self</span>.t {
+        <span class="kw">if </span>total_weight &lt; (<span class="self">self</span>.t <span class="kw">as </span>u32) {
             <span class="macro">debug!</span>(<span class="string">"Merge failed with total weight {total_weight}"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
         }
@@ -1161,7 +1215,7 @@
         };
         <span class="kw">for </span>m <span class="kw">in </span><span class="kw-2">&amp;</span>filtered_messages.<span class="number">0 </span>{
             <span class="kw">if let </span><span class="prelude-val">Some</span>(complaint) = <span class="kw-2">&amp;</span>m.complaint {
-                <span class="macro">debug!</span>(<span class="string">"DKG: Including a complaint on party {}"</span>, m.message.sender);
+                <span class="macro">info!</span>(<span class="string">"DKG: Including a complaint on party {}"</span>, m.message.sender);
                 conf.complaints.push(complaint.clone());
             }
         }
@@ -1179,26 +1233,26 @@
     <span class="doccomment">/// 7. Process all confirmations, check all complaints, and update the local set of
     ///    valid shares accordingly.
     ///
-    ///    minimal_threshold is the minimal number of second round messages we expect. Its value is
-    ///    application dependent but in most cases it should be at least t+f to guarantee that at
-    ///    least t honest nodes have valid shares.
-    ///
     ///    Returns NotEnoughInputs if the threshold minimal_threshold is not met.
+    ///
+    ///    Assumptions: All parties use the same set of confirmations (and outputs from merge).
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>process_confirmations&lt;R: AllowedRng&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         messages: <span class="kw-2">&amp;</span>UsedProcessedMessages&lt;G, EG&gt;,
         confirmations: <span class="kw-2">&amp;</span>[Confirmation&lt;EG&gt;],
-        minimal_threshold: u32,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;VerifiedProcessedMessages&lt;G, EG&gt;&gt; {
         <span class="macro">debug!</span>(<span class="string">"Processing {} confirmations"</span>, confirmations.len());
-        <span class="kw">if </span>minimal_threshold &lt; <span class="self">self</span>.t || minimal_threshold == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
-        }
-        <span class="comment">// Ignore confirmations with invalid sender
+        <span class="kw">let </span>required_threshold = <span class="number">2 </span>* (<span class="self">self</span>.t <span class="kw">as </span>u32) - <span class="number">1</span>; <span class="comment">// guarantee that at least t honest nodes have valid shares.
+
+        // Ignore confirmations with invalid sender or zero weights
         </span><span class="kw">let </span>confirmations = confirmations
             .iter()
-            .filter(|c| <span class="self">self</span>.nodes.node_id_to_node(c.sender).is_ok())
+            .filter(|c| {
+                <span class="self">self</span>.nodes
+                    .node_id_to_node(c.sender)
+                    .is_ok_and(|n| n.weight &gt; <span class="number">0</span>)
+            })
             .unique_by(|m| m.sender)
             .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
         <span class="comment">// Verify we have enough confirmations
@@ -1211,12 +1265,12 @@
                     .weight <span class="kw">as </span>u32
             })
             .sum::&lt;u32&gt;();
-        <span class="kw">if </span>total_weight &lt; minimal_threshold {
+        <span class="kw">if </span>total_weight &lt; required_threshold {
             <span class="macro">debug!</span>(<span class="string">"Processing confirmations failed with total weight {total_weight}"</span>);
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::NotEnoughInputs);
         }
 
-        <span class="macro">info!</span>(<span class="string">"DKG: Processing confirmations with total weight {total_weight}, expected {minimal_threshold}"</span>);
+        <span class="macro">info!</span>(<span class="string">"DKG: Processing confirmations with total weight {total_weight}, expected {required_threshold}"</span>);
 
         <span class="comment">// Two hash maps for faster access in the main loop below.
         </span><span class="kw">let </span>id_to_pk = <span class="self">self
@@ -1382,11 +1436,9 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         messages: <span class="kw-2">&amp;</span>UsedProcessedMessages&lt;G, EG&gt;,
         confirmations: <span class="kw-2">&amp;</span>[Confirmation&lt;EG&gt;],
-        minimal_threshold: u32,
         rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;Output&lt;G, EG&gt;&gt; {
-        <span class="kw">let </span>verified_messages =
-            <span class="self">self</span>.process_confirmations(messages, confirmations, minimal_threshold, rng)<span class="question-mark">?</span>;
+        <span class="kw">let </span>verified_messages = <span class="self">self</span>.process_confirmations(messages, confirmations, rng)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="self">self</span>.aggregate(<span class="kw-2">&amp;</span>verified_messages))
     }
 

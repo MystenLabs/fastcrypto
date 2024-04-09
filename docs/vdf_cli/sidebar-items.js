@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"constant":["DEFAULT_DISCRIMINANT_BIT_LENGTH"],"enum":["Command"],"fn":["execute","main"],"struct":["DiscriminantArguments","EvaluateArguments","VerifyArguments"]};
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_DISCRIMINANT_BIT_LENGTH"],"enum":["Command"],"fn":["execute","main"],"struct":["DiscriminantArguments","EvaluateArguments","HashArguments","VerifyArguments"]};

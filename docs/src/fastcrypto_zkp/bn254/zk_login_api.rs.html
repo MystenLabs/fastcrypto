@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-zkp/src/bn254/zk_login_api.rs`."><title>zk_login_api.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_zkp" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto_zkp/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -292,15 +292,119 @@
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
 <a href="#292" id="292">292</a>
+<a href="#293" id="293">293</a>
+<a href="#294" id="294">294</a>
+<a href="#295" id="295">295</a>
+<a href="#296" id="296">296</a>
+<a href="#297" id="297">297</a>
+<a href="#298" id="298">298</a>
+<a href="#299" id="299">299</a>
+<a href="#300" id="300">300</a>
+<a href="#301" id="301">301</a>
+<a href="#302" id="302">302</a>
+<a href="#303" id="303">303</a>
+<a href="#304" id="304">304</a>
+<a href="#305" id="305">305</a>
+<a href="#306" id="306">306</a>
+<a href="#307" id="307">307</a>
+<a href="#308" id="308">308</a>
+<a href="#309" id="309">309</a>
+<a href="#310" id="310">310</a>
+<a href="#311" id="311">311</a>
+<a href="#312" id="312">312</a>
+<a href="#313" id="313">313</a>
+<a href="#314" id="314">314</a>
+<a href="#315" id="315">315</a>
+<a href="#316" id="316">316</a>
+<a href="#317" id="317">317</a>
+<a href="#318" id="318">318</a>
+<a href="#319" id="319">319</a>
+<a href="#320" id="320">320</a>
+<a href="#321" id="321">321</a>
+<a href="#322" id="322">322</a>
+<a href="#323" id="323">323</a>
+<a href="#324" id="324">324</a>
+<a href="#325" id="325">325</a>
+<a href="#326" id="326">326</a>
+<a href="#327" id="327">327</a>
+<a href="#328" id="328">328</a>
+<a href="#329" id="329">329</a>
+<a href="#330" id="330">330</a>
+<a href="#331" id="331">331</a>
+<a href="#332" id="332">332</a>
+<a href="#333" id="333">333</a>
+<a href="#334" id="334">334</a>
+<a href="#335" id="335">335</a>
+<a href="#336" id="336">336</a>
+<a href="#337" id="337">337</a>
+<a href="#338" id="338">338</a>
+<a href="#339" id="339">339</a>
+<a href="#340" id="340">340</a>
+<a href="#341" id="341">341</a>
+<a href="#342" id="342">342</a>
+<a href="#343" id="343">343</a>
+<a href="#344" id="344">344</a>
+<a href="#345" id="345">345</a>
+<a href="#346" id="346">346</a>
+<a href="#347" id="347">347</a>
+<a href="#348" id="348">348</a>
+<a href="#349" id="349">349</a>
+<a href="#350" id="350">350</a>
+<a href="#351" id="351">351</a>
+<a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
+<a href="#354" id="354">354</a>
+<a href="#355" id="355">355</a>
+<a href="#356" id="356">356</a>
+<a href="#357" id="357">357</a>
+<a href="#358" id="358">358</a>
+<a href="#359" id="359">359</a>
+<a href="#360" id="360">360</a>
+<a href="#361" id="361">361</a>
+<a href="#362" id="362">362</a>
+<a href="#363" id="363">363</a>
+<a href="#364" id="364">364</a>
+<a href="#365" id="365">365</a>
+<a href="#366" id="366">366</a>
+<a href="#367" id="367">367</a>
+<a href="#368" id="368">368</a>
+<a href="#369" id="369">369</a>
+<a href="#370" id="370">370</a>
+<a href="#371" id="371">371</a>
+<a href="#372" id="372">372</a>
+<a href="#373" id="373">373</a>
+<a href="#374" id="374">374</a>
+<a href="#375" id="375">375</a>
+<a href="#376" id="376">376</a>
+<a href="#377" id="377">377</a>
+<a href="#378" id="378">378</a>
+<a href="#379" id="379">379</a>
+<a href="#380" id="380">380</a>
+<a href="#381" id="381">381</a>
+<a href="#382" id="382">382</a>
+<a href="#383" id="383">383</a>
+<a href="#384" id="384">384</a>
+<a href="#385" id="385">385</a>
+<a href="#386" id="386">386</a>
+<a href="#387" id="387">387</a>
+<a href="#388" id="388">388</a>
+<a href="#389" id="389">389</a>
+<a href="#390" id="390">390</a>
+<a href="#391" id="391">391</a>
+<a href="#392" id="392">392</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span>ark_snark::SNARK;
+</span><span class="kw">use </span>std::str::FromStr;
+
+<span class="kw">use </span>ark_snark::SNARK;
 <span class="kw">use </span>fastcrypto::rsa::{Base64UrlUnpadded, Encoding};
 
 <span class="kw">use </span><span class="kw">super</span>::zk_login::{JwkId, ZkLoginInputs, JWK};
 <span class="kw">use </span><span class="kw">crate</span>::bn254::utils::{gen_address_seed_with_salt_hash, get_zk_login_address};
-<span class="kw">use </span><span class="kw">crate</span>::circom::{g1_affine_from_str_projective, g2_affine_from_str_projective};
+<span class="kw">use </span><span class="kw">crate</span>::zk_login_utils::{
+    g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FqElement, Bn254FrElement,
+};
 <span class="kw">pub use </span>ark_bn254::{Bn254, Fr <span class="kw">as </span>Bn254Fr};
 <span class="kw">pub use </span>ark_ff::ToConstraintField;
 <span class="kw">use </span>ark_groth16::{Groth16, PreparedVerifyingKey, Proof, VerifyingKey};
@@ -308,9 +412,10 @@
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>im::hashmap::HashMap <span class="kw">as </span>ImHashMap;
 <span class="kw">use </span>once_cell::sync::Lazy;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
 
 <span class="doccomment">/// Enum to specify the environment to use for verifying keys.
-</span><span class="attr">#[derive(Debug, Clone)]
+</span><span class="attr">#[derive(Serialize, Clone, Deserialize, Debug, Eq, PartialEq, Copy)]
 </span><span class="kw">pub enum </span>ZkLoginEnv {
     <span class="doccomment">/// Use the secure global verifying key derived from ceremony.
     </span>Prod,
@@ -334,57 +439,96 @@
 </span><span class="kw">fn </span>insecure_pvk() -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
     <span class="comment">// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     </span><span class="kw">let </span>vk_alpha_1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
-        <span class="string">"20491192805390485299153009773594534940189261866228447918068658471970481763042"</span>.to_string(),
-        <span class="string">"9383485363053290200918347156157836566562967994039712273449902621266178545958"</span>.to_string(),
-        <span class="string">"1"</span>.to_string(),
+        Bn254FqElement::from_str(
+            <span class="string">"20491192805390485299153009773594534940189261866228447918068658471970481763042"</span>,
+        )
+        .unwrap(),
+        Bn254FqElement::from_str(
+            <span class="string">"9383485363053290200918347156157836566562967994039712273449902621266178545958"</span>,
+        )
+        .unwrap(),
+        Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
     ])
     .unwrap();
     <span class="kw">let </span>vk_beta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"6375614351688725206403948262868962793625744043794305715222011528459656738731"
-                </span>.to_string(),
-            <span class="string">"4252822878758300859123897981450591353533073413197771768651442665752259397132"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"6375614351688725206403948262868962793625744043794305715222011528459656738731"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"4252822878758300859123897981450591353533073413197771768651442665752259397132"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"10505242626370262277552901082094356697409835680220590971873171140371331206856"
-                </span>.to_string(),
-            <span class="string">"21847035105528745403288232691147584728191162732299865338377159692350059136679"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"10505242626370262277552901082094356697409835680220590971873171140371331206856"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"21847035105528745403288232691147584728191162732299865338377159692350059136679"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
     <span class="kw">let </span>vk_gamma_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
-                </span>.to_string(),
-            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
-                </span>.to_string(),
-            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
     <span class="kw">let </span>vk_delta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
-                </span>.to_string(),
-            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
-                </span>.to_string(),
-            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
 
@@ -392,18 +536,26 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1 = Vec::new();
     <span class="kw">for </span>e <span class="kw">in </span>[
         <span class="macro">vec!</span>[
-            <span class="string">"20701306374481714853949730154526815782802808896228594855451770849676897643964"
-                </span>.to_string(),
-            <span class="string">"2766989084754673216772682210231588284954002353414778477810174100808747060165"
-                </span>.to_string(),
-            <span class="string">"1"</span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"20701306374481714853949730154526815782802808896228594855451770849676897643964"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"2766989084754673216772682210231588284954002353414778477810174100808747060165"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"501195541410525737371980194958674422793469475773065719916327137354779402600"
-                </span>.to_string(),
-            <span class="string">"13527631693157515024233848630878973193664410306029731429350155106228769355415"
-                </span>.to_string(),
-            <span class="string">"1"</span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"501195541410525737371980194958674422793469475773065719916327137354779402600"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"13527631693157515024233848630878973193664410306029731429350155106228769355415"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
         ],
     ] {
         <span class="kw">let </span>g1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span>e).unwrap();
@@ -426,57 +578,96 @@
 </span><span class="kw">fn </span>global_pvk() -&gt; PreparedVerifyingKey&lt;Bn254&gt; {
     <span class="comment">// Convert the Circom G1/G2/GT to arkworks G1/G2/GT
     </span><span class="kw">let </span>vk_alpha_1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
-        <span class="string">"21529901943976716921335152104180790524318946701278905588288070441048877064089"</span>.to_string(),
-        <span class="string">"7775817982019986089115946956794180159548389285968353014325286374017358010641"</span>.to_string(),
-        <span class="string">"1"</span>.to_string(),
+        Bn254FqElement::from_str(
+            <span class="string">"21529901943976716921335152104180790524318946701278905588288070441048877064089"</span>,
+        )
+        .unwrap(),
+        Bn254FqElement::from_str(
+            <span class="string">"7775817982019986089115946956794180159548389285968353014325286374017358010641"</span>,
+        )
+        .unwrap(),
+        Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
     ])
     .unwrap();
     <span class="kw">let </span>vk_beta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"6600437987682835329040464538375790690815756241121776438004683031791078085074"
-                </span>.to_string(),
-            <span class="string">"16207344858883952201936462217289725998755030546200154201671892670464461194903"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"6600437987682835329040464538375790690815756241121776438004683031791078085074"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"16207344858883952201936462217289725998755030546200154201671892670464461194903"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"17943105074568074607580970189766801116106680981075272363121544016828311544390"
-                </span>.to_string(),
-            <span class="string">"18339640667362802607939727433487930605412455701857832124655129852540230493587"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"17943105074568074607580970189766801116106680981075272363121544016828311544390"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"18339640667362802607939727433487930605412455701857832124655129852540230493587"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
     <span class="kw">let </span>vk_gamma_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"
-                </span>.to_string(),
-            <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"10857046999023057135944570762232829481370756359578518086990519993285655852781"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"11559732032986387107991004021392285783925812861821192530917403151452391805634"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"
-                </span>.to_string(),
-            <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"8495653923123431417604973247489272438418190587263600148770280649306958101930"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"4082367875863433681332203403145435568316851327593401208105741076214120093531"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
     <span class="kw">let </span>vk_delta_2 = g2_affine_from_str_projective(<span class="kw-2">&amp;</span><span class="macro">vec!</span>[
         <span class="macro">vec!</span>[
-            <span class="string">"19260309516619721648285279557078789954438346514188902804737557357941293711874"
-                </span>.to_string(),
-            <span class="string">"2480422554560175324649200374556411861037961022026590718777465211464278308900"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"19260309516619721648285279557078789954438346514188902804737557357941293711874"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"2480422554560175324649200374556411861037961022026590718777465211464278308900"</span>,
+            )
+            .unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"14489104692423540990601374549557603533921811847080812036788172274404299703364"
-                </span>.to_string(),
-            <span class="string">"12564378633583954025611992187142343628816140907276948128970903673042690269191"
-                </span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"14489104692423540990601374549557603533921811847080812036788172274404299703364"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"12564378633583954025611992187142343628816140907276948128970903673042690269191"</span>,
+            )
+            .unwrap(),
         ],
-        <span class="macro">vec!</span>[<span class="string">"1"</span>.to_string(), <span class="string">"0"</span>.to_string()],
+        <span class="macro">vec!</span>[
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
+            Bn254FqElement::from_str(<span class="string">"0"</span>).unwrap(),
+        ],
     ])
     .unwrap();
 
@@ -484,18 +675,26 @@
     </span><span class="kw">let </span><span class="kw-2">mut </span>vk_gamma_abc_g1 = Vec::new();
     <span class="kw">for </span>e <span class="kw">in </span>[
         <span class="macro">vec!</span>[
-            <span class="string">"1607694606386445293170795095076356565829000940041894770459712091642365695804"
-                </span>.to_string(),
-            <span class="string">"18066827569413962196795937356879694709963206118612267170825707780758040578649"
-                </span>.to_string(),
-            <span class="string">"1"</span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"1607694606386445293170795095076356565829000940041894770459712091642365695804"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"18066827569413962196795937356879694709963206118612267170825707780758040578649"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
         ],
         <span class="macro">vec!</span>[
-            <span class="string">"20653794344898475822834426774542692225449366952113790098812854265588083247207"
-                </span>.to_string(),
-            <span class="string">"3296759704176575765409730962060698204792513807296274014163938591826372646699"
-                </span>.to_string(),
-            <span class="string">"1"</span>.to_string(),
+            Bn254FqElement::from_str(
+                <span class="string">"20653794344898475822834426774542692225449366952113790098812854265588083247207"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(
+                <span class="string">"3296759704176575765409730962060698204792513807296274014163938591826372646699"</span>,
+            )
+            .unwrap(),
+            Bn254FqElement::from_str(<span class="string">"1"</span>).unwrap(),
         ],
     ] {
         <span class="kw">let </span>g1 = g1_affine_from_str_projective(<span class="kw-2">&amp;</span>e).unwrap();
@@ -578,7 +777,8 @@
 
 <span class="doccomment">/// Verify that the given parameters (address_seed and iss) were used to generate the given address.
 </span><span class="kw">pub fn </span>verify_zk_login_iss(address: <span class="kw-2">&amp;</span>[u8], address_seed: <span class="kw-2">&amp;</span>str, iss: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;()&gt; {
-    <span class="kw">let </span>reconstructed_address = get_zk_login_address(address_seed, iss)<span class="question-mark">?</span>;
+    <span class="kw">let </span>reconstructed_address =
+        get_zk_login_address(<span class="kw-2">&amp;</span>Bn254FrElement::from_str(address_seed)<span class="question-mark">?</span>, iss)<span class="question-mark">?</span>;
     <span class="kw">match </span>reconstructed_address == address {
         <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
         <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidProof),

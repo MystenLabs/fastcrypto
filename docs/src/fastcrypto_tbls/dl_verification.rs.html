@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dl_verification.rs`."><title>dl_verification.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0-nightly (b11fbfbf3 2024-02-03)" data-channel="nightly" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-tbls/src/dl_verification.rs`."><title>dl_verification.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto_tbls" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.1 (7cf61ebde 2024-03-27)" data-channel="1.77.1" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto_tbls/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -187,6 +187,10 @@
 <a href="#185" id="185">185</a>
 <a href="#186" id="186">186</a>
 <a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -194,7 +198,7 @@
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::{bls12381, GroupElement, MultiScalarMul, Pairing, Scalar};
 <span class="kw">use </span>fastcrypto::traits::AllowedRng;
-<span class="kw">use </span>std::num::NonZeroU32;
+<span class="kw">use </span>std::num::NonZeroU16;
 
 <span class="doccomment">/// Helper functions for checking relations between scalars and group elements.
 
@@ -208,7 +212,7 @@
 <span class="doccomment">/// Given a set of indexes (a1, a2, ..., an) and a vector of random scalars (r1, r2, ..., rn),
 /// returns the vector v such that &lt;v, c&gt; = \sum ri * p(ai) for the polynomial p with coefficients c
 /// and the given degree.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>batch_coefficients&lt;S: Scalar&gt;(r: <span class="kw-2">&amp;</span>[S], indexes: <span class="kw-2">&amp;</span>[S], degree: u32) -&gt; Vec&lt;S&gt; {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>batch_coefficients&lt;S: Scalar&gt;(r: <span class="kw-2">&amp;</span>[S], indexes: <span class="kw-2">&amp;</span>[S], degree: usize) -&gt; Vec&lt;S&gt; {
     <span class="macro">assert!</span>(r.len() == indexes.len() &amp;&amp; degree &gt; <span class="number">0</span>); <span class="comment">// Should never happen
     </span><span class="kw">let </span><span class="kw-2">mut </span>multiplies = r.to_vec();
     <span class="kw">let </span><span class="kw-2">mut </span>res = Vec::&lt;S&gt;::new();
@@ -230,6 +234,7 @@
 
 <span class="doccomment">/// Checks that a given set of evaluations is consistent with a given polynomial in the exp by
 /// checking that (\sum r_i v_i)*G = \sum r_i p(i) for a random set of scalars r_i.
+</span><span class="comment">// TODO: Consider generating the random scalars deterministically using Fiat-Shamir.
 </span><span class="kw">pub fn </span>verify_poly_evals&lt;G: GroupElement + MultiScalarMul, R: AllowedRng&gt;(
     evals: <span class="kw-2">&amp;</span>[Eval&lt;G::ScalarType&gt;],
     poly: <span class="kw-2">&amp;</span>Poly&lt;G&gt;,
@@ -239,7 +244,7 @@
     <span class="kw">if </span>evals.is_empty() {
         <span class="kw">return </span><span class="prelude-val">Ok</span>(());
     }
-    <span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(evals.len() <span class="kw">as </span>u32, rng);
+    <span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(evals.len(), rng);
 
     <span class="kw">let </span>lhs = G::generator() * dot(<span class="kw-2">&amp;</span>rs, <span class="kw-2">&amp;</span>evals.iter().map(|e| e.value).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;());
 
@@ -268,7 +273,7 @@
     }
     <span class="comment">// Denote the inputs by (k1, H1), (k2, H2), ..., (kn, Hn)
     // Generate random r1, r2, ..., rn
-    </span><span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(pairs.len() <span class="kw">as </span>u32, rng);
+    </span><span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(pairs.len(), rng);
     <span class="comment">// Compute (r1*k1 + r2*k2 + ... + rn*kn)*G
     </span><span class="kw">let </span>lhs = G::generator()
         * rs.iter()
@@ -301,7 +306,7 @@
     }
     <span class="comment">// Denote the inputs by (k1, G1, H1), (k2, G2, H2), ..., (kn, Gn, Hn)
     // Generate random r1, r2, ..., rn
-    </span><span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(triplets.len() <span class="kw">as </span>u32, rng);
+    </span><span class="kw">let </span>rs = get_random_scalars::&lt;G::ScalarType, R&gt;(triplets.len(), rng);
     <span class="comment">// Compute r1*k1, r2*k2, ..., rn*kn
     </span><span class="kw">let </span>lhs_coeffs = rs
         .iter()
@@ -331,7 +336,7 @@
 <span class="doccomment">/// Check that partial public keys form a polynomial of the right degree using the protocol of
 /// https://eprint.iacr.org/2017/216.pdf. deg_f should be n-k-2 if the polynomial is of degree k.
 </span><span class="kw">pub fn </span>verify_deg_t_poly&lt;G: GroupElement + MultiScalarMul, R: AllowedRng&gt;(
-    deg_f: u32,
+    deg_f: u16,
     values: <span class="kw-2">&amp;</span>[G],
     precomputed_dual_code_coefficients: <span class="kw-2">&amp;</span>[G::ScalarType],
     rng: <span class="kw-2">&amp;mut </span>R,
@@ -340,7 +345,7 @@
     <span class="kw">let </span>coefficients = precomputed_dual_code_coefficients
         .iter()
         .enumerate()
-        .map(|(i, c)| <span class="kw-2">*</span>c * poly_f.eval(NonZeroU32::new((i + <span class="number">1</span>) <span class="kw">as </span>u32).unwrap()).value)
+        .map(|(i, c)| <span class="kw-2">*</span>c * poly_f.eval(NonZeroU16::new((i + <span class="number">1</span>) <span class="kw">as </span>u16).unwrap()).value)
         .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
     <span class="kw">let </span>lhs = G::multi_scalar_mul(<span class="kw-2">&amp;</span>coefficients[..], values).expect(<span class="string">"sizes match"</span>);
     <span class="kw">if </span>lhs != G::zero() {
@@ -359,7 +364,7 @@
     <span class="kw">if </span>v1.len() != v2.len() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidProof);
     }
-    <span class="kw">let </span>rs = get_random_scalars::&lt;bls12381::Scalar, R&gt;(v1.len() <span class="kw">as </span>u32, rng);
+    <span class="kw">let </span>rs = get_random_scalars::&lt;bls12381::Scalar, R&gt;(v1.len(), rng);
     <span class="kw">let </span>lhs = bls12381::G1Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v1).expect(<span class="string">"sizes match"</span>);
     <span class="kw">let </span>rhs = bls12381::G2Element::multi_scalar_mul(<span class="kw-2">&amp;</span>rs[..], v2).expect(<span class="string">"sizes match"</span>);
 
@@ -371,7 +376,10 @@
     <span class="prelude-val">Ok</span>(())
 }
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_random_scalars&lt;S: Scalar, R: AllowedRng&gt;(n: u32, rng: <span class="kw-2">&amp;mut </span>R) -&gt; Vec&lt;S&gt; {
-    (<span class="number">0</span>..n).map(|<span class="kw">_</span>| S::from(rng.next_u64())).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>get_random_scalars&lt;S: Scalar, R: AllowedRng&gt;(n: usize, rng: <span class="kw-2">&amp;mut </span>R) -&gt; Vec&lt;S&gt; {
+    <span class="comment">// We use rng directly since we want only u64 numbers, which will be cheaper to multiply.
+    </span>(<span class="number">0</span>..n)
+        .map(|<span class="kw">_</span>| S::from(rng.next_u64() <span class="kw">as </span>u128))
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
 }
 </code></pre></div></section></main></body></html>
