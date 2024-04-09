@@ -6,7 +6,10 @@ use ark_ec::AffineRepr;
 use ark_serialize::CanonicalSerialize;
 use rand::thread_rng;
 
-use crate::groups::bn254::{G1Element, G2Element, GTElement, Scalar};
+use crate::groups::bn254::G1Element;
+use crate::groups::bn254::G2Element;
+use crate::groups::bn254::GTElement;
+use crate::groups::bn254::Scalar;
 use crate::groups::{FromTrustedByteArray, GroupElement, Pairing, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
