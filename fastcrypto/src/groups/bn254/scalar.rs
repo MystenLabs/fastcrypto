@@ -63,21 +63,18 @@ impl groups::Scalar for Scalar {
 
 impl ToFromByteArray<SCALAR_LENGTH> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> Result<Self, FastCryptoError> {
-        // Arkworks uses little-endian byte order for serialization, but we use big-endian.
-        let mut reversed = *bytes;
-        reversed.reverse();
-        Fr::deserialize_compressed(reversed.as_slice())
+        // Note that arkworks uses little-endian byte order for serialization here.
+        Fr::deserialize_compressed(bytes.as_slice())
             .map_err(|_| FastCryptoError::InvalidInput)
             .map(Scalar)
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_LENGTH] {
+        // Note that arkworks uses little-endian byte order for serialization here.
         let mut bytes = [0u8; SCALAR_LENGTH];
         self.0
             .serialize_compressed(bytes.as_mut_slice())
             .expect("Never fails");
-        // Arkworks uses little-endian byte order for serialization, but we use big-endian.
-        bytes.reverse();
         bytes
     }
 }

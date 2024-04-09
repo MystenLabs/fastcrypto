@@ -184,7 +184,7 @@ fn test_serde_and_regression() {
     verify_serialization(
         &s1,
         Some(
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
+            hex::decode("0100000000000000000000000000000000000000000000000000000000000000")
                 .unwrap()
                 .as_slice(),
         ),
@@ -225,13 +225,15 @@ fn test_serialization_scalar() {
     assert_eq!(Scalar::from_byte_array(&bytes).unwrap(), Scalar::zero());
 
     // Scalar::from_byte_array should not accept the order or above it.
-    let order =
+    let mut order =
         hex::decode("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001").unwrap();
+    order.reverse(); // Little-endian
     assert!(Scalar::from_byte_array(<&[u8; 32]>::try_from(order.as_slice()).unwrap()).is_err());
 
     // Scalar::from_byte_array should accept the order - 1.
-    let order_minus_one =
+    let mut order_minus_one =
         hex::decode("30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000").unwrap();
+    order_minus_one.reverse(); // Little-endian
     assert_eq!(
         Scalar::from_byte_array(<&[u8; 32]>::try_from(order_minus_one.as_slice()).unwrap())
             .unwrap(),
