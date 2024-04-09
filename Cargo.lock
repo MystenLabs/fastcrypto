@@ -1365,6 +1365,7 @@ version = "0.1.8"
 dependencies = [
  "aes",
  "aes-gcm",
+ "ark-bn254",
  "ark-ec",
  "ark-ff",
  "ark-secp256r1",
