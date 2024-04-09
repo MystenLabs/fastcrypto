@@ -21,8 +21,8 @@ mod scalar_tests {
 
     #[test]
     fn test_degree<S: Scalar>() {
-        let s: u16 = 5;
-        let p = Poly::<S>::rand(s, &mut thread_rng());
+        let s: usize = 5;
+        let p = Poly::<S>::rand(s as u16, &mut thread_rng());
         assert_eq!(p.degree(), s);
     }
 
@@ -88,6 +88,7 @@ mod scalar_tests {
 mod points_tests {
     use super::*;
     use itertools::Either;
+
     #[test]
     fn test_eval_and_commit<G: GroupElement>() {
         // test zero

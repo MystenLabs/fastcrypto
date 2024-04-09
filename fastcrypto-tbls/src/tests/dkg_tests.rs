@@ -207,7 +207,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
         d1.process_confirmations(
             &used_msgs0,
             &[conf0.clone(), conf0.clone(), conf0.clone()],
-            &mut thread_rng()
+            &mut thread_rng(),
         )
         .err(),
         Some(FastCryptoError::NotEnoughInputs)
@@ -302,7 +302,7 @@ fn test_party_new_errors() {
     assert!(Party::<G, EG>::new(
         keys.first().unwrap().1.clone(),
         nodes.clone(),
-        100,
+        6,
         ro.clone(),
         &mut thread_rng(),
     )
