@@ -36,11 +36,9 @@ where
 /// This is roughly homologous to [`ark_groth16::data_structures::PreparedVerifyingKey`].
 /// Note that contrary to Arkworks, we don't store a "prepared" version of the `gamma_neg` and
 /// `delta_neg` fields because they are very large and unpractical to use in the binary API.
-#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PreparedVerifyingKey<G1>
 where
     G1: Pairing,
-    <G1 as Pairing>::Output: Clone + Debug + PartialEq + Eq,
 {
     /// The element vk.gamma_abc,
     /// aka the `[gamma^{-1} * (beta * a_i + alpha * b_i + c_i) * G]`, where i spans the public inputs
@@ -59,7 +57,6 @@ where
 impl<G1> From<&VerifyingKey<G1>> for PreparedVerifyingKey<G1>
 where
     G1: Pairing,
-    <G1 as Pairing>::Output: GroupElement,
 {
     fn from(vk: &VerifyingKey<G1>) -> Self {
         PreparedVerifyingKey {
@@ -71,18 +68,17 @@ where
     }
 }
 
-impl<G1> PreparedVerifyingKey<G1>
-where
-    G1: Pairing,
-    <G1 as Pairing>::Output: GroupElement,
-{
+impl<G1: Pairing> PreparedVerifyingKey<G1> {
     /// Verify Groth16 proof using the prepared verifying key (see more at
     /// [`crate::bn254::verifier::PreparedVerifyingKey`]), a vector of public inputs and the proof.
     pub fn verify(
         &self,
         public_inputs: &[G1::ScalarType],
         proof: &Proof<G1>,
-    ) -> FastCryptoResult<()> {
+    ) -> FastCryptoResult<()>
+    where
+        <G1 as Pairing>::Output: GroupElement,
+    {
         let prepared_inputs = self.prepare_inputs(public_inputs)?;
         self.verify_with_prepared_inputs(&prepared_inputs, proof)
     }
@@ -94,7 +90,10 @@ where
         &self,
         prepared_inputs: &G1,
         proof: &Proof<G1>,
-    ) -> FastCryptoResult<()> {
+    ) -> FastCryptoResult<()>
+    where
+        <G1 as Pairing>::Output: GroupElement,
+    {
         let lhs = proof.a.pairing(&proof.b)
             + prepared_inputs.pairing(&self.gamma_neg)
             + proof.c.pairing(&self.delta_neg);

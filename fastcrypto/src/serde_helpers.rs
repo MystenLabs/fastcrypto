@@ -281,7 +281,7 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
             T::from_byte_array(
                 &chunk
                     .try_into()
-                    .map_err(|_| FastCryptoError::InvalidInput)?, // This will never fail
+                    .expect("Length of `chunk` is always equal to SIZE_IN_BYTES"),
             )
         })
         .collect::<FastCryptoResult<Vec<T>>>()

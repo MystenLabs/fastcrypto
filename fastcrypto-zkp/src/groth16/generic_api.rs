@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, Pairing};
@@ -21,9 +21,9 @@ pub(crate) fn prepare_pvk_bytes<
     vk_bytes: &[u8],
 ) -> FastCryptoResult<Vec<Vec<u8>>>
 where
-    G1: Pairing + for<'a> Deserialize<'a> + ToFromByteArray<G1_SIZE>,
-    <G1 as Pairing>::Other: for<'a> Deserialize<'a> + ToFromByteArray<G2_SIZE>,
-    <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
+    G1: Pairing + ToFromByteArray<G1_SIZE>,
+    <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE>,
+    <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
 {
     let vk = VerifyingKey::<G1>::from_arkworks_format::<G1_SIZE, G2_SIZE>(vk_bytes)?;
     Ok(PreparedVerifyingKey::from(&vk).serialize_into_parts())
@@ -34,7 +34,7 @@ where
 /// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
 /// bytes each, and serialized proof points.
 pub(crate) fn verify_groth16_in_bytes<
-    G1,
+    G1: Pairing,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
     const GT_SIZE: usize,
@@ -48,8 +48,8 @@ pub(crate) fn verify_groth16_in_bytes<
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError>
 where
-    G1: Pairing + ToFromByteArray<G1_SIZE> + for<'a> Deserialize<'a>,
-    <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + for<'a> Deserialize<'a>,
+    G1: ToFromByteArray<G1_SIZE> + DeserializeOwned,
+    <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + DeserializeOwned,
     <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
     G1::ScalarType: ToFromByteArray<FR_SIZE>,
 {
@@ -123,6 +123,10 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
+        // There must be at least one element in gamma_abc, which implies that there are no public inputs
+        if n == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
         i += 8;
 
         let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&bytes[i..])
@@ -142,10 +146,7 @@ impl<G1: Pairing> VerifyingKey<G1> {
     }
 }
 
-impl<G1: Pairing> PreparedVerifyingKey<G1>
-where
-    <G1 as Pairing>::Output: GroupElement,
-{
+impl<G1: Pairing> PreparedVerifyingKey<G1> {
     pub fn serialize_into_parts<const G1_SIZE: usize, const G2_SIZE: usize, const GT_SIZE: usize>(
         &self,
     ) -> Vec<Vec<u8>>

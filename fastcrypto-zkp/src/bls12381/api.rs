@@ -42,50 +42,70 @@ pub fn verify_groth16_in_bytes(
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &reverse_endianness(proof_public_inputs_as_bytes)?,
+        &switch_scalar_endianness(proof_public_inputs_as_bytes)?,
         proof_points_as_bytes,
     )
 }
 
 /// The public inputs are in little-endian byte order, but [fastcrypto::groups::bls12381::Scalar::from_byte_array]
 /// expects them in big-endian representation.
-fn reverse_endianness(scalars: &[u8]) -> FastCryptoResult<Vec<u8>> {
+fn switch_scalar_endianness(scalars: &[u8]) -> FastCryptoResult<Vec<u8>> {
     if scalars.len() % SCALAR_LENGTH != 0 {
         return Err(FastCryptoError::InvalidInput);
     }
-    let mut reversed_scalars = Vec::with_capacity(scalars.len());
-    for scalar in scalars.chunks(SCALAR_LENGTH) {
-        let mut scalar = scalar.to_vec();
-        scalar.reverse();
-        reversed_scalars.extend_from_slice(&scalar);
-    }
-    Ok(reversed_scalars)
+    Ok(scalars
+        .chunks(SCALAR_LENGTH)
+        .flat_map(|chunk| {
+            let mut scalar = chunk.to_vec();
+            scalar.reverse();
+            scalar
+        })
+        .collect())
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::bls12381::api::reverse_endianness;
+    use crate::bls12381::api::switch_scalar_endianness;
     use ark_bls12_381::Fr;
+    use ark_ff::Zero;
     use ark_serialize::CanonicalSerialize;
     use fastcrypto::groups::bls12381::{Scalar, SCALAR_LENGTH};
     use fastcrypto::serde_helpers::deserialize_vector;
 
-    #[test]
-    fn test_reverse_endianness() {
-        let a = 123;
-        let b = 456;
-        let c = 789;
-
-        let arkworks_scalars = [Fr::from(a), Fr::from(b), Fr::from(c)]
+    fn serialize_arkworks_scalars(scalars: &[Fr]) -> Vec<u8> {
+        scalars
             .iter()
             .flat_map(|x| {
                 let mut bytes = [0u8; SCALAR_LENGTH];
                 x.serialize_compressed(bytes.as_mut_slice()).unwrap();
                 bytes.to_vec()
             })
-            .collect::<Vec<u8>>();
+            .collect::<Vec<u8>>()
+    }
 
-        let as_big_endian = reverse_endianness(&arkworks_scalars).unwrap();
+    #[test]
+    fn test_switch_scalar_endianness() {
+        // For an empty input, the output should also be empty.
+        assert_eq!(switch_scalar_endianness(&[]).unwrap(), Vec::<u8>::new());
+
+        // Zero is the same in both big-endian and little-endian.
+        assert_eq!(
+            switch_scalar_endianness(&serialize_arkworks_scalars(&[Fr::zero()])).unwrap(),
+            vec![0u8; SCALAR_LENGTH]
+        );
+
+        // Invalid input lengths
+        assert!(switch_scalar_endianness(&[0; SCALAR_LENGTH - 1]).is_err());
+        assert!(switch_scalar_endianness(&[0; SCALAR_LENGTH]).is_ok());
+        assert!(switch_scalar_endianness(&[0; SCALAR_LENGTH + 1]).is_err());
+
+        // Test with a few non-trivial numbers.
+        let a = 123;
+        let b = 456;
+        let c = 789;
+
+        let arkworks_scalars = serialize_arkworks_scalars(&[Fr::from(a), Fr::from(b), Fr::from(c)]);
+        let as_big_endian = switch_scalar_endianness(&arkworks_scalars).unwrap();
         let blst_scalars = deserialize_vector::<SCALAR_LENGTH, Scalar>(&as_big_endian).unwrap();
 
         assert_eq!(blst_scalars.len(), 3);
