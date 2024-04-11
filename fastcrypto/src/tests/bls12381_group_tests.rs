@@ -148,16 +148,13 @@ fn test_g1_msm_identity() {
     assert_eq!(G1Element::generator(), actual);
 
     let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual = G1Element::multi_scalar_mul(
-        &[Scalar::generator(), Scalar::zero()],
-        &[h.clone(), h.clone()],
-    )
-    .unwrap();
+    let actual =
+        G1Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
     assert_eq!(h, actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
     // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    (2..200).into_iter().for_each(|l| {
+    (2..200).for_each(|l| {
         let ones = vec![Scalar::generator(); l];
         let mut points = vec![G1Element::generator(); l];
         let rand_index = thread_rng().next_u32() as usize % l;
@@ -263,16 +260,13 @@ fn test_g2_msm_identity() {
     assert_eq!(G2Element::generator(), actual);
 
     let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
-    let actual = G2Element::multi_scalar_mul(
-        &[Scalar::generator(), Scalar::zero()],
-        &[h.clone(), h.clone()],
-    )
-    .unwrap();
+    let actual =
+        G2Element::multi_scalar_mul(&[Scalar::generator(), Scalar::zero()], &[h, h]).unwrap();
     assert_eq!(h, actual);
 
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
     // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    (2..200).into_iter().for_each(|l| {
+    (2..200).for_each(|l| {
         let ones = vec![Scalar::generator(); l];
         let mut points = vec![G2Element::generator(); l];
         let rand_index = thread_rng().next_u32() as usize % l;
