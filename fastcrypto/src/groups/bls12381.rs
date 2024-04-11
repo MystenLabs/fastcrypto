@@ -161,7 +161,7 @@ impl MultiScalarMul for G1Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Unfortunately we copy since blst does not filter out inf
-        // https://github.com/supranational/blst/blob/704c7f6d5f99ebb6bda84f635122e449ee51aa48/src/multi_scalar.c#L11
+        // https://github.com/supranational/blst/blob/master/src/multi_scalar.c#L11
         let (scalars, points): (Vec<_>, Vec<_>) = scalars
             .iter()
             .zip(points.iter())
@@ -379,7 +379,7 @@ impl MultiScalarMul for G2Element {
             return Err(FastCryptoError::InvalidInput);
         }
         // Unfortunately we copy since blst does not filter out inf
-        // https://github.com/supranational/blst/blob/704c7f6d5f99ebb6bda84f635122e449ee51aa48/src/multi_scalar.c#L11
+        // https://github.com/supranational/blst/blob/master/src/multi_scalar.c#L11
         let (scalars, points): (Vec<_>, Vec<_>) = scalars
             .iter()
             .zip(points.iter())

@@ -17,7 +17,7 @@ use blst::{
     blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
     blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
 };
-use rand::{rngs::StdRng, thread_rng, SeedableRng as _};
+use rand::{rngs::StdRng, thread_rng, RngCore, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
 
@@ -96,22 +96,24 @@ fn test_g1_arithmetic() {
 
 #[test]
 fn test_g1_msm() {
-    let mut scalars = Vec::new();
-    let mut points = Vec::new();
-    let mut expected = G1Element::zero();
-    for _ in 0..50 {
-        let s = Scalar::rand(&mut thread_rng());
-        let e = Scalar::rand(&mut thread_rng());
-        let g = G1Element::generator() * e;
-        expected += g * s;
-        scalars.push(s);
-        points.push(g);
-    }
-    let actual = G1Element::multi_scalar_mul(&scalars, &points).unwrap();
-    assert_eq!(expected, actual);
+    for l in 1..50 {
+        let mut scalars = Vec::new();
+        let mut points = Vec::new();
+        let mut expected = G1Element::zero();
+        for _ in 0..l {
+            let s = Scalar::rand(&mut thread_rng());
+            let e = Scalar::rand(&mut thread_rng());
+            let g = G1Element::generator() * e;
+            expected += g * s;
+            scalars.push(s);
+            points.push(g);
+        }
+        let actual = G1Element::multi_scalar_mul(&scalars, &points).unwrap();
+        assert_eq!(expected, actual);
 
-    assert!(G1Element::multi_scalar_mul(&scalars[1..], &points).is_err());
-    assert!(G1Element::multi_scalar_mul(&[], &[]).is_err());
+        assert!(G1Element::multi_scalar_mul(&scalars[1..], &points).is_err());
+        assert!(G1Element::multi_scalar_mul(&[], &[]).is_err());
+    }
 }
 
 #[test]
@@ -123,6 +125,11 @@ fn test_g1_msm_single() {
     let r = Scalar::rand(&mut thread_rng());
     let actual = G1Element::multi_scalar_mul(&[r], &[G1Element::generator()]).unwrap();
     assert_eq!(G1Element::generator() * r, actual);
+
+    let r = Scalar::rand(&mut thread_rng());
+    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
+    let actual = G1Element::multi_scalar_mul(&[r], &[h]).unwrap();
+    assert_eq!(h * r, actual);
 }
 
 #[test]
@@ -140,13 +147,27 @@ fn test_g1_msm_identity() {
     .unwrap();
     assert_eq!(G1Element::generator(), actual);
 
+    let h = G1Element::generator() * Scalar::rand(&mut thread_rng());
+    let actual = G1Element::multi_scalar_mul(
+        &[Scalar::generator(), Scalar::zero()],
+        &[h.clone(), h.clone()],
+    )
+    .unwrap();
+    assert_eq!(h, actual);
+
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
     // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    let ones = vec![Scalar::generator(); 100];
-    let mut points = vec![G1Element::generator(); 99];
-    points.push(G1Element::zero());
-    let actual = G1Element::multi_scalar_mul(&ones, &points).unwrap();
-    assert_eq!(G1Element::generator() * Scalar::from(99), actual);
+    (2..200).into_iter().for_each(|l| {
+        let ones = vec![Scalar::generator(); l];
+        let mut points = vec![G1Element::generator(); l];
+        let rand_index = thread_rng().next_u32() as usize % l;
+        points[rand_index] = G1Element::zero();
+        let actual = G1Element::multi_scalar_mul(&ones, &points).unwrap();
+        assert_eq!(
+            G1Element::generator() * Scalar::from((l - 1) as u128),
+            actual
+        );
+    });
 }
 
 #[test]
@@ -190,22 +211,24 @@ fn test_g2_arithmetic() {
 
 #[test]
 fn test_g2_msm() {
-    let mut scalars = Vec::new();
-    let mut points = Vec::new();
-    let mut expected = G2Element::zero();
-    for _ in 0..50 {
-        let s = Scalar::rand(&mut thread_rng());
-        let e = Scalar::rand(&mut thread_rng());
-        let g = G2Element::generator() * e;
-        expected += g * s;
-        scalars.push(s);
-        points.push(g);
-    }
-    let actual = G2Element::multi_scalar_mul(&scalars, &points).unwrap();
-    assert_eq!(expected, actual);
+    for l in 1..50 {
+        let mut scalars = Vec::new();
+        let mut points = Vec::new();
+        let mut expected = G2Element::zero();
+        for _ in 0..l {
+            let s = Scalar::rand(&mut thread_rng());
+            let e = Scalar::rand(&mut thread_rng());
+            let g = G2Element::generator() * e;
+            expected += g * s;
+            scalars.push(s);
+            points.push(g);
+        }
+        let actual = G2Element::multi_scalar_mul(&scalars, &points).unwrap();
+        assert_eq!(expected, actual);
 
-    assert!(G2Element::multi_scalar_mul(&scalars[1..], &points).is_err());
-    assert!(G2Element::multi_scalar_mul(&[], &[]).is_err());
+        assert!(G2Element::multi_scalar_mul(&scalars[1..], &points).is_err());
+        assert!(G2Element::multi_scalar_mul(&[], &[]).is_err());
+    }
 }
 
 #[test]
@@ -217,6 +240,11 @@ fn test_g2_msm_single() {
     let r = Scalar::rand(&mut thread_rng());
     let actual = G2Element::multi_scalar_mul(&[r], &[G2Element::generator()]).unwrap();
     assert_eq!(G2Element::generator() * r, actual);
+
+    let r = Scalar::rand(&mut thread_rng());
+    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
+    let actual = G2Element::multi_scalar_mul(&[r], &[h]).unwrap();
+    assert_eq!(h * r, actual);
 }
 
 #[test]
@@ -234,13 +262,27 @@ fn test_g2_msm_identity() {
     .unwrap();
     assert_eq!(G2Element::generator(), actual);
 
+    let h = G2Element::generator() * Scalar::rand(&mut thread_rng());
+    let actual = G2Element::multi_scalar_mul(
+        &[Scalar::generator(), Scalar::zero()],
+        &[h.clone(), h.clone()],
+    )
+    .unwrap();
+    assert_eq!(h, actual);
+
     // since blst 0.3.11 this bug is triggered only for large inputs (after the fix
     // of https://github.com/supranational/blst/commit/168ff67ce74f2dbace619704bb75a865d0e6c913)
-    let ones = vec![Scalar::generator(); 100];
-    let mut points = vec![G2Element::generator(); 99];
-    points.push(G2Element::zero());
-    let actual = G2Element::multi_scalar_mul(&ones, &points).unwrap();
-    assert_eq!(G2Element::generator() * Scalar::from(99), actual);
+    (2..200).into_iter().for_each(|l| {
+        let ones = vec![Scalar::generator(); l];
+        let mut points = vec![G2Element::generator(); l];
+        let rand_index = thread_rng().next_u32() as usize % l;
+        points[rand_index] = G2Element::zero();
+        let actual = G2Element::multi_scalar_mul(&ones, &points).unwrap();
+        assert_eq!(
+            G2Element::generator() * Scalar::from((l - 1) as u128),
+            actual
+        );
+    });
 }
 
 #[test]
