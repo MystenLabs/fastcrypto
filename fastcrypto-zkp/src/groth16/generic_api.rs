@@ -123,7 +123,8 @@ impl<G1: Pairing> VerifyingKey<G1> {
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,
         );
-        // There must be at least one element in gamma_abc, which implies that there are no public inputs
+        // There must be at least one element in gamma_abc, since this should be equal to the number
+        // of public inputs + 1.
         if n == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
