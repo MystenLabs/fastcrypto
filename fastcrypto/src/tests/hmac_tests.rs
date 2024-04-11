@@ -18,16 +18,16 @@ use rand::{rngs::StdRng, SeedableRng};
 use wycheproof::TestResult;
 
 fn hkdf_wrapper<H>(salt: Option<&[u8]>) -> Vec<u8>
-    where
-        H: ReverseWrapper,
-        <<H as ReverseWrapper>::Variant as CoreProxy>::Core: HashMarker
+where
+    H: ReverseWrapper,
+    <<H as ReverseWrapper>::Variant as CoreProxy>::Core: HashMarker
         + UpdateCore
         + FixedOutputCore
-        + BufferKindUser<BufferKind=Eager>
+        + BufferKindUser<BufferKind = Eager>
         + Default
         + Clone,
-        <<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
-        Le<<<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize, U256>:
+    <<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize: IsLess<U256>,
+    Le<<<<H as ReverseWrapper>::Variant as CoreProxy>::Core as BlockSizeUser>::BlockSize, U256>:
         NonZero,
 {
     let ikm = &[
@@ -146,7 +146,7 @@ fn test_regression_of_hkdf() {
         salt: "000102030405060708090a0b0c",
         info: "f0f1f2f3f4f5f6f7f8f9",
         expected_output:
-        "0c5160501d65021deaf2c14f5abce04c5bd2635abceeba61c2edb6e8ed72674900557728f2c9f2c4c179",
+            "0c5160501d65021deaf2c14f5abce04c5bd2635abceeba61c2edb6e8ed72674900557728f2c9f2c4c179",
     };
     let test2 = HkdfTestVector {
         ikm: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f",
@@ -160,7 +160,7 @@ fn test_regression_of_hkdf() {
         salt: "",
         info: "",
         expected_output:
-        "bc1342cdd75c05e8b0c3ae609ce4410684d197232875073499b30cdfe2de2853c1c1bed63d725e885e78",
+            "bc1342cdd75c05e8b0c3ae609ce4410684d197232875073499b30cdfe2de2853c1c1bed63d725e885e78",
     };
 
     for t in [test1, test2, test3] {
@@ -174,7 +174,7 @@ fn test_regression_of_hkdf() {
             info.as_ref(),
             expected.len(),
         )
-            .unwrap();
+        .unwrap();
         assert_eq!(okm, expected);
     }
 }
@@ -198,7 +198,7 @@ fn test_sanity_hkdf() {
         &[7, 8, 9],
         100,
     )
-        .unwrap();
+    .unwrap();
     assert_ne!(
         okm,
         hkdf_sha3_256(
@@ -207,7 +207,7 @@ fn test_sanity_hkdf() {
             &[7, 8, 9],
             100,
         )
-            .unwrap()
+        .unwrap()
     );
     assert_ne!(
         okm,
@@ -217,7 +217,7 @@ fn test_sanity_hkdf() {
             &[7, 8, 9],
             100,
         )
-            .unwrap()
+        .unwrap()
     );
     assert_ne!(
         okm,
@@ -227,7 +227,7 @@ fn test_sanity_hkdf() {
             &[7, 8, 0],
             100,
         )
-            .unwrap()
+        .unwrap()
     );
 
     // Edge cases

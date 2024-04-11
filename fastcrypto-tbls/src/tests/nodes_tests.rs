@@ -13,9 +13,9 @@ use serde::Serialize;
 use std::num::NonZeroU16;
 
 fn get_nodes<G>(n: u16) -> Vec<Node<G>>
-    where
-        G: GroupElement + Serialize + DeserializeOwned,
-        G::ScalarType: FiatShamirChallenge,
+where
+    G: GroupElement + Serialize + DeserializeOwned,
+    G::ScalarType: FiatShamirChallenge,
 {
     let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
     let pk = ecies::PublicKey::<G>::from_private_key(&sk);
