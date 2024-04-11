@@ -47,6 +47,7 @@ itertools = "0.12.0"
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
+ark-bls12-381 = "0.4.0"
 ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
 ark-r1cs-std = "0.4.0"
 ark-std = "0.4.0"
