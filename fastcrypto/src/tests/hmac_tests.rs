@@ -92,10 +92,10 @@ fn test_hmac_regression() {
         message: "7768617420646f2079612077616e7420666f72206e6f7468696e673f",
         expected_output: "c7d4072e788877ae3596bbb0da73b887c9171f93095b294ae857fbe2645e1ba5",
     };
-    let test3 = HmacTestVector{key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", expected_output: "84ec79124a27107865cedd8bd82da9965e5ed8c37b0ac98005a7f39ed58a4207"};
-    let test4 = HmacTestVector{key: "0102030405060708090a0b0c0d0e0f10111213141516171819", message: "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", expected_output: "57366a45e2305321a4bc5aa5fe2ef8a921f6af8273d7fe7be6cfedb3f0aea6d7"};
-    let test5 = HmacTestVector{key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374", expected_output: "ed73a374b96c005235f948032f09674a58c0ce555cfc1f223b02356560312c3b"};
-    let test6 = HmacTestVector{key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e", expected_output: "65c5b06d4c3de32a7aef8763261e49adb6e2293ec8e7c61e8de61701fc63e123"};
+    let test3 = HmacTestVector { key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", expected_output: "84ec79124a27107865cedd8bd82da9965e5ed8c37b0ac98005a7f39ed58a4207" };
+    let test4 = HmacTestVector { key: "0102030405060708090a0b0c0d0e0f10111213141516171819", message: "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd", expected_output: "57366a45e2305321a4bc5aa5fe2ef8a921f6af8273d7fe7be6cfedb3f0aea6d7" };
+    let test5 = HmacTestVector { key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "54657374205573696e67204c6172676572205468616e20426c6f636b2d53697a65204b6579202d2048617368204b6579204669727374", expected_output: "ed73a374b96c005235f948032f09674a58c0ce555cfc1f223b02356560312c3b" };
+    let test6 = HmacTestVector { key: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", message: "5468697320697320612074657374207573696e672061206c6172676572207468616e20626c6f636b2d73697a65206b657920616e642061206c6172676572207468616e20626c6f636b2d73697a6520646174612e20546865206b6579206e6565647320746f20626520686173686564206265666f7265206265696e6720757365642062792074686520484d414320616c676f726974686d2e", expected_output: "65c5b06d4c3de32a7aef8763261e49adb6e2293ec8e7c61e8de61701fc63e123" };
 
     for t in [test1, test2, test3, test4, test5, test6] {
         let k = HmacKey::from_bytes(hex::decode(t.key).unwrap().as_ref()).unwrap();
@@ -175,7 +175,6 @@ fn test_regression_of_hkdf() {
             expected.len(),
         )
         .unwrap();
-        println!("{}", hex::encode(&okm));
         assert_eq!(okm, expected);
     }
 }
@@ -206,7 +205,7 @@ fn test_sanity_hkdf() {
             &HkdfIkm::from_bytes(&[1, 2, 0]).unwrap(),
             &[4, 5, 6],
             &[7, 8, 9],
-            100
+            100,
         )
         .unwrap()
     );
@@ -216,7 +215,7 @@ fn test_sanity_hkdf() {
             &HkdfIkm::from_bytes(&[1, 2, 3]).unwrap(),
             &[4, 5, 0],
             &[7, 8, 9],
-            100
+            100,
         )
         .unwrap()
     );
@@ -226,7 +225,7 @@ fn test_sanity_hkdf() {
             &HkdfIkm::from_bytes(&[1, 2, 3]).unwrap(),
             &[4, 5, 6],
             &[7, 8, 0],
-            100
+            100,
         )
         .unwrap()
     );
