@@ -16,10 +16,7 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::test_helpers::from_arkworks_scalar;
-use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
-use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use crate::groth16::Proof;
+use crate::dummy_circuits::DummyCircuit;
 
 #[test]
 fn test_verify() {
