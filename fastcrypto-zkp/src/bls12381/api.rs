@@ -8,7 +8,8 @@ use fastcrypto::groups::bls12381::{
 };
 use fastcrypto::serde_helpers::ToFromByteArray;
 
-use crate::groth16::{generic_api, FromLittleEndianByteArray, GTSerialize};
+use crate::groth16::generic_api;
+use crate::groth16::generic_api::{FromLittleEndianByteArray, GTSerialize};
 
 /// Create a prepared verifying key for Groth16 over the BLS12-381 curve construction. See
 /// [`generic_api::prepare_pvk_bytes`].
