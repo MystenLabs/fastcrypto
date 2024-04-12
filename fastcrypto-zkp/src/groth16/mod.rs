@@ -133,6 +133,7 @@ pub trait GTSerialize<const SIZE_IN_BYTES: usize>: Sized {
     fn from_arkworks_bytes(bytes: &[u8; SIZE_IN_BYTES]) -> FastCryptoResult<Self>;
 }
 
+/// Scalars given to the API are expected to be in little-endian format.
 pub trait FromLittleEndianByteArray<const SIZE_IN_BYTES: usize>: Sized {
     fn from_little_endian_byte_array(bytes: &[u8; SIZE_IN_BYTES]) -> FastCryptoResult<Self>;
 }
