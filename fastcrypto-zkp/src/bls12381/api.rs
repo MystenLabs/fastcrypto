@@ -19,6 +19,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
         { GT_ELEMENT_BYTE_LENGTH },
         { SCALAR_LENGTH },
     >(vk_bytes)?;
+    // GT elements are serialized differently in arkworks and fastcrypto, so we need to convert.
     pvk_bytes[1] = gt_element_to_arkworks(&pvk_bytes[1])?;
     Ok(pvk_bytes)
 }
@@ -34,9 +35,12 @@ pub fn verify_groth16_in_bytes(
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError> {
     // The generic API expects scalars in big-endian format, but the input here is as little-endian
-    // because this is used by arkworks.
+    // because it uses the same format as arkworks.
     let mut proof_public_inputs_as_bytes = proof_public_inputs_as_bytes.to_vec();
     switch_scalar_endianness_in_place::<SCALAR_LENGTH>(&mut proof_public_inputs_as_bytes)?;
+
+    // GT elements are serialized differently in arkworks and fastcrypto, so we need to convert.
+    let alpha_g1_beta_g2_bytes = arkworks_to_gt_element(alpha_g1_beta_g2_bytes)?;
 
     generic_api::verify_groth16_in_bytes::<
         G1Element,
@@ -46,7 +50,7 @@ pub fn verify_groth16_in_bytes(
         { SCALAR_LENGTH },
     >(
         vk_gamma_abc_g1_bytes,
-        &arkworks_to_gt_element(alpha_g1_beta_g2_bytes)?,
+        &alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
         &proof_public_inputs_as_bytes,
@@ -55,7 +59,7 @@ pub fn verify_groth16_in_bytes(
 }
 
 /// Given a vector of concatenated binary representations of scalars of the same length, this
-/// function switches the endianess from big to little or vice-versa for each scalar.
+/// function switches the endianness from big to little or vice-versa for each scalar.
 fn switch_scalar_endianness_in_place<const SCALAR_SIZE_IN_BYTES: usize>(
     scalars: &mut [u8],
 ) -> FastCryptoResult<()> {
@@ -71,9 +75,9 @@ fn switch_scalar_endianness_in_place<const SCALAR_SIZE_IN_BYTES: usize>(
 // An element in the quadratic extension of Fp consistes of two field elements.
 const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
 
-/// Given a serialization of a arkworks [`PairingOutput`] element, this returns a serialization of a
-///[`fastcrypto::groups::bls12381::GTElement`] element. It is _not_ verified whether the input is a
-/// valid serialization.
+/// Given a serialization of a arkworks [`PairingOutput`] element, this function returns a
+/// serialization of the corresponding [`fastcrypto::groups::bls12381::GTElement`] element. It is
+/// _not_ verified whether the input is a valid serialization.
 fn arkworks_to_gt_element(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
     if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
         return Err(FastCryptoError::InvalidInput);
@@ -92,9 +96,9 @@ fn arkworks_to_gt_element(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
     Ok(result)
 }
 
-/// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this method converts it
-/// into a serialization of the corresponding arkworks [`PairingOutput`] type. It is _not_ verified
-/// whether the input is a valid serialization..
+/// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this function returns a
+/// serialization of the corresponding element as a arkworks [`PairingOutput`] type. It is _not_
+/// verified whether the input is a valid serialization..
 fn gt_element_to_arkworks(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
     if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
         return Err(FastCryptoError::InvalidInput);
