@@ -121,19 +121,3 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
             .map(|x| x + self.vk_gamma_abc[0])
     }
 }
-
-/// Serialization of GT elements is typically not standardized across libraries, so implementations
-/// must specify what implementation to use here to be compatible with the arkworks format (see
-/// [`ark_ec::pairing::PairingOutput`]).
-pub trait GTSerialize<const SIZE_IN_BYTES: usize>: Sized {
-    /// Serialize the element into a byte array.
-    fn to_arkworks_bytes(&self) -> [u8; SIZE_IN_BYTES];
-
-    /// Deserialize the element from a byte array.
-    fn from_arkworks_bytes(bytes: &[u8; SIZE_IN_BYTES]) -> FastCryptoResult<Self>;
-}
-
-/// Scalars given to the API are expected to be in little-endian format.
-pub trait FromLittleEndianByteArray<const SIZE_IN_BYTES: usize>: Sized {
-    fn from_little_endian_byte_array(bytes: &[u8; SIZE_IN_BYTES]) -> FastCryptoResult<Self>;
-}
