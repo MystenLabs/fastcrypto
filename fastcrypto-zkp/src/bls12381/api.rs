@@ -40,17 +40,17 @@ pub fn verify_groth16_in_bytes(
         { SCALAR_LENGTH },
     >(
         vk_gamma_abc_g1_bytes,
-        &alpha_g1_beta_g2_bytes,
+        alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
-        &public_inputs_as_bytes,
+        public_inputs_as_bytes,
         proof_points_as_bytes,
     )
 }
 
 impl FromLittleEndianByteArray<SCALAR_LENGTH> for Scalar {
     fn from_little_endian_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> FastCryptoResult<Self> {
-        let mut reversed = bytes.clone();
+        let mut reversed = *bytes;
         reversed.reverse();
         Scalar::from_byte_array(&reversed)
     }
@@ -69,18 +69,18 @@ impl GTSerialize<GT_ELEMENT_BYTE_LENGTH> for GTElement {
 // An element in the quadratic extension of Fp consists of two field elements.
 const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
 
-/// Reorder the six field extensions in a GT element according to the function f.
-fn generic_convert<F: Fn(usize, usize) -> (usize, usize)>(
+/// Reorder the six field extensions in a GT element according to the permutation.
+/// This functions panics if one of the elements in the permutation is larger than 5.
+fn generic_convert(
     bytes: &[u8; 6 * FP_EXTENSION_BYTE_LENGTH],
-    f: F,
+    permutation: &[usize; 6],
 ) -> [u8; 6 * FP_EXTENSION_BYTE_LENGTH] {
     let mut result = [0u8; 12 * FP_BYTE_LENGTH];
-    for i in 0..3 {
-        for j in 0..2 {
-            let (from, to) = f(i, j);
-            result[to..to + FP_EXTENSION_BYTE_LENGTH]
-                .copy_from_slice(&bytes[from..from + FP_EXTENSION_BYTE_LENGTH]);
-        }
+    for (from, to) in permutation.iter().enumerate() {
+        let from = from * FP_EXTENSION_BYTE_LENGTH;
+        let to = to * FP_EXTENSION_BYTE_LENGTH;
+        result[to..to + FP_EXTENSION_BYTE_LENGTH]
+            .copy_from_slice(&bytes[from..from + FP_EXTENSION_BYTE_LENGTH]);
     }
     result
         .chunks_exact_mut(FP_BYTE_LENGTH)
@@ -92,24 +92,16 @@ fn generic_convert<F: Fn(usize, usize) -> (usize, usize)>(
 /// serialization of the corresponding [`GTElement`] element. It is
 /// _not_ verified whether the input is a valid serialization.
 fn arkworks_to_gt_element(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
-    generic_convert(bytes, |i, j| {
-        (
-            i * FP_EXTENSION_BYTE_LENGTH + 3 * j * FP_EXTENSION_BYTE_LENGTH,
-            2 * i * FP_EXTENSION_BYTE_LENGTH + j * FP_EXTENSION_BYTE_LENGTH,
-        )
-    })
+    const PERMUTATION: [usize; 6] = [0, 2, 4, 1, 3, 5];
+    generic_convert(bytes, &PERMUTATION)
 }
 
 /// Given a serialization of a [`GTElement`], this function returns a
 /// serialization of the corresponding element as a arkworks [`PairingOutput`] type. It is _not_
 /// verified whether the input is a valid serialization..
 fn gt_element_to_arkworks(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
-    generic_convert(bytes, |i, j| {
-        (
-            2 * i * FP_EXTENSION_BYTE_LENGTH + j * FP_EXTENSION_BYTE_LENGTH,
-            i * FP_EXTENSION_BYTE_LENGTH + 3 * j * FP_EXTENSION_BYTE_LENGTH,
-        )
-    })
+    const PERMUTATION: [usize; 6] = [0, 3, 1, 4, 2, 5];
+    generic_convert(bytes, &PERMUTATION)
 }
 
 #[cfg(test)]
