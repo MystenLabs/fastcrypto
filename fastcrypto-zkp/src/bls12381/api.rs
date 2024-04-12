@@ -72,7 +72,7 @@ fn switch_scalar_endianness_in_place<const SCALAR_SIZE_IN_BYTES: usize>(
     Ok(())
 }
 
-// An element in the quadratic extension of Fp consistes of two field elements.
+// An element in the quadratic extension of Fp consists of two field elements.
 const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
 
 /// Given a serialization of a arkworks [`PairingOutput`] element, this function returns a
