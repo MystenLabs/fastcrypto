@@ -125,7 +125,9 @@ mod tests {
     use fastcrypto::groups::GroupElement;
     use fastcrypto::serde_helpers::{deserialize_vector, ToFromByteArray};
 
-    use crate::bls12381::api::{gt_element_to_arkworks, switch_scalar_endianness_in_place};
+    use crate::bls12381::api::{
+        arkworks_to_gt_element, gt_element_to_arkworks, switch_scalar_endianness_in_place,
+    };
 
     fn serialize_arkworks_scalars(scalars: &[Fr]) -> Vec<u8> {
         scalars
@@ -181,38 +183,35 @@ mod tests {
     #[test]
     fn test_gt_element_conversion() {
         let generator = PairingOutput::<Bls12_381>::generator();
-        let mut compressed_bytes = Vec::new();
+        let mut arkworks_bytes = Vec::new();
         let mut uncompressed_bytes = Vec::new();
 
         // GT elements cannot be compressed, so compressed and uncompressed serialization should be the same.
-        generator
-            .serialize_compressed(&mut compressed_bytes)
-            .unwrap();
+        generator.serialize_compressed(&mut arkworks_bytes).unwrap();
         generator
             .serialize_uncompressed(&mut uncompressed_bytes)
             .unwrap();
-        assert_eq!(compressed_bytes, uncompressed_bytes);
+        assert_eq!(arkworks_bytes, uncompressed_bytes);
 
         // The arkworks serialization does not match the GroupElement serialization.
-        let expected = GTElement::generator().to_byte_array();
-        assert_eq!(compressed_bytes.len(), expected.len());
-        assert_ne!(compressed_bytes, expected);
+        let fc_bytes = GTElement::generator().to_byte_array();
+        assert_eq!(arkworks_bytes.len(), fc_bytes.len());
+        assert_ne!(arkworks_bytes, fc_bytes);
 
         // After conversion, the arkworks serialization should match the GroupElement serialization.
-        let expected = gt_element_to_arkworks(&expected).unwrap();
-        assert_eq!(compressed_bytes, expected);
+        assert_eq!(arkworks_bytes, gt_element_to_arkworks(&fc_bytes).unwrap());
+        assert_eq!(arkworks_to_gt_element(&arkworks_bytes).unwrap(), fc_bytes);
 
-        // The identity is the same in both representations
+        // Compare serializations of the identity element
         let arkworks_id = PairingOutput::<Bls12_381>::zero();
         let mut arkworks_bytes = Vec::new();
         arkworks_id
             .serialize_uncompressed(&mut arkworks_bytes)
             .unwrap();
-
         let fc_bytes = GTElement::zero().to_byte_array();
         assert_ne!(&fc_bytes.to_vec(), &arkworks_bytes);
-        let fc_bytes = gt_element_to_arkworks(&fc_bytes).unwrap();
-        assert_eq!(&fc_bytes.to_vec(), &arkworks_bytes);
+        assert_eq!(&gt_element_to_arkworks(&fc_bytes).unwrap(), &arkworks_bytes);
+        assert_eq!(arkworks_to_gt_element(&arkworks_bytes).unwrap(), fc_bytes);
 
         // Invalid input lengths
         assert!(gt_element_to_arkworks(&[0; 0]).is_err());
