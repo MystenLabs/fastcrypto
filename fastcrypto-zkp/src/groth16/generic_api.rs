@@ -7,7 +7,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, Pairing};
 use fastcrypto::serde_helpers::{deserialize_vector, serialize_vector, ToFromByteArray};
 
-use crate::groth16::{PreparedVerifyingKey, VerifyingKey};
+use crate::groth16::{FromLittleEndianByteArray, GTSerialize, PreparedVerifyingKey, VerifyingKey};
 
 /// Deserialize bytes as an Arkworks representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`PreparedVerifyingKey`]).
@@ -23,7 +23,7 @@ pub(crate) fn prepare_pvk_bytes<
 where
     G1: Pairing + ToFromByteArray<G1_SIZE>,
     <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE>,
-    <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
+    <G1 as Pairing>::Output: GTSerialize<GT_SIZE>,
 {
     let vk = VerifyingKey::<G1>::from_arkworks_format::<G1_SIZE, G2_SIZE>(vk_bytes)?;
     Ok(PreparedVerifyingKey::from(&vk).serialize_into_parts())
@@ -44,16 +44,19 @@ pub(crate) fn verify_groth16_in_bytes<
     alpha_g1_beta_g2_bytes: &[u8],
     gamma_g2_neg_pc_bytes: &[u8],
     delta_g2_neg_pc_bytes: &[u8],
-    proof_public_inputs_as_bytes: &[u8],
+    public_inputs_as_bytes: &[u8],
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError>
 where
     G1: ToFromByteArray<G1_SIZE> + DeserializeOwned,
     <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + DeserializeOwned,
-    <G1 as Pairing>::Output: GroupElement + ToFromByteArray<GT_SIZE>,
-    G1::ScalarType: ToFromByteArray<FR_SIZE>,
+    <G1 as Pairing>::Output: GroupElement + GTSerialize<GT_SIZE>,
+    G1::ScalarType: FromLittleEndianByteArray<FR_SIZE>,
 {
-    let x = deserialize_vector::<FR_SIZE, G1::ScalarType>(proof_public_inputs_as_bytes)?;
+    let public_inputs = deserialize_vector::<FR_SIZE, G1::ScalarType, _>(
+        public_inputs_as_bytes,
+        G1::ScalarType::from_little_endian_byte_array,
+    )?;
     let proof =
         bcs::from_bytes(proof_points_as_bytes).map_err(|_| FastCryptoError::InvalidInput)?;
     let prepared_vk = PreparedVerifyingKey::<G1>::deserialize_from_parts(
@@ -62,7 +65,7 @@ where
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
     )?;
-    Ok(prepared_vk.verify(&x, &proof).is_ok())
+    Ok(prepared_vk.verify(&public_inputs, &proof).is_ok())
 }
 
 impl<G1: Pairing> VerifyingKey<G1> {
@@ -130,7 +133,7 @@ impl<G1: Pairing> VerifyingKey<G1> {
         }
         i += 8;
 
-        let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&bytes[i..])
+        let gamma_abc = deserialize_vector::<G1_SIZE, G1, _>(&bytes[i..], G1::from_byte_array)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         if gamma_abc.len() != n as usize {
@@ -154,11 +157,11 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
     where
         G1: ToFromByteArray<G1_SIZE>,
         G1::Other: ToFromByteArray<G2_SIZE>,
-        <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
+        <G1 as Pairing>::Output: GTSerialize<GT_SIZE>,
     {
         vec![
-            serialize_vector(&self.vk_gamma_abc),
-            self.alpha_beta.to_byte_array().to_vec(),
+            serialize_vector(&self.vk_gamma_abc, G1::to_byte_array),
+            self.alpha_beta.to_arkworks_bytes().to_vec(),
             self.gamma_neg.to_byte_array().to_vec(),
             self.delta_neg.to_byte_array().to_vec(),
         ]
@@ -177,14 +180,15 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
     where
         G1: ToFromByteArray<G1_SIZE>,
         G1::Other: ToFromByteArray<G2_SIZE>,
-        <G1 as Pairing>::Output: ToFromByteArray<GT_SIZE>,
+        <G1 as Pairing>::Output: GTSerialize<GT_SIZE>,
     {
         if vk_gamma_abc_bytes.len() % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
-        let vk_gamma_abc = deserialize_vector::<G1_SIZE, G1>(vk_gamma_abc_bytes)?;
+        let vk_gamma_abc =
+            deserialize_vector::<G1_SIZE, G1, _>(vk_gamma_abc_bytes, G1::from_byte_array)?;
 
-        let alpha_beta = <G1 as Pairing>::Output::from_byte_array(
+        let alpha_beta = <G1 as Pairing>::Output::from_arkworks_bytes(
             alpha_beta_bytes
                 .try_into()
                 .map_err(|_| FastCryptoError::InvalidInput)?,

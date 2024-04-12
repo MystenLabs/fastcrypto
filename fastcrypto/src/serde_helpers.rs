@@ -268,9 +268,14 @@ impl<const N: usize> Display for BytesRepresentation<N> {
 }
 
 /// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
-/// of type `T`.
-pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+/// of type `T` with the given deserialization function.
+pub fn deserialize_vector<
+    const SIZE_IN_BYTES: usize,
+    T,
+    Deserializer: Fn(&[u8; SIZE_IN_BYTES]) -> FastCryptoResult<T>,
+>(
     bytes: &[u8],
+    from_byte_array: Deserializer,
 ) -> FastCryptoResult<Vec<T>> {
     if bytes.len() % SIZE_IN_BYTES != 0 {
         return Err(FastCryptoError::InvalidInput);
@@ -278,7 +283,7 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
     bytes
         .chunks_exact(SIZE_IN_BYTES)
         .map(|chunk| {
-            T::from_byte_array(
+            from_byte_array(
                 &chunk
                     .try_into()
                     .expect("Length of `chunk` is always equal to SIZE_IN_BYTES"),
@@ -288,11 +293,16 @@ pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN
 }
 
 /// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
-/// representations.
-pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
+/// representations with the given deserialization function.
+pub fn serialize_vector<
+    const SIZE_IN_BYTES: usize,
+    T,
+    Serializer: Fn(&T) -> [u8; SIZE_IN_BYTES],
+>(
     elements: &[T],
+    to_byte_array: Serializer,
 ) -> Vec<u8> {
-    elements.iter().flat_map(|e| e.to_byte_array()).collect()
+    elements.iter().flat_map(to_byte_array).collect()
 }
 
 // This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.

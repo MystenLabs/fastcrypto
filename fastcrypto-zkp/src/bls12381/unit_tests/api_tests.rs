@@ -10,16 +10,12 @@ use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
-use fastcrypto::groups::bls12381::G1Element;
 
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::test_helpers::from_arkworks_scalar;
-use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
-use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use crate::groth16::Proof;
+use crate::dummy_circuits::DummyCircuit;
 
 #[test]
 fn test_verify_groth16_in_bytes_api() {
