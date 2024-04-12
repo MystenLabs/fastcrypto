@@ -46,7 +46,7 @@ pub fn verify_groth16_in_bytes(
         { SCALAR_LENGTH },
     >(
         vk_gamma_abc_g1_bytes,
-        &arkworks_to_gt_element(&alpha_g1_beta_g2_bytes)?,
+        &arkworks_to_gt_element(alpha_g1_beta_g2_bytes)?,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
         &proof_public_inputs_as_bytes,
@@ -68,17 +68,18 @@ fn switch_scalar_endianness_in_place<const SCALAR_SIZE_IN_BYTES: usize>(
     Ok(())
 }
 
-/// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this method converts it
-/// into a serialization of the corresponding arkworks [`PairingOutput`] type in place. It is _not_
-/// verified whether the input is a valid serialization of a GT element.
+// An element in the quadratic extension of Fp consistes of two field elements.
+const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
+
+/// Given a serialization of a arkworks [`PairingOutput`] element, this returns a serialization of a
+///[`fastcrypto::groups::bls12381::GTElement`] element. It is _not_ verified whether the input is a
+/// valid serialization.
 fn arkworks_to_gt_element(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
-    // An element in the quadratic extension of Fp consistes of two field elements.
-    const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
     if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
         return Err(FastCryptoError::InvalidInput);
     }
 
-    // Reorder elements to match arkworks serialization.
+    // Re-order elements
     let mut result = Vec::with_capacity(12 * FP_BYTE_LENGTH);
     for i in 0..3 {
         for j in 0..2 {
@@ -87,23 +88,19 @@ fn arkworks_to_gt_element(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
         }
     }
 
-    // Step 2
     switch_scalar_endianness_in_place::<FP_BYTE_LENGTH>(&mut result)?;
-
     Ok(result)
 }
 
 /// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this method converts it
-/// into a serialization of the corresponding arkworks [`PairingOutput`] type in place. It is _not_
-/// verified whether the input is a valid serialization of a GT element.
+/// into a serialization of the corresponding arkworks [`PairingOutput`] type. It is _not_ verified
+/// whether the input is a valid serialization..
 fn gt_element_to_arkworks(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
-    // An element in the quadratic extension of Fp consistes of two field elements.
-    const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
     if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
         return Err(FastCryptoError::InvalidInput);
     }
 
-    // Reorder elements to match arkworks serialization.
+    // Re-order elements
     let mut result = Vec::with_capacity(12 * FP_BYTE_LENGTH);
     for j in 0..2 {
         for i in 0..3 {
@@ -112,9 +109,7 @@ fn gt_element_to_arkworks(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
         }
     }
 
-    // Step 2
     switch_scalar_endianness_in_place::<FP_BYTE_LENGTH>(&mut result)?;
-
     Ok(result)
 }
 
