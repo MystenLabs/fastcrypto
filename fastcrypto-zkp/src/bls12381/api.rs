@@ -19,7 +19,7 @@ pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoErro
         { GT_ELEMENT_BYTE_LENGTH },
         { SCALAR_LENGTH },
     >(vk_bytes)?;
-    gt_element_conversion_in_place(&mut pvk_bytes[1])?;
+    pvk_bytes[1] = gt_element_to_arkworks(&pvk_bytes[1])?;
     Ok(pvk_bytes)
 }
 
@@ -46,7 +46,7 @@ pub fn verify_groth16_in_bytes(
         { SCALAR_LENGTH },
     >(
         vk_gamma_abc_g1_bytes,
-        alpha_g1_beta_g2_bytes,
+        &arkworks_to_gt_element(&alpha_g1_beta_g2_bytes)?,
         gamma_g2_neg_pc_bytes,
         delta_g2_neg_pc_bytes,
         &proof_public_inputs_as_bytes,
@@ -71,36 +71,51 @@ fn switch_scalar_endianness_in_place<const SCALAR_SIZE_IN_BYTES: usize>(
 /// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this method converts it
 /// into a serialization of the corresponding arkworks [`PairingOutput`] type in place. It is _not_
 /// verified whether the input is a valid serialization of a GT element.
-fn gt_element_conversion_in_place(bytes: &mut [u8]) -> FastCryptoResult<()> {
+fn arkworks_to_gt_element(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
     // An element in the quadratic extension of Fp consistes of two field elements.
     const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
     if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
         return Err(FastCryptoError::InvalidInput);
     }
 
-    // The conversion has two steps:
-    // 1) Re-order the six pairs of field elements (field extension elements) according to the
-    //    following mapping: (0,1,2,3,4,5) -> (0,3,1,4,2,5),
-    // 2) Switch all 12 field elements from big-endian to little-endian.
-
-    // Step 1
-    // Only the middle 4 pairs needs to be permuted: 2 -> 1, 4 -> 2, 3 -> 4, 1 -> 3
-    let (zero_one_two, three_four_five) = bytes.split_at_mut(3 * FP_EXTENSION_BYTE_LENGTH);
-    let (zero_one, two) = zero_one_two.split_at_mut(2 * FP_EXTENSION_BYTE_LENGTH);
-    let (_zero, one) = zero_one.split_at_mut(FP_EXTENSION_BYTE_LENGTH);
-    let (three_four, _five) = three_four_five.split_at_mut(2 * FP_EXTENSION_BYTE_LENGTH);
-    let (three, four) = three_four.split_at_mut(FP_EXTENSION_BYTE_LENGTH);
-
-    let tmp = one.to_vec();
-    one.copy_from_slice(two);
-    two.copy_from_slice(four);
-    four.copy_from_slice(three);
-    three.copy_from_slice(&tmp);
+    // Reorder elements to match arkworks serialization.
+    let mut result = Vec::with_capacity(12 * FP_BYTE_LENGTH);
+    for i in 0..3 {
+        for j in 0..2 {
+            let from = i * FP_EXTENSION_BYTE_LENGTH + 3 * j * FP_EXTENSION_BYTE_LENGTH;
+            result.extend_from_slice(&bytes[from..from + FP_EXTENSION_BYTE_LENGTH]);
+        }
+    }
 
     // Step 2
-    switch_scalar_endianness_in_place::<FP_BYTE_LENGTH>(bytes)?;
+    switch_scalar_endianness_in_place::<FP_BYTE_LENGTH>(&mut result)?;
 
-    Ok(())
+    Ok(result)
+}
+
+/// Given a serialization of a [`fastcrypto::groups::bls12381::GTElement`], this method converts it
+/// into a serialization of the corresponding arkworks [`PairingOutput`] type in place. It is _not_
+/// verified whether the input is a valid serialization of a GT element.
+fn gt_element_to_arkworks(bytes: &[u8]) -> FastCryptoResult<Vec<u8>> {
+    // An element in the quadratic extension of Fp consistes of two field elements.
+    const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
+    if bytes.len() != 6 * FP_EXTENSION_BYTE_LENGTH {
+        return Err(FastCryptoError::InvalidInput);
+    }
+
+    // Reorder elements to match arkworks serialization.
+    let mut result = Vec::with_capacity(12 * FP_BYTE_LENGTH);
+    for j in 0..2 {
+        for i in 0..3 {
+            let from = 2 * i * FP_EXTENSION_BYTE_LENGTH + j * FP_EXTENSION_BYTE_LENGTH;
+            result.extend_from_slice(&bytes[from..from + FP_EXTENSION_BYTE_LENGTH]);
+        }
+    }
+
+    // Step 2
+    switch_scalar_endianness_in_place::<FP_BYTE_LENGTH>(&mut result)?;
+
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -115,7 +130,7 @@ mod tests {
     use fastcrypto::groups::GroupElement;
     use fastcrypto::serde_helpers::{deserialize_vector, ToFromByteArray};
 
-    use crate::bls12381::api::{gt_element_conversion_in_place, switch_scalar_endianness_in_place};
+    use crate::bls12381::api::{gt_element_to_arkworks, switch_scalar_endianness_in_place};
 
     fn serialize_arkworks_scalars(scalars: &[Fr]) -> Vec<u8> {
         scalars
@@ -184,12 +199,12 @@ mod tests {
         assert_eq!(compressed_bytes, uncompressed_bytes);
 
         // The arkworks serialization does not match the GroupElement serialization.
-        let mut expected = GTElement::generator().to_byte_array();
+        let expected = GTElement::generator().to_byte_array();
         assert_eq!(compressed_bytes.len(), expected.len());
         assert_ne!(compressed_bytes, expected);
 
         // After conversion, the arkworks serialization should match the GroupElement serialization.
-        gt_element_conversion_in_place(&mut expected).unwrap();
+        let expected = gt_element_to_arkworks(&expected).unwrap();
         assert_eq!(compressed_bytes, expected);
 
         // The identity is the same in both representations
@@ -199,14 +214,14 @@ mod tests {
             .serialize_uncompressed(&mut arkworks_bytes)
             .unwrap();
 
-        let mut fc_bytes = GTElement::zero().to_byte_array();
+        let fc_bytes = GTElement::zero().to_byte_array();
         assert_ne!(&fc_bytes.to_vec(), &arkworks_bytes);
-        gt_element_conversion_in_place(&mut fc_bytes).unwrap();
+        let fc_bytes = gt_element_to_arkworks(&fc_bytes).unwrap();
         assert_eq!(&fc_bytes.to_vec(), &arkworks_bytes);
 
         // Invalid input lengths
-        assert!(gt_element_conversion_in_place(&mut [0; 0]).is_err());
-        assert!(gt_element_conversion_in_place(&mut [0; 12 * FP_BYTE_LENGTH - 1]).is_err());
-        assert!(gt_element_conversion_in_place(&mut [0; 12 * FP_BYTE_LENGTH + 1]).is_err());
+        assert!(gt_element_to_arkworks(&[0; 0]).is_err());
+        assert!(gt_element_to_arkworks(&[0; 12 * FP_BYTE_LENGTH - 1]).is_err());
+        assert!(gt_element_to_arkworks(&[0; 12 * FP_BYTE_LENGTH + 1]).is_err());
     }
 }
