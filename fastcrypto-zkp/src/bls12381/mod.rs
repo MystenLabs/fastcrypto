@@ -22,6 +22,7 @@ mod api_tests;
 #[cfg(test)]
 #[path = "unit_tests/test_helpers.rs"]
 pub(crate) mod test_helpers;
+mod conversions;
 
 /// A prepared Groth16 verifying key in the BLS12-381 construction.
 pub type PreparedVerifyingKey = groth16::PreparedVerifyingKey<G1Element>;
