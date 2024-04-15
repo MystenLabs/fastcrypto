@@ -283,7 +283,7 @@ pub struct Claim {
     index_mod_4: u8,
 }
 
-/// A structed of parsed JWT details, consists of kid, header, iss.
+/// A struct of parsed JWT details, consists of kid, header, iss.
 #[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub struct JWTDetails {
     kid: String,
@@ -511,7 +511,7 @@ fn decode_base64_url(s: &str, i: &u8) -> Result<String, FastCryptoError> {
         .to_owned())
 }
 
-/// Map a base64 string to a bit array by taking each char's index and covert it to binary form with one bit per u8
+/// Map a base64 string to a bit array by taking each char's index and convert it to binary form with one bit per u8
 /// element in the output. Returns [FastCryptoError::InvalidInput] if one of the characters is not in the base64 charset.
 fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
     input
