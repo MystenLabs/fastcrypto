@@ -89,7 +89,6 @@ mod tests {
     use ark_ff::Zero;
     use ark_serialize::CanonicalSerialize;
     use fastcrypto::error::FastCryptoError;
-    use num_bigint::BigUint;
 
     use crate::bls12381::api::conversions::{arkworks_to_gt_element, gt_element_to_arkworks};
     use crate::groth16::api::{FromLittleEndianByteArray, GTSerialize};
