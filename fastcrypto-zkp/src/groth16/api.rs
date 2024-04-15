@@ -1,10 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use serde::de::DeserializeOwned;
-use std::io::Read;
 use std::mem::size_of;
-use tokio::io::AsyncReadExt;
+
+use serde::de::DeserializeOwned;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, Pairing};
@@ -116,7 +115,7 @@ impl<G1: Pairing> VerifyingKey<G1> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let gamma_abc = deserialize_vector(&bytes, G1::from_byte_array)?;
+        let gamma_abc = deserialize_vector(bytes, G1::from_byte_array)?;
 
         if gamma_abc.len() != gamma_abc_length as usize {
             return Err(FastCryptoError::InvalidInput);
