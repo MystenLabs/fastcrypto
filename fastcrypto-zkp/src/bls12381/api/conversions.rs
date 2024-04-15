@@ -1,5 +1,10 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::bls12381::{FP_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, GTElement, Scalar, SCALAR_LENGTH};
+use fastcrypto::groups::bls12381::{
+    GTElement, Scalar, FP_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
+};
 use fastcrypto::serde_helpers::ToFromByteArray;
 
 use crate::groth16::api::{FromLittleEndianByteArray, GTSerialize};
@@ -31,7 +36,6 @@ fn permute_elements(
     bytes: &[u8; 6 * FP_EXTENSION_BYTE_LENGTH],
     permutation: &[usize; 6],
 ) -> [u8; 6 * FP_EXTENSION_BYTE_LENGTH] {
-    // TODO: This could be done in-place to avoid allocating a new array.
     let mut result = [0u8; 12 * FP_BYTE_LENGTH];
     for (from, to) in permutation.iter().enumerate() {
         let from = from * FP_EXTENSION_BYTE_LENGTH;
@@ -71,17 +75,20 @@ fn gt_element_to_arkworks(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEME
 #[cfg(test)]
 mod tests {
     use ark_bls12_381::{Bls12_381, G1Projective, G2Projective};
-    use ark_ec::Group;
     use ark_ec::pairing::PairingOutput;
+    use ark_ec::Group;
     use ark_ff::Zero;
     use ark_serialize::CanonicalSerialize;
     use fastcrypto::error::FastCryptoError;
 
-    use fastcrypto::groups::bls12381::{G1_ELEMENT_BYTE_LENGTH, G1Element, G2_ELEMENT_BYTE_LENGTH, G2Element, GT_ELEMENT_BYTE_LENGTH, GTElement};
+    use crate::bls12381::api::conversions::{arkworks_to_gt_element, gt_element_to_arkworks};
+    use crate::groth16::api::GTSerialize;
+    use fastcrypto::groups::bls12381::{
+        G1Element, G2Element, GTElement, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
+        GT_ELEMENT_BYTE_LENGTH,
+    };
     use fastcrypto::groups::GroupElement;
     use fastcrypto::serde_helpers::ToFromByteArray;
-    use crate::bls12381::conversions::{arkworks_to_gt_element, gt_element_to_arkworks};
-    use crate::groth16::api::GTSerialize;
 
     #[test]
     fn test_gt_element_conversion() {
