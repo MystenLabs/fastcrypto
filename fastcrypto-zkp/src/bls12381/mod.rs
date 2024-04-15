@@ -28,6 +28,7 @@ pub type Proof = groth16::Proof<G1Element>;
 mod tests {
     use std::ops::Mul;
 
+    use crate::bls12381::PreparedVerifyingKey;
     use ark_bls12_381::{Bls12_381, Fr};
     use ark_groth16::Groth16;
     use ark_snark::SNARK;
@@ -56,7 +57,7 @@ mod tests {
 
         let proof = from_arkworks_proof(&ark_proof);
         let vk = from_arkworks_vk(&vk);
-        let prepared_vk = crate::groth16::PreparedVerifyingKey::from(&vk);
+        let prepared_vk = PreparedVerifyingKey::from(&vk);
         let public_inputs = vec![from_arkworks_scalar(&public_input)];
 
         assert!(prepared_vk.verify(&public_inputs, &proof).is_ok());
