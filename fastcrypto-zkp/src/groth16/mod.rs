@@ -8,7 +8,7 @@ use serde::Deserialize;
 
 use fastcrypto::groups::{GroupElement, Pairing};
 
-pub(crate) mod generic_api;
+pub mod api;
 
 #[derive(Debug, Deserialize)]
 pub struct Proof<G1: Pairing>

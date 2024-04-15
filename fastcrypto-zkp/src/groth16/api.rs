@@ -11,7 +11,7 @@ use crate::groth16::{PreparedVerifyingKey, VerifyingKey};
 
 /// Deserialize bytes as an Arkworks representation of a verifying key, and return a vector of the
 /// four components of a prepared verified key (see more at [`PreparedVerifyingKey`]).
-pub(crate) fn prepare_pvk_bytes<
+pub fn prepare_pvk_bytes<
     G1,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
@@ -33,7 +33,7 @@ where
 /// (see more at [`PreparedVerifyingKey`]), serialized proof public input, which should
 /// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
 /// bytes each in little-endian format, and serialized proof points.
-pub(crate) fn verify_groth16_in_bytes<
+pub fn verify_groth16_in_bytes<
     G1: Pairing,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
