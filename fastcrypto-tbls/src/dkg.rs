@@ -224,7 +224,10 @@ where
             .nodes
             .iter()
             .map(|node| {
-                let share_ids = self.nodes.share_ids_of(node.id);
+                let share_ids = self
+                    .nodes
+                    .share_ids_of(node.id)
+                    .expect("iterating on valid nodes");
                 let shares = share_ids
                     .iter()
                     .map(|share_id| self.vss_sk.eval(*share_id).value)
@@ -340,7 +343,7 @@ where
         // Ignore if invalid (and other honest parties will ignore as well).
         self.sanity_check_message(&message)?;
 
-        let my_share_ids = self.nodes.share_ids_of(self.id);
+        let my_share_ids = self.nodes.share_ids_of(self.id).expect("my id is valid");
         let encrypted_shares = &message
             .encrypted_shares
             .get_encryption(self.id as usize)
@@ -553,7 +556,10 @@ where
                         Self::check_complaint_proof(
                             &complaint.proof,
                             accuser_pk,
-                            &self.nodes.share_ids_of(accuser),
+                            &self
+                                .nodes
+                                .share_ids_of(accuser)
+                                .expect("checked above the accuser is valid id"),
                             &related_m1.vss_pk,
                             encrypted_shares,
                             &self.random_oracle.extend(&format!(
@@ -626,7 +632,7 @@ where
             .map(|m| (m.message.sender, &m.message))
             .collect::<HashMap<_, _>>();
         let mut vss_pk = PublicPoly::<G>::zero();
-        let my_share_ids = self.nodes.share_ids_of(self.id);
+        let my_share_ids = self.nodes.share_ids_of(self.id).expect("my id is valid");
 
         let mut final_shares = my_share_ids
             .iter()
