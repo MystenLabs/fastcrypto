@@ -27,26 +27,33 @@ impl GTSerialize<GT_ELEMENT_BYTE_LENGTH> for GTElement {
     }
 }
 
-// An element in the quadratic extension of Fp consists of two field elements.
-const FP_EXTENSION_BYTE_LENGTH: usize = 2 * FP_BYTE_LENGTH;
-
-/// Reorder the six field extensions in a GT element according to the given permutation.
-/// This functions panics if one of the elements in the permutation is larger than 5.
-fn permute_elements(
-    bytes: &[u8; 6 * FP_EXTENSION_BYTE_LENGTH],
-    permutation: &[usize; 6],
-) -> [u8; 6 * FP_EXTENSION_BYTE_LENGTH] {
-    let mut result = [0u8; 12 * FP_BYTE_LENGTH];
+/// Split the input into `TOTAL_SIZE / permutation.len()` chunks, and permute the chunks according
+/// to the given permutation.
+fn permute_elements<const TOTAL_SIZE: usize>(
+    bytes: &[u8; TOTAL_SIZE],
+    permutation: &[usize],
+) -> [u8; TOTAL_SIZE] {
+    let elements = permutation.len();
+    assert_eq!(TOTAL_SIZE % elements, 0);
+    let element_size = TOTAL_SIZE / elements;
+    let mut result = [0u8; TOTAL_SIZE];
     for (from, to) in permutation.iter().enumerate() {
-        let from = from * FP_EXTENSION_BYTE_LENGTH;
-        let to = to * FP_EXTENSION_BYTE_LENGTH;
-        result[to..to + FP_EXTENSION_BYTE_LENGTH]
-            .copy_from_slice(&bytes[from..from + FP_EXTENSION_BYTE_LENGTH]);
+        let from = from * element_size;
+        let to = to * element_size;
+        result[to..to + element_size].copy_from_slice(&bytes[from..from + element_size]);
     }
     result
-        .chunks_exact_mut(FP_BYTE_LENGTH)
+}
+
+/// Reverse the endianness of each element in the input array, where each element is `N` bytes long.
+fn reverse_endianness_for_elements<const TOTAL_SIZE: usize>(
+    bytes: &mut [u8; TOTAL_SIZE],
+    element_size: usize,
+) {
+    assert_eq!(TOTAL_SIZE % element_size, 0);
+    bytes
+        .chunks_exact_mut(element_size)
         .for_each(|chunk| chunk.reverse());
-    result
 }
 
 /// Given a serialization of a arkworks [`PairingOutput`] element, this function returns a
@@ -59,8 +66,9 @@ fn arkworks_to_gt_element(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEME
     //     PERMUTATION[i + j * 3] = i * 2 + j;
     //   }
     // }
-    const PERMUTATION: [usize; 6] = [0, 2, 4, 1, 3, 5];
-    permute_elements(bytes, &PERMUTATION)
+    let mut bytes = permute_elements(bytes, &[0, 2, 4, 1, 3, 5]);
+    reverse_endianness_for_elements(&mut bytes, FP_BYTE_LENGTH);
+    bytes
 }
 
 /// Given a serialization of a [`GTElement`], this function returns a serialization of the
@@ -68,8 +76,9 @@ fn arkworks_to_gt_element(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEME
 /// input is a valid serialization.
 fn gt_element_to_arkworks(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
     // This is the inverse of the permutation in `arkworks_to_gt_element`.
-    const PERMUTATION: [usize; 6] = [0, 3, 1, 4, 2, 5];
-    permute_elements(bytes, &PERMUTATION)
+    let mut bytes = permute_elements(bytes, &[0, 3, 1, 4, 2, 5]);
+    reverse_endianness_for_elements(&mut bytes, FP_BYTE_LENGTH);
+    bytes
 }
 
 #[cfg(test)]
