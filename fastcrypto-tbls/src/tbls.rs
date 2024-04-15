@@ -91,6 +91,8 @@ pub trait ThresholdBls {
     }
 
     /// Interpolate partial signatures to recover the full signature.
+    /// Uses the first `threshold` unique partials to interpolate the signature and the rest are
+    /// ignored (thus if those partials are invalid, the resulting signature can still be valid).
     fn aggregate(
         threshold: u16,
         partials: impl Iterator<Item = impl Borrow<PartialSignature<Self::Signature>>> + Clone,
