@@ -95,20 +95,20 @@ impl<G1: Pairing> VerifyingKey<G1> {
         }
 
         let (alpha, bytes) = bytes.split_at(G1_SIZE);
-        let alpha = G1::from_byte_array(alpha.try_into().expect("The length is correct"))?;
+        let alpha = G1::from_byte_array(alpha.try_into().expect("Length already checked"))?;
 
         let (beta, bytes) = bytes.split_at(G2_SIZE);
-        let beta = G1::Other::from_byte_array(beta.try_into().expect("The length is correct"))?;
+        let beta = G1::Other::from_byte_array(beta.try_into().expect("Length already checked"))?;
 
         let (gamma, bytes) = bytes.split_at(G2_SIZE);
-        let gamma = G1::Other::from_byte_array(gamma.try_into().expect("The length is correct"))?;
+        let gamma = G1::Other::from_byte_array(gamma.try_into().expect("Length already checked"))?;
 
         let (delta, bytes) = bytes.split_at(G2_SIZE);
-        let delta = G1::Other::from_byte_array(delta.try_into().expect("The length is correct"))?;
+        let delta = G1::Other::from_byte_array(delta.try_into().expect("Length already checked"))?;
 
         let (gamma_abc_length, bytes) = bytes.split_at(size_of::<u64>());
         let gamma_abc_length =
-            u64::from_le_bytes(gamma_abc_length.try_into().expect("The length is correct"));
+            u64::from_le_bytes(gamma_abc_length.try_into().expect("Length already checked"));
 
         // There must be at least one element in gamma_abc, since this should be equal to the number
         // of public inputs + 1.
