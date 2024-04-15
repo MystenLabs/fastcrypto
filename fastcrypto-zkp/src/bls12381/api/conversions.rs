@@ -83,18 +83,19 @@ fn gt_element_to_arkworks(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> [u8; GT_ELEME
 
 #[cfg(test)]
 mod tests {
-    use ark_bls12_381::{Bls12_381, G1Projective, G2Projective};
+    use ark_bls12_381::{Bls12_381, Fr, G1Projective, G2Projective};
     use ark_ec::pairing::PairingOutput;
     use ark_ec::Group;
     use ark_ff::Zero;
     use ark_serialize::CanonicalSerialize;
     use fastcrypto::error::FastCryptoError;
+    use num_bigint::BigUint;
 
     use crate::bls12381::api::conversions::{arkworks_to_gt_element, gt_element_to_arkworks};
-    use crate::groth16::api::GTSerialize;
+    use crate::groth16::api::{FromLittleEndianByteArray, GTSerialize};
     use fastcrypto::groups::bls12381::{
-        G1Element, G2Element, GTElement, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
-        GT_ELEMENT_BYTE_LENGTH,
+        G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
+        GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
     use fastcrypto::groups::GroupElement;
     use fastcrypto::serde_helpers::ToFromByteArray;
@@ -205,5 +206,21 @@ mod tests {
             |g| g.to_arkworks_bytes(),
             GTElement::from_arkworks_bytes,
         );
+    }
+
+    #[test]
+    fn test_from_le_bytes() {
+        let x = 12345678u128;
+        let arkworks_scalar = Fr::from(x);
+        let mut arkworks_bytes = Vec::new();
+        arkworks_scalar
+            .serialize_compressed(&mut arkworks_bytes)
+            .unwrap();
+        assert_eq!(arkworks_bytes.len(), SCALAR_LENGTH);
+        assert_eq!(arkworks_bytes[..16], x.to_le_bytes());
+
+        let scalar =
+            Scalar::from_little_endian_byte_array(&arkworks_bytes.try_into().unwrap()).unwrap();
+        assert_eq!(scalar, Scalar::from(x));
     }
 }
