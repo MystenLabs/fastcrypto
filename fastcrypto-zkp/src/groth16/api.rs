@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use serde::de::DeserializeOwned;
+use std::io::Read;
+use std::mem::size_of;
+use tokio::io::AsyncReadExt;
 
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, Pairing};
@@ -53,7 +56,7 @@ where
     <G1 as Pairing>::Output: GroupElement + GTSerialize<GT_SIZE>,
     G1::ScalarType: FromLittleEndianByteArray<FR_SIZE>,
 {
-    let public_inputs = deserialize_vector::<FR_SIZE, G1::ScalarType>(
+    let public_inputs = deserialize_vector(
         public_inputs_as_bytes,
         G1::ScalarType::from_little_endian_byte_array,
     )?;
@@ -84,59 +87,38 @@ impl<G1: Pairing> VerifyingKey<G1> {
         // - n: u64 lendian (size of gamma_abc)
         // - gamma_abc: Vec<G1>
 
-        // We can't use bincode because there, the length of the vector is prefixed as a single byte
-        // and not a lendian u64.
+        // We can't use bcs because there, the length of the vector is prefixed as a single byte and
+        // not a little-endian u64 as it is here.
 
         if (bytes.len() - (G1_SIZE + 3 * G2_SIZE + 8)) % G1_SIZE != 0 {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let mut i = 0;
+        let (alpha, bytes) = bytes.split_at(G1_SIZE);
+        let alpha = G1::from_byte_array(alpha.try_into().expect("The length is correct"))?;
 
-        let alpha = G1::from_byte_array(
-            bytes[i..G1_SIZE]
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        )?;
-        i += G1_SIZE;
+        let (beta, bytes) = bytes.split_at(G2_SIZE);
+        let beta = G1::Other::from_byte_array(beta.try_into().expect("The length is correct"))?;
 
-        let beta = G1::Other::from_byte_array(
-            bytes[i..i + G2_SIZE]
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        )?;
-        i += G2_SIZE;
+        let (gamma, bytes) = bytes.split_at(G2_SIZE);
+        let gamma = G1::Other::from_byte_array(gamma.try_into().expect("The length is correct"))?;
 
-        let gamma = G1::Other::from_byte_array(
-            bytes[i..i + G2_SIZE]
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        )?;
-        i += G2_SIZE;
+        let (delta, bytes) = bytes.split_at(G2_SIZE);
+        let delta = G1::Other::from_byte_array(delta.try_into().expect("The length is correct"))?;
 
-        let delta = G1::Other::from_byte_array(
-            bytes[i..i + G2_SIZE]
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        )?;
-        i += G2_SIZE;
+        let (gamma_abc_length, bytes) = bytes.split_at(size_of::<u64>());
+        let gamma_abc_length =
+            u64::from_le_bytes(gamma_abc_length.try_into().expect("The length is correct"));
 
-        let n = u64::from_le_bytes(
-            bytes[i..i + 8]
-                .try_into()
-                .map_err(|_| FastCryptoError::InvalidInput)?,
-        );
         // There must be at least one element in gamma_abc, since this should be equal to the number
         // of public inputs + 1.
-        if n == 0 {
+        if gamma_abc_length == 0 {
             return Err(FastCryptoError::InvalidInput);
         }
-        i += 8;
 
-        let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&bytes[i..], G1::from_byte_array)
-            .map_err(|_| FastCryptoError::InvalidInput)?;
+        let gamma_abc = deserialize_vector(&bytes, G1::from_byte_array)?;
 
-        if gamma_abc.len() != n as usize {
+        if gamma_abc.len() != gamma_abc_length as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -182,9 +164,6 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
         G1::Other: ToFromByteArray<G2_SIZE>,
         <G1 as Pairing>::Output: GTSerialize<GT_SIZE>,
     {
-        if vk_gamma_abc_bytes.len() % G1_SIZE != 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
         let vk_gamma_abc =
             deserialize_vector::<G1_SIZE, G1>(vk_gamma_abc_bytes, G1::from_byte_array)?;
 
