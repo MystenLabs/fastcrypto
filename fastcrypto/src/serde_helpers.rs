@@ -269,13 +269,9 @@ impl<const N: usize> Display for BytesRepresentation<N> {
 
 /// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
 /// of type `T` with the given deserialization function.
-pub fn deserialize_vector<
-    const SIZE_IN_BYTES: usize,
-    T,
-    Deserializer: Fn(&[u8; SIZE_IN_BYTES]) -> FastCryptoResult<T>,
->(
+pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T>(
     bytes: &[u8],
-    from_byte_array: Deserializer,
+    from_byte_array: fn(&[u8; SIZE_IN_BYTES]) -> FastCryptoResult<T>,
 ) -> FastCryptoResult<Vec<T>> {
     if bytes.len() % SIZE_IN_BYTES != 0 {
         return Err(FastCryptoError::InvalidInput);
@@ -294,13 +290,9 @@ pub fn deserialize_vector<
 
 /// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
 /// representations with the given deserialization function.
-pub fn serialize_vector<
-    const SIZE_IN_BYTES: usize,
-    T,
-    Serializer: Fn(&T) -> [u8; SIZE_IN_BYTES],
->(
+pub fn serialize_vector<const SIZE_IN_BYTES: usize, T>(
     elements: &[T],
-    to_byte_array: Serializer,
+    to_byte_array: fn(&T) -> [u8; SIZE_IN_BYTES],
 ) -> Vec<u8> {
     elements.iter().flat_map(to_byte_array).collect()
 }

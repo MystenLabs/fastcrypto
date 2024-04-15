@@ -53,7 +53,7 @@ where
     <G1 as Pairing>::Output: GroupElement + GTSerialize<GT_SIZE>,
     G1::ScalarType: FromLittleEndianByteArray<FR_SIZE>,
 {
-    let public_inputs = deserialize_vector::<FR_SIZE, G1::ScalarType, _>(
+    let public_inputs = deserialize_vector::<FR_SIZE, G1::ScalarType>(
         public_inputs_as_bytes,
         G1::ScalarType::from_little_endian_byte_array,
     )?;
@@ -133,7 +133,7 @@ impl<G1: Pairing> VerifyingKey<G1> {
         }
         i += 8;
 
-        let gamma_abc = deserialize_vector::<G1_SIZE, G1, _>(&bytes[i..], G1::from_byte_array)
+        let gamma_abc = deserialize_vector::<G1_SIZE, G1>(&bytes[i..], G1::from_byte_array)
             .map_err(|_| FastCryptoError::InvalidInput)?;
 
         if gamma_abc.len() != n as usize {
@@ -186,7 +186,7 @@ impl<G1: Pairing> PreparedVerifyingKey<G1> {
             return Err(FastCryptoError::InvalidInput);
         }
         let vk_gamma_abc =
-            deserialize_vector::<G1_SIZE, G1, _>(vk_gamma_abc_bytes, G1::from_byte_array)?;
+            deserialize_vector::<G1_SIZE, G1>(vk_gamma_abc_bytes, G1::from_byte_array)?;
 
         let alpha_beta = <G1 as Pairing>::Output::from_arkworks_bytes(
             alpha_beta_bytes
