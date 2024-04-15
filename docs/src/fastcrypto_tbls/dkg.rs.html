@@ -748,6 +748,12 @@
 <a href="#746" id="746">746</a>
 <a href="#747" id="747">747</a>
 <a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -1419,7 +1425,13 @@
         }
 
         <span class="kw">let </span>shares = <span class="kw">if </span>!has_invalid_share &amp;&amp; !has_zero_shares {
-            <span class="prelude-val">Some</span>(final_shares.values().cloned().collect())
+            <span class="prelude-val">Some</span>(
+                final_shares
+                    .values()
+                    .cloned()
+                    .sorted_by_key(|s| s.index)
+                    .collect(),
+            )
         } <span class="kw">else </span>{
             <span class="prelude-val">None
         </span>};
