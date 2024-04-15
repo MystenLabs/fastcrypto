@@ -669,7 +669,13 @@ where
         }
 
         let shares = if !has_invalid_share && !has_zero_shares {
-            Some(final_shares.values().cloned().collect())
+            Some(
+                final_shares
+                    .values()
+                    .cloned()
+                    .sorted_by_key(|s| s.index)
+                    .collect(),
+            )
         } else {
             None
         };
