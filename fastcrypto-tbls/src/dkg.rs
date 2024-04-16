@@ -665,7 +665,7 @@ where
         // If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
         let has_invalid_share = messages.0.iter().any(|m| m.complaint.is_some());
-        let has_zero_shares = final_shares.is_empty();
+        let has_zero_shares = final_shares.is_empty(); // if my weight is zero
         info!(
             "DKG: Aggregating my shares completed with has_invalid_share={}, has_zero_shares={}",
             has_invalid_share, has_zero_shares
@@ -712,7 +712,7 @@ where
         bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)
     }
 
-    // Returns an error if the complaint is invalid.
+    // Returns an error if the *complaint* is invalid (counterintuitive).
     fn check_complaint_proof<R: AllowedRng>(
         recovery_pkg: &RecoveryPackage<EG>,
         ecies_pk: &ecies::PublicKey<EG>,
