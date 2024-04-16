@@ -241,7 +241,16 @@ impl Pairing for G1Element {
     {
         if points_g1.len() != points_g2.len() {
             return Err(FastCryptoError::InvalidInput);
-        } else if points_g1.is_empty() {
+        }
+
+        let (points_g1, points_g2): (Vec<_>, Vec<_>) = points_g1
+            .iter()
+            .zip(points_g2.iter())
+            .filter(|(&g1, &g2)| g1 != G1Element::zero() && g2 != G2Element::zero())
+            .map(|(&g1, &g2)| (g1, g2))
+            .unzip();
+
+        if points_g1.is_empty() {
             return Ok(<Self as Pairing>::Output::zero());
         }
 
