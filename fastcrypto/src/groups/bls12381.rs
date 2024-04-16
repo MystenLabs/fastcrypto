@@ -232,7 +232,13 @@ impl Pairing for G1Element {
         GTElement(res)
     }
 
-    fn multi_pairing(points_g1: &[Self], points_g2: &[Self::Other]) -> FastCryptoResult<<Self as Pairing>::Output> where <Self as Pairing>::Output: GroupElement {
+    fn multi_pairing(
+        points_g1: &[Self],
+        points_g2: &[Self::Other],
+    ) -> FastCryptoResult<<Self as Pairing>::Output>
+    where
+        <Self as Pairing>::Output: GroupElement,
+    {
         if points_g1.len() != points_g2.len() {
             return Err(FastCryptoError::InvalidInput);
         } else if points_g1.is_empty() {
