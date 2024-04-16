@@ -329,6 +329,21 @@ fn test_pairing_and_hash_to_curve() {
     let sig2 = e2 * sk2;
     assert_eq!(pk2.pairing(&e2), G1Element::generator().pairing(&sig2));
 
+    // Test multi-pairing
+    assert!(G1Element::multi_pairing(&[], &[pk1]).is_err());
+    assert_eq!(
+        G1Element::multi_pairing(&[], &[]).unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[e1], &[pk1]).unwrap(),
+        e1.pairing(&pk1)
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[e1, pk2], &[pk1, e2]).unwrap(),
+        e1.pairing(&pk1) + pk2.pairing(&e2)
+    );
+
     assert_eq!(
         G1Element::zero().pairing(&G2Element::zero()),
         GTElement::zero()
