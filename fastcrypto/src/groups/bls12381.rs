@@ -239,8 +239,7 @@ impl Pairing for G1Element {
             return Ok(<Self as Pairing>::Output::zero());
         }
 
-        let dst = [0u8; 3];
-        let mut blst_pairing = blst::Pairing::new(false, &dst);
+        let mut blst_pairing = blst::Pairing::new(false, &[]);
         for (g1, g2) in points_g1.iter().zip(points_g2.iter()) {
             let mut g1_affine = blst_p1_affine::default();
             let mut g2_affine = blst_p2_affine::default();
