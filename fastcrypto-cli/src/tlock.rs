@@ -254,7 +254,7 @@ fn main() {
 
 #[test]
 fn test_e2e() {
-    // Retreived with 'curl https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/public/1234'.
+    // Retrieved with 'curl https://api.drand.sh/52db9ba70e0cc0f6eaf7803dd07447a1f5477735fd3f661792ba94600c84e971/public/1234'.
     let sig ="a81d4aad15461a0a02b43da857be1d782a2232a3c7bb370a2763e95ce1f2628460b24de2cee7453cd12e43c197ea2f23".to_string();
     let msg = "0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF0123456789ABCDEF".to_string();
     let round = 1234;
