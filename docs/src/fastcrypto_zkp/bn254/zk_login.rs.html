@@ -909,7 +909,7 @@
     index_mod_4: u8,
 }
 
-<span class="doccomment">/// A structed of parsed JWT details, consists of kid, header, iss.
+<span class="doccomment">/// A struct of parsed JWT details, consists of kid, header, iss.
 </span><span class="attr">#[derive(Default, Debug, Clone, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>JWTDetails {
     kid: String,
@@ -1137,7 +1137,7 @@
         </span>.to_owned())
 }
 
-<span class="doccomment">/// Map a base64 string to a bit array by taking each char's index and covert it to binary form with one bit per u8
+<span class="doccomment">/// Map a base64 string to a bit array by taking each char's index and convert it to binary form with one bit per u8
 /// element in the output. Returns [FastCryptoError::InvalidInput] if one of the characters is not in the base64 charset.
 </span><span class="kw">fn </span>base64_to_bitarray(input: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
     input
