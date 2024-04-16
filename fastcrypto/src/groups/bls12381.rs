@@ -231,6 +231,28 @@ impl Pairing for G1Element {
         }
         GTElement(res)
     }
+
+    fn multi_pairing(points_g1: &[Self], points_g2: &[Self::Other]) -> FastCryptoResult<<Self as Pairing>::Output> where <Self as Pairing>::Output: GroupElement {
+        if points_g1.len() != points_g2.len() {
+            return Err(FastCryptoError::InvalidInput);
+        } else if points_g1.is_empty() {
+            return Ok(<Self as Pairing>::Output::zero());
+        }
+
+        let dst = [0u8; 3];
+        let mut blst_pairing = blst::Pairing::new(false, &dst);
+        for (g1, g2) in points_g1.iter().zip(points_g2.iter()) {
+            let mut g1_affine = blst_p1_affine::default();
+            let mut g2_affine = blst_p2_affine::default();
+            unsafe {
+                blst_p1_to_affine(&mut g1_affine, &g1.0);
+                blst_p2_to_affine(&mut g2_affine, &g2.0);
+            }
+            blst_pairing.raw_aggregate(&g2_affine, &g1_affine);
+        }
+        let result = blst_pairing.as_fp12().final_exp();
+        Ok(GTElement(result))
+    }
 }
 
 impl HashToGroupElement for G1Element {
