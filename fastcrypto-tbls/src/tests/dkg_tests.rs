@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::dkg::{Message, Output, Party, ProcessedMessage};
-use crate::ecies;
-use crate::ecies::{MultiRecipientEncryption, PublicKey};
+use crate::ecies::{MultiRecipientEncryption, PrivateKey, PublicKey};
 use crate::mocked_dkg::generate_mocked_output;
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::Poly;
@@ -21,13 +20,13 @@ type G = G2Element;
 type S = ThresholdBls12381MinSig;
 type EG = G2Element;
 
-type KeyNodePair<EG> = (PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>);
+type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
 
 fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
     let keys = (0..n)
         .map(|id| {
-            let sk = ecies::PrivateKey::<EG>::new(&mut thread_rng());
-            let pk = ecies::PublicKey::<EG>::from_private_key(&sk);
+            let sk = PrivateKey::<EG>::new(&mut thread_rng());
+            let pk = PublicKey::<EG>::from_private_key(&sk);
             (id as u16, sk, pk)
         })
         .collect::<Vec<_>>();
@@ -46,7 +45,7 @@ fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
 // Enable if logs are needed
 // #[traced_test]
 #[test]
-fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
+fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     let ro = RandomOracle::new("dkg");
     let t = 3;
     let (keys, nodes) = gen_keys_and_nodes(6);
@@ -253,7 +252,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_4() {
     poly.add(&msg5.vss_pk);
     assert_eq!(poly, o0.vss_pk);
 
-    // Use the shares from 01 and o4 to sign a message.
+    // Use the shares to sign the message.
     let sig00 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
     let sig30 = S::partial_sign(&o3.shares.as_ref().unwrap()[0], &MSG);
     let sig31 = S::partial_sign(&o3.shares.as_ref().unwrap()[1], &MSG);
@@ -309,7 +308,7 @@ fn test_party_new_errors() {
     .is_err());
     // Invalid pk
     assert!(Party::<G, EG>::new(
-        ecies::PrivateKey::<EG>::new(&mut thread_rng()),
+        PrivateKey::<EG>::new(&mut thread_rng()),
         nodes.clone(),
         3,
         ro.clone(),
@@ -388,7 +387,22 @@ fn test_process_message_failures() {
     invalid_msg.vss_pk = poly.into();
     assert!(d0.process_message(invalid_msg, &mut thread_rng()).is_err());
 
-    // invalid number of encrypted shares
+    // invalid total number of encrypted shares
+    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    // Switch the encrypted shares of two receivers.
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1);
+    pk_and_msgs.pop();
+    msg1.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
+    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
+
+    // invalid encryption's proof
+    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    // Switch the encrypted shares of two receivers.
+    msg1.encrypted_shares.swap_for_testing(0, 1);
+    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
+
+    // invalid number of encrypted shares for specific receiver
     let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
     // Switch the encrypted shares of two receivers.
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1);
@@ -403,12 +417,6 @@ fn test_process_message_failures() {
     if !shares.is_empty() || complaint.is_none() {
         panic!("expected complaint");
     };
-
-    // invalid encryption's proof
-    let mut msg1 = d1.create_message(&mut thread_rng()).unwrap();
-    // Switch the encrypted shares of two receivers.
-    msg1.encrypted_shares.swap_for_testing(0, 1);
-    assert!(d0.process_message(msg1, &mut thread_rng()).is_err());
 
     // invalid share
     // use another d1 with a different vss_sk to create an encryption with "invalid" shares
@@ -474,10 +482,11 @@ fn test_test_process_confirmations() {
 
     let msg0 = d0.create_message(&mut thread_rng()).unwrap();
     let msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    // zero weight
     assert_eq!(
         d2.create_message(&mut thread_rng()).err(),
         Some(FastCryptoError::IgnoredMessage)
-    ); // zero weight
+    );
     let mut msg3 = d3.create_message(&mut thread_rng()).unwrap();
     let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg3);
     pk_and_msgs.swap(0, 1);
@@ -485,8 +494,6 @@ fn test_test_process_confirmations() {
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut thread_rng());
 
     let all_messages = vec![msg0, msg1, msg3];
-
-    // TODO: Test that process_message ignores messages from nodes with 0 weight
 
     let proc_msg0 = &all_messages
         .iter()
@@ -540,6 +547,7 @@ fn test_test_process_confirmations() {
             &mut thread_rng(),
         )
         .unwrap();
+
     // d3 is not ignored since conf7 is ignored, d2 is ignored because it's weight is 0
     assert_eq!(
         ver_msg

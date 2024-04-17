@@ -42,6 +42,25 @@ mod point_tests {
         assert!(nizk
             .verify(&g_x, &[0, 0], &RandomOracle::new("test"))
             .is_err());
+
+        // x_g=inf should be rejected
+        let zero = G::ScalarType::zero();
+        let inf = G::zero();
+        let g = G::generator();
+        let invalid_nizk = DLNizk::create(
+            &zero,
+            &inf,
+            &aux_data,
+            &RandomOracle::new("test"),
+            &mut thread_rng(),
+        );
+        assert!(invalid_nizk
+            .verify(&inf, &aux_data, &RandomOracle::new("test"))
+            .is_err());
+        assert!(invalid_nizk
+            .verify(&g, &aux_data, &RandomOracle::new("test"))
+            .is_err());
+
         // serde
         let as_bytes = bcs::to_bytes(&nizk).unwrap();
         let nizk2: DLNizk<G> = bcs::from_bytes(&as_bytes).unwrap();
@@ -52,23 +71,6 @@ mod point_tests {
         assert!(bcs::from_bytes::<DLNizk<G>>(&as_bytes).is_err());
         let as_bytes = bcs::to_bytes(&(G::generator(), G::ScalarType::zero())).unwrap();
         assert!(bcs::from_bytes::<DLNizk<G>>(&as_bytes).is_err());
-        // x_g=inf should be rejected
-        let zero = G::ScalarType::zero();
-        let inf = G::zero();
-        let g = G::generator();
-        let nizk = DLNizk::create(
-            &zero,
-            &inf,
-            &aux_data,
-            &RandomOracle::new("test"),
-            &mut thread_rng(),
-        );
-        assert!(nizk
-            .verify(&inf, &aux_data, &RandomOracle::new("test"))
-            .is_err());
-        assert!(nizk
-            .verify(&g, &aux_data, &RandomOracle::new("test"))
-            .is_err());
     }
 
     #[test]
@@ -99,6 +101,26 @@ mod point_tests {
         assert!(nizk
             .verify(&g_x1, &g_x2, &g_x2, &RandomOracle::new("test"))
             .is_err());
+
+        // x_g/h_g/h=inf should be rejected
+        let invalid_nizk = DdhTupleNizk::create(
+            &x2,
+            &g_x1,
+            &g_x2,
+            &g_x1_x2,
+            &RandomOracle::new("test"),
+            &mut thread_rng(),
+        );
+        assert!(invalid_nizk
+            .verify(&G::zero(), &g_x2, &g_x1_x2, &RandomOracle::new("test"))
+            .is_err());
+        assert!(invalid_nizk
+            .verify(&g_x1, &G::zero(), &g_x1_x2, &RandomOracle::new("test"))
+            .is_err());
+        assert!(invalid_nizk
+            .verify(&g_x1, &g_x2, &G::zero(), &RandomOracle::new("test"))
+            .is_err());
+
         // serde
         let as_bytes = bcs::to_bytes(&nizk).unwrap();
         let nizk2: DdhTupleNizk<G> = bcs::from_bytes(&as_bytes).unwrap();
@@ -115,24 +137,6 @@ mod point_tests {
         let as_bytes =
             bcs::to_bytes(&(G::generator(), G::generator(), G::ScalarType::zero())).unwrap();
         assert!(bcs::from_bytes::<DdhTupleNizk<G>>(&as_bytes).is_err());
-        // x_g/h_g/h=inf should be rejected
-        let nizk = DdhTupleNizk::create(
-            &x2,
-            &g_x1,
-            &g_x2,
-            &g_x1_x2,
-            &RandomOracle::new("test"),
-            &mut thread_rng(),
-        );
-        assert!(nizk
-            .verify(&G::zero(), &g_x2, &g_x1_x2, &RandomOracle::new("test"))
-            .is_err());
-        assert!(nizk
-            .verify(&g_x1, &G::zero(), &g_x1_x2, &RandomOracle::new("test"))
-            .is_err());
-        assert!(nizk
-            .verify(&g_x1, &g_x2, &G::zero(), &RandomOracle::new("test"))
-            .is_err());
     }
 
     #[instantiate_tests(<RistrettoPoint>)]

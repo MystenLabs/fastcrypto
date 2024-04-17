@@ -81,7 +81,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     // Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
-    pub fn fast_mult(x: u128, y: u128) -> Either<(C::ScalarType, u128), u128> {
+    pub(crate) fn fast_mult(x: u128, y: u128) -> Either<(C::ScalarType, u128), u128> {
         if x.leading_zeros() >= (128 - y.leading_zeros()) {
             Either::Right(x * y)
         } else {
@@ -131,8 +131,10 @@ impl<C: GroupElement> Poly<C> {
                     debug_assert_ne!(diff, 0);
                     let either = Self::fast_mult(remaining, diff);
                     match either {
-                        Either::Left((remaining, diff)) => (prev_acc * remaining, diff),
-                        Either::Right(diff) => (prev_acc, diff),
+                        Either::Left((remaining_as_scalar, diff)) => {
+                            (prev_acc * remaining_as_scalar, diff)
+                        }
+                        Either::Right(new_remaining) => (prev_acc, new_remaining),
                     }
                 },
             );
@@ -149,10 +151,12 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
+    // Currently only in used by tests, but protocols use the msm alternative.
+    #[cfg(test)]
     pub fn recover_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
-    ) -> Result<C, FastCryptoError> {
+    ) -> FastCryptoResult<C> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
         let plain_shares = shares.map(|s| s.borrow().value);
         let res = coeffs
@@ -211,7 +215,7 @@ impl<C: Scalar> Poly<C> {
 impl<C: GroupElement + MultiScalarMul> Poly<C> {
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's
     /// constant term.
-    pub fn recover_c0_msm(
+    pub(crate) fn recover_c0_msm(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
     ) -> Result<C, FastCryptoError> {

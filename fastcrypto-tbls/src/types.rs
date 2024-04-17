@@ -26,7 +26,7 @@ impl tbls::ThresholdBls for ThresholdBls12381MinSig {
         let right = hashed_message.pairing(pk);
         match left == right {
             true => Ok(()),
-            false => Err(FastCryptoError::InvalidInput),
+            false => Err(FastCryptoError::InvalidSignature),
         }
     }
 }

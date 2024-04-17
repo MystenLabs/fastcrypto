@@ -6,6 +6,7 @@ use crate::polynomial::Poly;
 use crate::tbls::{Share, UnindexedPartialSignatures};
 use crate::types::ShareIndex;
 use crate::{tbls::ThresholdBls, types::ThresholdBls12381MinSig};
+use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
 use fastcrypto::groups::{bls12381, GroupElement};
 use rand::prelude::*;
@@ -20,26 +21,40 @@ fn test_tbls_e2e() {
     let share1 = private_poly.eval(NonZeroU16::new(1).unwrap());
     let share2 = private_poly.eval(NonZeroU16::new(10).unwrap());
     let share3 = private_poly.eval(NonZeroU16::new(100).unwrap());
+    let share4 = private_poly.eval(NonZeroU16::new(1000).unwrap());
 
     let msg = b"test";
     let sig1 = ThresholdBls12381MinSig::partial_sign(&share1, msg);
     let sig2 = ThresholdBls12381MinSig::partial_sign(&share2, msg);
     let sig3 = ThresholdBls12381MinSig::partial_sign(&share3, msg);
+    let sig4 = ThresholdBls12381MinSig::partial_sign(&share4, msg);
 
     assert!(ThresholdBls12381MinSig::partial_verify(&public_poly, msg, &sig1).is_ok());
     assert!(ThresholdBls12381MinSig::partial_verify(&public_poly, msg, &sig2).is_ok());
     assert!(ThresholdBls12381MinSig::partial_verify(&public_poly, msg, &sig3).is_ok());
+    assert!(ThresholdBls12381MinSig::partial_verify(&public_poly, msg, &sig4).is_ok());
 
     // Verify should fail with an invalid signature.
     assert!(
         ThresholdBls12381MinSig::partial_verify(&public_poly, b"other message", &sig1).is_err()
     );
     // Aggregate should fail if we don't have enough signatures.
-    assert!(ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone()].iter()).is_err());
+    assert_eq!(
+        ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone()].iter()).unwrap_err(),
+        FastCryptoError::NotEnoughInputs
+    );
+    // Even if duplicated
+    assert_eq!(
+        ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone(), sig1.clone()].iter())
+            .unwrap_err(),
+        FastCryptoError::NotEnoughInputs
+    );
 
     // Signatures should be the same no matter if calculated with the private key or from a
     // threshold of partial signatures.
-    let full_sig = ThresholdBls12381MinSig::aggregate(t, [sig1, sig2, sig3].iter()).unwrap();
+    let full_sig =
+        ThresholdBls12381MinSig::aggregate(t, [sig1.clone(), sig2.clone(), sig3.clone()].iter())
+            .unwrap();
     assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &full_sig).is_ok());
     assert_eq!(
         full_sig,
@@ -52,6 +67,34 @@ fn test_tbls_e2e() {
         )
         .value
     );
+    // duplicates shouldn't matter
+    let another_sig = ThresholdBls12381MinSig::aggregate(
+        t,
+        [
+            sig1.clone(),
+            sig2.clone(),
+            sig3.clone(),
+            sig2.clone(),
+            sig2.clone(),
+        ]
+        .iter(),
+    )
+    .unwrap();
+    assert_eq!(full_sig, another_sig);
+
+    // which subset of partial signatures we use shouldn't matter
+    let another_sig =
+        ThresholdBls12381MinSig::aggregate(t, [sig4.clone(), sig2.clone(), sig3.clone()].iter())
+            .unwrap();
+    assert_eq!(full_sig, another_sig);
+
+    // if one of the partial sigs is invalid, the aggregated sig should be different and invalid
+    let mut invalid_sig3 = sig3.clone();
+    invalid_sig3.value = G1Element::generator();
+    let another_sig =
+        ThresholdBls12381MinSig::aggregate(t, [invalid_sig3, sig2, sig1].iter()).unwrap();
+    assert_ne!(full_sig, another_sig);
+    assert!(ThresholdBls12381MinSig::verify(public_poly.c0(), msg, &another_sig).is_err());
 }
 
 #[test]

@@ -116,12 +116,16 @@ impl<G: GroupElement + Serialize> Nodes<G> {
             .ok_or(FastCryptoError::InvalidInput)
     }
 
-    /// Get the share ids of a node (ordered).
-    pub fn share_ids_of(&self, id: PartyId) -> Vec<ShareIndex> {
+    /// Get the share ids of a node (ordered). Returns error if the node does not exist.
+    pub fn share_ids_of(&self, id: PartyId) -> FastCryptoResult<Vec<ShareIndex>> {
+        // Check if the input is valid.
+        self.node_id_to_node(id)?;
+
         // TODO: [perf opt] Cache this or impl differently.
-        self.share_ids_iter()
-            .filter(|node_id| self.share_id_to_node(node_id).expect("valid ids").id == id)
-            .collect::<Vec<_>>()
+        Ok(self
+            .share_ids_iter()
+            .filter(|share_id| self.share_id_to_node(share_id).expect("valid share id").id == id)
+            .collect::<Vec<_>>())
     }
 
     /// Get an iterator on the nodes.
@@ -129,6 +133,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         self.nodes.iter()
     }
 
+    // Used for logging.
     pub fn hash(&self) -> Digest<32> {
         let mut hash = Blake2b256::default();
         hash.update(bcs::to_bytes(&self.nodes).expect("should serialize"));
@@ -153,7 +158,6 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         total_weight_lower_bound: u16,
     ) -> FastCryptoResult<(Self, u16)> {
         let n = Self::new(nodes_vec)?; // checks the input, etc
-
         assert!(total_weight_lower_bound <= n.total_weight && total_weight_lower_bound > 0);
         let mut max_d = 1;
         for d in 2..=40 {

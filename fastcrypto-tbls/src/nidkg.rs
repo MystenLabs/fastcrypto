@@ -333,7 +333,7 @@ where
                 index: NonZeroU16::new((i + 1) as u16).expect("non zero"),
                 value: *pk,
             });
-        let pk = Poly::<G>::recover_c0(self.t, evals).expect("enough shares");
+        let pk = Poly::<G>::recover_c0_msm(self.t, evals).expect("enough shares");
 
         (pk, partial_pks)
     }

@@ -30,6 +30,9 @@ where
 
 #[test]
 fn test_new_failures() {
+    // empty
+    let nodes_vec = get_nodes::<G2Element>(0);
+    assert!(Nodes::new(nodes_vec).is_err());
     // missing id
     let mut nodes_vec = get_nodes::<G2Element>(20);
     nodes_vec.remove(7);
@@ -90,7 +93,10 @@ fn test_zero_weight() {
             .id,
         1
     );
-    assert_eq!(nodes1.share_ids_of(0), vec![NonZeroU16::new(1).unwrap()]);
+    assert_eq!(
+        nodes1.share_ids_of(0).unwrap(),
+        vec![NonZeroU16::new(1).unwrap()]
+    );
 
     // first node's weight is 0
     let mut nodes_vec = get_nodes::<G2Element>(10);
@@ -110,7 +116,7 @@ fn test_zero_weight() {
             .id,
         1
     );
-    assert_eq!(nodes1.share_ids_of(0), vec![]);
+    assert_eq!(nodes1.share_ids_of(0).unwrap(), vec![]);
 
     // last node's weight is 0
     let mut nodes_vec = get_nodes::<G2Element>(10);
@@ -123,7 +129,7 @@ fn test_zero_weight() {
             .id,
         8
     );
-    assert_eq!(nodes1.share_ids_of(9), vec![]);
+    assert_eq!(nodes1.share_ids_of(9).unwrap(), vec![]);
 
     // third node's weight is 0
     let mut nodes_vec = get_nodes::<G2Element>(10);
@@ -136,7 +142,7 @@ fn test_zero_weight() {
             .id,
         3
     );
-    assert_eq!(nodes1.share_ids_of(2), vec![]);
+    assert_eq!(nodes1.share_ids_of(2).unwrap(), vec![]);
 }
 
 #[test]
@@ -182,11 +188,13 @@ fn test_interfaces() {
         .is_err());
 
     assert_eq!(nodes.node_id_to_node(1).unwrap(), &nodes_vec[1]);
+    assert!(nodes.node_id_to_node(100).is_err());
 
     assert_eq!(
-        nodes.share_ids_of(1),
+        nodes.share_ids_of(1).unwrap(),
         vec![NonZeroU16::new(2).unwrap(), NonZeroU16::new(3).unwrap()]
     );
+    assert!(nodes.share_ids_of(123).is_err());
 }
 
 #[test]
@@ -194,7 +202,7 @@ fn test_reduce() {
     for number_of_nodes in [10, 50, 100, 150, 200, 250, 300, 350, 400] {
         let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
         let nodes = Nodes::new(node_vec.clone()).unwrap();
-        let t = (nodes.total_weight() / 3) as u16;
+        let t = nodes.total_weight() / 3;
 
         // No extra gap, should return the inputs
         let (new_nodes, new_t) = Nodes::new_reduced(node_vec.clone(), t, 1, 1).unwrap();
@@ -203,12 +211,12 @@ fn test_reduce() {
 
         // 10% gap
         let (new_nodes, _new_t) =
-            Nodes::new_reduced(node_vec, t, (nodes.total_weight() / 10) as u16, 1).unwrap();
+            Nodes::new_reduced(node_vec, t, nodes.total_weight() / 10, 1).unwrap();
         // Estimate the real factor d
         let d = nodes.iter().last().unwrap().weight / new_nodes.iter().last().unwrap().weight;
         // The loss per node is on average (d - 1) / 2
         // We use 9 instead of 10 to compensate wrong value of d
-        assert!((d - 1) / 2 * number_of_nodes < ((nodes.total_weight() / 9) as u16));
+        assert!((d - 1) / 2 * number_of_nodes < (nodes.total_weight() / 9));
     }
 }
 
@@ -217,7 +225,7 @@ fn test_reduce_with_lower_bounds() {
     let number_of_nodes = 100;
     let node_vec = get_nodes::<RistrettoPoint>(number_of_nodes);
     let nodes = Nodes::new(node_vec.clone()).unwrap();
-    let t = (nodes.total_weight() / 3) as u16;
+    let t = nodes.total_weight() / 3;
 
     // No extra gap, should return the inputs
     let (new_nodes, new_t) = Nodes::new_reduced(node_vec.clone(), t, 1, 1).unwrap();
@@ -226,11 +234,11 @@ fn test_reduce_with_lower_bounds() {
 
     // 10% gap
     let (new_nodes1, _new_t1) =
-        Nodes::new_reduced(node_vec.clone(), t, (nodes.total_weight() / 10) as u16, 1).unwrap();
+        Nodes::new_reduced(node_vec.clone(), t, nodes.total_weight() / 10, 1).unwrap();
     let (new_nodes2, _new_t2) = Nodes::new_reduced(
         node_vec.clone(),
         t,
-        (nodes.total_weight() / 10) as u16,
+        nodes.total_weight() / 10,
         nodes.total_weight() / 3,
     )
     .unwrap();

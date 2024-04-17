@@ -24,6 +24,7 @@ pub fn generate_mocked_output<G: GroupElement + Serialize, EG: GroupElement + Se
 
     let shares = nodes
         .share_ids_of(party)
+        .unwrap()
         .iter()
         .map(|sid| poly.eval(*sid))
         .collect();
