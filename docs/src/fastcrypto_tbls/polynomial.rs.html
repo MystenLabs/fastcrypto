@@ -223,6 +223,10 @@
 <a href="#221" id="221">221</a>
 <a href="#222" id="222">222</a>
 <a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -306,7 +310,7 @@
     }
 
     <span class="comment">// Multiply using u128 if possible, otherwise just convert one element to the group element and return the other.
-    </span><span class="kw">pub fn </span>fast_mult(x: u128, y: u128) -&gt; Either&lt;(C::ScalarType, u128), u128&gt; {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>fast_mult(x: u128, y: u128) -&gt; Either&lt;(C::ScalarType, u128), u128&gt; {
         <span class="kw">if </span>x.leading_zeros() &gt;= (<span class="number">128 </span>- y.leading_zeros()) {
             Either::Right(x * y)
         } <span class="kw">else </span>{
@@ -356,8 +360,10 @@
                     <span class="macro">debug_assert_ne!</span>(diff, <span class="number">0</span>);
                     <span class="kw">let </span>either = <span class="self">Self</span>::fast_mult(remaining, diff);
                     <span class="kw">match </span>either {
-                        Either::Left((remaining, diff)) =&gt; (prev_acc * remaining, diff),
-                        Either::Right(diff) =&gt; (prev_acc, diff),
+                        Either::Left((remaining_as_scalar, diff)) =&gt; {
+                            (prev_acc * remaining_as_scalar, diff)
+                        }
+                        Either::Right(new_remaining) =&gt; (prev_acc, new_remaining),
                     }
                 },
             );
@@ -374,10 +380,12 @@
     }
 
     <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
+    </span><span class="comment">// Currently only in used by tests, but protocols use the msm alternative.
+    </span><span class="attr">#[cfg(test)]
     </span><span class="kw">pub fn </span>recover_c0(
         t: u16,
         shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {
+    ) -&gt; FastCryptoResult&lt;C&gt; {
         <span class="kw">let </span>coeffs = <span class="self">Self</span>::get_lagrange_coefficients_for_c0(t, shares.clone())<span class="question-mark">?</span>;
         <span class="kw">let </span>plain_shares = shares.map(|s| s.borrow().value);
         <span class="kw">let </span>res = coeffs
@@ -436,7 +444,7 @@
 <span class="kw">impl</span>&lt;C: GroupElement + MultiScalarMul&gt; Poly&lt;C&gt; {
     <span class="doccomment">/// Given exactly `t` polynomial evaluations, it will recover the polynomial's
     /// constant term.
-    </span><span class="kw">pub fn </span>recover_c0_msm(
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>recover_c0_msm(
         t: u16,
         shares: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;Eval&lt;C&gt;&gt;&gt; + Clone,
     ) -&gt; <span class="prelude-ty">Result</span>&lt;C, FastCryptoError&gt; {

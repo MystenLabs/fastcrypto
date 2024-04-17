@@ -754,6 +754,12 @@
 <a href="#752" id="752">752</a>
 <a href="#753" id="753">753</a>
 <a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -980,7 +986,10 @@
             </span>.nodes
             .iter()
             .map(|node| {
-                <span class="kw">let </span>share_ids = <span class="self">self</span>.nodes.share_ids_of(node.id);
+                <span class="kw">let </span>share_ids = <span class="self">self
+                    </span>.nodes
+                    .share_ids_of(node.id)
+                    .expect(<span class="string">"iterating on valid nodes"</span>);
                 <span class="kw">let </span>shares = share_ids
                     .iter()
                     .map(|share_id| <span class="self">self</span>.vss_sk.eval(<span class="kw-2">*</span>share_id).value)
@@ -1096,7 +1105,7 @@
         <span class="comment">// Ignore if invalid (and other honest parties will ignore as well).
         </span><span class="self">self</span>.sanity_check_message(<span class="kw-2">&amp;</span>message)<span class="question-mark">?</span>;
 
-        <span class="kw">let </span>my_share_ids = <span class="self">self</span>.nodes.share_ids_of(<span class="self">self</span>.id);
+        <span class="kw">let </span>my_share_ids = <span class="self">self</span>.nodes.share_ids_of(<span class="self">self</span>.id).expect(<span class="string">"my id is valid"</span>);
         <span class="kw">let </span>encrypted_shares = <span class="kw-2">&amp;</span>message
             .encrypted_shares
             .get_encryption(<span class="self">self</span>.id <span class="kw">as </span>usize)
@@ -1309,7 +1318,10 @@
                         <span class="self">Self</span>::check_complaint_proof(
                             <span class="kw-2">&amp;</span>complaint.proof,
                             accuser_pk,
-                            <span class="kw-2">&amp;</span><span class="self">self</span>.nodes.share_ids_of(accuser),
+                            <span class="kw-2">&amp;</span><span class="self">self
+                                </span>.nodes
+                                .share_ids_of(accuser)
+                                .expect(<span class="string">"checked above the accuser is valid id"</span>),
                             <span class="kw-2">&amp;</span>related_m1.vss_pk,
                             encrypted_shares,
                             <span class="kw-2">&amp;</span><span class="self">self</span>.random_oracle.extend(<span class="kw-2">&amp;</span><span class="macro">format!</span>(
@@ -1382,7 +1394,7 @@
             .map(|m| (m.message.sender, <span class="kw-2">&amp;</span>m.message))
             .collect::&lt;HashMap&lt;<span class="kw">_</span>, <span class="kw">_</span>&gt;&gt;();
         <span class="kw">let </span><span class="kw-2">mut </span>vss_pk = PublicPoly::&lt;G&gt;::zero();
-        <span class="kw">let </span>my_share_ids = <span class="self">self</span>.nodes.share_ids_of(<span class="self">self</span>.id);
+        <span class="kw">let </span>my_share_ids = <span class="self">self</span>.nodes.share_ids_of(<span class="self">self</span>.id).expect(<span class="string">"my id is valid"</span>);
 
         <span class="kw">let </span><span class="kw-2">mut </span>final_shares = my_share_ids
             .iter()
@@ -1415,8 +1427,8 @@
         <span class="comment">// If I didn't receive a valid share for one of the verified messages (i.e., my complaint
         // was not processed), then I don't have a valid share for the final key.
         </span><span class="kw">let </span>has_invalid_share = messages.<span class="number">0</span>.iter().any(|m| m.complaint.is_some());
-        <span class="kw">let </span>has_zero_shares = final_shares.is_empty();
-        <span class="macro">info!</span>(
+        <span class="kw">let </span>has_zero_shares = final_shares.is_empty(); <span class="comment">// if my weight is zero
+        </span><span class="macro">info!</span>(
             <span class="string">"DKG: Aggregating my shares completed with has_invalid_share={}, has_zero_shares={}"</span>,
             has_invalid_share, has_zero_shares
         );
@@ -1462,7 +1474,7 @@
         bcs::from_bytes(buffer.as_slice()).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
     }
 
-    <span class="comment">// Returns an error if the complaint is invalid.
+    <span class="comment">// Returns an error if the *complaint* is invalid (counterintuitive).
     </span><span class="kw">fn </span>check_complaint_proof&lt;R: AllowedRng&gt;(
         recovery_pkg: <span class="kw-2">&amp;</span>RecoveryPackage&lt;EG&gt;,
         ecies_pk: <span class="kw-2">&amp;</span>ecies::PublicKey&lt;EG&gt;,

@@ -121,7 +121,7 @@
         </span><span class="kw">let </span>right = hashed_message.pairing(pk);
         <span class="kw">match </span>left == right {
             <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature),
         }
     }
 }

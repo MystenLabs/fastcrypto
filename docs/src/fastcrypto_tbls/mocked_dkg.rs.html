@@ -36,6 +36,7 @@
 <a href="#34" id="34">34</a>
 <a href="#35" id="35">35</a>
 <a href="#36" id="36">36</a>
+<a href="#37" id="37">37</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -62,6 +63,7 @@
 
     <span class="kw">let </span>shares = nodes
         .share_ids_of(party)
+        .unwrap()
         .iter()
         .map(|sid| poly.eval(<span class="kw-2">*</span>sid))
         .collect();

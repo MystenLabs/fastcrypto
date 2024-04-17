@@ -108,6 +108,8 @@
 <a href="#106" id="106">106</a>
 <a href="#107" id="107">107</a>
 <a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -201,6 +203,8 @@
     }
 
     <span class="doccomment">/// Interpolate partial signatures to recover the full signature.
+    /// Uses the first `threshold` unique partials to interpolate the signature and the rest are
+    /// ignored (thus if those partials are invalid, the resulting signature can still be valid).
     </span><span class="kw">fn </span>aggregate(
         threshold: u16,
         partials: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>Borrow&lt;PartialSignature&lt;<span class="self">Self</span>::Signature&gt;&gt;&gt; + Clone,

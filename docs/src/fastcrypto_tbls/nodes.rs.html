@@ -202,6 +202,10 @@
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
 <a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -320,12 +324,16 @@
             .ok_or(FastCryptoError::InvalidInput)
     }
 
-    <span class="doccomment">/// Get the share ids of a node (ordered).
-    </span><span class="kw">pub fn </span>share_ids_of(<span class="kw-2">&amp;</span><span class="self">self</span>, id: PartyId) -&gt; Vec&lt;ShareIndex&gt; {
+    <span class="doccomment">/// Get the share ids of a node (ordered). Returns error if the node does not exist.
+    </span><span class="kw">pub fn </span>share_ids_of(<span class="kw-2">&amp;</span><span class="self">self</span>, id: PartyId) -&gt; FastCryptoResult&lt;Vec&lt;ShareIndex&gt;&gt; {
+        <span class="comment">// Check if the input is valid.
+        </span><span class="self">self</span>.node_id_to_node(id)<span class="question-mark">?</span>;
+
         <span class="comment">// TODO: [perf opt] Cache this or impl differently.
-        </span><span class="self">self</span>.share_ids_iter()
-            .filter(|node_id| <span class="self">self</span>.share_id_to_node(node_id).expect(<span class="string">"valid ids"</span>).id == id)
-            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()
+        </span><span class="prelude-val">Ok</span>(<span class="self">self
+            </span>.share_ids_iter()
+            .filter(|share_id| <span class="self">self</span>.share_id_to_node(share_id).expect(<span class="string">"valid share id"</span>).id == id)
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;())
     }
 
     <span class="doccomment">/// Get an iterator on the nodes.
@@ -333,7 +341,8 @@
         <span class="self">self</span>.nodes.iter()
     }
 
-    <span class="kw">pub fn </span>hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Digest&lt;<span class="number">32</span>&gt; {
+    <span class="comment">// Used for logging.
+    </span><span class="kw">pub fn </span>hash(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Digest&lt;<span class="number">32</span>&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>hash = Blake2b256::default();
         hash.update(bcs::to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>.nodes).expect(<span class="string">"should serialize"</span>));
         hash.finalize()
@@ -357,7 +366,6 @@
         total_weight_lower_bound: u16,
     ) -&gt; FastCryptoResult&lt;(<span class="self">Self</span>, u16)&gt; {
         <span class="kw">let </span>n = <span class="self">Self</span>::new(nodes_vec)<span class="question-mark">?</span>; <span class="comment">// checks the input, etc
-
         </span><span class="macro">assert!</span>(total_weight_lower_bound &lt;= n.total_weight &amp;&amp; total_weight_lower_bound &gt; <span class="number">0</span>);
         <span class="kw">let </span><span class="kw-2">mut </span>max_d = <span class="number">1</span>;
         <span class="kw">for </span>d <span class="kw">in </span><span class="number">2</span>..=<span class="number">40 </span>{
