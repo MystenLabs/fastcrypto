@@ -11,12 +11,14 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto" }
-num-bigint = "0.4.4"
+num-bigint = { version = "0.4.4", features = ["serde"] }
 num-traits = "0.2.16"
 num-integer = "0.1.45"
 num-prime = { version = "0.4.3", features = ["big-int"] }
 rand = "0.8.5"
 rand_chacha = "0.3.1"
+serde = { version = "1.0.156", features = ["derive"] }
+bcs.workspace = true
 
 [features]
 experimental = []

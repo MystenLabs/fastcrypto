@@ -3,9 +3,10 @@
 
 use crate::math::hash_prime::{hash_prime, PrimalityCheck};
 use crate::vdf::wesolowski::WesolowskisVDF;
-use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigInt;
+use serde::Serialize;
 use std::marker::PhantomData;
 
 pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: Sized {
@@ -19,10 +20,12 @@ pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: S
 }
 
 impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement + Serialize,
         const CHALLENGE_SIZE: usize,
         P: PrimalityCheck,
     > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
+where
+    G::ParameterType: Serialize,
 {
     fn compute_challenge<M: ScalarMultiplier<G, BigInt>>(
         vdf: &WesolowskisVDF<G, Self, M>,
@@ -31,16 +34,16 @@ impl<
     ) -> BigInt {
         let mut seed = vec![];
 
-        let input_bytes = input.to_bytes();
+        let input_bytes = bcs::to_bytes(&input).unwrap();
         seed.extend_from_slice(&(input_bytes.len() as u64).to_be_bytes());
         seed.extend_from_slice(&input_bytes);
 
-        let output_bytes = output.to_bytes();
+        let output_bytes = bcs::to_bytes(&output).unwrap();
         seed.extend_from_slice(&(output_bytes.len() as u64).to_be_bytes());
         seed.extend_from_slice(&output_bytes);
 
         seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
-        seed.extend_from_slice(&vdf.group_parameter.to_bytes());
+        seed.extend_from_slice(&bcs::to_bytes(&vdf.group_parameter).unwrap());
 
         hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1]).into()
     }
