@@ -28,6 +28,8 @@ impl QuadraticForm {
     /// the range of the hash function, so `k` must be picked no larger than the `k` computed in [largest_allowed_k]. If
     /// it is larger, an [InvalidInput] error is returned. If in doubt, use the [hash_to_group_with_default_parameters]
     /// instead.
+    ///
+    /// The algorithm is taken from https://eprint.iacr.org/2024/295.pdf.
     pub fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -41,7 +43,7 @@ impl QuadraticForm {
             b -= &a;
         }
 
-        Ok(QuadraticForm::from_a_b_discriminant(a, b, discriminant)
+        Ok(QuadraticForm::from_a_b_and_discriminant(a, b, discriminant)
             .expect("a and b are constructed such that this never fails"))
     }
 

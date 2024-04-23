@@ -36,7 +36,7 @@ impl EuclideanAlgorithmOutput {
 
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
-pub fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
+pub(crate) fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
     if b < a {
         return extended_euclidean_algorithm(b, a).flip();
     }

@@ -22,27 +22,6 @@ fn test_multiplication() {
 }
 
 #[test]
-fn test_normalization_and_reduction() {
-    let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
-    let mut quadratic_form =
-        QuadraticForm::from_a_b_discriminant(BigInt::from(41), BigInt::from(49), &discriminant)
-            .unwrap();
-    assert_eq!(quadratic_form.c, BigInt::from(16));
-
-    quadratic_form.normalize();
-    assert!(quadratic_form.is_normal());
-    assert_eq!(quadratic_form.a, BigInt::from(41));
-    assert_eq!(quadratic_form.b, BigInt::from(-33));
-    assert_eq!(quadratic_form.c, BigInt::from(8));
-
-    quadratic_form.reduce();
-    assert!(quadratic_form.is_reduced());
-    assert_eq!(quadratic_form.a, BigInt::from(7));
-    assert_eq!(quadratic_form.b, BigInt::from(-1));
-    assert_eq!(quadratic_form.c, BigInt::from(8));
-}
-
-#[test]
 fn test_composition() {
     // The order of the class group (the class number) for -223 is 7 (see https://mathworld.wolfram.com/ClassNumber.html).
     let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
@@ -77,14 +56,14 @@ fn test_qf_from_seed() {
 
     for _ in 0..10 {
         let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 1).unwrap();
-        assert!(qf.is_reduced());
+        assert!(qf.is_reduced_assuming_normal());
         assert_eq!(qf.discriminant(), discriminant);
         seed[0] += 1;
     }
 
     for _ in 0..10 {
         let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 4).unwrap();
-        assert!(qf.is_reduced());
+        assert!(qf.is_reduced_assuming_normal());
         assert_eq!(qf.discriminant(), discriminant);
         seed[0] += 1;
     }

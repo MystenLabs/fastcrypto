@@ -49,7 +49,7 @@ pub trait PrimalityCheck {
 /// Randomly chooses x with bit-length `length`, then applies a mask
 ///   (for b in bitmask) { x |= (1 << b) }.
 /// Then return x if it is a pseudo-prime, otherwise repeat.
-pub fn hash_prime<P: PrimalityCheck>(
+pub(crate) fn hash_prime<P: PrimalityCheck>(
     seed: &[u8],
     length_in_bytes: usize,
     bitmask: &[usize],

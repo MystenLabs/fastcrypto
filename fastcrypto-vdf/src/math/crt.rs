@@ -13,7 +13,7 @@ const MAX_ALLOWED_INPUTS: usize = 64;
 
 /// Find the unique x such that x = a mod p and x = b mod q for relatively prime p and q and 0 <= x
 /// < pq.
-pub fn solve_simple_congruence_equation_system(
+pub(crate) fn solve_simple_congruence_equation_system(
     a: &BigInt,
     p: &BigInt,
     b: &BigInt,
@@ -42,7 +42,10 @@ pub fn solve_simple_congruence_equation_system(
 }
 
 /// Find the unique x such that x = a_i mod p_i for relatively prime p_i and 0 <= x < Prod p_i.
-pub fn solve_congruence_equation_system(a: &[BigInt], p: &[BigInt]) -> FastCryptoResult<BigInt> {
+pub(crate) fn solve_congruence_equation_system(
+    a: &[BigInt],
+    p: &[BigInt],
+) -> FastCryptoResult<BigInt> {
     assert_eq!(a.len(), p.len());
 
     // Avoid filling the stack with recursive calls
