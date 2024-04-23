@@ -9,8 +9,8 @@ use num_integer::Integer;
 use num_traits::Signed;
 use std::ops::Neg;
 
-/// A discriminant for an imaginary class group. The discriminant is a negative integer which is
-/// equal to 1 mod 8.
+/// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
+/// 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct Discriminant(BigInt);
 
@@ -45,7 +45,7 @@ impl Discriminant {
     }
 
     /// Borrow a reference to the underlying big integer.
-    pub fn as_bigint(&self) -> &BigInt {
+    pub(crate) fn as_bigint(&self) -> &BigInt {
         &self.0
     }
 }

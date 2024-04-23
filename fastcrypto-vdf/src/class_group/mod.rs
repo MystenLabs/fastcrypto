@@ -24,12 +24,12 @@ mod tests;
 /// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
 /// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
 /// group but not the entire class group.
-pub mod hash;
+pub(crate) mod hash;
 
 /// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
 /// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
 /// the coefficients does not become too large.
-pub mod reduction;
+pub(crate) mod reduction;
 
 /// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
 /// discriminants and methods to create them.
@@ -49,7 +49,7 @@ pub struct QuadraticForm {
 
 impl QuadraticForm {
     /// Create a new quadratic form given only the a and b coefficients and the discriminant.
-    pub fn from_a_b_discriminant(
+    pub fn from_a_b_and_discriminant(
         a: BigInt,
         b: BigInt,
         discriminant: &Discriminant,
@@ -120,13 +120,13 @@ impl QuadraticForm {
             return Err(InvalidInput);
         }
 
-        Self::from_a_b_discriminant(a, b, discriminant)
+        Self::from_a_b_and_discriminant(a, b, discriminant)
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
     /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     pub fn generator(discriminant: &Discriminant) -> Self {
-        Self::from_a_b_discriminant(BigInt::from(2), BigInt::one(), discriminant)
+        Self::from_a_b_and_discriminant(BigInt::from(2), BigInt::one(), discriminant)
             .expect("Always succeeds when the discriminant is 1 mod 8")
     }
 
@@ -346,7 +346,7 @@ impl ParameterizedGroupElement for QuadraticForm {
     type ScalarType = BigInt;
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
-        Self::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+        Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect("Doesn't fail")
     }
 
