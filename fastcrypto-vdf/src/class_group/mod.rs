@@ -39,9 +39,6 @@ pub(crate) mod reduction;
 pub mod discriminant;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
-///
-/// The `partial_gcd_limit` variable is set to `|discriminant|^{1/4}` and is used to speed up
-/// the composition algorithm.
 #[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct QuadraticForm {
     pub a: BigInt,
@@ -77,7 +74,8 @@ impl QuadraticForm {
         })
     }
 
-    /// The GCD computation may stop early. The limit is cached the first time its computed.
+    /// The GCD computation in composition may when coefficients are below this limit which is set
+    /// to `|discriminant|^{1/4}`.
     fn partial_gcd_limit(&self) -> &BigInt {
         self.partial_gcd_limit
             .get_or_init(|| self.discriminant().as_bigint().abs().nth_root(4))
