@@ -101,20 +101,4 @@ mod tests {
         // Verify the output and proof
         assert!(vdf.verify(&another_input, &output, &proof).is_err());
     }
-
-    #[test]
-    fn cli_test() {
-        let d_bytes = hex::decode("ff20278a665865d8633bd6eee07fa6aab37da0d7c0551020c019bee9b735b5e2d150f09394b54a7af3b387d4f6538b9b1933345a8dfada20d0f4bd2c2605bbb8e8808666933443f37b6b7d95f15d30e8eff9e1e5599c43518c68c506ddf28272677686ecdfb2a756b50e5501b73bef9fb603379c6a016f8b439d201913164cb06cff").unwrap();
-        let discriminant = bcs::from_bytes::<Discriminant>(&d_bytes).unwrap();
-        let seed = hex::decode("abcd").unwrap();
-        let input =
-            QuadraticForm::hash_to_group_with_default_parameters(&seed, &discriminant).unwrap();
-        // 01107347ea73ddaadbd6eaa83c812752a91bf8927b276a36088796142a6f9b20d2320b1ae8e7327c9e88256911ecf9866f7d8777aa9d8092124f59ddd42716010000ff1d8785c669b57983d0e646adf9312981dbc191395321809d60351585876da0f4259e97d61a4659c2801c8c1ec0dd20a67fe69782b81917e787a212f22d0a4b71f6c1ff41cd303a5d084d244c12b026e3a195826cd99a08377b6a121687d7372fec7c741dd4197bcae5139a87233058d619e5460a00012a529137ff7e92f0d9eeedb39007b17a0b0a8eb20fae8650a6609016287de91f286c8f058f63fc7779b8897a7ff42a9b5e83ed8bf1f18d95caec65d4921b24959732443b14cb3b8c77e46cc8279a44f1a1330711acbe72821f8e3390b708935d18fce7a9afbaf3a796a50cb567e7b7ec619af2bb71eeab31750e26e9509412e153a3e80f52e068b90b9c33ada6d31119d71b61e0bb535b4337b46e5b45f4893296252615ea66fc4c18
-        println!("Input: {:?}", hex::encode(bcs::to_bytes(&input).unwrap()));
-        let (output, proof) = DefaultVDF::new(discriminant.clone(), 1000)
-            .evaluate(&input)
-            .unwrap();
-        println!("Input: {:?}", hex::encode(bcs::to_bytes(&output).unwrap()));
-        println!("Input: {:?}", hex::encode(bcs::to_bytes(&proof).unwrap()));
-    }
 }
