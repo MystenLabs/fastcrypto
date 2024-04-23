@@ -84,20 +84,25 @@ fn mod8(a: &BigInt) -> u8 {
 
 #[cfg(test)]
 mod tests {
+    use crate::math::modular_sqrt::jacobi;
     use num_bigint::BigInt;
 
     #[test]
     fn test_sqrt() {
-        let a = BigInt::from(58);
-        let p = BigInt::from(101);
-        let x = super::modular_square_root(&a, &p, true).unwrap();
-        assert_eq!(x.modpow(&BigInt::from(2), &p), a);
-        assert!(x == BigInt::from(19) || x == BigInt::from(82));
-
-        let a = BigInt::from(111);
-        let p = BigInt::from(113);
-        let x = super::modular_square_root(&a, &p, true).unwrap();
-        assert_eq!(x.modpow(&BigInt::from(2), &p), a);
-        assert!(x == BigInt::from(26) || x == BigInt::from(87));
+        // 1, 3, 5, 7 mod 8
+        let moduli: [usize; 4] = [257, 163, 197, 127];
+        for p in moduli.iter() {
+            for a in 2..*p {
+                let p = BigInt::from(*p);
+                let a = BigInt::from(a);
+                match super::modular_square_root(&a, &p, true) {
+                    Ok(x) => {
+                        assert_eq!(jacobi(&a, &p).unwrap(), 1);
+                        assert_eq!(x.modpow(&BigInt::from(2), &p), a);
+                    }
+                    Err(_) => assert_eq!(jacobi(&a, &p).unwrap(), -1),
+                }
+            }
+        }
     }
 }
