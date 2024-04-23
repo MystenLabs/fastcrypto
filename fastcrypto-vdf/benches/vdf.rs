@@ -29,10 +29,10 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
     let discriminant_size = discriminant.bits();
 
     let result_bytes = hex::decode(parameters.result).unwrap();
-    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
+    let result = bcs::from_bytes(&result_bytes).unwrap();
 
     let proof_bytes = hex::decode(parameters.proof).unwrap();
-    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
+    let proof = bcs::from_bytes(&proof_bytes).unwrap();
 
     let input = QuadraticForm::generator(&discriminant);
 

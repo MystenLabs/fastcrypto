@@ -1,32 +1,34 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{math::hash_prime, Parameter, ToBytes};
+use crate::{math::hash_prime, Parameter};
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use num_bigint::{BigInt, Sign, ToBigInt};
+use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::Signed;
+use serde::Deserializer;
+use serde::{Deserialize, Serialize};
 use std::ops::Neg;
 
 /// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
+#[serde(transparent)]
 pub struct Discriminant(BigInt);
 
-impl ToBytes for Discriminant {
-    fn to_bytes(&self) -> Vec<u8> {
-        self.0.to_bytes_be().1
+fn validate(discriminant: &BigInt) -> FastCryptoResult<()> {
+    if !discriminant.is_negative() || discriminant.mod_floor(&BigInt::from(8)) != BigInt::from(1) {
+        return Err(InvalidInput);
     }
+    Ok(())
 }
 
 impl TryFrom<BigInt> for Discriminant {
     type Error = FastCryptoError;
 
     fn try_from(value: BigInt) -> FastCryptoResult<Self> {
-        if !value.is_negative() || value.mod_floor(&BigInt::from(8)) != BigInt::from(1) {
-            return Err(InvalidInput);
-        }
+        validate(&value)?;
         Ok(Self(value))
     }
 }
@@ -35,13 +37,6 @@ impl Discriminant {
     /// Return the number of bits needed to represent this discriminant, not including the sign bit.
     pub fn bits(&self) -> u64 {
         self.0.bits()
-    }
-
-    /// Try to create a discriminant from a big-endian byte representation of the absolute value.
-    /// Fails if the discriminant is not equal to 1 mod 8.
-    pub fn try_from_be_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let discriminant = BigInt::from_bytes_be(Sign::Minus, bytes);
-        Self::try_from(discriminant)
     }
 
     /// Borrow a reference to the underlying big integer.
@@ -64,5 +59,16 @@ impl Parameter for Discriminant {
                 .expect("Never fails")
                 .neg(),
         )
+    }
+}
+
+impl<'de> Deserialize<'de> for Discriminant {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = BigInt::deserialize(deserializer)?;
+        validate(&value).map_err(serde::de::Error::custom)?;
+        Ok(Discriminant(value))
     }
 }

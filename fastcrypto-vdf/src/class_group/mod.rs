@@ -6,14 +6,17 @@
 //! for the composition.
 
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use core::cell::OnceCell;
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
-use num_bigint::{BigInt, Sign};
+use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
+use serde::Deserialize;
+use serde::Serialize;
 use std::borrow::Borrow;
 use std::mem::swap;
 use std::ops::{Add, Mul, Neg};
@@ -37,14 +40,15 @@ pub mod discriminant;
 
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 ///
-/// The `partial_gcd_limit` variable must be equal to `|discriminant|^{1/4}` and is used to speed up
+/// The `partial_gcd_limit` variable is set to `|discriminant|^{1/4}` and is used to speed up
 /// the composition algorithm.
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct QuadraticForm {
     pub a: BigInt,
     pub b: BigInt,
     pub c: BigInt,
-    partial_gcd_limit: BigInt,
+    #[serde(skip)]
+    partial_gcd_limit: OnceCell<BigInt>,
 }
 
 impl QuadraticForm {
@@ -69,58 +73,14 @@ impl QuadraticForm {
             a,
             b,
             c,
-            // This limit is used by `partial_euclidean_algorithm` in the add method.
-            partial_gcd_limit: discriminant.as_bigint().abs().nth_root(4),
+            partial_gcd_limit: OnceCell::new(),
         })
     }
 
-    /// Create a new quadratic form from a serialization. The format is a byte array with the following structure:
-    ///
-    /// `a_len` (2 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (2 bytes, big endian) | `b` as signed
-    /// big endian bytes
-    ///
-    /// The c coefficient is computed from a and b and the discriminant. If the format is not followed or if the
-    /// coefficients do not form a valid quadratic form, an error is returned.
-    ///
-    /// See also [`QuadraticForm::to_bytes`].
-    pub fn from_bytes(bytes: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        let mut index = 0;
-
-        if bytes.len() < 2 {
-            return Err(InvalidInput);
-        }
-
-        let a_len = u16::from_be_bytes(bytes[index..2].try_into().expect("Never fails")) as usize;
-        index += 2;
-
-        if bytes.len() < index + a_len {
-            return Err(InvalidInput);
-        }
-
-        let a = BigInt::from_bytes_be(Sign::Plus, &bytes[index..index + a_len]);
-        index += a_len;
-
-        if bytes.len() < index + 2 {
-            return Err(InvalidInput);
-        }
-
-        let b_len =
-            u16::from_be_bytes(bytes[index..index + 2].try_into().expect("Never fails")) as usize;
-        index += 2;
-
-        if bytes.len() < index + b_len {
-            return Err(InvalidInput);
-        }
-
-        let b = BigInt::from_signed_bytes_be(&bytes[index..index + b_len]);
-        index += b_len;
-
-        // Check that all bytes are used
-        if index != bytes.len() {
-            return Err(InvalidInput);
-        }
-
-        Self::from_a_b_and_discriminant(a, b, discriminant)
+    /// The GCD computation may stop early. The limit is cached the first time its computed.
+    fn partial_gcd_limit(&self) -> &BigInt {
+        self.partial_gcd_limit
+            .get_or_init(|| self.discriminant().as_bigint().abs().nth_root(4))
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -198,7 +158,7 @@ impl QuadraticForm {
         let mut y = BigInt::zero();
         let mut z = 0u32;
 
-        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
+        while by.abs() > *self.partial_gcd_limit() && !bx.is_zero() {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
@@ -281,7 +241,7 @@ impl Doubling for QuadraticForm {
         let mut y = BigInt::zero();
         let mut z = 0u32;
 
-        while by.abs() > self.partial_gcd_limit && !bx.is_zero() {
+        while by.abs() > *self.partial_gcd_limit() && !bx.is_zero() {
             let (q, t) = by.div_rem(&bx);
             by = bx;
             bx = t;
@@ -407,20 +367,11 @@ impl Neg for QuadraticForm {
     }
 }
 
-impl ToBytes for QuadraticForm {
-    fn to_bytes(&self) -> Vec<u8> {
-        // a is always positive
-        let a_bytes = self.a.to_bytes_be().1;
-        let b_bytes = self.b.to_signed_bytes_be();
+impl UnknownOrderGroupElement for QuadraticForm {}
 
-        let mut result = Vec::with_capacity(a_bytes.len() + b_bytes.len() + 8);
-        result.extend_from_slice(&(a_bytes.len() as u16).to_be_bytes());
-        result.extend_from_slice(&a_bytes);
-        result.extend_from_slice(&(b_bytes.len() as u16).to_be_bytes());
-        result.extend_from_slice(&b_bytes);
-
-        result
+impl PartialEq for QuadraticForm {
+    fn eq(&self, other: &Self) -> bool {
+        // Ignore the partial_gcd_limit field
+        self.a == other.a && self.b == other.b && self.c == other.c
     }
 }
-
-impl UnknownOrderGroupElement for QuadraticForm {}

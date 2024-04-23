@@ -4,10 +4,9 @@
 use clap::Parser;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::vdf::wesolowski::StrongVDF;
+use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use fastcrypto_vdf::Parameter;
-use fastcrypto_vdf::ToBytes;
 use std::io::{Error, ErrorKind};
 
 /// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
@@ -92,10 +91,6 @@ struct HashArguments {
     /// The hex encoded input to the hash function.
     #[clap(short, long)]
     message: String,
-
-    /// Number of parallel prime samplings in the hash function.
-    #[clap(short, long, default_value_t = 64)]
-    k: u16,
 }
 
 fn main() {
@@ -118,7 +113,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid seed."))?;
             let discriminant =
                 Discriminant::from_seed(&seed, arguments.bit_length as usize).unwrap();
-            let discriminant_string = hex::encode(discriminant.to_bytes());
+            let discriminant_string = hex::encode(bcs::to_bytes(&discriminant).unwrap());
             let mut result = "Discriminant: ".to_string();
             result.push_str(&discriminant_string);
             Ok(result)
@@ -127,25 +122,31 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Evaluate(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
+            let discriminant = bcs::from_bytes::<Discriminant>(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
             let input_bytes = hex::decode(arguments.input)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input point."))?;
-            let g = QuadraticForm::from_bytes(&input_bytes, &discriminant).map_err(|_| {
+            let g = bcs::from_bytes::<QuadraticForm>(&input_bytes).map_err(|_| {
                 Error::new(
                     ErrorKind::InvalidInput,
                     "Invalid input point or discriminant.",
                 )
             })?;
+            if g.discriminant() != discriminant {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Input point does not match discriminant.",
+                ));
+            }
 
-            let vdf = StrongVDF::new(discriminant, arguments.iterations);
+            let vdf = DefaultVDF::new(discriminant, arguments.iterations);
             let (output, proof) = vdf
                 .evaluate(&g)
                 .map_err(|_| Error::new(ErrorKind::Other, "VDF evaluation failed"))?;
 
-            let output_string = hex::encode(output.to_bytes());
-            let proof_string = hex::encode(proof.to_bytes());
+            let output_string = hex::encode(bcs::to_bytes(&output).unwrap());
+            let proof_string = hex::encode(bcs::to_bytes(&proof).unwrap());
 
             let mut result = "Output: ".to_string();
             result.push_str(&output_string);
@@ -157,33 +158,46 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Verify(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
+            let discriminant = bcs::from_bytes::<Discriminant>(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
-            let input = QuadraticForm::from_bytes(
-                &hex::decode(arguments.input).map_err(|_| {
+            let input =
+                bcs::from_bytes::<QuadraticForm>(&hex::decode(arguments.input).map_err(|_| {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
-                })?,
-                &discriminant,
-            )
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
+                })?)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
+            if input.discriminant() != discriminant {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Input has wrong discriminant.",
+                ));
+            }
 
-            let output = QuadraticForm::from_bytes(
-                &hex::decode(arguments.output).map_err(|_| {
+            let output =
+                bcs::from_bytes::<QuadraticForm>(&hex::decode(arguments.output).map_err(|_| {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
-                })?,
-                &discriminant,
-            )
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
-            let proof = QuadraticForm::from_bytes(
-                &hex::decode(arguments.proof).map_err(|_| {
+                })?)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
+            if output.discriminant() != discriminant {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Output has wrong discriminant.",
+                ));
+            }
+
+            let proof =
+                bcs::from_bytes::<QuadraticForm>(&hex::decode(arguments.proof).map_err(|_| {
                     Error::new(ErrorKind::InvalidInput, "Invalid proof hex string.")
-                })?,
-                &discriminant,
-            )
-            .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid proof."))?;
+                })?)
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid proof."))?;
+            if proof.discriminant() != discriminant {
+                return Err(Error::new(
+                    ErrorKind::InvalidInput,
+                    "Proof has wrong discriminant.",
+                ));
+            }
 
-            let vdf = StrongVDF::new(discriminant, arguments.iterations);
+            let vdf = DefaultVDF::new(discriminant, arguments.iterations);
             let verifies = vdf.verify(&input, &output, &proof).is_ok();
 
             let mut result = "Verified: ".to_string();
@@ -193,15 +207,18 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Hash(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = Discriminant::try_from_be_bytes(&discriminant_bytes)
+            let discriminant = bcs::from_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
             let input = hex::decode(arguments.message)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid message."))?;
-            let output = QuadraticForm::hash_to_group(&input, &discriminant, arguments.k)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "The k parameter was too big"))?;
+            let output =
+                QuadraticForm::hash_to_group_with_default_parameters(&input, &discriminant)
+                    .map_err(|_| {
+                        Error::new(ErrorKind::InvalidInput, "The k parameter was too big")
+                    })?;
 
-            let output_bytes = hex::encode(output.to_bytes());
+            let output_bytes = hex::encode(bcs::to_bytes(&output).unwrap());
 
             let mut result = "Output: ".to_string();
             result.push_str(&output_bytes);
@@ -212,8 +229,9 @@ fn execute(cmd: Command) -> Result<String, Error> {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::{execute, Command, DiscriminantArguments, EvaluateArguments, VerifyArguments};
+    use crate::{
+        execute, Command, DiscriminantArguments, EvaluateArguments, HashArguments, VerifyArguments,
+    };
 
     #[test]
     fn test_discriminant() {
@@ -223,14 +241,14 @@ mod tests {
             bit_length: 1024,
         }))
         .unwrap();
-        let expected = "Discriminant: ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
+        let expected = "Discriminant: ff20278a665865d8633bd6eee07fa6aab37da0d7c0551020c019bee9b735b5e2d150f09394b54a7af3b387d4f6538b9b1933345a8dfada20d0f4bd2c2605bbb8e8808666933443f37b6b7d95f15d30e8eff9e1e5599c43518c68c506ddf28272677686ecdfb2a756b50e5501b73bef9fb603379c6a016f8b439d201913164cb06cff".to_string();
         assert_eq!(expected, result);
     }
 
     #[test]
     fn test_evaluate() {
-        let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
-        let input = "003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79".to_string();
+        let discriminant = "ff20278a665865d8633bd6eee07fa6aab37da0d7c0551020c019bee9b735b5e2d150f09394b54a7af3b387d4f6538b9b1933345a8dfada20d0f4bd2c2605bbb8e8808666933443f37b6b7d95f15d30e8eff9e1e5599c43518c68c506ddf28272677686ecdfb2a756b50e5501b73bef9fb603379c6a016f8b439d201913164cb06cff".to_string();
+        let input = "01107347ea73ddaadbd6eaa83c812752a91bf8927b276a36088796142a6f9b20d2320b1ae8e7327c9e88256911ecf9866f7d8777aa9d8092124f59ddd42716010000ff1d8785c669b57983d0e646adf9312981dbc191395321809d60351585876da0f4259e97d61a4659c2801c8c1ec0dd20a67fe69782b81917e787a212f22d0a4b71f6c1ff41cd303a5d084d244c12b026e3a195826cd99a08377b6a121687d7372fec7c741dd4197bcae5139a87233058d619e5460a00012a529137ff7e92f0d9eeedb39007b17a0b0a8eb20fae8650a6609016287de91f286c8f058f63fc7779b8897a7ff42a9b5e83ed8bf1f18d95caec65d4921b24959732443b14cb3b8c77e46cc8279a44f1a1330711acbe72821f8e3390b708935d18fce7a9afbaf3a796a50cb567e7b7ec619af2bb71eeab31750e26e9509412e153a3e80f52e068b90b9c33ada6d31119d71b61e0bb535b4337b46e5b45f4893296252615ea66fc4c18".to_string();
         let iterations = 1000u64;
         let result = execute(Command::Evaluate(EvaluateArguments {
             discriminant,
@@ -238,7 +256,7 @@ mod tests {
             iterations,
         }))
         .unwrap();
-        let expected = "Output: 004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611\nProof:  0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143";
+        let expected = "Output: 0110c6c55aa499e1e70915547dee75c60d29a3a1b647f6fe50e0fdf026fee84501dfbeb45c0621efdc3a507553af851eeb5c63b004562be6c82ee6e62f490ea5c440ff10ef494d6352226bf0df8afa8f56c3e5dbf864873d0dd058c8aa8253aca98db72a5ed6844f1ac0d22587d4bee43a110f586034da172d1641a61607a8b6f22802290111c3ac7acb4925b5dac4c4cfcd73c6b9ff00d2f70a6744d013177716354d4ecaf22cd35abf54ebc2fe0a3467ae0a03b7297bd9d4fdaa39ad2ede29f95fc8eee20201000000\nProof:  0110126b982a21de0a3e40a2482dc7fda92dcc701daf92f14a15c9a6b021527102a8e2aef9cdc9321ff117dfc72a0b67b2440d115bd490a74d655cad78b1b5c4cf3eff10bb0dee4be77a0cdd6423fc9a6f9bfd954ad71bc1170ca90188f83ef5d7dabffcb917cef7844e0db3373818c04d693ed596fb1e2383ecf8c1aad58a8da2a29d05011158e3306707d66fa243487cafdc3b14be74333c30592ddd4ce5ab3c83eea42424a0c0fa63574f3b1fa03873bd48f3cf44c94bb13040effb5e076ab1b95efc610401000000";
         assert_eq!(expected, result);
 
         let invalid_discriminant = "abcx".to_string();
@@ -252,11 +270,11 @@ mod tests {
 
     #[test]
     fn test_verify() {
-        let discriminant = "ff6cb04c161319209d438b6f016a9c3703b69fef3bb701550eb556a7b2dfec8676677282f2dd06c5688c51439c59e5e1f9efe8305df1957d6b7bf3433493668680e8b8bb05262cbdf4d020dafa8d5a3433199b8b53f6d487b3f37a4ab59493f050d1e2b535b7e9be19c0201055c0d7a07db3aaa67fe0eed63b63d86558668a27".to_string();
+        let discriminant = "ff20278a665865d8633bd6eee07fa6aab37da0d7c0551020c019bee9b735b5e2d150f09394b54a7af3b387d4f6538b9b1933345a8dfada20d0f4bd2c2605bbb8e8808666933443f37b6b7d95f15d30e8eff9e1e5599c43518c68c506ddf28272677686ecdfb2a756b50e5501b73bef9fb603379c6a016f8b439d201913164cb06cff".to_string();
         let iterations = 1000u64;
-        let input = "003e011627d4dd594f1292809daa77877d6f86f9ec116925889e7c32e7e81a0b32d2209b6f2a14968708366a277b92f81ba95227813ca8ead6dbaadd73ea47730073f5b91ae629a7cfdc7865ec1a3584e62be28b8313d0c82878e9ed9584c8f76526937d6a5e1cd94fedb3dbb2f7a2c5cf32be003e098eb4f5d20ded5d7818e8e6477d68198059df223fe173e37f3da6b9e5296861da0b5f92787aeaca9f627fdeacc66e3e247ed6ce0652b9192f7c864a96397a79".to_string();
-        let output = "004040c4a50e492fe6e62ec8e62b5604b0635ceb1e85af5375503adcef21065cb4bedf0145e8fe26f0fde050fef647b6a1a3290dc675ee7d541509e7e199a45ac5c60040d6fdd70d4957f8e959bee9d2e825cb9fa7f0eec51b412b78da2d3fe5b07b29a1d548725653ac7d5537a72ff2c2789b07241a3ca9700575200f94ddad9cb2b611".to_string();
-        let proof = "0040667413c7ff4f5f7d8fef0b4cd2f035b81b7771b9071dcbff62663a26f3be0d5456be08c019f6655186362036c6022a3144646014be815fda9550c3a03d816ceb0040c08f22aa35bbf0c23a86d49eee0d8fef6736391608e1d7d66b9c0bfbb4cf0c82f5e1158a68246bbfae7c10951af3e8deade2c0b2aa4e8c440a6770ae1e3c1143".to_string();
+        let input = "01107347ea73ddaadbd6eaa83c812752a91bf8927b276a36088796142a6f9b20d2320b1ae8e7327c9e88256911ecf9866f7d8777aa9d8092124f59ddd42716010000ff1d8785c669b57983d0e646adf9312981dbc191395321809d60351585876da0f4259e97d61a4659c2801c8c1ec0dd20a67fe69782b81917e787a212f22d0a4b71f6c1ff41cd303a5d084d244c12b026e3a195826cd99a08377b6a121687d7372fec7c741dd4197bcae5139a87233058d619e5460a00012a529137ff7e92f0d9eeedb39007b17a0b0a8eb20fae8650a6609016287de91f286c8f058f63fc7779b8897a7ff42a9b5e83ed8bf1f18d95caec65d4921b24959732443b14cb3b8c77e46cc8279a44f1a1330711acbe72821f8e3390b708935d18fce7a9afbaf3a796a50cb567e7b7ec619af2bb71eeab31750e26e9509412e153a3e80f52e068b90b9c33ada6d31119d71b61e0bb535b4337b46e5b45f4893296252615ea66fc4c18".to_string();
+        let output = "0110c6c55aa499e1e70915547dee75c60d29a3a1b647f6fe50e0fdf026fee84501dfbeb45c0621efdc3a507553af851eeb5c63b004562be6c82ee6e62f490ea5c440ff10ef494d6352226bf0df8afa8f56c3e5dbf864873d0dd058c8aa8253aca98db72a5ed6844f1ac0d22587d4bee43a110f586034da172d1641a61607a8b6f22802290111c3ac7acb4925b5dac4c4cfcd73c6b9ff00d2f70a6744d013177716354d4ecaf22cd35abf54ebc2fe0a3467ae0a03b7297bd9d4fdaa39ad2ede29f95fc8eee20201000000".to_string();
+        let proof = "0110126b982a21de0a3e40a2482dc7fda92dcc701daf92f14a15c9a6b021527102a8e2aef9cdc9321ff117dfc72a0b67b2440d115bd490a74d655cad78b1b5c4cf3eff10bb0dee4be77a0cdd6423fc9a6f9bfd954ad71bc1170ca90188f83ef5d7dabffcb917cef7844e0db3373818c04d693ed596fb1e2383ecf8c1aad58a8da2a29d05011158e3306707d66fa243487cafdc3b14be74333c30592ddd4ce5ab3c83eea42424a0c0fa63574f3b1fa03873bd48f3cf44c94bb13040effb5e076ab1b95efc610401000000".to_string();
         let result = execute(Command::Verify(VerifyArguments {
             discriminant: discriminant.clone(),
             iterations,
@@ -288,6 +306,19 @@ mod tests {
         }))
         .unwrap();
         let expected = "Verified: false";
+        assert_eq!(expected, result);
+    }
+
+    #[test]
+    fn test_hash() {
+        let discriminant = "ff20278a665865d8633bd6eee07fa6aab37da0d7c0551020c019bee9b735b5e2d150f09394b54a7af3b387d4f6538b9b1933345a8dfada20d0f4bd2c2605bbb8e8808666933443f37b6b7d95f15d30e8eff9e1e5599c43518c68c506ddf28272677686ecdfb2a756b50e5501b73bef9fb603379c6a016f8b439d201913164cb06cff".to_string();
+        let seed = "abcd".to_string();
+        let result = execute(Command::Hash(HashArguments {
+            discriminant: discriminant.clone(),
+            message: seed.clone(),
+        }))
+        .unwrap();
+        let expected = "Output: 01107347ea73ddaadbd6eaa83c812752a91bf8927b276a36088796142a6f9b20d2320b1ae8e7327c9e88256911ecf9866f7d8777aa9d8092124f59ddd42716010000ff1d8785c669b57983d0e646adf9312981dbc191395321809d60351585876da0f4259e97d61a4659c2801c8c1ec0dd20a67fe69782b81917e787a212f22d0a4b71f6c1ff41cd303a5d084d244c12b026e3a195826cd99a08377b6a121687d7372fec7c741dd4197bcae5139a87233058d619e5460a00012a529137ff7e92f0d9eeedb39007b17a0b0a8eb20fae8650a6609016287de91f286c8f058f63fc7779b8897a7ff42a9b5e83ed8bf1f18d95caec65d4921b24959732443b14cb3b8c77e46cc8279a44f1a1330711acbe72821f8e3390b708935d18fce7a9afbaf3a796a50cb567e7b7ec619af2bb71eeab31750e26e9509412e153a3e80f52e068b90b9c33ada6d31119d71b61e0bb535b4337b46e5b45f4893296252615ea66fc4c18";
         assert_eq!(expected, result);
     }
 }

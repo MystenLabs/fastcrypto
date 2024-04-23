@@ -16,7 +16,7 @@ pub mod math;
 
 /// This trait is implemented by types which can be used as parameters for a parameterized group.
 /// See [ParameterizedGroupElement].
-pub trait Parameter: Eq + Sized + ToBytes {
+pub trait Parameter: Eq + Sized {
     /// Compute a random instance of a given size from a seed.
     fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Self>;
 }
@@ -31,7 +31,6 @@ pub trait ParameterizedGroupElement:
     + for<'a> Mul<&'a Self::ScalarType, Output = Self>
     + Neg
     + Eq
-    + ToBytes
     + Doubling
 {
     /// The type of the parameter which uniquely defines this group.
@@ -52,8 +51,3 @@ pub trait ParameterizedGroupElement:
 
 /// Trait impl'd by elements of groups where the order is unknown.
 pub trait UnknownOrderGroupElement {}
-
-pub trait ToBytes {
-    /// Serialize this object into a byte vector.
-    fn to_bytes(&self) -> Vec<u8>;
-}
