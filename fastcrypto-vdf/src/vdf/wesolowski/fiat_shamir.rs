@@ -4,13 +4,18 @@
 use crate::math::hash_prime::{hash_prime, PrimalityCheck};
 use crate::vdf::wesolowski::WesolowskisVDF;
 use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigInt;
 use std::marker::PhantomData;
 
 pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> G::ScalarType;
+    fn compute_challenge<M: ScalarMultiplier<G, G::ScalarType>>(
+        vdf: &WesolowskisVDF<G, Self, M>,
+        input: &G,
+        output: &G,
+    ) -> G::ScalarType;
 }
 
 impl<
@@ -19,7 +24,11 @@ impl<
         P: PrimalityCheck,
     > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
 {
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> BigInt {
+    fn compute_challenge<M: ScalarMultiplier<G, BigInt>>(
+        vdf: &WesolowskisVDF<G, Self, M>,
+        input: &G,
+        output: &G,
+    ) -> BigInt {
         let mut seed = vec![];
 
         let input_bytes = input.to_bytes();

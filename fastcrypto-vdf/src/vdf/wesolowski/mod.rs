@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::class_group::QuadraticForm;
 use crate::math::hash_prime::DefaultPrimalityCheck;
 use crate::vdf::VDF;
 use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
@@ -12,6 +13,7 @@ use fiat_shamir::{FiatShamir, StrongFiatShamir};
 use num_bigint::BigInt;
 use num_integer::Integer;
 use std::marker::PhantomData;
+use std::ops::ShlAssign;
 
 pub mod fiat_shamir;
 
@@ -20,15 +22,22 @@ pub const CHALLENGE_SIZE: usize = 33;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
-pub struct WesolowskisVDF<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>
-{
+pub struct WesolowskisVDF<
+    G: ParameterizedGroupElement + UnknownOrderGroupElement,
+    F: FiatShamir<G>,
+    M: ScalarMultiplier<G, G::ScalarType>,
+> {
     group_parameter: G::ParameterType,
     iterations: u64,
     _fiat_shamir: PhantomData<F>,
+    _multiplier: PhantomData<M>,
 }
 
-impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>
-    WesolowskisVDF<G, F>
+impl<
+        G: ParameterizedGroupElement + UnknownOrderGroupElement,
+        F: FiatShamir<G>,
+        M: ScalarMultiplier<G, G::ScalarType>,
+    > WesolowskisVDF<G, F, M>
 {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
@@ -37,6 +46,7 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>
             group_parameter,
             iterations,
             _fiat_shamir: PhantomData::<F>,
+            _multiplier: PhantomData::<M>,
         }
     }
 }
@@ -44,7 +54,8 @@ impl<G: ParameterizedGroupElement + UnknownOrderGroupElement, F: FiatShamir<G>>
 impl<
         G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
         F: FiatShamir<G>,
-    > VDF for WesolowskisVDF<G, F>
+        M: ScalarMultiplier<G, BigInt>,
+    > VDF for WesolowskisVDF<G, F, M>
 {
     type InputType = G;
     type OutputType = G;
@@ -61,15 +72,16 @@ impl<
             output = output.double();
         }
 
-        let challenge = F::compute_challenge(self, input, &output);
+        let multiplier = M::new(input.clone(), G::zero(&self.group_parameter));
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
-        let two = BigInt::from(2);
-        let mut quotient_remainder = two.div_mod_floor(&challenge);
+        let challenge = F::compute_challenge(self, input, &output);
+        let mut quotient_remainder = (BigInt::from(0), BigInt::from(2));
         let mut proof = input.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
-            quotient_remainder = (&quotient_remainder.1 * &two).div_mod_floor(&challenge);
-            proof = proof.double() + &input.mul(&quotient_remainder.0);
+            quotient_remainder.1.shl_assign(1);
+            quotient_remainder = quotient_remainder.1.div_mod_floor(&challenge);
+            proof = proof.double() + &multiplier.mul(&quotient_remainder.0);
         }
 
         Ok((output, proof))
@@ -81,83 +93,29 @@ impl<
         }
 
         let challenge = F::compute_challenge(self, input, output);
-        let f1 = proof.mul(&challenge);
-
         let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
-        let f2 = input.mul(&r);
+        let multiplier = M::new(input.clone(), G::zero(&self.group_parameter));
 
-        if f1 + &f2 != *output {
+        if multiplier.two_scalar_mul(&r, proof, &challenge) != *output {
             return Err(InvalidProof);
         }
         Ok(())
     }
 }
 
-/// A faster method of verification which uses fast multi-scalar multiplication. The scalar size
-/// for the scalar multiplier `M`  must be larger enough to hold the challenge in the Fiat-Shamir
-/// construction `F`.
-pub struct FastVerifier<
-    G: ParameterizedGroupElement + UnknownOrderGroupElement,
-    F: FiatShamir<G>,
-    M: ScalarMultiplier<G, G::ScalarType>,
-> {
-    vdf: WesolowskisVDF<G, F>,
-    input: G,
-    multiplier: M,
-}
-
-impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
-        F: FiatShamir<G>,
-        M: ScalarMultiplier<G, BigInt>,
-    > FastVerifier<G, F, M>
-{
-    /// Create a new FastVerifier for the given VDF instance.
-    pub fn new(vdf: WesolowskisVDF<G, F>, input: G) -> Self {
-        let multiplier = M::new(input.clone(), G::zero(&vdf.group_parameter));
-        Self {
-            vdf,
-            input,
-            multiplier,
-        }
-    }
-
-    /// Verify the output and proof from a VDF using the input given in [new].
-    pub fn verify(&self, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if !self.input.same_group(output) || !self.input.same_group(proof) {
-            return Err(InvalidInput);
-        }
-
-        let challenge = F::compute_challenge(&self.vdf, &self.input, output);
-        let r = BigInt::modpow(
-            &BigInt::from(2),
-            &BigInt::from(self.vdf.iterations),
-            &challenge,
-        );
-        let actual = self.multiplier.two_scalar_mul(&r, proof, &challenge);
-        if actual != *output {
-            return Err(InvalidProof);
-        }
-        Ok(())
-    }
-}
-
-/// Implementation of Wesolowski's VDF construction over a group of unknown order using a strong
+/// Implementation of Wesolowski's VDF construction over an imaginary class group using a strong
 /// Fiat-Shamir implementation.
-pub type StrongVDF<G> =
-    WesolowskisVDF<G, StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>>;
-
-pub type StrongVDFVerifier<G> = FastVerifier<
-    G,
-    StrongFiatShamir<G, CHALLENGE_SIZE, DefaultPrimalityCheck>,
-    WindowedScalarMultiplier<G, BigInt, 256, 5>,
+pub type DefaultVDF = WesolowskisVDF<
+    QuadraticForm,
+    StrongFiatShamir<QuadraticForm, CHALLENGE_SIZE, DefaultPrimalityCheck>,
+    WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
 >;
 
 #[cfg(test)]
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::vdf::wesolowski::{StrongVDF, StrongVDFVerifier};
+    use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
     use crate::{Parameter, ParameterizedGroupElement, ToBytes};
     use num_bigint::BigInt;
@@ -170,7 +128,7 @@ mod tests {
 
         let input = QuadraticForm::generator(&discriminant);
 
-        let vdf = StrongVDF::<QuadraticForm>::new(discriminant, iterations);
+        let vdf = DefaultVDF::new(discriminant, iterations);
         let (output, proof) = vdf.evaluate(&input).unwrap();
 
         // Regression tests
@@ -184,8 +142,5 @@ mod tests {
         let modified_proof = proof.mul(&BigInt::from(2));
         assert!(vdf.verify(&input, &modified_output, &proof).is_err());
         assert!(vdf.verify(&input, &output, &modified_proof).is_err());
-
-        let fast_verifier = StrongVDFVerifier::new(vdf, input);
-        assert!(fast_verifier.verify(&output, &proof).is_ok());
     }
 }

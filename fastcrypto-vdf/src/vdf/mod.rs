@@ -38,7 +38,7 @@ pub trait VDF {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::vdf::wesolowski::StrongVDF;
+    use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
     use crate::ToBytes;
     use fastcrypto::hash::{HashFunction, Sha256};
@@ -60,7 +60,7 @@ mod tests {
         let t = 500;
 
         // VDF construction
-        let vdf = StrongVDF::new(discriminant.clone(), t);
+        let vdf = DefaultVDF::new(discriminant.clone(), t);
 
         // Add some randomness
         let mut combined_randomness = Vec::new();
