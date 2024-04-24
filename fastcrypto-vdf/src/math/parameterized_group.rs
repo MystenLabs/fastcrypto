@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
 use std::ops::{Add, Mul, Neg};
