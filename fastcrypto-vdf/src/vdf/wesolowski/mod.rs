@@ -2,9 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::QuadraticForm;
-use crate::math::hash_prime::DefaultPrimalityCheck;
+use crate::math::parameterized_group::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::vdf::VDF;
-use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
@@ -18,7 +17,7 @@ use std::ops::ShlAssign;
 pub mod fiat_shamir;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
-pub const CHALLENGE_SIZE: usize = 33;
+pub const CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -30,7 +29,7 @@ pub struct WesolowskisVDF<
     group_parameter: G::ParameterType,
     iterations: u64,
     _fiat_shamir: PhantomData<F>,
-    _multiplier: PhantomData<M>,
+    _scalar_multiplier: PhantomData<M>,
 }
 
 impl<
@@ -46,7 +45,7 @@ impl<
             group_parameter,
             iterations,
             _fiat_shamir: PhantomData::<F>,
-            _multiplier: PhantomData::<M>,
+            _scalar_multiplier: PhantomData::<M>,
         }
     }
 }
@@ -62,6 +61,10 @@ impl<
     type ProofType = G;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
+        if input.parameter() != self.group_parameter {
+            return Err(InvalidInput);
+        }
+
         if self.iterations == 0 {
             return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
@@ -88,7 +91,10 @@ impl<
     }
 
     fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if !input.same_group(output) || !input.same_group(proof) {
+        if input.parameter() != self.group_parameter
+            || output.parameter() != self.group_parameter
+            || proof.parameter() != self.group_parameter
+        {
             return Err(InvalidInput);
         }
 
@@ -107,7 +113,7 @@ impl<
 /// Fiat-Shamir implementation.
 pub type DefaultVDF = WesolowskisVDF<
     QuadraticForm,
-    StrongFiatShamir<QuadraticForm, CHALLENGE_SIZE, DefaultPrimalityCheck>,
+    StrongFiatShamir<CHALLENGE_SIZE_IN_BYTES>,
     WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
 >;
 
@@ -115,9 +121,9 @@ pub type DefaultVDF = WesolowskisVDF<
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
+    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
-    use crate::{Parameter, ParameterizedGroupElement};
     use num_bigint::BigInt;
 
     #[test]
@@ -132,8 +138,8 @@ mod tests {
         let (output, proof) = vdf.evaluate(&input).unwrap();
 
         // Regression tests
-        assert_eq!(bcs::to_bytes(&output).unwrap(), hex::decode("01081e2a82551ae307d41f5911d77dba2ad514d8e24cce3ab844c37c58229e79ff2401083f2e37dd920d492f2f96afcf31ae635862db24ae6f2be06e5abdb4094ea81f0501096ffcc890eabda456cf6481ce5e61fec3a0ca8d31d8ea88876cd28b0416c54c7101000000").unwrap());
-        assert_eq!(bcs::to_bytes(&proof).unwrap(), hex::decode("01088236ca603c81f4fa05227e05bf916f21d77b709d07a2818624c522f1b0a0198001089921074318373eb335f7eee012fd3c07470153f5545d2e68d1a3e164e153dd7a0108ff433ea21662d09a0d03c42cf4b63c90f583110886741984693478bb4a281288").unwrap());
+        assert_eq!(bcs::to_bytes(&output).unwrap(), hex::decode("2024ff799e22587cc344b83ace4ce2d814d52aba7dd711591fd407e31a55822a1e20051fa84e09b4bd5a6ee02b6fae24db625863ae31cfaf962f2f490d92dd372e3f2101714cc516048bd26c8788ead8318dcaa0c3fe615ece8164cf56a4bdea90c8fc6f").unwrap());
+        assert_eq!(bcs::to_bytes(&proof).unwrap(), hex::decode("206073d81fed637a8640632a41d040c22851cd240eabb1346994bd996e8f018b7620b2a15fe0116fc1dfc6e33088cbd1615423b92fee08ec2077f794df1886436c6721009d1b3148590a3e1097ab83ad6bcceec1fcee78da679bddae9213dbd930b8684d").unwrap());
 
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 

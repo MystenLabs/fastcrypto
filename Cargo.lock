@@ -1486,6 +1486,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "serde",
+ "serde_with",
 ]
 
 [[package]]
@@ -2268,7 +2269,6 @@ dependencies = [
  "num-integer",
  "num-traits",
  "rand",
- "serde",
 ]
 
 [[package]]

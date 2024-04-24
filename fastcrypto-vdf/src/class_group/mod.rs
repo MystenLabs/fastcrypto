@@ -6,7 +6,7 @@
 //! for the composition.
 
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-use crate::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use crate::math::parameterized_group::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use core::cell::OnceCell;
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -38,11 +38,20 @@ pub(crate) mod reduction;
 /// discriminants and methods to create them.
 pub mod discriminant;
 
+/// Serialization and deserialization for `num_bigint::BigInt`. The format used in num_bigint is
+/// a serialization of the u32 words which is hard to port to other platforms. Instead we serialize
+/// a big integer as the two's-complement byte representation in big-endian byte order. See also
+/// [BigInt::to_signed_bytes_be].
+mod bigint_serde;
+
 /// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
 #[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct QuadraticForm {
+    #[serde(with = "bigint_serde")]
     pub a: BigInt,
+    #[serde(with = "bigint_serde")]
     pub b: BigInt,
+    #[serde(with = "bigint_serde")]
     pub c: BigInt,
     #[serde(skip)]
     partial_gcd_limit: OnceCell<BigInt>,
@@ -323,8 +332,8 @@ impl ParameterizedGroupElement for QuadraticForm {
         result
     }
 
-    fn same_group(&self, other: &Self) -> bool {
-        self.discriminant() == other.discriminant()
+    fn parameter(&self) -> Self::ParameterType {
+        self.discriminant()
     }
 }
 
