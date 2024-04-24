@@ -45,8 +45,8 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn vdf_e2e_test_1024() {
-        // This test runs an e2e test of the VDF protocol as it is supposed to be run on SUI.
+    fn vdf_e2e_test() {
+        // This test runs an e2e test of the VDF-based randomness protocol with a 3072 bit discriminant.
 
         // Fixed 3072 bit discriminant.
         let discriminant =
@@ -54,10 +54,8 @@ mod tests {
                 .unwrap();
 
         // Number of iterations for the VDF
-        let t = 100;
-
-        // VDF construction
-        let vdf = DefaultVDF::new(discriminant.clone(), t);
+        let iterations = 100;
+        let vdf = DefaultVDF::new(discriminant.clone(), iterations);
 
         // Add some randomness
         let mut combined_randomness = Vec::new();
@@ -89,14 +87,11 @@ mod tests {
         // Verify the output and proof
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 
-        // Try with another input. This should fail.
-        let another_input = QuadraticForm::hash_to_group_with_default_parameters(
-            b"some other randomness",
-            &discriminant,
-        )
-        .unwrap();
-
-        // Verify the output and proof
-        assert!(vdf.verify(&another_input, &output, &proof).is_err());
+        // Derive randomness from the output
+        let randomness = Sha256::digest(&bcs::to_bytes(&output).unwrap());
+        let expected =
+            hex::decode("f9ea418d988bbe5b13839bb5958aa78d43cc9f57b3dc9d84cebc7c1f5b1a338e")
+                .unwrap();
+        assert_eq!(randomness.to_vec(), expected);
     }
 }
