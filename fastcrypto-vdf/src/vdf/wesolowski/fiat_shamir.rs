@@ -10,6 +10,9 @@ use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigInt;
 use serde::Serialize;
 
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
+
 pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
@@ -23,11 +26,9 @@ pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: S
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
 /// The implementation is strong, meaning that all public parameters are used in the challenge generation.
 /// See https://eprint.iacr.org/2023/691.
-pub struct StrongFiatShamir<const CHALLENGE_SIZE: usize> {}
+pub struct StrongFiatShamir {}
 
-impl<const CHALLENGE_SIZE_IN_BYTES: usize> FiatShamir<QuadraticForm>
-    for StrongFiatShamir<CHALLENGE_SIZE_IN_BYTES>
-{
+impl FiatShamir<QuadraticForm> for StrongFiatShamir {
     fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigInt>>(
         vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
         input: &QuadraticForm,
@@ -42,8 +43,8 @@ impl<const CHALLENGE_SIZE_IN_BYTES: usize> FiatShamir<QuadraticForm>
         .expect("Failed to serialize FiatShamirInput");
         hash_prime::<DefaultPrimalityCheck>(
             &seed,
-            CHALLENGE_SIZE_IN_BYTES,
-            &[0, 8 * CHALLENGE_SIZE_IN_BYTES - 1],
+            DEFAULT_CHALLENGE_SIZE_IN_BYTES,
+            &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
         )
         .into()
     }

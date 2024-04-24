@@ -16,9 +16,6 @@ use std::ops::ShlAssign;
 
 pub mod fiat_shamir;
 
-/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification (same as chiavdf).
-pub const CHALLENGE_SIZE_IN_BYTES: usize = 33;
-
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
 pub struct WesolowskisVDF<
@@ -113,7 +110,7 @@ impl<
 /// Fiat-Shamir implementation.
 pub type DefaultVDF = WesolowskisVDF<
     QuadraticForm,
-    StrongFiatShamir<CHALLENGE_SIZE_IN_BYTES>,
+    StrongFiatShamir,
     WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
 >;
 
