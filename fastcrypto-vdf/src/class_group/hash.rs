@@ -4,7 +4,7 @@
 use crate::class_group::discriminant::Discriminant;
 use crate::class_group::QuadraticForm;
 use crate::math::crt::solve_congruence_equation_system;
-use crate::math::hash_prime::{DefaultPrimalityCheck, PrimalityCheck};
+use crate::math::hash_prime::is_probable_prime;
 use crate::math::jacobi;
 use crate::math::modular_sqrt::modular_square_root;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -123,7 +123,7 @@ fn sample_modulus(
             if jacobi::jacobi(discriminant.as_bigint(), &factor)
                 .expect("factor is odd and positive")
                 == 1
-                && DefaultPrimalityCheck::is_probable_prime(factor.magnitude())
+                && is_probable_prime(factor.magnitude())
             {
                 // Found a valid factor
                 break;

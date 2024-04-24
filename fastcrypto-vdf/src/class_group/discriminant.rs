@@ -51,7 +51,7 @@ impl Parameter for Discriminant {
         }
         // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
         Self::try_from(
-            hash_prime::hash_prime_default(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
+            hash_prime::hash_prime(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
                 .to_bigint()
                 .expect("Never fails")
                 .neg(),

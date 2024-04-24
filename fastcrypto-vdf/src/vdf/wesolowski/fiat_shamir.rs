@@ -3,7 +3,7 @@
 
 use crate::class_group::discriminant::Discriminant;
 use crate::class_group::QuadraticForm;
-use crate::math::hash_prime::{hash_prime, DefaultPrimalityCheck};
+use crate::math::hash_prime::hash_prime;
 use crate::math::parameterized_group::{ParameterizedGroupElement, UnknownOrderGroupElement};
 use crate::vdf::wesolowski::WesolowskisVDF;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
@@ -41,7 +41,7 @@ impl FiatShamir<QuadraticForm> for StrongFiatShamir {
             group_parameter: &vdf.group_parameter,
         })
         .expect("Failed to serialize FiatShamirInput");
-        hash_prime::<DefaultPrimalityCheck>(
+        hash_prime(
             &seed,
             DEFAULT_CHALLENGE_SIZE_IN_BYTES,
             &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
