@@ -44,6 +44,3 @@ pub trait ParameterizedGroupElement:
     /// Return the parameter for the group this element belongs to.
     fn parameter(&self) -> Self::ParameterType;
 }
-
-/// Trait impl'd by elements of groups where the order is unknown.
-pub trait UnknownOrderGroupElement {}

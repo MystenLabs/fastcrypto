@@ -6,7 +6,7 @@
 //! for the composition.
 
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-use crate::math::parameterized_group::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use crate::math::parameterized_group::ParameterizedGroupElement;
 use core::cell::OnceCell;
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -373,8 +373,6 @@ impl Neg for QuadraticForm {
         }
     }
 }
-
-impl UnknownOrderGroupElement for QuadraticForm {}
 
 impl PartialEq for QuadraticForm {
     fn eq(&self, other: &Self) -> bool {

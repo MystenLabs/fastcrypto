@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::class_group::QuadraticForm;
-use crate::math::parameterized_group::{ParameterizedGroupElement, UnknownOrderGroupElement};
+use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -19,7 +19,7 @@ mod fiat_shamir;
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
 pub struct WesolowskisVDF<
-    G: ParameterizedGroupElement + UnknownOrderGroupElement,
+    G: ParameterizedGroupElement,
     F: FiatShamir<G>,
     M: ScalarMultiplier<G, G::ScalarType>,
 > {
@@ -29,11 +29,8 @@ pub struct WesolowskisVDF<
     _scalar_multiplier: PhantomData<M>,
 }
 
-impl<
-        G: ParameterizedGroupElement + UnknownOrderGroupElement,
-        F: FiatShamir<G>,
-        M: ScalarMultiplier<G, G::ScalarType>,
-    > WesolowskisVDF<G, F, M>
+impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, G::ScalarType>>
+    WesolowskisVDF<G, F, M>
 {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
@@ -48,7 +45,7 @@ impl<
 }
 
 impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
+        G: ParameterizedGroupElement<ScalarType = BigInt>,
         F: FiatShamir<G>,
         M: ScalarMultiplier<G, BigInt>,
     > VDF for WesolowskisVDF<G, F, M>
