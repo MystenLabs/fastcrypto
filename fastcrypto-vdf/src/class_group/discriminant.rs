@@ -82,12 +82,12 @@ mod tests {
         // Invalid modulus
         let candidate = BigInt::from(-29);
         assert!(candidate.is_negative());
-        assert!(Discriminant::try_from(BigInt::from(candidate)).is_err());
+        assert!(Discriminant::try_from(candidate).is_err());
 
         // Invalid sign
         let candidate = BigInt::from(17);
         assert!(candidate.mod_floor(&BigInt::from(8)) == BigInt::from(1));
-        assert!(Discriminant::try_from(BigInt::from(candidate)).is_err());
+        assert!(Discriminant::try_from(candidate).is_err());
     }
 
     #[test]
