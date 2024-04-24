@@ -88,7 +88,7 @@ mod tests {
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 
         // Derive randomness from the output
-        let randomness = Sha256::digest(&bcs::to_bytes(&output).unwrap());
+        let randomness = Sha256::digest(bcs::to_bytes(&output).unwrap());
         let expected =
             hex::decode("f9ea418d988bbe5b13839bb5958aa78d43cc9f57b3dc9d84cebc7c1f5b1a338e")
                 .unwrap();
