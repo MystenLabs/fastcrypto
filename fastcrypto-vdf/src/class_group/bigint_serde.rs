@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use num_bigint::BigInt;
 use serde::Deserialize;
 use serde::Deserializer;
