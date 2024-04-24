@@ -14,7 +14,7 @@ use num_integer::Integer;
 use std::marker::PhantomData;
 use std::ops::ShlAssign;
 
-pub mod fiat_shamir;
+mod fiat_shamir;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
@@ -58,12 +58,8 @@ impl<
     type ProofType = G;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
-        if input.parameter() != self.group_parameter {
+        if input.parameter() != self.group_parameter || self.iterations == 0 {
             return Err(InvalidInput);
-        }
-
-        if self.iterations == 0 {
-            return Ok((input.clone(), G::zero(&self.group_parameter)));
         }
 
         // Compute output = 2^iterations * input
