@@ -38,45 +38,27 @@ impl Iterator for HashPrimeIterator {
     }
 }
 
-/// Implementation of a probabilistic primality test.
-pub trait PrimalityCheck {
-    /// Return true if `x` is probably a prime. If `false` is returned, `x` is guaranteed to be composite.
-    fn is_probable_prime(x: &BigUint) -> bool;
-}
-
 /// Implementation of HashPrime from chiavdf ():
 /// Generates a random pseudo-prime using the hash and check method:
 /// Randomly chooses x with bit-length `length`, then applies a mask
 ///   (for b in bitmask) { x |= (1 << b) }.
 /// Then return x if it is a pseudo-prime, otherwise repeat.
-pub(crate) fn hash_prime<P: PrimalityCheck>(
-    seed: &[u8],
-    length_in_bytes: usize,
-    bitmask: &[usize],
-) -> BigUint {
+pub(crate) fn hash_prime(seed: &[u8], length_in_bytes: usize, bitmask: &[usize]) -> BigUint {
     let mut iterator = HashPrimeIterator {
         seed: seed.to_vec(),
         length_in_bytes,
         bitmask: bitmask.to_vec(),
     };
-    iterator.find(|x| P::is_probable_prime(x)).unwrap()
+    iterator.find(is_probable_prime).unwrap()
 }
 
-/// Implementation of [hash_prime] using the primality test from `num_prime::nt_funcs::is_prime`.
-pub fn hash_prime_default(seed: &[u8], length_in_bytes: usize, bitmask: &[usize]) -> BigUint {
-    hash_prime::<DefaultPrimalityCheck>(seed, length_in_bytes, bitmask)
-}
-
-/// Implementation of the [PrimalityCheck] trait using the primality test from `num_prime::nt_funcs::is_prime`.
-pub struct DefaultPrimalityCheck {}
-
-impl PrimalityCheck for DefaultPrimalityCheck {
-    fn is_probable_prime(x: &BigUint) -> bool {
-        // We use the Baillie-PSW primality test here. This is accordance with the recommendations of "Prime and
-        // Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
-        // because this test is also used in use cases where an adversary could influence the input.
-        is_prime(x, Some(PrimalityTestConfig::bpsw())).probably()
-    }
+/// Check if the input is a probable prime.
+///
+/// We use the Baillie-PSW primality test here. This is in accordance with the recommendations of "Prime and
+/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
+/// because this test is also used in use cases where an adversary could influence the input.
+pub fn is_probable_prime(x: &BigUint) -> bool {
+    is_prime(x, Some(PrimalityTestConfig::bpsw())).probably()
 }
 
 #[cfg(test)]
@@ -93,7 +75,7 @@ mod tests {
         let length = 64;
         let bitmask: [usize; 3] = [0, 1, 8 * length - 1];
 
-        let prime = hash_prime_default(&seed, length, &bitmask);
+        let prime = hash_prime(&seed, length, &bitmask);
 
         // Prime has right length
         assert_eq!((length * 8) as u64, prime.bits());
