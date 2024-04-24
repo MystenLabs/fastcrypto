@@ -93,7 +93,9 @@ pub fn get_bits_from_bytes(bytes: &[u8], start: usize, end: usize) -> usize {
 /// Return true iff the bit at the given index is set.
 #[inline]
 pub fn test_bit(bytes: &[u8], index: usize) -> bool {
-    assert!(index < 8 * bytes.len());
+    if index >= 8 * bytes.len() {
+        return false;
+    }
     let byte = index >> 3;
     let shifted = bytes[byte] >> (index & 7);
     shifted & 1 != 0
