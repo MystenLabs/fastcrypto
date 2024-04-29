@@ -42,15 +42,18 @@ impl Discriminant {
         &self.0
     }
 
-    /// Check the primality of this discriminant.
-    pub fn check_primality(&self) -> bool {
-        is_probable_prime(
+    /// Check the primality of this discriminant and return an error if it is not prime.
+    pub fn check_primality(&self) -> FastCryptoResult<()> {
+        match is_probable_prime(
             &self
                 .0
                 .abs()
                 .to_biguint()
                 .expect("Absolute value is non-negative"),
-        )
+        ) {
+            true => Ok(()),
+            false => Err(InvalidInput),
+        }
     }
 }
 
@@ -104,7 +107,7 @@ mod tests {
         // Not prime
         let candidate = BigInt::from(-231);
         let discriminant = Discriminant::try_from(candidate).unwrap();
-        assert!(!discriminant.check_primality());
+        assert!(discriminant.check_primality().is_err());
     }
 
     #[test]
@@ -113,7 +116,7 @@ mod tests {
         let target_size = 1024;
         let discriminant = Discriminant::from_seed(&seed, target_size).unwrap();
         assert_eq!(discriminant.bits() as usize, target_size);
-        assert!(discriminant.check_primality());
+        assert!(discriminant.check_primality().is_ok());
 
         // Test vector from chiavdf computed using https://github.com/Chia-Network/chiavdf/blob/2844974ff81274060778a56dfefd2515bc567b90/tests/test_verifier.py.
         assert_eq!(discriminant.as_bigint().to_str_radix(16), "-95a0b0523b6c516e813d745e7e58b3c7223d511f6008a0ff2757c9a0f15cba8841293cc903af3a40654670c9dee17ec14da1457360aafe40a93831d90c3dd59738d8a24e415b6e33780224fa24171de1d4a1ca5fe4c877bf44361e7ba869126ac12367714eb4246a5e310515508ad35e170aee19cae371069d6d92e94c21d63f");
@@ -125,12 +128,12 @@ mod tests {
         let bytes = bcs::to_bytes(&discriminant).unwrap();
         let discriminant2 = bcs::from_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
-        assert!(discriminant.check_primality());
+        assert!(discriminant.check_primality().is_ok());
 
         let discriminant = Discriminant::from_seed(&[0x01, 0x02, 0x03], 512).unwrap();
         let bytes = bcs::to_bytes(&discriminant).unwrap();
         let discriminant2 = bcs::from_bytes(&bytes).unwrap();
         assert_eq!(discriminant, discriminant2);
-        assert!(discriminant.check_primality());
+        assert!(discriminant.check_primality().is_ok());
     }
 }
