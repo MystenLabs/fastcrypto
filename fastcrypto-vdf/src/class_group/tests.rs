@@ -34,7 +34,7 @@ fn test_composition() {
 #[test]
 fn test_qf_to_from_bytes() {
     let discriminant = Discriminant::try_from(BigInt::from(-223)).unwrap();
-    let expected = QuadraticForm::generator(&discriminant) * &BigInt::from(123);
+    let expected = QuadraticForm::generator(&discriminant) * &BigInt::from(5);
     let bytes = bcs::to_bytes(&expected).unwrap();
     let actual = bcs::from_bytes(&bytes).unwrap();
     assert_eq!(expected, actual);
