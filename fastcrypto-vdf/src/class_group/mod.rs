@@ -84,13 +84,12 @@ impl QuadraticForm {
     }
 
     /// The GCD computation in composition may finish early when coefficients are below this limit
-    /// which is set lazily to `|discriminant/4|^{1/4}`. See Algorithm 5.4.8 in Cohen, H. (1993),
-    /// "A Course in Computational Algebraic Number Theory".
+    /// which is set lazily to `L = |discriminant|^{1/4}`. Algorithm 1 from Jacobson, Jr, Michael &
+    /// Poorten, Alfred (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
+    /// (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
     fn partial_gcd_limit(&self) -> &BigInt {
-        self.partial_gcd_limit.get_or_init(|| {
-            let shifted_discriminant: BigInt = self.discriminant().as_bigint().abs().shr(2);
-            shifted_discriminant.nth_root(4)
-        })
+        self.partial_gcd_limit
+            .get_or_init(|| self.discriminant().as_bigint().abs().nth_root(4))
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
