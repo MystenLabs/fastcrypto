@@ -57,7 +57,7 @@ pub(crate) fn modular_square_root(
                 }
             }
             let p_minus_1: BigInt = p - 1;
-            let s = p_minus_1.trailing_zeros().expect("p is not 1");
+            let s = p_minus_1.trailing_zeros().expect("p is verified to be > 1");
             let t = &p_minus_1 >> s;
 
             let a_t = a.modpow(&t, p);

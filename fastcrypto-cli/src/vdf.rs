@@ -165,7 +165,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                 bcs::from_bytes::<QuadraticForm>(&hex::decode(arguments.input).map_err(|_| {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
                 })?)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input."))?;
             if input.discriminant() != discriminant {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
