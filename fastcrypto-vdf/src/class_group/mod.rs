@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Borrow;
 use std::mem::swap;
-use std::ops::{Add, Mul, Neg};
+use std::ops::{Add, Mul, Neg, Shr};
 
 #[cfg(test)]
 mod tests;
@@ -83,11 +83,14 @@ impl QuadraticForm {
         })
     }
 
-    /// The GCD computation in composition may when coefficients are below this limit which is set
-    /// to `|discriminant|^{1/4}`.
+    /// The GCD computation in composition may finish early when coefficients are below this limit
+    /// which is set lazily to `|discriminant/4|^{1/4}`. See Algorithm 5.4.8 in Cohen, H. (1993),
+    /// "A Course in Computational Algebraic Number Theory".
     fn partial_gcd_limit(&self) -> &BigInt {
-        self.partial_gcd_limit
-            .get_or_init(|| self.discriminant().as_bigint().abs().nth_root(4))
+        self.partial_gcd_limit.get_or_init(|| {
+            let shifted_discriminant: BigInt = self.discriminant().as_bigint().abs().shr(2);
+            shifted_discriminant.nth_root(4)
+        })
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -376,7 +379,8 @@ impl Neg for QuadraticForm {
 
 impl PartialEq for QuadraticForm {
     fn eq(&self, other: &Self) -> bool {
-        // Ignore the partial_gcd_limit field
+        // Ignore the partial_gcd_limit field. This field is computed lazily and is not part of the
+        // actual value of the QuadraticForm.
         self.a == other.a && self.b == other.b && self.c == other.c
     }
 }
