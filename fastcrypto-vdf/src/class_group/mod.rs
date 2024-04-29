@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::borrow::Borrow;
 use std::mem::swap;
-use std::ops::{Add, Mul, Neg, Shr};
+use std::ops::{Add, Mul, Neg};
 
 #[cfg(test)]
 mod tests;
