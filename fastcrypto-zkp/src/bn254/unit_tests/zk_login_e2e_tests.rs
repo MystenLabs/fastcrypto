@@ -233,6 +233,7 @@ struct TestInputStruct {
 
 #[proptest(async = "tokio")]
 async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
+    // this test is mean to run a long time (~10 minutes on macbook)
     async {
         let jwt_randomness = BigUint::from_bytes_be(&test_input.jwt_rand_bytes).to_string();
         let user_salt = BigUint::from_bytes_be(&test_input.salt_bytes).to_string();

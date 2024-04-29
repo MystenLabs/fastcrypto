@@ -215,6 +215,7 @@ pub async fn get_test_issuer_jwt_token(
             nonce, iss, sub
         ))
         .header("Content-Type", "application/json")
+        .header("Content-Length", "0")
         .send()
         .await
         .map_err(|_| FastCryptoError::InvalidInput)?;
