@@ -80,7 +80,7 @@ impl<'de> Deserialize<'de> for Discriminant {
         D: Deserializer<'de>,
     {
         Self::try_from(crate::class_group::bigint_serde::deserialize(deserializer)?)
-            .map_err(serde::de::Error::custom)
+            .map_err(serde::de::Error::invalid_value)
     }
 }
 
