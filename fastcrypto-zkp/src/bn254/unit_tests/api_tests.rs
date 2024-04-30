@@ -5,7 +5,8 @@ use crate::bn254::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bn254::verifier::PreparedVerifyingKey;
 use crate::bn254::VerifyingKey;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use ark_bn254::{Bn254, Fr};
+use ark_bn254::{Bn254, Fq12, Fr, G1Projective, G2Projective};
+use ark_ff::{One, Zero};
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
@@ -99,8 +100,8 @@ fn test_prepare_pvk_bytes() {
 fn test_verify_groth16_in_bytes_multiple_inputs() {
     let mut rng = thread_rng();
 
-    let a = Fr::from(123);
-    let b = Fr::from(456);
+    let a = Fr::from(0);
+    let b = Fr::from(0);
 
     let params = {
         let circuit = Fibonacci::<Fr>::new(42, a, b);
@@ -118,11 +119,14 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     assert!(Groth16::<Bn254>::verify_with_processed_vk(&(&pvk).into(), &inputs, &proof).unwrap());
 
     let pvk = pvk.serialize().unwrap();
+    pvk.iter()
+        .for_each(|x| println!("pvk: {:?}", hex::encode(x)));
 
     // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();
     a.serialize_compressed(&mut inputs_bytes).unwrap();
     b.serialize_compressed(&mut inputs_bytes).unwrap();
+    println!("inputs_bytes: {:?}", hex::encode(&inputs_bytes));
 
     // Proof::write serializes uncompressed and also adds a length to each element, so we serialize
     // each individual element here to avoid that.
@@ -130,6 +134,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     proof.a.serialize_compressed(&mut proof_bytes).unwrap();
     proof.b.serialize_compressed(&mut proof_bytes).unwrap();
     proof.c.serialize_compressed(&mut proof_bytes).unwrap();
+    println!("proof: {:?}", hex::encode(&proof_bytes));
 
     assert!(verify_groth16_in_bytes(
         &pvk[0],
@@ -578,6 +583,64 @@ fn api_regression_tests() {
     let delta_g2_neg_pc_bytes = hex::decode("06639a71c443532e6c7797e0b18926ea09962bd2fdad9a7130df397463afd315b4bfda26cbef66c4f62f6e65a90d70f058df1f57216846e93890f9b2be68ce85").unwrap();
     let public_inputs_bytes = hex::decode("7b00000000000000000000000000000000000000000000000000000000000000c801000000000000000000000000000000000000000000000000000000000000").unwrap();
     let proof_bytes = hex::decode("537a1b8ba0fc0f2b456c59769a58f22fbf9228311f5cc9070e7358e28c51d2033984c58d47b747c7e07bc87520f14e19029042259a21a910040b87533bf3c32613261dbeffd2913f3627895532b49e9cf623fdfa94e4ef9c040086b397ad640c54c165811c46fa50a880a7b8616d2165848b8f631db25b1b1ebf7fe021f4a11a").unwrap();
+    assert!(verify_groth16_in_bytes(
+        &vk_gamma_abc_g1_bytes,
+        &alpha_g1_beta_g2_bytes,
+        &gamma_g2_neg_pc_bytes,
+        &delta_g2_neg_pc_bytes,
+        &public_inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    // Zeros as public inputs
+    let vk_gamma_abc_g1_bytes = hex::decode("7329e3fb0f59e62c7a88ec42ca108a94f525298de1fa7640123daa7469fd1102dacd7b18f373a7ecf75fba98b812367196ff4e62ad4653f0feba143a6ec268a9442f7562a719360f83480bf4624adfdb80faaf2302b0a6022caf32de5a120d8d").unwrap();
+    let alpha_g1_beta_g2_bytes = hex::decode("b45caf631bc5d75cf3f00a7520380275d826a41b5641e1acba32b29aea45661480ed201e35888a845744ee5565688aedcc4a25f50fedfc169479285476fc7100a1f525423181d8a1088ee24a9b7e8f91d0bc3465493b591172f3a1a8330f911a2681fee88569d6eac0be6e741f2edd22a244f937db29524a3ed9ddd79112202d194bdc21fe7b374fee3cd4b6395ecb14986054a2b3e2348c496ed12f5db1c806dd1df76a9faa0f62118ea4eb217735206196cf16284f7b5d1bb7fdabc323f02022550841d98b365c22d5d962f4c544bab40059dc5cf576a3c31a1e00cd107c2549df1e99e8837b2e8fe9e846a0f8fdbdf0d47f1051bc280d6cf41fa205d1b72a5be7f6dacca14fc38f83adfa72a38c870cb1e2d638bba767677f087ab65bdd12c9f857334cbcb8d4cdffb901c9ce6123d2525bd93765db4214900ba26a26ce06fa5c661f0a38affe716a95876b394cc20b6862dd112e01be3dec14d7f76b441049cbd5ca74358fd4f4c4027f28b7028a4f49f20129eb28b0f0e861e34bf80805").unwrap();
+    let gamma_g2_neg_pc_bytes = hex::decode("f43620ffdf673339d95fbd4b40fbce43b7d4487b58b13f8c9ab146de9c992910ee2953bbad19f7374146404f9fb9a4d4c4668d999e1a125357dcfe8d8d6aaa19").unwrap();
+    let delta_g2_neg_pc_bytes = hex::decode("fbb7656bf9f28ccfbeb13b78811bd4fb8cc4dcc301bccf8b7f604c60a13caf1996a518acb5ee768617e54dfab6aa3743881a62b2dfd4222fa13d4f85de913216").unwrap();
+    let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    let proof_bytes = hex::decode("52ce4e209a74e81322849ec341378c332cdb08ba74cd8804e763d4d1af73778cce951ab584d2100a1fd9edd2eec8e8f929029bdd9cf8f9fdaccb683368e797092f5d1415f6e26a8604dd87a85b66faa68fcb00627952d21dbeb8392e52692c83f0fc821e2bb35e09cfb3316d9266a2de90d79d67344b6d727b6eac573a0a6d8a").unwrap();
+    assert!(verify_groth16_in_bytes(
+        &vk_gamma_abc_g1_bytes,
+        &alpha_g1_beta_g2_bytes,
+        &gamma_g2_neg_pc_bytes,
+        &delta_g2_neg_pc_bytes,
+        &public_inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    // Trivial proof with all zeros/identity elements
+    let mut g1_inf_bytes = vec![];
+    G1Projective::zero()
+        .serialize_compressed(&mut g1_inf_bytes)
+        .unwrap();
+
+    let mut vk_gamma_abc_g1_bytes = vec![];
+    vk_gamma_abc_g1_bytes.extend_from_slice(&g1_inf_bytes);
+    vk_gamma_abc_g1_bytes.extend_from_slice(&g1_inf_bytes);
+    vk_gamma_abc_g1_bytes.extend_from_slice(&g1_inf_bytes);
+
+    let mut alpha_g1_beta_g2_bytes = vec![];
+    Fq12::one()
+        .serialize_compressed(&mut alpha_g1_beta_g2_bytes)
+        .unwrap();
+
+    let mut g2_inf_bytes = vec![];
+    G2Projective::zero()
+        .serialize_compressed(&mut g2_inf_bytes)
+        .unwrap();
+
+    let gamma_g2_neg_pc_bytes = g2_inf_bytes.clone();
+    let delta_g2_neg_pc_bytes = g2_inf_bytes.clone();
+    let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+
+    let mut proof_bytes = vec![];
+    proof_bytes.extend_from_slice(&g1_inf_bytes);
+    proof_bytes.extend_from_slice(&g2_inf_bytes);
+    proof_bytes.extend_from_slice(&g1_inf_bytes);
+
+    // The trivial proof should pass verification
     assert!(verify_groth16_in_bytes(
         &vk_gamma_abc_g1_bytes,
         &alpha_g1_beta_g2_bytes,
