@@ -274,10 +274,8 @@ fn api_regression_tests() {
         .to_vec();
 
     // Expects two public inputs, so the vk needs three elements here
-    vk_gamma_abc_g1_bytes
-        .extend_from_slice(&G1Element::zero().to_byte_array());
-    vk_gamma_abc_g1_bytes
-        .extend_from_slice(&G1Element::zero().to_byte_array());
+    vk_gamma_abc_g1_bytes.extend_from_slice(&G1Element::zero().to_byte_array());
+    vk_gamma_abc_g1_bytes.extend_from_slice(&G1Element::zero().to_byte_array());
 
     // The API expects serialization like in Arkworks for GT elements
     let mut alpha_g1_beta_g2_bytes = vec![];
