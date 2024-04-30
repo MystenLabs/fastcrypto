@@ -221,4 +221,64 @@ fn api_regression_tests() {
         &proof_bytes
     )
     .unwrap());
+
+    // Zeros as public inputs
+    let vk_gamma_abc_g1_bytes = hex::decode("8e954e274e57e8f5b7e35f26a5656e13bc8aecdc21356cdae06113990f0aa7661f842c274823ee55b064f3be7d7dbd16ae9ad36e2aef40c9b9046145dd4f969d3933d41caca8f8e035b31fbe152a66aa73c6882f9facbf4600b6b86967b22b5691f6d5353d418b4d14b724a66959ea1693f04bbe2272b250286632ef7f808833e74b5987bcd5ae2255c16807d031185a").unwrap();
+    let alpha_g1_beta_g2_bytes = hex::decode("2c2c4d1819ec799bf861c9b1901f275a4c2df57e009a2d90d201d304fcd4945e07d065a02e447cadf7738220d299460dfa5053ff66e20e4ce1451887f3c4e4be7bf4ec95461c84efe461ce0123711d5cae16594197325cb69d786e83c995a611cf885dde4ed4c30db200bf6bc064fa81b0d5ecb65ac817be597aa117d930688ec881e8dc7c88b518137f7c94bfc8d0189956357496d8c44ae433a8dd688c2a63ea080df898e0e035c2673b342c911d5f27b411b33e99f038f4bb64e40384580f2c4ce255ed949399c38576be9d052337e7111c2457c7471f4d36e51ed979ac48ff4aee14d0368342be9756be1482f515bbfb2b7d2089d1654f751af828a5d94aeb1f22e0d02c40734324dddab49aca522411a6c11c0d6633d9f92b4fdc964e139e5b230be6f9e31a5ddd5995fe66f3eb3c4b1ed052c868a5de1466baa1ae23b132dccc90120460cbb8209754bdecbf00c7ac892c017ce784f13e1cfcb6438f0402dbadf4f61abde6decdfebcaff344fa6a2e43a0126df3c6b3d0d60c96e484007260d5d03e1aa819046c0888fae6351ae962f54f0fd699dfcf8501aec23d5ee90061d98567372307f25cc96a2f27550a233800ae30ce5fc94e2e1b815b38739b26206a5e8d4a1d30d5beb8ed78d3c5c67e1e32a38d59ef610c16de2de920a40b6f0068bb878516c899a47bfdc686c9d82acc91420ecca2fe11bb978176e5f1215f88ca073654f2f2c94d3a6a44810711d7ecf60cc07b0fc16a84aae378e36930c39b98f2eb5b45d086b45412cc638fc32b65cc5aadfe8e9f73c6bea7a7921317").unwrap();
+    let gamma_g2_neg_pc_bytes = hex::decode("ae02f7ff1f3220149bd88aa0dcc9f970f98ca6410dca0ef89f1f36f62c24b3f19f7bb0307c537461fa66320602cf623308d43485e95f07a4fac65516ea119253c6e676ca5a15af4275d2b2a965a75cde6dc83a9a6b2e3a8fe64f7004fc689279").unwrap();
+    let delta_g2_neg_pc_bytes = hex::decode("a1f01a5a7957b6dbc7c893ef092ce7a5064295088d8c20568dabcfcd3caf6bea997c7584001b2cb1a8072b57520e23501758ec3c8f3783dfedf015cac4c3355bf74f0425e253d8132dbb91d58c2b6e83d1b7a7cc2141240c72f8576cb282823d").unwrap();
+    let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+    let proof_bytes = hex::decode("ab8168e3201c98ecc444b84708af95cc5bfc6a6a3db3501fe70e5257b49c349f958c6b84985744baf0c063cad559132f84eb8533ef4ff0d05a9abeefe41f62c17cdc8f5166f9bc5c89b6b8590f26f04e586a99412ce3f6363934e30acfb12b290c1800d19c7c83b4295afb85562a69a0dec80537c5d12ecf532d8e3a7a583f3cc44bd4ad7311704bdfcf030a050579f9b4a8bbe30e87e571feb3e2fd8e40aad886ebf1ae5f3a9dbbee168e9e380d2a2d2c6aadbd5dc44116f7bb01a1277f2ed0").unwrap();
+    assert!(verify_groth16_in_bytes(
+        &vk_gamma_abc_g1_bytes,
+        &alpha_g1_beta_g2_bytes,
+        &gamma_g2_neg_pc_bytes,
+        &delta_g2_neg_pc_bytes,
+        &public_inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    // Point-at-infinity/zeros as pvk
+    let mut vk_gamma_abc_g1_bytes = fastcrypto::groups::bls12381::G1Element::zero()
+        .to_byte_array()
+        .to_vec();
+
+    // Expects two public inputs, so the vk needs three elements here
+    vk_gamma_abc_g1_bytes
+        .extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+    vk_gamma_abc_g1_bytes
+        .extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+
+    let alpha_g1_beta_g2_bytes = fastcrypto::groups::bls12381::GTElement::zero().to_byte_array();
+    let gamma_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
+    let delta_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
+    let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
+
+    let mut proof_bytes = vec![];
+    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G2Element::zero().to_byte_array());
+    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+
+    // Inputs are parsed correctly...
+    assert!(verify_groth16_in_bytes(
+        &vk_gamma_abc_g1_bytes,
+        &alpha_g1_beta_g2_bytes,
+        &gamma_g2_neg_pc_bytes,
+        &delta_g2_neg_pc_bytes,
+        &public_inputs_bytes,
+        &proof_bytes
+    )
+    .is_ok());
+
+    // ...but proof does not verify
+    assert!(!verify_groth16_in_bytes(
+        &vk_gamma_abc_g1_bytes,
+        &alpha_g1_beta_g2_bytes,
+        &gamma_g2_neg_pc_bytes,
+        &delta_g2_neg_pc_bytes,
+        &public_inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
 }
