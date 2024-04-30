@@ -1,20 +1,23 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::verifier::PreparedVerifyingKey;
-use crate::bls12381::FieldElement;
-use crate::dummy_circuits::{DummyCircuit, Fibonacci};
+use std::ops::Mul;
+
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine};
-use ark_ff::{One, Zero};
+use ark_ff::Zero;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
+
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
-use std::ops::Mul;
+
+use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
+use crate::bls12381::FieldElement;
+use crate::bls12381::verifier::PreparedVerifyingKey;
+use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 
 #[test]
 fn test_verify_groth16_in_bytes_api() {
