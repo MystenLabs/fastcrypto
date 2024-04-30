@@ -1,25 +1,25 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::Mul;
+
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine};
-use ark_ff::{One, Zero};
+use ark_ff::One;
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
 
+use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 
+use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bls12381::test_helpers::from_arkworks_scalar;
-use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use crate::groth16::Proof;
-use fastcrypto::groups::bls12381::{G1Element, G2Element};
-
-use std::ops::Mul;
 
 #[test]
 fn test_verify() {
