@@ -15,8 +15,8 @@ use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 
 use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bls12381::FieldElement;
 use crate::bls12381::verifier::PreparedVerifyingKey;
+use crate::bls12381::FieldElement;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 
 #[test]
