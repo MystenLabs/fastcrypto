@@ -222,6 +222,70 @@ fn test_prepare_pvk_bytes() {
 }
 
 #[test]
+fn test_verify_groth16_in_bytes_multiple_inputs() {
+    let mut rng = thread_rng();
+
+    let a = Fr::from(123);
+    let b = Fr::from(456);
+
+    let params = {
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
+        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
+    };
+
+    let proof = {
+        let circuit = Fibonacci::<Fr>::new(42, a, b);
+        Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
+            .unwrap()
+    };
+
+    // Proof::write serializes uncompressed and also adds a length to each element, so we serialize
+    // each individual element here to avoid that.
+    let mut proof_bytes = Vec::new();
+    proof.a.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.b.serialize_compressed(&mut proof_bytes).unwrap();
+    proof.c.serialize_compressed(&mut proof_bytes).unwrap();
+
+    let mut vk_bytes = Vec::new();
+    params.vk.serialize_compressed(&mut vk_bytes).unwrap();
+    let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
+    let pvk = PreparedVerifyingKey::from(&vk);
+
+    let inputs: Vec<_> = vec![from_arkworks_scalar(&a), from_arkworks_scalar(&b)];
+
+    let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
+    assert!(pvk.verify(&inputs, &proof).is_ok());
+
+    let pvk = pvk.serialize_into_parts();
+
+    // This circuit has two public inputs:
+    let mut inputs_bytes = Vec::new();
+    a.serialize_compressed(&mut inputs_bytes).unwrap();
+    b.serialize_compressed(&mut inputs_bytes).unwrap();
+
+    assert!(verify_groth16_in_bytes(
+        &pvk[0],
+        &pvk[1],
+        &pvk[2],
+        &pvk[3],
+        &inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+
+    inputs_bytes[0] += 1;
+    assert!(!verify_groth16_in_bytes(
+        &pvk[0],
+        &pvk[1],
+        &pvk[2],
+        &pvk[3],
+        &inputs_bytes,
+        &proof_bytes
+    )
+    .unwrap());
+}
+
+#[test]
 fn api_regression_tests() {
     // Prepare VK
     let vk_bytes = hex::decode("835da56c560fbba42fe472c9c6c687986953de12db2adb66c10ecfff8957c1ec28a030dd2512b1ef3afa09fff2b467ddad48984a12c6568511bca1a3662ecfba801f31422f5c4208986bc52186938a2d86745abc9e6e0503b5eb16c5f2a622e108013d74b85f9532d87c391c5b0c49557ce47221e869b329fbe103ca73136c70b708ac61fa0092a238bf9060dc885d0da59dae8e121fd0013e45116a3d63837949b7976fd15e99d9974c654638d5fa1cbd51531a00889c75aeb5a91dd54891fd0b6c37bc2d6817541e4818040b3e2c78451674c5f180a895107070592eabf3386d21a9f6a91adb1f94debadb604f47c6a412f66347289eb47eec60604b31d973697f7f4ffc792fa914e24286f6d277a002ac1275b83a8dad2d84fcc4fc771bbf0854b5e655be18c6089cfc1841cf311e3c43f1ee2cd371d42cc91d61b5b2848f448f9f57229781d6dba2ca8367f2e3f602000000000000009274be44d5c4ec5203e96cb2b3e96468062cf4eebea465b1721889924bbea43d26de7c0b312beb7c09182c278f54c4d2b4092ebefd19ba81e8d5d787b25cd8ca8d03130326032c0e2f01d23cdf4e7a845f2c00a38574182e08d2f9fbe90ca3f7").unwrap();
@@ -299,70 +363,6 @@ fn api_regression_tests() {
         &gamma_g2_neg_pc_bytes,
         &delta_g2_neg_pc_bytes,
         &public_inputs_bytes,
-        &proof_bytes
-    )
-    .unwrap());
-}
-
-#[test]
-fn test_verify_groth16_in_bytes_multiple_inputs() {
-    let mut rng = thread_rng();
-
-    let a = Fr::from(123);
-    let b = Fr::from(456);
-
-    let params = {
-        let circuit = Fibonacci::<Fr>::new(42, a, b);
-        Groth16::<Bls12_381>::generate_random_parameters_with_reduction(circuit, &mut rng).unwrap()
-    };
-
-    let proof = {
-        let circuit = Fibonacci::<Fr>::new(42, a, b);
-        Groth16::<Bls12_381>::create_random_proof_with_reduction(circuit, &params, &mut rng)
-            .unwrap()
-    };
-
-    // Proof::write serializes uncompressed and also adds a length to each element, so we serialize
-    // each individual element here to avoid that.
-    let mut proof_bytes = Vec::new();
-    proof.a.serialize_compressed(&mut proof_bytes).unwrap();
-    proof.b.serialize_compressed(&mut proof_bytes).unwrap();
-    proof.c.serialize_compressed(&mut proof_bytes).unwrap();
-
-    let mut vk_bytes = Vec::new();
-    params.vk.serialize_compressed(&mut vk_bytes).unwrap();
-    let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
-    let pvk = PreparedVerifyingKey::from(&vk);
-
-    let inputs: Vec<_> = vec![from_arkworks_scalar(&a), from_arkworks_scalar(&b)];
-
-    let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
-    assert!(pvk.verify(&inputs, &proof).is_ok());
-
-    let pvk = pvk.serialize_into_parts();
-
-    // This circuit has two public inputs:
-    let mut inputs_bytes = Vec::new();
-    a.serialize_compressed(&mut inputs_bytes).unwrap();
-    b.serialize_compressed(&mut inputs_bytes).unwrap();
-
-    assert!(verify_groth16_in_bytes(
-        &pvk[0],
-        &pvk[1],
-        &pvk[2],
-        &pvk[3],
-        &inputs_bytes,
-        &proof_bytes
-    )
-    .unwrap());
-
-    inputs_bytes[0] += 1;
-    assert!(!verify_groth16_in_bytes(
-        &pvk[0],
-        &pvk[1],
-        &pvk[2],
-        &pvk[3],
-        &inputs_bytes,
         &proof_bytes
     )
     .unwrap());
