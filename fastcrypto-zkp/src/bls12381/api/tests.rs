@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine};
-use ark_ff::Zero;
+use ark_ff::{One, Zero};
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
@@ -17,7 +17,7 @@ use crate::bls12381::test_helpers::from_arkworks_scalar;
 use crate::bls12381::{PreparedVerifyingKey, VerifyingKey};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use crate::groth16::Proof;
-use fastcrypto::groups::bls12381::G1Element;
+use fastcrypto::groups::bls12381::{G1Element, G2Element};
 
 use std::ops::Mul;
 
@@ -275,24 +275,24 @@ fn api_regression_tests() {
 
     // Expects two public inputs, so the vk needs three elements here
     vk_gamma_abc_g1_bytes
-        .extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+        .extend_from_slice(&G1Element::zero().to_byte_array());
     vk_gamma_abc_g1_bytes
-        .extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+        .extend_from_slice(&G1Element::zero().to_byte_array());
 
     // The API expects serialization like in Arkworks for GT elements
     let mut alpha_g1_beta_g2_bytes = vec![];
-    Fq12::zero()
+    Fq12::one()
         .serialize_compressed(&mut alpha_g1_beta_g2_bytes)
         .unwrap();
 
-    let gamma_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
-    let delta_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
+    let gamma_g2_neg_pc_bytes = G2Element::zero().to_byte_array();
+    let delta_g2_neg_pc_bytes = G2Element::zero().to_byte_array();
     let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
 
     let mut proof_bytes = vec![];
-    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
-    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G2Element::zero().to_byte_array());
-    proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
+    proof_bytes.extend_from_slice(&G1Element::zero().to_byte_array());
+    proof_bytes.extend_from_slice(&G2Element::zero().to_byte_array());
+    proof_bytes.extend_from_slice(&G1Element::zero().to_byte_array());
 
     // The trivial proof should pass verification
     assert!(verify_groth16_in_bytes(
