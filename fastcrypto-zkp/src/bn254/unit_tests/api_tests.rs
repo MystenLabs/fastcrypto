@@ -100,8 +100,8 @@ fn test_prepare_pvk_bytes() {
 fn test_verify_groth16_in_bytes_multiple_inputs() {
     let mut rng = thread_rng();
 
-    let a = Fr::from(0);
-    let b = Fr::from(0);
+    let a = Fr::from(123);
+    let b = Fr::from(456);
 
     let params = {
         let circuit = Fibonacci::<Fr>::new(42, a, b);
@@ -119,14 +119,11 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     assert!(Groth16::<Bn254>::verify_with_processed_vk(&(&pvk).into(), &inputs, &proof).unwrap());
 
     let pvk = pvk.serialize().unwrap();
-    pvk.iter()
-        .for_each(|x| println!("pvk: {:?}", hex::encode(x)));
 
     // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();
     a.serialize_compressed(&mut inputs_bytes).unwrap();
     b.serialize_compressed(&mut inputs_bytes).unwrap();
-    println!("inputs_bytes: {:?}", hex::encode(&inputs_bytes));
 
     // Proof::write serializes uncompressed and also adds a length to each element, so we serialize
     // each individual element here to avoid that.
@@ -134,7 +131,6 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
     proof.a.serialize_compressed(&mut proof_bytes).unwrap();
     proof.b.serialize_compressed(&mut proof_bytes).unwrap();
     proof.c.serialize_compressed(&mut proof_bytes).unwrap();
-    println!("proof: {:?}", hex::encode(&proof_bytes));
 
     assert!(verify_groth16_in_bytes(
         &pvk[0],
