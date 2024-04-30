@@ -5,12 +5,15 @@ use crate::bls12381::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
 use crate::bls12381::verifier::PreparedVerifyingKey;
 use crate::bls12381::FieldElement;
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
-use ark_bls12_381::{Bls12_381, Fr, G1Affine};
+use ark_bls12_381::{Bls12_381, Fq12, Fr, G1Affine};
+use ark_ff::{One, Zero};
 use ark_groth16::Groth16;
 use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use ark_std::UniformRand;
+use fastcrypto::groups::GroupElement;
+use fastcrypto::serde_helpers::ToFromByteArray;
 use std::ops::Mul;
 
 #[test]
@@ -239,7 +242,7 @@ fn api_regression_tests() {
     )
     .unwrap());
 
-    // Point-at-infinity/zeros as pvk
+    // Trivial proof with all zeros/identity elements
     let mut vk_gamma_abc_g1_bytes = fastcrypto::groups::bls12381::G1Element::zero()
         .to_byte_array()
         .to_vec();
@@ -250,7 +253,12 @@ fn api_regression_tests() {
     vk_gamma_abc_g1_bytes
         .extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
 
-    let alpha_g1_beta_g2_bytes = fastcrypto::groups::bls12381::GTElement::zero().to_byte_array();
+    // The API expects serialization like in Arkworks for GT elements
+    let mut alpha_g1_beta_g2_bytes = vec![];
+    Fq12::zero()
+        .serialize_compressed(&mut alpha_g1_beta_g2_bytes)
+        .unwrap();
+
     let gamma_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
     let delta_g2_neg_pc_bytes = fastcrypto::groups::bls12381::G2Element::zero().to_byte_array();
     let public_inputs_bytes = hex::decode("00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap();
@@ -260,19 +268,8 @@ fn api_regression_tests() {
     proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G2Element::zero().to_byte_array());
     proof_bytes.extend_from_slice(&fastcrypto::groups::bls12381::G1Element::zero().to_byte_array());
 
-    // Inputs are parsed correctly...
+    // The trivial proof should pass verification
     assert!(verify_groth16_in_bytes(
-        &vk_gamma_abc_g1_bytes,
-        &alpha_g1_beta_g2_bytes,
-        &gamma_g2_neg_pc_bytes,
-        &delta_g2_neg_pc_bytes,
-        &public_inputs_bytes,
-        &proof_bytes
-    )
-    .is_ok());
-
-    // ...but proof does not verify
-    assert!(!verify_groth16_in_bytes(
         &vk_gamma_abc_g1_bytes,
         &alpha_g1_beta_g2_bytes,
         &gamma_g2_neg_pc_bytes,
