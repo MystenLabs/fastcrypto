@@ -16,12 +16,12 @@ use criterion::{
     Criterion, SamplingMode,
 };
 
+use crate::utils::vk_from_arkworks;
 use fastcrypto::groups::bls12381::{G1Element, Scalar};
 use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto_zkp::bn254;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use fastcrypto_zkp::groth16::{Proof, VerifyingKey};
-use crate::utils::vk_from_arkworks;
 
 #[path = "./utils.rs"]
 mod utils;
