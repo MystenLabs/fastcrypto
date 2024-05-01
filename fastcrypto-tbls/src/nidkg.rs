@@ -164,7 +164,7 @@ where
                         let r_x_g = *node.pk.as_element() * r;
                         // Save also the points instead of recomputing them later.
                         values.push((r, r_x_g));
-                        PublicKey::deterministic_encrypt(&msg, &r_g, &r_x_g)
+                        PublicKey::deterministic_encrypt(&msg, &r_g, &r_x_g, 0)
                     })
                     .collect::<Vec<_>>()
                     .try_into()
