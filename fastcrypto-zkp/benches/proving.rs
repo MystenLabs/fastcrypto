@@ -21,6 +21,7 @@ use fastcrypto::serde_helpers::ToFromByteArray;
 use fastcrypto_zkp::bn254;
 use fastcrypto_zkp::dummy_circuits::DummyCircuit;
 use fastcrypto_zkp::groth16::{Proof, VerifyingKey};
+use crate::utils::vk_from_arkworks;
 
 #[path = "./utils.rs"]
 mod utils;
@@ -240,7 +241,7 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         ),
     ];
 
-    let vk: bn254::VerifyingKey = ark_groth16::VerifyingKey {
+    let vk: bn254::VerifyingKey = vk_from_arkworks(ark_groth16::VerifyingKey {
         alpha_g1: utils::G1Affine_from_str_projective((
             "8057073471822347335074195152835286348058235024870127707965681971765888348219",
             "14493022634743109860560137600871299171677470588934003383462482807829968516757",
@@ -359,8 +360,7 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         .into_iter()
         .map(|s| utils::G1Affine_from_str_projective((s[0], s[1], s[2])))
         .collect(),
-    }
-    .into();
+    });
 
     grp.bench_with_input(
         BenchmarkId::new(
@@ -369,12 +369,12 @@ fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         ),
         &vk,
         |b, vk| {
-            b.iter(|| bn254::verifier::PreparedVerifyingKey::from(vk));
+            b.iter(|| bn254::PreparedVerifyingKey::from(vk));
         },
     );
 
-    let pvk = bn254::verifier::PreparedVerifyingKey::from(&vk);
-    let bytes = pvk.serialize().unwrap();
+    let pvk = bn254::PreparedVerifyingKey::from(&vk);
+    let bytes = pvk.serialize_into_parts();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];

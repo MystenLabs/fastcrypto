@@ -54,6 +54,30 @@ where
     delta_neg: <G1 as Pairing>::Other,
 }
 
+impl<G1: Pairing> Proof<G1> {
+    pub fn new(a: G1, b: G1::Other, c: G1) -> Self {
+        Proof { a, b, c }
+    }
+}
+
+impl<G1: Pairing> VerifyingKey<G1> {
+    pub fn new(
+        alpha: G1,
+        beta: G1::Other,
+        gamma: G1::Other,
+        delta: G1::Other,
+        gamma_abc: Vec<G1>,
+    ) -> Self {
+        VerifyingKey {
+            alpha,
+            beta,
+            gamma,
+            delta,
+            gamma_abc,
+        }
+    }
+}
+
 impl<G1> From<&VerifyingKey<G1>> for PreparedVerifyingKey<G1>
 where
     G1: Pairing,
