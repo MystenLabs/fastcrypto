@@ -32,7 +32,11 @@ pub struct PrivateKey<G: GroupElement>(G::ScalarType);
 pub struct PublicKey<G: GroupElement>(G);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Encryption<G: GroupElement>(G, Vec<u8>);
+pub struct Encryption<G: GroupElement> {
+    ephemeral_key: G,
+    data: Vec<u8>,
+    hkdf_info: usize,
+}
 
 /// Multi-recipient encryption with a proof-of-knowledge of the plaintexts (when the encryption is
 /// valid).
@@ -72,10 +76,16 @@ where
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> RecoveryPackage<G> {
-        let ephemeral_key = enc.0 * self.0;
+        let ephemeral_key = enc.ephemeral_key * self.0;
         let pk = G::generator() * self.0;
-        let proof =
-            DdhTupleNizk::<G>::create(&self.0, &enc.0, &pk, &ephemeral_key, random_oracle, rng);
+        let proof = DdhTupleNizk::<G>::create(
+            &self.0,
+            &enc.ephemeral_key,
+            &pk,
+            &ephemeral_key,
+            random_oracle,
+            rng,
+        );
         RecoveryPackage {
             ephemeral_key,
             proof,
@@ -92,12 +102,13 @@ where
         Self(G::generator() * sk.0)
     }
 
+    #[cfg(test)]
     pub fn encrypt<R: AllowedRng>(&self, msg: &[u8], rng: &mut R) -> Encryption<G> {
         Encryption::<G>::encrypt(&self.0, msg, rng)
     }
 
-    pub fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Encryption<G> {
-        Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g)
+    pub fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G, info: usize) -> Encryption<G> {
+        Encryption::<G>::deterministic_encrypt(msg, r_g, r_x_g, info)
     }
 
     pub fn decrypt_with_recovery_package(
@@ -106,8 +117,12 @@ where
         random_oracle: &RandomOracle,
         enc: &Encryption<G>,
     ) -> FastCryptoResult<Vec<u8>> {
-        pkg.proof
-            .verify(&enc.0, &self.0, &pkg.ephemeral_key, random_oracle)?;
+        pkg.proof.verify(
+            &enc.ephemeral_key,
+            &self.0,
+            &pkg.ephemeral_key,
+            random_oracle,
+        )?;
         Ok(enc.decrypt_from_partial_decryption(&pkg.ephemeral_key))
     }
 
@@ -123,48 +138,53 @@ impl<G: GroupElement> From<G> for PublicKey<G> {
 }
 
 impl<G: GroupElement + Serialize> Encryption<G> {
-    fn sym_encrypt(k: &G) -> Aes256Ctr {
+    fn sym_encrypt(k: &G, info: usize) -> Aes256Ctr {
         Aes256Ctr::new(
-            AesKey::<U32>::from_bytes(&Self::hkdf(k))
+            AesKey::<U32>::from_bytes(&Self::hkdf(k, info))
                 .expect("New shouldn't fail as use fixed size key is used"),
         )
     }
-    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G) -> Self {
-        let cipher = Self::sym_encrypt(r_x_g);
-        let encrypted_message = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
-        Self(*r_g, encrypted_message)
+    fn deterministic_encrypt(msg: &[u8], r_g: &G, r_x_g: &G, hkdf_info: usize) -> Self {
+        let cipher = Self::sym_encrypt(r_x_g, hkdf_info);
+        let data = cipher.encrypt(&Self::fixed_zero_nonce(), msg);
+        Self {
+            ephemeral_key: *r_g,
+            data,
+            hkdf_info,
+        }
     }
 
+    #[cfg(test)]
     fn encrypt<R: AllowedRng>(x_g: &G, msg: &[u8], rng: &mut R) -> Self {
         let r = G::ScalarType::rand(rng);
         let r_g = G::generator() * r;
         let r_x_g = *x_g * r;
-        Self::deterministic_encrypt(msg, &r_g, &r_x_g)
+        Self::deterministic_encrypt(msg, &r_g, &r_x_g, 0)
     }
 
     fn decrypt(&self, sk: &G::ScalarType) -> Vec<u8> {
-        let partial_key = self.0 * sk;
+        let partial_key = self.ephemeral_key * sk;
         self.decrypt_from_partial_decryption(&partial_key)
     }
 
     pub fn decrypt_from_partial_decryption(&self, partial_key: &G) -> Vec<u8> {
-        let cipher = Self::sym_encrypt(partial_key);
+        let cipher = Self::sym_encrypt(partial_key, self.hkdf_info);
         cipher
-            .decrypt(&Self::fixed_zero_nonce(), &self.1)
+            .decrypt(&Self::fixed_zero_nonce(), &self.data)
             .expect("Decrypt should never fail for CTR mode")
     }
 
     pub fn ephemeral_key(&self) -> &G {
-        &self.0
+        &self.ephemeral_key
     }
 
-    fn hkdf(e: &G) -> Vec<u8> {
-        let serialized = bcs::to_bytes(e).expect("serialize should never fail");
+    fn hkdf(ikm: &G, info: usize) -> Vec<u8> {
+        let ikm = bcs::to_bytes(ikm).expect("serialize should never fail");
+        let info = info.to_be_bytes();
         hkdf_sha3_256(
-            &HkdfIkm::from_bytes(serialized.as_slice())
-                .expect("hkdf_sha3_256 should work with any input"),
+            &HkdfIkm::from_bytes(ikm.as_slice()).expect("hkdf_sha3_256 should work with any input"),
             &[],
-            &[],
+            &info,
             AES_KEY_LENGTH,
         )
         .expect("hkdf_sha3_256 should never fail for an AES_KEY_LENGTH long output")
@@ -189,9 +209,10 @@ where
         let r_g = G::generator() * r;
         let encs = pk_and_msgs
             .iter()
-            .map(|(pk, msg)| {
+            .enumerate()
+            .map(|(info, (pk, msg))| {
                 let r_x_g = pk.0 * r;
-                Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g).1
+                Encryption::<G>::deterministic_encrypt(msg, &r_g, &r_x_g, info).data
             })
             .collect::<Vec<_>>();
         // Bind the NIZK to the encrypted messages by adding them as inputs to the RO.
@@ -202,7 +223,11 @@ where
 
     pub fn get_encryption(&self, i: usize) -> FastCryptoResult<Encryption<G>> {
         let buffer = self.1.get(i).ok_or(FastCryptoError::InvalidInput)?;
-        Ok(Encryption(self.0, buffer.clone()))
+        Ok(Encryption {
+            ephemeral_key: self.0,
+            data: buffer.clone(),
+            hkdf_info: i,
+        })
     }
 
     pub fn len(&self) -> usize {
