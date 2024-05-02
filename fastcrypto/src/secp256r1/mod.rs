@@ -483,11 +483,10 @@ impl KeyPair for Secp256r1KeyPair {
 }
 
 impl FromStr for Secp256r1KeyPair {
-    type Err = eyre::Report;
+    type Err = FastCryptoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
-        Ok(kp)
+        Self::decode_base64(s)
     }
 }
 

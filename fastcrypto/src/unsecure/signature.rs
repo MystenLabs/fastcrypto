@@ -6,7 +6,6 @@ use crate::{
     hash::{Digest, HashFunction},
 };
 use base64ct::{Base64, Encoding};
-use eyre::eyre;
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
@@ -26,6 +25,8 @@ use super::hash::Fast256HashUnsecure;
 use crate::serde_helpers::BytesRepresentation;
 use crate::traits::AllowedRng;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
+use crate::error::FastCryptoError::InvalidSignature;
+use crate::error::FastCryptoResult;
 
 ///
 /// Define Structs
@@ -133,7 +134,7 @@ impl VerifyingKey for UnsecurePublicKey {
         if ToFromBytes::as_bytes(signature) == digest.0 {
             return Ok(());
         }
-        Err(FastCryptoError::InvalidSignature)
+        Err(InvalidSignature)
     }
 
     #[cfg(any(test, feature = "experimental"))]
@@ -141,7 +142,7 @@ impl VerifyingKey for UnsecurePublicKey {
         _msg: &[u8],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report> {
+    ) -> FastCryptoResult<()> {
         if pks
             .iter()
             .zip(sigs.iter())
@@ -150,7 +151,7 @@ impl VerifyingKey for UnsecurePublicKey {
         {
             return Ok(());
         }
-        Err(eyre!("Verification failed!"))
+        Err(InvalidSignature)
     }
 }
 

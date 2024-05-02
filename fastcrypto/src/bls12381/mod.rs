@@ -24,8 +24,6 @@ use crate::{
 };
 use crate::{generate_bytes_representation, impl_base64_display_fmt};
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-#[cfg(any(test, feature = "experimental"))]
-use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use std::{
@@ -34,6 +32,8 @@ use std::{
     mem::MaybeUninit,
     str::FromStr,
 };
+use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidSignature, InvalidInput};
+use crate::error::FastCryptoResult;
 
 /// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
 /// and of the second using 96 bytes. BLS supports two modes:
@@ -200,7 +200,7 @@ impl VerifyingKey for BLS12381PublicKey {
         if err == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
-            Err(FastCryptoError::InvalidSignature)
+            Err(InvalidSignature)
         }
     }
 
@@ -209,24 +209,20 @@ impl VerifyingKey for BLS12381PublicKey {
         msg: &[u8],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report> {
+    ) -> FastCryptoResult<()> {
         if sigs.is_empty() {
-            return Err(eyre!(
-                "Critical Error! This behaviour can signal something dangerous, and \
-            that someone may be trying to bypass signature verification through providing empty \
-            batches."
-            ));
+            // This behaviour can signal something dangerous, and that someone may be trying to
+            // bypass signature verification through providing empty batches.
+            return Err(GeneralOpaqueError);
         }
         if sigs.len() != pks.len() {
-            return Err(eyre!(
-                "Mismatch between number of signatures and public keys provided"
-            ));
+            return Err(InvalidInput);
         }
         let aggregated_sig = BLS12381AggregateSignature::aggregate(sigs)
-            .map_err(|_| eyre!("Signature aggregation before verifying failed!"))?;
+            .map_err(|_| GeneralOpaqueError)?;
         aggregated_sig
             .verify(pks, msg)
-            .map_err(|_| eyre!("Batch verification failed!"))
+            .map_err(|_| InvalidSignature)
     }
 
     #[cfg(any(test, feature = "experimental"))]
@@ -234,21 +230,17 @@ impl VerifyingKey for BLS12381PublicKey {
         msgs: &[M],
         pks: &[Self],
         sigs: &[Self::Sig],
-    ) -> Result<(), eyre::Report>
+    ) -> FastCryptoResult<()>
     where
         M: Borrow<[u8]> + 'a,
     {
         if sigs.is_empty() {
-            return Err(eyre!(
-                "Critical Error! This behaviour can signal something dangerous, and \
-            that someone may be trying to bypass signature verification through providing empty \
-            batches."
-            ));
+            // This behaviour can signal something dangerous, and that someone may be trying to
+            // bypass signature verification through providing empty batches.
+            return Err(GeneralOpaqueError);
         }
-        if sigs.len() != pks.len() || msgs.len() != pks.len() {
-            return Err(eyre!(
-                "Mismatch between number of messages, signatures and public keys provided"
-            ));
+        if sigs.len() != pks.len() {
+            return Err(InvalidInput);
         }
 
         let rands = get_random_scalars(sigs.len());
@@ -266,7 +258,7 @@ impl VerifyingKey for BLS12381PublicKey {
         if result == BLST_ERROR::BLST_SUCCESS {
             Ok(())
         } else {
-            Err(eyre!("Batch verification failed!"))
+            Err(InvalidSignature)
         }
     }
 }
@@ -515,11 +507,10 @@ impl Signer<BLS12381Signature> for BLS12381KeyPair {
 }
 
 impl FromStr for BLS12381KeyPair {
-    type Err = eyre::Report;
+    type Err = FastCryptoError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let kp = Self::decode_base64(s).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
-        Ok(kp)
+        Self::decode_base64(s)
     }
 }
 

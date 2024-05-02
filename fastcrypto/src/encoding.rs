@@ -12,9 +12,10 @@
 //! assert_eq!(Base58::encode("Hello world!"), "2NEpo7TZRhna7vSvL");
 //! ```
 
+use std::fmt::Debug;
+
 use base64ct::Encoding as _;
 use bech32::{FromBase32, Variant};
-use eyre::{eyre, Result};
 use schemars::JsonSchema;
 use serde;
 use serde::de::{Deserializer, Error};
@@ -22,7 +23,9 @@ use serde::ser::Serializer;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::{DeserializeAs, SerializeAs};
-use std::fmt::Debug;
+
+use crate::error::FastCryptoError::InvalidInput;
+use crate::error::{FastCryptoError, FastCryptoResult};
 
 #[inline]
 fn to_custom_error<'de, D, E>(e: E) -> D::Error
@@ -36,7 +39,7 @@ where
 /// Trait representing a general binary-to-string encoding.
 pub trait Encoding {
     /// Decode this encoding into bytes.
-    fn decode(s: &str) -> Result<Vec<u8>>;
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>>;
     /// Encode bytes into a string.
     fn encode<T: AsRef<[u8]>>(data: T) -> String;
 }
@@ -47,7 +50,7 @@ pub trait Encoding {
 pub struct Base64(String);
 
 impl TryFrom<String> for Base64 {
-    type Error = eyre::Report;
+    type Error = FastCryptoError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         // Make sure the value is valid base64 string.
         Base64::decode(&value)?;
@@ -57,7 +60,7 @@ impl TryFrom<String> for Base64 {
 
 impl Base64 {
     /// Decodes this Base64 encoding to bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, eyre::Report> {
+    pub fn to_vec(&self) -> FastCryptoResult<Vec<u8>> {
         Self::decode(&self.0)
     }
     /// Encodes bytes as a Base64.
@@ -81,7 +84,7 @@ impl Hex {
         Hex(s.to_string())
     }
     /// Decodes this hex encoding to bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, eyre::Report> {
+    pub fn to_vec(&self) -> FastCryptoResult<Vec<u8>> {
         Self::decode(&self.0)
     }
     /// Encodes bytes as a hex string.
@@ -91,7 +94,7 @@ impl Hex {
 }
 
 impl Encoding for Hex {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
         decode_bytes_hex(s)
     }
 
@@ -101,8 +104,8 @@ impl Encoding for Hex {
 }
 
 impl Encoding for Base64 {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
-        base64ct::Base64::decode_vec(s).map_err(|e| eyre!(e))
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
+        base64ct::Base64::decode_vec(s).map_err(|_| InvalidInput)
     }
 
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
@@ -139,7 +142,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base64 {
     {
         let value: Vec<u8> = Base64::deserialize_as(deserializer)?;
         if value.len() != N {
-            return Err(Error::custom(eyre!(
+            return Err(Error::custom(format!(
                 "invalid array length {}, expecting {}",
                 value.len(),
                 N
@@ -168,7 +171,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Hex {
     {
         let value: Vec<u8> = Hex::deserialize_as(deserializer)?;
         if value.len() != N {
-            return Err(Error::custom(eyre!(
+            return Err(Error::custom(format!(
                 "invalid array length {}, expecting {}",
                 value.len(),
                 N
@@ -198,10 +201,10 @@ pub fn encode_with_format<B: AsRef<[u8]>>(bytes: B) -> String {
 }
 
 /// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
-pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> Result<T> {
+pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> FastCryptoResult<T> {
     let s = s.strip_prefix("0x").unwrap_or(s);
-    let value = hex::decode(s)?;
-    T::try_from(&value[..]).map_err(|_| eyre!("byte deserialization failed"))
+    let value = hex::decode(s).map_err(|_| InvalidInput)?;
+    T::try_from(&value[..]).map_err(|_| InvalidInput)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
@@ -209,17 +212,17 @@ pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> Result<T> {
 pub struct Base58(String);
 
 impl TryFrom<String> for Base58 {
-    type Error = eyre::Report;
+    type Error = FastCryptoError;
     fn try_from(value: String) -> Result<Self, Self::Error> {
         // Make sure the value is valid base58 string.
-        bs58::decode(&value).into_vec()?;
+        bs58::decode(&value).into_vec().map_err(|_| InvalidInput)?;
         Ok(Self(value))
     }
 }
 
 impl Encoding for Base58 {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
-        bs58::decode(s).into_vec().map_err(|e| eyre::eyre!(e))
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
+        bs58::decode(s).into_vec().map_err(|_| InvalidInput)
     }
 
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
@@ -256,7 +259,7 @@ impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base58 {
     {
         let value: Vec<u8> = Base58::deserialize_as(deserializer)?;
         if value.len() != N {
-            return Err(Error::custom(eyre!(
+            return Err(Error::custom(format!(
                 "invalid array length {}, expecting {}",
                 value.len(),
                 N
@@ -279,12 +282,12 @@ impl Bech32 {
     /// let bytes = Bech32::decode("split1qqqqsk5gh5","split").unwrap();
     /// assert_eq!(bytes, vec![0, 0]);
     /// ```
-    pub fn decode(s: &str, hrp: &str) -> Result<Vec<u8>, eyre::Report> {
-        let (parsed, data, variant) = bech32::decode(s).map_err(|e| eyre::eyre!(e))?;
+    pub fn decode(s: &str, hrp: &str) -> FastCryptoResult<Vec<u8>> {
+        let (parsed, data, variant) = bech32::decode(s).map_err(|_| InvalidInput)?;
         if parsed != hrp || variant != Variant::Bech32 {
-            Err(eyre!("invalid hrp or variant"))
+            Err(InvalidInput)
         } else {
-            Vec::<u8>::from_base32(&data).map_err(|e| eyre::eyre!(e))
+            Vec::<u8>::from_base32(&data).map_err(|_| InvalidInput)
         }
     }
 
@@ -295,8 +298,8 @@ impl Bech32 {
     /// let str = Bech32::encode(vec![0, 0],"split").unwrap();
     /// assert_eq!(str, "split1qqqqsk5gh5".to_string());
     /// ```
-    pub fn encode<T: AsRef<[u8]>>(data: T, hrp: &str) -> Result<String> {
+    pub fn encode<T: AsRef<[u8]>>(data: T, hrp: &str) -> FastCryptoResult<String> {
         use bech32::ToBase32;
-        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|e| eyre::eyre!(e))
+        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|_| InvalidInput)
     }
 }

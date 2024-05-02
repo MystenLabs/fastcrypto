@@ -1,13 +1,12 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
+use crate::error::FastCryptoResult;
 use crate::{
     encoding::{Base64, Encoding},
     error::FastCryptoError,
     hash::HashFunction,
 };
-#[cfg(any(test, feature = "experimental"))]
-use eyre::eyre;
 use rand::rngs::{StdRng, ThreadRng};
 use rand::{CryptoRng, RngCore};
 use serde::{de::DeserializeOwned, Serialize};
@@ -50,7 +49,7 @@ pub trait ToFromBytes: AsRef<[u8]> + Debug + Sized {
 ///
 pub trait EncodeDecodeBase64: Sized {
     fn encode_base64(&self) -> String;
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report>;
+    fn decode_base64(value: &str) -> FastCryptoResult<Self>;
 }
 
 impl<T: ToFromBytes> EncodeDecodeBase64 for T {
@@ -58,9 +57,9 @@ impl<T: ToFromBytes> EncodeDecodeBase64 for T {
         Base64::encode(self.as_bytes())
     }
 
-    fn decode_base64(value: &str) -> Result<Self, eyre::Report> {
+    fn decode_base64(value: &str) -> FastCryptoResult<Self> {
         let bytes = Base64::decode(value)?;
-        <T as ToFromBytes>::from_bytes(&bytes).map_err(|e| e.into())
+        <T as ToFromBytes>::from_bytes(&bytes)
     }
 }
 
@@ -111,17 +110,18 @@ pub trait VerifyingKey:
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail(message, &public_keys, &signatures).is_ok());
     /// ```
     #[cfg(any(test, feature = "experimental"))]
-    fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> {
+    fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> FastCryptoResult<()> {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            // This behaviour can signal something dangerous, and that someone may be trying to bypass
+            // signature verification through providing empty batches.
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         if pks.len() != sigs.len() {
-            return Err(eyre!("Mismatch between number of signatures and public keys provided"));
+            return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
             .zip(sigs)
             .try_for_each(|(pk, sig)| pk.verify(msg, sig))
-            .map_err(|_| eyre!("Signature verification failed"))
     }
 
     // Expected to be overridden by implementations
@@ -146,18 +146,20 @@ pub trait VerifyingKey:
     /// assert!(Ed25519PublicKey::verify_batch_empty_fail_different_msg(&messages, &public_keys, &signatures).is_ok());
     /// ```
     #[cfg(any(test, feature = "experimental"))]
-    fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig]) -> Result<(), eyre::Report> where M: Borrow<[u8]> + 'a {
+    fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig])
+        -> FastCryptoResult<()> where M: Borrow<[u8]> + 'a {
         if sigs.is_empty() {
-            return Err(eyre!("Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."));
+            // This behaviour can signal something dangerous, and that someone may be trying to bypass
+            // signature verification through providing empty batches.
+            return Err(FastCryptoError::GeneralOpaqueError);
         }
         if pks.len() != sigs.len() || pks.len() != msgs.len() {
-            return Err(eyre!("Mismatch between number of messages, signatures and public keys provided"));
+            return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
             .zip(sigs)
             .zip(msgs)
             .try_for_each(|((pk, sig), msg)| pk.verify(msg.borrow(), sig))
-            .map_err(|_| eyre!("Signature verification failed"))
     }
 }
 
