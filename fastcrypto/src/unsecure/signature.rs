@@ -22,11 +22,11 @@ use crate::traits::{
 };
 
 use super::hash::Fast256HashUnsecure;
+use crate::error::FastCryptoError::InvalidSignature;
+use crate::error::FastCryptoResult;
 use crate::serde_helpers::BytesRepresentation;
 use crate::traits::AllowedRng;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_bytes};
-use crate::error::FastCryptoError::InvalidSignature;
-use crate::error::FastCryptoResult;
 
 ///
 /// Define Structs

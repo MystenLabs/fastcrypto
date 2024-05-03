@@ -13,12 +13,12 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &signature).is_ok());
 //! ```
+#[cfg(any(test, feature = "experimental"))]
+use std::borrow::Borrow;
 use std::{
     fmt::{self, Debug, Display},
     str::FromStr,
 };
-#[cfg(any(test, feature = "experimental"))]
-use std::borrow::Borrow;
 
 use base64ct::Encoding as _;
 use derive_more::AsRef;
@@ -26,13 +26,19 @@ use derive_more::AsRef;
 use ed25519_consensus::{batch, VerificationKeyBytes};
 use once_cell::sync::OnceCell;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde_with::{Bytes as SerdeBytes, DeserializeAs, serde_as, SerializeAs};
+use serde_with::{serde_as, Bytes as SerdeBytes, DeserializeAs, SerializeAs};
 #[cfg(any(test, feature = "experimental"))]
 use signature::rand_core::OsRng;
 use zeroize::ZeroizeOnDrop;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
+use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature};
+use crate::error::FastCryptoResult;
+use crate::serde_helpers::{to_custom_error, BytesRepresentation};
+#[cfg(any(test, feature = "experimental"))]
+use crate::traits::AggregateAuthenticator;
+use crate::traits::{InsecureDefault, Signer};
 use crate::{
     encoding::Base64,
     error::FastCryptoError,
@@ -46,12 +52,6 @@ use crate::{
     encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
     traits,
 };
-use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature};
-use crate::error::FastCryptoResult;
-use crate::serde_helpers::{BytesRepresentation, to_custom_error};
-use crate::traits::{InsecureDefault, Signer};
-#[cfg(any(test, feature = "experimental"))]
-use crate::traits::AggregateAuthenticator;
 
 /// The length of a private key in bytes.
 pub const ED25519_PRIVATE_KEY_LENGTH: usize = 32;
@@ -352,9 +352,7 @@ impl VerifyingKey for Ed25519PublicKey {
             let vk_bytes = VerificationKeyBytes::try_from(pks[i].as_ref()).unwrap();
             batch.queue((vk_bytes, sigs[i].sig, msg))
         }
-        batch
-            .verify(OsRng)
-            .map_err(|_| InvalidSignature)
+        batch.verify(OsRng).map_err(|_| InvalidSignature)
     }
 
     #[cfg(any(test, feature = "experimental"))]
@@ -380,9 +378,7 @@ impl VerifyingKey for Ed25519PublicKey {
             let vk_bytes = VerificationKeyBytes::try_from(pks[i].as_ref()).unwrap();
             batch.queue((vk_bytes, sigs[i].sig, msgs[i].borrow()))
         }
-        batch
-            .verify(OsRng)
-            .map_err(|_| InvalidSignature)
+        batch.verify(OsRng).map_err(|_| InvalidSignature)
     }
 }
 

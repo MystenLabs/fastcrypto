@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::encoding::{encode_with_format, Base58, Base64, Bech32, Encoding, Hex};
+use crate::encoding::{Base58, Base64, Bech32, Encoding, Hex};
 use proptest::{arbitrary::Arbitrary, prop_assert_eq};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -36,8 +36,11 @@ fn test_hex_decode_err() {
 
 #[test]
 fn test_hex_encode_format() {
-    assert_eq!(encode_with_format([1]), "0x01");
-    assert_eq!(encode_with_format(Hex::decode("0x01").unwrap()), "0x01");
+    assert_eq!(Hex::encode_with_format([1]), "0x01");
+    assert_eq!(
+        Hex::encode_with_format(Hex::decode("0x01").unwrap()),
+        "0x01"
+    );
 }
 
 #[test]
