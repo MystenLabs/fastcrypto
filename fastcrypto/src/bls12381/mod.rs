@@ -23,6 +23,8 @@ use crate::{
     serialize_deserialize_with_to_from_bytes,
 };
 use crate::{generate_bytes_representation, impl_base64_display_fmt};
+#[cfg(any(test, feature = "experimental"))]
+use crate::error::{FastCryptoResult, FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature}};
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
@@ -32,10 +34,6 @@ use std::{
     mem::MaybeUninit,
     str::FromStr,
 };
-#[cfg(any(test, feature = "experimental"))]
-use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature};
-#[cfg(any(test, feature = "experimental"))]
-use crate::error::FastCryptoResult;
 
 /// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
 /// and of the second using 96 bytes. BLS supports two modes:
