@@ -24,8 +24,6 @@ use crate::{
 };
 use crate::{generate_bytes_representation, impl_base64_display_fmt};
 use blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-#[cfg(any(test, feature = "experimental"))]
-use eyre::eyre;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use once_cell::sync::OnceCell;
 use std::{
