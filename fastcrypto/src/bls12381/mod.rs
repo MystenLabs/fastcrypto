@@ -219,10 +219,9 @@ impl VerifyingKey for BLS12381PublicKey {
             return Err(InvalidInput);
         }
         let aggregated_sig =
-            BLS12381AggregateSignature::aggregate(sigs).map_err(|_| GeneralOpaqueError)?;
+            BLS12381AggregateSignature::aggregate(sigs)?;
         aggregated_sig
             .verify(pks, msg)
-            .map_err(|_| InvalidSignature)
     }
 
     #[cfg(any(test, feature = "experimental"))]
