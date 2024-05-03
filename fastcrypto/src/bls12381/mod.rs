@@ -33,8 +33,12 @@ use std::{
     str::FromStr,
 };
 
-use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature};
+#[cfg(any(test, feature = "experimental"))]
+use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput};
+#[cfg(any(test, feature = "experimental"))]
 use crate::error::FastCryptoResult;
+
+use crate::error::FastCryptoError::InvalidSignature;
 
 /// BLS signatures use two groups G1, G2, where elements of the first can be encoded using 48 bytes
 /// and of the second using 96 bytes. BLS supports two modes:

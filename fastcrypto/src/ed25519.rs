@@ -33,7 +33,9 @@ use zeroize::ZeroizeOnDrop;
 
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
+#[cfg(any(test, feature = "experimental"))]
 use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature};
+#[cfg(any(test, feature = "experimental"))]
 use crate::error::FastCryptoResult;
 use crate::serde_helpers::{to_custom_error, BytesRepresentation};
 #[cfg(any(test, feature = "experimental"))]

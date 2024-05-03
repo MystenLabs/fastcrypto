@@ -31,6 +31,7 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 pub trait Encoding {
     /// Decode this encoding into bytes.
     fn decode(s: &str) -> FastCryptoResult<Vec<u8>>;
+
     /// Encode bytes into a string.
     fn encode<T: AsRef<[u8]>>(data: T) -> String;
 }
@@ -57,7 +58,8 @@ macro_rules! impl_serde_as_for_encoding {
             where
                 S: Serializer,
             {
-                Self::encode(value).serialize(serializer)
+                let encoded_string = Self::encode(value);
+                Self(encoded_string).serialize(serializer)
             }
         }
 
@@ -75,11 +77,13 @@ macro_rules! impl_serde_as_for_encoding {
     };
 }
 
+/// Implement `TryFrom<String>` for a type that implements `Encoding`.
 macro_rules! impl_try_from_string {
     ($encoding:ty) => {
         impl TryFrom<String> for $encoding {
             type Error = FastCryptoError;
             fn try_from(value: String) -> Result<Self, Self::Error> {
+                // Error on invalid encoding
                 <$encoding>::decode(&value)?;
                 Ok(Self(value))
             }
@@ -112,6 +116,7 @@ impl Base64 {
 
 /// Hex string encoding.
 #[derive(Deserialize, Debug, JsonSchema, Clone)]
+#[serde(try_from = "String")]
 pub struct Hex(String);
 
 impl Serialize for Hex {
@@ -119,11 +124,13 @@ impl Serialize for Hex {
     where
         S: Serializer,
     {
-        serializer.serialize_str(&self.encoded_with_format())
+        // Hex strings are serialized with a 0x prefix which differs from the output of `Hex::encode`.
+        String::serialize(&self.encoded_with_format(), serializer)
     }
 }
 
 impl_serde_as_for_encoding!(Hex);
+impl_try_from_string!(Hex);
 
 impl Hex {
     /// Create a hex encoding from a string.
@@ -139,22 +146,25 @@ impl Hex {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         Self(Self::encode(bytes))
     }
-    /// Encode bytes as a hex string with the "0x" prefix.
-    pub fn encode_with_format<B: AsRef<[u8]>>(bytes: B) -> String {
+    /// Encode bytes as a hex string with a "0x" prefix.
+    pub fn encode_with_format<T: AsRef<[u8]>>(bytes: T) -> String {
         Self::from_bytes(bytes.as_ref()).encoded_with_format()
     }
-    /// Get a string representation of this hex encoding with the "0x" prefix.
+    /// Get a string representation of this Hex encoding with a "0x" prefix.
     pub fn encoded_with_format(&self) -> String {
         format!("0x{}", self.0)
     }
 }
 
 impl Encoding for Hex {
+    /// Decodes a hex string to bytes. Both upper and lower case characters are accepted, and the
+    /// string may have a "0x" prefix or not.
     fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
-        decode_bytes_hex(s)
+        let s = s.strip_prefix("0x").unwrap_or(s);
+        hex::decode(s).map_err(|_| InvalidInput)
     }
 
-    /// Hex encoding is with "0x" prefix by default.
+    /// Hex encoding is without "0x" prefix. See `Hex::encode_with_format` for encoding with "0x".
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
         hex::encode(data.as_ref())
     }
@@ -168,13 +178,6 @@ impl Encoding for Base64 {
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
         base64ct::Base64::encode_string(data.as_ref())
     }
-}
-
-/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
-pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> FastCryptoResult<T> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    let value = hex::decode(s).map_err(|_| InvalidInput)?;
-    T::try_from(&value[..]).map_err(|_| InvalidInput)
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
