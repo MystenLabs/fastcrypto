@@ -160,6 +160,12 @@ impl Hex {
     }
 }
 
+/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
+pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> FastCryptoResult<T> {
+    let value = Hex::decode(s)?;
+    T::try_from(&value[..]).map_err(|_| InvalidInput)
+}
+
 impl Encoding for Hex {
     /// Decodes a hex string to bytes. Both upper and lower case characters are accepted, and the
     /// string may have a "0x" prefix or not.
