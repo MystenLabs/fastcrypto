@@ -148,11 +148,15 @@ impl Hex {
     }
     /// Encode bytes as a hex string with a "0x" prefix.
     pub fn encode_with_format<T: AsRef<[u8]>>(bytes: T) -> String {
-        Self::from_bytes(bytes.as_ref()).encoded_with_format()
+        Self::format(&Self::encode(bytes))
     }
     /// Get a string representation of this Hex encoding with a "0x" prefix.
     pub fn encoded_with_format(&self) -> String {
-        format!("0x{}", self.0)
+        Self::format(&self.0)
+    }
+    /// Add "0x" prefix to a hex string.
+    fn format(hex_string: &str) -> String {
+        format!("0x{}", hex_string)
     }
 }
 

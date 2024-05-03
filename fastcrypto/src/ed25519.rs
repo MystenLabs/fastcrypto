@@ -127,7 +127,7 @@ impl ToFromBytes for Ed25519PrivateKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ed25519_consensus::SigningKey::try_from(bytes)
             .map(Ed25519PrivateKey)
-            .map_err(|_| FastCryptoError::InvalidInput)
+            .map_err(|_| InvalidInput)
     }
 }
 
@@ -247,7 +247,7 @@ impl ToFromBytes for Ed25519Signature {
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|_| FastCryptoError::InvalidInput)
+            .map_err(|_| InvalidInput)
     }
 }
 
@@ -279,7 +279,7 @@ impl ToFromBytes for Ed25519PublicKey {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         ed25519_consensus::VerificationKey::try_from(bytes)
             .map(Ed25519PublicKey)
-            .map_err(|_| FastCryptoError::InvalidInput)
+            .map_err(|_| InvalidInput)
     }
 }
 
@@ -331,7 +331,7 @@ impl VerifyingKey for Ed25519PublicKey {
     fn verify(&self, msg: &[u8], signature: &Ed25519Signature) -> Result<(), FastCryptoError> {
         self.0
             .verify(&signature.sig, msg)
-            .map_err(|_| FastCryptoError::InvalidSignature)
+            .map_err(|_| InvalidSignature)
     }
 
     #[cfg(any(test, feature = "experimental"))]
@@ -501,7 +501,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
 
         batch
             .verify(OsRng)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map_err(|_| GeneralOpaqueError)
     }
 
     fn batch_verify<'a>(
@@ -527,7 +527,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
         }
         batch
             .verify(OsRng)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map_err(|_| GeneralOpaqueError)
     }
 }
 

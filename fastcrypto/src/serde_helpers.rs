@@ -30,7 +30,7 @@ pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> FastCryptoResult<T> {
     let sk_length = <<T as KeyPair>::PrivKey as SigningKey>::LENGTH;
     let pk_length = <<T as KeyPair>::PubKey as VerifyingKey>::LENGTH;
     if bytes.len() != pk_length + sk_length {
-        return Err(FastCryptoError::InvalidInput);
+        return Err(FastCryptoError::InputLengthWrong(pk_length + sk_length));
     }
     let secret = <T as KeyPair>::PrivKey::from_bytes(&bytes[..sk_length])?;
     // Read only sk bytes for privkey, and derive pubkey from privkey and returns keypair
