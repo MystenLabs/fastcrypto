@@ -7,7 +7,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies;
-use crate::ecies::{MultiRecipientEncryption, PrivateKey, PublicKey, RecoveryPackage};
+use crate::ecies::{MultiRecipientEncryption, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -17,7 +17,6 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
-use rand::thread_rng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -773,11 +772,11 @@ where
     EG: GroupElement + Serialize + DeserializeOwned,
     <EG as GroupElement>::ScalarType: FiatShamirChallenge,
 {
-    let sk = PrivateKey::<EG>::new(&mut thread_rng());
-    let pk = PublicKey::<EG>::from_private_key(&sk);
-    let encryption = pk.encrypt(b"test", &mut thread_rng());
+    let sk = ecies::PrivateKey::<EG>::new(&mut rand::thread_rng());
+    let pk = ecies::PublicKey::<EG>::from_private_key(&sk);
+    let encryption = pk.encrypt(b"test", &mut rand::thread_rng());
     let ro = RandomOracle::new("test");
-    let pkg = sk.create_recovery_package(&encryption, &ro, &mut thread_rng());
+    let pkg = sk.create_recovery_package(&encryption, &ro, &mut rand::thread_rng());
     Complaint {
         accused_sender: 1,
         proof: pkg,
