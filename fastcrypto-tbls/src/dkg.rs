@@ -7,7 +7,7 @@
 
 use crate::dl_verification::verify_poly_evals;
 use crate::ecies;
-use crate::ecies::{MultiRecipientEncryption, RecoveryPackage};
+use crate::ecies::{MultiRecipientEncryption, PrivateKey, PublicKey, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -17,6 +17,7 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
+use rand::thread_rng;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -68,6 +69,13 @@ pub struct Confirmation<EG: GroupElement> {
     /// List of complaints against other parties. Empty if there are none.
     pub complaints: Vec<Complaint<EG>>,
 }
+
+// Upper bound on the size of binary serialized incoming messages assuming <=3333 shares, <=400
+// parties, and using G2Element for encryption. This is a safe upper bound since:
+// - Message is O(96*t + 32*n) bytes.
+// - Confirmation is O((96*3 + 32) * k) bytes.
+// Could be used as a sanity safety check before deserializing an incoming message.
+pub const DKG_MESSAGES_MAX_SIZE: usize = 400_000; // 400 KB
 
 /// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -756,5 +764,22 @@ where
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+pub fn create_fake_complaint<EG>() -> Complaint<EG>
+where
+    EG: GroupElement + Serialize + DeserializeOwned,
+    <EG as GroupElement>::ScalarType: FiatShamirChallenge,
+{
+    let sk = PrivateKey::<EG>::new(&mut thread_rng());
+    let pk = PublicKey::<EG>::from_private_key(&sk);
+    let encryption = pk.encrypt(b"test", &mut thread_rng());
+    let ro = RandomOracle::new("test");
+    let pkg = sk.create_recovery_package(&encryption, &ro, &mut thread_rng());
+    Complaint {
+        accused_sender: 1,
+        proof: pkg,
     }
 }
