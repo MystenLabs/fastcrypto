@@ -34,10 +34,10 @@ use zeroize::ZeroizeOnDrop;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 
 #[cfg(any(test, feature = "experimental"))]
-use crate::error::FastCryptoError::{GeneralOpaqueError};
+use crate::error::FastCryptoError::GeneralOpaqueError;
+use crate::error::FastCryptoError::{InvalidInput, InvalidSignature};
 #[cfg(any(test, feature = "experimental"))]
 use crate::error::FastCryptoResult;
-use crate::error::FastCryptoError::{InvalidInput, InvalidSignature};
 use crate::serde_helpers::{to_custom_error, BytesRepresentation};
 #[cfg(any(test, feature = "experimental"))]
 use crate::traits::AggregateAuthenticator;
@@ -341,11 +341,7 @@ impl VerifyingKey for Ed25519PublicKey {
         pks: &[Self],
         sigs: &[Self::Sig],
     ) -> FastCryptoResult<()> {
-        if sigs.is_empty() {
-            // This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.
-            return Err(GeneralOpaqueError);
-        }
-        if sigs.len() != pks.len() {
+        if sigs.is_empty() || sigs.len() != pks.len() {
             return Err(InvalidInput);
         }
 
@@ -367,11 +363,7 @@ impl VerifyingKey for Ed25519PublicKey {
     where
         M: Borrow<[u8]> + 'a,
     {
-        if sigs.is_empty() {
-            // This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches.
-            return Err(GeneralOpaqueError);
-        }
-        if pks.len() != sigs.len() || pks.len() != msgs.len() {
+        if sigs.is_empty() || pks.len() != sigs.len() || pks.len() != msgs.len() {
             return Err(InvalidInput);
         }
 
@@ -500,9 +492,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
             batch.queue((vk_bytes, self.sigs[i], msg));
         }
 
-        batch
-            .verify(OsRng)
-            .map_err(|_| GeneralOpaqueError)
+        batch.verify(OsRng).map_err(|_| GeneralOpaqueError)
     }
 
     fn batch_verify<'a>(
@@ -526,9 +516,7 @@ impl AggregateAuthenticator for Ed25519AggregateSignature {
                 batch.queue((vk_bytes, *sig, messages[i]));
             }
         }
-        batch
-            .verify(OsRng)
-            .map_err(|_| GeneralOpaqueError)
+        batch.verify(OsRng).map_err(|_| GeneralOpaqueError)
     }
 }
 

@@ -111,12 +111,7 @@ pub trait VerifyingKey:
     /// ```
     #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail(msg: &[u8], pks: &[Self], sigs: &[Self::Sig]) -> FastCryptoResult<()> {
-        if sigs.is_empty() {
-            // This behaviour can signal something dangerous, and that someone may be trying to bypass
-            // signature verification through providing empty batches.
-            return Err(FastCryptoError::GeneralOpaqueError);
-        }
-        if pks.len() != sigs.len() {
+        if sigs.is_empty() || pks.len() != sigs.len() {
             return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
@@ -148,12 +143,7 @@ pub trait VerifyingKey:
     #[cfg(any(test, feature = "experimental"))]
     fn verify_batch_empty_fail_different_msg<'a, M>(msgs: &[M], pks: &[Self], sigs: &[Self::Sig])
         -> FastCryptoResult<()> where M: Borrow<[u8]> + 'a {
-        if sigs.is_empty() {
-            // This behaviour can signal something dangerous, and that someone may be trying to bypass
-            // signature verification through providing empty batches.
-            return Err(FastCryptoError::GeneralOpaqueError);
-        }
-        if pks.len() != sigs.len() || pks.len() != msgs.len() {
+        if sigs.is_empty() || pks.len() != sigs.len() || pks.len() != msgs.len() {
             return Err(FastCryptoError::InvalidInput);
         }
         pks.iter()
