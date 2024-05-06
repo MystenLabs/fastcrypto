@@ -7,14 +7,15 @@
 //! ```rust
 //! # use fastcrypto::encoding::*;
 //! assert_eq!(Hex::encode("Hello world!"), "48656c6c6f20776f726c6421");
-//! assert_eq!(encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
+//! assert_eq!(Hex::encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
 //! assert_eq!(Base64::encode("Hello world!"), "SGVsbG8gd29ybGQh");
 //! assert_eq!(Base58::encode("Hello world!"), "2NEpo7TZRhna7vSvL");
 //! ```
 
+use std::fmt::Debug;
+
 use base64ct::Encoding as _;
 use bech32::{FromBase32, Variant};
-use eyre::{eyre, Result};
 use schemars::JsonSchema;
 use serde;
 use serde::de::{Deserializer, Error};
@@ -22,23 +23,72 @@ use serde::ser::Serializer;
 use serde::Deserialize;
 use serde::Serialize;
 use serde_with::{DeserializeAs, SerializeAs};
-use std::fmt::Debug;
 
-#[inline]
-fn to_custom_error<'de, D, E>(e: E) -> D::Error
-where
-    E: Debug,
-    D: Deserializer<'de>,
-{
-    Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
-}
+use crate::error::FastCryptoError::InvalidInput;
+use crate::error::{FastCryptoError, FastCryptoResult};
 
 /// Trait representing a general binary-to-string encoding.
 pub trait Encoding {
     /// Decode this encoding into bytes.
-    fn decode(s: &str) -> Result<Vec<u8>>;
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>>;
+
     /// Encode bytes into a string.
     fn encode<T: AsRef<[u8]>>(data: T) -> String;
+}
+
+/// Implement `DeserializeAs<Vec<u8>>`, `DeserializeAs<[u8; N]>` and `SerializeAs<T: AsRef<[u8]>`
+/// for a type that implements `Encoding`.
+macro_rules! impl_serde_as_for_encoding {
+    ($encoding:ty) => {
+        impl<'de> DeserializeAs<'de, Vec<u8>> for $encoding {
+            fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let s = String::deserialize(deserializer)?;
+                Self::decode(&s).map_err(|_| Error::custom("Deserialization failed"))
+            }
+        }
+
+        impl<T> SerializeAs<T> for $encoding
+        where
+            T: AsRef<[u8]>,
+        {
+            fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let encoded_string = Self::encode(value);
+                Self(encoded_string).serialize(serializer)
+            }
+        }
+
+        impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for $encoding {
+            fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                let value: Vec<u8> = <$encoding>::deserialize_as(deserializer)?;
+                value
+                    .try_into()
+                    .map_err(|_| Error::custom(format!("Invalid array length, expecting {}", N)))
+            }
+        }
+    };
+}
+
+/// Implement `TryFrom<String>` for a type that implements `Encoding`.
+macro_rules! impl_try_from_string {
+    ($encoding:ty) => {
+        impl TryFrom<String> for $encoding {
+            type Error = FastCryptoError;
+            fn try_from(value: String) -> Result<Self, Self::Error> {
+                // Error on invalid encoding
+                <$encoding>::decode(&value)?;
+                Ok(Self(value))
+            }
+        }
+    };
 }
 
 /// Base64 encoding
@@ -46,18 +96,12 @@ pub trait Encoding {
 #[serde(try_from = "String")]
 pub struct Base64(String);
 
-impl TryFrom<String> for Base64 {
-    type Error = eyre::Report;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        // Make sure the value is valid base64 string.
-        Base64::decode(&value)?;
-        Ok(Self(value))
-    }
-}
+impl_serde_as_for_encoding!(Base64);
+impl_try_from_string!(Base64);
 
 impl Base64 {
     /// Decodes this Base64 encoding to bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, eyre::Report> {
+    pub fn to_vec(&self) -> FastCryptoResult<Vec<u8>> {
         Self::decode(&self.0)
     }
     /// Encodes bytes as a Base64.
@@ -71,8 +115,22 @@ impl Base64 {
 }
 
 /// Hex string encoding.
-#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone)]
+#[derive(Deserialize, Debug, JsonSchema, Clone)]
+#[serde(try_from = "String")]
 pub struct Hex(String);
+
+impl Serialize for Hex {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        // Hex strings are serialized with a 0x prefix which differs from the output of `Hex::encode`.
+        String::serialize(&self.encoded_with_format(), serializer)
+    }
+}
+
+impl_serde_as_for_encoding!(Hex);
+impl_try_from_string!(Hex);
 
 impl Hex {
     /// Create a hex encoding from a string.
@@ -81,28 +139,50 @@ impl Hex {
         Hex(s.to_string())
     }
     /// Decodes this hex encoding to bytes.
-    pub fn to_vec(&self) -> Result<Vec<u8>, eyre::Report> {
+    pub fn to_vec(&self) -> FastCryptoResult<Vec<u8>> {
         Self::decode(&self.0)
     }
     /// Encodes bytes as a hex string.
     pub fn from_bytes(bytes: &[u8]) -> Self {
-        Self(encode_with_format(bytes))
+        Self(Self::encode(bytes))
+    }
+    /// Encode bytes as a hex string with a "0x" prefix.
+    pub fn encode_with_format<T: AsRef<[u8]>>(bytes: T) -> String {
+        Self::format(&Self::encode(bytes))
+    }
+    /// Get a string representation of this Hex encoding with a "0x" prefix.
+    pub fn encoded_with_format(&self) -> String {
+        Self::format(&self.0)
+    }
+    /// Add "0x" prefix to a hex string.
+    fn format(hex_string: &str) -> String {
+        format!("0x{}", hex_string)
     }
 }
 
+/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
+pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> FastCryptoResult<T> {
+    let value = Hex::decode(s)?;
+    T::try_from(&value[..]).map_err(|_| InvalidInput)
+}
+
 impl Encoding for Hex {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
-        decode_bytes_hex(s)
+    /// Decodes a hex string to bytes. Both upper and lower case characters are accepted, and the
+    /// string may have a "0x" prefix or not.
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
+        let s = s.strip_prefix("0x").unwrap_or(s);
+        hex::decode(s).map_err(|_| InvalidInput)
     }
 
+    /// Hex encoding is without "0x" prefix. See `Hex::encode_with_format` for encoding with "0x".
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
         hex::encode(data.as_ref())
     }
 }
 
 impl Encoding for Base64 {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
-        base64ct::Base64::decode_vec(s).map_err(|e| eyre!(e))
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
+        base64ct::Base64::decode_vec(s).map_err(|_| InvalidInput)
     }
 
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
@@ -110,161 +190,20 @@ impl Encoding for Base64 {
     }
 }
 
-impl<'de> DeserializeAs<'de, Vec<u8>> for Base64 {
-    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
-impl<T> SerializeAs<T> for Base64
-where
-    T: AsRef<[u8]>,
-{
-    fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Self::encode(value).serialize(serializer)
-    }
-}
-
-impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base64 {
-    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value: Vec<u8> = Base64::deserialize_as(deserializer)?;
-        if value.len() != N {
-            return Err(Error::custom(eyre!(
-                "invalid array length {}, expecting {}",
-                value.len(),
-                N
-            )));
-        }
-        let mut array = [0u8; N];
-        array.copy_from_slice(&value[..N]);
-        Ok(array)
-    }
-}
-
-impl<'de> DeserializeAs<'de, Vec<u8>> for Hex {
-    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
-impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Hex {
-    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value: Vec<u8> = Hex::deserialize_as(deserializer)?;
-        if value.len() != N {
-            return Err(Error::custom(eyre!(
-                "invalid array length {}, expecting {}",
-                value.len(),
-                N
-            )));
-        }
-        let mut array = [0u8; N];
-        array.copy_from_slice(&value[..N]);
-        Ok(array)
-    }
-}
-
-impl<T> SerializeAs<T> for Hex
-where
-    T: AsRef<[u8]>,
-{
-    fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        encode_with_format(value).serialize(serializer)
-    }
-}
-
-/// Encodes bytes as a 0x prefixed hex string using lower case characters.
-pub fn encode_with_format<B: AsRef<[u8]>>(bytes: B) -> String {
-    format!("0x{}", hex::encode(bytes.as_ref()))
-}
-
-/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
-pub fn decode_bytes_hex<T: for<'a> TryFrom<&'a [u8]>>(s: &str) -> Result<T> {
-    let s = s.strip_prefix("0x").unwrap_or(s);
-    let value = hex::decode(s)?;
-    T::try_from(&value[..]).map_err(|_| eyre!("byte deserialization failed"))
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
 #[serde(try_from = "String")]
 pub struct Base58(String);
 
-impl TryFrom<String> for Base58 {
-    type Error = eyre::Report;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        // Make sure the value is valid base58 string.
-        bs58::decode(&value).into_vec()?;
-        Ok(Self(value))
-    }
-}
+impl_serde_as_for_encoding!(Base58);
+impl_try_from_string!(Base58);
 
 impl Encoding for Base58 {
-    fn decode(s: &str) -> Result<Vec<u8>, eyre::Report> {
-        bs58::decode(s).into_vec().map_err(|e| eyre::eyre!(e))
+    fn decode(s: &str) -> FastCryptoResult<Vec<u8>> {
+        bs58::decode(s).into_vec().map_err(|_| InvalidInput)
     }
 
     fn encode<T: AsRef<[u8]>>(data: T) -> String {
         bs58::encode(data).into_string()
-    }
-}
-
-impl<'de> DeserializeAs<'de, Vec<u8>> for Base58 {
-    fn deserialize_as<D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Self::decode(&s).map_err(to_custom_error::<'de, D, _>)
-    }
-}
-
-impl<T> SerializeAs<T> for Base58
-where
-    T: AsRef<[u8]>,
-{
-    fn serialize_as<S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        Self::encode(value).serialize(serializer)
-    }
-}
-
-impl<'de, const N: usize> DeserializeAs<'de, [u8; N]> for Base58 {
-    fn deserialize_as<D>(deserializer: D) -> Result<[u8; N], D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let value: Vec<u8> = Base58::deserialize_as(deserializer)?;
-        if value.len() != N {
-            return Err(Error::custom(eyre!(
-                "invalid array length {}, expecting {}",
-                value.len(),
-                N
-            )));
-        }
-        let mut array = [0u8; N];
-        array.copy_from_slice(&value[..N]);
-        Ok(array)
     }
 }
 
@@ -279,12 +218,12 @@ impl Bech32 {
     /// let bytes = Bech32::decode("split1qqqqsk5gh5","split").unwrap();
     /// assert_eq!(bytes, vec![0, 0]);
     /// ```
-    pub fn decode(s: &str, hrp: &str) -> Result<Vec<u8>, eyre::Report> {
-        let (parsed, data, variant) = bech32::decode(s).map_err(|e| eyre::eyre!(e))?;
+    pub fn decode(s: &str, hrp: &str) -> FastCryptoResult<Vec<u8>> {
+        let (parsed, data, variant) = bech32::decode(s).map_err(|_| InvalidInput)?;
         if parsed != hrp || variant != Variant::Bech32 {
-            Err(eyre!("invalid hrp or variant"))
+            Err(InvalidInput)
         } else {
-            Vec::<u8>::from_base32(&data).map_err(|e| eyre::eyre!(e))
+            Vec::<u8>::from_base32(&data).map_err(|_| InvalidInput)
         }
     }
 
@@ -295,8 +234,8 @@ impl Bech32 {
     /// let str = Bech32::encode(vec![0, 0],"split").unwrap();
     /// assert_eq!(str, "split1qqqqsk5gh5".to_string());
     /// ```
-    pub fn encode<T: AsRef<[u8]>>(data: T, hrp: &str) -> Result<String> {
+    pub fn encode<T: AsRef<[u8]>>(data: T, hrp: &str) -> FastCryptoResult<String> {
         use bech32::ToBase32;
-        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|e| eyre::eyre!(e))
+        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|_| InvalidInput)
     }
 }

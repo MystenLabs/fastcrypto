@@ -1,7 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use base64ct::Encoding as _;
 use schemars::JsonSchema;
 use serde::{
     de,
@@ -12,7 +11,7 @@ use serde_with::serde_as;
 use std::fmt;
 use std::fmt::{Debug, Display};
 
-use crate::error::FastCryptoError;
+use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::{
     encoding::{Base64, Encoding},
     traits::{KeyPair, SigningKey, ToFromBytes, VerifyingKey},
@@ -26,13 +25,12 @@ where
     Error::custom(format!("byte deserialization failed, cause by: {:?}", e))
 }
 
-pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> Result<T, eyre::Report> {
-    let bytes =
-        base64ct::Base64::decode_vec(value).map_err(|e| eyre::eyre!("{}", e.to_string()))?;
+pub fn keypair_decode_base64<T: KeyPair>(value: &str) -> FastCryptoResult<T> {
+    let bytes = Base64::decode(value)?;
     let sk_length = <<T as KeyPair>::PrivKey as SigningKey>::LENGTH;
     let pk_length = <<T as KeyPair>::PubKey as VerifyingKey>::LENGTH;
     if bytes.len() != pk_length + sk_length {
-        return Err(eyre::eyre!("Invalid keypair length"));
+        return Err(FastCryptoError::InputLengthWrong(pk_length + sk_length));
     }
     let secret = <T as KeyPair>::PrivKey::from_bytes(&bytes[..sk_length])?;
     // Read only sk bytes for privkey, and derive pubkey from privkey and returns keypair
