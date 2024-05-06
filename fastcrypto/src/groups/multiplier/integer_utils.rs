@@ -90,7 +90,9 @@ pub fn get_bits_from_bytes(bytes: &[u8], start: usize, end: usize) -> usize {
     result
 }
 
-/// Return true iff the bit at the given index is set.
+/// Return true iff the bit at the given index is set. The input is assumed to be infinetely padded
+/// with zeros, so if the index is larger than the number of bits in the input, the function will
+/// return false.
 #[inline]
 pub fn test_bit(bytes: &[u8], index: usize) -> bool {
     if index >= 8 * bytes.len() {

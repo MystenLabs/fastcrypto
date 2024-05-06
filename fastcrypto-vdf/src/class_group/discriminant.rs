@@ -9,13 +9,12 @@ use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::Signed;
-use serde::Deserializer;
 use serde::{Deserialize, Serialize};
 use std::ops::Neg;
 
 /// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
-#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
+#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
 pub struct Discriminant(#[serde(with = "crate::class_group::bigint_serde")] BigInt);
 
 impl TryFrom<BigInt> for Discriminant {
@@ -71,16 +70,6 @@ impl Parameter for Discriminant {
                 .expect("Never fails")
                 .neg(),
         )
-    }
-}
-
-impl<'de> Deserialize<'de> for Discriminant {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        Self::try_from(crate::class_group::bigint_serde::deserialize(deserializer)?)
-            .map_err(serde::de::Error::custom)
     }
 }
 
