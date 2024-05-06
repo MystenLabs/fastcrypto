@@ -15,7 +15,7 @@
 
 #[cfg(any(test, feature = "experimental"))]
 use crate::error::{
-    FastCryptoError::{GeneralOpaqueError, InvalidInput, InvalidSignature},
+    FastCryptoError::{InvalidInput, InvalidSignature},
     FastCryptoResult,
 };
 use crate::serde_helpers::BytesRepresentation;
