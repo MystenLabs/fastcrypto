@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/encoding.rs`."><title>encoding.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.2 (25ef9e3d8 2024-04-09)" data-channel="1.77.2" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/encoding.rs`."><title>encoding.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e935ef01ae1c1829.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0 (9b00956e5 2024-04-29)" data-channel="1.78.0" data-search-js="search-42d8da7a6b9792c2.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12cf3b4f4f9dc36d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -241,67 +241,6 @@
 <a href="#239" id="239">239</a>
 <a href="#240" id="240">240</a>
 <a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a>
-<a href="#273" id="273">273</a>
-<a href="#274" id="274">274</a>
-<a href="#275" id="275">275</a>
-<a href="#276" id="276">276</a>
-<a href="#277" id="277">277</a>
-<a href="#278" id="278">278</a>
-<a href="#279" id="279">279</a>
-<a href="#280" id="280">280</a>
-<a href="#281" id="281">281</a>
-<a href="#282" id="282">282</a>
-<a href="#283" id="283">283</a>
-<a href="#284" id="284">284</a>
-<a href="#285" id="285">285</a>
-<a href="#286" id="286">286</a>
-<a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -311,14 +250,15 @@
 //! ```rust
 //! # use fastcrypto::encoding::*;
 //! assert_eq!(Hex::encode("Hello world!"), "48656c6c6f20776f726c6421");
-//! assert_eq!(encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
+//! assert_eq!(Hex::encode_with_format("Hello world!"), "0x48656c6c6f20776f726c6421");
 //! assert_eq!(Base64::encode("Hello world!"), "SGVsbG8gd29ybGQh");
 //! assert_eq!(Base58::encode("Hello world!"), "2NEpo7TZRhna7vSvL");
 //! ```
 
-</span><span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
+</span><span class="kw">use </span>std::fmt::Debug;
+
+<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
 <span class="kw">use </span>bech32::{FromBase32, Variant};
-<span class="kw">use </span>eyre::{eyre, <span class="prelude-ty">Result</span>};
 <span class="kw">use </span>schemars::JsonSchema;
 <span class="kw">use </span>serde;
 <span class="kw">use </span>serde::de::{Deserializer, Error};
@@ -326,23 +266,72 @@
 <span class="kw">use </span>serde::Deserialize;
 <span class="kw">use </span>serde::Serialize;
 <span class="kw">use </span>serde_with::{DeserializeAs, SerializeAs};
-<span class="kw">use </span>std::fmt::Debug;
 
-<span class="attr">#[inline]
-</span><span class="kw">fn </span>to_custom_error&lt;<span class="lifetime">'de</span>, D, E&gt;(e: E) -&gt; D::Error
-<span class="kw">where
-    </span>E: Debug,
-    D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-{
-    Error::custom(<span class="macro">format!</span>(<span class="string">"byte deserialization failed, cause by: {:?}"</span>, e))
-}
+<span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError::InvalidInput;
+<span class="kw">use </span><span class="kw">crate</span>::error::{FastCryptoError, FastCryptoResult};
 
 <span class="doccomment">/// Trait representing a general binary-to-string encoding.
 </span><span class="kw">pub trait </span>Encoding {
     <span class="doccomment">/// Decode this encoding into bytes.
-    </span><span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;&gt;;
+    </span><span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt;;
+
     <span class="doccomment">/// Encode bytes into a string.
     </span><span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String;
+}
+
+<span class="doccomment">/// Implement `DeserializeAs&lt;Vec&lt;u8&gt;&gt;`, `DeserializeAs&lt;[u8; N]&gt;` and `SerializeAs&lt;T: AsRef&lt;[u8]&gt;`
+/// for a type that implements `Encoding`.
+</span><span class="macro">macro_rules!</span> impl_serde_as_for_encoding {
+    (<span class="macro-nonterminal">$encoding</span>:ty) =&gt; {
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span><span class="macro-nonterminal">$encoding </span>{
+            <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
+            <span class="kw">where
+                </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
+            {
+                <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
+                <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(|<span class="kw">_</span>| Error::custom(<span class="string">"Deserialization failed"</span>))
+            }
+        }
+
+        <span class="kw">impl</span>&lt;T&gt; SerializeAs&lt;T&gt; <span class="kw">for </span><span class="macro-nonterminal">$encoding
+        </span><span class="kw">where
+            </span>T: AsRef&lt;[u8]&gt;,
+        {
+            <span class="kw">fn </span>serialize_as&lt;S&gt;(value: <span class="kw-2">&amp;</span>T, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+            <span class="kw">where
+                </span>S: Serializer,
+            {
+                <span class="kw">let </span>encoded_string = <span class="self">Self</span>::encode(value);
+                <span class="self">Self</span>(encoded_string).serialize(serializer)
+            }
+        }
+
+        <span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span><span class="macro-nonterminal">$encoding </span>{
+            <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
+            <span class="kw">where
+                </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
+            {
+                <span class="kw">let </span>value: Vec&lt;u8&gt; = &lt;<span class="macro-nonterminal">$encoding</span>&gt;::deserialize_as(deserializer)<span class="question-mark">?</span>;
+                value
+                    .try_into()
+                    .map_err(|<span class="kw">_</span>| Error::custom(<span class="macro">format!</span>(<span class="string">"Invalid array length, expecting {}"</span>, N)))
+            }
+        }
+    };
+}
+
+<span class="doccomment">/// Implement `TryFrom&lt;String&gt;` for a type that implements `Encoding`.
+</span><span class="macro">macro_rules!</span> impl_try_from_string {
+    (<span class="macro-nonterminal">$encoding</span>:ty) =&gt; {
+        <span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span><span class="macro-nonterminal">$encoding </span>{
+            <span class="kw">type </span>Error = FastCryptoError;
+            <span class="kw">fn </span>try_from(value: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+                <span class="comment">// Error on invalid encoding
+                </span>&lt;<span class="macro-nonterminal">$encoding</span>&gt;::decode(<span class="kw-2">&amp;</span>value)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(<span class="self">Self</span>(value))
+            }
+        }
+    };
 }
 
 <span class="doccomment">/// Base64 encoding
@@ -350,18 +339,12 @@
 #[serde(try_from = <span class="string">"String"</span>)]
 </span><span class="kw">pub struct </span>Base64(String);
 
-<span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span>Base64 {
-    <span class="kw">type </span>Error = eyre::Report;
-    <span class="kw">fn </span>try_from(value: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
-        <span class="comment">// Make sure the value is valid base64 string.
-        </span>Base64::decode(<span class="kw-2">&amp;</span>value)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(value))
-    }
-}
+<span class="macro">impl_serde_as_for_encoding!</span>(Base64);
+<span class="macro">impl_try_from_string!</span>(Base64);
 
 <span class="kw">impl </span>Base64 {
     <span class="doccomment">/// Decodes this Base64 encoding to bytes.
-    </span><span class="kw">pub fn </span>to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
+    </span><span class="kw">pub fn </span>to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
         <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
     }
     <span class="doccomment">/// Encodes bytes as a Base64.
@@ -375,8 +358,22 @@
 }
 
 <span class="doccomment">/// Hex string encoding.
-</span><span class="attr">#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone)]
+</span><span class="attr">#[derive(Deserialize, Debug, JsonSchema, Clone)]
+#[serde(try_from = <span class="string">"String"</span>)]
 </span><span class="kw">pub struct </span>Hex(String);
+
+<span class="kw">impl </span>Serialize <span class="kw">for </span>Hex {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: Serializer,
+    {
+        <span class="comment">// Hex strings are serialized with a 0x prefix which differs from the output of `Hex::encode`.
+        </span>String::serialize(<span class="kw-2">&amp;</span><span class="self">self</span>.encoded_with_format(), serializer)
+    }
+}
+
+<span class="macro">impl_serde_as_for_encoding!</span>(Hex);
+<span class="macro">impl_try_from_string!</span>(Hex);
 
 <span class="kw">impl </span>Hex {
     <span class="doccomment">/// Create a hex encoding from a string.
@@ -385,28 +382,50 @@
         Hex(s.to_string())
     }
     <span class="doccomment">/// Decodes this hex encoding to bytes.
-    </span><span class="kw">pub fn </span>to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
+    </span><span class="kw">pub fn </span>to_vec(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
         <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
     }
     <span class="doccomment">/// Encodes bytes as a hex string.
     </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(encode_with_format(bytes))
+        <span class="self">Self</span>(<span class="self">Self</span>::encode(bytes))
+    }
+    <span class="doccomment">/// Encode bytes as a hex string with a "0x" prefix.
+    </span><span class="kw">pub fn </span>encode_with_format&lt;T: AsRef&lt;[u8]&gt;&gt;(bytes: T) -&gt; String {
+        <span class="self">Self</span>::format(<span class="kw-2">&amp;</span><span class="self">Self</span>::encode(bytes))
+    }
+    <span class="doccomment">/// Get a string representation of this Hex encoding with a "0x" prefix.
+    </span><span class="kw">pub fn </span>encoded_with_format(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; String {
+        <span class="self">Self</span>::format(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
+    }
+    <span class="doccomment">/// Add "0x" prefix to a hex string.
+    </span><span class="kw">fn </span>format(hex_string: <span class="kw-2">&amp;</span>str) -&gt; String {
+        <span class="macro">format!</span>(<span class="string">"0x{}"</span>, hex_string)
     }
 }
 
+<span class="doccomment">/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
+</span><span class="kw">pub fn </span>decode_bytes_hex&lt;T: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;&gt;(s: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;T&gt; {
+    <span class="kw">let </span>value = Hex::decode(s)<span class="question-mark">?</span>;
+    T::try_from(<span class="kw-2">&amp;</span>value[..]).map_err(|<span class="kw">_</span>| InvalidInput)
+}
+
 <span class="kw">impl </span>Encoding <span class="kw">for </span>Hex {
-    <span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
-        decode_bytes_hex(s)
+    <span class="doccomment">/// Decodes a hex string to bytes. Both upper and lower case characters are accepted, and the
+    /// string may have a "0x" prefix or not.
+    </span><span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+        <span class="kw">let </span>s = s.strip_prefix(<span class="string">"0x"</span>).unwrap_or(s);
+        hex::decode(s).map_err(|<span class="kw">_</span>| InvalidInput)
     }
 
-    <span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String {
+    <span class="doccomment">/// Hex encoding is without "0x" prefix. See `Hex::encode_with_format` for encoding with "0x".
+    </span><span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String {
         hex::encode(data.as_ref())
     }
 }
 
 <span class="kw">impl </span>Encoding <span class="kw">for </span>Base64 {
-    <span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
-        base64ct::Base64::decode_vec(s).map_err(|e| <span class="macro">eyre!</span>(e))
+    <span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+        base64ct::Base64::decode_vec(s).map_err(|<span class="kw">_</span>| InvalidInput)
     }
 
     <span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String {
@@ -414,161 +433,20 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base64 {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
-    }
-}
-
-<span class="kw">impl</span>&lt;T&gt; SerializeAs&lt;T&gt; <span class="kw">for </span>Base64
-<span class="kw">where
-    </span>T: AsRef&lt;[u8]&gt;,
-{
-    <span class="kw">fn </span>serialize_as&lt;S&gt;(value: <span class="kw-2">&amp;</span>T, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        <span class="self">Self</span>::encode(value).serialize(serializer)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Base64 {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>value: Vec&lt;u8&gt; = Base64::deserialize_as(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">if </span>value.len() != N {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">"invalid array length {}, expecting {}"</span>,
-                value.len(),
-                N
-            )));
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
-        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
-        <span class="prelude-val">Ok</span>(array)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Hex {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Hex {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>value: Vec&lt;u8&gt; = Hex::deserialize_as(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">if </span>value.len() != N {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">"invalid array length {}, expecting {}"</span>,
-                value.len(),
-                N
-            )));
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
-        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
-        <span class="prelude-val">Ok</span>(array)
-    }
-}
-
-<span class="kw">impl</span>&lt;T&gt; SerializeAs&lt;T&gt; <span class="kw">for </span>Hex
-<span class="kw">where
-    </span>T: AsRef&lt;[u8]&gt;,
-{
-    <span class="kw">fn </span>serialize_as&lt;S&gt;(value: <span class="kw-2">&amp;</span>T, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        encode_with_format(value).serialize(serializer)
-    }
-}
-
-<span class="doccomment">/// Encodes bytes as a 0x prefixed hex string using lower case characters.
-</span><span class="kw">pub fn </span>encode_with_format&lt;B: AsRef&lt;[u8]&gt;&gt;(bytes: B) -&gt; String {
-    <span class="macro">format!</span>(<span class="string">"0x{}"</span>, hex::encode(bytes.as_ref()))
-}
-
-<span class="doccomment">/// Decodes a hex string to bytes. Both upper and lower case characters are allowed in the hex string.
-</span><span class="kw">pub fn </span>decode_bytes_hex&lt;T: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; TryFrom&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>[u8]&gt;&gt;(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;T&gt; {
-    <span class="kw">let </span>s = s.strip_prefix(<span class="string">"0x"</span>).unwrap_or(s);
-    <span class="kw">let </span>value = hex::decode(s)<span class="question-mark">?</span>;
-    T::try_from(<span class="kw-2">&amp;</span>value[..]).map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"byte deserialization failed"</span>))
-}
-
 <span class="attr">#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, JsonSchema)]
 #[serde(try_from = <span class="string">"String"</span>)]
 </span><span class="kw">pub struct </span>Base58(String);
 
-<span class="kw">impl </span>TryFrom&lt;String&gt; <span class="kw">for </span>Base58 {
-    <span class="kw">type </span>Error = eyre::Report;
-    <span class="kw">fn </span>try_from(value: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
-        <span class="comment">// Make sure the value is valid base58 string.
-        </span>bs58::decode(<span class="kw-2">&amp;</span>value).into_vec()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="self">Self</span>(value))
-    }
-}
+<span class="macro">impl_serde_as_for_encoding!</span>(Base58);
+<span class="macro">impl_try_from_string!</span>(Base58);
 
 <span class="kw">impl </span>Encoding <span class="kw">for </span>Base58 {
-    <span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
-        bs58::decode(s).into_vec().map_err(|e| <span class="macro">eyre::eyre!</span>(e))
+    <span class="kw">fn </span>decode(s: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+        bs58::decode(s).into_vec().map_err(|<span class="kw">_</span>| InvalidInput)
     }
 
     <span class="kw">fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T) -&gt; String {
         bs58::encode(data).into_string()
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, Vec&lt;u8&gt;&gt; <span class="kw">for </span>Base58 {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
-        <span class="self">Self</span>::decode(<span class="kw-2">&amp;</span>s).map_err(to_custom_error::&lt;<span class="lifetime">'de</span>, D, <span class="kw">_</span>&gt;)
-    }
-}
-
-<span class="kw">impl</span>&lt;T&gt; SerializeAs&lt;T&gt; <span class="kw">for </span>Base58
-<span class="kw">where
-    </span>T: AsRef&lt;[u8]&gt;,
-{
-    <span class="kw">fn </span>serialize_as&lt;S&gt;(value: <span class="kw-2">&amp;</span>T, serializer: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
-    <span class="kw">where
-        </span>S: Serializer,
-    {
-        <span class="self">Self</span>::encode(value).serialize(serializer)
-    }
-}
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>, <span class="kw">const </span>N: usize&gt; DeserializeAs&lt;<span class="lifetime">'de</span>, [u8; N]&gt; <span class="kw">for </span>Base58 {
-    <span class="kw">fn </span>deserialize_as&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; N], D::Error&gt;
-    <span class="kw">where
-        </span>D: Deserializer&lt;<span class="lifetime">'de</span>&gt;,
-    {
-        <span class="kw">let </span>value: Vec&lt;u8&gt; = Base58::deserialize_as(deserializer)<span class="question-mark">?</span>;
-        <span class="kw">if </span>value.len() != N {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(Error::custom(<span class="macro">eyre!</span>(
-                <span class="string">"invalid array length {}, expecting {}"</span>,
-                value.len(),
-                N
-            )));
-        }
-        <span class="kw">let </span><span class="kw-2">mut </span>array = [<span class="number">0u8</span>; N];
-        array.copy_from_slice(<span class="kw-2">&amp;</span>value[..N]);
-        <span class="prelude-val">Ok</span>(array)
     }
 }
 
@@ -583,12 +461,12 @@
     /// let bytes = Bech32::decode("split1qqqqsk5gh5","split").unwrap();
     /// assert_eq!(bytes, vec![0, 0]);
     /// ```
-    </span><span class="kw">pub fn </span>decode(s: <span class="kw-2">&amp;</span>str, hrp: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, eyre::Report&gt; {
-        <span class="kw">let </span>(parsed, data, variant) = bech32::decode(s).map_err(|e| <span class="macro">eyre::eyre!</span>(e))<span class="question-mark">?</span>;
+    </span><span class="kw">pub fn </span>decode(s: <span class="kw-2">&amp;</span>str, hrp: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;Vec&lt;u8&gt;&gt; {
+        <span class="kw">let </span>(parsed, data, variant) = bech32::decode(s).map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>;
         <span class="kw">if </span>parsed != hrp || variant != Variant::Bech32 {
-            <span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"invalid hrp or variant"</span>))
+            <span class="prelude-val">Err</span>(InvalidInput)
         } <span class="kw">else </span>{
-            Vec::&lt;u8&gt;::from_base32(<span class="kw-2">&amp;</span>data).map_err(|e| <span class="macro">eyre::eyre!</span>(e))
+            Vec::&lt;u8&gt;::from_base32(<span class="kw-2">&amp;</span>data).map_err(|<span class="kw">_</span>| InvalidInput)
         }
     }
 
@@ -599,9 +477,9 @@
     /// let str = Bech32::encode(vec![0, 0],"split").unwrap();
     /// assert_eq!(str, "split1qqqqsk5gh5".to_string());
     /// ```
-    </span><span class="kw">pub fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T, hrp: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;String&gt; {
+    </span><span class="kw">pub fn </span>encode&lt;T: AsRef&lt;[u8]&gt;&gt;(data: T, hrp: <span class="kw-2">&amp;</span>str) -&gt; FastCryptoResult&lt;String&gt; {
         <span class="kw">use </span>bech32::ToBase32;
-        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|e| <span class="macro">eyre::eyre!</span>(e))
+        bech32::encode(hrp, data.to_base32(), Variant::Bech32).map_err(|<span class="kw">_</span>| InvalidInput)
     }
 }
 </code></pre></div></section></main></body></html>

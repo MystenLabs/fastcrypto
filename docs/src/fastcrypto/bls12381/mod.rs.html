@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381/mod.rs`."><title>mod.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.2 (25ef9e3d8 2024-04-09)" data-channel="1.77.2" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/bls12381/mod.rs`."><title>mod.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-e935ef01ae1c1829.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0 (9b00956e5 2024-04-29)" data-channel="1.78.0" data-search-js="search-42d8da7a6b9792c2.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-12cf3b4f4f9dc36d.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../../fastcrypto/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -732,7 +732,6 @@
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
-<a href="#733" id="733">733</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -748,7 +747,12 @@
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
 
-</span><span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
+</span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::error::{
+    FastCryptoError::{InvalidInput, InvalidSignature},
+    FastCryptoResult,
+};
+<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::BytesRepresentation;
 <span class="kw">use </span><span class="kw">crate</span>::traits::{
     AggregateAuthenticator, AllowedRng, Authenticator, EncodeDecodeBase64, InsecureDefault,
     KeyPair, Signer, SigningKey, ToFromBytes, VerifyingKey,
@@ -759,8 +763,6 @@
 };
 <span class="kw">use crate</span>::{generate_bytes_representation, impl_base64_display_fmt};
 <span class="kw">use </span>blst::{blst_scalar, blst_scalar_from_le_bytes, blst_scalar_from_uint64, BLST_ERROR};
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span>eyre::eyre;
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>once_cell::sync::OnceCell;
 <span class="kw">use </span>std::{
@@ -777,669 +779,665 @@
 ///
 /// Below we define BLS related objects for each of the modes, see instantiations
 /// [fastcrypto::bls12381::min_sig] and [fastcrypto::bls12381::min_pk].
-</span><span class="macro">macro_rules! </span>define_bls12381 {
-(
+</span><span class="macro">macro_rules!</span> define_bls12381 {
+    (
     <span class="macro-nonterminal">$pk_length</span>:expr,
     <span class="macro-nonterminal">$sig_length</span>:expr,
     <span class="macro-nonterminal">$dst_string</span>:expr
 ) =&gt; {
-
-<span class="doccomment">/// BLS 12-381 public key.
-///
-/// For optimizing performance, throughout this module we assume that before being used, public keys
-/// are:
-/// * Validated by calling [BLS12381PublicKey::validate]), and,
-/// * Proof-of-Possession (PoP) is performed on them as a protection against rough key attacks.
-</span><span class="attr">#[readonly::make]
-#[derive(Clone)]
-</span><span class="kw">pub struct </span>BLS12381PublicKey {
-    <span class="kw">pub </span>pubkey: blst::PublicKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$pk_length</span>]&gt;,
-}
-
-<span class="doccomment">/// BLS 12-381 private key.
-</span><span class="attr">#[readonly::make]
-#[derive(SilentDebug, SilentDisplay)]
-</span><span class="kw">pub struct </span>BLS12381PrivateKey {
-    <span class="kw">pub </span>privkey: blst::SecretKey,
-    <span class="kw">pub </span>bytes: OnceCell&lt;zeroize::Zeroizing&lt;[u8; BLS_PRIVATE_KEY_LENGTH]&gt;&gt;,
-}
-
-<span class="doccomment">/// BLS 12-381 key pair.
-</span><span class="attr">#[derive(Debug, PartialEq, Eq)]
-</span><span class="kw">pub struct </span>BLS12381KeyPair {
-    public: BLS12381PublicKey,
-    private: BLS12381PrivateKey,
-}
-
-<span class="doccomment">/// BLS 12-381 signature.
-</span><span class="attr">#[readonly::make]
-#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>BLS12381Signature {
-    <span class="kw">pub </span>sig: blst::Signature,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
-}
-
-<span class="doccomment">/// Aggregation of multiple BLS 12-381 signatures.
-</span><span class="attr">#[readonly::make]
-#[derive(Debug, Clone)]
-</span><span class="kw">pub struct </span>BLS12381AggregateSignature {
-    <span class="kw">pub </span>sig: blst::Signature,
-    <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
-}
-
-<span class="comment">//
-// Boilerplate code for [BLS12381PublicKey].
-//
-
-</span><span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
-        <span class="self">self</span>.as_ref().hash(state);
-    }
-}
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.pubkey == other.pubkey
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381PublicKey {}
-
-<span class="kw">impl </span>PartialOrd <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
-        <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
-    }
-}
-
-<span class="kw">impl </span>Ord <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
-        <span class="self">self</span>.as_ref().cmp(other.as_ref())
-    }
-}
-
-<span class="macro">impl_base64_display_fmt!</span>(BLS12381PublicKey);
-
-<span class="kw">impl </span>Debug <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
-        <span class="macro">write!</span>(f, <span class="string">"{}"</span>, Base64::encode(<span class="self">self</span>.as_ref()))
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.pubkey.to_bytes())
-    }
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// key_validate() does NOT validate the public key. Please use validate() where needed.
-        </span><span class="kw">let </span>pubkey =
-            blst::PublicKey::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(BLS12381PublicKey {
-            pubkey,
-            bytes: OnceCell::new(),
-        })
-    }
-}
-
-<span class="comment">//
-// Custom code for [BLS12381PublicKey].
-//
-
-// Needed since the current NW implementation requires default public keys.
-// Note that deserialization of this object will fail if we validate it is a valid public key.
-</span><span class="kw">impl </span>InsecureDefault <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
-        BLS12381PublicKey {
-            pubkey: blst::PublicKey::default(),
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-<span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
-<span class="macro">generate_bytes_representation!</span>(BLS12381PublicKey, {<span class="macro-nonterminal">$pk_length</span>}, BLS12381PublicKeyAsBytes);
-
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BLS12381PrivateKey&gt; <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BLS12381PrivateKey) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>inner = <span class="kw-2">&amp;</span>secret.privkey;
-        <span class="kw">let </span>pubkey = inner.sk_to_pk();
-        BLS12381PublicKey {
-            pubkey,
-            bytes: OnceCell::new(),
-        }
-    }
-}
-
-<span class="comment">// TODO: Once NW does not need to ser/deser public keys in many places we should call validate
-// during deserialization and get rid of this function.
-</span><span class="kw">impl </span>BLS12381PublicKey {
-    <span class="kw">pub fn </span>validate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="self">self</span>.pubkey.validate().map_err(|_e| FastCryptoError::InvalidInput)
-    }
-}
-
-<span class="kw">impl </span>VerifyingKey <span class="kw">for </span>BLS12381PublicKey {
-    <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
-    <span class="kw">type </span>Sig = BLS12381Signature;
-    <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$pk_length</span>;
-
-    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>BLS12381Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// verify() only validates the signature. Please use pk that was validated.
-        </span><span class="kw">let </span>err = signature
-            .sig
-            .verify(<span class="bool-val">true</span>, msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey, <span class="bool-val">false</span>);
-        <span class="kw">if </span>err == BLST_ERROR::BLST_SUCCESS {
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature)
-        }
-    }
-
-    <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-    </span><span class="kw">fn </span>verify_batch_empty_fail(
-        msg: <span class="kw-2">&amp;</span>[u8],
-        pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
-        sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
-        <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Critical Error! This behaviour can signal something dangerous, and \
-            that someone may be trying to bypass signature verification through providing empty \
-            batches."
-            </span>));
-        }
-        <span class="kw">if </span>sigs.len() != pks.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Mismatch between number of signatures and public keys provided"
-            </span>));
-        }
-        <span class="kw">let </span>aggregated_sig = BLS12381AggregateSignature::aggregate(sigs)
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Signature aggregation before verifying failed!"</span>))<span class="question-mark">?</span>;
-        aggregated_sig
-            .verify(pks, msg)
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Batch verification failed!"</span>))
-    }
-
-    <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-    </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">'a</span>, M&gt;(
-        msgs: <span class="kw-2">&amp;</span>[M],
-        pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
-        sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt;
-    <span class="kw">where
-        </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">'a</span>,
-    {
-        <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Critical Error! This behaviour can signal something dangerous, and \
-            that someone may be trying to bypass signature verification through providing empty \
-            batches."
-            </span>));
-        }
-        <span class="kw">if </span>sigs.len() != pks.len() || msgs.len() != pks.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Mismatch between number of messages, signatures and public keys provided"
-            </span>));
+        <span class="doccomment">/// BLS 12-381 public key.
+        ///
+        /// For optimizing performance, throughout this module we assume that before being used, public keys
+        /// are:
+        /// * Validated by calling [BLS12381PublicKey::validate]), and,
+        /// * Proof-of-Possession (PoP) is performed on them as a protection against rough key attacks.
+        </span><span class="attr">#[readonly::make]
+        #[derive(Clone)]
+        </span><span class="kw">pub struct </span>BLS12381PublicKey {
+            <span class="kw">pub </span>pubkey: blst::PublicKey,
+            <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$pk_length</span>]&gt;,
         }
 
-        <span class="kw">let </span>rands = get_random_scalars(sigs.len());
-
-        <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
-            <span class="kw-2">&amp;</span>msgs.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="macro-nonterminal">$dst_string</span>,
-            <span class="kw-2">&amp;</span>pks.iter().map(|pk| <span class="kw-2">&amp;</span>pk.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">false</span>,
-            <span class="kw-2">&amp;</span>sigs.iter().map(|sig| <span class="kw-2">&amp;</span>sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">true</span>,
-            <span class="kw-2">&amp;</span>rands,
-            BLS_BATCH_RANDOM_SCALAR_LENGTH,
-        );
-        <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Batch verification failed!"</span>))
+        <span class="doccomment">/// BLS 12-381 private key.
+        </span><span class="attr">#[readonly::make]
+        #[derive(SilentDebug, SilentDisplay)]
+        </span><span class="kw">pub struct </span>BLS12381PrivateKey {
+            <span class="kw">pub </span>privkey: blst::SecretKey,
+            <span class="kw">pub </span>bytes: OnceCell&lt;zeroize::Zeroizing&lt;[u8; BLS_PRIVATE_KEY_LENGTH]&gt;&gt;,
         }
-    }
-}
 
-<span class="kw">fn </span>get_random_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
-    <span class="macro">static_assertions::const_assert!</span>(
-        <span class="number">64 </span>&lt;= BLS_BATCH_RANDOM_SCALAR_LENGTH &amp;&amp; BLS_BATCH_RANDOM_SCALAR_LENGTH &lt;= <span class="number">128
-    </span>);
-
-    <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
-    <span class="kw">loop </span>{
-        vals[<span class="number">0</span>] = rng.next_u64();
-        vals[<span class="number">1</span>] = rng.next_u64();
-
-        <span class="comment">// Reject zero as it is used for multiplication.
-        </span><span class="kw">let </span>vals1_lsb = vals[<span class="number">1</span>] &amp; (((<span class="number">1u128 </span>&lt;&lt; (BLS_BATCH_RANDOM_SCALAR_LENGTH - <span class="number">64</span>)) - <span class="number">1</span>) <span class="kw">as </span>u64);
-        <span class="kw">if </span>vals[<span class="number">0</span>] | vals1_lsb != <span class="number">0 </span>{
-            <span class="kw">break</span>;
+        <span class="doccomment">/// BLS 12-381 key pair.
+        </span><span class="attr">#[derive(Debug, PartialEq, Eq)]
+        </span><span class="kw">pub struct </span>BLS12381KeyPair {
+            public: BLS12381PublicKey,
+            private: BLS12381PrivateKey,
         }
-    }
-    <span class="kw">let </span><span class="kw-2">mut </span>rand_i = MaybeUninit::&lt;blst_scalar&gt;::uninit();
-    <span class="kw">unsafe </span>{
-        blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
-        <span class="kw">return </span>rand_i.assume_init();
-    }
-}
 
-<span class="kw">fn </span>get_one() -&gt; blst_scalar {
-    <span class="kw">let </span><span class="kw-2">mut </span>one = blst_scalar::default();
-    <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u8</span>; <span class="number">32</span>];
-    vals[<span class="number">0</span>] = <span class="number">1</span>;
-    <span class="kw">unsafe </span>{
-        blst_scalar_from_le_bytes(<span class="kw-2">&amp;mut </span>one, vals.as_ptr(), <span class="number">32</span>);
-    }
-    one
-}
-
-<span class="comment">// Always generates 128bit numbers though not all the bits must be used.
-</span><span class="kw">fn </span>get_random_scalars(n: usize) -&gt; Vec&lt;blst_scalar&gt; {
-    <span class="kw">if </span>n == <span class="number">0 </span>{
-        <span class="kw">return </span>Vec::new();
-    }
-    <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(n);
-    <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
-    </span>rands.push(get_one());
-    <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
-    (<span class="number">1</span>..n).into_iter().for_each(|<span class="kw">_</span>| rands.push(get_random_scalar(<span class="kw-2">&amp;mut </span>rng)));
-    rands
-}
-
-<span class="comment">//
-// Boilerplate code for [BLS12381PrivateKey].
-//
-
-</span><span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.as_ref() == other.as_ref()
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381PrivateKey {}
-
-<span class="comment">// All fields impl zeroize::ZeroizeOnDrop directly or indirectly (OnceCell's drop will call
-// ZeroizeOnDrop).
-</span><span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>BLS12381PrivateKey {}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| zeroize::Zeroizing::new(<span class="self">self</span>.privkey.to_bytes())).as_ref()
-    }
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// from_bytes() validates that the key is in the right group.
-        </span><span class="kw">let </span>privkey =
-            blst::SecretKey::from_bytes(bytes).map_err(|_e| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(BLS12381PrivateKey {
-            privkey,
-            bytes: OnceCell::new(),
-        })
-    }
-}
-
-<span class="comment">//
-// Custom code for [BLS12381PrivateKey].
-//
-
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PrivateKey, BLS_PRIVATE_KEY_LENGTH);
-
-<span class="kw">impl </span>SigningKey <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">type </span>PubKey = BLS12381PublicKey;
-    <span class="kw">type </span>Sig = BLS12381Signature;
-    <span class="kw">const </span>LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
-}
-
-<span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381PrivateKey {
-    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
-        BLS12381Signature {
-            sig: <span class="self">self</span>.privkey.sign(msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[]),
-            bytes: OnceCell::new(),
+        <span class="doccomment">/// BLS 12-381 signature.
+        </span><span class="attr">#[readonly::make]
+        #[derive(Debug, Clone)]
+        </span><span class="kw">pub struct </span>BLS12381Signature {
+            <span class="kw">pub </span>sig: blst::Signature,
+            <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
         }
-    }
-}
 
-<span class="comment">//
-// Boilerplate code for [BLS12381Signature].
-//
-
-</span><span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.sig == other.sig
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381Signature {}
-
-<span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
-        <span class="self">self</span>.as_ref().hash(state);
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.sig.to_bytes())
-    }
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// from_bytes() does NOT check if the signature is in the right group. We check that when
-        // verifying the signature.
-        </span><span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(BLS12381Signature {
-            sig,
-            bytes: OnceCell::new(),
-        })
-    }
-}
-
-<span class="macro">impl_base64_display_fmt!</span>(BLS12381Signature);
-
-<span class="comment">//
-// Custom code for [BLS12381Signature].
-//
-
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381Signature, <span class="macro-nonterminal">$sig_length</span>);
-
-<span class="kw">impl </span>Default <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        <span class="comment">// Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
-        // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
-        </span><span class="kw">let </span><span class="kw-2">mut </span>infinity: [u8; <span class="macro-nonterminal">$sig_length</span>] = [<span class="number">0</span>; <span class="macro-nonterminal">$sig_length</span>];
-        infinity[<span class="number">0</span>] = <span class="number">0xc0</span>;
-
-        BLS12381Signature {
-            sig: blst::Signature::from_bytes(<span class="kw-2">&amp;</span>infinity).expect(<span class="string">"Should decode infinity signature"</span>),
-            bytes: OnceCell::new(),
+        <span class="doccomment">/// Aggregation of multiple BLS 12-381 signatures.
+        </span><span class="attr">#[readonly::make]
+        #[derive(Debug, Clone)]
+        </span><span class="kw">pub struct </span>BLS12381AggregateSignature {
+            <span class="kw">pub </span>sig: blst::Signature,
+            <span class="kw">pub </span>bytes: OnceCell&lt;[u8; <span class="macro-nonterminal">$sig_length</span>]&gt;,
         }
-    }
-}
 
-<span class="kw">impl </span>Authenticator <span class="kw">for </span>BLS12381Signature {
-    <span class="kw">type </span>PubKey = BLS12381PublicKey;
-    <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
-    <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$sig_length</span>;
-}
+        <span class="comment">//
+        // Boilerplate code for [BLS12381PublicKey].
+        //
 
-<span class="comment">//
-// Boilerplate code for [BLS12381KeyPair].
-//
-
-</span><span class="kw">impl </span>From&lt;BLS12381PrivateKey&gt; <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">fn </span>from(private: BLS12381PrivateKey) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span>public = BLS12381PublicKey::from(<span class="kw-2">&amp;</span>private);
-        BLS12381KeyPair { public, private }
-    }
-}
-
-<span class="doccomment">/// The bytes form of the keypair only contain the private key bytes
-</span><span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.private.as_ref()
-    }
-}
-
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        BLS12381PrivateKey::from_bytes(bytes).map(|private| private.into())
-    }
-}
-
-<span class="comment">//
-// Custom code for [BLS12381KeyPair].
-//
-
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381KeyPair, BLS_KEYPAIR_LENGTH);
-
-<span class="kw">impl </span>KeyPair <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">type </span>PubKey = BLS12381PublicKey;
-    <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
-    <span class="kw">type </span>Sig = BLS12381Signature;
-
-    <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">Self</span>::PubKey {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.public
-    }
-
-    <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
-        BLS12381PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap()
-    }
-
-    <span class="attr">#[cfg(feature = <span class="string">"copy_key"</span>)]
-    </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        BLS12381KeyPair {
-            public: <span class="self">self</span>.public.clone(),
-            private: BLS12381PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap(),
+        </span><span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+                <span class="self">self</span>.as_ref().hash(state);
+            }
         }
-    }
 
-    <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
-        <span class="kw">let </span><span class="kw-2">mut </span>ikm = [<span class="number">0u8</span>; <span class="number">32</span>];
-        rng.fill_bytes(<span class="kw-2">&amp;mut </span>ikm);
-        <span class="comment">// TODO: Consider moving to key gen version 5.
-        </span><span class="kw">let </span>privkey = blst::SecretKey::key_gen(<span class="kw-2">&amp;</span>ikm, <span class="kw-2">&amp;</span>[]).expect(<span class="string">"ikm length should be higher"</span>);
-        <span class="kw">let </span>pubkey = privkey.sk_to_pk();
-        BLS12381KeyPair {
-            public: BLS12381PublicKey {
-                pubkey,
-                bytes: OnceCell::new(),
-            },
-            private: BLS12381PrivateKey {
-                privkey,
-                bytes: OnceCell::new(),
-            },
+        <span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+                <span class="self">self</span>.pubkey == other.pubkey
+            }
         }
-    }
-}
 
-<span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
-        <span class="self">self</span>.private.sign(msg)
-    }
-}
+        <span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381PublicKey {}
 
-<span class="kw">impl </span>FromStr <span class="kw">for </span>BLS12381KeyPair {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= eyre::Report;
-
-    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-        <span class="kw">let </span>kp = <span class="self">Self</span>::decode_base64(s).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">"{}"</span>, e.to_string()))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(kp)
-    }
-}
-
-<span class="comment">//
-// Boilerplate code for [BLS12381AggregateSignature].
-//
-
-</span><span class="macro">impl_base64_display_fmt!</span>(BLS12381AggregateSignature);
-
-<span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.sig == other.sig
-    }
-}
-
-<span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381AggregateSignature {}
-
-<span class="kw">impl </span>Default <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
-        BLS12381Signature::default().into()
-    }
-}
-
-<span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
-        <span class="self">self</span>.bytes
-            .get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.sig.to_bytes())
-    }
-}
-
-<span class="kw">impl </span>From &lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>from(sig: BLS12381Signature) -&gt; <span class="self">Self </span>{
-        BLS12381AggregateSignature {
-            sig: sig.sig,
-            bytes: OnceCell::new(),
+        <span class="kw">impl </span>PartialOrd <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>partial_cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;std::cmp::Ordering&gt; {
+                <span class="prelude-val">Some</span>(<span class="self">self</span>.cmp(other))
+            }
         }
-    }
-}
 
-<span class="comment">//
-// Custom code for [BLS12381AggregateSignature].
-//
+        <span class="kw">impl </span>Ord <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>cmp(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; std::cmp::Ordering {
+                <span class="self">self</span>.as_ref().cmp(other.as_ref())
+            }
+        }
 
-</span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381AggregateSignature, <span class="macro-nonterminal">$sig_length</span>);
-<span class="macro">generate_bytes_representation!</span>(BLS12381AggregateSignature, {<span class="macro-nonterminal">$sig_length</span>}, BLS12381AggregateSignatureAsBytes);
+        <span class="macro">impl_base64_display_fmt!</span>(BLS12381PublicKey);
 
-<span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// from_bytes does NOT validate the signature. We do that in verify.
-        </span><span class="kw">let </span>sig = blst::Signature::from_bytes(bytes).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(BLS12381AggregateSignature {
-            sig,
-            bytes: OnceCell::new(),
-        })
-    }
-}
+        <span class="kw">impl </span>Debug <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">'_</span>&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), fmt::Error&gt; {
+                <span class="macro">write!</span>(f, <span class="string">"{}"</span>, Base64::encode(<span class="self">self</span>.as_ref()))
+            }
+        }
 
-<span class="kw">impl </span>AggregateAuthenticator <span class="kw">for </span>BLS12381AggregateSignature {
-    <span class="kw">type </span>Sig = BLS12381Signature;
-    <span class="kw">type </span>PubKey = BLS12381PublicKey;
-    <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
+        <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+                <span class="self">self</span>.bytes.get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.pubkey.to_bytes())
+            }
+        }
 
-    <span class="kw">fn </span>aggregate&lt;<span class="lifetime">'a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">'a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>K&gt;&gt;(
-        signatures: I,
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
-        <span class="comment">// aggregate() below does not validate signatures.
-        </span>blst::AggregateSignature::aggregate(
-            <span class="kw-2">&amp;</span>signatures
+        <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                <span class="comment">// key_validate() does NOT validate the public key. Please use validate() where needed.
+                </span><span class="kw">let </span>pubkey = blst::PublicKey::from_bytes(bytes)
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(BLS12381PublicKey {
+                    pubkey,
+                    bytes: OnceCell::new(),
+                })
+            }
+        }
+
+        <span class="comment">//
+        // Custom code for [BLS12381PublicKey].
+        //
+
+        // Needed since the current NW implementation requires default public keys.
+        // Note that deserialization of this object will fail if we validate it is a valid public key.
+        </span><span class="kw">impl </span>InsecureDefault <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>insecure_default() -&gt; <span class="self">Self </span>{
+                BLS12381PublicKey {
+                    pubkey: blst::PublicKey::default(),
+                    bytes: OnceCell::new(),
+                }
+            }
+        }
+
+        <span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PublicKey, <span class="macro-nonterminal">$pk_length</span>);
+        <span class="macro">generate_bytes_representation!</span>(BLS12381PublicKey, { <span class="macro-nonterminal">$pk_length </span>}, BLS12381PublicKeyAsBytes);
+
+        <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; From&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BLS12381PrivateKey&gt; <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">fn </span>from(secret: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BLS12381PrivateKey) -&gt; <span class="self">Self </span>{
+                <span class="kw">let </span>inner = <span class="kw-2">&amp;</span>secret.privkey;
+                <span class="kw">let </span>pubkey = inner.sk_to_pk();
+                BLS12381PublicKey {
+                    pubkey,
+                    bytes: OnceCell::new(),
+                }
+            }
+        }
+
+        <span class="comment">// TODO: Once NW does not need to ser/deser public keys in many places we should call validate
+        // during deserialization and get rid of this function.
+        </span><span class="kw">impl </span>BLS12381PublicKey {
+            <span class="kw">pub fn </span>validate(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="self">self</span>.pubkey
+                    .validate()
+                    .map_err(|_e| FastCryptoError::InvalidInput)
+            }
+        }
+
+        <span class="kw">impl </span>VerifyingKey <span class="kw">for </span>BLS12381PublicKey {
+            <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
+            <span class="kw">type </span>Sig = BLS12381Signature;
+            <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$pk_length</span>;
+
+            <span class="kw">fn </span>verify(
+                <span class="kw-2">&amp;</span><span class="self">self</span>,
+                msg: <span class="kw-2">&amp;</span>[u8],
+                signature: <span class="kw-2">&amp;</span>BLS12381Signature,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="comment">// verify() only validates the signature. Please use pk that was validated.
+                </span><span class="kw">let </span>err = signature
+                    .sig
+                    .verify(<span class="bool-val">true</span>, msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[], <span class="kw-2">&amp;</span><span class="self">self</span>.pubkey, <span class="bool-val">false</span>);
+                <span class="kw">if </span>err == BLST_ERROR::BLST_SUCCESS {
+                    <span class="prelude-val">Ok</span>(())
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature)
+                }
+            }
+
+            <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+            </span><span class="kw">fn </span>verify_batch_empty_fail(
+                msg: <span class="kw-2">&amp;</span>[u8],
+                pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
+                sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
+            ) -&gt; FastCryptoResult&lt;()&gt; {
+                <span class="kw">if </span>sigs.is_empty() || sigs.len() != pks.len() {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+                }
+                <span class="kw">let </span>aggregated_sig = BLS12381AggregateSignature::aggregate(sigs)<span class="question-mark">?</span>;
+                aggregated_sig.verify(pks, msg)
+            }
+
+            <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+            </span><span class="kw">fn </span>verify_batch_empty_fail_different_msg&lt;<span class="lifetime">'a</span>, M&gt;(
+                msgs: <span class="kw-2">&amp;</span>[M],
+                pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
+                sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
+            ) -&gt; FastCryptoResult&lt;()&gt;
+            <span class="kw">where
+                </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">'a</span>,
+            {
+                <span class="kw">if </span>sigs.is_empty() || sigs.len() != pks.len() {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+                }
+
+                <span class="kw">let </span>rands = get_random_scalars(sigs.len());
+
+                <span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
+                    <span class="kw-2">&amp;</span>msgs.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="macro-nonterminal">$dst_string</span>,
+                    <span class="kw-2">&amp;</span>pks.iter().map(|pk| <span class="kw-2">&amp;</span>pk.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="bool-val">false</span>,
+                    <span class="kw-2">&amp;</span>sigs.iter().map(|sig| <span class="kw-2">&amp;</span>sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="bool-val">true</span>,
+                    <span class="kw-2">&amp;</span>rands,
+                    BLS_BATCH_RANDOM_SCALAR_LENGTH,
+                );
+                <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
+                    <span class="prelude-val">Ok</span>(())
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Err</span>(InvalidSignature)
+                }
+            }
+        }
+
+        <span class="kw">fn </span>get_random_scalar&lt;Rng: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>Rng) -&gt; blst_scalar {
+            <span class="macro">static_assertions::const_assert!</span>(
+                <span class="number">64 </span>&lt;= BLS_BATCH_RANDOM_SCALAR_LENGTH &amp;&amp; BLS_BATCH_RANDOM_SCALAR_LENGTH &lt;= <span class="number">128
+            </span>);
+
+            <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u64</span>; <span class="number">4</span>];
+            <span class="kw">loop </span>{
+                vals[<span class="number">0</span>] = rng.next_u64();
+                vals[<span class="number">1</span>] = rng.next_u64();
+
+                <span class="comment">// Reject zero as it is used for multiplication.
+                </span><span class="kw">let </span>vals1_lsb =
+                    vals[<span class="number">1</span>] &amp; (((<span class="number">1u128 </span>&lt;&lt; (BLS_BATCH_RANDOM_SCALAR_LENGTH - <span class="number">64</span>)) - <span class="number">1</span>) <span class="kw">as </span>u64);
+                <span class="kw">if </span>vals[<span class="number">0</span>] | vals1_lsb != <span class="number">0 </span>{
+                    <span class="kw">break</span>;
+                }
+            }
+            <span class="kw">let </span><span class="kw-2">mut </span>rand_i = MaybeUninit::&lt;blst_scalar&gt;::uninit();
+            <span class="kw">unsafe </span>{
+                blst_scalar_from_uint64(rand_i.as_mut_ptr(), vals.as_ptr());
+                <span class="kw">return </span>rand_i.assume_init();
+            }
+        }
+
+        <span class="kw">fn </span>get_one() -&gt; blst_scalar {
+            <span class="kw">let </span><span class="kw-2">mut </span>one = blst_scalar::default();
+            <span class="kw">let </span><span class="kw-2">mut </span>vals = [<span class="number">0u8</span>; <span class="number">32</span>];
+            vals[<span class="number">0</span>] = <span class="number">1</span>;
+            <span class="kw">unsafe </span>{
+                blst_scalar_from_le_bytes(<span class="kw-2">&amp;mut </span>one, vals.as_ptr(), <span class="number">32</span>);
+            }
+            one
+        }
+
+        <span class="comment">// Always generates 128bit numbers though not all the bits must be used.
+        </span><span class="kw">fn </span>get_random_scalars(n: usize) -&gt; Vec&lt;blst_scalar&gt; {
+            <span class="kw">if </span>n == <span class="number">0 </span>{
+                <span class="kw">return </span>Vec::new();
+            }
+            <span class="kw">let </span><span class="kw-2">mut </span>rands: Vec&lt;blst_scalar&gt; = Vec::with_capacity(n);
+            <span class="comment">// The first coefficient can safely be set to 1 (see https://github.com/MystenLabs/fastcrypto/issues/120)
+            </span>rands.push(get_one());
+            <span class="kw">let </span><span class="kw-2">mut </span>rng = rand::thread_rng();
+            (<span class="number">1</span>..n)
                 .into_iter()
-                .map(|x| <span class="kw-2">&amp;</span>x.borrow().sig)
-                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">false</span>,
-        )
-        .map(|sig| BLS12381AggregateSignature {
-            sig: sig.to_signature(),
-            bytes: OnceCell::new(),
-        })
-        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
-    }
-
-    <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(<span class="kw-2">&amp;</span><span class="self">self</span>.sig);
-        <span class="comment">// add_signature() does not validate the new signature.
-        </span>aggr_sig.add_signature(<span class="kw-2">&amp;</span>signature.sig, <span class="bool-val">false</span>).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
-        <span class="self">self</span>.sig = aggr_sig.to_signature();
-        <span class="self">self</span>.bytes.take();
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// aggregate() does not validate the new signature.
-        </span><span class="kw">let </span>result = blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.sig, <span class="kw-2">&amp;</span>signature.sig], <span class="bool-val">false</span>)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>.to_signature();
-        <span class="self">self</span>.sig = result;
-        <span class="self">self</span>.bytes.take();
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="comment">// This function assumes that that all public keys were verified using a proof of possession.
-    // See comment above [BLS12381PublicKey].
-    </span><span class="kw">fn </span>verify(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
-        message: <span class="kw-2">&amp;</span>[u8],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
-        </span><span class="kw">let </span>result = <span class="self">self
-            </span>.sig
-            .fast_aggregate_verify(
-                <span class="bool-val">true</span>,
-                message,
-                <span class="macro-nonterminal">$dst_string</span>,
-                <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
-            );
-        <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature);
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="comment">// This function assumes that that all public keys were verified using a proof of possession.
-    // See comment above [BLS12381PublicKey].
-    </span><span class="kw">fn </span>verify_different_msg(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
-        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
-        </span><span class="kw">let </span>result = <span class="self">self
-            </span>.sig
-            .aggregate_verify(
-                <span class="bool-val">true</span>,
-                messages,
-                <span class="macro-nonterminal">$dst_string</span>,
-                <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
-                <span class="bool-val">false</span>,
-            );
-        <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature);
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-
-    <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">'a</span>&gt;(
-        signatures: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
-        pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>::PubKey&gt;&gt;,
-        messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
-        <span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
+                .for_each(|<span class="kw">_</span>| rands.push(get_random_scalar(<span class="kw-2">&amp;mut </span>rng)));
+            rands
         }
 
-        <span class="kw">if </span>signatures.is_empty() {
-            <span class="comment">// verify_multiple_aggregate_signatures fails on empty input, but we accept here.
-            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(())
+        <span class="comment">//
+        // Boilerplate code for [BLS12381PrivateKey].
+        //
+
+        </span><span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381PrivateKey {
+            <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+                <span class="self">self</span>.as_ref() == other.as_ref()
+            }
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>agg_pks: Vec&lt;blst::PublicKey&gt; = Vec::with_capacity(signatures.len());
-        <span class="kw">for </span>keys <span class="kw">in </span>pks {
-             <span class="kw">let </span>keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-             agg_pks.push(blst::AggregatePublicKey::aggregate(<span class="kw-2">&amp;</span>keys_as_vec, <span class="bool-val">false</span>).unwrap().to_public_key()
-             );
-         }
+        <span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381PrivateKey {}
 
-        <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
-        </span><span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
-            <span class="kw-2">&amp;</span>messages,
-            <span class="macro-nonterminal">$dst_string</span>,
-            <span class="kw-2">&amp;</span>agg_pks.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">false</span>,
-            <span class="kw-2">&amp;</span>signatures.iter().map(|agg_sig| <span class="kw-2">&amp;</span>agg_sig.sig).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
-            <span class="bool-val">true</span>,
-            <span class="kw-2">&amp;</span>get_random_scalars(signatures.len()),
-            BLS_BATCH_RANDOM_SCALAR_LENGTH,
+        <span class="comment">// All fields impl zeroize::ZeroizeOnDrop directly or indirectly (OnceCell's drop will call
+        // ZeroizeOnDrop).
+        </span><span class="kw">impl </span>zeroize::ZeroizeOnDrop <span class="kw">for </span>BLS12381PrivateKey {}
+
+        <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381PrivateKey {
+            <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+                <span class="self">self</span>.bytes
+                    .get_or_init::&lt;<span class="kw">_</span>&gt;(|| zeroize::Zeroizing::new(<span class="self">self</span>.privkey.to_bytes()))
+                    .as_ref()
+            }
+        }
+
+        <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381PrivateKey {
+            <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                <span class="comment">// from_bytes() validates that the key is in the right group.
+                </span><span class="kw">let </span>privkey = blst::SecretKey::from_bytes(bytes)
+                    .map_err(|_e| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(BLS12381PrivateKey {
+                    privkey,
+                    bytes: OnceCell::new(),
+                })
+            }
+        }
+
+        <span class="comment">//
+        // Custom code for [BLS12381PrivateKey].
+        //
+
+        </span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381PrivateKey, BLS_PRIVATE_KEY_LENGTH);
+
+        <span class="kw">impl </span>SigningKey <span class="kw">for </span>BLS12381PrivateKey {
+            <span class="kw">type </span>PubKey = BLS12381PublicKey;
+            <span class="kw">type </span>Sig = BLS12381Signature;
+            <span class="kw">const </span>LENGTH: usize = BLS_PRIVATE_KEY_LENGTH;
+        }
+
+        <span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381PrivateKey {
+            <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
+                BLS12381Signature {
+                    sig: <span class="self">self</span>.privkey.sign(msg, <span class="macro-nonterminal">$dst_string</span>, <span class="kw-2">&amp;</span>[]),
+                    bytes: OnceCell::new(),
+                }
+            }
+        }
+
+        <span class="comment">//
+        // Boilerplate code for [BLS12381Signature].
+        //
+
+        </span><span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+                <span class="self">self</span>.sig == other.sig
+            }
+        }
+
+        <span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381Signature {}
+
+        <span class="kw">impl </span>std::hash::Hash <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">fn </span>hash&lt;H: std::hash::Hasher&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, state: <span class="kw-2">&amp;mut </span>H) {
+                <span class="self">self</span>.as_ref().hash(state);
+            }
+        }
+
+        <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+                <span class="self">self</span>.bytes.get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.sig.to_bytes())
+            }
+        }
+
+        <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                <span class="comment">// from_bytes() does NOT check if the signature is in the right group. We check that when
+                // verifying the signature.
+                </span><span class="kw">let </span>sig = blst::Signature::from_bytes(bytes)
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(BLS12381Signature {
+                    sig,
+                    bytes: OnceCell::new(),
+                })
+            }
+        }
+
+        <span class="macro">impl_base64_display_fmt!</span>(BLS12381Signature);
+
+        <span class="comment">//
+        // Custom code for [BLS12381Signature].
+        //
+
+        </span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381Signature, <span class="macro-nonterminal">$sig_length</span>);
+
+        <span class="kw">impl </span>Default <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+                <span class="comment">// Setting the first byte to 0xc0 (1100), the first bit represents its in compressed form,
+                // the second bit represents its infinity point. See more: https://github.com/supranational/blst#serialization-format
+                </span><span class="kw">let </span><span class="kw-2">mut </span>infinity: [u8; <span class="macro-nonterminal">$sig_length</span>] = [<span class="number">0</span>; <span class="macro-nonterminal">$sig_length</span>];
+                infinity[<span class="number">0</span>] = <span class="number">0xc0</span>;
+
+                BLS12381Signature {
+                    sig: blst::Signature::from_bytes(<span class="kw-2">&amp;</span>infinity)
+                        .expect(<span class="string">"Should decode infinity signature"</span>),
+                    bytes: OnceCell::new(),
+                }
+            }
+        }
+
+        <span class="kw">impl </span>Authenticator <span class="kw">for </span>BLS12381Signature {
+            <span class="kw">type </span>PubKey = BLS12381PublicKey;
+            <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
+            <span class="kw">const </span>LENGTH: usize = <span class="macro-nonterminal">$sig_length</span>;
+        }
+
+        <span class="comment">//
+        // Boilerplate code for [BLS12381KeyPair].
+        //
+
+        </span><span class="kw">impl </span>From&lt;BLS12381PrivateKey&gt; <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">fn </span>from(private: BLS12381PrivateKey) -&gt; <span class="self">Self </span>{
+                <span class="kw">let </span>public = BLS12381PublicKey::from(<span class="kw-2">&amp;</span>private);
+                BLS12381KeyPair { public, private }
+            }
+        }
+
+        <span class="doccomment">/// The bytes form of the keypair only contain the private key bytes
+        </span><span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+                <span class="self">self</span>.private.as_ref()
+            }
+        }
+
+        <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                BLS12381PrivateKey::from_bytes(bytes).map(|private| private.into())
+            }
+        }
+
+        <span class="comment">//
+        // Custom code for [BLS12381KeyPair].
+        //
+
+        </span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381KeyPair, BLS_KEYPAIR_LENGTH);
+
+        <span class="kw">impl </span>KeyPair <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">type </span>PubKey = BLS12381PublicKey;
+            <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
+            <span class="kw">type </span>Sig = BLS12381Signature;
+
+            <span class="kw">fn </span>public(<span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">'_ </span><span class="self">Self</span>::PubKey {
+                <span class="kw-2">&amp;</span><span class="self">self</span>.public
+            }
+
+            <span class="kw">fn </span>private(<span class="self">self</span>) -&gt; <span class="self">Self</span>::PrivKey {
+                BLS12381PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap()
+            }
+
+            <span class="attr">#[cfg(feature = <span class="string">"copy_key"</span>)]
+            </span><span class="kw">fn </span>copy(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+                BLS12381KeyPair {
+                    public: <span class="self">self</span>.public.clone(),
+                    private: BLS12381PrivateKey::from_bytes(<span class="self">self</span>.private.as_ref()).unwrap(),
+                }
+            }
+
+            <span class="kw">fn </span>generate&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+                <span class="kw">let </span><span class="kw-2">mut </span>ikm = [<span class="number">0u8</span>; <span class="number">32</span>];
+                rng.fill_bytes(<span class="kw-2">&amp;mut </span>ikm);
+                <span class="comment">// TODO: Consider moving to key gen version 5.
+                </span><span class="kw">let </span>privkey =
+                    blst::SecretKey::key_gen(<span class="kw-2">&amp;</span>ikm, <span class="kw-2">&amp;</span>[]).expect(<span class="string">"ikm length should be higher"</span>);
+                <span class="kw">let </span>pubkey = privkey.sk_to_pk();
+                BLS12381KeyPair {
+                    public: BLS12381PublicKey {
+                        pubkey,
+                        bytes: OnceCell::new(),
+                    },
+                    private: BLS12381PrivateKey {
+                        privkey,
+                        bytes: OnceCell::new(),
+                    },
+                }
+            }
+        }
+
+        <span class="kw">impl </span>Signer&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">fn </span>sign(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8]) -&gt; BLS12381Signature {
+                <span class="self">self</span>.private.sign(msg)
+            }
+        }
+
+        <span class="kw">impl </span>FromStr <span class="kw">for </span>BLS12381KeyPair {
+            <span class="kw">type </span><span class="prelude-val">Err </span>= FastCryptoError;
+
+            <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
+                <span class="self">Self</span>::decode_base64(s)
+            }
+        }
+
+        <span class="comment">//
+        // Boilerplate code for [BLS12381AggregateSignature].
+        //
+
+        </span><span class="macro">impl_base64_display_fmt!</span>(BLS12381AggregateSignature);
+
+        <span class="kw">impl </span>PartialEq <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+                <span class="self">self</span>.sig == other.sig
+            }
+        }
+
+        <span class="kw">impl </span>Eq <span class="kw">for </span>BLS12381AggregateSignature {}
+
+        <span class="kw">impl </span>Default <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">fn </span>default() -&gt; <span class="self">Self </span>{
+                BLS12381Signature::default().into()
+            }
+        }
+
+        <span class="kw">impl </span>AsRef&lt;[u8]&gt; <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">fn </span>as_ref(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[u8] {
+                <span class="self">self</span>.bytes.get_or_init::&lt;<span class="kw">_</span>&gt;(|| <span class="self">self</span>.sig.to_bytes())
+            }
+        }
+
+        <span class="kw">impl </span>From&lt;BLS12381Signature&gt; <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">fn </span>from(sig: BLS12381Signature) -&gt; <span class="self">Self </span>{
+                BLS12381AggregateSignature {
+                    sig: sig.sig,
+                    bytes: OnceCell::new(),
+                }
+            }
+        }
+
+        <span class="comment">//
+        // Custom code for [BLS12381AggregateSignature].
+        //
+
+        </span><span class="macro">serialize_deserialize_with_to_from_bytes!</span>(BLS12381AggregateSignature, <span class="macro-nonterminal">$sig_length</span>);
+        <span class="macro">generate_bytes_representation!</span>(
+            BLS12381AggregateSignature,
+            { <span class="macro-nonterminal">$sig_length </span>},
+            BLS12381AggregateSignatureAsBytes
         );
-        <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
-            <span class="prelude-val">Ok</span>(())
-        } <span class="kw">else </span>{
-            <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+
+        <span class="kw">impl </span>ToFromBytes <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                <span class="comment">// from_bytes does NOT validate the signature. We do that in verify.
+                </span><span class="kw">let </span>sig = blst::Signature::from_bytes(bytes)
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                <span class="prelude-val">Ok</span>(BLS12381AggregateSignature {
+                    sig,
+                    bytes: OnceCell::new(),
+                })
+            }
         }
-    }
-}
 
-};
+        <span class="kw">impl </span>AggregateAuthenticator <span class="kw">for </span>BLS12381AggregateSignature {
+            <span class="kw">type </span>Sig = BLS12381Signature;
+            <span class="kw">type </span>PubKey = BLS12381PublicKey;
+            <span class="kw">type </span>PrivKey = BLS12381PrivateKey;
 
+            <span class="kw">fn </span>aggregate&lt;<span class="lifetime">'a</span>, K: Borrow&lt;<span class="self">Self</span>::Sig&gt; + <span class="lifetime">'a</span>, I: IntoIterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>K&gt;&gt;(
+                signatures: I,
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
+                <span class="comment">// aggregate() below does not validate signatures.
+                </span>blst::AggregateSignature::aggregate(
+                    <span class="kw-2">&amp;</span>signatures
+                        .into_iter()
+                        .map(|x| <span class="kw-2">&amp;</span>x.borrow().sig)
+                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="bool-val">false</span>,
+                )
+                .map(|sig| BLS12381AggregateSignature {
+                    sig: sig.to_signature(),
+                    bytes: OnceCell::new(),
+                })
+                .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+            }
+
+            <span class="kw">fn </span>add_signature(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>::Sig) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>aggr_sig = blst::AggregateSignature::from_signature(<span class="kw-2">&amp;</span><span class="self">self</span>.sig);
+                <span class="comment">// add_signature() does not validate the new signature.
+                </span>aggr_sig
+                    .add_signature(<span class="kw-2">&amp;</span>signature.sig, <span class="bool-val">false</span>)
+                    .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
+                <span class="self">self</span>.sig = aggr_sig.to_signature();
+                <span class="self">self</span>.bytes.take();
+                <span class="prelude-val">Ok</span>(())
+            }
+
+            <span class="kw">fn </span>add_aggregate(<span class="kw-2">&amp;mut </span><span class="self">self</span>, signature: <span class="self">Self</span>) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="comment">// aggregate() does not validate the new signature.
+                </span><span class="kw">let </span>result =
+                    blst::AggregateSignature::aggregate(<span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">self</span>.sig, <span class="kw-2">&amp;</span>signature.sig], <span class="bool-val">false</span>)
+                        .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?
+                        </span>.to_signature();
+                <span class="self">self</span>.sig = result;
+                <span class="self">self</span>.bytes.take();
+                <span class="prelude-val">Ok</span>(())
+            }
+
+            <span class="comment">// This function assumes that that all public keys were verified using a proof of possession.
+            // See comment above [BLS12381PublicKey].
+            </span><span class="kw">fn </span>verify(
+                <span class="kw-2">&amp;</span><span class="self">self</span>,
+                pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+                message: <span class="kw-2">&amp;</span>[u8],
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
+                </span><span class="kw">let </span>result = <span class="self">self</span>.sig.fast_aggregate_verify(
+                    <span class="bool-val">true</span>,
+                    message,
+                    <span class="macro-nonterminal">$dst_string</span>,
+                    <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
+                );
+                <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature);
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+
+            <span class="comment">// This function assumes that that all public keys were verified using a proof of possession.
+            // See comment above [BLS12381PublicKey].
+            </span><span class="kw">fn </span>verify_different_msg(
+                <span class="kw-2">&amp;</span><span class="self">self</span>,
+                pks: <span class="kw-2">&amp;</span>[&lt;<span class="self">Self</span>::Sig <span class="kw">as </span>Authenticator&gt;::PubKey],
+                messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
+                </span><span class="kw">let </span>result = <span class="self">self</span>.sig.aggregate_verify(
+                    <span class="bool-val">true</span>,
+                    messages,
+                    <span class="macro-nonterminal">$dst_string</span>,
+                    <span class="kw-2">&amp;</span>pks.iter().map(|x| <span class="kw-2">&amp;</span>x.pubkey).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()[..],
+                    <span class="bool-val">false</span>,
+                );
+                <span class="kw">if </span>result != BLST_ERROR::BLST_SUCCESS {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidSignature);
+                }
+                <span class="prelude-val">Ok</span>(())
+            }
+
+            <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">'a</span>&gt;(
+                signatures: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="self">Self</span>],
+                pks: Vec&lt;<span class="kw">impl </span>Iterator&lt;Item = <span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>::PubKey&gt;&gt;,
+                messages: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span>[u8]],
+            ) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
+                <span class="kw">if </span>signatures.len() != pks.len() || signatures.len() != messages.len() {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(signatures.len()));
+                }
+
+                <span class="kw">if </span>signatures.is_empty() {
+                    <span class="comment">// verify_multiple_aggregate_signatures fails on empty input, but we accept here.
+                    </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+                }
+
+                <span class="kw">let </span><span class="kw-2">mut </span>agg_pks: Vec&lt;blst::PublicKey&gt; = Vec::with_capacity(signatures.len());
+                <span class="kw">for </span>keys <span class="kw">in </span>pks {
+                    <span class="kw">let </span>keys_as_vec = keys.map(|x| x.pubkey.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+                    agg_pks.push(
+                        blst::AggregatePublicKey::aggregate(<span class="kw-2">&amp;</span>keys_as_vec, <span class="bool-val">false</span>)
+                            .unwrap()
+                            .to_public_key(),
+                    );
+                }
+
+                <span class="comment">// Validate signatures but not public keys which the user must validate before calling this.
+                </span><span class="kw">let </span>result = blst::Signature::verify_multiple_aggregate_signatures(
+                    <span class="kw-2">&amp;</span>messages,
+                    <span class="macro-nonterminal">$dst_string</span>,
+                    <span class="kw-2">&amp;</span>agg_pks.iter().map(|m| m.borrow()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="bool-val">false</span>,
+                    <span class="kw-2">&amp;</span>signatures
+                        .iter()
+                        .map(|agg_sig| <span class="kw-2">&amp;</span>agg_sig.sig)
+                        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;(),
+                    <span class="bool-val">true</span>,
+                    <span class="kw-2">&amp;</span>get_random_scalars(signatures.len()),
+                    BLS_BATCH_RANDOM_SCALAR_LENGTH,
+                );
+                <span class="kw">if </span>result == BLST_ERROR::BLST_SUCCESS {
+                    <span class="prelude-val">Ok</span>(())
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Err</span>(FastCryptoError::GeneralOpaqueError)
+                }
+            }
+        }
+    };
 } <span class="comment">// macro_rules! define_bls12381.
 
 </span><span class="doccomment">/// The length of a private key in bytes.

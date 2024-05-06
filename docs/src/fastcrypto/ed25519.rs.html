@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/ed25519.rs`."><title>ed25519.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2"><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-5bc39a1768837dd0.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.77.2 (25ef9e3d8 2024-04-09)" data-channel="1.77.2" data-search-js="search-dd67cee4cfa65049.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-48f368f3872407c8.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto/src/ed25519.rs`."><title>ed25519.rs - source</title><script> if (window.location.protocol !== "file:") document.write(`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceSerif4-Regular-46f98efaafac5295.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Regular-018c141bf0843ffd.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/FiraSans-Medium-8f9a781e4970d388.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2">`)</script><link rel="stylesheet" href="../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../static.files/rustdoc-e935ef01ae1c1829.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="fastcrypto" data-themes="" data-resource-suffix="" data-rustdoc-version="1.78.0 (9b00956e5 2024-04-29)" data-channel="1.78.0" data-search-js="search-42d8da7a6b9792c2.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../static.files/storage-4c98445ec4002617.js"></script><script defer src="../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-12cf3b4f4f9dc36d.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-04d5337699b92874.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-16x16-8b506e7a72182f1c.png"><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title">
             <h2>Files</h2></div></nav><div class="sidebar-resizer"></div>
     <main><nav class="sub"><form class="search-form"><span></span><div id="sidebar-button" tabindex="-1"><a href="../../fastcrypto/all.html" title="show sidebar"></a></div><input class="search-input" name="search" aria-label="Run search in the documentation" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" tabindex="-1"><a href="../../help.html" title="help">?</a></div><div id="settings-menu" tabindex="-1"><a href="../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../static.files/wheel-7b819b6101059cd0.svg"></a></div></form></nav><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
@@ -561,21 +561,6 @@
 <a href="#559" id="559">559</a>
 <a href="#560" id="560">560</a>
 <a href="#561" id="561">561</a>
-<a href="#562" id="562">562</a>
-<a href="#563" id="563">563</a>
-<a href="#564" id="564">564</a>
-<a href="#565" id="565">565</a>
-<a href="#566" id="566">566</a>
-<a href="#567" id="567">567</a>
-<a href="#568" id="568">568</a>
-<a href="#569" id="569">569</a>
-<a href="#570" id="570">570</a>
-<a href="#571" id="571">571</a>
-<a href="#572" id="572">572</a>
-<a href="#573" id="573">573</a>
-<a href="#574" id="574">574</a>
-<a href="#575" id="575">575</a>
-<a href="#576" id="576">576</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -591,7 +576,34 @@
 //! let signature = kp.sign(message);
 //! assert!(kp.public().verify(message, &amp;signature).is_ok());
 //! ```
-</span><span class="kw">use </span><span class="kw">crate</span>::serde_helpers::{to_custom_error, BytesRepresentation};
+</span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span>std::borrow::Borrow;
+<span class="kw">use </span>std::{
+    fmt::{<span class="self">self</span>, Debug, Display},
+    str::FromStr,
+};
+
+<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
+<span class="kw">use </span>derive_more::AsRef;
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
+<span class="kw">use </span>once_cell::sync::OnceCell;
+<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
+<span class="kw">use </span>serde_with::{serde_as, Bytes <span class="kw">as </span>SerdeBytes, DeserializeAs, SerializeAs};
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span>signature::rand_core::OsRng;
+<span class="kw">use </span>zeroize::ZeroizeOnDrop;
+
+<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
+
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError::GeneralOpaqueError;
+<span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoError::{InvalidInput, InvalidSignature};
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::error::FastCryptoResult;
+<span class="kw">use </span><span class="kw">crate</span>::serde_helpers::{to_custom_error, BytesRepresentation};
+<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="kw">use </span><span class="kw">crate</span>::traits::AggregateAuthenticator;
 <span class="kw">use </span><span class="kw">crate</span>::traits::{InsecureDefault, Signer};
 <span class="kw">use crate</span>::{
     encoding::Base64,
@@ -606,29 +618,6 @@
     encoding::Encoding, generate_bytes_representation, serialize_deserialize_with_to_from_bytes,
     traits,
 };
-<span class="kw">use </span>base64ct::Encoding <span class="kw">as _</span>;
-<span class="kw">use </span>derive_more::AsRef;
-<span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
-<span class="kw">use </span>once_cell::sync::OnceCell;
-<span class="kw">use </span>serde::{Deserialize, Deserializer, Serialize, Serializer};
-<span class="kw">use </span>serde_with::{serde_as, Bytes <span class="kw">as </span>SerdeBytes, DeserializeAs, SerializeAs};
-
-<span class="kw">use </span>std::{
-    fmt::{<span class="self">self</span>, Debug, Display},
-    str::FromStr,
-};
-<span class="kw">use </span>zeroize::ZeroizeOnDrop;
-
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span><span class="kw">crate</span>::traits::AggregateAuthenticator;
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span>ed25519_consensus::{batch, VerificationKeyBytes};
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span>eyre::eyre;
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span>signature::rand_core::OsRng;
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">use </span>std::borrow::Borrow;
 
 <span class="doccomment">/// The length of a private key in bytes.
 </span><span class="kw">pub const </span>ED25519_PRIVATE_KEY_LENGTH: usize = <span class="number">32</span>;
@@ -702,7 +691,7 @@
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         ed25519_consensus::SigningKey::try_from(bytes)
             .map(Ed25519PrivateKey)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+            .map_err(|<span class="kw">_</span>| InvalidInput)
     }
 }
 
@@ -765,11 +754,10 @@
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>Ed25519KeyPair {
-    <span class="kw">type </span><span class="prelude-val">Err </span>= eyre::Report;
+    <span class="kw">type </span><span class="prelude-val">Err </span>= FastCryptoError;
 
     <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Err&gt; {
-        <span class="kw">let </span>kp = <span class="self">Self</span>::decode_base64(s).map_err(|e| <span class="macro">eyre::eyre!</span>(<span class="string">"{}"</span>, e.to_string()))<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(kp)
+        <span class="self">Self</span>::decode_base64(s)
     }
 }
 
@@ -823,7 +811,7 @@
                 sig,
                 bytes: OnceCell::new(),
             })
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+            .map_err(|<span class="kw">_</span>| InvalidInput)
     }
 }
 
@@ -855,7 +843,7 @@
     <span class="kw">fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, FastCryptoError&gt; {
         ed25519_consensus::VerificationKey::try_from(bytes)
             .map(Ed25519PublicKey)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)
+            .map_err(|<span class="kw">_</span>| InvalidInput)
     }
 }
 
@@ -907,7 +895,7 @@
     </span><span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, msg: <span class="kw-2">&amp;</span>[u8], signature: <span class="kw-2">&amp;</span>Ed25519Signature) -&gt; <span class="prelude-ty">Result</span>&lt;(), FastCryptoError&gt; {
         <span class="self">self</span>.<span class="number">0
             </span>.verify(<span class="kw-2">&amp;</span>signature.sig, msg)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::InvalidSignature)
+            .map_err(|<span class="kw">_</span>| InvalidSignature)
     }
 
     <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
@@ -915,14 +903,9 @@
         msg: <span class="kw-2">&amp;</span>[u8],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt; {
-        <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."</span>));
-        }
-        <span class="kw">if </span>sigs.len() != pks.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Mismatch between number of signatures and public keys provided"
-            </span>));
+    ) -&gt; FastCryptoResult&lt;()&gt; {
+        <span class="kw">if </span>sigs.is_empty() || sigs.len() != pks.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>batch = batch::Verifier::new();
@@ -931,9 +914,7 @@
             <span class="kw">let </span>vk_bytes = VerificationKeyBytes::try_from(pks[i].as_ref()).unwrap();
             batch.queue((vk_bytes, sigs[i].sig, msg))
         }
-        batch
-            .verify(OsRng)
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Signature verification failed"</span>))
+        batch.verify(OsRng).map_err(|<span class="kw">_</span>| InvalidSignature)
     }
 
     <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
@@ -941,17 +922,12 @@
         msgs: <span class="kw-2">&amp;</span>[M],
         pks: <span class="kw-2">&amp;</span>[<span class="self">Self</span>],
         sigs: <span class="kw-2">&amp;</span>[<span class="self">Self</span>::Sig],
-    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), eyre::Report&gt;
+    ) -&gt; FastCryptoResult&lt;()&gt;
     <span class="kw">where
         </span>M: Borrow&lt;[u8]&gt; + <span class="lifetime">'a</span>,
     {
-        <span class="kw">if </span>sigs.is_empty() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(<span class="string">"Critical Error! This behaviour can signal something dangerous, and that someone may be trying to bypass signature verification through providing empty batches."</span>));
-        }
-        <span class="kw">if </span>pks.len() != sigs.len() || pks.len() != msgs.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(<span class="macro">eyre!</span>(
-                <span class="string">"Mismatch between number of messages, signatures and public keys provided"
-            </span>));
+        <span class="kw">if </span>sigs.is_empty() || pks.len() != sigs.len() || pks.len() != msgs.len() {
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
         }
 
         <span class="kw">let </span><span class="kw-2">mut </span>batch = batch::Verifier::new();
@@ -960,9 +936,7 @@
             <span class="kw">let </span>vk_bytes = VerificationKeyBytes::try_from(pks[i].as_ref()).unwrap();
             batch.queue((vk_bytes, sigs[i].sig, msgs[i].borrow()))
         }
-        batch
-            .verify(OsRng)
-            .map_err(|<span class="kw">_</span>| <span class="macro">eyre!</span>(<span class="string">"Signature verification failed"</span>))
+        batch.verify(OsRng).map_err(|<span class="kw">_</span>| InvalidSignature)
     }
 }
 
@@ -1081,9 +1055,7 @@
             batch.queue((vk_bytes, <span class="self">self</span>.sigs[i], msg));
         }
 
-        batch
-            .verify(OsRng)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)
+        batch.verify(OsRng).map_err(|<span class="kw">_</span>| GeneralOpaqueError)
     }
 
     <span class="kw">fn </span>batch_verify&lt;<span class="lifetime">'a</span>&gt;(
@@ -1107,9 +1079,7 @@
                 batch.queue((vk_bytes, <span class="kw-2">*</span>sig, messages[i]));
             }
         }
-        batch
-            .verify(OsRng)
-            .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)
+        batch.verify(OsRng).map_err(|<span class="kw">_</span>| GeneralOpaqueError)
     }
 }
 

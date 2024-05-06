@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["decode_bytes_hex","encode_with_format"],"struct":["Base58","Base64","Bech32","Hex"],"trait":["Encoding"]};
+window.SIDEBAR_ITEMS = {"fn":["decode_bytes_hex"],"struct":["Base58","Base64","Bech32","Hex"],"trait":["Encoding"]};
