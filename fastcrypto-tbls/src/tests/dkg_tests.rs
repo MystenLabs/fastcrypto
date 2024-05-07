@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::{Message, Output, Party, ProcessedMessage};
+use crate::dkg::{
+    create_fake_complaint, Confirmation, Message, Output, Party, ProcessedMessage,
+    DKG_MESSAGES_MAX_SIZE,
+};
 use crate::ecies::{MultiRecipientEncryption, PrivateKey, PublicKey};
 use crate::mocked_dkg::generate_mocked_output;
 use crate::nodes::{Node, Nodes, PartyId};
@@ -629,4 +632,45 @@ fn test_mock() {
     >::recover_c0(t, shares.into_iter())
     .unwrap();
     assert_eq!(recovered_sk, sk.into());
+}
+
+#[test]
+fn test_size_limits() {
+    // Confirm that messages sizes are within the limit for the extreme expected parameters.
+    let n = 3333;
+    let t = n / 3;
+    let k = 400;
+
+    let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut thread_rng());
+    let ro = RandomOracle::new("test");
+    let keys_and_msg = (0..k)
+        .map(|i| {
+            let sk = PrivateKey::<EG>::new(&mut thread_rng());
+            let pk = PublicKey::<EG>::from_private_key(&sk);
+            (sk, pk, format!("test {}", i))
+        })
+        .collect::<Vec<_>>();
+    let encrypted_shares = MultiRecipientEncryption::encrypt(
+        &keys_and_msg
+            .iter()
+            .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
+            .collect::<Vec<_>>(),
+        &ro,
+        &mut thread_rng(),
+    );
+    let msg = Message {
+        sender: 0,
+        vss_pk: p.commit::<EG>(),
+        encrypted_shares,
+    };
+    assert!(bcs::to_bytes(&msg).unwrap().len() <= DKG_MESSAGES_MAX_SIZE);
+
+    let complaints = (0..k)
+        .map(|_| create_fake_complaint::<EG>())
+        .collect::<Vec<_>>();
+    let conf = Confirmation {
+        sender: 0,
+        complaints,
+    };
+    assert!(bcs::to_bytes(&conf).unwrap().len() <= DKG_MESSAGES_MAX_SIZE);
 }
