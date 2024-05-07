@@ -5,12 +5,12 @@
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Generics below use <code>G: GroupElement' for the group of the VSS public key, and </code>EG: GroupElement’
 for the group of the ECIES public key.
 Party in the DKG protocol.</p>
-</div></details><h2 id="fields" class="fields section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.id" class="structfield section-header"><a href="#structfield.id" class="anchor field">§</a><code>id: <a class="type" href="../nodes/type.PartyId.html" title="type fastcrypto_tbls::nodes::PartyId">PartyId</a></code></span><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Party%3CG,+EG%3E" class="impl"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#145-760">source</a><a href="#impl-Party%3CG,+EG%3E" class="anchor">§</a><h3 class="code-header">impl&lt;G, EG&gt; <a class="struct" href="struct.Party.html" title="struct fastcrypto_tbls::dkg::Party">Party</a>&lt;G, EG&gt;<div class="where">where
+</div></details><h2 id="fields" class="fields section-header">Fields<a href="#fields" class="anchor">§</a></h2><span id="structfield.id" class="structfield section-header"><a href="#structfield.id" class="anchor field">§</a><code>id: <a class="type" href="../nodes/type.PartyId.html" title="type fastcrypto_tbls::nodes::PartyId">PartyId</a></code></span><h2 id="implementations" class="section-header">Implementations<a href="#implementations" class="anchor">§</a></h2><div id="implementations-list"><details class="toggle implementors-toggle" open><summary><section id="impl-Party%3CG,+EG%3E" class="impl"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#152-767">source</a><a href="#impl-Party%3CG,+EG%3E" class="anchor">§</a><h3 class="code-header">impl&lt;G, EG&gt; <a class="struct" href="struct.Party.html" title="struct fastcrypto_tbls::dkg::Party">Party</a>&lt;G, EG&gt;<div class="where">where
     G: GroupElement + MultiScalarMul + <a class="trait" href="https://docs.rs/serde/1.0.156/serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a> + <a class="trait" href="https://docs.rs/serde/1.0.156/serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,
     EG: GroupElement + <a class="trait" href="https://docs.rs/serde/1.0.156/serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a> + <a class="trait" href="https://docs.rs/serde/1.0.156/serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,
     EG::ScalarType: FiatShamirChallenge,</div></h3></section></summary><div class="docblock"><p>A dealer in the DKG ceremony.</p>
 <p>Can be instantiated with G1Curve or G2Curve.</p>
-</div><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#155-198">source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>&lt;R: AllowedRng&gt;(
+</div><div class="impl-items"><details class="toggle method-toggle" open><summary><section id="method.new" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#162-205">source</a><h4 class="code-header">pub fn <a href="#method.new" class="fn">new</a>&lt;R: AllowedRng&gt;(
     enc_sk: <a class="struct" href="../ecies/struct.PrivateKey.html" title="struct fastcrypto_tbls::ecies::PrivateKey">PrivateKey</a>&lt;EG&gt;,
     nodes: <a class="struct" href="../nodes/struct.Nodes.html" title="struct fastcrypto_tbls::nodes::Nodes">Nodes</a>&lt;EG&gt;,
     t: <a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.u16.html">u16</a>,
@@ -21,8 +21,8 @@ Party in the DKG protocol.</p>
 <li>After <em>all</em> parties have sent their ECIES public keys, create the (same) set of nodes.</li>
 <li>Create a new Party instance with the ECIES private key and the set of nodes.</li>
 </ol>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.t" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#201-203">source</a><h4 class="code-header">pub fn <a href="#method.t" class="fn">t</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.u16.html">u16</a></h4></section></summary><div class="docblock"><p>The threshold needed to reconstruct the full key/signature.</p>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.create_message" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#208-255">source</a><h4 class="code-header">pub fn <a href="#method.create_message" class="fn">create_message</a>&lt;R: AllowedRng&gt;(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.t" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#208-210">source</a><h4 class="code-header">pub fn <a href="#method.t" class="fn">t</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.u16.html">u16</a></h4></section></summary><div class="docblock"><p>The threshold needed to reconstruct the full key/signature.</p>
+</div></details><details class="toggle method-toggle" open><summary><section id="method.create_message" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#215-262">source</a><h4 class="code-header">pub fn <a href="#method.create_message" class="fn">create_message</a>&lt;R: AllowedRng&gt;(
     &amp;self,
     rng: <a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.reference.html">&amp;mut R</a>
 ) -&gt; FastCryptoResult&lt;<a class="struct" href="struct.Message.html" title="struct fastcrypto_tbls::dkg::Message">Message</a>&lt;G, EG&gt;&gt;</h4></section></summary><div class="docblock"><ol start="4">
@@ -31,7 +31,7 @@ Party in the DKG protocol.</p>
 <p>Returns IgnoredMessage if the party has zero weight (so no need to create a message).</p>
 </li>
 </ol>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.process_message" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#333-424">source</a><h4 class="code-header">pub fn <a href="#method.process_message" class="fn">process_message</a>&lt;R: AllowedRng&gt;(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.process_message" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#340-431">source</a><h4 class="code-header">pub fn <a href="#method.process_message" class="fn">process_message</a>&lt;R: AllowedRng&gt;(
     &amp;self,
     message: <a class="struct" href="struct.Message.html" title="struct fastcrypto_tbls::dkg::Message">Message</a>&lt;G, EG&gt;,
     rng: <a class="primitive" href="https://doc.rust-lang.org/1.78.0/std/primitive.reference.html">&amp;mut R</a>
@@ -49,7 +49,7 @@ and just wait for f+1 valid messages).</p>
 <p>Assumptions: Called only once per sender (the high level protocol is responsible for deduplication).</p>
 </li>
 </ol>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.merge" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#432-484">source</a><h4 class="code-header">pub fn <a href="#method.merge" class="fn">merge</a>(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.merge" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#439-491">source</a><h4 class="code-header">pub fn <a href="#method.merge" class="fn">merge</a>(
     &amp;self,
     processed_messages: &amp;[<a class="struct" href="struct.ProcessedMessage.html" title="struct fastcrypto_tbls::dkg::ProcessedMessage">ProcessedMessage</a>&lt;G, EG&gt;]
 ) -&gt; FastCryptoResult&lt;(<a class="struct" href="struct.Confirmation.html" title="struct fastcrypto_tbls::dkg::Confirmation">Confirmation</a>&lt;EG&gt;, <a class="struct" href="struct.UsedProcessedMessages.html" title="struct fastcrypto_tbls::dkg::UsedProcessedMessages">UsedProcessedMessages</a>&lt;G, EG&gt;)&gt;</h4></section></summary><div class="docblock"><ol start="6">
@@ -60,7 +60,7 @@ and just wait for f+1 valid messages).</p>
 on all parties.</p>
 </li>
 </ol>
-</div></details><details class="toggle method-toggle" open><summary><section id="method.complete" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#697-705">source</a><h4 class="code-header">pub fn <a href="#method.complete" class="fn">complete</a>&lt;R: AllowedRng&gt;(
+</div></details><details class="toggle method-toggle" open><summary><section id="method.complete" class="method"><a class="src rightside" href="../../src/fastcrypto_tbls/dkg.rs.html#704-712">source</a><h4 class="code-header">pub fn <a href="#method.complete" class="fn">complete</a>&lt;R: AllowedRng&gt;(
     &amp;self,
     messages: &amp;<a class="struct" href="struct.UsedProcessedMessages.html" title="struct fastcrypto_tbls::dkg::UsedProcessedMessages">UsedProcessedMessages</a>&lt;G, EG&gt;,
     confirmations: &amp;[<a class="struct" href="struct.Confirmation.html" title="struct fastcrypto_tbls::dkg::Confirmation">Confirmation</a>&lt;EG&gt;],
