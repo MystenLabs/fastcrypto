@@ -11,7 +11,14 @@ use num_bigint::BigInt;
 use serde::Serialize;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
-pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
+///
+/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+/// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
+/// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
+/// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
+/// to represent the n-th prime as log2(n * ln(n)). For n = 2^{2*128}, this is approximately 264 bits
+/// = 33 bytes. This is also the challenge size used by chiavdf.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
 
 pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
