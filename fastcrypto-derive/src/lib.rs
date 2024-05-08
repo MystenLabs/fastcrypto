@@ -79,3 +79,10 @@ pub fn group_ops(source: TokenStream) -> TokenStream {
     };
     gen.into()
 }
+
+// Cargo test on Windows fails if there are no tests in the crate.
+#[test]
+fn no_op_test() {
+    let x = 1;
+    assert_eq!(x, 1);
+}
