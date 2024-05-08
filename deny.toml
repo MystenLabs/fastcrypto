@@ -50,6 +50,8 @@ notice = "warn"
 ignore = [
     #"RUSTSEC-0000-0000",
     "RUSTSEC-2023-0071"
+    # reqwest uses unpatched rustls (also in Sui)
+    "RUSTSEC-2024-0336",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
