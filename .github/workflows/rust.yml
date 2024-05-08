@@ -55,6 +55,10 @@ jobs:
       # make sure benches don't bit-rot
       - name: build benches
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
+      - name: dir
+        run: dir C:\a\fastcrypto\fastcrypto\target\debug\deps\  
+      - name: exe
+        run: C:\a\fastcrypto\fastcrypto\target\debug\deps\fastcrypto_derive-b06a4c063bf9f609.exe   
       - name: cargo test
         run: cargo nextest run --features experimental,copy_key,unsecure_schemes
       - name: Doctests
