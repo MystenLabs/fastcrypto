@@ -56,7 +56,7 @@ jobs:
       - name: cargo clean
         run: cargo clean
       - name: cargo test 
-        run: RUST_BACKTRACE=1  cargo nextest run --features experimental,copy_key,unsecure_schemes
+        run: cargo nextest run --features experimental,copy_key,unsecure_schemes
       - name: Doctests
         run: |
           cargo test --doc --features experimental,copy_key,unsecure_schemes
