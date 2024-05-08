@@ -115,9 +115,17 @@ impl Base64 {
 }
 
 /// Hex string encoding.
-#[derive(Deserialize, Debug, JsonSchema, Clone)]
+#[derive(Deserialize, Debug, JsonSchema, Clone, PartialEq)]
 #[serde(try_from = "String")]
 pub struct Hex(String);
+
+impl TryFrom<String> for Hex {
+    type Error = FastCryptoError;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        let s = value.strip_prefix("0x").unwrap_or(&value);
+        Ok(Self(s.to_string()))
+    }
+}
 
 impl Serialize for Hex {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -130,7 +138,6 @@ impl Serialize for Hex {
 }
 
 impl_serde_as_for_encoding!(Hex);
-impl_try_from_string!(Hex);
 
 impl Hex {
     /// Create a hex encoding from a string.

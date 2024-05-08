@@ -50,7 +50,10 @@ fn test_serde() {
 
     let encoded_str = serde_json::to_string(&encoded).unwrap();
     let decoded: Hex = serde_json::from_str(&encoded_str).unwrap();
+    let encoded_str2 = serde_json::to_string(&decoded).unwrap();
     assert_eq!("\"0x01\"", encoded_str);
+    assert_eq!(encoded, decoded);
+    assert_eq!(encoded_str, encoded_str2);
     assert_eq!(
         decoded.to_vec().as_ref().unwrap(),
         encoded.to_vec().as_ref().unwrap()
