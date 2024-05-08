@@ -55,8 +55,8 @@ jobs:
       # make sure benches don't bit-rot
       - name: dir
         run: dir C:\a\fastcrypto\fastcrypto\target\debug\deps\  
-      - name: cd fastcrypto & cargo test
-        run: cargo nextest run --features experimental,copy_key,unsecure_schemes
+      - name: cargo test
+        run: cd fastcrypto & cargo nextest run --features experimental,copy_key,unsecure_schemes
       - name: Doctests
         run: |
           cargo test --doc --features experimental,copy_key,unsecure_schemes
