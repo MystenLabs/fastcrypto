@@ -45,7 +45,7 @@ jobs:
         os:
           - ubuntu-ghcloud
           - windows-ghcloud
-      fail-fast: false
+      fail-fast: true
     env:
       RUSTFLAGS: -D warnings
     steps:
