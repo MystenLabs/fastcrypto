@@ -277,7 +277,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
     let aggregated_signature1 = BLS12381AggregateSignature::aggregate(&signatures1).unwrap();
 
     // Make signatures.
-    let message2: &[u8] = b"Hello, worl!";
+    let message2: &[u8] = b"Hello, world!";
     let (pubkeys2, signatures2): (Vec<BLS12381PublicKey>, Vec<BLS12381Signature>) = keys()
         .into_iter()
         .take(2)
