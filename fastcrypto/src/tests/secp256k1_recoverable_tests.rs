@@ -252,7 +252,7 @@ fn fail_to_verify_if_upper_s() {
         .verify_recoverable_with_hash::<Keccak256>(&msg, &rec_sig)
         .is_err());
 
-    // Nomralize S to be less than N/2.
+    // Normalize S to be less than N/2.
     sig.normalize_s();
     let mut sig_bytes1 = [0u8; 65];
     sig_bytes1[..64].copy_from_slice(&sig.serialize_compact());

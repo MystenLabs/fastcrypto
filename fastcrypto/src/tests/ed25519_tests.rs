@@ -293,7 +293,7 @@ fn verify_batch_aggregate_signature_inputs() -> (
     let aggregated_signature1 = Ed25519AggregateSignature::aggregate(&signatures1).unwrap();
 
     // Make signatures.
-    let message2: &[u8] = b"Hello, worl!";
+    let message2: &[u8] = b"Hello, world!";
     let digest2 = Sha256::digest(message2);
     let (pubkeys2, signatures2): (Vec<Ed25519PublicKey>, Vec<Ed25519Signature>) = keys()
         .into_iter()
