@@ -126,8 +126,7 @@ pub fn multi_scalar_mul<
     let mut missing_precomputations = HashMap::new();
     for (i, element) in elements.iter().enumerate() {
         if !precomputed_multiples.contains_key(&i) {
-            missing_precomputations
-                .insert(i, compute_multiples::<G>(element, default_window_width));
+            missing_precomputations.insert(i, compute_multiples(element, default_window_width));
         }
     }
 
