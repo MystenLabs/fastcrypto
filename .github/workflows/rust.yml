@@ -53,10 +53,11 @@ jobs:
       - uses: actions-rs/toolchain@16499b5e05bf2e26879000db0c1d13f7e13fa3af # pin@v1
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       # make sure benches don't bit-rot
-      - name: cargo test
-        run: cargo test --features experimental,copy_key,unsecure_schemes
       - name: build benches
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
+      # TODO: cargo nextest doesn't work on the windows build so for now, we use cargo test instead
+      - name: cargo test
+        run: cargo test --features experimental,copy_key,unsecure_schemes
       - name: Doctests
         run: |
           cargo test --doc --features experimental,copy_key,unsecure_schemes
