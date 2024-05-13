@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["crt","extended_gcd","hash_prime","jacobi","modular_sqrt"]};
+window.SIDEBAR_ITEMS = {"mod":["hash_prime","jacobi","parameterized_group"]};

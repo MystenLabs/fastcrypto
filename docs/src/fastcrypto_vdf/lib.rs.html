@@ -11,62 +11,10 @@
 <a href="#9" id="9">9</a>
 <a href="#10" id="10">10</a>
 <a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span>fastcrypto::error::FastCryptoResult;
-<span class="kw">use </span>fastcrypto::groups::Doubling;
-<span class="kw">use </span>std::ops::{Add, Mul, Neg};
-
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
+</span><span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">pub mod </span>class_group;
 
 <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
@@ -74,48 +22,4 @@
 
 <span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
 </span><span class="kw">pub mod </span>math;
-
-<span class="doccomment">/// This trait is implemented by types which can be used as parameters for a parameterized group.
-/// See [ParameterizedGroupElement].
-</span><span class="kw">pub trait </span>Parameter: Eq + Sized + ToBytes {
-    <span class="doccomment">/// Compute a random instance of a given size from a seed.
-    </span><span class="kw">fn </span>from_seed(seed: <span class="kw-2">&amp;</span>[u8], size_in_bits: usize) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt;;
-}
-
-<span class="doccomment">/// Trait implemented by elements of an additive group where the group is parameterized, for example
-/// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
-</span><span class="kw">pub trait </span>ParameterizedGroupElement:
-    Sized
-    + Clone
-    + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>, Output = <span class="self">Self</span>&gt;
-    + Add&lt;Output = <span class="self">Self</span>&gt;
-    + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span><span class="self">Self</span>::ScalarType, Output = <span class="self">Self</span>&gt;
-    + Neg
-    + Eq
-    + ToBytes
-    + Doubling
-{
-    <span class="doccomment">/// The type of the parameter which uniquely defines this group.
-    </span><span class="kw">type </span>ParameterType: Parameter;
-
-    <span class="doccomment">/// Integer type used for multiplication.
-    </span><span class="kw">type </span>ScalarType: From&lt;u64&gt;;
-
-    <span class="doccomment">/// Return an instance of the identity element in this group.
-    </span><span class="kw">fn </span>zero(parameters: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self</span>;
-
-    <span class="doccomment">/// Compute scale * self.
-    </span><span class="kw">fn </span>mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scale: <span class="kw-2">&amp;</span><span class="self">Self</span>::ScalarType) -&gt; <span class="self">Self</span>;
-
-    <span class="doccomment">/// Check whether this group element is in the same group as `other`.
-    </span><span class="kw">fn </span>same_group(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool;
-}
-
-<span class="doccomment">/// Trait impl'd by elements of groups where the order is unknown.
-</span><span class="kw">pub trait </span>UnknownOrderGroupElement {}
-
-<span class="kw">pub trait </span>ToBytes {
-    <span class="doccomment">/// Serialize this object into a byte vector.
-    </span><span class="kw">fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt;;
-}
 </code></pre></div></section></main></body></html>

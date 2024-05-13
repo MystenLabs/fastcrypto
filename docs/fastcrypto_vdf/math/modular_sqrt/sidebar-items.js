@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["modular_square_root"]};

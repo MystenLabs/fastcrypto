@@ -101,6 +101,13 @@
 <a href="#99" id="99">99</a>
 <a href="#100" id="100">100</a>
 <a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -110,14 +117,14 @@
 <span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 <span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_integer::Integer;
-<span class="kw">use </span>num_traits::{Signed, ToPrimitive, Zero};
+<span class="kw">use </span>num_traits::{One, Signed, ToPrimitive, Zero};
 
 <span class="doccomment">/// Compute a modular square root of a modulo p with p prime if this exists. This function does not
 /// check that p is prime and if it is not, the result is undefined. If check_legendre is set to
 /// true, the function verifies that a is a quadratic residue modulo p and returns None otherwise.
 /// If check_legendre is set to false, the function assumes that a is a quadratic residue modulo p
 /// and if this is not the case, the result is undefined.
-</span><span class="kw">pub fn </span>modular_square_root(
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>modular_square_root(
     a: <span class="kw-2">&amp;</span>BigInt,
     p: <span class="kw-2">&amp;</span>BigInt,
     check_legendre: bool,
@@ -125,7 +132,7 @@
     <span class="comment">// Algorithm 2.3.8 in Crandall &amp; Pomerance, "Prime Numbers: A Computational Perspective"
 
     // Handle special cases
-    </span><span class="kw">if </span>!p.is_positive() || !p.is_odd() {
+    </span><span class="kw">if </span>!p.is_positive() || !p.is_odd() || p.is_one() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
     }
 
@@ -138,19 +145,21 @@
         <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
     }
 
+    <span class="kw">let </span>two = BigInt::from(<span class="number">2</span>);
+
     <span class="kw">let </span>a = a.mod_floor(p);
     <span class="kw">match </span>mod8(p) {
         <span class="number">3 </span>| <span class="number">7 </span>=&gt; <span class="prelude-val">Ok</span>(a.modpow(<span class="kw-2">&amp;</span>((p + <span class="number">1</span>) &gt;&gt; <span class="number">2</span>), p)),
         <span class="number">5 </span>=&gt; {
             <span class="kw">let </span><span class="kw-2">mut </span>x = a.modpow(<span class="kw-2">&amp;</span>((p + <span class="number">3</span>) &gt;&gt; <span class="number">3</span>), p);
-            <span class="kw">let </span>c = x.modpow(<span class="kw-2">&amp;</span><span class="number">2</span>.into(), p);
+            <span class="kw">let </span>c = x.modpow(<span class="kw-2">&amp;</span>two, p);
             <span class="kw">if </span>c != a {
-                x = x * BigInt::from(<span class="number">2</span>).modpow(<span class="kw-2">&amp;</span>((p - <span class="number">1</span>) &gt;&gt; <span class="number">2</span>), p) % p;
+                x <span class="kw-2">*</span>= two.modpow(<span class="kw-2">&amp;</span>((p - <span class="number">1</span>) &gt;&gt; <span class="number">2</span>), p) % p;
             }
             <span class="prelude-val">Ok</span>(x)
         }
         <span class="number">1 </span>=&gt; {
-            <span class="kw">let </span><span class="kw-2">mut </span>d: BigInt = <span class="number">2</span>.into();
+            <span class="kw">let </span><span class="kw-2">mut </span>d: BigInt = two.clone();
             <span class="kw">while </span>jacobi::jacobi(<span class="kw-2">&amp;</span>d, p).expect(<span class="string">"p is positive and odd"</span>) != -<span class="number">1 </span>{
                 d += <span class="number">1</span>;
                 <span class="kw">if </span><span class="kw-2">&amp;</span>d &gt;= p {
@@ -158,7 +167,7 @@
                 }
             }
             <span class="kw">let </span>p_minus_1: BigInt = p - <span class="number">1</span>;
-            <span class="kw">let </span>s = p_minus_1.trailing_zeros().expect(<span class="string">"p &gt; 1"</span>);
+            <span class="kw">let </span>s = p_minus_1.trailing_zeros().expect(<span class="string">"p is verified to be &gt; 1"</span>);
             <span class="kw">let </span>t = <span class="kw-2">&amp;</span>p_minus_1 &gt;&gt; s;
 
             <span class="kw">let </span>a_t = a.modpow(<span class="kw-2">&amp;</span>t, p);
@@ -185,21 +194,26 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::math::modular_sqrt::jacobi;
     <span class="kw">use </span>num_bigint::BigInt;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_sqrt() {
-        <span class="kw">let </span>a = BigInt::from(<span class="number">58</span>);
-        <span class="kw">let </span>p = BigInt::from(<span class="number">101</span>);
-        <span class="kw">let </span>x = <span class="kw">super</span>::modular_square_root(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>p, <span class="bool-val">true</span>).unwrap();
-        <span class="macro">assert_eq!</span>(x.modpow(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">2</span>), <span class="kw-2">&amp;</span>p), a);
-        <span class="macro">assert!</span>(x == BigInt::from(<span class="number">19</span>) || x == BigInt::from(<span class="number">82</span>));
-
-        <span class="kw">let </span>a = BigInt::from(<span class="number">111</span>);
-        <span class="kw">let </span>p = BigInt::from(<span class="number">113</span>);
-        <span class="kw">let </span>x = <span class="kw">super</span>::modular_square_root(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>p, <span class="bool-val">true</span>).unwrap();
-        <span class="macro">assert_eq!</span>(x.modpow(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">2</span>), <span class="kw-2">&amp;</span>p), a);
-        <span class="macro">assert!</span>(x == BigInt::from(<span class="number">26</span>) || x == BigInt::from(<span class="number">87</span>));
+        <span class="comment">// 1, 3, 5, 7 mod 8
+        </span><span class="kw">let </span>moduli: [usize; <span class="number">4</span>] = [<span class="number">257</span>, <span class="number">163</span>, <span class="number">197</span>, <span class="number">127</span>];
+        <span class="kw">for </span>p <span class="kw">in </span>moduli.iter() {
+            <span class="kw">for </span>a <span class="kw">in </span><span class="number">2</span>..<span class="kw-2">*</span>p {
+                <span class="kw">let </span>p = BigInt::from(<span class="kw-2">*</span>p);
+                <span class="kw">let </span>a = BigInt::from(a);
+                <span class="kw">match </span><span class="kw">super</span>::modular_square_root(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>p, <span class="bool-val">true</span>) {
+                    <span class="prelude-val">Ok</span>(x) =&gt; {
+                        <span class="macro">assert_eq!</span>(jacobi(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>p).unwrap(), <span class="number">1</span>);
+                        <span class="macro">assert_eq!</span>(x.modpow(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">2</span>), <span class="kw-2">&amp;</span>p), a);
+                    }
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="macro">assert_eq!</span>(jacobi(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>p).unwrap(), -<span class="number">1</span>),
+                }
+            }
+        }
     }
 }
 </code></pre></div></section></main></body></html>

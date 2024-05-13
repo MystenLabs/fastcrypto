@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["class_group","math","vdf"],"trait":["Parameter","ParameterizedGroupElement","ToBytes","UnknownOrderGroupElement"]};
+window.SIDEBAR_ITEMS = {"mod":["class_group","math","vdf"]};

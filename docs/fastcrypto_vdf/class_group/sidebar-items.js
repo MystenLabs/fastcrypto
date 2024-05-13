@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["discriminant","hash","reduction"],"struct":["QuadraticForm"]};
+window.SIDEBAR_ITEMS = {"mod":["discriminant"],"struct":["QuadraticForm"]};

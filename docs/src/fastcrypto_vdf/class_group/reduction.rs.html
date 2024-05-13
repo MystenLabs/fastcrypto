@@ -56,6 +56,37 @@
 <a href="#54" id="54">54</a>
 <a href="#55" id="55">55</a>
 <a href="#56" id="56">56</a>
+<a href="#57" id="57">57</a>
+<a href="#58" id="58">58</a>
+<a href="#59" id="59">59</a>
+<a href="#60" id="60">60</a>
+<a href="#61" id="61">61</a>
+<a href="#62" id="62">62</a>
+<a href="#63" id="63">63</a>
+<a href="#64" id="64">64</a>
+<a href="#65" id="65">65</a>
+<a href="#66" id="66">66</a>
+<a href="#67" id="67">67</a>
+<a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
+<a href="#76" id="76">76</a>
+<a href="#77" id="77">77</a>
+<a href="#78" id="78">78</a>
+<a href="#79" id="79">79</a>
+<a href="#80" id="80">80</a>
+<a href="#81" id="81">81</a>
+<a href="#82" id="82">82</a>
+<a href="#83" id="83">83</a>
+<a href="#84" id="84">84</a>
+<a href="#85" id="85">85</a>
+<a href="#86" id="86">86</a>
+<a href="#87" id="87">87</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -69,7 +100,7 @@
 
 <span class="kw">impl </span>QuadraticForm {
     <span class="doccomment">/// Return true if this form is in normal form: -a &lt; b &lt;= a.
-    </span><span class="kw">pub fn </span>is_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+    </span><span class="kw">fn </span>is_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.b.magnitude().cmp(<span class="self">self</span>.a.magnitude()) {
             Ordering::Less =&gt; <span class="bool-val">true</span>,
             Ordering::Equal =&gt; !<span class="self">self</span>.b.is_negative(),
@@ -78,7 +109,7 @@
     }
 
     <span class="doccomment">/// Return a normalized form equivalent to this quadratic form. See [`QuadraticForm::is_normal`].
-    </span><span class="kw">pub fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    </span><span class="kw">fn </span>normalize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         </span><span class="kw">if </span><span class="self">self</span>.is_normal() {
             <span class="kw">return</span>;
@@ -91,7 +122,7 @@
 
     <span class="doccomment">/// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a &lt;= c and if a == c then b &gt;= 0.
-    </span><span class="kw">pub fn </span>is_reduced(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_reduced_assuming_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.a.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.c) {
             Ordering::Less =&gt; <span class="bool-val">true</span>,
             Ordering::Equal =&gt; !<span class="self">self</span>.b.is_negative(),
@@ -99,17 +130,48 @@
         }
     }
 
-    <span class="doccomment">/// Return a reduced form (see [`QuadraticForm::is_reduced`]) equivalent to this quadratic form.
-    </span><span class="kw">pub fn </span>reduce(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    <span class="doccomment">/// Return a reduced form (see [`QuadraticForm::is_reduced_assuming_normal`]) equivalent to this quadratic form.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>reduce(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
         <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         </span><span class="self">self</span>.normalize();
-        <span class="kw">while </span>!<span class="self">self</span>.is_reduced() {
+        <span class="kw">while </span>!<span class="self">self</span>.is_reduced_assuming_normal() {
             <span class="kw">let </span>s = (<span class="kw-2">&amp;</span><span class="self">self</span>.b + <span class="kw-2">&amp;</span><span class="self">self</span>.c).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.c).shr(<span class="number">1</span>);
             <span class="kw">let </span>cs: BigInt = <span class="kw-2">&amp;</span><span class="self">self</span>.c * <span class="kw-2">&amp;</span>s;
             swap(<span class="kw-2">&amp;mut </span><span class="self">self</span>.a, <span class="kw-2">&amp;mut </span><span class="self">self</span>.c);
             <span class="self">self</span>.c += (<span class="kw-2">&amp;</span>cs - <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>s;
             <span class="self">self</span>.b = cs.shl(<span class="number">1</span>) - <span class="kw-2">&amp;</span><span class="self">self</span>.b;
         }
+    }
+}
+
+<span class="attr">#[cfg(test)]
+</span><span class="kw">mod </span>tests {
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::Discriminant;
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+    <span class="kw">use </span>num_bigint::BigInt;
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>test_normalization_and_reduction() {
+        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">223</span>)).unwrap();
+        <span class="kw">let </span><span class="kw-2">mut </span>quadratic_form = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from(<span class="number">41</span>),
+            BigInt::from(<span class="number">49</span>),
+            <span class="kw-2">&amp;</span>discriminant,
+        )
+        .unwrap();
+        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">16</span>));
+
+        quadratic_form.normalize();
+        <span class="macro">assert!</span>(quadratic_form.is_normal());
+        <span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">41</span>));
+        <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(-<span class="number">33</span>));
+        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">8</span>));
+
+        quadratic_form.reduce();
+        <span class="macro">assert!</span>(quadratic_form.is_reduced_assuming_normal());
+        <span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">7</span>));
+        <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(-<span class="number">1</span>));
+        <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">8</span>));
     }
 }
 </code></pre></div></section></main></body></html>

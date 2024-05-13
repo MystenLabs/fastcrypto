@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"fn":["solve_congruence_equation_system","solve_simple_congruence_equation_system"]};

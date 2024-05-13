@@ -144,7 +144,7 @@
 
 <span class="doccomment">/// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
-</span><span class="kw">pub fn </span>extended_euclidean_algorithm(a: <span class="kw-2">&amp;</span>BigInt, b: <span class="kw-2">&amp;</span>BigInt) -&gt; EuclideanAlgorithmOutput {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extended_euclidean_algorithm(a: <span class="kw-2">&amp;</span>BigInt, b: <span class="kw-2">&amp;</span>BigInt) -&gt; EuclideanAlgorithmOutput {
     <span class="kw">if </span>b &lt; a {
         <span class="kw">return </span>extended_euclidean_algorithm(b, a).flip();
     }

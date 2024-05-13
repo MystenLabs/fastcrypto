@@ -201,6 +201,10 @@
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
 <a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -293,10 +297,14 @@
     result
 }
 
-<span class="doccomment">/// Return true iff the bit at the given index is set.
+<span class="doccomment">/// Return true iff the bit at the given index is set. The input is assumed to be infinetely padded
+/// with zeros, so if the index is larger than the number of bits in the input, the function will
+/// return false.
 </span><span class="attr">#[inline]
 </span><span class="kw">pub fn </span>test_bit(bytes: <span class="kw-2">&amp;</span>[u8], index: usize) -&gt; bool {
-    <span class="macro">assert!</span>(index &lt; <span class="number">8 </span>* bytes.len());
+    <span class="kw">if </span>index &gt;= <span class="number">8 </span>* bytes.len() {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
     <span class="kw">let </span>byte = index &gt;&gt; <span class="number">3</span>;
     <span class="kw">let </span>shifted = bytes[byte] &gt;&gt; (index &amp; <span class="number">7</span>);
     shifted &amp; <span class="number">1 </span>!= <span class="number">0

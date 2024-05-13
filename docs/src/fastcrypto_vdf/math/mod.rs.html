@@ -12,10 +12,10 @@
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">pub mod </span>crt;
-<span class="kw">pub mod </span>extended_gcd;
-<span class="attr">#[cfg(any(test, feature = <span class="string">"experimental"</span>))]
-</span><span class="kw">pub mod </span>hash_prime;
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>crt;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>extended_gcd;
+<span class="kw">pub mod </span>hash_prime;
 <span class="kw">pub mod </span>jacobi;
-<span class="kw">pub mod </span>modular_sqrt;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>modular_sqrt;
+<span class="kw">pub mod </span>parameterized_group;
 </code></pre></div></section></main></body></html>

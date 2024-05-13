@@ -99,6 +99,9 @@
 <a href="#97" id="97">97</a>
 <a href="#98" id="98">98</a>
 <a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -114,7 +117,7 @@
 
 <span class="doccomment">/// Find the unique x such that x = a mod p and x = b mod q for relatively prime p and q and 0 &lt;= x
 /// &lt; pq.
-</span><span class="kw">pub fn </span>solve_simple_congruence_equation_system(
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve_simple_congruence_equation_system(
     a: <span class="kw-2">&amp;</span>BigInt,
     p: <span class="kw-2">&amp;</span>BigInt,
     b: <span class="kw-2">&amp;</span>BigInt,
@@ -143,7 +146,10 @@
 }
 
 <span class="doccomment">/// Find the unique x such that x = a_i mod p_i for relatively prime p_i and 0 &lt;= x &lt; Prod p_i.
-</span><span class="kw">pub fn </span>solve_congruence_equation_system(a: <span class="kw-2">&amp;</span>[BigInt], p: <span class="kw-2">&amp;</span>[BigInt]) -&gt; FastCryptoResult&lt;BigInt&gt; {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>solve_congruence_equation_system(
+    a: <span class="kw-2">&amp;</span>[BigInt],
+    p: <span class="kw-2">&amp;</span>[BigInt],
+) -&gt; FastCryptoResult&lt;BigInt&gt; {
     <span class="macro">assert_eq!</span>(a.len(), p.len());
 
     <span class="comment">// Avoid filling the stack with recursive calls

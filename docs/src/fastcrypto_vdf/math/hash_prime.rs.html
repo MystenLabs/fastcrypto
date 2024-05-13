@@ -94,24 +94,6 @@
 <a href="#92" id="92">92</a>
 <a href="#93" id="93">93</a>
 <a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -152,45 +134,27 @@
     }
 }
 
-<span class="doccomment">/// Implementation of a probabilistic primality test.
-</span><span class="kw">pub trait </span>PrimalityCheck {
-    <span class="doccomment">/// Return true if `x` is probably a prime. If `false` is returned, `x` is guaranteed to be composite.
-    </span><span class="kw">fn </span>is_probable_prime(x: <span class="kw-2">&amp;</span>BigUint) -&gt; bool;
-}
-
 <span class="doccomment">/// Implementation of HashPrime from chiavdf ():
 /// Generates a random pseudo-prime using the hash and check method:
 /// Randomly chooses x with bit-length `length`, then applies a mask
 ///   (for b in bitmask) { x |= (1 &lt;&lt; b) }.
 /// Then return x if it is a pseudo-prime, otherwise repeat.
-</span><span class="kw">pub fn </span>hash_prime&lt;P: PrimalityCheck&gt;(
-    seed: <span class="kw-2">&amp;</span>[u8],
-    length_in_bytes: usize,
-    bitmask: <span class="kw-2">&amp;</span>[usize],
-) -&gt; BigUint {
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>hash_prime(seed: <span class="kw-2">&amp;</span>[u8], length_in_bytes: usize, bitmask: <span class="kw-2">&amp;</span>[usize]) -&gt; BigUint {
     <span class="kw">let </span><span class="kw-2">mut </span>iterator = HashPrimeIterator {
         seed: seed.to_vec(),
         length_in_bytes,
         bitmask: bitmask.to_vec(),
     };
-    iterator.find(|x| P::is_probable_prime(x)).unwrap()
+    iterator.find(is_probable_prime).unwrap()
 }
 
-<span class="doccomment">/// Implementation of [hash_prime] using the primality test from `num_prime::nt_funcs::is_prime`.
-</span><span class="kw">pub fn </span>hash_prime_default(seed: <span class="kw-2">&amp;</span>[u8], length_in_bytes: usize, bitmask: <span class="kw-2">&amp;</span>[usize]) -&gt; BigUint {
-    hash_prime::&lt;DefaultPrimalityCheck&gt;(seed, length_in_bytes, bitmask)
-}
-
-<span class="doccomment">/// Implementation of the [PrimalityCheck] trait using the primality test from `num_prime::nt_funcs::is_prime`.
-</span><span class="kw">pub struct </span>DefaultPrimalityCheck {}
-
-<span class="kw">impl </span>PrimalityCheck <span class="kw">for </span>DefaultPrimalityCheck {
-    <span class="kw">fn </span>is_probable_prime(x: <span class="kw-2">&amp;</span>BigUint) -&gt; bool {
-        <span class="comment">// We use the Baillie-PSW primality test here. This is accordance with the recommendations of "Prime and
-        // Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
-        // because this test is also used in use cases where an adversary could influence the input.
-        </span>is_prime(x, <span class="prelude-val">Some</span>(PrimalityTestConfig::bpsw())).probably()
-    }
+<span class="doccomment">/// Check if the input is a probable prime.
+///
+/// We use the Baillie-PSW primality test here. This is in accordance with the recommendations of "Prime and
+/// Prejudice: Primality Testing Under Adversarial Conditions" by Albrecht et al. (https://eprint.iacr.org/2018/749)
+/// because this test is also used in use cases where an adversary could influence the input.
+</span><span class="kw">pub fn </span>is_probable_prime(x: <span class="kw-2">&amp;</span>BigUint) -&gt; bool {
+    is_prime(x, <span class="prelude-val">Some</span>(PrimalityTestConfig::bpsw())).probably()
 }
 
 <span class="attr">#[cfg(test)]
@@ -207,7 +171,7 @@
         <span class="kw">let </span>length = <span class="number">64</span>;
         <span class="kw">let </span>bitmask: [usize; <span class="number">3</span>] = [<span class="number">0</span>, <span class="number">1</span>, <span class="number">8 </span>* length - <span class="number">1</span>];
 
-        <span class="kw">let </span>prime = hash_prime_default(<span class="kw-2">&amp;</span>seed, length, <span class="kw-2">&amp;</span>bitmask);
+        <span class="kw">let </span>prime = hash_prime(<span class="kw-2">&amp;</span>seed, length, <span class="kw-2">&amp;</span>bitmask);
 
         <span class="comment">// Prime has right length
         </span><span class="macro">assert_eq!</span>((length * <span class="number">8</span>) <span class="kw">as </span>u64, prime.bits());

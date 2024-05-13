@@ -385,47 +385,6 @@
 <a href="#383" id="383">383</a>
 <a href="#384" id="384">384</a>
 <a href="#385" id="385">385</a>
-<a href="#386" id="386">386</a>
-<a href="#387" id="387">387</a>
-<a href="#388" id="388">388</a>
-<a href="#389" id="389">389</a>
-<a href="#390" id="390">390</a>
-<a href="#391" id="391">391</a>
-<a href="#392" id="392">392</a>
-<a href="#393" id="393">393</a>
-<a href="#394" id="394">394</a>
-<a href="#395" id="395">395</a>
-<a href="#396" id="396">396</a>
-<a href="#397" id="397">397</a>
-<a href="#398" id="398">398</a>
-<a href="#399" id="399">399</a>
-<a href="#400" id="400">400</a>
-<a href="#401" id="401">401</a>
-<a href="#402" id="402">402</a>
-<a href="#403" id="403">403</a>
-<a href="#404" id="404">404</a>
-<a href="#405" id="405">405</a>
-<a href="#406" id="406">406</a>
-<a href="#407" id="407">407</a>
-<a href="#408" id="408">408</a>
-<a href="#409" id="409">409</a>
-<a href="#410" id="410">410</a>
-<a href="#411" id="411">411</a>
-<a href="#412" id="412">412</a>
-<a href="#413" id="413">413</a>
-<a href="#414" id="414">414</a>
-<a href="#415" id="415">415</a>
-<a href="#416" id="416">416</a>
-<a href="#417" id="417">417</a>
-<a href="#418" id="418">418</a>
-<a href="#419" id="419">419</a>
-<a href="#420" id="420">420</a>
-<a href="#421" id="421">421</a>
-<a href="#422" id="422">422</a>
-<a href="#423" id="423">423</a>
-<a href="#424" id="424">424</a>
-<a href="#425" id="425">425</a>
-<a href="#426" id="426">426</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -434,14 +393,17 @@
 //! for the composition.
 
 </span><span class="kw">use </span><span class="kw">crate</span>::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-<span class="kw">use crate</span>::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+<span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::ParameterizedGroupElement;
+<span class="kw">use </span>core::cell::OnceCell;
 <span class="kw">use </span>discriminant::Discriminant;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
 <span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 <span class="kw">use </span>fastcrypto::groups::Doubling;
-<span class="kw">use </span>num_bigint::{BigInt, Sign};
+<span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
+<span class="kw">use </span>serde::Deserialize;
+<span class="kw">use </span>serde::Serialize;
 <span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::mem::swap;
 <span class="kw">use </span>std::ops::{Add, Mul, Neg};
@@ -452,32 +414,39 @@
 <span class="doccomment">/// This module implements a hash function for imaginary class groups whichtakes an arbitrary binary input and returns
 /// an element in the class group. The output of the hash function is uniformly random on a large subset of the class
 /// group but not the entire class group.
-</span><span class="kw">pub mod </span>hash;
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>hash;
 
 <span class="doccomment">/// Two quadratic forms may represent the same element in the class group, but each equivalence class contains exactly
 /// one reduced form. This module contains methods to reduce quadratic forms, which besides uniqness also ensures that
 /// the coefficients does not become too large.
-</span><span class="kw">pub mod </span>reduction;
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod </span>reduction;
 
 <span class="doccomment">/// Discriminants of quadratic forms are negative primes which is 1 mod 8. This module contains a type to represent
 /// discriminants and methods to create them.
 </span><span class="kw">pub mod </span>discriminant;
 
+<span class="doccomment">/// Serialization and deserialization for `num_bigint::BigInt`. The format used in num_bigint is
+/// a serialization of the u32 words which is hard to port to other platforms. Instead we serialize
+/// a big integer as the two's-complement byte representation in big-endian byte order. See also
+/// [BigInt::to_signed_bytes_be].
+</span><span class="kw">mod </span>bigint_serde;
+
 <span class="doccomment">/// A binary quadratic form, (a, b, c) for arbitrary integers a, b, and c.
-///
-/// The `partial_gcd_limit` variable must be equal to `|discriminant|^{1/4}` and is used to speed up
-/// the composition algorithm.
-</span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone)]
+</span><span class="attr">#[derive(Eq, Debug, Clone, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>QuadraticForm {
-    <span class="kw">pub </span>a: BigInt,
-    <span class="kw">pub </span>b: BigInt,
-    <span class="kw">pub </span>c: BigInt,
-    partial_gcd_limit: BigInt,
+    <span class="attr">#[serde(with = <span class="string">"bigint_serde"</span>)]
+    </span><span class="kw">pub </span>a: BigInt,
+    <span class="attr">#[serde(with = <span class="string">"bigint_serde"</span>)]
+    </span><span class="kw">pub </span>b: BigInt,
+    <span class="attr">#[serde(with = <span class="string">"bigint_serde"</span>)]
+    </span><span class="kw">pub </span>c: BigInt,
+    <span class="attr">#[serde(skip)]
+    </span>partial_gcd_limit: OnceCell&lt;BigInt&gt;,
 }
 
 <span class="kw">impl </span>QuadraticForm {
     <span class="doccomment">/// Create a new quadratic form given only the a and b coefficients and the discriminant.
-    </span><span class="kw">pub fn </span>from_a_b_discriminant(
+    </span><span class="kw">pub fn </span>from_a_b_and_discriminant(
         a: BigInt,
         b: BigInt,
         discriminant: <span class="kw-2">&amp;</span>Discriminant,
@@ -497,64 +466,23 @@
             a,
             b,
             c,
-            <span class="comment">// This limit is used by `partial_euclidean_algorithm` in the add method.
-            </span>partial_gcd_limit: discriminant.as_bigint().abs().nth_root(<span class="number">4</span>),
+            partial_gcd_limit: OnceCell::new(),
         })
     }
 
-    <span class="doccomment">/// Create a new quadratic form from a serialization. The format is a byte array with the following structure:
-    ///
-    /// `a_len` (2 bytes, big endian) | `a` as unsigned big endian bytes | `b_len` (2 bytes, big endian) | `b` as signed
-    /// big endian bytes
-    ///
-    /// The c coefficient is computed from a and b and the discriminant. If the format is not followed or if the
-    /// coefficients do not form a valid quadratic form, an error is returned.
-    ///
-    /// See also [`QuadraticForm::to_bytes`].
-    </span><span class="kw">pub fn </span>from_bytes(bytes: <span class="kw-2">&amp;</span>[u8], discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">let </span><span class="kw-2">mut </span>index = <span class="number">0</span>;
-
-        <span class="kw">if </span>bytes.len() &lt; <span class="number">2 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="kw">let </span>a_len = u16::from_be_bytes(bytes[index..<span class="number">2</span>].try_into().expect(<span class="string">"Never fails"</span>)) <span class="kw">as </span>usize;
-        index += <span class="number">2</span>;
-
-        <span class="kw">if </span>bytes.len() &lt; index + a_len {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="kw">let </span>a = BigInt::from_bytes_be(Sign::Plus, <span class="kw-2">&amp;</span>bytes[index..index + a_len]);
-        index += a_len;
-
-        <span class="kw">if </span>bytes.len() &lt; index + <span class="number">2 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="kw">let </span>b_len =
-            u16::from_be_bytes(bytes[index..index + <span class="number">2</span>].try_into().expect(<span class="string">"Never fails"</span>)) <span class="kw">as </span>usize;
-        index += <span class="number">2</span>;
-
-        <span class="kw">if </span>bytes.len() &lt; index + b_len {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="kw">let </span>b = BigInt::from_signed_bytes_be(<span class="kw-2">&amp;</span>bytes[index..index + b_len]);
-        index += b_len;
-
-        <span class="comment">// Check that all bytes are used
-        </span><span class="kw">if </span>index != bytes.len() {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="self">Self</span>::from_a_b_discriminant(a, b, discriminant)
+    <span class="doccomment">/// The GCD computation in composition may finish early when coefficients are below this limit
+    /// which is set lazily to `L = |discriminant|^{1/4}`. Algorithm 1 from Jacobson, Jr, Michael &amp;
+    /// Poorten, Alfred (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
+    /// (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
+    </span><span class="kw">fn </span>partial_gcd_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BigInt {
+        <span class="self">self</span>.partial_gcd_limit
+            .get_or_init(|| <span class="self">self</span>.discriminant().as_bigint().abs().nth_root(<span class="number">4</span>))
     }
 
     <span class="doccomment">/// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
     /// discriminant which is 1 mod 8. We use the element `(2, 1, c)` where `c` is determined from the discriminant.
     </span><span class="kw">pub fn </span>generator(discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from_a_b_discriminant(BigInt::from(<span class="number">2</span>), BigInt::one(), discriminant)
+        <span class="self">Self</span>::from_a_b_and_discriminant(BigInt::from(<span class="number">2</span>), BigInt::one(), discriminant)
             .expect(<span class="string">"Always succeeds when the discriminant is 1 mod 8"</span>)
     }
 
@@ -626,7 +554,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>y = BigInt::zero();
         <span class="kw">let </span><span class="kw-2">mut </span>z = <span class="number">0u32</span>;
 
-        <span class="kw">while </span>by.abs() &gt; <span class="self">self</span>.partial_gcd_limit &amp;&amp; !bx.is_zero() {
+        <span class="kw">while </span>by.abs() &gt; <span class="kw-2">*</span><span class="self">self</span>.partial_gcd_limit() &amp;&amp; !bx.is_zero() {
             <span class="kw">let </span>(q, t) = by.div_rem(<span class="kw-2">&amp;</span>bx);
             by = bx;
             bx = t;
@@ -709,7 +637,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>y = BigInt::zero();
         <span class="kw">let </span><span class="kw-2">mut </span>z = <span class="number">0u32</span>;
 
-        <span class="kw">while </span>by.abs() &gt; <span class="self">self</span>.partial_gcd_limit &amp;&amp; !bx.is_zero() {
+        <span class="kw">while </span>by.abs() &gt; <span class="kw-2">*</span><span class="self">self</span>.partial_gcd_limit() &amp;&amp; !bx.is_zero() {
             <span class="kw">let </span>(q, t) = by.div_rem(<span class="kw-2">&amp;</span>bx);
             by = bx;
             bx = t;
@@ -774,7 +702,7 @@
     <span class="kw">type </span>ScalarType = BigInt;
 
     <span class="kw">fn </span>zero(discriminant: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::from_a_b_discriminant(BigInt::one(), BigInt::one(), discriminant)
+        <span class="self">Self</span>::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect(<span class="string">"Doesn't fail"</span>)
     }
 
@@ -793,8 +721,8 @@
         result
     }
 
-    <span class="kw">fn </span>same_group(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
-        <span class="self">self</span>.discriminant() == other.discriminant()
+    <span class="kw">fn </span>parameter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::ParameterType {
+        <span class="self">self</span>.discriminant()
     }
 }
 
@@ -835,21 +763,11 @@
     }
 }
 
-<span class="kw">impl </span>ToBytes <span class="kw">for </span>QuadraticForm {
-    <span class="kw">fn </span>to_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="comment">// a is always positive
-        </span><span class="kw">let </span>a_bytes = <span class="self">self</span>.a.to_bytes_be().<span class="number">1</span>;
-        <span class="kw">let </span>b_bytes = <span class="self">self</span>.b.to_signed_bytes_be();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>result = Vec::with_capacity(a_bytes.len() + b_bytes.len() + <span class="number">8</span>);
-        result.extend_from_slice(<span class="kw-2">&amp;</span>(a_bytes.len() <span class="kw">as </span>u16).to_be_bytes());
-        result.extend_from_slice(<span class="kw-2">&amp;</span>a_bytes);
-        result.extend_from_slice(<span class="kw-2">&amp;</span>(b_bytes.len() <span class="kw">as </span>u16).to_be_bytes());
-        result.extend_from_slice(<span class="kw-2">&amp;</span>b_bytes);
-
-        result
+<span class="kw">impl </span>PartialEq <span class="kw">for </span>QuadraticForm {
+    <span class="kw">fn </span>eq(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
+        <span class="comment">// Ignore the partial_gcd_limit field. This field is computed lazily and is not part of the
+        // actual value of the QuadraticForm.
+        </span><span class="self">self</span>.a == other.a &amp;&amp; <span class="self">self</span>.b == other.b &amp;&amp; <span class="self">self</span>.c == other.c
     }
 }
-
-<span class="kw">impl </span>UnknownOrderGroupElement <span class="kw">for </span>QuadraticForm {}
 </code></pre></div></section></main></body></html>
