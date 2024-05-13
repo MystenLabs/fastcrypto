@@ -54,7 +54,7 @@ jobs:
       - uses: taiki-e/install-action@d30f7ecb94d4d882276efb3967be14b8ef34d289 # pin@nextest
       # make sure benches don't bit-rot
       - name: cargo test
-        run: cargo nextest run --features experimental,copy_key,unsecure_schemes
+        run: cargo test --features experimental,copy_key,unsecure_schemes
       - name: build benches
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
       - name: Doctests
