@@ -6,7 +6,7 @@ use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Crit
 use fastcrypto::groups::Doubling;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::ParameterizedGroupElement;
+use fastcrypto_vdf::math::parameterized_group::ParameterizedGroupElement;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};

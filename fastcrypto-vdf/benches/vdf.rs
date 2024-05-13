@@ -6,14 +6,11 @@ extern crate criterion;
 
 use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
-use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::hash_prime::DefaultPrimalityCheck;
-use fastcrypto_vdf::vdf::wesolowski::fiat_shamir::StrongFiatShamir;
-use fastcrypto_vdf::vdf::wesolowski::{FastVerifier, StrongVDF, CHALLENGE_SIZE};
+use fastcrypto_vdf::math::parameterized_group::Parameter;
+use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
-use fastcrypto_vdf::Parameter;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
@@ -32,29 +29,16 @@ fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut Benchma
     let discriminant_size = discriminant.bits();
 
     let result_bytes = hex::decode(parameters.result).unwrap();
-    let result = QuadraticForm::from_bytes(&result_bytes, &discriminant).unwrap();
-    let result_copy = result.clone();
+    let result = bcs::from_bytes(&result_bytes).unwrap();
 
     let proof_bytes = hex::decode(parameters.proof).unwrap();
-    let proof = QuadraticForm::from_bytes(&proof_bytes, &discriminant).unwrap();
-    let proof_copy = proof.clone();
+    let proof = bcs::from_bytes(&proof_bytes).unwrap();
 
     let input = QuadraticForm::generator(&discriminant);
-    let input_copy = input.clone();
 
-    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
+    let vdf = DefaultVDF::new(discriminant.clone(), parameters.iterations);
     c.bench_function(discriminant_size.to_string(), move |b| {
         b.iter(|| vdf.verify(&input, &result, &proof))
-    });
-
-    let vdf = StrongVDF::new(discriminant.clone(), parameters.iterations);
-    let fast_verify: FastVerifier<
-        QuadraticForm,
-        StrongFiatShamir<QuadraticForm, CHALLENGE_SIZE, DefaultPrimalityCheck>,
-        WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
-    > = FastVerifier::new(vdf, input_copy);
-    c.bench_function(format!("{} fast", discriminant_size), move |b| {
-        b.iter(|| fast_verify.verify(&result_copy, &proof_copy))
     });
 }
 

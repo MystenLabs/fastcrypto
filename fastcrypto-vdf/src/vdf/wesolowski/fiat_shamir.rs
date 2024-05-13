@@ -1,46 +1,66 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::math::hash_prime::{hash_prime, PrimalityCheck};
+use crate::class_group::discriminant::Discriminant;
+use crate::class_group::QuadraticForm;
+use crate::math::hash_prime::hash_prime;
+use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::wesolowski::WesolowskisVDF;
-use crate::{ParameterizedGroupElement, ToBytes, UnknownOrderGroupElement};
+use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigInt;
-use std::marker::PhantomData;
+use serde::Serialize;
 
-pub trait FiatShamir<G: ParameterizedGroupElement + UnknownOrderGroupElement>: Sized {
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+///
+/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+/// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
+/// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
+/// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
+/// to represent the n-th prime as log2(n * ln(n)). For n = 2^{2*128}, this is approximately 264 bits
+/// = 33 bytes. This is also the challenge size used by chiavdf.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
+
+pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> G::ScalarType;
-}
-
-impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt> + UnknownOrderGroupElement,
-        const CHALLENGE_SIZE: usize,
-        P: PrimalityCheck,
-    > FiatShamir<G> for StrongFiatShamir<G, CHALLENGE_SIZE, P>
-{
-    fn compute_challenge(vdf: &WesolowskisVDF<G, Self>, input: &G, output: &G) -> BigInt {
-        let mut seed = vec![];
-
-        let input_bytes = input.to_bytes();
-        seed.extend_from_slice(&(input_bytes.len() as u64).to_be_bytes());
-        seed.extend_from_slice(&input_bytes);
-
-        let output_bytes = output.to_bytes();
-        seed.extend_from_slice(&(output_bytes.len() as u64).to_be_bytes());
-        seed.extend_from_slice(&output_bytes);
-
-        seed.extend_from_slice(&(vdf.iterations).to_be_bytes());
-        seed.extend_from_slice(&vdf.group_parameter.to_bytes());
-
-        hash_prime::<P>(&seed, CHALLENGE_SIZE, &[0, 8 * CHALLENGE_SIZE - 1]).into()
-    }
+    fn compute_challenge<M: ScalarMultiplier<G, G::ScalarType>>(
+        vdf: &WesolowskisVDF<G, Self, M>,
+        input: &G,
+        output: &G,
+    ) -> G::ScalarType;
 }
 
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
 /// The implementation is strong, meaning that all public parameters are used in the challenge generation.
 /// See https://eprint.iacr.org/2023/691.
-pub struct StrongFiatShamir<G, const CHALLENGE_SIZE: usize, P> {
-    _group: PhantomData<G>,
-    _primality_check: PhantomData<P>,
+pub struct StrongFiatShamir {}
+
+impl FiatShamir<QuadraticForm> for StrongFiatShamir {
+    fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigInt>>(
+        vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
+        input: &QuadraticForm,
+        output: &QuadraticForm,
+    ) -> BigInt {
+        let seed = bcs::to_bytes(&FiatShamirInput {
+            input,
+            output,
+            iterations: vdf.iterations,
+            group_parameter: &vdf.group_parameter,
+        })
+        .expect("Failed to serialize FiatShamirInput");
+        hash_prime(
+            &seed,
+            DEFAULT_CHALLENGE_SIZE_IN_BYTES,
+            &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
+        )
+        .into()
+    }
+}
+
+#[derive(Serialize)]
+struct FiatShamirInput<'a> {
+    input: &'a QuadraticForm,
+    output: &'a QuadraticForm,
+    iterations: u64,
+    group_parameter: &'a Discriminant,
 }
