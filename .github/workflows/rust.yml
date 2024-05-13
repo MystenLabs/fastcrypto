@@ -44,7 +44,6 @@ jobs:
       matrix:
         os:
           - ubuntu-ghcloud
-          - windows-ghcloud
       fail-fast: false
     env:
       RUSTFLAGS: -D warnings
