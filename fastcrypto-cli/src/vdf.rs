@@ -122,7 +122,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Evaluate(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = bcs::from_bytes::<Discriminant>(&discriminant_bytes)
+            let discriminant = Discriminant::from_trusted_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
             let input_bytes = hex::decode(arguments.input)
@@ -158,7 +158,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Verify(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = bcs::from_bytes::<Discriminant>(&discriminant_bytes)
+            let discriminant = Discriminant::from_trusted_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
             let input =
@@ -207,7 +207,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Hash(arguments) => {
             let discriminant_bytes = hex::decode(arguments.discriminant)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
-            let discriminant = bcs::from_bytes(&discriminant_bytes)
+            let discriminant = Discriminant::from_trusted_bytes(&discriminant_bytes)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid discriminant."))?;
 
             let input = hex::decode(arguments.message)
