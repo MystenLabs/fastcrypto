@@ -70,7 +70,7 @@ impl<
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let challenge = F::compute_challenge(self, input, &output);
         let mut quotient_remainder = (BigInt::from(0), BigInt::from(2));
-        let mut proof = input.mul(&quotient_remainder.0);
+        let mut proof = multiplier.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
             quotient_remainder.1.shl_assign(1);
             quotient_remainder = quotient_remainder.1.div_mod_floor(&challenge);
