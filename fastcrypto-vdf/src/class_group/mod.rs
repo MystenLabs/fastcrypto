@@ -17,9 +17,8 @@ use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use serde::Deserialize;
 use serde::Serialize;
-use std::borrow::Borrow;
 use std::mem::swap;
-use std::ops::{Add, Mul, Neg};
+use std::ops::{Add, Neg};
 
 #[cfg(test)]
 mod tests;
@@ -89,7 +88,12 @@ impl QuadraticForm {
     /// (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
     fn partial_gcd_limit(&self) -> &BigInt {
         self.partial_gcd_limit
-            .get_or_init(|| self.discriminant().as_bigint().abs().nth_root(4))
+            .get_or_init(|| self.discriminant().abs().nth_root(4))
+    }
+
+    /// Compute the discriminant of this quadratic form, eg. b^2 - 4ac.
+    pub fn discriminant(&self) -> BigInt {
+        self.b.pow(2) - ((&self.a * &self.c) << 2)
     }
 
     /// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -97,12 +101,6 @@ impl QuadraticForm {
     pub fn generator(discriminant: &Discriminant) -> Self {
         Self::from_a_b_and_discriminant(BigInt::from(2), BigInt::one(), discriminant)
             .expect("Always succeeds when the discriminant is 1 mod 8")
-    }
-
-    /// Compute the discriminant `b^2 - 4ac` for this quadratic form.
-    pub fn discriminant(&self) -> Discriminant {
-        Discriminant::try_from(self.b.pow(2) - ((&self.a * &self.c) << 2))
-            .expect("The discriminant is checked in the constructors")
     }
 
     /// Compute the composition of this quadratic form with another quadratic form.
@@ -300,14 +298,6 @@ impl Doubling for QuadraticForm {
     }
 }
 
-impl<'a> Mul<&'a BigInt> for QuadraticForm {
-    type Output = Self;
-
-    fn mul(self, rhs: &'a BigInt) -> Self::Output {
-        self.borrow().mul(rhs)
-    }
-}
-
 impl ParameterizedGroupElement for QuadraticForm {
     /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
@@ -319,23 +309,8 @@ impl ParameterizedGroupElement for QuadraticForm {
             .expect("Doesn't fail")
     }
 
-    fn mul(&self, scale: &BigInt) -> Self {
-        if scale.is_zero() {
-            return Self::zero(&self.discriminant());
-        }
-
-        let mut result = self.clone();
-        for i in (0..scale.bits() - 1).rev() {
-            result = result.double();
-            if scale.bit(i) {
-                result = result + self;
-            }
-        }
-        result
-    }
-
-    fn parameter(&self) -> Self::ParameterType {
-        self.discriminant()
+    fn has_parameter(&self, discriminant: &Discriminant) -> bool {
+        discriminant.as_bigint().eq(&self.discriminant())
     }
 }
 

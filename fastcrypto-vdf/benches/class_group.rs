@@ -3,13 +3,13 @@
 
 use criterion::measurement::Measurement;
 use criterion::{criterion_group, criterion_main, BatchSize, BenchmarkGroup, Criterion};
-use fastcrypto::groups::Doubling;
-use fastcrypto_vdf::class_group::discriminant::Discriminant;
-use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::parameterized_group::ParameterizedGroupElement;
 use num_bigint::BigInt;
 use num_traits::Num;
 use rand::{thread_rng, RngCore};
+
+use fastcrypto::groups::Doubling;
+use fastcrypto_vdf::class_group::discriminant::Discriminant;
+use fastcrypto_vdf::class_group::QuadraticForm;
 
 fn class_group_ops_single<M: Measurement>(
     discriminant_string: &str,
@@ -18,8 +18,10 @@ fn class_group_ops_single<M: Measurement>(
     let discriminant =
         Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap()).unwrap();
     let discriminant_size = discriminant.bits();
-    let x = QuadraticForm::generator(&discriminant).mul(&BigInt::from(1234));
-    let y = QuadraticForm::generator(&discriminant).mul(&BigInt::from(4321));
+    let x =
+        QuadraticForm::hash_to_group_with_default_parameters(&[0, 1, 2], &discriminant).unwrap();
+    let y =
+        QuadraticForm::hash_to_group_with_default_parameters(&[3, 4, 5], &discriminant).unwrap();
     let z = y.clone();
 
     group.bench_function(format!("Compose/{}", discriminant_size), move |b| {

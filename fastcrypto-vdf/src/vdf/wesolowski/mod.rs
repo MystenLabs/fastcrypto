@@ -1,18 +1,21 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::QuadraticForm;
-use crate::math::parameterized_group::ParameterizedGroupElement;
-use crate::vdf::VDF;
+use std::marker::PhantomData;
+use std::ops::ShlAssign;
+
+use num_bigint::BigInt;
+use num_integer::Integer;
+
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 use fiat_shamir::{FiatShamir, StrongFiatShamir};
-use num_bigint::BigInt;
-use num_integer::Integer;
-use std::marker::PhantomData;
-use std::ops::ShlAssign;
+
+use crate::class_group::QuadraticForm;
+use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::vdf::VDF;
 
 mod fiat_shamir;
 
@@ -55,7 +58,7 @@ impl<
     type ProofType = G;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
-        if input.parameter() != self.group_parameter || self.iterations == 0 {
+        if !input.has_parameter(&self.group_parameter) || self.iterations == 0 {
             return Err(InvalidInput);
         }
 
@@ -81,9 +84,9 @@ impl<
     }
 
     fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if input.parameter() != self.group_parameter
-            || output.parameter() != self.group_parameter
-            || proof.parameter() != self.group_parameter
+        if !input.has_parameter(&self.group_parameter)
+            || !output.has_parameter(&self.group_parameter)
+            || !proof.has_parameter(&self.group_parameter)
         {
             return Err(InvalidInput);
         }
@@ -111,10 +114,9 @@ pub type DefaultVDF = WesolowskisVDF<
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use crate::math::parameterized_group::Parameter;
     use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
-    use num_bigint::BigInt;
 
     #[test]
     fn test_prove_and_verify() {
@@ -124,7 +126,7 @@ mod tests {
 
         let input = QuadraticForm::generator(&discriminant);
 
-        let vdf = DefaultVDF::new(discriminant, iterations);
+        let vdf = DefaultVDF::new(discriminant.clone(), iterations);
         let (output, proof) = vdf.evaluate(&input).unwrap();
 
         // Regression tests
@@ -134,8 +136,8 @@ mod tests {
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 
         // A modified output or proof fails to verify
-        let modified_output = output.mul(&BigInt::from(2));
-        let modified_proof = proof.mul(&BigInt::from(2));
+        let modified_output = &output + &QuadraticForm::generator(&discriminant);
+        let modified_proof = &proof + &QuadraticForm::generator(&discriminant);
         assert!(vdf.verify(&input, &modified_output, &proof).is_err());
         assert!(vdf.verify(&input, &output, &modified_proof).is_err());
     }

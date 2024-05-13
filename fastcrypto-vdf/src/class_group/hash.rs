@@ -50,6 +50,8 @@ impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic, and it
     /// is a random oracle on a large subset of the class group. This method picks a default `k` parameter and calls the
     /// [hash_to_group](QuadraticForm::hash_to_group) function with this `k`.
+    ///
+    /// This method returns an InvalidInput error if the discriminant is smaller than 800 bits.
     pub fn hash_to_group_with_default_parameters(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -169,7 +171,7 @@ fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::Parameter;
+    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     use num_bigint::BigInt;
     use num_traits::Num;
     use rand::thread_rng;
@@ -183,14 +185,14 @@ mod tests {
         for _ in 0..10 {
             let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 1).unwrap();
             assert!(qf.is_reduced_assuming_normal());
-            assert_eq!(qf.discriminant(), discriminant);
+            assert!(qf.has_parameter(&discriminant));
             seed[0] += 1;
         }
 
         for _ in 0..10 {
             let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 4).unwrap();
             assert!(qf.is_reduced_assuming_normal());
-            assert_eq!(qf.discriminant(), discriminant);
+            assert!(qf.has_parameter(&discriminant));
             seed[0] += 1;
         }
     }
@@ -199,7 +201,7 @@ mod tests {
     fn qf_from_seed_sanity_tests() {
         let discriminant = Discriminant::from_seed(b"discriminant seed", 800).unwrap();
         let base_qf = QuadraticForm::hash_to_group(b"qf seed", &discriminant, 6).unwrap();
-        assert_eq!(base_qf.discriminant(), discriminant);
+        assert!(base_qf.has_parameter(&discriminant));
 
         // Same seed, same discriminant, same k
         let other_qf = QuadraticForm::hash_to_group(b"qf seed", &discriminant, 6).unwrap();
