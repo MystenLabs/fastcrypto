@@ -63,7 +63,7 @@ mod tests {
 
     #[test]
     fn test_normalization_and_reduction() {
-        let discriminant = Discriminant(BigInt::from(-223));
+        let discriminant = Discriminant::from_trusted_bigint(BigInt::from(-223));
         let mut quadratic_form = QuadraticForm::from_a_b_and_discriminant(
             BigInt::from(41),
             BigInt::from(49),

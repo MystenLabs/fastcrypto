@@ -16,7 +16,7 @@ use std::ops::Neg;
 /// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone, Serialize)]
-pub struct Discriminant(#[serde(with = "crate::class_group::bigint_serde")] pub(crate) BigInt);
+pub struct Discriminant(#[serde(with = "crate::class_group::bigint_serde")] BigInt);
 
 impl<'de> Deserialize<'de> for Discriminant {
     fn deserialize<D>(deserializer: D) -> Result<Discriminant, D::Error>
