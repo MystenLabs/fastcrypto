@@ -16,7 +16,7 @@ fn class_group_ops_single<M: Measurement>(
     group: &mut BenchmarkGroup<M>,
 ) {
     let discriminant =
-        Discriminant::from_trusted_bigint(BigInt::from_str_radix(discriminant_string, 10).unwrap());
+        Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap()).unwrap();
     let discriminant_size = discriminant.bits();
     let x =
         QuadraticForm::hash_to_group_with_default_parameters(&[0, 1, 2], &discriminant).unwrap();
@@ -44,9 +44,9 @@ fn class_group_ops(c: &mut Criterion) {
 
 fn qf_from_seed_single<M: Measurement>(discriminant_string: &str, group: &mut BenchmarkGroup<M>) {
     for k in [1, 2, 4, 8, 16, 32, 64] {
-        let discriminant = Discriminant::from_trusted_bigint(
-            BigInt::from_str_radix(discriminant_string, 10).unwrap(),
-        );
+        let discriminant =
+            Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap())
+                .unwrap();
 
         let bits = discriminant.bits();
         group.bench_function(format!("{} bits/{}", bits, k), move |b| {

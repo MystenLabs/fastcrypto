@@ -23,9 +23,9 @@ struct VerificationInputs {
 }
 
 fn verify_single<M: Measurement>(parameters: VerificationInputs, c: &mut BenchmarkGroup<M>) {
-    let discriminant = Discriminant::from_trusted_bigint(
-        -BigInt::from_str_radix(&parameters.discriminant, 16).unwrap(),
-    );
+    let discriminant =
+        Discriminant::try_from(-BigInt::from_str_radix(&parameters.discriminant, 16).unwrap())
+            .unwrap();
     let discriminant_size = discriminant.bits();
 
     let result_bytes = hex::decode(parameters.result).unwrap();
