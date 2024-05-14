@@ -40,7 +40,7 @@ impl TryFrom<BigInt> for Discriminant {
     type Error = FastCryptoError;
 
     /// A valid discriminant should be a negative prime congruent to 1 mod 8. For large discriminants,
-    /// this is very slow.
+    /// this is very slow to check.
     fn try_from(value: BigInt) -> FastCryptoResult<Self> {
         if !value.is_negative()
             || value.mod_floor(&BigInt::from(8)) != BigInt::one()
