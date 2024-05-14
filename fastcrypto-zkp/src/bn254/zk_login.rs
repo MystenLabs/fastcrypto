@@ -19,6 +19,7 @@ pub use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use fastcrypto::error::FastCryptoError;
 use itertools::Itertools;
 use num_bigint::BigUint;
+use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
@@ -52,6 +53,13 @@ pub struct JwkId {
 impl JwkId {
     /// Create a new JwkId.
     pub fn new(iss: String, kid: String) -> Self {
+        // if a Microsoft iss is found, remove the tenant id from it
+        if match_micrsoft_iss_substring(&iss) {
+            return Self {
+                iss: "https://login.microsoftonline.com/v2.0".to_string(),
+                kid,
+            };
+        }
         Self { iss, kid }
     }
 }
@@ -91,6 +99,15 @@ pub enum OIDCProvider {
     /// See https://slack.com/.well-known/openid-configuration
     Slack,
     /// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
+    /// See https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration
+    Microsoft,
+    /// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
+    AwsTenant((String, String)),
+    /// https://openid.karrier.one/.well-known/openid-configuration
+    KarrierOne,
+    /// https://accounts.credenza3.com/openid-configuration
+    Credenza3,
+    /// This is a test issuer that will return a JWT non-interactively.
     TestIssuer,
 }
 
@@ -106,7 +123,23 @@ impl FromStr for OIDCProvider {
             "Apple" => Ok(Self::Apple),
             "Slack" => Ok(Self::Slack),
             "TestIssuer" => Ok(Self::TestIssuer),
-            _ => Err(FastCryptoError::InvalidInput),
+            "Microsoft" => Ok(Self::Microsoft),
+            "KarrierOne" => Ok(Self::KarrierOne),
+            "Credenza3" => Ok(Self::Credenza3),
+            _ => {
+                let re = Regex::new(
+                    r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
+                )
+                .unwrap();
+                if let Some(captures) = re.captures(s) {
+                    let region = captures.name("region").unwrap().as_str();
+                    let tenant_id = captures.name("tenant_id").unwrap().as_str();
+                    println!("region: {}, tenant_id: {}", region, tenant_id);
+                    Ok(Self::AwsTenant((region.to_owned(), tenant_id.to_owned())))
+                } else {
+                    Err(FastCryptoError::InvalidInput)
+                }
+            }
         }
     }
 }
@@ -121,6 +154,12 @@ impl ToString for OIDCProvider {
             Self::Apple => "Apple".to_string(),
             Self::Slack => "Slack".to_string(),
             Self::TestIssuer => "TestIssuer".to_string(),
+            Self::Microsoft => "Microsoft".to_string(),
+            Self::KarrierOne => "KarrierOne".to_string(),
+            Self::Credenza3 => "Credenza3".to_string(),
+            Self::AwsTenant((region, tenant_id)) => {
+                format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
+            }
         }
     }
 }
@@ -152,6 +191,25 @@ impl OIDCProvider {
             OIDCProvider::Slack => {
                 ProviderConfig::new("https://slack.com", "https://slack.com/openid/connect/keys")
             }
+            OIDCProvider::Microsoft => ProviderConfig::new(
+                "https://login.microsoftonline.com/v2.0",
+                "https://login.microsoftonline.com/common/discovery/v2.0/keys",
+            ),
+            OIDCProvider::AwsTenant((region, tenant_id)) => ProviderConfig::new(
+                &format!("https://cognito-idp.{}.amazonaws.com/{}", region, tenant_id),
+                &format!(
+                    "https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json",
+                    region, tenant_id
+                ),
+            ),
+            OIDCProvider::KarrierOne => ProviderConfig::new(
+                "https://openid.karrier.one/",
+                "https://openid.karrier.one/.well-known/jwks",
+            ),
+            OIDCProvider::Credenza3 => ProviderConfig::new(
+                "https://accounts.credenza3.com",
+                "https://accounts.credenza3.com/jwks",
+            ),
             OIDCProvider::TestIssuer => ProviderConfig::new(
                 "https://oauth.sui.io",
                 "https://jwt-tester.mystenlabs.com/.well-known/jwks.json",
@@ -169,11 +227,40 @@ impl OIDCProvider {
             "https://appleid.apple.com" => Ok(Self::Apple),
             "https://slack.com" => Ok(Self::Slack),
             "https://oauth.sui.io" => Ok(Self::TestIssuer),
-            _ => Err(FastCryptoError::InvalidInput),
+            "https://openid.karrier.one/" => Ok(Self::KarrierOne),
+            "https://accounts.credenza3.com" => Ok(Self::Credenza3),
+            iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
+            _ => match parse_aws_iss_substring(iss) {
+                Ok((region, tenant_id)) => {
+                    Ok(Self::AwsTenant((region.to_string(), tenant_id.to_string())))
+                }
+                Err(_) => Err(FastCryptoError::InvalidInput),
+            },
         }
     }
 }
 
+/// Check if the iss string is formatted as Microsoft's pattern.
+fn match_micrsoft_iss_substring(iss: &str) -> bool {
+    iss.starts_with("https://login.microsoftonline.com/") && iss.ends_with("/v2.0")
+}
+
+/// Parse the region and tenant_id from the iss string for AWS.
+fn parse_aws_iss_substring(url: &str) -> Result<(&str, &str), FastCryptoError> {
+    let re =
+        Regex::new(r"https://cognito-idp\.(?P<region>[^.]+)\.amazonaws\.com/(?P<tenant_id>[^/]+)")
+            .unwrap();
+
+    if let Some(captures) = re.captures(url) {
+        // Extract the region and tenant_id from the captures
+        let region = captures.name("region").unwrap().as_str();
+        let tenant_id = captures.name("tenant_id").unwrap().as_str();
+
+        Ok((region, tenant_id))
+    } else {
+        Err(FastCryptoError::InvalidInput)
+    }
+}
 /// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
 /// The JWK is used to verify the JWT token.
@@ -198,21 +285,32 @@ pub struct JWKReader {
     my_use: Option<String>,
     kid: String,
     kty: String,
-    alg: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    alg: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x5c: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    x5t: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    issuer: Option<String>,
 }
 
 impl JWK {
     /// Parse JWK from the reader struct.
     pub fn from_reader(reader: JWKReader) -> FastCryptoResult<Self> {
         let trimmed_e = trim(reader.e);
-        if reader.alg != "RS256" || reader.kty != "RSA" || trimmed_e != "AQAB" {
+        // Microsoft does not contain alg field in JWK, so here we only check if it equals to RS256 only if alg field is present.
+        if (reader.alg.is_some() && reader.alg != Some("RS256".to_string()))
+            || reader.kty != "RSA"
+            || trimmed_e != "AQAB"
+        {
             return Err(FastCryptoError::InvalidInput);
         }
         Ok(Self {
             kty: reader.kty,
             e: trimmed_e,
             n: trim(reader.n),
-            alg: reader.alg,
+            alg: "RS256".to_string(),
         })
     }
 }
@@ -261,7 +359,6 @@ pub fn parse_jwks(
             for k in keys {
                 let parsed: JWKReader = serde_json::from_value(k.clone())
                     .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
-
                 ret.push((
                     JwkId::new(provider.get_config().iss, parsed.kid.clone()),
                     JWK::from_reader(parsed)?,
