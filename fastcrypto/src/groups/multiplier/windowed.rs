@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::fmt::Debug;
 use std::iter::successors;
 use std::marker::PhantomData;
-use std::ops::{Add, Mul};
+use std::ops::Add;
 
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
@@ -40,7 +40,7 @@ impl<G, S, const CACHE_SIZE: usize, const SLIDING_WINDOW_WIDTH: usize>
 }
 
 impl<
-        G: for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Doubling + Clone + Debug,
+        G: for<'a> Add<&'a G, Output = G> + Doubling + Clone + Debug,
         S: ToLittleEndianBytes + Clone + Debug,
         const CACHE_SIZE: usize,
         const SLIDING_WINDOW_WIDTH: usize,
@@ -106,7 +106,7 @@ impl<
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 pub fn multi_scalar_mul<
-    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
+    G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debug,
     S: ToLittleEndianBytes + Clone + Debug,
     const N: usize,
 >(
@@ -215,10 +215,7 @@ pub fn multi_scalar_mul<
 }
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.
-fn compute_multiples<
-    S,
-    G: Doubling + for<'a> Add<&'a G, Output = G> + for<'a> Mul<&'a S, Output = G> + Clone + Debug,
->(
+fn compute_multiples<G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debug>(
     base_element: &G,
     window_size: usize,
 ) -> Vec<G> {

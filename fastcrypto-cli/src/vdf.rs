@@ -4,7 +4,7 @@
 use clap::Parser;
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::parameterized_group::Parameter;
+use fastcrypto_vdf::math::parameterized_group::{Parameter, ParameterizedGroupElement};
 use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use std::io::{Error, ErrorKind};
@@ -133,7 +133,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     "Invalid input point or discriminant.",
                 )
             })?;
-            if g.discriminant() != discriminant {
+            if !g.has_parameter(&discriminant) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Input point does not match discriminant.",
@@ -166,7 +166,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input."))?;
-            if input.discriminant() != discriminant {
+            if !input.has_parameter(&discriminant) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Input has wrong discriminant.",
@@ -178,7 +178,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
-            if output.discriminant() != discriminant {
+            if !output.has_parameter(&discriminant) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Output has wrong discriminant.",
@@ -190,7 +190,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid proof hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid proof."))?;
-            if proof.discriminant() != discriminant {
+            if !proof.has_parameter(&discriminant) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Proof has wrong discriminant.",
