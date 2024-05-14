@@ -9,7 +9,7 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
-use num_traits::Signed;
+use num_traits::{One, Signed};
 use serde::{Deserialize, Serialize};
 use std::ops::Neg;
 
@@ -35,7 +35,7 @@ impl TryFrom<BigInt> for Discriminant {
     /// this is very slow.
     fn try_from(value: BigInt) -> FastCryptoResult<Self> {
         if !value.is_negative()
-            || value.mod_floor(&BigInt::from(8)) != BigInt::from(1)
+            || value.mod_floor(&BigInt::from(8)) != BigInt::one()
             || !is_probable_prime(value.abs().magnitude())
         {
             return Err(InvalidInput);
