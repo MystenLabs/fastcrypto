@@ -349,9 +349,6 @@
 <a href="#347" id="347">347</a>
 <a href="#348" id="348">348</a>
 <a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -359,7 +356,7 @@
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::iter::successors;
 <span class="kw">use </span>std::marker::PhantomData;
-<span class="kw">use </span>std::ops::{Add, Mul};
+<span class="kw">use </span>std::ops::Add;
 
 <span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 <span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
@@ -394,7 +391,7 @@
 }
 
 <span class="kw">impl</span>&lt;
-        G: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Doubling + Clone + Debug,
+        G: <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + Doubling + Clone + Debug,
         S: ToLittleEndianBytes + Clone + Debug,
         <span class="kw">const </span>CACHE_SIZE: usize,
         <span class="kw">const </span>SLIDING_WINDOW_WIDTH: usize,
@@ -460,7 +457,7 @@
 /// table and may be set to any value &gt;= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
 </span><span class="kw">pub fn </span>multi_scalar_mul&lt;
-    G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Clone + Debug,
+    G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + Clone + Debug,
     S: ToLittleEndianBytes + Clone + Debug,
     <span class="kw">const </span>N: usize,
 &gt;(
@@ -569,10 +566,7 @@
 }
 
 <span class="doccomment">/// Compute multiples &lt;i&gt;2&lt;sup&gt;w-1&lt;/sup&gt; base_element, (2&lt;sup&gt;w-1&lt;/sup&gt; + 1) base_element, ..., (2&lt;sup&gt;w&lt;/sup&gt; - 1) base_element&lt;/i&gt;.
-</span><span class="kw">fn </span>compute_multiples&lt;
-    S,
-    G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>S, Output = G&gt; + Clone + Debug,
-&gt;(
+</span><span class="kw">fn </span>compute_multiples&lt;G: Doubling + <span class="kw">for</span>&lt;<span class="lifetime">'a</span>&gt; Add&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>G, Output = G&gt; + Clone + Debug&gt;(
     base_element: <span class="kw-2">&amp;</span>G,
     window_size: usize,
 ) -&gt; Vec&lt;G&gt; {

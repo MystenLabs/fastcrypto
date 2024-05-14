@@ -360,31 +360,6 @@
 <a href="#358" id="358">358</a>
 <a href="#359" id="359">359</a>
 <a href="#360" id="360">360</a>
-<a href="#361" id="361">361</a>
-<a href="#362" id="362">362</a>
-<a href="#363" id="363">363</a>
-<a href="#364" id="364">364</a>
-<a href="#365" id="365">365</a>
-<a href="#366" id="366">366</a>
-<a href="#367" id="367">367</a>
-<a href="#368" id="368">368</a>
-<a href="#369" id="369">369</a>
-<a href="#370" id="370">370</a>
-<a href="#371" id="371">371</a>
-<a href="#372" id="372">372</a>
-<a href="#373" id="373">373</a>
-<a href="#374" id="374">374</a>
-<a href="#375" id="375">375</a>
-<a href="#376" id="376">376</a>
-<a href="#377" id="377">377</a>
-<a href="#378" id="378">378</a>
-<a href="#379" id="379">379</a>
-<a href="#380" id="380">380</a>
-<a href="#381" id="381">381</a>
-<a href="#382" id="382">382</a>
-<a href="#383" id="383">383</a>
-<a href="#384" id="384">384</a>
-<a href="#385" id="385">385</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -404,9 +379,8 @@
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
 <span class="kw">use </span>serde::Deserialize;
 <span class="kw">use </span>serde::Serialize;
-<span class="kw">use </span>std::borrow::Borrow;
 <span class="kw">use </span>std::mem::swap;
-<span class="kw">use </span>std::ops::{Add, Mul, Neg};
+<span class="kw">use </span>std::ops::{Add, Neg};
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests;
@@ -476,7 +450,12 @@
     /// (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
     </span><span class="kw">fn </span>partial_gcd_limit(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>BigInt {
         <span class="self">self</span>.partial_gcd_limit
-            .get_or_init(|| <span class="self">self</span>.discriminant().as_bigint().abs().nth_root(<span class="number">4</span>))
+            .get_or_init(|| <span class="self">self</span>.discriminant().abs().nth_root(<span class="number">4</span>))
+    }
+
+    <span class="doccomment">/// Compute the discriminant of this quadratic form, eg. b^2 - 4ac.
+    </span><span class="kw">pub fn </span>discriminant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; BigInt {
+        <span class="self">self</span>.b.pow(<span class="number">2</span>) - ((<span class="kw-2">&amp;</span><span class="self">self</span>.a * <span class="kw-2">&amp;</span><span class="self">self</span>.c) &lt;&lt; <span class="number">2</span>)
     }
 
     <span class="doccomment">/// Return a generator (or, more precisely, an element with a presumed large order) in a class group with a given
@@ -484,12 +463,6 @@
     </span><span class="kw">pub fn </span>generator(discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::from_a_b_and_discriminant(BigInt::from(<span class="number">2</span>), BigInt::one(), discriminant)
             .expect(<span class="string">"Always succeeds when the discriminant is 1 mod 8"</span>)
-    }
-
-    <span class="doccomment">/// Compute the discriminant `b^2 - 4ac` for this quadratic form.
-    </span><span class="kw">pub fn </span>discriminant(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Discriminant {
-        Discriminant::try_from(<span class="self">self</span>.b.pow(<span class="number">2</span>) - ((<span class="kw-2">&amp;</span><span class="self">self</span>.a * <span class="kw-2">&amp;</span><span class="self">self</span>.c) &lt;&lt; <span class="number">2</span>))
-            .expect(<span class="string">"The discriminant is checked in the constructors"</span>)
     }
 
     <span class="doccomment">/// Compute the composition of this quadratic form with another quadratic form.
@@ -687,14 +660,6 @@
     }
 }
 
-<span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; Mul&lt;<span class="kw-2">&amp;</span><span class="lifetime">'a </span>BigInt&gt; <span class="kw">for </span>QuadraticForm {
-    <span class="kw">type </span>Output = <span class="self">Self</span>;
-
-    <span class="kw">fn </span>mul(<span class="self">self</span>, rhs: <span class="kw-2">&amp;</span><span class="lifetime">'a </span>BigInt) -&gt; <span class="self">Self</span>::Output {
-        <span class="self">self</span>.borrow().mul(rhs)
-    }
-}
-
 <span class="kw">impl </span>ParameterizedGroupElement <span class="kw">for </span>QuadraticForm {
     <span class="doccomment">/// The discriminant of a quadratic form defines the class group.
     </span><span class="kw">type </span>ParameterType = Discriminant;
@@ -706,23 +671,8 @@
             .expect(<span class="string">"Doesn't fail"</span>)
     }
 
-    <span class="kw">fn </span>mul(<span class="kw-2">&amp;</span><span class="self">self</span>, scale: <span class="kw-2">&amp;</span>BigInt) -&gt; <span class="self">Self </span>{
-        <span class="kw">if </span>scale.is_zero() {
-            <span class="kw">return </span><span class="self">Self</span>::zero(<span class="kw-2">&amp;</span><span class="self">self</span>.discriminant());
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="self">self</span>.clone();
-        <span class="kw">for </span>i <span class="kw">in </span>(<span class="number">0</span>..scale.bits() - <span class="number">1</span>).rev() {
-            result = result.double();
-            <span class="kw">if </span>scale.bit(i) {
-                result = result + <span class="self">self</span>;
-            }
-        }
-        result
-    }
-
-    <span class="kw">fn </span>parameter(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::ParameterType {
-        <span class="self">self</span>.discriminant()
+    <span class="kw">fn </span>has_parameter(<span class="kw-2">&amp;</span><span class="self">self</span>, discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; bool {
+        discriminant.as_bigint().eq(<span class="kw-2">&amp;</span><span class="self">self</span>.discriminant())
     }
 }
 

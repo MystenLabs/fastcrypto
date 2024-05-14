@@ -330,7 +330,7 @@
 </span><span class="kw">use </span>clap::Parser;
 <span class="kw">use </span>fastcrypto_vdf::class_group::discriminant::Discriminant;
 <span class="kw">use </span>fastcrypto_vdf::class_group::QuadraticForm;
-<span class="kw">use </span>fastcrypto_vdf::math::parameterized_group::Parameter;
+<span class="kw">use </span>fastcrypto_vdf::math::parameterized_group::{Parameter, ParameterizedGroupElement};
 <span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 <span class="kw">use </span>fastcrypto_vdf::vdf::VDF;
 <span class="kw">use </span>std::io::{Error, ErrorKind};
@@ -459,7 +459,7 @@
                     <span class="string">"Invalid input point or discriminant."</span>,
                 )
             })<span class="question-mark">?</span>;
-            <span class="kw">if </span>g.discriminant() != discriminant {
+            <span class="kw">if </span>!g.has_parameter(<span class="kw-2">&amp;</span>discriminant) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Input point does not match discriminant."</span>,
@@ -492,7 +492,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>input.discriminant() != discriminant {
+            <span class="kw">if </span>!input.has_parameter(<span class="kw-2">&amp;</span>discriminant) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Input has wrong discriminant."</span>,
@@ -504,7 +504,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>output.discriminant() != discriminant {
+            <span class="kw">if </span>!output.has_parameter(<span class="kw-2">&amp;</span>discriminant) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Output has wrong discriminant."</span>,
@@ -516,7 +516,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>proof.discriminant() != discriminant {
+            <span class="kw">if </span>!proof.has_parameter(<span class="kw-2">&amp;</span>discriminant) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Proof has wrong discriminant."</span>,

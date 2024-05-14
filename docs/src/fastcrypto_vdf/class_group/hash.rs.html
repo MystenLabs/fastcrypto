@@ -258,6 +258,8 @@
 <a href="#256" id="256">256</a>
 <a href="#257" id="257">257</a>
 <a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -310,6 +312,8 @@
     <span class="doccomment">/// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic, and it
     /// is a random oracle on a large subset of the class group. This method picks a default `k` parameter and calls the
     /// [hash_to_group](QuadraticForm::hash_to_group) function with this `k`.
+    ///
+    /// This method returns an InvalidInput error if the discriminant is smaller than 800 bits.
     </span><span class="kw">pub fn </span>hash_to_group_with_default_parameters(
         seed: <span class="kw-2">&amp;</span>[u8],
         discriminant: <span class="kw-2">&amp;</span>Discriminant,
@@ -429,7 +433,7 @@
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
     <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::Parameter;
+    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     <span class="kw">use </span>num_bigint::BigInt;
     <span class="kw">use </span>num_traits::Num;
     <span class="kw">use </span>rand::thread_rng;
@@ -443,14 +447,14 @@
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>qf = QuadraticForm::hash_to_group(<span class="kw-2">&amp;</span>seed, <span class="kw-2">&amp;</span>discriminant, <span class="number">1</span>).unwrap();
             <span class="macro">assert!</span>(qf.is_reduced_assuming_normal());
-            <span class="macro">assert_eq!</span>(qf.discriminant(), discriminant);
+            <span class="macro">assert!</span>(qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
             seed[<span class="number">0</span>] += <span class="number">1</span>;
         }
 
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>qf = QuadraticForm::hash_to_group(<span class="kw-2">&amp;</span>seed, <span class="kw-2">&amp;</span>discriminant, <span class="number">4</span>).unwrap();
             <span class="macro">assert!</span>(qf.is_reduced_assuming_normal());
-            <span class="macro">assert_eq!</span>(qf.discriminant(), discriminant);
+            <span class="macro">assert!</span>(qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
             seed[<span class="number">0</span>] += <span class="number">1</span>;
         }
     }
@@ -459,7 +463,7 @@
     </span><span class="kw">fn </span>qf_from_seed_sanity_tests() {
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="string">b"discriminant seed"</span>, <span class="number">800</span>).unwrap();
         <span class="kw">let </span>base_qf = QuadraticForm::hash_to_group(<span class="string">b"qf seed"</span>, <span class="kw-2">&amp;</span>discriminant, <span class="number">6</span>).unwrap();
-        <span class="macro">assert_eq!</span>(base_qf.discriminant(), discriminant);
+        <span class="macro">assert!</span>(base_qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
 
         <span class="comment">// Same seed, same discriminant, same k
         </span><span class="kw">let </span>other_qf = QuadraticForm::hash_to_group(<span class="string">b"qf seed"</span>, <span class="kw-2">&amp;</span>discriminant, <span class="number">6</span>).unwrap();
