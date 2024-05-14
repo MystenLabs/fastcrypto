@@ -7,16 +7,25 @@ use crate::math::hash_prime::is_probable_prime;
 use crate::math::parameterized_group::Parameter;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use lazy_static::lazy_static;
 use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::{One, Signed};
 use serde::{Deserialize, Serialize};
 use std::ops::Neg;
+use std::str::FromStr;
 
 /// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone, Serialize)]
 pub struct Discriminant(#[serde(with = "crate::class_group::bigint_serde")] BigInt);
+
+lazy_static! {
+    /// A precomputed 3072 bit discriminant. This was computed using the hash_prime algorithm (see
+    /// Discriminant::from_seed).
+    // TODO: Generate this using a seed that we provably cannot influence.
+    pub static ref DISCRIMINANT_3072: Discriminant = Discriminant(BigInt::from_str("-4080390101490206102067801750685552291425412528983716161454985565795560716833845004659207152503580931176637478422335625954692628868126419714053340412299850300602673802493259771830686596468801304317015718872352674945215883546019961626928140286675493693757393881479657605888983279619347902770789061953207866325747708864327315769009839190765716943013935708854055658243676903245686125751909996824976354309908771869043784640567352757672203749399825983258156684652782580603170228640173640869773628592618889352385821753919281706169861276929330689892675986265846043432389737049521845230769417696140636288030698887830215613149485135897148487896368642774768920061430225392365148291796645740474628778185683682893521776342856643134668770656709308404166182149870849376649591338267281149794078240401323227967073641261327798339424740171219484355109588337730742391198073121589465833677609362668436116144203312494461735357918360857667357985711").unwrap());
+}
 
 impl<'de> Deserialize<'de> for Discriminant {
     fn deserialize<D>(deserializer: D) -> Result<Discriminant, D::Error>
@@ -55,24 +64,11 @@ impl Discriminant {
         &self.0
     }
 
-    /// Create a discriminant from the given bytes. The bytes must be an BCS encoding of the
-    /// twos-complement big-endian encoding of the discriminant. Returns an error if the encoding is
-    /// invalid.
-    ///
-    /// It is assumed that the discriminant is a negative prime which is 1 mod 8. If this is not the
-    /// case, some functions may panic.
-    ///
-    /// To validate the input, use deserialization or `try_from` instead.
-    pub fn from_trusted_bytes(bytes: &[u8]) -> FastCryptoResult<Self> {
-        let discriminant_bytes: Vec<u8> = bcs::from_bytes(bytes).map_err(|_| InvalidInput)?;
-        Ok(Self(BigInt::from_signed_bytes_be(&discriminant_bytes)))
-    }
-
     /// Create a discriminant from the given value. It is assumed that the discriminant is a negative
-    /// prime which is 1 mod 8. If this is not the case, some functions may panic.
-    ///
-    /// To validate the input, use deserialization or `try_from` instead.
-    pub fn from_trusted_bigint(value: BigInt) -> Self {
+    /// prime which is 1 mod 8. If this is not the case, some functions may panic, so this should only
+    /// be used in tests.
+    #[cfg(test)]
+    pub(crate) fn from_trusted_bigint(value: BigInt) -> Self {
         Self(value)
     }
 }
@@ -146,11 +142,9 @@ mod tests {
         let invalid_discriminant_bytes =
             bcs::to_bytes(&BigInt::from(-221).to_signed_bytes_be()).unwrap();
         assert!(bcs::from_bytes::<Discriminant>(&invalid_discriminant_bytes).is_err());
-        assert!(Discriminant::from_trusted_bytes(&invalid_discriminant_bytes).is_ok());
 
         let invalid_discriminant_bytes =
             bcs::to_bytes(&BigInt::from(17).to_signed_bytes_be()).unwrap();
         assert!(bcs::from_bytes::<Discriminant>(&invalid_discriminant_bytes).is_err());
-        assert!(Discriminant::from_trusted_bytes(&invalid_discriminant_bytes).is_ok());
     }
 }
