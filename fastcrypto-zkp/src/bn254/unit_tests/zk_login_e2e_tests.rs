@@ -194,7 +194,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     // A dummy salt
     let user_salt = "129390038577185583942388216820280642146";
 
-    // Generate an ephermeral key pair.
+    // Generate an ephemeral key pair.
     let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed([0; 32]));
     let mut eph_pubkey = vec![0x00];
     eph_pubkey.extend(kp.public().as_ref());
@@ -240,7 +240,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         let sub = BigUint::from_bytes_be(&test_input.sub).to_string();
         let max_epoch = test_input.max_epoch;
 
-        // Generate an ephermeral key pair.
+        // Generate an ephemeral key pair.
         let kp = Ed25519KeyPair::generate(&mut StdRng::from_seed(test_input.seed_ephemeral_kp));
         let mut eph_pk_bytes = vec![0x00];
         eph_pk_bytes.extend(kp.public().as_ref());
