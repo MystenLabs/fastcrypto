@@ -82,7 +82,7 @@ pub fn get_oidc_url(
             OIDCProvider::Slack => format!("https://slack.com/openid/connect/authorize?response_type=code&client_id={}&redirect_uri={}&nonce={}&scope=openid", client_id, redirect_url, nonce),
             OIDCProvider::Microsoft => format!("https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={}&scope=openid&response_type=id_token&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::KarrierOne => format!("https://openid.karrier.one/Account/PhoneLogin?ReturnUrl=/connect/authorize?nonce={}&redirect_uri={}&response_type=id_token&scope=openid&client_id={}", nonce, redirect_url, client_id),
-            OIDCProvider::Credenza3 => format!("https://accounts.credenza3.com/oauth2/authorize?client_id={}&response_type=token&scope=openid+profile+email+phone&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
+            OIDCProvider::Credenza3 => format!("https://accounts.credenza3.com/oauth2/authorize?client_id={}&response_type=token&scope=openid+profile+email+phone&redirect_uri={}&nonce={}&state=state", client_id, redirect_url, nonce),
             OIDCProvider::AwsTenant((region, tenant_id)) => format!("https://{}.auth.{}.amazoncognito.com/login?response_type=token&client_id={}&redirect_uri={}&nonce={}", tenant_id, region, client_id, redirect_url, nonce),
             OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
         })

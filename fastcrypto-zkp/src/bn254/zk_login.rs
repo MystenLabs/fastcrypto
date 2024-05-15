@@ -134,7 +134,6 @@ impl FromStr for OIDCProvider {
                 if let Some(captures) = re.captures(s) {
                     let region = captures.name("region").unwrap().as_str();
                     let tenant_id = captures.name("tenant_id").unwrap().as_str();
-                    println!("region: {}, tenant_id: {}", region, tenant_id);
                     Ok(Self::AwsTenant((region.to_owned(), tenant_id.to_owned())))
                 } else {
                     Err(FastCryptoError::InvalidInput)

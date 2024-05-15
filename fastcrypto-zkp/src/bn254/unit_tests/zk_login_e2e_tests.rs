@@ -195,8 +195,6 @@ struct TestData {
 #[tokio::test]
 async fn test_end_to_end_all_providers() {
     // All JWT generated against nonce hTPpgF7XAKbW37rEUS6pEVZqmoI. This is derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
-
-    println!("{:?}", std::env::current_dir());
     let file =
         std::fs::File::open("src/bn254/zklogin_test_vectors.json").expect("Unable to open file");
     let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();

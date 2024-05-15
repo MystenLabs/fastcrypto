@@ -440,6 +440,8 @@ async fn test_get_jwks() {
         OIDCProvider::Apple,
         OIDCProvider::Microsoft,
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
+        OIDCProvider::KarrierOne,
+        OIDCProvider::Credenza3,
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
