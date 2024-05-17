@@ -259,19 +259,17 @@ impl Doubling for QuadraticForm {
     }
 }
 
-// Compute the xgcd of bx and by with a partial limit. When by is below the limit, the computation
-// stops early and returns the result. The result is a tuple (bx, x, by, y, iterated) where bx and
-// by are the now reduced coefficients, x and y are the Bezout coefficients for bx and by respectively,
-// and iterated is true if the there were any iterations.
-fn partial_xgcd(
-    mut bx: BigInt,
-    mut by: BigInt,
-    limit: &BigInt,
-) -> (BigInt, BigInt, BigInt, BigInt, bool) {
+/// Compute the xgcd of bx and by with a partial limit. When by is below the limit, the computation
+/// stops early and returns the result. The result is a tuple (bx, x, by, y, iterated) where bx and
+/// by are the now reduced coefficients, x and y are the Bezout coefficients for bx and by respectively,
+/// and iterated is true if the there were any iterations.
+fn partial_xgcd(bx: BigInt, by: BigInt, limit: &BigInt) -> (BigInt, BigInt, BigInt, BigInt, bool) {
     let mut x = BigInt::one();
     let mut y = BigInt::zero();
     let mut iterated = false;
     let mut odd = false;
+    let mut bx = bx;
+    let mut by = by;
 
     while by.abs() > *limit && !bx.is_zero() {
         let (q, r) = by.div_rem(&bx);
@@ -280,10 +278,8 @@ fn partial_xgcd(
         swap(&mut x, &mut y);
         x -= &q * &y;
 
-        if !iterated {
-            iterated = true;
-        }
         odd = !odd;
+        iterated = true;
     }
 
     if odd {
