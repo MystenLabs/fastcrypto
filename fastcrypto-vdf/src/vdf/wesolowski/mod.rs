@@ -196,7 +196,7 @@ mod tests {
                 "a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f",
                 16,
             )
-                .unwrap()
+            .unwrap()
         }
     }
 }
