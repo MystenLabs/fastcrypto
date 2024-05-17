@@ -263,13 +263,15 @@ impl Doubling for QuadraticForm {
 /// stops early and returns the result. The result is a tuple (bx, x, by, y, iterated) where bx and
 /// by are the now reduced coefficients, x and y are the Bezout coefficients for bx and by respectively,
 /// and iterated is true if the there were any iterations.
-fn partial_xgcd(bx: BigInt, by: BigInt, limit: &BigInt) -> (BigInt, BigInt, BigInt, BigInt, bool) {
+fn partial_xgcd(
+    mut bx: BigInt,
+    mut by: BigInt,
+    limit: &BigInt,
+) -> (BigInt, BigInt, BigInt, BigInt, bool) {
     let mut x = BigInt::one();
     let mut y = BigInt::zero();
     let mut iterated = false;
     let mut odd = false;
-    let mut bx = bx;
-    let mut by = by;
 
     while by.abs() > *limit && !bx.is_zero() {
         let (q, r) = by.div_rem(&bx);
