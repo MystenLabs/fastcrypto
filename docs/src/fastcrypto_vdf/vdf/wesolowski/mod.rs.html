@@ -144,6 +144,64 @@
 <a href="#142" id="142">142</a>
 <a href="#143" id="143">143</a>
 <a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
+<a href="#150" id="150">150</a>
+<a href="#151" id="151">151</a>
+<a href="#152" id="152">152</a>
+<a href="#153" id="153">153</a>
+<a href="#154" id="154">154</a>
+<a href="#155" id="155">155</a>
+<a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
+<a href="#164" id="164">164</a>
+<a href="#165" id="165">165</a>
+<a href="#166" id="166">166</a>
+<a href="#167" id="167">167</a>
+<a href="#168" id="168">168</a>
+<a href="#169" id="169">169</a>
+<a href="#170" id="170">170</a>
+<a href="#171" id="171">171</a>
+<a href="#172" id="172">172</a>
+<a href="#173" id="173">173</a>
+<a href="#174" id="174">174</a>
+<a href="#175" id="175">175</a>
+<a href="#176" id="176">176</a>
+<a href="#177" id="177">177</a>
+<a href="#178" id="178">178</a>
+<a href="#179" id="179">179</a>
+<a href="#180" id="180">180</a>
+<a href="#181" id="181">181</a>
+<a href="#182" id="182">182</a>
+<a href="#183" id="183">183</a>
+<a href="#184" id="184">184</a>
+<a href="#185" id="185">185</a>
+<a href="#186" id="186">186</a>
+<a href="#187" id="187">187</a>
+<a href="#188" id="188">188</a>
+<a href="#189" id="189">189</a>
+<a href="#190" id="190">190</a>
+<a href="#191" id="191">191</a>
+<a href="#192" id="192">192</a>
+<a href="#193" id="193">193</a>
+<a href="#194" id="194">194</a>
+<a href="#195" id="195">195</a>
+<a href="#196" id="196">196</a>
+<a href="#197" id="197">197</a>
+<a href="#198" id="198">198</a>
+<a href="#199" id="199">199</a>
+<a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -261,8 +319,14 @@
     <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
     <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
     <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::Parameter;
-    <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::DefaultVDF;
+    <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::fiat_shamir::FiatShamir;
+    <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
+    <span class="kw">use </span>fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
+    <span class="kw">use </span>fastcrypto::groups::multiplier::ScalarMultiplier;
+    <span class="kw">use </span>num_bigint::BigInt;
+    <span class="kw">use </span>num_traits::Num;
+    <span class="kw">use </span>std::str::FromStr;
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_prove_and_verify() {
@@ -286,6 +350,58 @@
         <span class="kw">let </span>modified_proof = <span class="kw-2">&amp;</span>proof + <span class="kw-2">&amp;</span>QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
         <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>modified_output, <span class="kw-2">&amp;</span>proof).is_err());
         <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>modified_proof).is_err());
+    }
+
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>chia_test_vector() {
+        <span class="comment">// Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
+        </span><span class="kw">let </span>challenge_hex = <span class="string">"ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb"</span>;
+
+        <span class="kw">let </span>expected_discriminant = Discriminant::try_from(BigInt::from_str(<span class="string">"-178333777053301117117702583998161755803539768255026550238546398959430362085160891839143870686333959898768973627501543050673299722162920809872631876535963079708632677960753403482168047846781718043417502562521413075070055588055373173898058979019814085260390558743330450388913014891726165953277341036916349194527"</span>).unwrap()).unwrap();
+        <span class="kw">let </span>discriminant =
+            Discriminant::from_seed(<span class="kw-2">&amp;</span>hex::decode(challenge_hex).unwrap(), <span class="number">1024</span>).unwrap();
+        <span class="macro">assert_eq!</span>(expected_discriminant, discriminant);
+
+        <span class="kw">let </span>iterations = <span class="number">4194304u64</span>;
+        <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
+
+        <span class="kw">let </span>output = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from_str(<span class="string">"5229738340597739241737971536347978272715235210410923937567237618049037412166200077244995787131087550307523694727956250097277310766933336068474825405652036"</span>).unwrap(),
+            BigInt::from_str(<span class="string">"-3096696303705675681560871524238217371290270541873900921742966946679899781296678313618277916864547545067742976652559823874869615853670880196986766000673113"</span>).unwrap(),
+            <span class="kw-2">&amp;</span>discriminant,
+        ).unwrap();
+
+        <span class="kw">let </span>proof = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from_str(<span class="string">"269045224950172139388701381657611623403690061497324483767769709486526106374289433207532765507632104438556574675400375880648266212459081029470628330651968"</span>).unwrap(),
+            BigInt::from_str(<span class="string">"-138011067542034487860643678409953738631107554007673747141459530097427412192013567645959803101754265070201162396361305697197871510988607320533641929367439"</span>).unwrap(),
+            <span class="kw-2">&amp;</span>discriminant,
+        ).unwrap();
+
+        <span class="kw">let </span>vdf = WesolowskisVDF::&lt;
+            QuadraticForm,
+            ChiaFiatShamir,
+            WindowedScalarMultiplier&lt;QuadraticForm, BigInt, <span class="number">256</span>, <span class="number">5</span>&gt;,
+        &gt;::new(discriminant.clone(), iterations);
+
+        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+    }
+
+    <span class="comment">// Dummy Fiat-Shamir implementation for the Chia test vector
+    </span><span class="kw">struct </span>ChiaFiatShamir {}
+
+    <span class="kw">impl </span>FiatShamir&lt;QuadraticForm&gt; <span class="kw">for </span>ChiaFiatShamir {
+        <span class="kw">fn </span>compute_challenge&lt;M: ScalarMultiplier&lt;QuadraticForm, BigInt&gt;&gt;(
+            _vdf: <span class="kw-2">&amp;</span>WesolowskisVDF&lt;QuadraticForm, <span class="self">Self</span>, M&gt;,
+            _input: <span class="kw-2">&amp;</span>QuadraticForm,
+            _output: <span class="kw-2">&amp;</span>QuadraticForm,
+        ) -&gt; BigInt {
+            <span class="comment">// Hardcoded challenge for the test vector
+            </span>BigInt::from_str_radix(
+                <span class="string">"a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f"</span>,
+                <span class="number">16</span>,
+            )
+            .unwrap()
+        }
     }
 }
 </code></pre></div></section></main></body></html>
