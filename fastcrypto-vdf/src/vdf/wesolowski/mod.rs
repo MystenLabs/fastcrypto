@@ -115,8 +115,14 @@ mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
     use crate::math::parameterized_group::Parameter;
-    use crate::vdf::wesolowski::DefaultVDF;
+    use crate::vdf::wesolowski::fiat_shamir::FiatShamir;
+    use crate::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     use crate::vdf::VDF;
+    use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
+    use fastcrypto::groups::multiplier::ScalarMultiplier;
+    use num_bigint::BigInt;
+    use num_traits::Num;
+    use std::str::FromStr;
 
     #[test]
     fn test_prove_and_verify() {
@@ -140,5 +146,57 @@ mod tests {
         let modified_proof = &proof + &QuadraticForm::generator(&discriminant);
         assert!(vdf.verify(&input, &modified_output, &proof).is_err());
         assert!(vdf.verify(&input, &output, &modified_proof).is_err());
+    }
+
+    #[test]
+    fn chia_test_vector() {
+        // Test vector from challenge_chain_sp_vdf in block 0 on chiavdf (https://chia.tt/info/block/0xd780d22c7a87c9e01d98b49a0910f6701c3b95015741316b3fda042e5d7b81d2)
+        let challenge_hex = "ccd5bb71183532bff220ba46c268991a3ff07eb358e8255a65c30a2dce0e5fbb";
+
+        let expected_discriminant = Discriminant::try_from(BigInt::from_str("-178333777053301117117702583998161755803539768255026550238546398959430362085160891839143870686333959898768973627501543050673299722162920809872631876535963079708632677960753403482168047846781718043417502562521413075070055588055373173898058979019814085260390558743330450388913014891726165953277341036916349194527").unwrap()).unwrap();
+        let discriminant =
+            Discriminant::from_seed(&hex::decode(challenge_hex).unwrap(), 1024).unwrap();
+        assert_eq!(expected_discriminant, discriminant);
+
+        let iterations = 4194304u64;
+        let input = QuadraticForm::generator(&discriminant);
+
+        let output = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from_str("5229738340597739241737971536347978272715235210410923937567237618049037412166200077244995787131087550307523694727956250097277310766933336068474825405652036").unwrap(),
+            BigInt::from_str("-3096696303705675681560871524238217371290270541873900921742966946679899781296678313618277916864547545067742976652559823874869615853670880196986766000673113").unwrap(),
+            &discriminant,
+        ).unwrap();
+
+        let proof = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from_str("269045224950172139388701381657611623403690061497324483767769709486526106374289433207532765507632104438556574675400375880648266212459081029470628330651968").unwrap(),
+            BigInt::from_str("-138011067542034487860643678409953738631107554007673747141459530097427412192013567645959803101754265070201162396361305697197871510988607320533641929367439").unwrap(),
+            &discriminant,
+        ).unwrap();
+
+        let vdf = WesolowskisVDF::<
+            QuadraticForm,
+            ChiaFiatShamir,
+            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
+        >::new(discriminant.clone(), iterations);
+
+        assert!(vdf.verify(&input, &output, &proof).is_ok());
+    }
+
+    // Dummy Fiat-Shamir implementation for the Chia test vector
+    struct ChiaFiatShamir {}
+
+    impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
+        fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigInt>>(
+            _vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
+            _input: &QuadraticForm,
+            _output: &QuadraticForm,
+        ) -> BigInt {
+            // Hardcoded challenge for the test vector
+            BigInt::from_str_radix(
+                "a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f",
+                16,
+            )
+                .unwrap()
+        }
     }
 }
