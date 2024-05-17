@@ -1478,6 +1478,7 @@ dependencies = [
  "criterion 0.5.1",
  "fastcrypto",
  "hex",
+ "lazy_static",
  "num-bigint 0.4.4",
  "num-bigint-dig",
  "num-integer",
