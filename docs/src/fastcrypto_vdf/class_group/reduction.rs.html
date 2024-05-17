@@ -152,7 +152,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_normalization_and_reduction() {
-        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">223</span>)).unwrap();
+        <span class="kw">let </span>discriminant = Discriminant::from_trusted_bigint(BigInt::from(-<span class="number">223</span>));
         <span class="kw">let </span><span class="kw-2">mut </span>quadratic_form = QuadraticForm::from_a_b_and_discriminant(
             BigInt::from(<span class="number">41</span>),
             BigInt::from(<span class="number">49</span>),

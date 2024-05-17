@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Discriminant"]};
+window.SIDEBAR_ITEMS = {"struct":["DISCRIMINANT_3072","Discriminant"]};

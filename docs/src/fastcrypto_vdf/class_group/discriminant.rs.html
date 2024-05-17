@@ -128,32 +128,75 @@
 <a href="#126" id="126">126</a>
 <a href="#127" id="127">127</a>
 <a href="#128" id="128">128</a>
+<a href="#129" id="129">129</a>
+<a href="#130" id="130">130</a>
+<a href="#131" id="131">131</a>
+<a href="#132" id="132">132</a>
+<a href="#133" id="133">133</a>
+<a href="#134" id="134">134</a>
+<a href="#135" id="135">135</a>
+<a href="#136" id="136">136</a>
+<a href="#137" id="137">137</a>
+<a href="#138" id="138">138</a>
+<a href="#139" id="139">139</a>
+<a href="#140" id="140">140</a>
+<a href="#141" id="141">141</a>
+<a href="#142" id="142">142</a>
+<a href="#143" id="143">143</a>
+<a href="#144" id="144">144</a>
+<a href="#145" id="145">145</a>
+<a href="#146" id="146">146</a>
+<a href="#147" id="147">147</a>
+<a href="#148" id="148">148</a>
+<a href="#149" id="149">149</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::math::hash_prime;
+</span><span class="kw">use </span><span class="kw">crate</span>::class_group::bigint_serde;
+<span class="kw">use </span><span class="kw">crate</span>::math::hash_prime;
 <span class="kw">use </span><span class="kw">crate</span>::math::hash_prime::is_probable_prime;
 <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::Parameter;
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
+<span class="kw">use </span>lazy_static::lazy_static;
 <span class="kw">use </span>num_bigint::{BigInt, ToBigInt};
 <span class="kw">use </span>num_integer::Integer;
-<span class="kw">use </span>num_traits::Signed;
+<span class="kw">use </span>num_traits::{One, Signed};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::ops::Neg;
+<span class="kw">use </span>std::str::FromStr;
 
 <span class="doccomment">/// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
-</span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Serialize, Deserialize)]
+</span><span class="attr">#[derive(PartialEq, Eq, Debug, Clone, Serialize)]
 </span><span class="kw">pub struct </span>Discriminant(<span class="attr">#[serde(with = <span class="string">"crate::class_group::bigint_serde"</span>)] </span>BigInt);
+
+<span class="macro">lazy_static!</span> {
+    <span class="doccomment">/// Fixed 3072 bit discriminant. Generated from the seed [1,2,3] using [Discriminant::from_seed].
+    </span><span class="comment">// TODO: Generate this using a seed that we provably cannot influence.
+    </span><span class="kw">pub static </span><span class="kw-2">ref </span>DISCRIMINANT_3072: Discriminant = Discriminant(BigInt::from_str(<span class="string">"-4080390101490206102067801750685552291425412528983716161454985565795560716833845004659207152503580931176637478422335625954692628868126419714053340412299850300602673802493259771830686596468801304317015718872352674945215883546019961626928140286675493693757393881479657605888983279619347902770789061953207866325747708864327315769009839190765716943013935708854055658243676903245686125751909996824976354309908771869043784640567352757672203749399825983258156684652782580603170228640173640869773628592618889352385821753919281706169861276929330689892675986265846043432389737049521845230769417696140636288030698887830215613149485135897148487896368642774768920061430225392365148291796645740474628778185683682893521776342856643134668770656709308404166182149870849376649591338267281149794078240401323227967073641261327798339424740171219484355109588337730742391198073121589465833677609362668436116144203312494461735357918360857667357985711"</span>).unwrap());
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">'de</span>&gt; Deserialize&lt;<span class="lifetime">'de</span>&gt; <span class="kw">for </span>Discriminant {
+    <span class="kw">fn </span>deserialize&lt;D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;Discriminant, D::Error&gt;
+    <span class="kw">where
+        </span>D: serde::Deserializer&lt;<span class="lifetime">'de</span>&gt;,
+    {
+        Discriminant::try_from(bigint_serde::deserialize(deserializer)<span class="question-mark">?</span>)
+            .map_err(serde::de::Error::custom)
+    }
+}
 
 <span class="kw">impl </span>TryFrom&lt;BigInt&gt; <span class="kw">for </span>Discriminant {
     <span class="kw">type </span>Error = FastCryptoError;
 
-    <span class="doccomment">/// A valid discriminant should be a negative prime congruent to 1 mod 8. The sign and
-    /// congruency are checked here but the primality is _not_. See also [Discriminant::check_primality].
+    <span class="doccomment">/// A valid discriminant should be a negative prime congruent to 1 mod 8. For large discriminants,
+    /// this is very slow to check.
     </span><span class="kw">fn </span>try_from(value: BigInt) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
-        <span class="kw">if </span>!value.is_negative() || value.mod_floor(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">8</span>)) != BigInt::from(<span class="number">1</span>) {
+        <span class="kw">if </span>!value.is_negative()
+            || value.mod_floor(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">8</span>)) != BigInt::one()
+            || !is_probable_prime(value.abs().magnitude())
+        {
             <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
         }
         <span class="prelude-val">Ok</span>(<span class="self">Self</span>(value))
@@ -171,18 +214,12 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
     </span>}
 
-    <span class="doccomment">/// Check the primality of this discriminant and return an error if it is not prime.
-    </span><span class="kw">pub fn </span>check_primality(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FastCryptoResult&lt;()&gt; {
-        <span class="kw">match </span>is_probable_prime(
-            <span class="kw-2">&amp;</span><span class="self">self
-                </span>.<span class="number">0
-                </span>.abs()
-                .to_biguint()
-                .expect(<span class="string">"Absolute value is non-negative"</span>),
-        ) {
-            <span class="bool-val">true </span>=&gt; <span class="prelude-val">Ok</span>(()),
-            <span class="bool-val">false </span>=&gt; <span class="prelude-val">Err</span>(InvalidInput),
-        }
+    <span class="doccomment">/// Create a discriminant from the given value. It is assumed that the discriminant is a negative
+    /// prime which is 1 mod 8. If this is not the case, some functions may panic, so this should only
+    /// be used in tests.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>from_trusted_bigint(value: BigInt) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(value)
     }
 }
 
@@ -194,12 +231,12 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
         }
         <span class="comment">// Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
-        </span><span class="self">Self</span>::try_from(
+        </span><span class="prelude-val">Ok</span>(<span class="self">Self</span>(
             hash_prime::hash_prime(seed, size_in_bits / <span class="number">8</span>, <span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, size_in_bits - <span class="number">1</span>])
                 .to_bigint()
                 .expect(<span class="string">"Never fails"</span>)
                 .neg(),
-        )
+        ))
     }
 }
 
@@ -209,7 +246,7 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discriminant() {
-        <span class="kw">let </span>discriminant = Discriminant::try_from(-BigInt::from(<span class="number">223</span>)).unwrap();
+        <span class="kw">let </span>discriminant = Discriminant(-BigInt::from(<span class="number">223</span>));
         <span class="macro">assert_eq!</span>(discriminant.bits(), <span class="number">8</span>);
         <span class="macro">assert_eq!</span>(discriminant.as_bigint(), <span class="kw-2">&amp;</span>-BigInt::from(<span class="number">223</span>));
 
@@ -225,8 +262,7 @@
 
         <span class="comment">// Not prime
         </span><span class="kw">let </span>candidate = BigInt::from(-<span class="number">231</span>);
-        <span class="kw">let </span>discriminant = Discriminant::try_from(candidate).unwrap();
-        <span class="macro">assert!</span>(discriminant.check_primality().is_err());
+        <span class="macro">assert!</span>(Discriminant::try_from(candidate).is_err());
     }
 
     <span class="attr">#[test]
@@ -235,7 +271,6 @@
         <span class="kw">let </span>target_size = <span class="number">1024</span>;
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>seed, target_size).unwrap();
         <span class="macro">assert_eq!</span>(discriminant.bits() <span class="kw">as </span>usize, target_size);
-        <span class="macro">assert!</span>(discriminant.check_primality().is_ok());
 
         <span class="comment">// Test vector from chiavdf computed using https://github.com/Chia-Network/chiavdf/blob/2844974ff81274060778a56dfefd2515bc567b90/tests/test_verifier.py.
         </span><span class="macro">assert_eq!</span>(discriminant.as_bigint().to_str_radix(<span class="number">16</span>), <span class="string">"-95a0b0523b6c516e813d745e7e58b3c7223d511f6008a0ff2757c9a0f15cba8841293cc903af3a40654670c9dee17ec14da1457360aafe40a93831d90c3dd59738d8a24e415b6e33780224fa24171de1d4a1ca5fe4c877bf44361e7ba869126ac12367714eb4246a5e310515508ad35e170aee19cae371069d6d92e94c21d63f"</span>);
@@ -243,17 +278,24 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_discriminant_to_from_bytes() {
-        <span class="kw">let </span>discriminant = Discriminant::try_from(BigInt::from(-<span class="number">223</span>)).unwrap();
+        <span class="kw">let </span>discriminant = Discriminant(BigInt::from(-<span class="number">223</span>));
         <span class="kw">let </span>bytes = bcs::to_bytes(<span class="kw-2">&amp;</span>discriminant).unwrap();
         <span class="kw">let </span>discriminant2 = bcs::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
         <span class="macro">assert_eq!</span>(discriminant, discriminant2);
-        <span class="macro">assert!</span>(discriminant.check_primality().is_ok());
 
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0x01</span>, <span class="number">0x02</span>, <span class="number">0x03</span>], <span class="number">512</span>).unwrap();
         <span class="kw">let </span>bytes = bcs::to_bytes(<span class="kw-2">&amp;</span>discriminant).unwrap();
         <span class="kw">let </span>discriminant2 = bcs::from_bytes(<span class="kw-2">&amp;</span>bytes).unwrap();
         <span class="macro">assert_eq!</span>(discriminant, discriminant2);
-        <span class="macro">assert!</span>(discriminant.check_primality().is_ok());
+
+        <span class="comment">// Test serde on invalid discriminants
+        </span><span class="kw">let </span>invalid_discriminant_bytes =
+            bcs::to_bytes(<span class="kw-2">&amp;</span>BigInt::from(-<span class="number">221</span>).to_signed_bytes_be()).unwrap();
+        <span class="macro">assert!</span>(bcs::from_bytes::&lt;Discriminant&gt;(<span class="kw-2">&amp;</span>invalid_discriminant_bytes).is_err());
+
+        <span class="kw">let </span>invalid_discriminant_bytes =
+            bcs::to_bytes(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">17</span>).to_signed_bytes_be()).unwrap();
+        <span class="macro">assert!</span>(bcs::from_bytes::&lt;Discriminant&gt;(<span class="kw-2">&amp;</span>invalid_discriminant_bytes).is_err());
     }
 }
 </code></pre></div></section></main></body></html>
