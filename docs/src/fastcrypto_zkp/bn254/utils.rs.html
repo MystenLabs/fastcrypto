@@ -239,6 +239,10 @@
 <a href="#237" id="237">237</a>
 <a href="#238" id="238">238</a>
 <a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -321,8 +325,12 @@
             OIDCProvider::Kakao =&gt; <span class="macro">format!</span>(<span class="string">"https://kauth.kakao.com/oauth/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}"</span>, client_id, redirect_url, nonce),
             OIDCProvider::Apple =&gt; <span class="macro">format!</span>(<span class="string">"https://appleid.apple.com/auth/authorize?client_id={}&amp;redirect_uri={}&amp;scope=email&amp;response_mode=form_post&amp;response_type=code%20id_token&amp;nonce={}"</span>, client_id, redirect_url, nonce),
             OIDCProvider::Slack =&gt; <span class="macro">format!</span>(<span class="string">"https://slack.com/openid/connect/authorize?response_type=code&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}&amp;scope=openid"</span>, client_id, redirect_url, nonce),
-            OIDCProvider::TestIssuer =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
-        })
+            OIDCProvider::Microsoft =&gt; <span class="macro">format!</span>(<span class="string">"https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id={}&amp;scope=openid&amp;response_type=id_token&amp;redirect_uri={}&amp;nonce={}"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::KarrierOne =&gt; <span class="macro">format!</span>(<span class="string">"https://openid.karrier.one/Account/PhoneLogin?ReturnUrl=/connect/authorize?nonce={}&amp;redirect_uri={}&amp;response_type=id_token&amp;scope=openid&amp;client_id={}"</span>, nonce, redirect_url, client_id),
+            OIDCProvider::Credenza3 =&gt; <span class="macro">format!</span>(<span class="string">"https://accounts.credenza3.com/oauth2/authorize?client_id={}&amp;response_type=token&amp;scope=openid+profile+email+phone&amp;redirect_uri={}&amp;nonce={}&amp;state=state"</span>, client_id, redirect_url, nonce),
+            OIDCProvider::AwsTenant((region, tenant_id)) =&gt; <span class="macro">format!</span>(<span class="string">"https://{}.auth.{}.amazoncognito.com/login?response_type=token&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}"</span>, tenant_id, region, client_id, redirect_url, nonce),
+            OIDCProvider::TestIssuer =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Test issuer does not issue JWTs interactively, this is not valid to call. 
+        </span>})
 }
 
 <span class="doccomment">/// Return the token exchange URL for the given auth code.

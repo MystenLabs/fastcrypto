@@ -624,6 +624,102 @@
 <a href="#622" id="622">622</a>
 <a href="#623" id="623">623</a>
 <a href="#624" id="624">624</a>
+<a href="#625" id="625">625</a>
+<a href="#626" id="626">626</a>
+<a href="#627" id="627">627</a>
+<a href="#628" id="628">628</a>
+<a href="#629" id="629">629</a>
+<a href="#630" id="630">630</a>
+<a href="#631" id="631">631</a>
+<a href="#632" id="632">632</a>
+<a href="#633" id="633">633</a>
+<a href="#634" id="634">634</a>
+<a href="#635" id="635">635</a>
+<a href="#636" id="636">636</a>
+<a href="#637" id="637">637</a>
+<a href="#638" id="638">638</a>
+<a href="#639" id="639">639</a>
+<a href="#640" id="640">640</a>
+<a href="#641" id="641">641</a>
+<a href="#642" id="642">642</a>
+<a href="#643" id="643">643</a>
+<a href="#644" id="644">644</a>
+<a href="#645" id="645">645</a>
+<a href="#646" id="646">646</a>
+<a href="#647" id="647">647</a>
+<a href="#648" id="648">648</a>
+<a href="#649" id="649">649</a>
+<a href="#650" id="650">650</a>
+<a href="#651" id="651">651</a>
+<a href="#652" id="652">652</a>
+<a href="#653" id="653">653</a>
+<a href="#654" id="654">654</a>
+<a href="#655" id="655">655</a>
+<a href="#656" id="656">656</a>
+<a href="#657" id="657">657</a>
+<a href="#658" id="658">658</a>
+<a href="#659" id="659">659</a>
+<a href="#660" id="660">660</a>
+<a href="#661" id="661">661</a>
+<a href="#662" id="662">662</a>
+<a href="#663" id="663">663</a>
+<a href="#664" id="664">664</a>
+<a href="#665" id="665">665</a>
+<a href="#666" id="666">666</a>
+<a href="#667" id="667">667</a>
+<a href="#668" id="668">668</a>
+<a href="#669" id="669">669</a>
+<a href="#670" id="670">670</a>
+<a href="#671" id="671">671</a>
+<a href="#672" id="672">672</a>
+<a href="#673" id="673">673</a>
+<a href="#674" id="674">674</a>
+<a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
+<a href="#677" id="677">677</a>
+<a href="#678" id="678">678</a>
+<a href="#679" id="679">679</a>
+<a href="#680" id="680">680</a>
+<a href="#681" id="681">681</a>
+<a href="#682" id="682">682</a>
+<a href="#683" id="683">683</a>
+<a href="#684" id="684">684</a>
+<a href="#685" id="685">685</a>
+<a href="#686" id="686">686</a>
+<a href="#687" id="687">687</a>
+<a href="#688" id="688">688</a>
+<a href="#689" id="689">689</a>
+<a href="#690" id="690">690</a>
+<a href="#691" id="691">691</a>
+<a href="#692" id="692">692</a>
+<a href="#693" id="693">693</a>
+<a href="#694" id="694">694</a>
+<a href="#695" id="695">695</a>
+<a href="#696" id="696">696</a>
+<a href="#697" id="697">697</a>
+<a href="#698" id="698">698</a>
+<a href="#699" id="699">699</a>
+<a href="#700" id="700">700</a>
+<a href="#701" id="701">701</a>
+<a href="#702" id="702">702</a>
+<a href="#703" id="703">703</a>
+<a href="#704" id="704">704</a>
+<a href="#705" id="705">705</a>
+<a href="#706" id="706">706</a>
+<a href="#707" id="707">707</a>
+<a href="#708" id="708">708</a>
+<a href="#709" id="709">709</a>
+<a href="#710" id="710">710</a>
+<a href="#711" id="711">711</a>
+<a href="#712" id="712">712</a>
+<a href="#713" id="713">713</a>
+<a href="#714" id="714">714</a>
+<a href="#715" id="715">715</a>
+<a href="#716" id="716">716</a>
+<a href="#717" id="717">717</a>
+<a href="#718" id="718">718</a>
+<a href="#719" id="719">719</a>
+<a href="#720" id="720">720</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -645,6 +741,7 @@
 <span class="kw">use </span>fastcrypto::error::FastCryptoError;
 <span class="kw">use </span>itertools::Itertools;
 <span class="kw">use </span>num_bigint::BigUint;
+<span class="kw">use </span>regex::Regex;
 <span class="kw">use </span>schemars::JsonSchema;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::cmp::Ordering::{Equal, Greater, Less};
@@ -678,6 +775,13 @@
 <span class="kw">impl </span>JwkId {
     <span class="doccomment">/// Create a new JwkId.
     </span><span class="kw">pub fn </span>new(iss: String, kid: String) -&gt; <span class="self">Self </span>{
+        <span class="comment">// if a Microsoft iss is found, remove the tenant id from it
+        </span><span class="kw">if </span>match_micrsoft_iss_substring(<span class="kw-2">&amp;</span>iss) {
+            <span class="kw">return </span><span class="self">Self </span>{
+                iss: <span class="string">"https://login.microsoftonline.com/v2.0"</span>.to_string(),
+                kid,
+            };
+        }
         <span class="self">Self </span>{ iss, kid }
     }
 }
@@ -717,6 +821,15 @@
     <span class="doccomment">/// See https://slack.com/.well-known/openid-configuration
     </span>Slack,
     <span class="doccomment">/// This is a test issuer maintained by Mysten that will return a JWT non-interactively.
+    /// See https://login.microsoftonline.com/common/v2.0/.well-known/openid-configuration
+    </span>Microsoft,
+    <span class="doccomment">/// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
+    </span>AwsTenant((String, String)),
+    <span class="doccomment">/// https://openid.karrier.one/.well-known/openid-configuration
+    </span>KarrierOne,
+    <span class="doccomment">/// https://accounts.credenza3.com/openid-configuration
+    </span>Credenza3,
+    <span class="doccomment">/// This is a test issuer that will return a JWT non-interactively.
     </span>TestIssuer,
 }
 
@@ -732,7 +845,22 @@
             <span class="string">"Apple" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
             <span class="string">"Slack" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="string">"TestIssuer" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+            <span class="string">"Microsoft" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
+            <span class="string">"KarrierOne" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
+            <span class="string">"Credenza3" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
+            <span class="kw">_ </span>=&gt; {
+                <span class="kw">let </span>re = Regex::new(
+                    <span class="string">r"AwsTenant-region:(?P&lt;region&gt;[^.]+)-tenant_id:(?P&lt;tenant_id&gt;[^/]+)"</span>,
+                )
+                .unwrap();
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = re.captures(s) {
+                    <span class="kw">let </span>region = captures.name(<span class="string">"region"</span>).unwrap().as_str();
+                    <span class="kw">let </span>tenant_id = captures.name(<span class="string">"tenant_id"</span>).unwrap().as_str();
+                    <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AwsTenant((region.to_owned(), tenant_id.to_owned())))
+                } <span class="kw">else </span>{
+                    <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
+                }
+            }
         }
     }
 }
@@ -747,6 +875,12 @@
             <span class="self">Self</span>::Apple =&gt; <span class="string">"Apple"</span>.to_string(),
             <span class="self">Self</span>::Slack =&gt; <span class="string">"Slack"</span>.to_string(),
             <span class="self">Self</span>::TestIssuer =&gt; <span class="string">"TestIssuer"</span>.to_string(),
+            <span class="self">Self</span>::Microsoft =&gt; <span class="string">"Microsoft"</span>.to_string(),
+            <span class="self">Self</span>::KarrierOne =&gt; <span class="string">"KarrierOne"</span>.to_string(),
+            <span class="self">Self</span>::Credenza3 =&gt; <span class="string">"Credenza3"</span>.to_string(),
+            <span class="self">Self</span>::AwsTenant((region, tenant_id)) =&gt; {
+                <span class="macro">format!</span>(<span class="string">"AwsTenant-region:{}-tenant_id:{}"</span>, region, tenant_id)
+            }
         }
     }
 }
@@ -778,6 +912,25 @@
             OIDCProvider::Slack =&gt; {
                 ProviderConfig::new(<span class="string">"https://slack.com"</span>, <span class="string">"https://slack.com/openid/connect/keys"</span>)
             }
+            OIDCProvider::Microsoft =&gt; ProviderConfig::new(
+                <span class="string">"https://login.microsoftonline.com/v2.0"</span>,
+                <span class="string">"https://login.microsoftonline.com/common/discovery/v2.0/keys"</span>,
+            ),
+            OIDCProvider::AwsTenant((region, tenant_id)) =&gt; ProviderConfig::new(
+                <span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"https://cognito-idp.{}.amazonaws.com/{}"</span>, region, tenant_id),
+                <span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                    <span class="string">"https://cognito-idp.{}.amazonaws.com/{}/.well-known/jwks.json"</span>,
+                    region, tenant_id
+                ),
+            ),
+            OIDCProvider::KarrierOne =&gt; ProviderConfig::new(
+                <span class="string">"https://openid.karrier.one/"</span>,
+                <span class="string">"https://openid.karrier.one/.well-known/jwks"</span>,
+            ),
+            OIDCProvider::Credenza3 =&gt; ProviderConfig::new(
+                <span class="string">"https://accounts.credenza3.com"</span>,
+                <span class="string">"https://accounts.credenza3.com/jwks"</span>,
+            ),
             OIDCProvider::TestIssuer =&gt; ProviderConfig::new(
                 <span class="string">"https://oauth.sui.io"</span>,
                 <span class="string">"https://jwt-tester.mystenlabs.com/.well-known/jwks.json"</span>,
@@ -795,11 +948,40 @@
             <span class="string">"https://appleid.apple.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
             <span class="string">"https://slack.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="string">"https://oauth.sui.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
-            <span class="kw">_ </span>=&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+            <span class="string">"https://openid.karrier.one/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
+            <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
+            iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
+            <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
+                <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
+                    <span class="prelude-val">Ok</span>(<span class="self">Self</span>::AwsTenant((region.to_string(), tenant_id.to_string())))
+                }
+                <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput),
+            },
         }
     }
 }
 
+<span class="doccomment">/// Check if the iss string is formatted as Microsoft's pattern.
+</span><span class="kw">fn </span>match_micrsoft_iss_substring(iss: <span class="kw-2">&amp;</span>str) -&gt; bool {
+    iss.starts_with(<span class="string">"https://login.microsoftonline.com/"</span>) &amp;&amp; iss.ends_with(<span class="string">"/v2.0"</span>)
+}
+
+<span class="doccomment">/// Parse the region and tenant_id from the iss string for AWS.
+</span><span class="kw">fn </span>parse_aws_iss_substring(url: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str), FastCryptoError&gt; {
+    <span class="kw">let </span>re =
+        Regex::new(<span class="string">r"https://cognito-idp\.(?P&lt;region&gt;[^.]+)\.amazonaws\.com/(?P&lt;tenant_id&gt;[^/]+)"</span>)
+            .unwrap();
+
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(captures) = re.captures(url) {
+        <span class="comment">// Extract the region and tenant_id from the captures
+        </span><span class="kw">let </span>region = captures.name(<span class="string">"region"</span>).unwrap().as_str();
+        <span class="kw">let </span>tenant_id = captures.name(<span class="string">"tenant_id"</span>).unwrap().as_str();
+
+        <span class="prelude-val">Ok</span>((region, tenant_id))
+    } <span class="kw">else </span>{
+        <span class="prelude-val">Err</span>(FastCryptoError::InvalidInput)
+    }
+}
 <span class="doccomment">/// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. &lt;https://www.googleapis.com/oauth2/v3/certs&gt;).
 /// The JWK is used to verify the JWT token.
@@ -824,21 +1006,32 @@
     </span>my_use: <span class="prelude-ty">Option</span>&lt;String&gt;,
     kid: String,
     kty: String,
-    alg: String,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>alg: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>x5c: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>x5t: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    <span class="attr">#[serde(skip_serializing_if = <span class="string">"Option::is_none"</span>)]
+    </span>issuer: <span class="prelude-ty">Option</span>&lt;String&gt;,
 }
 
 <span class="kw">impl </span>JWK {
     <span class="doccomment">/// Parse JWK from the reader struct.
     </span><span class="kw">pub fn </span>from_reader(reader: JWKReader) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="kw">let </span>trimmed_e = trim(reader.e);
-        <span class="kw">if </span>reader.alg != <span class="string">"RS256" </span>|| reader.kty != <span class="string">"RSA" </span>|| trimmed_e != <span class="string">"AQAB" </span>{
+        <span class="comment">// Microsoft does not contain alg field in JWK, so here we only check if it equals to RS256 only if alg field is present.
+        </span><span class="kw">if </span>(reader.alg.is_some() &amp;&amp; reader.alg != <span class="prelude-val">Some</span>(<span class="string">"RS256"</span>.to_string()))
+            || reader.kty != <span class="string">"RSA"
+            </span>|| trimmed_e != <span class="string">"AQAB"
+        </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
         <span class="prelude-val">Ok</span>(<span class="self">Self </span>{
             kty: reader.kty,
             e: trimmed_e,
             n: trim(reader.n),
-            alg: reader.alg,
+            alg: <span class="string">"RS256"</span>.to_string(),
         })
     }
 }
@@ -887,7 +1080,6 @@
             <span class="kw">for </span>k <span class="kw">in </span>keys {
                 <span class="kw">let </span>parsed: JWKReader = serde_json::from_value(k.clone())
                     .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralError(<span class="string">"Parse error"</span>.to_string()))<span class="question-mark">?</span>;
-
                 ret.push((
                     JwkId::new(provider.get_config().iss, parsed.kid.clone()),
                     JWK::from_reader(parsed)<span class="question-mark">?</span>,
