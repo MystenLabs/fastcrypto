@@ -12,11 +12,14 @@ use crate::bn254::{
     zk_login_api::{verify_zk_login, ZkLoginEnv},
 };
 use ark_std::rand::{rngs::StdRng, SeedableRng};
-use fastcrypto::{ed25519::Ed25519KeyPair, jwt_utils::parse_and_validate_jwt, traits::KeyPair};
+use fastcrypto::jwt_utils::parse_and_validate_jwt;
+use fastcrypto::{ed25519::Ed25519KeyPair, traits::KeyPair};
 use im::HashMap as ImHashMap;
 use num_bigint::BigUint;
+use serde::{Deserialize, Serialize};
 use test_strategy::proptest;
 use test_strategy::Arbitrary;
+
 const PROVER_DEV_SERVER_URL: &str = "https://prover-dev.mystenlabs.com/v1";
 
 #[tokio::test]
@@ -28,16 +31,12 @@ async fn test_end_to_end_twitch() {
     // Make a map of jwk ids to jwks just for Twitch.
     let mut map = ImHashMap::new();
     map.insert(
-        JwkId::new(
-            OIDCProvider::Twitch.get_config().iss,
-            "1".to_string(),
-        ),
+        JwkId::new(zk_login_inputs.get_iss().to_string(),"1".to_string()),
         JWK {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw".to_string(),
-            alg: "RS256".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -72,15 +71,14 @@ async fn test_end_to_end_kakao() {
     let mut map = ImHashMap::new();
     map.insert(
         JwkId::new(
-            OIDCProvider::Kakao.get_config().iss,
+            zk_login_inputs.get_iss().to_string(),
             "9f252dadd5f233f93d2fa528d12fea".to_string(),
         ),
         JWK {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "qGWf6RVzV2pM8YqJ6by5exoixIlTvdXDfYj2v7E6xkoYmesAjp_1IYL7rzhpUYqIkWX0P4wOwAsg-Ud8PcMHggfwUNPOcqgSk1hAIHr63zSlG8xatQb17q9LrWny2HWkUVEU30PxxHsLcuzmfhbRx8kOrNfJEirIuqSyWF_OBHeEgBgYjydd_c8vPo7IiH-pijZn4ZouPsEg7wtdIX3-0ZcXXDbFkaDaqClfqmVCLNBhg3DKYDQOoyWXrpFKUXUFuk2FTCqWaQJ0GniO4p_ppkYIf4zhlwUYfXZEhm8cBo6H2EgukntDbTgnoha8kNunTPekxWTDhE5wGAt6YpT4Yw".to_string(),
-            alg: "RS256".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -114,15 +112,14 @@ async fn test_end_to_end_apple() {
     let mut map = ImHashMap::new();
     map.insert(
         JwkId::new(
-            OIDCProvider::Apple.get_config().iss,
+            zk_login_inputs.get_iss().to_string(),
             "W6WcOKB".to_string(),
         ),
         JWK {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "2Zc5d0-zkZ5AKmtYTvxHc3vRc41YfbklflxG9SWsg5qXUxvfgpktGAcxXLFAd9Uglzow9ezvmTGce5d3DhAYKwHAEPT9hbaMDj7DfmEwuNO8UahfnBkBXsCoUaL3QITF5_DAPsZroTqs7tkQQZ7qPkQXCSu2aosgOJmaoKQgwcOdjD0D49ne2B_dkxBcNCcJT9pTSWJ8NfGycjWAQsvC8CGstH8oKwhC5raDcc2IGXMOQC7Qr75d6J5Q24CePHj_JD7zjbwYy9KNH8wyr829eO_G4OEUW50FAN6HKtvjhJIguMl_1BLZ93z2KJyxExiNTZBUBQbbgCNBfzTv7JrxMw".to_string(),
-            alg: "RS256".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -156,15 +153,14 @@ async fn test_end_to_end_slack() {
     let mut map = ImHashMap::new();
     map.insert(
         JwkId::new(
-            OIDCProvider::Slack.get_config().iss,
+            zk_login_inputs.get_iss().to_string(),
             "mB2MAyKSn555isd0EbdhKx6nkyAi9xLq8rvCEb_nOyY".to_string(),
         ),
         JWK {
             kty: "RSA".to_string(),
             e: "AQAB".to_string(),
             n: "zQqzXfb677bpMKw0idKC5WkVLyqk04PWMsWYJDKqMUUuu_PmzdsvXBfHU7tcZiNoHDuVvGDqjqnkLPEzjXnaZY0DDDHvJKS0JI8fkxIfV1kNy3DkpQMMhgAwnftUiSXgb5clypOmotAEm59gHPYjK9JHBWoHS14NYEYZv9NVy0EkjauyYDSTz589aiKU5lA-cePG93JnqLw8A82kfTlrJ1IIJo2isyBGANr0YzR-d3b_5EvP7ivU7Ph2v5JcEUHeiLSRzIzP3PuyVFrPH659Deh-UAsDFOyJbIcimg9ITnk5_45sb_Xcd_UN6h5I7TGOAFaJN4oi4aaGD4elNi_K1Q".to_string(),
-            alg: "RS256".to_string(),
-        },
+            alg: "RS256".to_string(),},
     );
 
     // Verify it against test vk ok.
@@ -186,6 +182,57 @@ async fn test_end_to_end_slack() {
         &ZkLoginEnv::Prod,
     );
     assert!(res_prod.is_err());
+}
+
+#[derive(Deserialize)]
+struct TestData {
+    jwt: String,
+    kid: String,
+    n: String,
+    provider: String,
+}
+
+#[tokio::test]
+async fn test_end_to_end_all_providers() {
+    // All JWT generated against nonce hTPpgF7XAKbW37rEUS6pEVZqmoI. This is derived based on max_epoch = 10, kp generated from seed = [0; 32], and jwt_randomness 100681567828351849884072155819400689117.
+    let file =
+        std::fs::File::open("src/bn254/zklogin_test_vectors.json").expect("Unable to open file");
+    let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
+    for test_data in test_datum {
+        println!("Testing provider: {:?}", test_data.provider);
+        // Make a map of jwk ids to jwks just for Apple.
+        let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&test_data.jwt).await;
+        let mut map = ImHashMap::new();
+        map.insert(
+            JwkId::new(zk_login_inputs.get_iss().to_string(), test_data.kid),
+            JWK {
+                kty: "RSA".to_string(),
+                e: "AQAB".to_string(),
+                n: test_data.n,
+                alg: "RS256".to_string(),
+            },
+        );
+
+        // Verify it against test vk ok.
+        let res = verify_zk_login(
+            &zk_login_inputs,
+            max_epoch,
+            &eph_pubkey,
+            &map,
+            &ZkLoginEnv::Test,
+        );
+        assert!(res.is_ok());
+
+        // Verify it against prod vk fails.
+        let res_prod = verify_zk_login(
+            &zk_login_inputs,
+            max_epoch,
+            &eph_pubkey,
+            &map,
+            &ZkLoginEnv::Prod,
+        );
+        assert!(res_prod.is_err());
+    }
 }
 
 async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
@@ -216,8 +263,13 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
-    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed.to_string()).unwrap();
+    let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
     (max_epoch, eph_pubkey, zk_login_inputs)
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TestIssuerJWTResponse {
+    jwt: String,
 }
 
 #[derive(Arbitrary, Debug)]
