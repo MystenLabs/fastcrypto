@@ -157,17 +157,17 @@ impl QuadraticForm {
         };
 
         // 5. (partial xgcd)
-        let (bx, x, by, y, z) = partial_xgcd(
+        let (bx, x, by, y, iterated) = partial_xgcd(
             capital_bx.mod_floor(&capital_by),
             capital_by.clone(),
             self.partial_gcd_limit(),
         );
 
         let u3: BigInt;
-        let w3: BigInt;
         let v3: BigInt;
+        let w3: BigInt;
 
-        if !z {
+        if !iterated {
             // 6.
             let q = &capital_cy * &bx;
             let cx = (&q - &m) / &capital_by;
@@ -191,8 +191,8 @@ impl QuadraticForm {
             };
 
             u3 = &by * &cy - &g * &y * &dy;
-            w3 = &bx * &cx - &g * &x * &dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
+            w3 = &bx * &cx - &g * &x * &dx;
         }
 
         QuadraticForm {
@@ -221,7 +221,7 @@ impl Doubling for QuadraticForm {
             x: _,
             y,
             a_divided_by_gcd: capital_by,
-            b_divided_by_gcd: capital_dy,
+            b_divided_by_gcd: mut capital_dy,
         } = extended_euclidean_algorithm(u, v);
 
         let (bx, x, by, y, z) = partial_xgcd(
@@ -237,15 +237,15 @@ impl Doubling for QuadraticForm {
         if !z {
             let dx = (&bx * &capital_dy - w) / &capital_by;
             u3 = by.pow(2);
-            w3 = &bx * &bx - &g * &dx;
+            w3 = bx.pow(2) - &g * &dx;
             v3 = v - &bx * &by.shl(1);
         } else {
             let dx = (&bx * &capital_dy - w * &x) / &capital_by;
-            let q1 = &dx * &y;
-            let mut dy = &q1 + &capital_dy;
-            v3 = &g * (&dy + &q1) - (&bx * &by).shl(1);
-            dy /= &x;
-            u3 = &by * &by - &g * &y * &dy;
+            let q = &dx * &y;
+            capital_dy += &q;
+            v3 = &g * (&capital_dy + &q) - (&bx * &by).shl(1);
+            capital_dy /= &x;
+            u3 = &by * &by - &g * &y * &capital_dy;
             w3 = &bx * &bx - &g * &x * &dx;
         }
 
@@ -303,7 +303,7 @@ impl ParameterizedGroupElement for QuadraticForm {
             .expect("Doesn't fail")
     }
 
-    fn has_parameter(&self, discriminant: &Discriminant) -> bool {
+    fn is_in_group(&self, discriminant: &Discriminant) -> bool {
         discriminant.as_bigint().eq(&self.discriminant())
     }
 }

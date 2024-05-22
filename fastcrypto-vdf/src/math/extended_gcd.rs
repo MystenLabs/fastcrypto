@@ -6,7 +6,7 @@
 //! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
 //! and come out for free while computing the Bezout coefficients.
 
-use num_bigint::BigInt;
+use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::mem;
@@ -58,16 +58,8 @@ pub(crate) fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanA
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    let a_divided_by_gcd = if a.sign() != s.0.sign() {
-        s.0.neg()
-    } else {
-        s.0
-    };
-    let b_divided_by_gcd = if b.sign() != t.0.sign() {
-        t.0.neg()
-    } else {
-        t.0
-    };
+    let a_divided_by_gcd = set_sign(s.0, a.sign());
+    let b_divided_by_gcd = set_sign(t.0, b.sign());
 
     if !r.1.is_negative() {
         EuclideanAlgorithmOutput {
@@ -85,6 +77,17 @@ pub(crate) fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanA
             a_divided_by_gcd,
             b_divided_by_gcd,
         }
+    }
+}
+
+/// Ensure that `value` has the given sign.
+fn set_sign(value: BigInt, sign: Sign) -> BigInt {
+    if value.is_zero() {
+        return value;
+    } else if value.sign() != sign {
+        value.neg()
+    } else {
+        value
     }
 }
 

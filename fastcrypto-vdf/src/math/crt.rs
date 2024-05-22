@@ -32,13 +32,12 @@ pub(crate) fn solve_simple_congruence_equation_system(
     let a = a.mod_floor(p);
     let b = b.mod_floor(q);
 
-    let result = a * output.y * q + b * output.x * p;
+    let mut result = a * output.y * q + b * output.x * p;
 
-    if result.is_negative() {
-        Ok(result + &(p * q))
-    } else {
-        Ok(result)
+    while result.is_negative() {
+        result += &(p * q);
     }
+    Ok(result)
 }
 
 /// Find the unique x such that x = a_i mod p_i for relatively prime p_i and 0 <= x < Prod p_i.

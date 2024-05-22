@@ -131,8 +131,9 @@ fn sample_modulus(
                 break;
             }
         }
-        let square_root = modular_square_root(discriminant.as_bigint(), &factor, false)
-            .expect("Legendre symbol checked above");
+        // Since the Jacobi symbol was checked above, this will only fail if the discriminant is not
+        // a prime which should have been checked. In this case an InvalidInput error is returned.
+        let square_root = modular_square_root(discriminant.as_bigint(), &factor, false)?;
         factors.push(factor);
         square_roots.push(square_root);
     }
@@ -185,14 +186,14 @@ mod tests {
         for _ in 0..10 {
             let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 1).unwrap();
             assert!(qf.is_reduced_assuming_normal());
-            assert!(qf.has_parameter(&discriminant));
+            assert!(qf.is_in_group(&discriminant));
             seed[0] += 1;
         }
 
         for _ in 0..10 {
             let qf = QuadraticForm::hash_to_group(&seed, &discriminant, 4).unwrap();
             assert!(qf.is_reduced_assuming_normal());
-            assert!(qf.has_parameter(&discriminant));
+            assert!(qf.is_in_group(&discriminant));
             seed[0] += 1;
         }
     }
@@ -201,7 +202,7 @@ mod tests {
     fn qf_from_seed_sanity_tests() {
         let discriminant = Discriminant::from_seed(b"discriminant seed", 800).unwrap();
         let base_qf = QuadraticForm::hash_to_group(b"qf seed", &discriminant, 6).unwrap();
-        assert!(base_qf.has_parameter(&discriminant));
+        assert!(base_qf.is_in_group(&discriminant));
 
         // Same seed, same discriminant, same k
         let other_qf = QuadraticForm::hash_to_group(b"qf seed", &discriminant, 6).unwrap();
