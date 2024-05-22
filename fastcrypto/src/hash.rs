@@ -18,6 +18,7 @@
 
 use core::fmt::Debug;
 use digest::OutputSizeUser;
+use generic_array::GenericArray;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::fmt;
@@ -109,29 +110,27 @@ pub trait HashFunction<const DIGEST_LENGTH: usize>: Default {
 /// This trait is implemented by all messages that can be hashed.
 pub trait Hash<const DIGEST_LEN: usize> {
     /// The type of the digest when this is hashed.
-    type TypedDigest: Into<Digest<DIGEST_LEN>> + Eq + std::hash::Hash + Copy + fmt::Debug;
+    type TypedDigest: Into<Digest<DIGEST_LEN>> + Eq + std::hash::Hash + Copy + Debug;
 
     fn digest(&self) -> Self::TypedDigest;
 }
 
 /// This wraps a [digest::Digest] as a [HashFunction].
 #[derive(Default)]
-pub struct HashFunctionWrapper<Variant: digest::Digest + 'static, const DIGEST_LEN: usize>(Variant);
+pub struct HashFunctionWrapper<Variant, const DIGEST_LEN: usize>(Variant);
 
 /// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 pub trait ReverseWrapper {
-    type Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser;
+    type Variant: digest::core_api::CoreProxy + OutputSizeUser;
 }
 
-impl<
-        Variant: digest::Digest + 'static + digest::core_api::CoreProxy + OutputSizeUser,
-        const DIGEST_LEN: usize,
-    > ReverseWrapper for HashFunctionWrapper<Variant, DIGEST_LEN>
+impl<Variant: digest::core_api::CoreProxy + OutputSizeUser, const DIGEST_LEN: usize> ReverseWrapper
+    for HashFunctionWrapper<Variant, DIGEST_LEN>
 {
     type Variant = Variant;
 }
 
-impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashFunction<DIGEST_LEN>
+impl<Variant: digest::Digest + Default, const DIGEST_LEN: usize> HashFunction<DIGEST_LEN>
     for HashFunctionWrapper<Variant, DIGEST_LEN>
 {
     fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
@@ -139,14 +138,15 @@ impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> HashF
     }
 
     fn finalize(self) -> Digest<DIGEST_LEN> {
-        Digest {
-            digest: self.0.finalize().as_slice().try_into().unwrap(),
-        }
+        let mut digest = [0u8; DIGEST_LEN];
+        self.0
+            .finalize_into(GenericArray::from_mut_slice(&mut digest));
+        Digest { digest }
     }
 }
 
 // Impl std::io::Write for HashFunctionWrapper. Needed for compatibility in Sui.
-impl<Variant: digest::Digest + 'static + Default, const DIGEST_LEN: usize> std::io::Write
+impl<Variant: digest::Digest + Default, const DIGEST_LEN: usize> std::io::Write
     for HashFunctionWrapper<Variant, DIGEST_LEN>
 {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
