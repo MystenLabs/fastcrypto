@@ -102,7 +102,7 @@ pub trait HashFunction<const DIGEST_LENGTH: usize>: Default {
     /// Compute a single digest from all slices in the iterator in order and consume the hash function.
     fn digest_iterator<K: AsRef<[u8]>, I: Iterator<Item = K>>(iter: I) -> Digest<DIGEST_LENGTH> {
         let mut h = Self::default();
-        iter.into_iter().for_each(|chunk| h.update(chunk.as_ref()));
+        iter.for_each(|item| h.update(item));
         h.finalize()
     }
 }
