@@ -338,6 +338,7 @@
 
 </span><span class="kw">use </span>core::fmt::Debug;
 <span class="kw">use </span>digest::OutputSizeUser;
+<span class="kw">use </span>generic_array::GenericArray;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>serde_with::serde_as;
 <span class="kw">use </span>std::fmt;
@@ -421,7 +422,7 @@
     <span class="doccomment">/// Compute a single digest from all slices in the iterator in order and consume the hash function.
     </span><span class="kw">fn </span>digest_iterator&lt;K: AsRef&lt;[u8]&gt;, I: Iterator&lt;Item = K&gt;&gt;(iter: I) -&gt; Digest&lt;DIGEST_LENGTH&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>h = <span class="self">Self</span>::default();
-        iter.into_iter().for_each(|chunk| h.update(chunk.as_ref()));
+        iter.for_each(|item| h.update(item));
         h.finalize()
     }
 }
@@ -429,29 +430,27 @@
 <span class="doccomment">/// This trait is implemented by all messages that can be hashed.
 </span><span class="kw">pub trait </span>Hash&lt;<span class="kw">const </span>DIGEST_LEN: usize&gt; {
     <span class="doccomment">/// The type of the digest when this is hashed.
-    </span><span class="kw">type </span>TypedDigest: Into&lt;Digest&lt;DIGEST_LEN&gt;&gt; + Eq + std::hash::Hash + Copy + fmt::Debug;
+    </span><span class="kw">type </span>TypedDigest: Into&lt;Digest&lt;DIGEST_LEN&gt;&gt; + Eq + std::hash::Hash + Copy + Debug;
 
     <span class="kw">fn </span>digest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self</span>::TypedDigest;
 }
 
 <span class="doccomment">/// This wraps a [digest::Digest] as a [HashFunction].
 </span><span class="attr">#[derive(Default)]
-</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant: digest::Digest + <span class="lifetime">'static</span>, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
+</span><span class="kw">pub struct </span>HashFunctionWrapper&lt;Variant, <span class="kw">const </span>DIGEST_LEN: usize&gt;(Variant);
 
 <span class="doccomment">/// This trait allows using a [HashFunctionWrapper] where a [digest::Digest] was expected.
 </span><span class="kw">pub trait </span>ReverseWrapper {
-    <span class="kw">type </span>Variant: digest::Digest + <span class="lifetime">'static </span>+ digest::core_api::CoreProxy + OutputSizeUser;
+    <span class="kw">type </span>Variant: digest::core_api::CoreProxy + OutputSizeUser;
 }
 
-<span class="kw">impl</span>&lt;
-        Variant: digest::Digest + <span class="lifetime">'static </span>+ digest::core_api::CoreProxy + OutputSizeUser,
-        <span class="kw">const </span>DIGEST_LEN: usize,
-    &gt; ReverseWrapper <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
+<span class="kw">impl</span>&lt;Variant: digest::core_api::CoreProxy + OutputSizeUser, <span class="kw">const </span>DIGEST_LEN: usize&gt; ReverseWrapper
+    <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">type </span>Variant = Variant;
 }
 
-<span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">'static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
+<span class="kw">impl</span>&lt;Variant: digest::Digest + Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; HashFunction&lt;DIGEST_LEN&gt;
     <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">fn </span>update&lt;Data: AsRef&lt;[u8]&gt;&gt;(<span class="kw-2">&amp;mut </span><span class="self">self</span>, data: Data) {
@@ -459,14 +458,15 @@
     }
 
     <span class="kw">fn </span>finalize(<span class="self">self</span>) -&gt; Digest&lt;DIGEST_LEN&gt; {
-        Digest {
-            digest: <span class="self">self</span>.<span class="number">0</span>.finalize().as_slice().try_into().unwrap(),
-        }
+        <span class="kw">let </span><span class="kw-2">mut </span>digest = [<span class="number">0u8</span>; DIGEST_LEN];
+        <span class="self">self</span>.<span class="number">0
+            </span>.finalize_into(GenericArray::from_mut_slice(<span class="kw-2">&amp;mut </span>digest));
+        Digest { digest }
     }
 }
 
 <span class="comment">// Impl std::io::Write for HashFunctionWrapper. Needed for compatibility in Sui.
-</span><span class="kw">impl</span>&lt;Variant: digest::Digest + <span class="lifetime">'static </span>+ Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; std::io::Write
+</span><span class="kw">impl</span>&lt;Variant: digest::Digest + Default, <span class="kw">const </span>DIGEST_LEN: usize&gt; std::io::Write
     <span class="kw">for </span>HashFunctionWrapper&lt;Variant, DIGEST_LEN&gt;
 {
     <span class="kw">fn </span>write(<span class="kw-2">&amp;mut </span><span class="self">self</span>, buf: <span class="kw-2">&amp;</span>[u8]) -&gt; std::io::Result&lt;usize&gt; {
