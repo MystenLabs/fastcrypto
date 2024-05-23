@@ -116,7 +116,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     "Invalid input point or discriminant.",
                 )
             })?;
-            if !g.has_parameter(&DISCRIMINANT_3072) {
+            if !g.is_in_group(&DISCRIMINANT_3072) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Input point does not match discriminant.",
@@ -144,7 +144,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid input."))?;
-            if !input.has_parameter(&DISCRIMINANT_3072) {
+            if !input.is_in_group(&DISCRIMINANT_3072) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Input has wrong discriminant.",
@@ -156,7 +156,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid output hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid output."))?;
-            if !output.has_parameter(&DISCRIMINANT_3072) {
+            if !output.is_in_group(&DISCRIMINANT_3072) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Output has wrong discriminant.",
@@ -168,7 +168,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
                     Error::new(ErrorKind::InvalidInput, "Invalid proof hex string.")
                 })?)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid proof."))?;
-            if !proof.has_parameter(&DISCRIMINANT_3072) {
+            if !proof.is_in_group(&DISCRIMINANT_3072) {
                 return Err(Error::new(
                     ErrorKind::InvalidInput,
                     "Proof has wrong discriminant.",

@@ -145,16 +145,13 @@ impl QuadraticForm {
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
             } = extended_euclidean_algorithm(&f, &s);
-            capital_by *= &h;
-            capital_cy *= &h;
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
-            (
-                g,
-                &b * (&m / &h) + &l * (&capital_by / &h),
-                b_divided_by_gcd,
-            )
+            let capital_bx = &b * (&m / &h) + &l * &capital_by;
+            capital_by *= &h;
+            capital_cy *= &h;
+            (g, capital_bx, b_divided_by_gcd)
         };
 
         // 5. (partial xgcd)
@@ -211,14 +208,13 @@ impl QuadraticForm {
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
         }
 
-        let mut form = QuadraticForm {
+        QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
-        };
-        form.reduce();
-        form
+        }
+        .into_reduced()
     }
 }
 
@@ -287,14 +283,13 @@ impl Doubling for QuadraticForm {
             w3 = &w3 - &g * &x * &dx;
         }
 
-        let mut form = QuadraticForm {
+        QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
-        };
-        form.reduce();
-        form
+        }
+        .into_reduced()
     }
 }
 
@@ -309,7 +304,7 @@ impl ParameterizedGroupElement for QuadraticForm {
             .expect("Doesn't fail")
     }
 
-    fn has_parameter(&self, discriminant: &Discriminant) -> bool {
+    fn is_in_group(&self, discriminant: &Discriminant) -> bool {
         discriminant.as_bigint().eq(&self.discriminant())
     }
 }
