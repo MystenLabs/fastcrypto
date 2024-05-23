@@ -155,32 +155,17 @@ impl QuadraticForm {
         };
 
         // 5. (partial xgcd)
-        let mut bx = capital_bx.mod_floor(&capital_by);
-        let mut by = capital_by.clone();
-
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while by.abs() > *self.partial_gcd_limit() && !bx.is_zero() {
-            let (q, t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            swap(&mut x, &mut y);
-            x -= &q * &y;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        let (bx, x, by, y, iterated) = partial_xgcd(
+            capital_bx.mod_floor(&capital_by),
+            capital_by.clone(),
+            self.partial_gcd_limit(),
+        );
 
         let u3: BigInt;
         let w3: BigInt;
         let v3: BigInt;
 
-        if z == 0 {
+        if !iterated {
             // 6.
             let q = &capital_cy * &bx;
             let cx = (&q - &m) / &capital_by;
@@ -237,50 +222,35 @@ impl Doubling for QuadraticForm {
             b_divided_by_gcd: capital_dy,
         } = extended_euclidean_algorithm(u, v);
 
-        let mut bx = (&y * w).mod_floor(&capital_by);
-        let mut by = capital_by.clone();
-
-        let mut x = BigInt::one();
-        let mut y = BigInt::zero();
-        let mut z = 0u32;
-
-        while by.abs() > *self.partial_gcd_limit() && !bx.is_zero() {
-            let (q, t) = by.div_rem(&bx);
-            by = bx;
-            bx = t;
-            swap(&mut x, &mut y);
-            x -= &q * &y;
-            z += 1;
-        }
-
-        if z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        let (bx, x, by, y, iterated) = partial_xgcd(
+            (&y * w).mod_floor(&capital_by),
+            capital_by.clone(),
+            self.partial_gcd_limit(),
+        );
 
         let mut u3: BigInt;
         let mut w3: BigInt;
         let mut v3: BigInt;
 
-        if z == 0 {
+        if !iterated {
             let dx = (&bx * &capital_dy - w) / &capital_by;
             u3 = &by * &by;
             w3 = &bx * &bx;
             let s = &bx + &by;
             v3 = v - &s * &s + &u3 + &w3;
-            w3 = &w3 - &g * &dx;
+            w3 -= &g * &dx;
         } else {
             let dx = (&bx * &capital_dy - w * &x) / &capital_by;
             let q1 = &dx * &y;
             let mut dy = &q1 + &capital_dy;
             v3 = &g * (&dy + &q1);
-            dy = &dy / &x;
+            dy /= &x;
             u3 = &by * &by;
             w3 = &bx * &bx;
-            v3 = &v3 - (&bx + &by).pow(2) + &u3 + &w3;
+            v3 -= (&bx + &by).pow(2) - &u3 - &w3;
 
-            u3 = &u3 - &g * &y * &dy;
-            w3 = &w3 - &g * &x * &dx;
+            u3 -= &g * &y * &dy;
+            w3 -= &g * &x * &dx;
         }
 
         QuadraticForm {
@@ -291,6 +261,39 @@ impl Doubling for QuadraticForm {
         }
         .into_reduced()
     }
+}
+
+/// Compute the xgcd of bx and by with a partial limit. When by is below the limit, the computation
+/// stops early and returns the result. The result is a tuple (bx, x, by, y, iterated) where bx and
+/// by are the now reduced coefficients, x and y are the Bezout coefficients for bx and by respectively,
+/// and iterated is true if the there were any iterations.
+fn partial_xgcd(
+    mut bx: BigInt,
+    mut by: BigInt,
+    limit: &BigInt,
+) -> (BigInt, BigInt, BigInt, BigInt, bool) {
+    let mut x = BigInt::one();
+    let mut y = BigInt::zero();
+    let mut iterated = false;
+    let mut odd = false;
+
+    while by.abs() > *limit && !bx.is_zero() {
+        let (q, r) = by.div_rem(&bx);
+        by = bx;
+        bx = r;
+        swap(&mut x, &mut y);
+        x -= &q * &y;
+
+        odd = !odd;
+        iterated = true;
+    }
+
+    if odd {
+        by = -by;
+        y = -y;
+    }
+
+    (bx, x, by, y, iterated)
 }
 
 impl ParameterizedGroupElement for QuadraticForm {
