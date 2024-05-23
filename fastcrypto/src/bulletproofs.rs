@@ -25,7 +25,7 @@ use derive_more::{Add, From, Sub};
 use merlin::Transcript;
 use once_cell::sync::OnceCell;
 
-use crate::error::FastCryptoError::InvalidInput;
+use crate::error::FastCryptoError::{GeneralOpaqueError, InvalidInput};
 use crate::serde_helpers::ToFromByteArray;
 use crate::{
     error::FastCryptoError, serialize_deserialize_with_to_from_byte_array, traits::ToFromBytes,
@@ -121,13 +121,10 @@ impl BulletproofsRangeProof {
             &blinding,
             bits,
         )
-        .map_err(|_| signature::Error::new())?;
+        .map_err(|_| GeneralOpaqueError)?;
 
         Ok((
-            commitment
-                .decompress()
-                .ok_or_else(signature::Error::new)?
-                .into(),
+            commitment.decompress().ok_or(GeneralOpaqueError)?.into(),
             proof.into(),
         ))
     }
