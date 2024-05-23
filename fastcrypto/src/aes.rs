@@ -38,14 +38,14 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 /// Trait impl'd by encryption keys in symmetric cryptography
 ///
 pub trait EncryptionKey:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+    ToFromBytes + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
 {
 }
 
 /// Trait impl'd by nonces and IV's used in symmetric cryptography
 ///
 pub trait Nonce:
-    ToFromBytes + 'static + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
+    ToFromBytes + Serialize + DeserializeOwned + Send + Sync + Sized + Generate
 {
 }
 
@@ -102,7 +102,7 @@ where
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
         match bytes.len() == N::USIZE {
             true => Ok(GenericByteArray {
-                bytes: GenericArray::from_slice(bytes).to_owned(),
+                bytes: GenericArray::clone_from_slice(bytes),
             }),
             false => Err(FastCryptoError::InputLengthWrong(N::USIZE)),
         }
