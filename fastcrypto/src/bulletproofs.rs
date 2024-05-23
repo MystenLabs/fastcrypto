@@ -38,6 +38,8 @@ use serde::Deserialize;
 // Pedersen commitments
 //
 
+// TODO: The scalars (value and blinding) are created from the lower 255 bits of a 256 bit scalar, so we should require that the last bit is zero or use the scalars directly.
+
 const PEDERSEN_COMMITMENT_LENGTH: usize = 32;
 
 #[derive(Debug, Clone, From, Add, Sub, PartialEq, Eq)]
