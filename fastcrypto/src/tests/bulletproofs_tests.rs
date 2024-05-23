@@ -40,7 +40,7 @@ fn test_pedersen_to_from_bytes() {
     let blinding = [1; 32];
 
     let commitment = PedersenCommitment::new(value, blinding);
-    let commitment_dup = PedersenCommitment::from_bytes(commitment.as_bytes()).unwrap();
+    let commitment_dup = PedersenCommitment::from_byte_array(&commitment.to_byte_array()).unwrap();
 
     assert_eq!(commitment, commitment_dup);
 }
@@ -134,6 +134,7 @@ fn test_handle_verify_invalid_upper_bound() {
         .is_err());
 }
 
+use crate::serde_helpers::ToFromByteArray;
 use proptest::arbitrary::Arbitrary;
 
 proptest::proptest! {
