@@ -15,8 +15,9 @@
 //!    BulletproofsRangeProof::prove_bit_length(value, blinding, upper_bound, b"MY_DOMAIN").unwrap();
 //! assert!(range_proof.verify_bit_length(&commitment, upper_bound, b"MY_DOMAIN").is_ok());
 //! ```
-use std::ops;
+use std::ops::{Add, Sub};
 
+use crate::traits::EncodeDecodeBase64;
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 use curve25519_dalek_ng::{
     ristretto::{CompressedRistretto, RistrettoPoint},
@@ -24,9 +25,11 @@ use curve25519_dalek_ng::{
 };
 use merlin::Transcript;
 use once_cell::sync::OnceCell;
-use serde::{de, Deserialize, Serialize};
 
-use crate::{error::FastCryptoError, traits::ToFromBytes};
+use crate::error::FastCryptoError::InvalidInput;
+use crate::{
+    error::FastCryptoError, serialize_deserialize_with_to_from_bytes, traits::ToFromBytes,
+};
 
 //
 // Pedersen commitments
@@ -40,6 +43,15 @@ pub struct PedersenCommitment {
     bytes: OnceCell<[u8; PEDERSEN_COMMITMENT_LENGTH]>,
 }
 
+impl From<RistrettoPoint> for PedersenCommitment {
+    fn from(point: RistrettoPoint) -> Self {
+        Self {
+            point,
+            bytes: OnceCell::new(),
+        }
+    }
+}
+
 impl PedersenCommitment {
     ///
     /// Creates a new Pedersen commitment from a value, and a blinding factor
@@ -51,34 +63,23 @@ impl PedersenCommitment {
         let generators = PedersenGens::default();
         let value = Scalar::from_bits(value);
         let blinding = Scalar::from_bits(blinding_factor);
-        let point = generators.commit(value, blinding);
-
-        PedersenCommitment {
-            point,
-            bytes: OnceCell::new(),
-        }
+        generators.commit(value, blinding).into()
     }
 }
 
-impl ops::Add<PedersenCommitment> for PedersenCommitment {
+impl Add<PedersenCommitment> for PedersenCommitment {
     type Output = PedersenCommitment;
 
     fn add(self, rhs: PedersenCommitment) -> PedersenCommitment {
-        PedersenCommitment {
-            point: self.point + rhs.point,
-            bytes: OnceCell::new(),
-        }
+        (self.point + rhs.point).into()
     }
 }
 
-impl ops::Sub<PedersenCommitment> for PedersenCommitment {
+impl Sub<PedersenCommitment> for PedersenCommitment {
     type Output = PedersenCommitment;
 
     fn sub(self, rhs: PedersenCommitment) -> PedersenCommitment {
-        PedersenCommitment {
-            point: self.point - rhs.point,
-            bytes: OnceCell::new(),
-        }
+        (self.point - rhs.point).into()
     }
 }
 
@@ -96,34 +97,11 @@ impl ToFromBytes for PedersenCommitment {
             ));
         }
         let point = CompressedRistretto::from_slice(bytes);
-        let decompressed_point = point.decompress().ok_or(FastCryptoError::InvalidInput)?;
-
-        Ok(PedersenCommitment {
-            point: decompressed_point,
-            bytes: OnceCell::new(),
-        })
+        point.decompress().ok_or(InvalidInput).map(Self::from)
     }
 }
 
-impl Serialize for PedersenCommitment {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let bytes = self.as_ref();
-        serializer.serialize_bytes(bytes)
-    }
-}
-
-impl<'de> Deserialize<'de> for PedersenCommitment {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: de::Deserializer<'de>,
-    {
-        let bytes = Vec::deserialize(deserializer)?;
-        PedersenCommitment::from_bytes(&bytes[..]).map_err(|e| de::Error::custom(e.to_string()))
-    }
-}
+serialize_deserialize_with_to_from_bytes!(PedersenCommitment, PEDERSEN_COMMITMENT_LENGTH);
 
 impl PartialEq for PedersenCommitment {
     fn eq(&self, other: &Self) -> bool {
@@ -153,6 +131,15 @@ impl Ord for PedersenCommitment {
 pub struct BulletproofsRangeProof {
     proof: RangeProof,
     bytes: OnceCell<Vec<u8>>,
+}
+
+impl From<RangeProof> for BulletproofsRangeProof {
+    fn from(proof: RangeProof) -> Self {
+        Self {
+            proof,
+            bytes: OnceCell::new(),
+        }
+    }
 }
 
 impl BulletproofsRangeProof {
@@ -187,14 +174,11 @@ impl BulletproofsRangeProof {
         .map_err(|_| signature::Error::new())?;
 
         Ok((
-            PedersenCommitment {
-                point: commitment.decompress().ok_or_else(signature::Error::new)?,
-                bytes: OnceCell::new(),
-            },
-            BulletproofsRangeProof {
-                proof,
-                bytes: OnceCell::new(),
-            },
+            commitment
+                .decompress()
+                .ok_or_else(signature::Error::new)?
+                .into(),
+            proof.into(),
         ))
     }
 
@@ -238,10 +222,8 @@ impl AsRef<[u8]> for BulletproofsRangeProof {
 
 impl ToFromBytes for BulletproofsRangeProof {
     fn from_bytes(bytes: &[u8]) -> Result<Self, FastCryptoError> {
-        let proof = RangeProof::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(BulletproofsRangeProof {
-            proof,
-            bytes: OnceCell::new(),
-        })
+        RangeProof::from_bytes(bytes)
+            .map_err(|_| InvalidInput)
+            .map(Self::from)
     }
 }
