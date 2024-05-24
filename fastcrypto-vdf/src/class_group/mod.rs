@@ -171,8 +171,8 @@ impl QuadraticForm {
             let cx = (&q - &m) / &capital_by;
             let dx = (&bx * &capital_dy - w2) / &capital_by;
             u3 = &by * &capital_cy;
-            w3 = &bx * &cx - &g * &dx;
             v3 = v2 - (&q << 1);
+            w3 = &bx * &cx - &g * &dx;
         } else {
             // 7.
             let cx = (&capital_cy * &bx - &m * &x) / &capital_by;
@@ -189,8 +189,8 @@ impl QuadraticForm {
             };
 
             u3 = &by * &cy - &g * &y * &dy;
-            w3 = &bx * &cx - &g * &x * &dx;
             v3 = &g * (&q3 + &q4) - &q1 - &q2;
+            w3 = &bx * &cx - &g * &x * &dx;
         }
 
         QuadraticForm {
@@ -228,26 +228,20 @@ impl Doubling for QuadraticForm {
             self.partial_gcd_limit(),
         );
 
-        let mut u3: BigInt;
-        let mut w3: BigInt;
-        let mut v3: BigInt;
+        let mut u3 = &by * &by;
+        let mut w3 = &bx * &bx;
+        let mut v3 = &u3 + &w3 - &(&bx + &by).pow(2);
 
         if !iterated {
             let dx = (&bx * &capital_dy - w) / &capital_by;
-            u3 = &by * &by;
-            w3 = &bx * &bx;
-            let s = &bx + &by;
-            v3 = v - &s * &s + &u3 + &w3;
+            v3 += v;
             w3 -= &g * &dx;
         } else {
             let dx = (&bx * &capital_dy - w * &x) / &capital_by;
             let q1 = &dx * &y;
             let mut dy = &q1 + &capital_dy;
-            v3 = &g * (&dy + &q1);
+            v3 += &g * (&dy + &q1);
             dy /= &x;
-            u3 = &by * &by;
-            w3 = &bx * &bx;
-            v3 -= (&bx + &by).pow(2) - &u3 - &w3;
 
             u3 -= &g * &y * &dy;
             w3 -= &g * &x * &dx;
