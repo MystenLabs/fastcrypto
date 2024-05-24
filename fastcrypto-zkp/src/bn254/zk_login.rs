@@ -202,8 +202,8 @@ impl OIDCProvider {
                 ),
             ),
             OIDCProvider::KarrierOne => ProviderConfig::new(
-                "https://openid.karrier.one/",
-                "https://openid.karrier.one/.well-known/jwks",
+                "https://accounts.karrier.one/",
+                "https://accounts.karrier.one/.well-known/jwks",
             ),
             OIDCProvider::Credenza3 => ProviderConfig::new(
                 "https://accounts.credenza3.com",
