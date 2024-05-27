@@ -390,7 +390,7 @@
                     <span class="string">"Invalid input point or discriminant."</span>,
                 )
             })<span class="question-mark">?</span>;
-            <span class="kw">if </span>!g.has_parameter(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+            <span class="kw">if </span>!g.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Input point does not match discriminant."</span>,
@@ -418,7 +418,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!input.has_parameter(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+            <span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Input has wrong discriminant."</span>,
@@ -430,7 +430,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!output.has_parameter(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+            <span class="kw">if </span>!output.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Output has wrong discriminant."</span>,
@@ -442,7 +442,7 @@
                     Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof hex string."</span>)
                 })<span class="question-mark">?</span>)
                 .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!proof.has_parameter(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+            <span class="kw">if </span>!proof.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
                 <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
                     ErrorKind::InvalidInput,
                     <span class="string">"Proof has wrong discriminant."</span>,

@@ -352,14 +352,6 @@
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
-<a href="#354" id="354">354</a>
-<a href="#355" id="355">355</a>
-<a href="#356" id="356">356</a>
-<a href="#357" id="357">357</a>
-<a href="#358" id="358">358</a>
-<a href="#359" id="359">359</a>
-<a href="#360" id="360">360</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -507,52 +499,34 @@
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
             } = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>s);
-            capital_by <span class="kw-2">*</span>= <span class="kw-2">&amp;</span>h;
-            capital_cy <span class="kw-2">*</span>= <span class="kw-2">&amp;</span>h;
 
             <span class="comment">// 4.
             </span><span class="kw">let </span>l = (<span class="kw-2">&amp;</span>y * (<span class="kw-2">&amp;</span>b * (w1.mod_floor(<span class="kw-2">&amp;</span>h)) + <span class="kw-2">&amp;</span>c * (w2.mod_floor(<span class="kw-2">&amp;</span>h)))).mod_floor(<span class="kw-2">&amp;</span>h);
-            (
-                g,
-                <span class="kw-2">&amp;</span>b * (<span class="kw-2">&amp;</span>m / <span class="kw-2">&amp;</span>h) + <span class="kw-2">&amp;</span>l * (<span class="kw-2">&amp;</span>capital_by / <span class="kw-2">&amp;</span>h),
-                b_divided_by_gcd,
-            )
+            <span class="kw">let </span>capital_bx = <span class="kw-2">&amp;</span>b * (<span class="kw-2">&amp;</span>m / <span class="kw-2">&amp;</span>h) + <span class="kw-2">&amp;</span>l * <span class="kw-2">&amp;</span>capital_by;
+            capital_by <span class="kw-2">*</span>= <span class="kw-2">&amp;</span>h;
+            capital_cy <span class="kw-2">*</span>= <span class="kw-2">&amp;</span>h;
+            (g, capital_bx, b_divided_by_gcd)
         };
 
         <span class="comment">// 5. (partial xgcd)
-        </span><span class="kw">let </span><span class="kw-2">mut </span>bx = capital_bx.mod_floor(<span class="kw-2">&amp;</span>capital_by);
-        <span class="kw">let </span><span class="kw-2">mut </span>by = capital_by.clone();
-
-        <span class="kw">let </span><span class="kw-2">mut </span>x = BigInt::one();
-        <span class="kw">let </span><span class="kw-2">mut </span>y = BigInt::zero();
-        <span class="kw">let </span><span class="kw-2">mut </span>z = <span class="number">0u32</span>;
-
-        <span class="kw">while </span>by.abs() &gt; <span class="kw-2">*</span><span class="self">self</span>.partial_gcd_limit() &amp;&amp; !bx.is_zero() {
-            <span class="kw">let </span>(q, t) = by.div_rem(<span class="kw-2">&amp;</span>bx);
-            by = bx;
-            bx = t;
-            swap(<span class="kw-2">&amp;mut </span>x, <span class="kw-2">&amp;mut </span>y);
-            x -= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>y;
-            z += <span class="number">1</span>;
-        }
-
-        <span class="kw">if </span>z.is_odd() {
-            by = -by;
-            y = -y;
-        }
+        </span><span class="kw">let </span>(bx, x, by, y, iterated) = partial_xgcd(
+            capital_bx.mod_floor(<span class="kw-2">&amp;</span>capital_by),
+            capital_by.clone(),
+            <span class="self">self</span>.partial_gcd_limit(),
+        );
 
         <span class="kw">let </span>u3: BigInt;
         <span class="kw">let </span>w3: BigInt;
         <span class="kw">let </span>v3: BigInt;
 
-        <span class="kw">if </span>z == <span class="number">0 </span>{
+        <span class="kw">if </span>!iterated {
             <span class="comment">// 6.
             </span><span class="kw">let </span>q = <span class="kw-2">&amp;</span>capital_cy * <span class="kw-2">&amp;</span>bx;
             <span class="kw">let </span>cx = (<span class="kw-2">&amp;</span>q - <span class="kw-2">&amp;</span>m) / <span class="kw-2">&amp;</span>capital_by;
             <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w2) / <span class="kw-2">&amp;</span>capital_by;
             u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>capital_cy;
-            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>cx - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>dx;
             v3 = v2 - (<span class="kw-2">&amp;</span>q &lt;&lt; <span class="number">1</span>);
+            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>cx - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>dx;
         } <span class="kw">else </span>{
             <span class="comment">// 7.
             </span><span class="kw">let </span>cx = (<span class="kw-2">&amp;</span>capital_cy * <span class="kw-2">&amp;</span>bx - <span class="kw-2">&amp;</span>m * <span class="kw-2">&amp;</span>x) / <span class="kw-2">&amp;</span>capital_by;
@@ -569,18 +543,17 @@
             };
 
             u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>cy - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>y * <span class="kw-2">&amp;</span>dy;
-            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>cx - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>x * <span class="kw-2">&amp;</span>dx;
             v3 = <span class="kw-2">&amp;</span>g * (<span class="kw-2">&amp;</span>q3 + <span class="kw-2">&amp;</span>q4) - <span class="kw-2">&amp;</span>q1 - <span class="kw-2">&amp;</span>q2;
+            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>cx - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>x * <span class="kw-2">&amp;</span>dx;
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>form = QuadraticForm {
+        QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
-        };
-        form.reduce();
-        form
+        }
+        .into_reduced()
     }
 }
 
@@ -603,61 +576,72 @@
             b_divided_by_gcd: capital_dy,
         } = extended_euclidean_algorithm(u, v);
 
-        <span class="kw">let </span><span class="kw-2">mut </span>bx = (<span class="kw-2">&amp;</span>y * w).mod_floor(<span class="kw-2">&amp;</span>capital_by);
-        <span class="kw">let </span><span class="kw-2">mut </span>by = capital_by.clone();
+        <span class="kw">let </span>(bx, x, by, y, iterated) = partial_xgcd(
+            (<span class="kw-2">&amp;</span>y * w).mod_floor(<span class="kw-2">&amp;</span>capital_by),
+            capital_by.clone(),
+            <span class="self">self</span>.partial_gcd_limit(),
+        );
 
-        <span class="kw">let </span><span class="kw-2">mut </span>x = BigInt::one();
-        <span class="kw">let </span><span class="kw-2">mut </span>y = BigInt::zero();
-        <span class="kw">let </span><span class="kw-2">mut </span>z = <span class="number">0u32</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>by;
+        <span class="kw">let </span><span class="kw-2">mut </span>w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>bx;
+        <span class="kw">let </span><span class="kw-2">mut </span>v3 = <span class="kw-2">&amp;</span>u3 + <span class="kw-2">&amp;</span>w3 - <span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>bx + <span class="kw-2">&amp;</span>by).pow(<span class="number">2</span>);
 
-        <span class="kw">while </span>by.abs() &gt; <span class="kw-2">*</span><span class="self">self</span>.partial_gcd_limit() &amp;&amp; !bx.is_zero() {
-            <span class="kw">let </span>(q, t) = by.div_rem(<span class="kw-2">&amp;</span>bx);
-            by = bx;
-            bx = t;
-            swap(<span class="kw-2">&amp;mut </span>x, <span class="kw-2">&amp;mut </span>y);
-            x -= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>y;
-            z += <span class="number">1</span>;
-        }
-
-        <span class="kw">if </span>z.is_odd() {
-            by = -by;
-            y = -y;
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>u3: BigInt;
-        <span class="kw">let </span><span class="kw-2">mut </span>w3: BigInt;
-        <span class="kw">let </span><span class="kw-2">mut </span>v3: BigInt;
-
-        <span class="kw">if </span>z == <span class="number">0 </span>{
+        <span class="kw">if </span>!iterated {
             <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w) / <span class="kw-2">&amp;</span>capital_by;
-            u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>by;
-            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>bx;
-            <span class="kw">let </span>s = <span class="kw-2">&amp;</span>bx + <span class="kw-2">&amp;</span>by;
-            v3 = v - <span class="kw-2">&amp;</span>s * <span class="kw-2">&amp;</span>s + <span class="kw-2">&amp;</span>u3 + <span class="kw-2">&amp;</span>w3;
-            w3 = <span class="kw-2">&amp;</span>w3 - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>dx;
+            v3 += v;
+            w3 -= <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>dx;
         } <span class="kw">else </span>{
             <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w * <span class="kw-2">&amp;</span>x) / <span class="kw-2">&amp;</span>capital_by;
             <span class="kw">let </span>q1 = <span class="kw-2">&amp;</span>dx * <span class="kw-2">&amp;</span>y;
             <span class="kw">let </span><span class="kw-2">mut </span>dy = <span class="kw-2">&amp;</span>q1 + <span class="kw-2">&amp;</span>capital_dy;
-            v3 = <span class="kw-2">&amp;</span>g * (<span class="kw-2">&amp;</span>dy + <span class="kw-2">&amp;</span>q1);
-            dy = <span class="kw-2">&amp;</span>dy / <span class="kw-2">&amp;</span>x;
-            u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>by;
-            w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>bx;
-            v3 = <span class="kw-2">&amp;</span>v3 - (<span class="kw-2">&amp;</span>bx + <span class="kw-2">&amp;</span>by).pow(<span class="number">2</span>) + <span class="kw-2">&amp;</span>u3 + <span class="kw-2">&amp;</span>w3;
+            v3 += <span class="kw-2">&amp;</span>g * (<span class="kw-2">&amp;</span>dy + <span class="kw-2">&amp;</span>q1);
+            dy /= <span class="kw-2">&amp;</span>x;
 
-            u3 = <span class="kw-2">&amp;</span>u3 - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>y * <span class="kw-2">&amp;</span>dy;
-            w3 = <span class="kw-2">&amp;</span>w3 - <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>x * <span class="kw-2">&amp;</span>dx;
+            u3 -= <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>y * <span class="kw-2">&amp;</span>dy;
+            w3 -= <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>x * <span class="kw-2">&amp;</span>dx;
         }
 
-        <span class="kw">let </span><span class="kw-2">mut </span>form = QuadraticForm {
+        QuadraticForm {
             a: u3,
             b: v3,
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
-        };
-        form.reduce();
-        form
+        }
+        .into_reduced()
     }
+}
+
+<span class="doccomment">/// Compute the xgcd of bx and by with a partial limit. When by is below the limit, the computation
+/// stops early and returns the result. The result is a tuple (bx, x, by, y, iterated) where bx and
+/// by are the now reduced coefficients, x and y are the Bezout coefficients for bx and by respectively,
+/// and iterated is true if the there were any iterations.
+</span><span class="kw">fn </span>partial_xgcd(
+    <span class="kw-2">mut </span>bx: BigInt,
+    <span class="kw-2">mut </span>by: BigInt,
+    limit: <span class="kw-2">&amp;</span>BigInt,
+) -&gt; (BigInt, BigInt, BigInt, BigInt, bool) {
+    <span class="kw">let </span><span class="kw-2">mut </span>x = BigInt::one();
+    <span class="kw">let </span><span class="kw-2">mut </span>y = BigInt::zero();
+    <span class="kw">let </span><span class="kw-2">mut </span>iterated = <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>odd = <span class="bool-val">false</span>;
+
+    <span class="kw">while </span>by.abs() &gt; <span class="kw-2">*</span>limit &amp;&amp; !bx.is_zero() {
+        <span class="kw">let </span>(q, r) = by.div_rem(<span class="kw-2">&amp;</span>bx);
+        by = bx;
+        bx = r;
+        swap(<span class="kw-2">&amp;mut </span>x, <span class="kw-2">&amp;mut </span>y);
+        x -= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>y;
+
+        odd = !odd;
+        iterated = <span class="bool-val">true</span>;
+    }
+
+    <span class="kw">if </span>odd {
+        by = -by;
+        y = -y;
+    }
+
+    (bx, x, by, y, iterated)
 }
 
 <span class="kw">impl </span>ParameterizedGroupElement <span class="kw">for </span>QuadraticForm {
@@ -671,7 +655,7 @@
             .expect(<span class="string">"Doesn't fail"</span>)
     }
 
-    <span class="kw">fn </span>has_parameter(<span class="kw-2">&amp;</span><span class="self">self</span>, discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; bool {
+    <span class="kw">fn </span>is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>, discriminant: <span class="kw-2">&amp;</span>Discriminant) -&gt; bool {
         discriminant.as_bigint().eq(<span class="kw-2">&amp;</span><span class="self">self</span>.discriminant())
     }
 }

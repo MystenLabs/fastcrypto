@@ -103,9 +103,6 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -114,7 +111,7 @@
 //! divided by the GCD since these are often used, for example in the NUCOMP and NUDPL algorithms,
 //! and come out for free while computing the Bezout coefficients.
 
-</span><span class="kw">use </span>num_bigint::BigInt;
+</span><span class="kw">use </span>num_bigint::{BigInt, Sign};
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
 <span class="kw">use </span>std::mem;
@@ -166,16 +163,8 @@
     }
 
     <span class="comment">// The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    </span><span class="kw">let </span>a_divided_by_gcd = <span class="kw">if </span>a.sign() != s.<span class="number">0</span>.sign() {
-        s.<span class="number">0</span>.neg()
-    } <span class="kw">else </span>{
-        s.<span class="number">0
-    </span>};
-    <span class="kw">let </span>b_divided_by_gcd = <span class="kw">if </span>b.sign() != t.<span class="number">0</span>.sign() {
-        t.<span class="number">0</span>.neg()
-    } <span class="kw">else </span>{
-        t.<span class="number">0
-    </span>};
+    </span><span class="kw">let </span>a_divided_by_gcd = set_sign(s.<span class="number">0</span>, a.sign());
+    <span class="kw">let </span>b_divided_by_gcd = set_sign(t.<span class="number">0</span>, b.sign());
 
     <span class="kw">if </span>!r.<span class="number">1</span>.is_negative() {
         EuclideanAlgorithmOutput {
@@ -194,6 +183,11 @@
             b_divided_by_gcd,
         }
     }
+}
+
+<span class="doccomment">/// Return a number with the same magnitude as `value` but with the given sign.
+</span><span class="kw">fn </span>set_sign(value: BigInt, sign: Sign) -&gt; BigInt {
+    BigInt::from_biguint(sign, value.into_parts().<span class="number">1</span>)
 }
 
 <span class="attr">#[test]

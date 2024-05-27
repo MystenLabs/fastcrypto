@@ -447,14 +447,14 @@
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>qf = QuadraticForm::hash_to_group(<span class="kw-2">&amp;</span>seed, <span class="kw-2">&amp;</span>discriminant, <span class="number">1</span>).unwrap();
             <span class="macro">assert!</span>(qf.is_reduced_assuming_normal());
-            <span class="macro">assert!</span>(qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
+            <span class="macro">assert!</span>(qf.is_in_group(<span class="kw-2">&amp;</span>discriminant));
             seed[<span class="number">0</span>] += <span class="number">1</span>;
         }
 
         <span class="kw">for _ in </span><span class="number">0</span>..<span class="number">10 </span>{
             <span class="kw">let </span>qf = QuadraticForm::hash_to_group(<span class="kw-2">&amp;</span>seed, <span class="kw-2">&amp;</span>discriminant, <span class="number">4</span>).unwrap();
             <span class="macro">assert!</span>(qf.is_reduced_assuming_normal());
-            <span class="macro">assert!</span>(qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
+            <span class="macro">assert!</span>(qf.is_in_group(<span class="kw-2">&amp;</span>discriminant));
             seed[<span class="number">0</span>] += <span class="number">1</span>;
         }
     }
@@ -463,7 +463,7 @@
     </span><span class="kw">fn </span>qf_from_seed_sanity_tests() {
         <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="string">b"discriminant seed"</span>, <span class="number">800</span>).unwrap();
         <span class="kw">let </span>base_qf = QuadraticForm::hash_to_group(<span class="string">b"qf seed"</span>, <span class="kw-2">&amp;</span>discriminant, <span class="number">6</span>).unwrap();
-        <span class="macro">assert!</span>(base_qf.has_parameter(<span class="kw-2">&amp;</span>discriminant));
+        <span class="macro">assert!</span>(base_qf.is_in_group(<span class="kw-2">&amp;</span>discriminant));
 
         <span class="comment">// Same seed, same discriminant, same k
         </span><span class="kw">let </span>other_qf = QuadraticForm::hash_to_group(<span class="string">b"qf seed"</span>, <span class="kw-2">&amp;</span>discriminant, <span class="number">6</span>).unwrap();
