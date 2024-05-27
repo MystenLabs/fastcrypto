@@ -58,7 +58,7 @@ impl<
     type ProofType = G;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, G)> {
-        if !input.has_parameter(&self.group_parameter) || self.iterations == 0 {
+        if !input.is_in_group(&self.group_parameter) || self.iterations == 0 {
             return Err(InvalidInput);
         }
 
@@ -84,9 +84,9 @@ impl<
     }
 
     fn verify(&self, input: &G, output: &G, proof: &G) -> FastCryptoResult<()> {
-        if !input.has_parameter(&self.group_parameter)
-            || !output.has_parameter(&self.group_parameter)
-            || !proof.has_parameter(&self.group_parameter)
+        if !input.is_in_group(&self.group_parameter)
+            || !output.is_in_group(&self.group_parameter)
+            || !proof.is_in_group(&self.group_parameter)
         {
             return Err(InvalidInput);
         }

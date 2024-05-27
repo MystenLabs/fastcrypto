@@ -28,5 +28,5 @@ pub trait ParameterizedGroupElement:
     fn zero(parameters: &Self::ParameterType) -> Self;
 
     /// Returns true if this is an element of the group defined by `parameter`.
-    fn has_parameter(&self, parameter: &Self::ParameterType) -> bool;
+    fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
 }

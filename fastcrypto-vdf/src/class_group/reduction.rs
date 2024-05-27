@@ -53,6 +53,11 @@ impl QuadraticForm {
             self.b = cs.shl(1) - &self.b;
         }
     }
+
+    pub(crate) fn into_reduced(mut self) -> QuadraticForm {
+        self.reduce();
+        self
+    }
 }
 
 #[cfg(test)]
