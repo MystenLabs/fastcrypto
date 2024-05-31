@@ -103,7 +103,7 @@ pub enum OIDCProvider {
     Microsoft,
     /// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
     AwsTenant((String, String)),
-    /// https://openid.karrier.one/.well-known/openid-configuration
+    /// https://accounts.karrier.one/.well-known/openid-configuration
     KarrierOne,
     /// https://accounts.credenza3.com/openid-configuration
     Credenza3,
@@ -226,7 +226,7 @@ impl OIDCProvider {
             "https://appleid.apple.com" => Ok(Self::Apple),
             "https://slack.com" => Ok(Self::Slack),
             "https://oauth.sui.io" => Ok(Self::TestIssuer),
-            "https://openid.karrier.one/" => Ok(Self::KarrierOne),
+            "https://accounts.karrier.one/" => Ok(Self::KarrierOne),
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
