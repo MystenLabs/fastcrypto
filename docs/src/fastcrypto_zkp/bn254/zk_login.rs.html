@@ -825,7 +825,7 @@
     </span>Microsoft,
     <span class="doccomment">/// Example: https://cognito-idp.us-east-1.amazonaws.com/us-east-1_LPSLCkC3A/.well-known/jwks.json
     </span>AwsTenant((String, String)),
-    <span class="doccomment">/// https://openid.karrier.one/.well-known/openid-configuration
+    <span class="doccomment">/// https://accounts.karrier.one/.well-known/openid-configuration
     </span>KarrierOne,
     <span class="doccomment">/// https://accounts.credenza3.com/openid-configuration
     </span>Credenza3,
@@ -948,7 +948,7 @@
             <span class="string">"https://appleid.apple.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Apple),
             <span class="string">"https://slack.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Slack),
             <span class="string">"https://oauth.sui.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
-            <span class="string">"https://openid.karrier.one/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
+            <span class="string">"https://accounts.karrier.one/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
             <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
