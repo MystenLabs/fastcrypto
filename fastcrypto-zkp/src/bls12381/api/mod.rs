@@ -1,19 +1,18 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groth16::api;
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bn254::{
+use fastcrypto::groups::bls12381::{
     G1Element, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH,
     SCALAR_LENGTH,
 };
 
-#[cfg(test)]
-#[path = "unit_tests/api_tests.rs"]
-mod api_tests;
+use crate::groth16::api;
 
-/// Size of scalars in the BN254 construction.
-pub const SCALAR_SIZE: usize = 32;
+mod conversions;
+#[cfg(test)]
+mod tests;
+
 /// Create a prepared verifying key for Groth16 over the BLS12-381 curve construction. See
 /// [`api::prepare_pvk_bytes`].
 pub fn prepare_pvk_bytes(vk_bytes: &[u8]) -> Result<Vec<Vec<u8>>, FastCryptoError> {

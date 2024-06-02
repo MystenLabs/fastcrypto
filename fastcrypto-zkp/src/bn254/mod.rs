@@ -4,17 +4,15 @@
 #![deny(unused_must_use, missing_debug_implementations)]
 //! Groth16 verifier over the BN254 elliptic curve construction.
 
-use crate::bn254::api::SCALAR_SIZE;
-use ark_bn254::{Bn254, Fr};
-use ark_serialize::CanonicalDeserialize;
-use derive_more::From;
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use crate::groth16;
+use crate::groth16::api::{FromLittleEndianByteArray, GTSerialize};
+use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::bn254::G1Element;
+use fastcrypto::groups::bn254::{GTElement, Scalar, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH};
+use fastcrypto::serde_helpers::ToFromByteArray;
 
 /// API that takes in serialized inputs
 pub mod api;
-
-/// Groth16 SNARK verifier
-pub mod verifier;
 
 /// Poseidon hash function over BN254
 pub mod poseidon;
@@ -28,50 +26,27 @@ pub mod zk_login_api;
 /// Zk login utils
 pub mod utils;
 
-/// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
-#[derive(Debug, From)]
-pub struct FieldElement(pub(crate) ark_bn254::Fr);
+/// A prepared Groth16 verifying key in the BN254 construction.
+pub type PreparedVerifyingKey = groth16::PreparedVerifyingKey<G1Element>;
 
-/// A Groth16 proof in the BN254 construction. Thin wrapper around `ark_groth16::Proof::<ark_bn254::Bn254>`.
-#[derive(Debug, From)]
-pub struct Proof(pub(crate) ark_groth16::Proof<ark_bn254::Bn254>);
+/// A Groth16 verifying key in the BN254 construction.
+pub type VerifyingKey = groth16::VerifyingKey<G1Element>;
 
-/// A Groth16 verifying key in the BN254 construction. Thin wrapper around `ark_groth16::VerifyingKey::<ark_bn254::Bn254>`.
-#[derive(Debug, From)]
-pub struct VerifyingKey(pub(crate) ark_groth16::VerifyingKey<ark_bn254::Bn254>);
+/// A Groth16 proof in the BN254 construction.
+pub type Proof = groth16::Proof<G1Element>;
 
-impl Proof {
-    /// Deserialize a serialized Groth16 proof using arkworks' canonical serialisation format: https://docs.rs/ark-serialize/latest/ark_serialize/.
-    pub fn deserialize(proof_points_as_bytes: &[u8]) -> FastCryptoResult<Self> {
-        ark_groth16::Proof::<Bn254>::deserialize_compressed(proof_points_as_bytes)
-            .map_err(|_| FastCryptoError::InvalidInput)
-            .map(Proof)
+impl FromLittleEndianByteArray<SCALAR_LENGTH> for Scalar {
+    fn from_little_endian_byte_array(bytes: &[u8; SCALAR_LENGTH]) -> FastCryptoResult<Self> {
+        Scalar::from_byte_array(bytes)
     }
 }
 
-impl FieldElement {
-    /// Deserialize 32 bytes into a BN254 field element using little-endian format.
-    pub(crate) fn deserialize(bytes: &[u8]) -> FastCryptoResult<FieldElement> {
-        if bytes.len() != SCALAR_SIZE {
-            return Err(FastCryptoError::InputLengthWrong(bytes.len()));
-        }
-        Fr::deserialize_compressed(bytes)
-            .map_err(|_| FastCryptoError::InvalidInput)
-            .map(FieldElement)
+impl GTSerialize<GT_ELEMENT_BYTE_LENGTH> for GTElement {
+    fn to_arkworks_bytes(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
+        self.to_byte_array()
     }
 
-    /// Deserialize a vector of bytes into a vector of BN254 field elements, assuming that each element
-    /// is serialized as a chunk of 32 bytes. See also [`FieldElement::deserialize`].
-    pub(crate) fn deserialize_vector(
-        field_element_bytes: &[u8],
-    ) -> FastCryptoResult<Vec<FieldElement>> {
-        if field_element_bytes.len() % SCALAR_SIZE != 0 {
-            return Err(FastCryptoError::InputLengthWrong(field_element_bytes.len()));
-        }
-        let mut public_inputs = Vec::new();
-        for chunk in field_element_bytes.chunks(SCALAR_SIZE) {
-            public_inputs.push(FieldElement::deserialize(chunk)?);
-        }
-        Ok(public_inputs)
+    fn from_arkworks_bytes(bytes: &[u8; GT_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+        GTElement::from_byte_array(bytes)
     }
 }

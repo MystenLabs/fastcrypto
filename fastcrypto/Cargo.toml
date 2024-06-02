@@ -45,6 +45,7 @@ elliptic-curve = { version = "0.13.2", features = ["hash2curve"] }
 rsa = { version = "0.8.2", features = ["sha2"] }
 static_assertions = "1.1.0"
 ark-secp256r1 = "0.4.0"
+ark-bn254 = "0.4.0"
 ark-ec = "0.4.1"
 ark-ff = "0.4.1"
 ark-serialize = "0.4.1"

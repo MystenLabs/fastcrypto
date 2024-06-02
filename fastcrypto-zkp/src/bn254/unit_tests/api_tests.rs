@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::api::{prepare_pvk_bytes, verify_groth16_in_bytes};
-use crate::bn254::verifier::PreparedVerifyingKey;
-use crate::bn254::VerifyingKey;
+use crate::bn254::{PreparedVerifyingKey, VerifyingKey};
 use crate::dummy_circuits::{DummyCircuit, Fibonacci};
 use ark_bn254::{Bn254, Fq12, Fr, G1Projective, G2Projective};
 use ark_ff::{One, Zero};
@@ -16,6 +15,19 @@ use std::ops::Mul;
 
 #[path = "./utils.rs"]
 mod utils;
+
+fn vk_from_arkworks(vk: ark_groth16::VerifyingKey<Bn254>) -> VerifyingKey {
+    VerifyingKey::new(
+        G1Projective::from(vk.alpha_g1).into(),
+        G2Projective::from(vk.beta_g2).into(),
+        G2Projective::from(vk.gamma_g2).into(),
+        G2Projective::from(vk.delta_g2).into(),
+        vk.gamma_abc_g1
+            .iter()
+            .map(|x| G1Projective::from(*x).into())
+            .collect(),
+    )
+}
 
 #[test]
 fn test_verify_groth16_in_bytes_api() {
@@ -32,9 +44,9 @@ fn test_verify_groth16_in_bytes_api() {
     let proof = Groth16::<Bn254>::prove(&pk, c, rng).unwrap();
     let v = c.a.unwrap().mul(c.b.unwrap());
 
-    let pvk = PreparedVerifyingKey::from(&vk);
+    let pvk = PreparedVerifyingKey::from(&vk_from_arkworks(vk));
 
-    let bytes = pvk.serialize().unwrap();
+    let bytes = pvk.serialize_into_parts();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -113,12 +125,7 @@ fn test_verify_groth16_in_bytes_multiple_inputs() {
         Groth16::<Bn254>::create_random_proof_with_reduction(circuit, &params, &mut rng).unwrap()
     };
 
-    let pvk = PreparedVerifyingKey::from(&params.vk);
-
-    let inputs: Vec<_> = [a, b].to_vec();
-    assert!(Groth16::<Bn254>::verify_with_processed_vk(&(&pvk).into(), &inputs, &proof).unwrap());
-
-    let pvk = pvk.serialize().unwrap();
+    let pvk = PreparedVerifyingKey::from(&vk_from_arkworks(params.vk)).serialize_into_parts();
 
     // This circuit has two public inputs:
     let mut inputs_bytes = Vec::new();
@@ -193,7 +200,7 @@ fn test_verify_groth16_elusiv_proof_in_bytes_api() {
         ],
     );
 
-    let vk = VerifyingKey(ark_groth16::VerifyingKey {
+    let vk = vk_from_arkworks(ark_groth16::VerifyingKey {
         alpha_g1: utils::G1Affine_from_str_projective((
             "8057073471822347335074195152835286348058235024870127707965681971765888348219",
             "14493022634743109860560137600871299171677470588934003383462482807829968516757",
@@ -316,7 +323,7 @@ fn test_verify_groth16_elusiv_proof_in_bytes_api() {
 
     let pvk = PreparedVerifyingKey::from(&vk);
 
-    let bytes = pvk.serialize().unwrap();
+    let bytes = pvk.serialize_into_parts();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
@@ -528,9 +535,9 @@ fn fail_verify_groth16_invalid_elusiv_proof_in_bytes_api() {
         .collect(),
     };
 
-    let pvk = PreparedVerifyingKey::from(&vk);
+    let pvk = PreparedVerifyingKey::from(&vk_from_arkworks(vk));
 
-    let bytes = pvk.serialize().unwrap();
+    let bytes = pvk.serialize_into_parts();
     let vk_gamma_abc_g1_bytes = &bytes[0];
     let alpha_g1_beta_g2_bytes = &bytes[1];
     let gamma_g2_neg_pc_bytes = &bytes[2];
