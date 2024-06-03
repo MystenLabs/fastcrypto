@@ -21,7 +21,6 @@ name = "poseidon"
 harness = false
 
 [dependencies]
-ark-bls12-381 = "0.4.0"
 ark-bn254 = "0.4.0"
 ark-ec = { version = "0.4.1" }
 ark-ff = { version = "0.4.1", features = ["asm"] }
@@ -29,7 +28,7 @@ ark-groth16 = { version = "0.4.0", default-features = false }
 ark-relations = "0.4.0"
 ark-serialize = "0.4.1"
 ark-snark = "0.4.0"
-blst = "0.3.11"
+bcs.workspace = true
 byte-slice-cast = "1.2.2"
 fastcrypto = { path = "../fastcrypto", version = "0.1.5" }
 derive_more = "0.99.16"
@@ -49,6 +48,7 @@ regex = "1.7.1"
 
 [dev-dependencies]
 ark-bls12-377 = "0.4.0"
+ark-bls12-381 = "0.4.0"
 ark-crypto-primitives = { version = "0.4.0", features = ["r1cs", "prf"] }
 ark-r1cs-std = "0.4.0"
 ark-std = "0.4.0"

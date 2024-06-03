@@ -1364,6 +1364,7 @@ version = "0.1.8"
 dependencies = [
  "aes",
  "aes-gcm",
+ "ark-bn254",
  "ark-ec",
  "ark-ff",
  "ark-secp256r1",
@@ -1506,8 +1507,8 @@ dependencies = [
  "ark-serialize",
  "ark-snark",
  "ark-std",
+ "bcs",
  "blake2",
- "blst",
  "byte-slice-cast",
  "criterion 0.5.1",
  "derive_more",

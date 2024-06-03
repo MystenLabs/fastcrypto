@@ -10,6 +10,7 @@ use std::fmt::Debug;
 use std::ops::{AddAssign, SubAssign};
 
 pub mod bls12381;
+pub mod bn254;
 pub mod ristretto255;
 pub mod secp256r1;
 
@@ -64,6 +65,31 @@ pub trait Pairing: GroupElement {
     type Output;
 
     fn pairing(&self, other: &Self::Other) -> <Self as Pairing>::Output;
+
+    /// Multi-pairing operation that computes the sum of pairings of two slices of elements.
+    fn multi_pairing(
+        points_g1: &[Self],
+        points_g2: &[Self::Other],
+    ) -> FastCryptoResult<<Self as Pairing>::Output>
+    where
+        <Self as Pairing>::Output: GroupElement,
+    {
+        if points_g1.len() != points_g2.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if points_g1.is_empty() {
+            return Ok(<Self as Pairing>::Output::zero());
+        }
+        Ok(points_g1
+            .iter()
+            .skip(1)
+            .zip(points_g2.iter().skip(1))
+            .map(|(g1, g2)| g1.pairing(g2))
+            .fold(
+                points_g1[0].pairing(&points_g2[0]),
+                <Self as Pairing>::Output::add,
+            ))
+    }
 }
 
 /// Trait for groups that have a reduction from a random buffer to a group element that is secure
