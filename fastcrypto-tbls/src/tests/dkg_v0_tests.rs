@@ -1,11 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::{
+use crate::dkg_v0::{
     create_fake_complaint, Confirmation, Message, Output, Party, ProcessedMessage,
     DKG_MESSAGES_MAX_SIZE,
 };
-use crate::ecies::{MultiRecipientEncryption, PrivateKey, PublicKey};
+use crate::ecies_v0::{MultiRecipientEncryption, PrivateKey, PublicKey};
 use crate::mocked_dkg::generate_mocked_output;
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::Poly;

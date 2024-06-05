@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::{Eval, PublicPoly};
-use crate::{ecies, tbls};
+use crate::{ecies_v0, tbls};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
@@ -87,7 +87,7 @@ impl<A> UnindexedValues<A> {
 
 /// ECIES related types with Ristretto points.
 ///
-pub type PrivateEciesKey = ecies::PrivateKey<RistrettoPoint>;
-pub type PublicEciesKey = ecies::PublicKey<RistrettoPoint>;
-pub type EciesEncryption = ecies::Encryption<RistrettoPoint>;
-pub type RecoveryPackage = ecies::RecoveryPackage<RistrettoPoint>;
+pub type PrivateEciesKey = ecies_v0::PrivateKey<RistrettoPoint>;
+pub type PublicEciesKey = ecies_v0::PublicKey<RistrettoPoint>;
+pub type EciesEncryption = ecies_v0::Encryption<RistrettoPoint>;
+pub type RecoveryPackage = ecies_v0::RecoveryPackage<RistrettoPoint>;

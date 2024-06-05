@@ -6,8 +6,8 @@
 //
 
 use crate::dl_verification::verify_poly_evals;
-use crate::ecies;
-use crate::ecies::{MultiRecipientEncryption, RecoveryPackage};
+use crate::ecies_v0;
+use crate::ecies_v0::{MultiRecipientEncryption, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
@@ -33,7 +33,7 @@ pub struct Party<G: GroupElement, EG: GroupElement> {
     nodes: Nodes<EG>,
     t: u16,
     random_oracle: RandomOracle,
-    enc_sk: ecies::PrivateKey<EG>,
+    enc_sk: ecies_v0::PrivateKey<EG>,
     vss_sk: PrivatePoly<G>,
 }
 
@@ -160,14 +160,14 @@ where
 
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new<R: AllowedRng>(
-        enc_sk: ecies::PrivateKey<EG>,
+        enc_sk: ecies_v0::PrivateKey<EG>,
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
         // Confirm that my ecies pk is in the nodes.
-        let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
+        let enc_pk = ecies_v0::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
@@ -712,8 +712,8 @@ where
     }
 
     fn decrypt_and_get_share(
-        sk: &ecies::PrivateKey<EG>,
-        encrypted_shares: &ecies::Encryption<EG>,
+        sk: &ecies_v0::PrivateKey<EG>,
+        encrypted_shares: &ecies_v0::Encryption<EG>,
     ) -> FastCryptoResult<Vec<G::ScalarType>> {
         let buffer = sk.decrypt(encrypted_shares);
         bcs::from_bytes(buffer.as_slice()).map_err(|_| FastCryptoError::InvalidInput)
@@ -722,10 +722,10 @@ where
     // Returns an error if the *complaint* is invalid (counterintuitive).
     fn check_complaint_proof<R: AllowedRng>(
         recovery_pkg: &RecoveryPackage<EG>,
-        ecies_pk: &ecies::PublicKey<EG>,
+        ecies_pk: &ecies_v0::PublicKey<EG>,
         share_ids: &[ShareIndex],
         vss_pk: &PublicPoly<G>,
-        encrypted_share: &ecies::Encryption<EG>,
+        encrypted_share: &ecies_v0::Encryption<EG>,
         random_oracle: &RandomOracle,
         rng: &mut R,
     ) -> FastCryptoResult<()> {
@@ -772,8 +772,8 @@ where
     EG: GroupElement + Serialize + DeserializeOwned,
     <EG as GroupElement>::ScalarType: FiatShamirChallenge,
 {
-    let sk = ecies::PrivateKey::<EG>::new(&mut rand::thread_rng());
-    let pk = ecies::PublicKey::<EG>::from_private_key(&sk);
+    let sk = ecies_v0::PrivateKey::<EG>::new(&mut rand::thread_rng());
+    let pk = ecies_v0::PublicKey::<EG>::from_private_key(&sk);
     let encryption = pk.encrypt(b"test", &mut rand::thread_rng());
     let ro = RandomOracle::new("test");
     let pkg = sk.create_recovery_package(&encryption, &ro, &mut rand::thread_rng());

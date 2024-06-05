@@ -11,9 +11,10 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-pub mod dkg;
+pub mod dkg_v0;
 pub mod dl_verification;
-pub mod ecies;
+pub mod ecies_v0;
+pub mod ecies_v1;
 pub mod mocked_dkg;
 pub mod nizk;
 pub mod nodes;
@@ -34,16 +35,16 @@ pub mod tbls_tests;
 pub mod polynomial_tests;
 
 #[cfg(test)]
-#[path = "tests/ecies_tests.rs"]
-pub mod ecies_tests;
+#[path = "tests/ecies_v0_tests.rs"]
+pub mod ecies_v0_tests;
 
 #[cfg(test)]
 #[path = "tests/random_oracle_tests.rs"]
 pub mod random_oracle_tests;
 
 #[cfg(test)]
-#[path = "tests/dkg_tests.rs"]
-pub mod dkg_tests;
+#[path = "tests/dkg_v0_tests.rs"]
+pub mod dkg_v0_tests;
 
 #[cfg(test)]
 #[path = "tests/nodes_tests.rs"]
