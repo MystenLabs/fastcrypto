@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::ecies::{PrivateKey, PublicKey};
 use crate::ecies_v0::*;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
@@ -17,6 +18,7 @@ const MSG: &[u8; 4] = b"test";
 #[generic_tests::define]
 mod point_tests {
     use super::*;
+    use crate::ecies::{PrivateKey, PublicKey};
 
     #[test]
     fn test_decryption<Group: GroupElement + Serialize + DeserializeOwned>()

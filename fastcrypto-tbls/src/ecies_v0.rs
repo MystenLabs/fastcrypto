@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::ecies::{PrivateKey, PublicKey, RecoveryPackage, AES_KEY_LENGTH};
 use crate::nizk::{DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
@@ -24,13 +25,6 @@ use typenum::consts::{U16, U32};
 ///
 /// The encryption uses AES Counter mode and is not CCA secure as is.
 
-// TODO: Use ZeroizeOnDrop.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType);
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PublicKey<G: GroupElement>(pub(crate) G);
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption<G: GroupElement> {
     ephemeral_key: G,
@@ -42,16 +36,6 @@ pub struct Encryption<G: GroupElement> {
 /// valid).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>, DLNizk<G>);
-
-/// A recovery package that allows decrypting a *specific* ECIES Encryption.
-/// It also includes a NIZK proof of correctness.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct RecoveryPackage<G: GroupElement> {
-    pub(crate) ephemeral_key: G,
-    pub(crate) proof: DdhTupleNizk<G>,
-}
-
-const AES_KEY_LENGTH: usize = 32;
 
 impl<G> PrivateKey<G>
 where

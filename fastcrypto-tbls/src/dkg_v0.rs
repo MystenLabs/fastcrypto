@@ -6,13 +6,12 @@
 //
 
 use crate::dl_verification::verify_poly_evals;
-use crate::ecies_v0;
-use crate::ecies_v0::{MultiRecipientEncryption, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
+use crate::polynomial::{Eval, PrivatePoly, PublicPoly};
 use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use crate::types::ShareIndex;
+use crate::{ecies, ecies_v0};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
@@ -20,27 +19,11 @@ use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
+use crate::dkg::{Complaint, Confirmation, Output, Party};
+use crate::ecies::RecoveryPackage;
+use crate::ecies_v0::MultiRecipientEncryption;
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
-
-/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
-/// for the group of the ECIES public key.
-
-/// Party in the DKG protocol.
-#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Party<G: GroupElement, EG: GroupElement> {
-    pub id: PartyId,
-    pub(crate) nodes: Nodes<EG>,
-    pub t: u16,
-    pub random_oracle: RandomOracle,
-    pub(crate) enc_sk: ecies_v0::PrivateKey<EG>,
-    pub(crate) vss_sk: PrivatePoly<G>,
-}
-
-/// Assumptions:
-/// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
-///   following messages (based on the chain's authentication).
-/// - The high-level protocol is responsible that all parties see the same order of messages.
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -52,29 +35,6 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     /// The encrypted shares created by the sender. Sorted according to the receivers.
     pub encrypted_shares: MultiRecipientEncryption<EG>,
 }
-
-/// A complaint/fraud claim against a dealer that created invalid encrypted share.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Complaint<EG: GroupElement> {
-    pub(crate) accused_sender: PartyId,
-    pub(crate) proof: RecoveryPackage<EG>,
-}
-
-/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
-/// created by receiver of invalid encrypted shares (if any).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Confirmation<EG: GroupElement> {
-    pub sender: PartyId,
-    /// List of complaints against other parties. Empty if there are none.
-    pub complaints: Vec<Complaint<EG>>,
-}
-
-// Upper bound on the size of binary serialized incoming messages assuming <=3333 shares, <=400
-// parties, and using G2Element for encryption. This is a safe upper bound since:
-// - Message is O(96*t + 32*n) bytes.
-// - Confirmation is O((96*3 + 32) * k) bytes.
-// Could be used as a sanity safety check before deserializing an incoming message.
-pub const DKG_MESSAGES_MAX_SIZE: usize = 400_000; // 400 KB
 
 /// Wrapper for collecting everything related to a processed message.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -135,17 +95,6 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
     }
 }
 
-/// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
-///
-/// If shares is None, the object can only be used for verifying (partial and full) signatures.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Output<G: GroupElement, EG: GroupElement> {
-    pub nodes: Nodes<EG>,
-    pub vss_pk: Poly<G>,
-    pub shares: Option<Vec<Share<G::ScalarType>>>, // None if some shares are missing or weight is zero.
-}
-
 /// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
@@ -160,14 +109,14 @@ where
 
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new<R: AllowedRng>(
-        enc_sk: ecies_v0::PrivateKey<EG>,
+        enc_sk: ecies::PrivateKey<EG>,
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
         // Confirm that my ecies pk is in the nodes.
-        let enc_pk = ecies_v0::PublicKey::<EG>::from_private_key(&enc_sk);
+        let enc_pk = ecies::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
@@ -712,7 +661,7 @@ where
     }
 
     fn decrypt_and_get_share(
-        sk: &ecies_v0::PrivateKey<EG>,
+        sk: &ecies::PrivateKey<EG>,
         encrypted_shares: &ecies_v0::Encryption<EG>,
     ) -> FastCryptoResult<Vec<G::ScalarType>> {
         let buffer = sk.decrypt(encrypted_shares);
@@ -722,7 +671,7 @@ where
     // Returns an error if the *complaint* is invalid (counterintuitive).
     fn check_complaint_proof<R: AllowedRng>(
         recovery_pkg: &RecoveryPackage<EG>,
-        ecies_pk: &ecies_v0::PublicKey<EG>,
+        ecies_pk: &ecies::PublicKey<EG>,
         share_ids: &[ShareIndex],
         vss_pk: &PublicPoly<G>,
         encrypted_share: &ecies_v0::Encryption<EG>,
@@ -772,8 +721,8 @@ where
     EG: GroupElement + Serialize + DeserializeOwned,
     <EG as GroupElement>::ScalarType: FiatShamirChallenge,
 {
-    let sk = ecies_v0::PrivateKey::<EG>::new(&mut rand::thread_rng());
-    let pk = ecies_v0::PublicKey::<EG>::from_private_key(&sk);
+    let sk = ecies::PrivateKey::<EG>::new(&mut rand::thread_rng());
+    let pk = ecies::PublicKey::<EG>::from_private_key(&sk);
     let encryption = pk.encrypt(b"test", &mut rand::thread_rng());
     let ro = RandomOracle::new("test");
     let pkg = sk.create_recovery_package(&encryption, &ro, &mut rand::thread_rng());

@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies_v0::{PrivateKey, PublicKey, RecoveryPackage};
+use crate::ecies::{PrivateKey, PublicKey, RecoveryPackage};
 use crate::nizk::DdhTupleNizk;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
@@ -31,7 +31,7 @@ pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
     c_hat: G,
     encs: Vec<Vec<u8>>,
-    proof: DdhTupleNizk<G>,
+    pub proof: DdhTupleNizk<G>,
 }
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>

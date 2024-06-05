@@ -18,8 +18,8 @@ use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-use crate::dkg_v0::{Complaint, Confirmation, Output, Party};
-use crate::{ecies_v0, ecies_v1};
+use crate::dkg::{Complaint, Confirmation, Output, Party};
+use crate::{ecies, ecies_v1};
 
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
@@ -620,8 +620,8 @@ where
 
     // Returns an error if the *complaint* is invalid (counterintuitive).
     fn check_complaint_proof_v1<R: AllowedRng>(
-        recovery_pkg: &ecies_v0::RecoveryPackage<EG>,
-        receiver_pk: &ecies_v0::PublicKey<EG>,
+        recovery_pkg: &ecies::RecoveryPackage<EG>,
+        receiver_pk: &ecies::PublicKey<EG>,
         receiver_id: PartyId,
         share_ids: &[ShareIndex],
         vss_pk: &PublicPoly<G>,

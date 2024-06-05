@@ -11,9 +11,11 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
+pub mod dkg;
 pub mod dkg_v0;
 pub mod dkg_v1;
 pub mod dl_verification;
+pub mod ecies;
 pub mod ecies_v0;
 pub mod ecies_v1;
 pub mod mocked_dkg;
