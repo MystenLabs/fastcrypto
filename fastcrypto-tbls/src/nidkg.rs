@@ -5,8 +5,8 @@
 use crate::dl_verification::{
     verify_deg_t_poly, verify_equal_exponents, verify_pairs, verify_triplets,
 };
-use crate::ecies;
-use crate::ecies::{PublicKey, RecoveryPackage};
+use crate::ecies_v0;
+use crate::ecies_v0::{PublicKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly};
 use crate::random_oracle::RandomOracle;
@@ -29,7 +29,7 @@ where
     nodes: Nodes<G>,
     t: u16,
     random_oracle: RandomOracle,
-    ecies_sk: ecies::PrivateKey<G>,
+    ecies_sk: ecies_v0::PrivateKey<G>,
     vss_sk: PrivatePoly<G>,
     // Precomputed values to be used when verifying messages.
     precomputed_dual_code_coefficients: Vec<G::ScalarType>,
@@ -39,7 +39,7 @@ const NUM_OF_ENCRYPTIONS_PER_SHARE: usize = 2;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Encryptions<G: GroupElement> {
-    values: [ecies::Encryption<G>; NUM_OF_ENCRYPTIONS_PER_SHARE],
+    values: [ecies_v0::Encryption<G>; NUM_OF_ENCRYPTIONS_PER_SHARE],
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -92,13 +92,13 @@ where
     ///
     /// 3. Create a new Party instance with the private key and the set of nodes.
     pub fn new<R: AllowedRng>(
-        ecies_sk: ecies::PrivateKey<G>,
+        ecies_sk: ecies_v0::PrivateKey<G>,
         nodes: Vec<Node<G>>,
         t: u16, // The number of shares that are needed to reconstruct the full signature.
         random_oracle: RandomOracle,
         rng: &mut R,
     ) -> Result<Self, FastCryptoError> {
-        let ecies_pk = ecies::PublicKey::<G>::from_private_key(&ecies_sk);
+        let ecies_pk = ecies_v0::PublicKey::<G>::from_private_key(&ecies_sk);
         let my_id = nodes
             .iter()
             .find(|n| n.pk == ecies_pk)

@@ -3,7 +3,7 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::bls12381;
-use fastcrypto_tbls::ecies;
+use fastcrypto_tbls::ecies_v0;
 use fastcrypto_tbls::nidkg::Party;
 use fastcrypto_tbls::nodes::Node;
 use fastcrypto_tbls::random_oracle::RandomOracle;
@@ -11,12 +11,12 @@ use rand::thread_rng;
 
 type G = bls12381::G1Element;
 
-fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)> {
+fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies_v0::PrivateKey<G>, ecies_v0::PublicKey<G>)> {
     (0..n)
         .into_iter()
         .map(|id| {
-            let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
-            let pk = ecies::PublicKey::<G>::from_private_key(&sk);
+            let sk = ecies_v0::PrivateKey::<G>::new(&mut thread_rng());
+            let pk = ecies_v0::PublicKey::<G>::from_private_key(&sk);
             (id, sk, pk)
         })
         .collect()
@@ -25,7 +25,7 @@ fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>
 pub fn setup_party(
     id: usize,
     threshold: u16,
-    keys: &[(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)],
+    keys: &[(u16, ecies_v0::PrivateKey<G>, ecies_v0::PublicKey<G>)],
 ) -> Party<G> {
     let nodes = keys
         .iter()

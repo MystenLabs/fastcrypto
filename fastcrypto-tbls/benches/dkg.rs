@@ -3,8 +3,8 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::{bls12381, ristretto255};
-use fastcrypto_tbls::dkg::Party;
-use fastcrypto_tbls::ecies;
+use fastcrypto_tbls::dkg_v0::Party;
+use fastcrypto_tbls::ecies_v0;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::random_oracle::RandomOracle;
 use itertools::iproduct;
@@ -13,11 +13,11 @@ use rand::thread_rng;
 type G = bls12381::G2Element;
 type EG = ristretto255::RistrettoPoint;
 
-fn gen_ecies_keys(n: u16) -> Vec<(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)> {
+fn gen_ecies_keys(n: u16) -> Vec<(PartyId, ecies_v0::PrivateKey<EG>, ecies_v0::PublicKey<EG>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies::PrivateKey::<EG>::new(&mut thread_rng());
-            let pk = ecies::PublicKey::<EG>::from_private_key(&sk);
+            let sk = ecies_v0::PrivateKey::<EG>::new(&mut thread_rng());
+            let pk = ecies_v0::PublicKey::<EG>::from_private_key(&sk);
             (id, sk, pk)
         })
         .collect()
@@ -27,7 +27,7 @@ pub fn setup_party(
     id: PartyId,
     threshold: u16,
     weight: u16,
-    keys: &[(PartyId, ecies::PrivateKey<EG>, ecies::PublicKey<EG>)],
+    keys: &[(PartyId, ecies_v0::PrivateKey<EG>, ecies_v0::PublicKey<EG>)],
 ) -> Party<G, EG> {
     let nodes = keys
         .iter()

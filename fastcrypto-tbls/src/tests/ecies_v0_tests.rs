@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies::*;
+use crate::ecies_v0::*;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
