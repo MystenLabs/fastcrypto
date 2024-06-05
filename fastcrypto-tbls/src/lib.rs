@@ -14,6 +14,7 @@
 pub mod dkg_v0;
 pub mod dl_verification;
 pub mod ecies_v0;
+pub mod ecies_v1;
 pub mod mocked_dkg;
 pub mod nizk;
 pub mod nodes;
@@ -36,6 +37,10 @@ pub mod polynomial_tests;
 #[cfg(test)]
 #[path = "tests/ecies_v0_tests.rs"]
 pub mod ecies_v0_tests;
+
+#[cfg(test)]
+#[path = "tests/ecies_v1_tests.rs"]
+pub mod ecies_v1_tests;
 
 #[cfg(test)]
 #[path = "tests/random_oracle_tests.rs"]

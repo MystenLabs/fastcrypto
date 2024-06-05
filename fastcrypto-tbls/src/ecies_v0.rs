@@ -47,8 +47,8 @@ pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>, DLNizk<G>)
 /// It also includes a NIZK proof of correctness.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecoveryPackage<G: GroupElement> {
-    ephemeral_key: G,
-    proof: DdhTupleNizk<G>,
+    pub(crate) ephemeral_key: G,
+    pub(crate) proof: DdhTupleNizk<G>,
 }
 
 const AES_KEY_LENGTH: usize = 32;
