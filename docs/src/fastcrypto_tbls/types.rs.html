@@ -97,7 +97,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, PublicPoly};
-<span class="kw">use crate</span>::{ecies, tbls};
+<span class="kw">use crate</span>::{ecies_v0, tbls};
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::ristretto255::RistrettoPoint;
 <span class="kw">use </span>fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
@@ -182,8 +182,8 @@
 
 <span class="doccomment">/// ECIES related types with Ristretto points.
 ///
-</span><span class="kw">pub type </span>PrivateEciesKey = ecies::PrivateKey&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>PublicEciesKey = ecies::PublicKey&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>EciesEncryption = ecies::Encryption&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>RecoveryPackage = ecies::RecoveryPackage&lt;RistrettoPoint&gt;;
+</span><span class="kw">pub type </span>PrivateEciesKey = ecies_v0::PrivateKey&lt;RistrettoPoint&gt;;
+<span class="kw">pub type </span>PublicEciesKey = ecies_v0::PublicKey&lt;RistrettoPoint&gt;;
+<span class="kw">pub type </span>EciesEncryption = ecies_v0::Encryption&lt;RistrettoPoint&gt;;
+<span class="kw">pub type </span>RecoveryPackage = ecies_v0::RecoveryPackage&lt;RistrettoPoint&gt;;
 </code></pre></div></section></main></body></html>

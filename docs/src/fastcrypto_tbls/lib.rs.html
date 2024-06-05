@@ -71,9 +71,9 @@
 </span><span class="doccomment">//! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-</span><span class="kw">pub mod </span>dkg;
+</span><span class="kw">pub mod </span>dkg_v0;
 <span class="kw">pub mod </span>dl_verification;
-<span class="kw">pub mod </span>ecies;
+<span class="kw">pub mod </span>ecies_v0;
 <span class="kw">pub mod </span>mocked_dkg;
 <span class="kw">pub mod </span>nizk;
 <span class="kw">pub mod </span>nodes;
@@ -94,16 +94,16 @@
 </span><span class="kw">pub mod </span>polynomial_tests;
 
 <span class="attr">#[cfg(test)]
-#[path = <span class="string">"tests/ecies_tests.rs"</span>]
-</span><span class="kw">pub mod </span>ecies_tests;
+#[path = <span class="string">"tests/ecies_v0_tests.rs"</span>]
+</span><span class="kw">pub mod </span>ecies_v0_tests;
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">"tests/random_oracle_tests.rs"</span>]
 </span><span class="kw">pub mod </span>random_oracle_tests;
 
 <span class="attr">#[cfg(test)]
-#[path = <span class="string">"tests/dkg_tests.rs"</span>]
-</span><span class="kw">pub mod </span>dkg_tests;
+#[path = <span class="string">"tests/dkg_v0_tests.rs"</span>]
+</span><span class="kw">pub mod </span>dkg_v0_tests;
 
 <span class="attr">#[cfg(test)]
 #[path = <span class="string">"tests/nodes_tests.rs"</span>]
