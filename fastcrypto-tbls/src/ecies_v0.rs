@@ -5,7 +5,7 @@ use crate::nizk::{DLNizk, DdhTupleNizk};
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, Scalar};
 use fastcrypto::hmac::{hkdf_sha3_256, HkdfIkm};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::de::DeserializeOwned;
