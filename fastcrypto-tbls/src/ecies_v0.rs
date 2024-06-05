@@ -26,10 +26,10 @@ use typenum::consts::{U16, U32};
 
 // TODO: Use ZeroizeOnDrop.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrivateKey<G: GroupElement>(G::ScalarType);
+pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PublicKey<G: GroupElement>(G);
+pub struct PublicKey<G: GroupElement>(pub(crate) G);
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Encryption<G: GroupElement> {

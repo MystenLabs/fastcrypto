@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::ecies_v0::{PrivateKey, PublicKey};
 use crate::ecies_v1::*;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
@@ -14,6 +15,7 @@ use serde::Serialize;
 #[generic_tests::define]
 mod point_tests {
     use super::*;
+    use crate::ecies_v0::{PrivateKey, PublicKey};
     use fastcrypto::groups::HashToGroupElement;
 
     #[test]
@@ -51,7 +53,7 @@ mod point_tests {
         assert!(mr_enc.verify(&ro.extend("bla")).is_err());
 
         for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
-            let decrypted = sk.decrypt(&mr_enc, &ro, i);
+            let decrypted = mr_enc.decrypt(&sk, &ro, i);
             assert_eq!(msg.as_bytes(), &decrypted);
         }
 
@@ -78,7 +80,7 @@ mod point_tests {
         );
 
         for (i, (sk, pk, msg)) in keys_and_msg.iter().enumerate() {
-            let pkg = sk.create_recovery_package(&mr_enc, &recovery_ro, &mut thread_rng());
+            let pkg = mr_enc.create_recovery_package(&sk, &recovery_ro, &mut thread_rng());
             let decrypted = mr_enc
                 .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, &pk, i)
                 .unwrap();
