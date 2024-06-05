@@ -12,6 +12,7 @@
 //! protocols.
 
 pub mod dkg_v0;
+pub mod dkg_v1;
 pub mod dl_verification;
 pub mod ecies_v0;
 pub mod ecies_v1;
@@ -49,6 +50,10 @@ pub mod random_oracle_tests;
 #[cfg(test)]
 #[path = "tests/dkg_v0_tests.rs"]
 pub mod dkg_v0_tests;
+
+#[cfg(test)]
+#[path = "tests/dkg_v1_tests.rs"]
+pub mod dkg_v1_tests;
 
 #[cfg(test)]
 #[path = "tests/nodes_tests.rs"]
