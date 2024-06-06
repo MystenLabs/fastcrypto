@@ -126,7 +126,7 @@ where
             &self.c,
             &pk,
             &ephemeral_key,
-            &recovery_random_oracle,
+            recovery_random_oracle,
             rng,
         );
 

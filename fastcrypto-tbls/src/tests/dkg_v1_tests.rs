@@ -416,7 +416,7 @@ fn test_process_message_failures() {
     let mut msg1 = d1.create_message_v1(&mut thread_rng()).unwrap();
     // Switch the encrypted shares of two receivers.
     msg1.encrypted_shares
-        .modify_c_hat_for_testing(msg1.encrypted_shares.ephemeral_key().clone());
+        .modify_c_hat_for_testing(*msg1.encrypted_shares.ephemeral_key());
     assert!(d0.process_message_v1(msg1, &mut thread_rng()).is_err());
 
     // invalid number of encrypted shares for specific receiver

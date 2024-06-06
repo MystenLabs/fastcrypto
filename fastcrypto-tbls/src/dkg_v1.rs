@@ -611,6 +611,7 @@ where
     }
 
     // Returns an error if the *complaint* is invalid (counterintuitive).
+    #[allow(clippy::too_many_arguments)]
     fn check_complaint_proof_v1<R: AllowedRng>(
         recovery_pkg: &ecies::RecoveryPackage<EG>,
         receiver_pk: &ecies::PublicKey<EG>,

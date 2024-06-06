@@ -53,7 +53,7 @@ mod point_tests {
         assert!(mr_enc.verify(&ro.extend("bla")).is_err());
 
         for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
-            let decrypted = mr_enc.decrypt(&sk, &ro, i);
+            let decrypted = mr_enc.decrypt(sk, &ro, i);
             assert_eq!(msg.as_bytes(), &decrypted);
         }
 
@@ -80,20 +80,20 @@ mod point_tests {
         );
 
         for (i, (sk, pk, msg)) in keys_and_msg.iter().enumerate() {
-            let pkg = mr_enc.create_recovery_package(&sk, &recovery_ro, &mut thread_rng());
+            let pkg = mr_enc.create_recovery_package(sk, &recovery_ro, &mut thread_rng());
             let decrypted = mr_enc
-                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, &pk, i)
+                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, pk, i)
                 .unwrap();
             assert_eq!(msg.as_bytes(), &decrypted);
 
             // Should fail for a different RO.
             assert!(mr_enc
-                .decrypt_with_recovery_package(&pkg, &recovery_ro.extend("bla"), &ro, &pk, i)
+                .decrypt_with_recovery_package(&pkg, &recovery_ro.extend("bla"), &ro, pk, i)
                 .is_err());
 
             // Same package will fail on a different encryption
             assert!(mr_enc2
-                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, &pk, i)
+                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, pk, i)
                 .is_err());
         }
     }
