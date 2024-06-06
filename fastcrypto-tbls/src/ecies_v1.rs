@@ -14,18 +14,16 @@ use typenum::Unsigned;
 
 /// Simple ECIES encryption using a generic group and AES-256-counter.
 ///
-/// APIs that use a random oracle must receive one as an argument. That RO must be unique and thus
-/// the caller should initialize/derive it using a unique prefix.
+/// Random oracles are extended from two oracles provided by the caller, one for
+/// encryptions/decryptions and one for recovery packages. We assume that the
+/// caller extended the random oracles with the relevant tags and omit them here.
 ///
 /// The encryption uses AES Counter mode and is not CCA secure as is.
 ///
-/// Random oracles are extended from two oracles provided by the caller, one for
-/// encryptions/decryptions and one for recovery packages.
 
 // TODO: move PrivateKey and PublicKey here and remove old APIs
 
-/// Multi-recipient encryption with a proof-of-knowledge of the plaintexts (when the encryption is
-/// valid).
+/// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
@@ -78,7 +76,25 @@ where
         }
     }
 
-    // We assume that MultiRecipientEncryption::verify is called before decrypt.
+    pub fn verify(&self, encryption_random_oracle: &RandomOracle) -> FastCryptoResult<()> {
+        let g_hat =
+            G::hash_to_group_element(&encryption_random_oracle.extend("g_hat").evaluate(&self.c));
+        self.proof.verify(
+            &g_hat,
+            &self.c,
+            &self.c_hat,
+            &encryption_random_oracle.extend("zk"),
+        )?;
+        // Encryptions should not be empty.
+        self.encs
+            .iter()
+            .all(|e| !e.is_empty())
+            .then_some(())
+            .ok_or(FastCryptoError::InvalidInput)
+    }
+
+    /// We assume that verify is called before decrypt and do not call it again here to
+    /// avoid redundant checks.
     pub fn decrypt(
         &self,
         sk: &PrivateKey<G>,
@@ -94,6 +110,8 @@ where
             .expect("Decrypt should never fail for CTR mode")
     }
 
+    /// We assume that verify is called before decrypt and do not call it again here to
+    /// avoid redundant checks.
     pub fn create_recovery_package<R: AllowedRng>(
         &self,
         sk: &PrivateKey<G>,
@@ -126,6 +144,7 @@ where
         receiver_pk: &PublicKey<G>,
         receiver_index: usize,
     ) -> FastCryptoResult<Vec<u8>> {
+        assert!(receiver_index < self.encs.len());
         pkg.proof.verify(
             &self.c,
             &receiver_pk.0,
@@ -145,23 +164,6 @@ where
     }
     pub fn is_empty(&self) -> bool {
         self.encs.is_empty()
-    }
-
-    pub fn verify(&self, encryption_random_oracle: &RandomOracle) -> FastCryptoResult<()> {
-        let g_hat =
-            G::hash_to_group_element(&encryption_random_oracle.extend("g_hat").evaluate(&self.c));
-        self.proof.verify(
-            &g_hat,
-            &self.c,
-            &self.c_hat,
-            &encryption_random_oracle.extend("zk"),
-        )?;
-        // Encryptions should not be empty.
-        self.encs
-            .iter()
-            .all(|e| !e.is_empty())
-            .then_some(())
-            .ok_or(FastCryptoError::InvalidInput)
     }
 
     // Used for debugging

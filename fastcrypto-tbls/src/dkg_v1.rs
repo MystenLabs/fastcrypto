@@ -24,14 +24,6 @@ use crate::{ecies, ecies_v1};
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
 
-/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
-/// for the group of the ECIES public key.
-
-/// Assumptions:
-/// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
-///   following messages (based on the chain's authentication).
-/// - The high-level protocol is responsible that all parties see the same order of messages.
-
 // TODO: Move Party, Complaint, Confirmation, Output here and remove old APIs
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
@@ -677,7 +669,7 @@ where
 
     fn recovery_random_oracle(&self, accuser: PartyId, accused: PartyId) -> RandomOracle {
         self.random_oracle.extend(&format!(
-            "recovery of id {} received from {}",
+            "recovery of {} received from {}",
             accuser, accused
         ))
     }
