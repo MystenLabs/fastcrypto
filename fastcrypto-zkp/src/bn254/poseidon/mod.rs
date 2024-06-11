@@ -86,9 +86,9 @@ pub(crate) fn poseidon_zk_login(inputs: Vec<Fr>) -> FastCryptoResult<Fr> {
     poseidon_merkle_tree(inputs)
 }
 
-/// Calculate the poseidon hash of the field element inputs. If the input length is <= 16, calculate
-/// H(inputs), otherwise chunk the inputs into groups of 16, hash them and input the results recursively.
-pub fn poseidon_merkle_tree(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+/// Calculate the poseidon hash of the field element inputs. If the input length is <= MERKLE_TREE_DEGREE, calculate
+/// H(inputs), otherwise chunk the inputs into groups of MERKLE_TREE_DEGREE, hash them and input the results recursively.
+pub fn poseidon_merkle_tree(inputs: Vec<Fr>) -> FastCryptoResult<Fr> {
     if inputs.len() <= MERKLE_TREE_DEGREE {
         poseidon(inputs)
     } else {
@@ -110,13 +110,11 @@ pub fn poseidon_merkle_tree(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
 /// field size or is longer than 32 bytes, an error is returned.
 ///
 /// This function is used as an interface to the poseidon hash function in the sui-framework.
-pub fn poseidon_bytes(
-    inputs: &Vec<Vec<u8>>,
-) -> Result<[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError> {
-    let mut field_elements = Vec::new();
-    for input in inputs {
-        field_elements.push(canonical_le_bytes_to_field_element(input)?);
-    }
+pub fn poseidon_bytes(inputs: &[Vec<u8>]) -> FastCryptoResult<[u8; FIELD_ELEMENT_SIZE_IN_BYTES]> {
+    let field_elements = inputs
+        .iter()
+        .map(|b| canonical_le_bytes_to_field_element(b))
+        .collect::<Result<Vec<_>, _>>()?;
     let output_as_field_element = poseidon_merkle_tree(field_elements)?;
     Ok(field_element_to_canonical_le_bytes(
         &output_as_field_element,
@@ -128,7 +126,7 @@ pub fn poseidon_bytes(
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoError> {
+fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> FastCryptoResult<Fr> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal => {
@@ -141,15 +139,17 @@ fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> Result<Fr, FastCryptoErr
             }
             Ok(field_element)
         }
-        Ordering::Greater => Err(InputTooLong(bytes.len())),
+        Ordering::Greater => Err(InputTooLong(FIELD_ELEMENT_SIZE_IN_BYTES)),
     }
 }
 
 /// Convert a BN254 field element to a byte array as the little-endian representation of the
 /// underlying canonical integer representation of the element.
 fn field_element_to_canonical_le_bytes(field_element: &Fr) -> [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
-    let bytes = field_element.into_bigint().to_bytes_le();
-    <[u8; FIELD_ELEMENT_SIZE_IN_BYTES]>::try_from(bytes)
+    field_element
+        .into_bigint()
+        .to_bytes_le()
+        .try_into()
         .expect("The result is guaranteed to be 32 bytes")
 }
 
