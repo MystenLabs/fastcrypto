@@ -392,9 +392,9 @@
     poseidon_merkle_tree(inputs)
 }
 
-<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If the input length is &lt;= 16, calculate
-/// H(inputs), otherwise chunk the inputs into groups of 16, hash them and input the results recursively.
-</span><span class="kw">pub fn </span>poseidon_merkle_tree(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If the input length is &lt;= MERKLE_TREE_DEGREE, calculate
+/// H(inputs), otherwise chunk the inputs into groups of MERKLE_TREE_DEGREE, hash them and input the results recursively.
+</span><span class="kw">pub fn </span>poseidon_merkle_tree(inputs: Vec&lt;Fr&gt;) -&gt; FastCryptoResult&lt;Fr&gt; {
     <span class="kw">if </span>inputs.len() &lt;= MERKLE_TREE_DEGREE {
         poseidon(inputs)
     } <span class="kw">else </span>{
@@ -416,13 +416,11 @@
 /// field size or is longer than 32 bytes, an error is returned.
 ///
 /// This function is used as an interface to the poseidon hash function in the sui-framework.
-</span><span class="kw">pub fn </span>poseidon_bytes(
-    inputs: <span class="kw-2">&amp;</span>Vec&lt;Vec&lt;u8&gt;&gt;,
-) -&gt; <span class="prelude-ty">Result</span>&lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES], FastCryptoError&gt; {
-    <span class="kw">let </span><span class="kw-2">mut </span>field_elements = Vec::new();
-    <span class="kw">for </span>input <span class="kw">in </span>inputs {
-        field_elements.push(canonical_le_bytes_to_field_element(input)<span class="question-mark">?</span>);
-    }
+</span><span class="kw">pub fn </span>poseidon_bytes(inputs: <span class="kw-2">&amp;</span>[Vec&lt;u8&gt;]) -&gt; FastCryptoResult&lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES]&gt; {
+    <span class="kw">let </span>field_elements = inputs
+        .iter()
+        .map(|b| canonical_le_bytes_to_field_element(b))
+        .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
     <span class="kw">let </span>output_as_field_element = poseidon_merkle_tree(field_elements)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(field_element_to_canonical_le_bytes(
         <span class="kw-2">&amp;</span>output_as_field_element,
@@ -434,7 +432,7 @@
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-</span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+</span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;Fr&gt; {
     <span class="kw">match </span>bytes.len().cmp(<span class="kw-2">&amp;</span>FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less =&gt; <span class="prelude-val">Ok</span>(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal =&gt; {
@@ -447,15 +445,17 @@
             }
             <span class="prelude-val">Ok</span>(field_element)
         }
-        Ordering::Greater =&gt; <span class="prelude-val">Err</span>(InputTooLong(bytes.len())),
+        Ordering::Greater =&gt; <span class="prelude-val">Err</span>(InputTooLong(FIELD_ELEMENT_SIZE_IN_BYTES)),
     }
 }
 
 <span class="doccomment">/// Convert a BN254 field element to a byte array as the little-endian representation of the
 /// underlying canonical integer representation of the element.
 </span><span class="kw">fn </span>field_element_to_canonical_le_bytes(field_element: <span class="kw-2">&amp;</span>Fr) -&gt; [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
-    <span class="kw">let </span>bytes = field_element.into_bigint().to_bytes_le();
-    &lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES]&gt;::try_from(bytes)
+    field_element
+        .into_bigint()
+        .to_bytes_le()
+        .try_into()
         .expect(<span class="string">"The result is guaranteed to be 32 bytes"</span>)
 }
 
