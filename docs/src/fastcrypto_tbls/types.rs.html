@@ -85,21 +85,12 @@
 <a href="#83" id="83">83</a>
 <a href="#84" id="84">84</a>
 <a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, PublicPoly};
-<span class="kw">use crate</span>::{ecies_v0, tbls};
+<span class="kw">use </span><span class="kw">crate</span>::tbls;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
-<span class="kw">use </span>fastcrypto::groups::ristretto255::RistrettoPoint;
 <span class="kw">use </span>fastcrypto::groups::{bls12381, GroupElement, HashToGroupElement, Pairing};
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::num::NonZeroU16;
@@ -179,11 +170,4 @@
         <span class="prelude-val">Ok</span>(values)
     }
 }
-
-<span class="doccomment">/// ECIES related types with Ristretto points.
-///
-</span><span class="kw">pub type </span>PrivateEciesKey = ecies_v0::PrivateKey&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>PublicEciesKey = ecies_v0::PublicKey&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>EciesEncryption = ecies_v0::Encryption&lt;RistrettoPoint&gt;;
-<span class="kw">pub type </span>RecoveryPackage = ecies_v0::RecoveryPackage&lt;RistrettoPoint&gt;;
 </code></pre></div></section></main></body></html>

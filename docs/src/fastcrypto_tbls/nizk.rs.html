@@ -212,7 +212,7 @@
 /// - Verifier checks that zG=A+c(xG) and zH=B+c(xH).
 /// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct </span>DdhTupleNizk&lt;G: GroupElement&gt;(G, G, G::ScalarType);
+</span><span class="kw">pub struct </span>DdhTupleNizk&lt;G: GroupElement&gt;(G, G, G::ScalarType);
 
 <span class="kw">impl</span>&lt;G: GroupElement&gt; DdhTupleNizk&lt;G&gt;
 <span class="kw">where

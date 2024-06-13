@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["dkg_v0","dl_verification","ecies_v0","mocked_dkg","nizk","nodes","polynomial","random_oracle","tbls","types"]};
+window.SIDEBAR_ITEMS = {"mod":["dkg","dkg_v0","dkg_v1","dl_verification","ecies","ecies_v0","ecies_v1","mocked_dkg","nizk","nodes","polynomial","random_oracle","tbls","types"]};

@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Encryption","MultiRecipientEncryption","PrivateKey","PublicKey","RecoveryPackage"]};
+window.SIDEBAR_ITEMS = {"struct":["Encryption","MultiRecipientEncryption"]};

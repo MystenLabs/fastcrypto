@@ -733,57 +733,6 @@
 <a href="#731" id="731">731</a>
 <a href="#732" id="732">732</a>
 <a href="#733" id="733">733</a>
-<a href="#734" id="734">734</a>
-<a href="#735" id="735">735</a>
-<a href="#736" id="736">736</a>
-<a href="#737" id="737">737</a>
-<a href="#738" id="738">738</a>
-<a href="#739" id="739">739</a>
-<a href="#740" id="740">740</a>
-<a href="#741" id="741">741</a>
-<a href="#742" id="742">742</a>
-<a href="#743" id="743">743</a>
-<a href="#744" id="744">744</a>
-<a href="#745" id="745">745</a>
-<a href="#746" id="746">746</a>
-<a href="#747" id="747">747</a>
-<a href="#748" id="748">748</a>
-<a href="#749" id="749">749</a>
-<a href="#750" id="750">750</a>
-<a href="#751" id="751">751</a>
-<a href="#752" id="752">752</a>
-<a href="#753" id="753">753</a>
-<a href="#754" id="754">754</a>
-<a href="#755" id="755">755</a>
-<a href="#756" id="756">756</a>
-<a href="#757" id="757">757</a>
-<a href="#758" id="758">758</a>
-<a href="#759" id="759">759</a>
-<a href="#760" id="760">760</a>
-<a href="#761" id="761">761</a>
-<a href="#762" id="762">762</a>
-<a href="#763" id="763">763</a>
-<a href="#764" id="764">764</a>
-<a href="#765" id="765">765</a>
-<a href="#766" id="766">766</a>
-<a href="#767" id="767">767</a>
-<a href="#768" id="768">768</a>
-<a href="#769" id="769">769</a>
-<a href="#770" id="770">770</a>
-<a href="#771" id="771">771</a>
-<a href="#772" id="772">772</a>
-<a href="#773" id="773">773</a>
-<a href="#774" id="774">774</a>
-<a href="#775" id="775">775</a>
-<a href="#776" id="776">776</a>
-<a href="#777" id="777">777</a>
-<a href="#778" id="778">778</a>
-<a href="#779" id="779">779</a>
-<a href="#780" id="780">780</a>
-<a href="#781" id="781">781</a>
-<a href="#782" id="782">782</a>
-<a href="#783" id="783">783</a>
-<a href="#784" id="784">784</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -792,13 +741,12 @@
 //
 
 </span><span class="kw">use </span><span class="kw">crate</span>::dl_verification::verify_poly_evals;
-<span class="kw">use </span><span class="kw">crate</span>::ecies_v0;
-<span class="kw">use </span><span class="kw">crate</span>::ecies_v0::{MultiRecipientEncryption, RecoveryPackage};
 <span class="kw">use </span><span class="kw">crate</span>::nodes::{Nodes, PartyId};
-<span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, Poly, PrivatePoly, PublicPoly};
+<span class="kw">use </span><span class="kw">crate</span>::polynomial::{Eval, PrivatePoly, PublicPoly};
 <span class="kw">use </span><span class="kw">crate</span>::random_oracle::RandomOracle;
 <span class="kw">use </span><span class="kw">crate</span>::tbls::Share;
 <span class="kw">use </span><span class="kw">crate</span>::types::ShareIndex;
+<span class="kw">use crate</span>::{ecies, ecies_v0};
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul};
 <span class="kw">use </span>fastcrypto::traits::AllowedRng;
@@ -806,29 +754,13 @@
 <span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>std::collections::{HashMap, HashSet};
 
+<span class="kw">use </span><span class="kw">crate</span>::dkg::{Complaint, Confirmation, Output, Party};
+<span class="kw">use </span><span class="kw">crate</span>::ecies::RecoveryPackage;
+<span class="kw">use </span><span class="kw">crate</span>::ecies_v0::MultiRecipientEncryption;
 <span class="kw">use </span>tap::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>tracing::{debug, error, info, warn};
 
-<span class="doccomment">/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
-/// for the group of the ECIES public key.
-
-/// Party in the DKG protocol.
-</span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>Party&lt;G: GroupElement, EG: GroupElement&gt; {
-    <span class="kw">pub </span>id: PartyId,
-    nodes: Nodes&lt;EG&gt;,
-    t: u16,
-    random_oracle: RandomOracle,
-    enc_sk: ecies_v0::PrivateKey&lt;EG&gt;,
-    vss_sk: PrivatePoly&lt;G&gt;,
-}
-
-<span class="doccomment">/// Assumptions:
-/// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
-///   following messages (based on the chain's authentication).
-/// - The high-level protocol is responsible that all parties see the same order of messages.
-
-/// [Message] holds all encrypted shares a dealer sends during the first phase of the
+<span class="doccomment">/// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
 </span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 </span><span class="kw">pub struct </span>Message&lt;G: GroupElement, EG: GroupElement&gt; {
@@ -839,30 +771,7 @@
     </span><span class="kw">pub </span>encrypted_shares: MultiRecipientEncryption&lt;EG&gt;,
 }
 
-<span class="doccomment">/// A complaint/fraud claim against a dealer that created invalid encrypted share.
-</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>Complaint&lt;EG: GroupElement&gt; {
-    accused_sender: PartyId,
-    proof: RecoveryPackage&lt;EG&gt;,
-}
-
-<span class="doccomment">/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
-/// created by receiver of invalid encrypted shares (if any).
-</span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>Confirmation&lt;EG: GroupElement&gt; {
-    <span class="kw">pub </span>sender: PartyId,
-    <span class="doccomment">/// List of complaints against other parties. Empty if there are none.
-    </span><span class="kw">pub </span>complaints: Vec&lt;Complaint&lt;EG&gt;&gt;,
-}
-
-<span class="comment">// Upper bound on the size of binary serialized incoming messages assuming &lt;=3333 shares, &lt;=400
-// parties, and using G2Element for encryption. This is a safe upper bound since:
-// - Message is O(96*t + 32*n) bytes.
-// - Confirmation is O((96*3 + 32) * k) bytes.
-// Could be used as a sanity safety check before deserializing an incoming message.
-</span><span class="kw">pub const </span>DKG_MESSAGES_MAX_SIZE: usize = <span class="number">400_000</span>; <span class="comment">// 400 KB
-
-</span><span class="doccomment">/// Wrapper for collecting everything related to a processed message.
+<span class="doccomment">/// Wrapper for collecting everything related to a processed message.
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>ProcessedMessage&lt;G: GroupElement, EG: GroupElement&gt; {
     <span class="kw">pub </span>message: Message&lt;G, EG&gt;,
@@ -921,17 +830,6 @@
     </span>}
 }
 
-<span class="doccomment">/// [Output] is the final output of the DKG protocol in case it runs
-/// successfully. It can be used later with [ThresholdBls], see examples in tests.
-///
-/// If shares is None, the object can only be used for verifying (partial and full) signatures.
-</span><span class="attr">#[derive(Clone, Debug, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>Output&lt;G: GroupElement, EG: GroupElement&gt; {
-    <span class="kw">pub </span>nodes: Nodes&lt;EG&gt;,
-    <span class="kw">pub </span>vss_pk: Poly&lt;G&gt;,
-    <span class="kw">pub </span>shares: <span class="prelude-ty">Option</span>&lt;Vec&lt;Share&lt;G::ScalarType&gt;&gt;&gt;, <span class="comment">// None if some shares are missing or weight is zero.
-</span>}
-
 <span class="doccomment">/// A dealer in the DKG ceremony.
 ///
 /// Can be instantiated with G1Curve or G2Curve.
@@ -946,14 +844,14 @@
 
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     </span><span class="kw">pub fn </span>new&lt;R: AllowedRng&gt;(
-        enc_sk: ecies_v0::PrivateKey&lt;EG&gt;,
+        enc_sk: ecies::PrivateKey&lt;EG&gt;,
         nodes: Nodes&lt;EG&gt;,
         t: u16, <span class="comment">// The number of parties that are needed to reconstruct the full key/signature (f+1).
         </span>random_oracle: RandomOracle, <span class="comment">// Should be unique for each invocation, but the same for all parties.
         </span>rng: <span class="kw-2">&amp;mut </span>R,
     ) -&gt; FastCryptoResult&lt;<span class="self">Self</span>&gt; {
         <span class="comment">// Confirm that my ecies pk is in the nodes.
-        </span><span class="kw">let </span>enc_pk = ecies_v0::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>enc_sk);
+        </span><span class="kw">let </span>enc_pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>enc_sk);
         <span class="kw">let </span>my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
@@ -1498,7 +1396,7 @@
     }
 
     <span class="kw">fn </span>decrypt_and_get_share(
-        sk: <span class="kw-2">&amp;</span>ecies_v0::PrivateKey&lt;EG&gt;,
+        sk: <span class="kw-2">&amp;</span>ecies::PrivateKey&lt;EG&gt;,
         encrypted_shares: <span class="kw-2">&amp;</span>ecies_v0::Encryption&lt;EG&gt;,
     ) -&gt; FastCryptoResult&lt;Vec&lt;G::ScalarType&gt;&gt; {
         <span class="kw">let </span>buffer = sk.decrypt(encrypted_shares);
@@ -1508,7 +1406,7 @@
     <span class="comment">// Returns an error if the *complaint* is invalid (counterintuitive).
     </span><span class="kw">fn </span>check_complaint_proof&lt;R: AllowedRng&gt;(
         recovery_pkg: <span class="kw-2">&amp;</span>RecoveryPackage&lt;EG&gt;,
-        ecies_pk: <span class="kw-2">&amp;</span>ecies_v0::PublicKey&lt;EG&gt;,
+        ecies_pk: <span class="kw-2">&amp;</span>ecies::PublicKey&lt;EG&gt;,
         share_ids: <span class="kw-2">&amp;</span>[ShareIndex],
         vss_pk: <span class="kw-2">&amp;</span>PublicPoly&lt;G&gt;,
         encrypted_share: <span class="kw-2">&amp;</span>ecies_v0::Encryption&lt;EG&gt;,
@@ -1558,8 +1456,8 @@
     </span>EG: GroupElement + Serialize + DeserializeOwned,
     &lt;EG <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge,
 {
-    <span class="kw">let </span>sk = ecies_v0::PrivateKey::&lt;EG&gt;::new(<span class="kw-2">&amp;mut </span>rand::thread_rng());
-    <span class="kw">let </span>pk = ecies_v0::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>sk);
+    <span class="kw">let </span>sk = ecies::PrivateKey::&lt;EG&gt;::new(<span class="kw-2">&amp;mut </span>rand::thread_rng());
+    <span class="kw">let </span>pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>sk);
     <span class="kw">let </span>encryption = pk.encrypt(<span class="string">b"test"</span>, <span class="kw-2">&amp;mut </span>rand::thread_rng());
     <span class="kw">let </span>ro = RandomOracle::new(<span class="string">"test"</span>);
     <span class="kw">let </span>pkg = sk.create_recovery_package(<span class="kw-2">&amp;</span>encryption, <span class="kw-2">&amp;</span>ro, <span class="kw-2">&amp;mut </span>rand::thread_rng());

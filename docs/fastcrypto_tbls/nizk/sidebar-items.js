@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["DLNizk"]};
+window.SIDEBAR_ITEMS = {"struct":["DLNizk","DdhTupleNizk"]};
