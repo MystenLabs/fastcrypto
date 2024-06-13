@@ -44,19 +44,20 @@ where
     ) -> MultiRecipientEncryption<G> {
         let r = G::ScalarType::rand(rng);
         let c = G::generator() * r;
-        let g_hat =
-            G::hash_to_group_element(&encryption_random_oracle.extend("g_hat").evaluate(&c));
+        let g_hat = G::hash_to_group_element(
+            &Self::g_hat_random_oracle(encryption_random_oracle).evaluate(&c),
+        );
         let c_hat = g_hat * r;
         let proof = DdhTupleNizk::<G>::create(
             &r,
             &g_hat,
             &c,
             &c_hat,
-            &encryption_random_oracle.extend("zk"),
+            &Self::zk_random_oracle(encryption_random_oracle),
             rng,
         );
 
-        let encs_ro = encryption_random_oracle.extend("encs");
+        let encs_ro = Self::encs_random_oracle(encryption_random_oracle);
         let encs = pk_and_msgs
             .iter()
             .enumerate()
@@ -64,6 +65,7 @@ where
                 let pk_r = receiver_pk.0 * r;
                 let k = encs_ro.evaluate(&(receiver_index, pk_r));
                 let cipher = sym_cipher(&k);
+                // Since k is fresh per encryption, we can safely use a fixed nonce.
                 cipher.encrypt(&fixed_zero_nonce(), msg)
             })
             .collect::<Vec<_>>();
@@ -77,13 +79,14 @@ where
     }
 
     pub fn verify(&self, encryption_random_oracle: &RandomOracle) -> FastCryptoResult<()> {
-        let g_hat =
-            G::hash_to_group_element(&encryption_random_oracle.extend("g_hat").evaluate(&self.c));
+        let g_hat = G::hash_to_group_element(
+            &Self::g_hat_random_oracle(encryption_random_oracle).evaluate(&self.c),
+        );
         self.proof.verify(
             &g_hat,
             &self.c,
             &self.c_hat,
-            &encryption_random_oracle.extend("zk"),
+            &Self::zk_random_oracle(encryption_random_oracle),
         )?;
         // Encryptions should not be empty.
         self.encs
@@ -101,7 +104,7 @@ where
         encryption_random_oracle: &RandomOracle,
         receiver_index: usize,
     ) -> Vec<u8> {
-        let enc_ro = encryption_random_oracle.extend("encs");
+        let enc_ro = Self::encs_random_oracle(encryption_random_oracle);
         let ephemeral_key = self.c * sk.0;
         let k = enc_ro.evaluate(&(receiver_index, ephemeral_key));
         let cipher = sym_cipher(&k);
@@ -151,7 +154,7 @@ where
             &pkg.ephemeral_key,
             recovery_random_oracle,
         )?;
-        let encs_ro = encryption_random_oracle.extend("encs");
+        let encs_ro = Self::encs_random_oracle(encryption_random_oracle);
         let k = encs_ro.evaluate(&(receiver_index, pkg.ephemeral_key));
         let cipher = sym_cipher(&k);
         Ok(cipher
@@ -174,6 +177,18 @@ where
     // Used for debugging
     pub fn proof(&self) -> &DdhTupleNizk<G> {
         &self.proof
+    }
+
+    fn encs_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
+        encryption_random_oracle.extend("encs")
+    }
+
+    fn zk_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
+        encryption_random_oracle.extend("zk")
+    }
+
+    fn g_hat_random_oracle(encryption_random_oracle: &RandomOracle) -> RandomOracle {
+        encryption_random_oracle.extend("g_hat")
     }
 
     #[cfg(test)]
