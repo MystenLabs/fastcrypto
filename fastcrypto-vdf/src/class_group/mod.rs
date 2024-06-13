@@ -132,7 +132,7 @@ impl QuadraticForm {
             a_divided_by_gcd: mut capital_cy,
             b_divided_by_gcd: mut capital_by,
         } = extended_euclidean_algorithm(u2, u1, true);
-        let b = b.unwrap();
+        let b = b.expect("Was computed because compute_x is true above");
 
         let (q, r) = s.div_rem(&f);
         let (g, capital_bx, capital_dy) = if r.is_zero() {

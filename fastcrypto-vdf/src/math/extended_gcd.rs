@@ -105,4 +105,10 @@ fn test_xgcd_single(a: BigInt, b: BigInt) {
     assert_eq!(&output.x.unwrap() * &a + &output.y * &b, output.gcd);
     assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
     assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
+
+    let output = extended_euclidean_algorithm(&a, &b, false);
+    assert_eq!(output.gcd, a.gcd(&b));
+    assert!(output.x.is_none());
+    assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
+    assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
 }
