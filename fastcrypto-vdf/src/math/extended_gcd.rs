@@ -15,7 +15,7 @@ use std::mem;
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
 pub struct EuclideanAlgorithmOutput {
     pub gcd: BigInt,
-    pub x: BigInt,
+    pub x: Option<BigInt>,
     pub y: BigInt,
     pub a_divided_by_gcd: BigInt,
     pub b_divided_by_gcd: BigInt,
@@ -60,9 +60,9 @@ pub fn extended_euclidean_algorithm(
     };
 
     let x = if compute_x {
-        conditional_negate(negate, t.1)
+        Some(conditional_negate(negate, t.1))
     } else {
-        BigInt::zero()
+        None
     };
 
     EuclideanAlgorithmOutput {
@@ -90,13 +90,27 @@ fn test_xgcd() {
     test_xgcd_single(BigInt::from(-240), BigInt::from(46));
     test_xgcd_single(BigInt::from(240), BigInt::from(-46));
     test_xgcd_single(BigInt::from(-240), BigInt::from(-46));
+
+    test_xgcd_single_no_x(BigInt::from(240), BigInt::from(46));
+    test_xgcd_single_no_x(BigInt::from(-240), BigInt::from(46));
+    test_xgcd_single_no_x(BigInt::from(240), BigInt::from(-46));
+    test_xgcd_single_no_x(BigInt::from(-240), BigInt::from(-46));
 }
 
 #[cfg(test)]
 fn test_xgcd_single(a: BigInt, b: BigInt) {
     let output = extended_euclidean_algorithm(&a, &b, true);
     assert_eq!(output.gcd, a.gcd(&b));
-    assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
+    assert_eq!(&output.x.unwrap() * &a + &output.y * &b, output.gcd);
+    assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
+    assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
+}
+
+#[cfg(test)]
+fn test_xgcd_single_no_x(a: BigInt, b: BigInt) {
+    let output = extended_euclidean_algorithm(&a, &b, false);
+    assert_eq!(output.gcd, a.gcd(&b));
+    assert!(output.x.is_none());
     assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
     assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
 }
