@@ -18,6 +18,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
+use std::ops::AddAssign;
 
 use crate::dkg::{Complaint, Confirmation, Output, Party};
 use crate::ecies::RecoveryPackage;
@@ -604,7 +605,7 @@ where
             .collect::<HashMap<_, _>>();
 
         for m in &messages.0 {
-            vss_pk.add(
+            vss_pk.add_assign(
                 &id_to_m1
                     .get(&m.message.sender)
                     .expect("shares only includes shares from valid first messages")

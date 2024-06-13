@@ -15,6 +15,7 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::GroupElement;
 use rand::thread_rng;
+use std::ops::AddAssign;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
@@ -251,7 +252,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
 
     // check the resulting vss pk
     let mut poly = msg0.vss_pk.clone();
-    poly.add(&msg5.vss_pk);
+    poly.add_assign(&msg5.vss_pk);
     assert_eq!(poly, o0.vss_pk);
 
     // Use the shares to sign the message.
