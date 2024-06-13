@@ -18,7 +18,6 @@ const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
 #[generic_tests::define]
 mod scalar_tests {
     use super::*;
-    use std::ops::AddAssign;
 
     #[test]
     fn test_degree<S: Scalar>() {
@@ -32,19 +31,19 @@ mod scalar_tests {
         let p1 = Poly::<S>::rand(3, &mut thread_rng());
         let p2 = Poly::<S>::zero();
         let mut res = p1.clone();
-        res.add_assign(&p2);
+        res += &p2;
         assert_eq!(res, p1);
 
         let p1 = Poly::<S>::zero();
         let p2 = Poly::<S>::rand(3, &mut thread_rng());
         let mut res = p1;
-        res.add_assign(&p2);
+        res += &p2;
         assert_eq!(res, p2);
 
         let p1 = Poly::<S>::rand(3, &mut thread_rng());
         let p2 = Poly::<S>::rand(5, &mut thread_rng());
         let mut p3 = p1.clone();
-        p3.add_assign(&p2);
+        p3 += &p2;
         assert_eq!(p1.eval(I10).value + p2.eval(I10).value, p3.eval(I10).value);
     }
 
