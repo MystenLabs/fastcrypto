@@ -24,7 +24,7 @@ pub(crate) fn solve_simple_congruence_equation_system(
     }
 
     // The moduli must be relatively prime
-    let output = extended_euclidean_algorithm(p, q);
+    let output = extended_euclidean_algorithm(p, q, true);
     if !output.gcd.is_one() {
         return Err(InvalidInput);
     }
@@ -32,7 +32,7 @@ pub(crate) fn solve_simple_congruence_equation_system(
     let a = a.mod_floor(p);
     let b = b.mod_floor(q);
 
-    let result = a * output.y * q + b * output.x * p;
+    let result = a * output.y * q + b * output.x.unwrap() * p;
 
     if result.is_negative() {
         Ok(result + &(p * q))
