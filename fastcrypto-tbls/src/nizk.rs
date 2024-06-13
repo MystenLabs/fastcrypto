@@ -14,7 +14,7 @@ use tracing::debug;
 /// - Verifier checks that zG=A+c(xG) and zH=B+c(xH).
 /// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub(crate) struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
+pub struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
 
 impl<G: GroupElement> DdhTupleNizk<G>
 where

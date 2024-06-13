@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies_v0;
+use crate::ecies;
 use crate::types::ShareIndex;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::GroupElement;
@@ -15,7 +15,7 @@ pub type PartyId = u16;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Node<G: GroupElement> {
     pub id: PartyId,
-    pub pk: ecies_v0::PublicKey<G>,
+    pub pk: ecies::PublicKey<G>,
     pub weight: u16, // May be zero after reduce()
 }
 

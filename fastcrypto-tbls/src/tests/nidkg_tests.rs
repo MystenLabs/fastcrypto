@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies_v0;
+use crate::ecies;
 use crate::nidkg::Party;
 use crate::nodes::Node;
 use crate::random_oracle::RandomOracle;
@@ -12,11 +12,11 @@ use rand::thread_rng;
 
 type G = G1Element;
 
-pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies_v0::PrivateKey<G>, ecies_v0::PublicKey<G>)> {
+pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)> {
     (0..n)
         .map(|id| {
-            let sk = ecies_v0::PrivateKey::<G>::new(&mut thread_rng());
-            let pk = ecies_v0::PublicKey::<G>::from_private_key(&sk);
+            let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
+            let pk = ecies::PublicKey::<G>::from_private_key(&sk);
             (id, sk, pk)
         })
         .collect()
@@ -25,7 +25,7 @@ pub fn gen_ecies_keys(n: u16) -> Vec<(u16, ecies_v0::PrivateKey<G>, ecies_v0::Pu
 pub fn setup_party(
     id: usize,
     threshold: u16,
-    keys: &[(u16, ecies_v0::PrivateKey<G>, ecies_v0::PublicKey<G>)],
+    keys: &[(u16, ecies::PrivateKey<G>, ecies::PublicKey<G>)],
 ) -> Party<G> {
     let nodes = keys
         .iter()

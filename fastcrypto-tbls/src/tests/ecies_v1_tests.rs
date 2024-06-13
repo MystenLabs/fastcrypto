@@ -2,74 +2,41 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::ecies::{PrivateKey, PublicKey};
-use crate::ecies_v0::*;
+use crate::ecies_v1::*;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
-use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use fastcrypto::traits::KeyPair;
 use rand::thread_rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
-const MSG: &[u8; 4] = b"test";
-
 #[generic_tests::define]
 mod point_tests {
     use super::*;
     use crate::ecies::{PrivateKey, PublicKey};
-
-    #[test]
-    fn test_decryption<Group: GroupElement + Serialize + DeserializeOwned>()
-    where
-        Group::ScalarType: FiatShamirChallenge,
-    {
-        let sk = PrivateKey::<Group>::new(&mut thread_rng());
-        let pk = PublicKey::<Group>::from_private_key(&sk);
-        let encryption = pk.encrypt(MSG, &mut thread_rng());
-        let decrypted = sk.decrypt(&encryption);
-        assert_eq!(MSG, decrypted.as_slice());
-    }
-
-    #[test]
-    fn test_recovery_package<Group: GroupElement + Serialize + DeserializeOwned>()
-    where
-        Group::ScalarType: FiatShamirChallenge,
-    {
-        let sk = PrivateKey::<Group>::new(&mut thread_rng());
-        let pk = PublicKey::<Group>::from_private_key(&sk);
-        let encryption = pk.encrypt(MSG, &mut thread_rng());
-        let ro = RandomOracle::new("test");
-        let pkg = sk.create_recovery_package(&encryption, &ro, &mut thread_rng());
-        let decrypted = pk
-            .decrypt_with_recovery_package(&pkg, &ro, &encryption)
-            .unwrap();
-        assert_eq!(MSG, decrypted.as_slice());
-
-        // Should fail for a different RO.
-        assert!(pk
-            .decrypt_with_recovery_package(&pkg, &RandomOracle::new("test2"), &encryption)
-            .is_err());
-
-        // Same package will fail on a different encryption
-        let encryption = pk.encrypt(MSG, &mut thread_rng());
-        assert!(pk
-            .decrypt_with_recovery_package(&pkg, &ro, &encryption)
-            .is_err());
-    }
+    use fastcrypto::groups::HashToGroupElement;
 
     #[test]
     fn test_multi_rec<Group: GroupElement + Serialize + DeserializeOwned>()
     where
         Group::ScalarType: FiatShamirChallenge,
+        Group: HashToGroupElement,
     {
         let ro = RandomOracle::new("test");
         let keys_and_msg = (0..10u32)
             .map(|i| {
                 let sk = PrivateKey::<Group>::new(&mut thread_rng());
                 let pk = PublicKey::<Group>::from_private_key(&sk);
-                (sk, pk, format!("test {}", i))
+                (
+                    sk,
+                    pk,
+                    format!(
+                        "test {} 12345678901234567890123456789012345678901234567890",
+                        i
+                    ),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -83,15 +50,15 @@ mod point_tests {
         );
 
         assert!(mr_enc.verify(&ro).is_ok());
+        assert!(mr_enc.verify(&ro.extend("bla")).is_err());
 
         for (i, (sk, _, msg)) in keys_and_msg.iter().enumerate() {
-            let enc = mr_enc.get_encryption(i).unwrap();
-            let decrypted = sk.decrypt(&enc);
+            let decrypted = mr_enc.decrypt(sk, &ro, i);
             assert_eq!(msg.as_bytes(), &decrypted);
         }
 
         // test empty messages
-        let mr_enc = MultiRecipientEncryption::encrypt(
+        let mr_enc2 = MultiRecipientEncryption::encrypt(
             &keys_and_msg
                 .iter()
                 .map(|(_, pk, _)| (pk.clone(), vec![]))
@@ -99,11 +66,37 @@ mod point_tests {
             &ro,
             &mut thread_rng(),
         );
-        assert!(mr_enc.verify(&ro).is_err());
-    }
+        assert!(mr_enc2.verify(&ro).is_err());
 
-    #[instantiate_tests(<RistrettoPoint>)]
-    mod ristretto_point {}
+        // test recovery package
+        let recovery_ro = ro.extend("recovery");
+        let mr_enc2 = MultiRecipientEncryption::encrypt(
+            &keys_and_msg
+                .iter()
+                .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
+                .collect::<Vec<_>>(),
+            &ro,
+            &mut thread_rng(),
+        );
+
+        for (i, (sk, pk, msg)) in keys_and_msg.iter().enumerate() {
+            let pkg = mr_enc.create_recovery_package(sk, &recovery_ro, &mut thread_rng());
+            let decrypted = mr_enc
+                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, pk, i)
+                .unwrap();
+            assert_eq!(msg.as_bytes(), &decrypted);
+
+            // Should fail for a different RO.
+            assert!(mr_enc
+                .decrypt_with_recovery_package(&pkg, &recovery_ro.extend("bla"), &ro, pk, i)
+                .is_err());
+
+            // Same package will fail on a different encryption
+            assert!(mr_enc2
+                .decrypt_with_recovery_package(&pkg, &recovery_ro, &ro, pk, i)
+                .is_err());
+        }
+    }
 
     #[instantiate_tests(<G1Element>)]
     mod g1_element {}
