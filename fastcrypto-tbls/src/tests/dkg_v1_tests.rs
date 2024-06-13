@@ -254,7 +254,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
 
     // check the resulting vss pk
     let mut poly = msg0.vss_pk.clone();
-    poly.add(&msg5.vss_pk);
+    poly += &msg5.vss_pk;
     assert_eq!(poly, o0.vss_pk);
 
     // Use the shares to sign the message.

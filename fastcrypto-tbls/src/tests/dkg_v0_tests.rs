@@ -1,6 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use rand::thread_rng;
+
+use fastcrypto::error::FastCryptoError;
+use fastcrypto::groups::bls12381::G2Element;
+use fastcrypto::groups::GroupElement;
+
 use crate::dkg::{Confirmation, Output, Party, DKG_MESSAGES_MAX_SIZE};
 use crate::dkg_v0::{create_fake_complaint, Message, ProcessedMessage};
 use crate::ecies::{PrivateKey, PublicKey};
@@ -11,11 +17,6 @@ use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
-use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381::G2Element;
-use fastcrypto::groups::GroupElement;
-use rand::thread_rng;
-use std::ops::AddAssign;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 

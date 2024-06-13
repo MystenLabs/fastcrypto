@@ -554,12 +554,10 @@ where
             .collect::<HashMap<_, _>>();
 
         for m in &messages.0 {
-            vss_pk.add(
-                &id_to_m1
-                    .get(&m.message.sender)
-                    .expect("shares only includes shares from valid first messages")
-                    .vss_pk,
-            );
+            vss_pk += &id_to_m1
+                .get(&m.message.sender)
+                .expect("shares only includes shares from valid first messages")
+                .vss_pk;
             for share in &m.shares {
                 final_shares
                     .get_mut(&share.index)
