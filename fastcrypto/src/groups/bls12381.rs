@@ -15,16 +15,17 @@ use crate::traits::AllowedRng;
 use crate::utils::log2_byte;
 use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_byte_array};
 use blst::{
-    blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12, blst_fp12_inverse, blst_fp12_mul,
-    blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
-    blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
-    blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
-    blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p1_uncompress,
-    blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
-    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
-    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_bendian_from_fp12, blst_bendian_from_scalar, blst_final_exp, blst_fp, blst_fp12,
+    blst_fp12_inverse, blst_fp12_mul, blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr,
+    blst_fr_add, blst_fr_cneg, blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse,
+    blst_fr_mul, blst_fr_rshift, blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2,
+    blst_lendian_from_scalar, blst_miller_loop, blst_p1, blst_p1_add_or_double, blst_p1_affine,
+    blst_p1_cneg, blst_p1_compress, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
+    blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_add_or_double, blst_p2_affine,
+    blst_p2_cneg, blst_p2_compress, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
+    blst_p2_to_affine, blst_p2_uncompress, blst_scalar, blst_scalar_fr_check,
+    blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
+    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
@@ -630,7 +631,9 @@ impl ToFromByteArray<GT_ELEMENT_BYTE_LENGTH> for GTElement {
     }
 
     fn to_byte_array(&self) -> [u8; GT_ELEMENT_BYTE_LENGTH] {
-        self.0.to_bendian()
+        let mut bytes = [0u8; GT_ELEMENT_BYTE_LENGTH];
+        unsafe { blst_bendian_from_fp12(bytes.as_mut_ptr() as *mut u8, &self.0) }
+        bytes
     }
 }
 
