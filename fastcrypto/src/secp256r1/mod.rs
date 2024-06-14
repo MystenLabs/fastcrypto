@@ -93,6 +93,18 @@ pub struct Secp256r1PublicKey {
     pub bytes: OnceCell<[u8; SECP256R1_PUBLIC_KEY_LENGTH]>,
 }
 
+impl Default for Secp256r1PublicKey {
+    fn default() -> Self {
+        Secp256r1PublicKey::from_bytes(&[1u8; SECP256R1_PUBLIC_KEY_LENGTH]).unwrap()
+    }
+}
+
+impl Default for Secp256r1Signature {
+    fn default() -> Self {
+        Secp256r1Signature::from_bytes(&[1u8; SECP256R1_SIGNATURE_LENTH]).unwrap()
+    }
+}
+
 /// Secp256r1 private key.
 #[readonly::make]
 #[derive(SilentDebug, SilentDisplay)]
