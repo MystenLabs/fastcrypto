@@ -666,7 +666,7 @@ fn test_size_limits() {
 }
 
 #[test]
-fn test_test_regression() {
+fn test_serialized_message_regression() {
     let ro = RandomOracle::new("dkg");
     let t = 3;
     let mut rng = StdRng::from_seed([1; 32]);
