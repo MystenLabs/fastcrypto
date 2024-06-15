@@ -707,6 +707,14 @@ fn test_serialized_message_regression() {
         &mut rng,
     )
     .unwrap();
+    let _d2 = Party::<G, EG>::new(
+        keys.get(2_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut rng,
+    )
+    .unwrap();
     let d3 = Party::<G, EG>::new(
         keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
