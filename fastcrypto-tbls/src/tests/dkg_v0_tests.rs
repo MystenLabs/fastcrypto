@@ -707,14 +707,6 @@ fn test_serialized_message_regression() {
         &mut rng,
     )
     .unwrap();
-    let d2 = Party::<G, EG>::new(
-        keys.get(2_usize).unwrap().1.clone(),
-        nodes.clone(),
-        t,
-        ro.clone(),
-        &mut rng,
-    )
-    .unwrap();
     let d3 = Party::<G, EG>::new(
         keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
@@ -738,7 +730,7 @@ fn test_serialized_message_regression() {
         .iter()
         .map(|m| d0.process_message(m.clone(), &mut rng).unwrap())
         .collect::<Vec<_>>();
-    let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
+    let (conf0, _used_msgs0) = d0.merge(proc_msg0).unwrap();
 
     // fixed values below were generated using the next code:
     // println!("hex msg0: {:?}", hex::encode(bcs::to_bytes(&msg0).unwrap()));
