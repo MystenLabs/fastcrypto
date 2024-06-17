@@ -1,8 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use rand::thread_rng;
-
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::GroupElement;
@@ -17,6 +15,9 @@ use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
+use fastcrypto::traits::AllowedRng;
+use rand::rngs::StdRng;
+use rand::{thread_rng, SeedableRng};
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
@@ -27,9 +28,16 @@ type EG = G2Element;
 type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
 
 fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
+    gen_keys_and_nodes_rng(n, &mut thread_rng())
+}
+
+fn gen_keys_and_nodes_rng<R: AllowedRng>(
+    n: usize,
+    rng: &mut R,
+) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
     let keys = (0..n)
         .map(|id| {
-            let sk = PrivateKey::<EG>::new(&mut thread_rng());
+            let sk = PrivateKey::<EG>::new(rng);
             let pk = PublicKey::<EG>::from_private_key(&sk);
             (id as u16, sk, pk)
         })
@@ -674,4 +682,73 @@ fn test_size_limits() {
         complaints,
     };
     assert!(bcs::to_bytes(&conf).unwrap().len() <= DKG_MESSAGES_MAX_SIZE);
+}
+
+#[test]
+fn test_test_regression() {
+    let ro = RandomOracle::new("dkg");
+    let t = 3;
+    let mut rng = StdRng::from_seed([1; 32]);
+    let (keys, nodes) = gen_keys_and_nodes_rng(6, &mut rng);
+
+    let d0 = Party::<G, EG>::new(
+        keys.first().unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut rng,
+    )
+    .unwrap();
+    let d1 = Party::<G, EG>::new(
+        keys.get(1_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut rng,
+    )
+    .unwrap();
+    let d2 = Party::<G, EG>::new(
+        keys.get(2_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut rng,
+    )
+    .unwrap();
+    let d3 = Party::<G, EG>::new(
+        keys.get(3_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        &mut rng,
+    )
+    .unwrap();
+
+    let msg0 = d0.create_message(&mut rng).unwrap();
+    let msg1 = d1.create_message(&mut rng).unwrap();
+    let mut msg3 = d3.create_message(&mut rng).unwrap();
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg3);
+    pk_and_msgs.swap(0, 1);
+    msg3.encrypted_shares =
+        MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 3"), &mut rng);
+
+    let all_messages = vec![msg0.clone(), msg1, msg3];
+
+    let proc_msg0 = &all_messages
+        .iter()
+        .map(|m| d0.process_message(m.clone(), &mut rng).unwrap())
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
+
+    // fixed values below were generated using the next code:
+    // println!("hex msg0: {:?}", hex::encode(bcs::to_bytes(&msg0).unwrap()));
+    // println!(
+    //     "hex conf0: {:?}",
+    //     hex::encode(bcs::to_bytes(&conf0).unwrap())
+    // );
+
+    let expected_msg0 = "000003acee6249d2cf89903c516b3a29410e25da2c7aea52d59e3c12397198397ce35c6a8fd64bda4963d2daac6adf2cf94d22061c663f859dbdc19af4aebb6657e5c8f565ec6f56464a6610d547d59147f06390922fd0b8a7e1aa1a89ac9b2370d90196cfd197b6a5af7bc932c4831541be2dc896e40b47592f4be223bcee68227c4cd19ef1083f2bdc89401f7afd68a46bed17ac2669c5a246737bcc4fde95fb44eee18b2c0175ce4f7bea9300e6f3d66d388c7df4919ffe8f95a919b3436b4938a2b1b5539bebf257db7185189bc0cdc98cbb3fd163a96b1d180bb5fa34d12693d18e07c2d5723d5c65ca3b25e75817fdbb0837d5985ef1c9af57492b74f7fd6f45f30bf6c176fba2e9df61e07114505984a4189b8c6eb585fcce4da3518b509893b6b2ae04078eb54aa79efff5358d4a6aac16bb15c1389eb863e40847703094ad79621e3992031409dab281803419b16b0ae98c8cc1e1fc58a8c78a3d4397b83914109c5e3a49d5e54c730cd81c2626abd0bde41f8c2b3cff521855361e5f4dcd06413499012e5c16571ed52ef0375fd0bd2f02b90869ed0e125af2e70079fca0f1abc7aa6e8a44d6ac1af8ec880c81b2a971b6f256d2c2ad2ae0e5814de06df06d374061db72abcb6193e1d9289a7905f358f64303b341ac4b286028394fcb5c9c940e1954792d785f51b5b0e481da37cef068d3e9a060cc3c12025a06445a3b9b5d3cb70c140521385cd8579521f75c555d35293f77c6c2fe2e54e0354dd325f0b937df08018da10176edd1c91b09f0a59029b0e5012d5f5547cfe242901e13bb7ff0be17007c551d31ad0fc4d0d2ece0cea5de46a5f80ea01a33997ee24b65450a7a349da4946e2df0e3612f8646d6d61ec428dfb8e1d35dafe9a319d53d34beaad61b9b0d62c166e00e0b2625f4016e8bfd60732062b319926ce6cc795625111259d5db3410ee37954b1592517804ac72afd2a751216e5f70d10d95a5456e6bdafc08cf606f876221c101b92ed3fd2d69a4200cbe7474ccab154dcbc52a8c5ba672d335a3d7b2d82fb440d2a7cd391a2bd8e8739935311e1a9705c2ae4e1df88886b66e9664d6aaab96af6b2b8c97764da11996995895a553d0f705fa7995f74074b1261c44499783bafe0c252176a00767d246fc06d44cfaa5c64c07f225ad2b137fc602456d5d0eb2f537675a8d29e78055db77280d56c77dff35411a868392ec04e628766a9977d86bc87c04f8174e5fda4b178f9e12969841fabeb3e01c25669a2c30fbc5027411ed05e101c5ee1aea5f56bb0f0bc78d89a8a96a1f7cbee4d8daaeb31b2cdd1842ca3e79e25622ebedb1cb61d3b43f82ed68e2e1f40f0664cb3e9fd5bbc8ca996d325541f50cd45810e76919d00732a2923736296e6d4cd03b8135a4489a04b710344eee35b0ef033eb425ec4a2a139a215a034c0773ae5fcab31a502df03af43dac9902aeb37bd242dcf45597c1f6590b8903187097afe45143fe1fbee1e658cb71429e5e098e47ead204129aa79e512a9f5a7fcac4f32b91d02712a9421cc01c866a26f76954e4618822d8ae56d9ffe8c52a38e2af3f9bf6704d996c26c18b064d3530d7c7b3cca4530f925fd4a871314266a0839db3dfb9beecc7bd8c46ae9a3a2cb1c0cfcd8e9b5044b6ef40857bc11296ebc50617966249a1e8ebf8bd44e31892806f0dc1d55b9d9e7cb56f54b7dd5e537b5d197fddb3cff267000cf72dc556b3e957de414581fa3de87957e3c526f0e45c19bb95bf1871246d2a4094bf1af6f8726993";
+    let expected_conf0 = "00000103009242c26a0ef926f97ff4eb739a6ee2fed88efbacb79392cff978cad2b66a07c0b9e20333aad7a2fc1567a2b27b1b777e0fd52d8525ef903b43c828a5894d8f110479f0422ddd69a893fc4abce54dda795532de21303d072b164d601bac0d111b98db3bd4924d5ca3cf5c031f790ace67834ad4aa592cd93060b092e2db540e01e436182aad5d6ad21e458d0ee217970018a28cb7c0c7174e2d0667fd4093ad214c94169a53bd0a159c8cd62657efce03e215d31daec89a67ef79b34cfab0dca1a141e9fe2fd6d9b627c2bb8df63f4738e2a810b27bf6514162c89c641a7bee56358ff9624f087940b01ae54aaa06999016237bb392d54891e564925324dc4da99cd9f1145d50ba447c4b36eac8ff60caac14c94d5b595c6a830746b12fa34c9c307b6c491a3ae88febd0085159e165faa7f23d663876ad679837e24b33be9a5e";
+    assert_eq!(hex::encode(bcs::to_bytes(&msg0).unwrap()), expected_msg0);
+    assert_eq!(hex::encode(bcs::to_bytes(&conf0).unwrap()), expected_conf0);
 }
