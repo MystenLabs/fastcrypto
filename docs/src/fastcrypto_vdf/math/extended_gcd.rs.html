@@ -101,6 +101,17 @@
 <a href="#101" id="101">101</a>
 <a href="#102" id="102">102</a>
 <a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
+<a href="#105" id="105">105</a>
+<a href="#106" id="106">106</a>
+<a href="#107" id="107">107</a>
+<a href="#108" id="108">108</a>
+<a href="#109" id="109">109</a>
+<a href="#110" id="110">110</a>
+<a href="#111" id="111">111</a>
+<a href="#112" id="112">112</a>
+<a href="#113" id="113">113</a>
+<a href="#114" id="114">114</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -113,37 +124,26 @@
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
 <span class="kw">use </span>std::mem;
-<span class="kw">use </span>std::ops::Neg;
 
 <span class="doccomment">/// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
+/// Note that `x` is optional and only computed in [extended_euclidean_algorithm] if `compute_x` is true.
 </span><span class="kw">pub struct </span>EuclideanAlgorithmOutput {
     <span class="kw">pub </span>gcd: BigInt,
-    <span class="kw">pub </span>x: BigInt,
+    <span class="kw">pub </span>x: <span class="prelude-ty">Option</span>&lt;BigInt&gt;,
     <span class="kw">pub </span>y: BigInt,
     <span class="kw">pub </span>a_divided_by_gcd: BigInt,
     <span class="kw">pub </span>b_divided_by_gcd: BigInt,
 }
 
-<span class="kw">impl </span>EuclideanAlgorithmOutput {
-    <span class="kw">fn </span>flip(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            gcd: <span class="self">self</span>.gcd,
-            x: <span class="self">self</span>.y,
-            y: <span class="self">self</span>.x,
-            a_divided_by_gcd: <span class="self">self</span>.b_divided_by_gcd,
-            b_divided_by_gcd: <span class="self">self</span>.a_divided_by_gcd,
-        }
-    }
-}
-
 <span class="doccomment">/// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extended_euclidean_algorithm(a: <span class="kw-2">&amp;</span>BigInt, b: <span class="kw-2">&amp;</span>BigInt) -&gt; EuclideanAlgorithmOutput {
-    <span class="kw">if </span>b &lt; a {
-        <span class="kw">return </span>extended_euclidean_algorithm(b, a).flip();
-    }
-
+/// Note that `x` is only computed if `compute_x` is true.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>extended_euclidean_algorithm(
+    a: <span class="kw-2">&amp;</span>BigInt,
+    b: <span class="kw-2">&amp;</span>BigInt,
+    compute_x: bool,
+) -&gt; EuclideanAlgorithmOutput {
     <span class="kw">let </span><span class="kw-2">mut </span>s = (BigInt::zero(), BigInt::one());
     <span class="kw">let </span><span class="kw-2">mut </span>t = (BigInt::one(), BigInt::zero());
     <span class="kw">let </span><span class="kw-2">mut </span>r = (a.clone(), b.clone());
@@ -156,36 +156,52 @@
         mem::swap(<span class="kw-2">&amp;mut </span>s.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>s.<span class="number">1</span>);
         s.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>s.<span class="number">1</span>;
 
-        mem::swap(<span class="kw-2">&amp;mut </span>t.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>t.<span class="number">1</span>);
-        t.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>t.<span class="number">1</span>;
+        <span class="kw">if </span>compute_x {
+            mem::swap(<span class="kw-2">&amp;mut </span>t.<span class="number">0</span>, <span class="kw-2">&amp;mut </span>t.<span class="number">1</span>);
+            t.<span class="number">0 </span>-= <span class="kw-2">&amp;</span>q * <span class="kw-2">&amp;</span>t.<span class="number">1</span>;
+        }
     }
 
     <span class="comment">// The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    </span><span class="kw">let </span>a_divided_by_gcd = set_sign(s.<span class="number">0</span>, a.sign());
-    <span class="kw">let </span>b_divided_by_gcd = set_sign(t.<span class="number">0</span>, b.sign());
+    </span><span class="kw">let </span>a_divided_by_gcd = with_sign(s.<span class="number">0</span>, a.sign());
 
-    <span class="kw">if </span>!r.<span class="number">1</span>.is_negative() {
-        EuclideanAlgorithmOutput {
-            gcd: r.<span class="number">1</span>,
-            x: t.<span class="number">1</span>,
-            y: s.<span class="number">1</span>,
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+    <span class="kw">let </span>negate = r.<span class="number">1</span>.is_negative();
+    <span class="kw">let </span>gcd = conditional_negate(negate, r.<span class="number">1</span>);
+    <span class="kw">let </span>y = conditional_negate(negate, s.<span class="number">1</span>);
+
+    <span class="kw">let </span>(x, b_divided_by_gcd) = <span class="kw">if </span>compute_x {
+        (
+            <span class="prelude-val">Some</span>(conditional_negate(negate, t.<span class="number">1</span>)),
+            with_sign(t.<span class="number">0</span>, b.sign()),
+        )
     } <span class="kw">else </span>{
-        EuclideanAlgorithmOutput {
-            gcd: r.<span class="number">1</span>.neg(),
-            x: t.<span class="number">1</span>.neg(),
-            y: s.<span class="number">1</span>.neg(),
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+        <span class="comment">// If the t coefficients have not been computed, we can compute b_divided_by_gcd directly.
+        </span>(<span class="prelude-val">None</span>, b / <span class="kw-2">&amp;</span>gcd)
+    };
+
+    EuclideanAlgorithmOutput {
+        gcd,
+        x,
+        y,
+        a_divided_by_gcd,
+        b_divided_by_gcd,
     }
 }
 
 <span class="doccomment">/// Return a number with the same magnitude as `value` but with the given sign.
-</span><span class="kw">fn </span>set_sign(value: BigInt, sign: Sign) -&gt; BigInt {
+</span><span class="attr">#[inline]
+</span><span class="kw">fn </span>with_sign(value: BigInt, sign: Sign) -&gt; BigInt {
     BigInt::from_biguint(sign, value.into_parts().<span class="number">1</span>)
+}
+
+<span class="doccomment">/// Return `-value` if `negate` is true, otherwise return `value`.
+</span><span class="attr">#[inline]
+</span><span class="kw">fn </span>conditional_negate(negate: bool, value: BigInt) -&gt; BigInt {
+    <span class="kw">if </span>negate {
+        -value
+    } <span class="kw">else </span>{
+        value
+    }
 }
 
 <span class="attr">#[test]
@@ -198,9 +214,15 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">fn </span>test_xgcd_single(a: BigInt, b: BigInt) {
-    <span class="kw">let </span>output = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>b);
+    <span class="kw">let </span>output = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>b, <span class="bool-val">true</span>);
     <span class="macro">assert_eq!</span>(output.gcd, a.gcd(<span class="kw-2">&amp;</span>b));
-    <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>output.x * <span class="kw-2">&amp;</span>a + <span class="kw-2">&amp;</span>output.y * <span class="kw-2">&amp;</span>b, output.gcd);
+    <span class="macro">assert_eq!</span>(<span class="kw-2">&amp;</span>output.x.unwrap() * <span class="kw-2">&amp;</span>a + <span class="kw-2">&amp;</span>output.y * <span class="kw-2">&amp;</span>b, output.gcd);
+    <span class="macro">assert_eq!</span>(output.a_divided_by_gcd, <span class="kw-2">&amp;</span>a / <span class="kw-2">&amp;</span>output.gcd);
+    <span class="macro">assert_eq!</span>(output.b_divided_by_gcd, <span class="kw-2">&amp;</span>b / <span class="kw-2">&amp;</span>output.gcd);
+
+    <span class="kw">let </span>output = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>a, <span class="kw-2">&amp;</span>b, <span class="bool-val">false</span>);
+    <span class="macro">assert_eq!</span>(output.gcd, a.gcd(<span class="kw-2">&amp;</span>b));
+    <span class="macro">assert!</span>(output.x.is_none());
     <span class="macro">assert_eq!</span>(output.a_divided_by_gcd, <span class="kw-2">&amp;</span>a / <span class="kw-2">&amp;</span>output.gcd);
     <span class="macro">assert_eq!</span>(output.b_divided_by_gcd, <span class="kw-2">&amp;</span>b / <span class="kw-2">&amp;</span>output.gcd);
 }

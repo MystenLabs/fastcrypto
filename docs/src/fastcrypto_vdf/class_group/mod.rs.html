@@ -350,6 +350,7 @@
 <a href="#350" id="350">350</a>
 <a href="#351" id="351">351</a>
 <a href="#352" id="352">352</a>
+<a href="#353" id="353">353</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -483,7 +484,8 @@
             y: c,
             a_divided_by_gcd: <span class="kw-2">mut </span>capital_cy,
             b_divided_by_gcd: <span class="kw-2">mut </span>capital_by,
-        } = extended_euclidean_algorithm(u2, u1);
+        } = extended_euclidean_algorithm(u2, u1, <span class="bool-val">true</span>);
+        <span class="kw">let </span>b = b.expect(<span class="string">"Was computed because compute_x is true above"</span>);
 
         <span class="kw">let </span>(q, r) = s.div_rem(<span class="kw-2">&amp;</span>f);
         <span class="kw">let </span>(g, capital_bx, capital_dy) = <span class="kw">if </span>r.is_zero() {
@@ -496,7 +498,7 @@
                 y,
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
-            } = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>s);
+            } = extended_euclidean_algorithm(<span class="kw-2">&amp;</span>f, <span class="kw-2">&amp;</span>s, <span class="bool-val">false</span>);
 
             <span class="comment">// 4.
             </span><span class="kw">let </span>l = (<span class="kw-2">&amp;</span>y * (<span class="kw-2">&amp;</span>b * (w1.mod_floor(<span class="kw-2">&amp;</span>h)) + <span class="kw-2">&amp;</span>c * (w2.mod_floor(<span class="kw-2">&amp;</span>h)))).mod_floor(<span class="kw-2">&amp;</span>h);
@@ -572,7 +574,7 @@
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm(u, v);
+        } = extended_euclidean_algorithm(u, v, <span class="bool-val">false</span>);
 
         <span class="kw">let </span>(bx, x, by, y, iterated) = partial_xgcd(
             (<span class="kw-2">&amp;</span>y * w).mod_floor(<span class="kw-2">&amp;</span>capital_by),

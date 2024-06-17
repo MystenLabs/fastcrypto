@@ -126,7 +126,7 @@
     }
 
     <span class="comment">// The moduli must be relatively prime
-    </span><span class="kw">let </span>output = extended_euclidean_algorithm(p, q);
+    </span><span class="kw">let </span>output = extended_euclidean_algorithm(p, q, <span class="bool-val">true</span>);
     <span class="kw">if </span>!output.gcd.is_one() {
         <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
     }
@@ -134,7 +134,7 @@
     <span class="kw">let </span>a = a.mod_floor(p);
     <span class="kw">let </span>b = b.mod_floor(q);
 
-    <span class="kw">let </span>result = a * output.y * q + b * output.x * p;
+    <span class="kw">let </span>result = a * output.y * q + b * output.x.unwrap() * p;
 
     <span class="kw">if </span>result.is_negative() {
         <span class="prelude-val">Ok</span>(result + <span class="kw-2">&amp;</span>(p * q))
