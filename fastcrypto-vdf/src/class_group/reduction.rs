@@ -7,6 +7,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed};
 use std::cmp::Ordering;
 use std::mem::swap;
+use std::ops::{Shr, ShrAssign};
 
 impl QuadraticForm {
     /// Return true if this form is in normal form: -a < b <= a.
@@ -64,9 +65,10 @@ impl QuadraticForm {
 #[inline]
 fn increment_and_shift_right(mut x: BigInt) -> BigInt {
     if x.is_odd() {
+        // If x is even, there's no carry on the first bit, so adding 1 will not change anything.
         x += BigInt::one();
     }
-    x >>= 1;
+    x.shr_assign(1);
     x
 }
 

@@ -18,7 +18,7 @@ use num_traits::{One, Signed, Zero};
 use serde::Deserialize;
 use serde::Serialize;
 use std::mem::swap;
-use std::ops::{Add, Neg};
+use std::ops::{Add, Neg, Shl, ShlAssign};
 
 #[cfg(test)]
 mod tests;
@@ -231,7 +231,7 @@ impl Doubling for QuadraticForm {
 
         let mut u3 = &by * &by;
         let mut w3 = &bx * &bx;
-        let mut v3 = &u3 + &w3 - &(&bx + &by).pow(2);
+        let mut v3 = -(by * &bx) << 1;
 
         if !iterated {
             let dx = (&bx * &capital_dy - w) / &capital_by;
