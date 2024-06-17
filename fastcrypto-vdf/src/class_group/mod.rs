@@ -18,7 +18,7 @@ use num_traits::{One, Signed, Zero};
 use serde::Deserialize;
 use serde::Serialize;
 use std::mem::swap;
-use std::ops::{Add, Neg, Shl, ShlAssign};
+use std::ops::{Add, Neg};
 
 #[cfg(test)]
 mod tests;

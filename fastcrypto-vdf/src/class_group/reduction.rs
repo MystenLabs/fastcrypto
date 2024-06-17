@@ -7,7 +7,7 @@ use num_integer::Integer;
 use num_traits::{One, Signed};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{Shr, ShrAssign};
+use std::ops::ShrAssign;
 
 impl QuadraticForm {
     /// Return true if this form is in normal form: -a < b <= a.
