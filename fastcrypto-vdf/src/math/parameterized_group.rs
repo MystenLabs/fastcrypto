@@ -25,7 +25,7 @@ pub trait ParameterizedGroupElement:
     type ScalarType: From<u64>;
 
     /// Return an instance of the identity element in this group.
-    fn zero(parameters: &Self::ParameterType) -> Self;
+    fn zero(parameter: &Self::ParameterType) -> Self;
 
     /// Returns true if this is an element of the group defined by `parameter`.
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
