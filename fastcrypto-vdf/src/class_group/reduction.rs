@@ -51,7 +51,7 @@ impl QuadraticForm {
             let s = increment_and_shift_right(self.b.div_floor(&self.c));
             let cs: BigInt = &self.c * &s;
             swap(&mut self.a, &mut self.c);
-            self.b = negate(self.b);
+            self.b = -self.b;
             self.b += &cs;
             self.c += &self.b * &s;
             self.b += &cs;
@@ -68,14 +68,6 @@ fn increment_and_shift_right(mut x: BigInt) -> BigInt {
     }
     x >>= 1;
     x
-}
-
-/// Return -x.
-#[inline]
-fn negate(x: BigInt) -> BigInt {
-    let (mut sign, data) = x.into_parts();
-    sign = -sign;
-    BigInt::from_biguint(sign, data)
 }
 
 #[cfg(test)]
