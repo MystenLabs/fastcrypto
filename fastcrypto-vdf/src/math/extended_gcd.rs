@@ -36,8 +36,7 @@ pub(crate) fn extended_euclidean_algorithm(
 
     while !r.0.is_zero() {
         let (q, r_prime) = r.1.div_rem(&r.0);
-        r.1 = r.0;
-        r.0 = r_prime;
+        r.1 = mem::replace(&mut r.0, r_prime);
 
         mem::swap(&mut s.0, &mut s.1);
         s.0 -= &q * &s.1;
