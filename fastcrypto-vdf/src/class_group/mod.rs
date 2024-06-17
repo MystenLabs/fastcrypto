@@ -200,7 +200,7 @@ impl QuadraticForm {
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 
@@ -254,7 +254,7 @@ impl Doubling for QuadraticForm {
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 

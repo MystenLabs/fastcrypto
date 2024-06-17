@@ -1,23 +1,26 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::discriminant::Discriminant;
-use crate::class_group::QuadraticForm;
-use crate::math::crt::solve_congruence_equation_system;
-use crate::math::hash_prime::is_probable_prime;
-use crate::math::jacobi;
-use crate::math::modular_sqrt::modular_square_root;
-use fastcrypto::error::FastCryptoError::InvalidInput;
-use fastcrypto::error::FastCryptoResult;
-use fastcrypto::hash::HashFunction;
-use fastcrypto::hash::Sha256;
+use std::ops::{AddAssign, ShlAssign, Shr};
+
 use num_bigint::{BigInt, UniformBigInt};
 use num_integer::Integer;
 use num_traits::Signed;
 use rand::distributions::uniform::UniformSampler;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use std::ops::{AddAssign, ShlAssign, Shr};
+
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoResult;
+use fastcrypto::hash::HashFunction;
+use fastcrypto::hash::Sha256;
+
+use crate::class_group::discriminant::Discriminant;
+use crate::class_group::QuadraticForm;
+use crate::math::crt::solve_congruence_equation_system;
+use crate::math::hash_prime::is_probable_prime;
+use crate::math::jacobi;
+use crate::math::modular_sqrt::modular_square_root;
 
 impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
@@ -131,8 +134,9 @@ fn sample_modulus(
                 break;
             }
         }
+        // This only fails if the discriminant is not prime.
         let square_root = modular_square_root(discriminant.as_bigint(), &factor, false)
-            .expect("Legendre symbol checked above");
+            .map_err(|_| InvalidInput)?;
         factors.push(factor);
         square_roots.push(square_root);
     }
@@ -169,13 +173,14 @@ fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group::discriminant::Discriminant;
-    use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     use num_bigint::BigInt;
     use num_traits::Num;
     use rand::thread_rng;
     use rand::RngCore;
+
+    use crate::class_group::discriminant::Discriminant;
+    use crate::class_group::QuadraticForm;
+    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
 
     #[test]
     fn test_qf_from_seed() {

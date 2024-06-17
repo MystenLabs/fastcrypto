@@ -4,13 +4,13 @@
 use crate::class_group::QuadraticForm;
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::Signed;
+use num_traits::{One, Signed};
 use std::cmp::Ordering;
 use std::mem::swap;
-use std::ops::{AddAssign, Shl, Shr};
 
 impl QuadraticForm {
     /// Return true if this form is in normal form: -a < b <= a.
+    #[inline]
     fn is_normal(&self) -> bool {
         match self.b.magnitude().cmp(self.a.magnitude()) {
             Ordering::Less => true,
@@ -25,14 +25,16 @@ impl QuadraticForm {
         if self.is_normal() {
             return;
         }
-        let r = (&self.a - &self.b).div_floor(&self.a).shr(1);
+        let r = -increment_and_shift_right(self.b.div_floor(&self.a));
         let ra: BigInt = &r * &self.a;
-        self.c.add_assign((&ra + &self.b) * &r);
-        self.b.add_assign(&ra.shl(1));
+        self.b += &ra;
+        self.c += &self.b * &r;
+        self.b += &ra;
     }
 
     /// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a <= c and if a == c then b >= 0.
+    #[inline]
     pub(crate) fn is_reduced_assuming_normal(&self) -> bool {
         match self.a.cmp(&self.c) {
             Ordering::Less => true,
@@ -42,22 +44,38 @@ impl QuadraticForm {
     }
 
     /// Return a reduced form (see [`QuadraticForm::is_reduced_assuming_normal`]) equivalent to this quadratic form.
-    pub(crate) fn reduce(&mut self) {
+    pub(crate) fn reduce(mut self) -> Self {
         // See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         self.normalize();
         while !self.is_reduced_assuming_normal() {
-            let s = (&self.b + &self.c).div_floor(&self.c).shr(1);
+            let s = increment_and_shift_right(self.b.div_floor(&self.c));
             let cs: BigInt = &self.c * &s;
             swap(&mut self.a, &mut self.c);
-            self.c += (&cs - &self.b) * &s;
-            self.b = cs.shl(1) - &self.b;
+            self.b = negate(self.b);
+            self.b += &cs;
+            self.c += &self.b * &s;
+            self.b += &cs;
         }
-    }
-
-    pub(crate) fn into_reduced(mut self) -> QuadraticForm {
-        self.reduce();
         self
     }
+}
+
+/// Compute (x + 1) >> 1.
+#[inline]
+fn increment_and_shift_right(mut x: BigInt) -> BigInt {
+    if x.is_odd() {
+        x += BigInt::one();
+    }
+    x >>= 1;
+    x
+}
+
+/// Return -x.
+#[inline]
+fn negate(x: BigInt) -> BigInt {
+    let (mut sign, data) = x.into_parts();
+    sign = -sign;
+    BigInt::from_biguint(sign, data)
 }
 
 #[cfg(test)]
@@ -83,7 +101,7 @@ mod tests {
         assert_eq!(quadratic_form.b, BigInt::from(-33));
         assert_eq!(quadratic_form.c, BigInt::from(8));
 
-        quadratic_form.reduce();
+        quadratic_form = quadratic_form.reduce();
         assert!(quadratic_form.is_reduced_assuming_normal());
         assert_eq!(quadratic_form.a, BigInt::from(7));
         assert_eq!(quadratic_form.b, BigInt::from(-1));
