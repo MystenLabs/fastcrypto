@@ -10,37 +10,26 @@ use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use std::mem;
-use std::ops::Neg;
 
 /// The output of the extended Euclidean algorithm on inputs `a` and `b`: The Bezout coefficients `x`
 /// and `y` such that `ax + by = gcd`. The quotients `a / gcd` and `b / gcd` are also returned.
+/// Note that `x` is optional and only computed in [extended_euclidean_algorithm] if `compute_x` is true.
 pub struct EuclideanAlgorithmOutput {
     pub gcd: BigInt,
-    pub x: BigInt,
+    pub x: Option<BigInt>,
     pub y: BigInt,
     pub a_divided_by_gcd: BigInt,
     pub b_divided_by_gcd: BigInt,
 }
 
-impl EuclideanAlgorithmOutput {
-    fn flip(self) -> Self {
-        Self {
-            gcd: self.gcd,
-            x: self.y,
-            y: self.x,
-            a_divided_by_gcd: self.b_divided_by_gcd,
-            b_divided_by_gcd: self.a_divided_by_gcd,
-        }
-    }
-}
-
 /// Compute the greatest common divisor gcd of a and b. The output also returns the Bezout coefficients
 /// x and y such that ax + by = gcd and also the quotients a / gcd and b / gcd.
-pub(crate) fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanAlgorithmOutput {
-    if b < a {
-        return extended_euclidean_algorithm(b, a).flip();
-    }
-
+/// Note that `x` is only computed if `compute_x` is true.
+pub(crate) fn extended_euclidean_algorithm(
+    a: &BigInt,
+    b: &BigInt,
+    compute_x: bool,
+) -> EuclideanAlgorithmOutput {
     let mut s = (BigInt::zero(), BigInt::one());
     let mut t = (BigInt::one(), BigInt::zero());
     let mut r = (a.clone(), b.clone());
@@ -53,36 +42,52 @@ pub(crate) fn extended_euclidean_algorithm(a: &BigInt, b: &BigInt) -> EuclideanA
         mem::swap(&mut s.0, &mut s.1);
         s.0 -= &q * &s.1;
 
-        mem::swap(&mut t.0, &mut t.1);
-        t.0 -= &q * &t.1;
+        if compute_x {
+            mem::swap(&mut t.0, &mut t.1);
+            t.0 -= &q * &t.1;
+        }
     }
 
     // The last coefficients are equal to +/- a / gcd(a,b) and b / gcd(a,b) respectively.
-    let a_divided_by_gcd = set_sign(s.0, a.sign());
-    let b_divided_by_gcd = set_sign(t.0, b.sign());
+    let a_divided_by_gcd = with_sign(s.0, a.sign());
 
-    if !r.1.is_negative() {
-        EuclideanAlgorithmOutput {
-            gcd: r.1,
-            x: t.1,
-            y: s.1,
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+    let negate = r.1.is_negative();
+    let gcd = conditional_negate(negate, r.1);
+    let y = conditional_negate(negate, s.1);
+
+    let (x, b_divided_by_gcd) = if compute_x {
+        (
+            Some(conditional_negate(negate, t.1)),
+            with_sign(t.0, b.sign()),
+        )
     } else {
-        EuclideanAlgorithmOutput {
-            gcd: r.1.neg(),
-            x: t.1.neg(),
-            y: s.1.neg(),
-            a_divided_by_gcd,
-            b_divided_by_gcd,
-        }
+        // If the t coefficients have not been computed, we can compute b_divided_by_gcd directly.
+        (None, b / &gcd)
+    };
+
+    EuclideanAlgorithmOutput {
+        gcd,
+        x,
+        y,
+        a_divided_by_gcd,
+        b_divided_by_gcd,
     }
 }
 
 /// Return a number with the same magnitude as `value` but with the given sign.
-fn set_sign(value: BigInt, sign: Sign) -> BigInt {
+#[inline]
+fn with_sign(value: BigInt, sign: Sign) -> BigInt {
     BigInt::from_biguint(sign, value.into_parts().1)
+}
+
+/// Return `-value` if `negate` is true, otherwise return `value`.
+#[inline]
+fn conditional_negate(negate: bool, value: BigInt) -> BigInt {
+    if negate {
+        -value
+    } else {
+        value
+    }
 }
 
 #[test]
@@ -95,9 +100,15 @@ fn test_xgcd() {
 
 #[cfg(test)]
 fn test_xgcd_single(a: BigInt, b: BigInt) {
-    let output = extended_euclidean_algorithm(&a, &b);
+    let output = extended_euclidean_algorithm(&a, &b, true);
     assert_eq!(output.gcd, a.gcd(&b));
-    assert_eq!(&output.x * &a + &output.y * &b, output.gcd);
+    assert_eq!(&output.x.unwrap() * &a + &output.y * &b, output.gcd);
+    assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
+    assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
+
+    let output = extended_euclidean_algorithm(&a, &b, false);
+    assert_eq!(output.gcd, a.gcd(&b));
+    assert!(output.x.is_none());
     assert_eq!(output.a_divided_by_gcd, &a / &output.gcd);
     assert_eq!(output.b_divided_by_gcd, &b / &output.gcd);
 }

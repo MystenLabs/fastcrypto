@@ -131,7 +131,8 @@ impl QuadraticForm {
             y: c,
             a_divided_by_gcd: mut capital_cy,
             b_divided_by_gcd: mut capital_by,
-        } = extended_euclidean_algorithm(u2, u1);
+        } = extended_euclidean_algorithm(u2, u1, true);
+        let b = b.expect("Was computed because compute_x is true above");
 
         let (q, r) = s.div_rem(&f);
         let (g, capital_bx, capital_dy) = if r.is_zero() {
@@ -144,7 +145,7 @@ impl QuadraticForm {
                 y,
                 a_divided_by_gcd: h,
                 b_divided_by_gcd,
-            } = extended_euclidean_algorithm(&f, &s);
+            } = extended_euclidean_algorithm(&f, &s, false);
 
             // 4.
             let l = (&y * (&b * (w1.mod_floor(&h)) + &c * (w2.mod_floor(&h)))).mod_floor(&h);
@@ -220,7 +221,7 @@ impl Doubling for QuadraticForm {
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm(u, v);
+        } = extended_euclidean_algorithm(u, v, false);
 
         let (bx, x, by, y, iterated) = partial_xgcd(
             (&y * w).mod_floor(&capital_by),
