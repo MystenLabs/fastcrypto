@@ -1,0 +1,1 @@
+searchState.loadedDescShard("fastcrypto_cli", 0, "This module contains test vectors for all signature …\nA test vector containing a signature over MSG encoded as a …\nReturns the argument unchanged.\nCalls <code>U::from(self)</code>.")
