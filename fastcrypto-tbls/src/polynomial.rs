@@ -13,6 +13,7 @@ use itertools::Either;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
+use std::ops::AddAssign;
 
 /// Types
 
@@ -43,21 +44,22 @@ impl<C> From<Vec<C>> for Poly<C> {
     }
 }
 
+impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
+    fn add_assign(&mut self, other: &Self) {
+        self.0.iter_mut().zip(&other.0).for_each(|(a, b)| *a += *b);
+        // if we have a smaller degree we can copy the rest
+        if self.0.len() < other.0.len() {
+            self.0.extend_from_slice(&other.0[self.0.len()..]);
+        }
+    }
+}
+
 /// GroupElement operations.
 
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
         Self::from(vec![C::zero()])
-    }
-
-    /// Performs polynomial addition in place.
-    pub fn add(&mut self, other: &Self) {
-        // if we have a smaller degree we should pad with zeros
-        if self.0.len() < other.0.len() {
-            self.0.resize(other.0.len(), C::zero())
-        }
-        self.0.iter_mut().zip(&other.0).for_each(|(a, b)| *a += *b)
     }
 
     // TODO: Some of the functions/steps below may be executed many times in practice thus cache can be
