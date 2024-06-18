@@ -258,26 +258,34 @@
 <a href="#258" id="258">258</a>
 <a href="#259" id="259">259</a>
 <a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
+<a href="#265" id="265">265</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
-<span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-<span class="kw">use </span><span class="kw">crate</span>::math::crt::solve_congruence_equation_system;
-<span class="kw">use </span><span class="kw">crate</span>::math::hash_prime::is_probable_prime;
-<span class="kw">use </span><span class="kw">crate</span>::math::jacobi;
-<span class="kw">use </span><span class="kw">crate</span>::math::modular_sqrt::modular_square_root;
-<span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
-<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
-<span class="kw">use </span>fastcrypto::hash::HashFunction;
-<span class="kw">use </span>fastcrypto::hash::Sha256;
+</span><span class="kw">use </span>std::ops::{AddAssign, ShlAssign, Shr};
+
 <span class="kw">use </span>num_bigint::{BigInt, UniformBigInt};
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::Signed;
 <span class="kw">use </span>rand::distributions::uniform::UniformSampler;
 <span class="kw">use </span>rand::{Rng, SeedableRng};
 <span class="kw">use </span>rand_chacha::ChaCha8Rng;
-<span class="kw">use </span>std::ops::{AddAssign, ShlAssign, Shr};
+
+<span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
+<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
+<span class="kw">use </span>fastcrypto::hash::HashFunction;
+<span class="kw">use </span>fastcrypto::hash::Sha256;
+
+<span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
+<span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+<span class="kw">use </span><span class="kw">crate</span>::math::crt::solve_congruence_equation_system;
+<span class="kw">use </span><span class="kw">crate</span>::math::hash_prime::is_probable_prime;
+<span class="kw">use </span><span class="kw">crate</span>::math::jacobi;
+<span class="kw">use </span><span class="kw">crate</span>::math::modular_sqrt::modular_square_root;
 
 <span class="kw">impl </span>QuadraticForm {
     <span class="doccomment">/// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic and it is
@@ -391,8 +399,9 @@
                 </span><span class="kw">break</span>;
             }
         }
-        <span class="kw">let </span>square_root = modular_square_root(discriminant.as_bigint(), <span class="kw-2">&amp;</span>factor, <span class="bool-val">false</span>)
-            .expect(<span class="string">"Legendre symbol checked above"</span>);
+        <span class="comment">// This only fails if the discriminant is not prime.
+        </span><span class="kw">let </span>square_root = modular_square_root(discriminant.as_bigint(), <span class="kw-2">&amp;</span>factor, <span class="bool-val">false</span>)
+            .map_err(|<span class="kw">_</span>| InvalidInput)<span class="question-mark">?</span>;
         factors.push(factor);
         square_roots.push(square_root);
     }
@@ -429,13 +438,14 @@
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     <span class="kw">use </span>num_bigint::BigInt;
     <span class="kw">use </span>num_traits::Num;
     <span class="kw">use </span>rand::thread_rng;
     <span class="kw">use </span>rand::RngCore;
+
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::{Parameter, ParameterizedGroupElement};
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_qf_from_seed() {

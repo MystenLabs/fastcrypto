@@ -553,7 +553,7 @@
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 
@@ -584,7 +584,7 @@
 
         <span class="kw">let </span><span class="kw-2">mut </span>u3 = <span class="kw-2">&amp;</span>by * <span class="kw-2">&amp;</span>by;
         <span class="kw">let </span><span class="kw-2">mut </span>w3 = <span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>bx;
-        <span class="kw">let </span><span class="kw-2">mut </span>v3 = <span class="kw-2">&amp;</span>u3 + <span class="kw-2">&amp;</span>w3 - <span class="kw-2">&amp;</span>(<span class="kw-2">&amp;</span>bx + <span class="kw-2">&amp;</span>by).pow(<span class="number">2</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>v3 = -(by * <span class="kw-2">&amp;</span>bx) &lt;&lt; <span class="number">1</span>;
 
         <span class="kw">if </span>!iterated {
             <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w) / <span class="kw-2">&amp;</span>capital_by;
@@ -607,7 +607,7 @@
             c: w3,
             partial_gcd_limit: <span class="self">self</span>.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 

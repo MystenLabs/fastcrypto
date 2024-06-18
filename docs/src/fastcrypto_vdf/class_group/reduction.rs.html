@@ -90,19 +90,32 @@
 <a href="#90" id="90">90</a>
 <a href="#91" id="91">91</a>
 <a href="#92" id="92">92</a>
+<a href="#93" id="93">93</a>
+<a href="#94" id="94">94</a>
+<a href="#95" id="95">95</a>
+<a href="#96" id="96">96</a>
+<a href="#97" id="97">97</a>
+<a href="#98" id="98">98</a>
+<a href="#99" id="99">99</a>
+<a href="#100" id="100">100</a>
+<a href="#101" id="101">101</a>
+<a href="#102" id="102">102</a>
+<a href="#103" id="103">103</a>
+<a href="#104" id="104">104</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
 <span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_integer::Integer;
-<span class="kw">use </span>num_traits::Signed;
+<span class="kw">use </span>num_traits::{One, Signed};
 <span class="kw">use </span>std::cmp::Ordering;
 <span class="kw">use </span>std::mem::swap;
-<span class="kw">use </span>std::ops::{AddAssign, Shl, Shr};
+<span class="kw">use </span>std::ops::ShrAssign;
 
 <span class="kw">impl </span>QuadraticForm {
     <span class="doccomment">/// Return true if this form is in normal form: -a &lt; b &lt;= a.
+    </span><span class="attr">#[inline]
     </span><span class="kw">fn </span>is_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.b.magnitude().cmp(<span class="self">self</span>.a.magnitude()) {
             Ordering::Less =&gt; <span class="bool-val">true</span>,
@@ -117,14 +130,16 @@
         </span><span class="kw">if </span><span class="self">self</span>.is_normal() {
             <span class="kw">return</span>;
         }
-        <span class="kw">let </span>r = (<span class="kw-2">&amp;</span><span class="self">self</span>.a - <span class="kw-2">&amp;</span><span class="self">self</span>.b).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.a).shr(<span class="number">1</span>);
+        <span class="kw">let </span>r = -increment_and_shift_right(<span class="self">self</span>.b.div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.a));
         <span class="kw">let </span>ra: BigInt = <span class="kw-2">&amp;</span>r * <span class="kw-2">&amp;</span><span class="self">self</span>.a;
-        <span class="self">self</span>.c.add_assign((<span class="kw-2">&amp;</span>ra + <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>r);
-        <span class="self">self</span>.b.add_assign(<span class="kw-2">&amp;</span>ra.shl(<span class="number">1</span>));
+        <span class="self">self</span>.b += <span class="kw-2">&amp;</span>ra;
+        <span class="self">self</span>.c += <span class="kw-2">&amp;</span><span class="self">self</span>.b * <span class="kw-2">&amp;</span>r;
+        <span class="self">self</span>.b += <span class="kw-2">&amp;</span>ra;
     }
 
     <span class="doccomment">/// Return true if this form is reduced: A form is reduced if it is normal (see
     /// [`QuadraticForm::is_normal`]) and a &lt;= c and if a == c then b &gt;= 0.
+    </span><span class="attr">#[inline]
     </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>is_reduced_assuming_normal(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
         <span class="kw">match </span><span class="self">self</span>.a.cmp(<span class="kw-2">&amp;</span><span class="self">self</span>.c) {
             Ordering::Less =&gt; <span class="bool-val">true</span>,
@@ -134,22 +149,31 @@
     }
 
     <span class="doccomment">/// Return a reduced form (see [`QuadraticForm::is_reduced_assuming_normal`]) equivalent to this quadratic form.
-    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>reduce(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>reduce(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="comment">// See section 5 in https://github.com/Chia-Network/chiavdf/blob/main/classgroups.pdf.
         </span><span class="self">self</span>.normalize();
         <span class="kw">while </span>!<span class="self">self</span>.is_reduced_assuming_normal() {
-            <span class="kw">let </span>s = (<span class="kw-2">&amp;</span><span class="self">self</span>.b + <span class="kw-2">&amp;</span><span class="self">self</span>.c).div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.c).shr(<span class="number">1</span>);
+            <span class="kw">let </span>s = increment_and_shift_right(<span class="self">self</span>.b.div_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.c));
             <span class="kw">let </span>cs: BigInt = <span class="kw-2">&amp;</span><span class="self">self</span>.c * <span class="kw-2">&amp;</span>s;
             swap(<span class="kw-2">&amp;mut </span><span class="self">self</span>.a, <span class="kw-2">&amp;mut </span><span class="self">self</span>.c);
-            <span class="self">self</span>.c += (<span class="kw-2">&amp;</span>cs - <span class="kw-2">&amp;</span><span class="self">self</span>.b) * <span class="kw-2">&amp;</span>s;
-            <span class="self">self</span>.b = cs.shl(<span class="number">1</span>) - <span class="kw-2">&amp;</span><span class="self">self</span>.b;
+            <span class="self">self</span>.b = -<span class="self">self</span>.b;
+            <span class="self">self</span>.b += <span class="kw-2">&amp;</span>cs;
+            <span class="self">self</span>.c += <span class="kw-2">&amp;</span><span class="self">self</span>.b * <span class="kw-2">&amp;</span>s;
+            <span class="self">self</span>.b += <span class="kw-2">&amp;</span>cs;
         }
-    }
-
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>into_reduced(<span class="kw-2">mut </span><span class="self">self</span>) -&gt; QuadraticForm {
-        <span class="self">self</span>.reduce();
         <span class="self">self
     </span>}
+}
+
+<span class="doccomment">/// Compute (x + 1) &gt;&gt; 1.
+</span><span class="attr">#[inline]
+</span><span class="kw">fn </span>increment_and_shift_right(<span class="kw-2">mut </span>x: BigInt) -&gt; BigInt {
+    <span class="kw">if </span>x.is_odd() {
+        <span class="comment">// If x is even, there's no carry on the first bit, so adding 1 will not change anything.
+        </span>x += BigInt::one();
+    }
+    x.shr_assign(<span class="number">1</span>);
+    x
 }
 
 <span class="attr">#[cfg(test)]
@@ -175,7 +199,7 @@
         <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(-<span class="number">33</span>));
         <span class="macro">assert_eq!</span>(quadratic_form.c, BigInt::from(<span class="number">8</span>));
 
-        quadratic_form.reduce();
+        quadratic_form = quadratic_form.reduce();
         <span class="macro">assert!</span>(quadratic_form.is_reduced_assuming_normal());
         <span class="macro">assert_eq!</span>(quadratic_form.a, BigInt::from(<span class="number">7</span>));
         <span class="macro">assert_eq!</span>(quadratic_form.b, BigInt::from(-<span class="number">1</span>));
