@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::{One};
+use num_traits::One;
 use serde::{Deserialize, Serialize};
 
 use fastcrypto::groups::Doubling;
