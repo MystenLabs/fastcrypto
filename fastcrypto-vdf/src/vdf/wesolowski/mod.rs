@@ -15,6 +15,7 @@ use fastcrypto::groups::multiplier::ScalarMultiplier;
 use fiat_shamir::{FiatShamir, StrongFiatShamir};
 
 use crate::groups::class_group::QuadraticForm;
+use crate::groups::rsa_group::multiplier::Multiplier;
 use crate::groups::rsa_group::RSAGroupElement;
 use crate::groups::ParameterizedGroupElement;
 use crate::vdf::VDF;
@@ -115,14 +116,11 @@ pub type DefaultVDF = WesolowskisVDF<
 
 /// Implementation of Wesolowski's VDF construction over an imaginary class group using a strong
 /// Fiat-Shamir implementation.
-pub type DefaultRSABasedVDF = WesolowskisVDF<
-    RSAGroupElement,
-    StrongFiatShamir,
-    WindowedScalarMultiplier<RSAGroupElement, BigUint, 256, 5>,
->;
+pub type DefaultRSABasedVDF = WesolowskisVDF<RSAGroupElement, StrongFiatShamir, Multiplier>;
 
 #[cfg(test)]
 mod tests {
+    use std::rc::Rc;
     use std::str::FromStr;
 
     use num_bigint::{BigInt, BigUint};
@@ -133,8 +131,10 @@ mod tests {
 
     use crate::groups::class_group::discriminant::Discriminant;
     use crate::groups::class_group::QuadraticForm;
+    use crate::groups::rsa_group::modulus::RSAModulus;
+    use crate::groups::rsa_group::RSAGroupElement;
     use crate::vdf::wesolowski::fiat_shamir::FiatShamir;
-    use crate::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
+    use crate::vdf::wesolowski::{DefaultRSABasedVDF, DefaultVDF, WesolowskisVDF};
     use crate::vdf::VDF;
 
     #[test]
@@ -211,5 +211,24 @@ mod tests {
             )
             .unwrap()
         }
+    }
+
+    #[test]
+    fn test_rsa_vdf() {
+        let modulus = RSAModulus {
+            value: BigUint::from_str("25195908475657893494027183240048398571429282126204032027777137836043662020707595556264018525880784406918290641249515082189298559149176184502808489120072844992687392807287776735971418347270261896375014971824691165077613379859095700097330459748808428401797429100642458691817195118746121515172654632282216869987549182422433637259085141865462043576798423387184774447920739934236584823824281198163815010674810451660377306056201619676256133844143603833904414952634432190114657544454178424020924616515723350778707749817125772467962926386356373289912154831438167899885040445364023527381951378636564391212010397122822120720357").unwrap(),
+        };
+
+        let modulus_pointer = Rc::new(modulus.clone());
+
+        let vdf = DefaultRSABasedVDF::new(modulus.clone(), 1000);
+
+        let input = RSAGroupElement {
+            value: BigUint::from(2u64),
+            modulus: modulus_pointer,
+        };
+
+        let (output, proof) = vdf.evaluate(&input).unwrap();
+        assert!(vdf.verify(&input, &output, &proof).is_ok());
     }
 }

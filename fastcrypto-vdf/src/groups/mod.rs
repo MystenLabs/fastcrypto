@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::{Add, Neg};
+use std::ops::Add;
 
 use fastcrypto::groups::Doubling;
 
@@ -15,7 +15,7 @@ pub trait Parameter: Eq + Sized {}
 /// Trait implemented by elements of an additive group where the group is parameterized, for example
 /// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
 pub trait ParameterizedGroupElement:
-    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Neg + Eq + Doubling
+    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Eq + Doubling
 {
     /// The type of the parameter which uniquely defines this group.
     type ParameterType: Parameter;

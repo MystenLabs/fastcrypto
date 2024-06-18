@@ -38,7 +38,7 @@ pub(crate) mod reduction;
 pub mod discriminant;
 
 /// Serialization and deserialization for `num_bigint::BigInt`. The format used in num_bigint is
-/// a serialization of the u32 words which is hard to port to other platforms. Instead we serialize
+/// a serialization of the u32 words which is hard to port to other platforms. Instead, we serialize
 /// a big integer as the two's-complement byte representation in big-endian byte order. See also
 /// [BigInt::to_signed_bytes_be].
 mod bigint_serde;
@@ -103,17 +103,9 @@ impl QuadraticForm {
             .expect("Always succeeds when the discriminant is 1 mod 8")
     }
 
-    pub fn checked_compose(&self, rhs: &QuadraticForm) -> FastCryptoResult<QuadraticForm> {
-        if !self.same_group_parameter(rhs) {
-            return Err(InvalidInput);
-        }
-        Ok(self.compose(rhs))
-    }
-
     /// Compute the composition of this quadratic form with another quadratic form.
     ///
-    /// This panics if the discriminants of the two forms do not match. Use [checked_compose] to
-    /// return an error instead.
+    /// This panics if the discriminants of the two forms do not match.
     pub fn compose(&self, rhs: &QuadraticForm) -> QuadraticForm {
         // Slightly optimised version of Algorithm 1 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
