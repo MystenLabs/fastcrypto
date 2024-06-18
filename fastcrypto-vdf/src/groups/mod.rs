@@ -8,8 +8,9 @@ use fastcrypto::groups::Doubling;
 pub mod class_group;
 pub mod rsa_group;
 
-/// Trait implemented by elements of an additive group where the group is parameterized, for example
-/// by the modulus in case of the group being Z mod N or the discriminant in case of class groups.
+/// Trait implemented by elements of an additive group where the group is parameterized: Concretely,
+///  1) RSA groups parameterized by the modulus and
+///  2) class groups parameterized by a discriminant.
 pub trait ParameterizedGroupElement:
     Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Eq + Doubling
 {
