@@ -141,7 +141,7 @@ mod tests {
         assert_eq!(Rc::strong_count(&modulus), 3);
 
         // Consumes `element` so counter is unchanged
-        let added = element.add(&double);
+        let _added = element.add(&double);
         assert_eq!(Rc::strong_count(&modulus), 3);
     }
 
