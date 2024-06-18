@@ -200,7 +200,7 @@ impl QuadraticForm {
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 
@@ -231,7 +231,7 @@ impl Doubling for QuadraticForm {
 
         let mut u3 = &by * &by;
         let mut w3 = &bx * &bx;
-        let mut v3 = &u3 + &w3 - &(&bx + &by).pow(2);
+        let mut v3 = -(by * &bx) << 1;
 
         if !iterated {
             let dx = (&bx * &capital_dy - w) / &capital_by;
@@ -254,7 +254,7 @@ impl Doubling for QuadraticForm {
             c: w3,
             partial_gcd_limit: self.partial_gcd_limit.clone(),
         }
-        .into_reduced()
+        .reduce()
     }
 }
 
