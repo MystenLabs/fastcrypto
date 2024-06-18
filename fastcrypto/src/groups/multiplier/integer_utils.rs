@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::multiplier::ToLittleEndianBytes;
-use num_bigint::BigInt;
+use num_bigint::{BigInt, BigUint};
 
 /// Given a binary representation of a number in little-endian format, return the digits of its base
 /// `2^bits_per_digit` expansion.
@@ -121,6 +121,12 @@ pub fn is_power_of_2(x: usize) -> bool {
 impl ToLittleEndianBytes for BigInt {
     fn to_le_bytes(&self) -> Vec<u8> {
         self.to_bytes_le().1
+    }
+}
+
+impl ToLittleEndianBytes for BigUint {
+    fn to_le_bytes(&self) -> Vec<u8> {
+        self.to_bytes_le()
     }
 }
 

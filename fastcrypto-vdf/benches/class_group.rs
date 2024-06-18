@@ -8,8 +8,8 @@ use num_traits::Num;
 use rand::{thread_rng, RngCore};
 
 use fastcrypto::groups::Doubling;
-use fastcrypto_vdf::class_group::discriminant::Discriminant;
-use fastcrypto_vdf::class_group::QuadraticForm;
+use fastcrypto_vdf::groups::class_group::discriminant::Discriminant;
+use fastcrypto_vdf::groups::class_group::QuadraticForm;
 
 fn class_group_ops_single<M: Measurement>(
     discriminant_string: &str,

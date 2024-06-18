@@ -38,8 +38,8 @@ pub trait VDF {
 mod tests {
     use fastcrypto::hash::{HashFunction, Sha256};
 
-    use crate::class_group::discriminant::DISCRIMINANT_3072;
-    use crate::class_group::QuadraticForm;
+    use crate::groups::class_group::discriminant::DISCRIMINANT_3072;
+    use crate::groups::class_group::QuadraticForm;
     use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
 

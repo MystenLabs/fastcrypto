@@ -1,10 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::bigint_serde;
+use crate::groups::class_group::bigint_serde;
+use crate::groups::Parameter;
 use crate::math::hash_prime;
 use crate::math::hash_prime::is_probable_prime;
-use crate::math::parameterized_group::Parameter;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use lazy_static::lazy_static;
@@ -12,13 +12,14 @@ use num_bigint::{BigInt, ToBigInt};
 use num_integer::Integer;
 use num_traits::{One, Signed};
 use serde::{Deserialize, Serialize};
-use std::ops::Neg;
 use std::str::FromStr;
 
 /// A discriminant for an imaginary class group. The discriminant is a negative integer congruent to
 /// 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone, Serialize)]
-pub struct Discriminant(#[serde(with = "crate::class_group::bigint_serde")] BigInt);
+pub struct Discriminant(#[serde(with = "bigint_serde")] BigInt);
+
+impl Parameter for Discriminant {}
 
 lazy_static! {
     /// Fixed 3072 bit discriminant. Generated from the seed [1,2,3] using [Discriminant::from_seed].
@@ -53,6 +54,20 @@ impl TryFrom<BigInt> for Discriminant {
 }
 
 impl Discriminant {
+    /// Compute a valid discriminant (aka a negative prime equal to 1 mod 8) based on the given seed.
+    /// The size_in_bits must be divisible by 8.
+    pub fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
+        if size_in_bits % 8 != 0 {
+            return Err(InvalidInput);
+        }
+        // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
+        Ok(Self(
+            -hash_prime::hash_prime(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
+                .to_bigint()
+                .expect("Never fails"),
+        ))
+    }
+
     /// Return the number of bits needed to represent this discriminant, not including the sign bit.
     pub fn bits(&self) -> u64 {
         self.0.bits()
@@ -69,23 +84,6 @@ impl Discriminant {
     #[cfg(test)]
     pub(crate) fn from_trusted_bigint(value: BigInt) -> Self {
         Self(value)
-    }
-}
-
-impl Parameter for Discriminant {
-    /// Compute a valid discriminant (aka a negative prime equal to 1 mod 8) based on the given seed.
-    /// The size_in_bits must be divisible by 8.
-    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
-        if size_in_bits % 8 != 0 {
-            return Err(InvalidInput);
-        }
-        // Set the lower three bits to ensure that the prime is 7 mod 8 which makes the discriminant 1 mod 8.
-        Ok(Self(
-            hash_prime::hash_prime(seed, size_in_bits / 8, &[0, 1, 2, size_in_bits - 1])
-                .to_bigint()
-                .expect("Never fails")
-                .neg(),
-        ))
     }
 }
 

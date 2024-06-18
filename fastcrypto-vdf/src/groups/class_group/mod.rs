@@ -5,8 +5,8 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
+use crate::groups::ParameterizedGroupElement;
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-use crate::math::parameterized_group::ParameterizedGroupElement;
 use core::cell::OnceCell;
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -103,12 +103,24 @@ impl QuadraticForm {
             .expect("Always succeeds when the discriminant is 1 mod 8")
     }
 
+    pub fn checked_compose(&self, rhs: &QuadraticForm) -> FastCryptoResult<QuadraticForm> {
+        if !self.same_group_parameter(rhs) {
+            return Err(InvalidInput);
+        }
+        Ok(self.compose(rhs))
+    }
+
     /// Compute the composition of this quadratic form with another quadratic form.
+    ///
+    /// This panics if the discriminants of the two forms do not match. Use [checked_compose] to
+    /// return an error instead.
     pub fn compose(&self, rhs: &QuadraticForm) -> QuadraticForm {
         // Slightly optimised version of Algorithm 1 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
+
+        assert!(self.same_group_parameter(rhs));
 
         let u1 = &self.a;
         let v1 = &self.b;
@@ -295,11 +307,13 @@ impl ParameterizedGroupElement for QuadraticForm {
     /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
 
-    type ScalarType = BigInt;
-
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect("Doesn't fail")
+    }
+
+    fn same_group_parameter(&self, other: &Self) -> bool {
+        self.discriminant() == other.discriminant()
     }
 
     fn is_in_group(&self, discriminant: &Discriminant) -> bool {

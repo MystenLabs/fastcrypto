@@ -4,8 +4,9 @@
 use std::marker::PhantomData;
 use std::ops::ShlAssign;
 
-use num_bigint::BigInt;
+use num_bigint::BigUint;
 use num_integer::Integer;
+use num_traits::Zero;
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -13,18 +14,19 @@ use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 use fiat_shamir::{FiatShamir, StrongFiatShamir};
 
-use crate::class_group::QuadraticForm;
-use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::groups::class_group::QuadraticForm;
+use crate::groups::rsa_group::RSAGroupElement;
+use crate::groups::ParameterizedGroupElement;
 use crate::vdf::VDF;
 
-mod fiat_shamir;
+pub mod fiat_shamir;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
 pub struct WesolowskisVDF<
     G: ParameterizedGroupElement,
     F: FiatShamir<G>,
-    M: ScalarMultiplier<G, G::ScalarType>,
+    M: ScalarMultiplier<G, BigUint>,
 > {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -32,7 +34,7 @@ pub struct WesolowskisVDF<
     _scalar_multiplier: PhantomData<M>,
 }
 
-impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, G::ScalarType>>
+impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigUint>>
     WesolowskisVDF<G, F, M>
 {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
@@ -47,11 +49,8 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, G::S
     }
 }
 
-impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt>,
-        F: FiatShamir<G>,
-        M: ScalarMultiplier<G, BigInt>,
-    > VDF for WesolowskisVDF<G, F, M>
+impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigUint>> VDF
+    for WesolowskisVDF<G, F, M>
 {
     type InputType = G;
     type OutputType = G;
@@ -72,7 +71,7 @@ impl<
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         let challenge = F::compute_challenge(self, input, &output);
-        let mut quotient_remainder = (BigInt::from(0), BigInt::from(2));
+        let mut quotient_remainder = (BigUint::zero(), BigUint::from(2u32));
         let mut proof = multiplier.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
             quotient_remainder.1.shl_assign(1);
@@ -92,7 +91,11 @@ impl<
         }
 
         let challenge = F::compute_challenge(self, input, output);
-        let r = BigInt::modpow(&BigInt::from(2), &BigInt::from(self.iterations), &challenge);
+        let r = BigUint::modpow(
+            &BigUint::from(2u8),
+            &BigUint::from(self.iterations),
+            &challenge,
+        );
         let multiplier = M::new(input.clone(), G::zero(&self.group_parameter));
 
         if multiplier.two_scalar_mul(&r, proof, &challenge) != *output {
@@ -107,22 +110,32 @@ impl<
 pub type DefaultVDF = WesolowskisVDF<
     QuadraticForm,
     StrongFiatShamir,
-    WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
+    WindowedScalarMultiplier<QuadraticForm, BigUint, 256, 5>,
+>;
+
+/// Implementation of Wesolowski's VDF construction over an imaginary class group using a strong
+/// Fiat-Shamir implementation.
+pub type DefaultRSABasedVDF = WesolowskisVDF<
+    RSAGroupElement,
+    StrongFiatShamir,
+    WindowedScalarMultiplier<RSAGroupElement, BigUint, 256, 5>,
 >;
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group::discriminant::Discriminant;
-    use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::Parameter;
+    use std::str::FromStr;
+
+    use num_bigint::{BigInt, BigUint};
+    use num_traits::Num;
+
+    use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
+    use fastcrypto::groups::multiplier::ScalarMultiplier;
+
+    use crate::groups::class_group::discriminant::Discriminant;
+    use crate::groups::class_group::QuadraticForm;
     use crate::vdf::wesolowski::fiat_shamir::FiatShamir;
     use crate::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     use crate::vdf::VDF;
-    use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
-    use fastcrypto::groups::multiplier::ScalarMultiplier;
-    use num_bigint::BigInt;
-    use num_traits::Num;
-    use std::str::FromStr;
 
     #[test]
     fn test_prove_and_verify() {
@@ -176,7 +189,7 @@ mod tests {
         let vdf = WesolowskisVDF::<
             QuadraticForm,
             ChiaFiatShamir,
-            WindowedScalarMultiplier<QuadraticForm, BigInt, 256, 5>,
+            WindowedScalarMultiplier<QuadraticForm, BigUint, 256, 5>,
         >::new(discriminant.clone(), iterations);
 
         assert!(vdf.verify(&input, &output, &proof).is_ok());
@@ -186,13 +199,13 @@ mod tests {
     struct ChiaFiatShamir {}
 
     impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
-        fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigInt>>(
+        fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigUint>>(
             _vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
             _input: &QuadraticForm,
             _output: &QuadraticForm,
-        ) -> BigInt {
+        ) -> BigUint {
             // Hardcoded challenge for the test vector
-            BigInt::from_str_radix(
+            BigUint::from_str_radix(
                 "a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f",
                 16,
             )

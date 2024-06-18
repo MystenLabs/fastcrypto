@@ -6,4 +6,3 @@ pub(crate) mod extended_gcd;
 pub mod hash_prime;
 pub mod jacobi;
 pub(crate) mod modular_sqrt;
-pub mod parameterized_group;

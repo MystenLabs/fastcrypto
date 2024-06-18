@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::Parser;
-use fastcrypto_vdf::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
-use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+use fastcrypto_vdf::groups::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
+use fastcrypto_vdf::groups::class_group::QuadraticForm;
+use fastcrypto_vdf::groups::ParameterizedGroupElement;
 use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use std::io::{Error, ErrorKind};
