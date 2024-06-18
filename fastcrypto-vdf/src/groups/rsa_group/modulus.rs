@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::groups::rsa_group::biguint_serde;
 use crate::groups::Parameter;
 use lazy_static::lazy_static;

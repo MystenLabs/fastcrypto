@@ -1,3 +1,6 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use crate::groups::rsa_group::RSAGroupElement;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigUint;

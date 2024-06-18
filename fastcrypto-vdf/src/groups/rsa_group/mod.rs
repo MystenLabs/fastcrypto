@@ -1,10 +1,13 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use std::ops::{Add, Mul};
 use std::rc::Rc;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::Zero;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use fastcrypto::groups::Doubling;
 use modulus::RSAModulus;
@@ -18,7 +21,7 @@ mod biguint_serde;
 pub mod modulus;
 pub(crate) mod multiplier;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RSAGroupElement {
     #[serde(with = "biguint_serde")]
     pub value: BigUint,
