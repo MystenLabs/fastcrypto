@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::One;
+use num_traits::{One};
 use serde::{Deserialize, Serialize};
 
 use fastcrypto::groups::Doubling;
@@ -28,13 +28,29 @@ pub struct RSAGroupElement {
     modulus: Rc<RSAModulus>,
 }
 
+impl RSAGroupElement {
+    /// Create a new RSA group element with the given value and modulus.
+    pub fn new(value: BigUint, modulus: &Rc<RSAModulus>) -> Self {
+        Self {
+            value,
+            modulus: Rc::clone(modulus),
+        }
+    }
+
+    /// Return the modulus of this group element.
+    pub fn modulus(&self) -> &BigUint {
+        &self.modulus.value
+    }
+
+    /// Return the value of this group element.
+    pub fn value(&self) -> &BigUint {
+        &self.value
+    }
+}
+
 impl Clone for RSAGroupElement {
     fn clone(&self) -> Self {
-        Self {
-            value: self.value.clone(),
-            // Ensure that we don't do a deep clone of the modulus.
-            modulus: Rc::clone(&self.modulus),
-        }
+        Self::new(self.value.clone(), &self.modulus)
     }
 }
 
@@ -71,31 +87,11 @@ impl ParameterizedGroupElement for RSAGroupElement {
     type ParameterType = Rc<RSAModulus>;
 
     fn zero(parameter: &Self::ParameterType) -> Self {
-        Self {
-            value: BigUint::one(),
-            modulus: Rc::clone(parameter),
-        }
+        Self::new(BigUint::one(), parameter)
     }
 
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
         self.modulus.value == parameter.value
-    }
-}
-
-impl RSAGroupElement {
-    pub fn new(value: BigUint, modulus: &Rc<RSAModulus>) -> Self {
-        Self {
-            value,
-            modulus: Rc::clone(modulus),
-        }
-    }
-
-    pub fn modulus(&self) -> &BigUint {
-        &self.modulus.value
-    }
-
-    pub fn value(&self) -> &BigUint {
-        &self.value
     }
 }
 
@@ -127,13 +123,26 @@ mod tests {
     fn test_clone() {
         let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
         assert_eq!(Rc::strong_count(&modulus), 1);
+
+        // Creates a new element so counter is incremented
         let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
         assert_eq!(Rc::strong_count(&modulus), 2);
+
+        // Clones the element so counter is incremented
         {
             let _cloned_element = element.clone();
             assert_eq!(Rc::strong_count(&modulus), 3);
         }
+        // ...and decremented again
         assert_eq!(Rc::strong_count(&modulus), 2);
+
+        // Creates a new element so counter is incremented
+        let double = element.double();
+        assert_eq!(Rc::strong_count(&modulus), 3);
+
+        // Consumes `element` so counter is unchanged
+        let added = element.add(&double);
+        assert_eq!(Rc::strong_count(&modulus), 3);
     }
 
     #[test]
