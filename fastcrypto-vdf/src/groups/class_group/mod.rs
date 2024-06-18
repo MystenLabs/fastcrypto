@@ -112,7 +112,7 @@ impl QuadraticForm {
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        assert!(self.same_group_parameter(rhs));
+        assert_eq!(self.discriminant(), rhs.discriminant());
 
         let u1 = &self.a;
         let v1 = &self.b;
@@ -302,10 +302,6 @@ impl ParameterizedGroupElement for QuadraticForm {
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect("Doesn't fail")
-    }
-
-    fn same_group_parameter(&self, other: &Self) -> bool {
-        self.discriminant() == other.discriminant()
     }
 
     fn is_in_group(&self, discriminant: &Discriminant) -> bool {

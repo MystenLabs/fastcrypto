@@ -4,7 +4,7 @@ use std::rc::Rc;
 use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::Zero;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use fastcrypto::groups::Doubling;
 use modulus::RSAModulus;
@@ -62,10 +62,6 @@ impl ParameterizedGroupElement for RSAGroupElement {
             value: BigUint::zero(),
             modulus: Rc::new(parameter.clone()),
         }
-    }
-
-    fn same_group_parameter(&self, other: &Self) -> bool {
-        self.modulus == other.modulus
     }
 
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
