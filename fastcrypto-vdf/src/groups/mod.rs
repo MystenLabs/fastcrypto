@@ -12,7 +12,7 @@ pub mod rsa_group;
 ///  1) RSA groups parameterized by the modulus and
 ///  2) class groups parameterized by a discriminant.
 pub trait ParameterizedGroupElement:
-    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Add<Output = Self> + Eq + Doubling
+    Sized + Clone + for<'a> Add<&'a Self, Output = Self> + Eq + Doubling
 {
     /// The type of the parameter which uniquely defines this group.
     type ParameterType;

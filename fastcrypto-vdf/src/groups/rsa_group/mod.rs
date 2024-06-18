@@ -54,14 +54,6 @@ impl Clone for RSAGroupElement {
     }
 }
 
-impl Add<Self> for RSAGroupElement {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        self.add(&rhs)
-    }
-}
-
 impl Add<&Self> for RSAGroupElement {
     type Output = Self;
 

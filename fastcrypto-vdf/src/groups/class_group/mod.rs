@@ -317,14 +317,6 @@ impl Add<&QuadraticForm> for QuadraticForm {
     }
 }
 
-impl Add<QuadraticForm> for QuadraticForm {
-    type Output = QuadraticForm;
-
-    fn add(self, rhs: QuadraticForm) -> Self::Output {
-        self.compose(&rhs)
-    }
-}
-
 impl Add<&QuadraticForm> for &QuadraticForm {
     type Output = QuadraticForm;
 
