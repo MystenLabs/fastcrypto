@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::class_group::bigint_serde;
-use crate::groups::Parameter;
 use crate::math::hash_prime;
 use crate::math::hash_prime::is_probable_prime;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -18,8 +17,6 @@ use std::str::FromStr;
 /// 1 mod 8.
 #[derive(PartialEq, Eq, Debug, Clone, Serialize)]
 pub struct Discriminant(#[serde(with = "bigint_serde")] BigInt);
-
-impl Parameter for Discriminant {}
 
 lazy_static! {
     /// Fixed 3072 bit discriminant. Generated from the seed [1,2,3] using [Discriminant::from_seed].

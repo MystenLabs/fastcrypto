@@ -6,7 +6,7 @@ use std::rc::Rc;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::Zero;
+use num_traits::One;
 use serde::{Deserialize, Serialize};
 
 use fastcrypto::groups::Doubling;
@@ -21,11 +21,21 @@ mod biguint_serde;
 pub mod modulus;
 pub(crate) mod multiplier;
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RSAGroupElement {
     #[serde(with = "biguint_serde")]
-    pub value: BigUint,
-    pub modulus: Rc<RSAModulus>,
+    value: BigUint,
+    modulus: Rc<RSAModulus>,
+}
+
+impl Clone for RSAGroupElement {
+    fn clone(&self) -> Self {
+        Self {
+            value: self.value.clone(),
+            // Ensure that we don't do a deep clone of the modulus.
+            modulus: Rc::clone(&self.modulus),
+        }
+    }
 }
 
 impl Add<Self> for RSAGroupElement {
@@ -58,12 +68,12 @@ impl Doubling for RSAGroupElement {
 }
 
 impl ParameterizedGroupElement for RSAGroupElement {
-    type ParameterType = RSAModulus;
+    type ParameterType = Rc<RSAModulus>;
 
     fn zero(parameter: &Self::ParameterType) -> Self {
         Self {
-            value: BigUint::zero(),
-            modulus: Rc::new(parameter.clone()),
+            value: BigUint::one(),
+            modulus: Rc::clone(parameter),
         }
     }
 
@@ -72,5 +82,69 @@ impl ParameterizedGroupElement for RSAGroupElement {
     }
 }
 
+impl RSAGroupElement {
+    pub fn new(value: BigUint, modulus: &Rc<RSAModulus>) -> Self {
+        Self {
+            value,
+            modulus: Rc::clone(modulus),
+        }
+    }
+
+    pub fn modulus(&self) -> &BigUint {
+        &self.modulus.value
+    }
+
+    pub fn value(&self) -> &BigUint {
+        &self.value
+    }
+}
+
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::groups::rsa_group::modulus::{RSAModulus, GOOGLE_RSA_MODULUS_4096};
+    use crate::groups::rsa_group::RSAGroupElement;
+    use crate::groups::ParameterizedGroupElement;
+    use fastcrypto::groups::Doubling;
+    use num_bigint::BigUint;
+    use std::ops::Add;
+    use std::rc::Rc;
+
+    #[test]
+    fn test_group_ops() {
+        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
+
+        let zero = RSAGroupElement::zero(&modulus);
+        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
+        let sum = element.clone().add(&zero);
+        assert_eq!(&sum, &element);
+
+        let double = element.double();
+        let expected_double = element.clone().add(&element);
+        assert_eq!(&double, &expected_double);
+    }
+
+    #[test]
+    fn test_clone() {
+        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
+        assert_eq!(Rc::strong_count(&modulus), 1);
+        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
+        assert_eq!(Rc::strong_count(&modulus), 2);
+        {
+            let _cloned_element = element.clone();
+            assert_eq!(Rc::strong_count(&modulus), 3);
+        }
+        assert_eq!(Rc::strong_count(&modulus), 2);
+    }
+
+    #[test]
+    fn test_is_in_group() {
+        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
+        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
+        assert!(element.is_in_group(&modulus));
+
+        let other_modulus = Rc::new(RSAModulus {
+            value: BigUint::from(15u32),
+        });
+        assert!(!element.is_in_group(&other_modulus));
+    }
+}

@@ -6,7 +6,7 @@ use serde::Serialize;
 
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 
-use crate::groups::{Parameter, ParameterizedGroupElement};
+use crate::groups::ParameterizedGroupElement;
 use crate::math::hash_prime::hash_prime;
 use crate::vdf::wesolowski::WesolowskisVDF;
 
@@ -35,8 +35,8 @@ pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
 /// See https://eprint.iacr.org/2023/691.
 pub struct StrongFiatShamir {}
 
-impl<P: Parameter + Serialize, G: ParameterizedGroupElement<ParameterType = P> + Serialize>
-    FiatShamir<G> for StrongFiatShamir
+impl<P: Serialize, G: ParameterizedGroupElement<ParameterType = P> + Serialize> FiatShamir<G>
+    for StrongFiatShamir
 {
     fn compute_challenge<M: ScalarMultiplier<G, BigUint>>(
         vdf: &WesolowskisVDF<G, Self, M>,
@@ -59,7 +59,7 @@ impl<P: Parameter + Serialize, G: ParameterizedGroupElement<ParameterType = P> +
 }
 
 #[derive(Serialize)]
-struct FiatShamirInput<'a, P: Parameter, G: ParameterizedGroupElement<ParameterType = P>> {
+struct FiatShamirInput<'a, P, G: ParameterizedGroupElement<ParameterType = P>> {
     input: &'a G,
     output: &'a G,
     iterations: u64,

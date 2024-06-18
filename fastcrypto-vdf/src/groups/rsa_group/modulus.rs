@@ -1,20 +1,18 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::rsa_group::biguint_serde;
-use crate::groups::Parameter;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use num_traits::Num;
 use serde::{Deserialize, Serialize};
+
+use crate::groups::rsa_group::biguint_serde;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RSAModulus {
     #[serde(with = "biguint_serde")]
     pub value: BigUint,
 }
-
-impl Parameter for RSAModulus {}
 
 lazy_static! {
     // Modulus from Google Certificate, GTS Root R1 (https://pki.goog/repository/).

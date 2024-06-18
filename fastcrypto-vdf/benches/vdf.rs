@@ -89,13 +89,10 @@ fn verify(c: &mut Criterion) {
 }
 
 fn rsa_vdf(c: &mut Criterion) {
-    let modulus = GOOGLE_RSA_MODULUS_4096.clone();
+    let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
     let vdf = DefaultRSABasedVDF::new(modulus.clone(), 1000);
 
-    let input = RSAGroupElement {
-        value: BigUint::from(2u64),
-        modulus: Rc::new(modulus.clone()),
-    };
+    let input = RSAGroupElement::new(BigUint::from(2u64), &modulus);
 
     println!("Modulus bits: {}", modulus.value.bits());
 
