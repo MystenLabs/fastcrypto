@@ -25,3 +25,5 @@ pub mod dummy_circuits;
 
 /// Circom-compatible deserialization of points
 pub mod zk_login_utils;
+
+pub mod groth16;
