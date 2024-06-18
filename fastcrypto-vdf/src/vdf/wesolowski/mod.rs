@@ -131,7 +131,7 @@ mod tests {
 
     use crate::groups::class_group::discriminant::Discriminant;
     use crate::groups::class_group::QuadraticForm;
-    use crate::groups::rsa_group::modulus::{RSAModulus, GOOGLE_RSA_MODULUS_4096};
+    use crate::groups::rsa_group::modulus::GOOGLE_RSA_MODULUS_4096;
     use crate::groups::rsa_group::RSAGroupElement;
     use crate::vdf::wesolowski::fiat_shamir::FiatShamir;
     use crate::vdf::wesolowski::{DefaultRSABasedVDF, DefaultVDF, WesolowskisVDF};
