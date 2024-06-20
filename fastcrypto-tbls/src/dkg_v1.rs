@@ -18,7 +18,7 @@ use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-use crate::dkg::{Complaint, Confirmation, Output, Party};
+use crate::dkg::{Complaint, Output, Party};
 use crate::{ecies, ecies_v1};
 
 use tap::prelude::*;
@@ -94,6 +94,17 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
     pub fn data(&self) -> &[ProcessedMessage<G, EG>] {
         &self.0
     }
+}
+
+/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
+/// created by receiver of invalid encrypted shares (if any).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Confirmation<EG: GroupElement> {
+    pub sender: PartyId,
+    /// List of complaints against other parties. Empty if there are none.
+    pub complaints: Vec<Complaint<EG>>,
+    /// List of senders of the processed messages.
+    pub processed_senders: Vec<PartyId>,
 }
 
 /// A dealer in the DKG ceremony.
@@ -375,6 +386,12 @@ where
         let mut conf = Confirmation {
             sender: self.id,
             complaints: Vec::new(),
+            processed_senders: filtered_messages
+                .0
+                .iter()
+                .map(|m| m.message.sender)
+                .sorted()
+                .collect::<Vec<_>>(),
         };
         for m in &filtered_messages.0 {
             if let Some(complaint) = &m.complaint {
@@ -407,14 +424,20 @@ where
     ) -> FastCryptoResult<VerifiedProcessedMessages<G, EG>> {
         debug!("Processing {} confirmations", confirmations.len());
         let required_threshold = 2 * (self.t as u32) - 1; // guarantee that at least t honest nodes have valid shares.
+        let used_parties = messages
+            .0
+            .iter()
+            .map(|m| m.message.sender)
+            .sorted()
+            .collect::<Vec<_>>();
 
-        // Ignore confirmations with invalid sender or zero weights
+        // Ignore confirmations with invalid sender, zero weights, or different view of messages.
         let confirmations = confirmations
             .iter()
             .filter(|c| {
                 self.nodes
                     .node_id_to_node(c.sender)
-                    .is_ok_and(|n| n.weight > 0)
+                    .is_ok_and(|n| n.weight > 0 && used_parties == c.processed_senders)
             })
             .unique_by(|m| m.sender)
             .collect::<Vec<_>>();
