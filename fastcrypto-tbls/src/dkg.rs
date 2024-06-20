@@ -40,15 +40,6 @@ pub struct Complaint<EG: GroupElement> {
     pub(crate) proof: RecoveryPackage<EG>,
 }
 
-/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
-/// created by receiver of invalid encrypted shares (if any).
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Confirmation<EG: GroupElement> {
-    pub sender: PartyId,
-    /// List of complaints against other parties. Empty if there are none.
-    pub complaints: Vec<Complaint<EG>>,
-}
-
 // Upper bound on the size of binary serialized incoming messages assuming <=3333 shares, <=400
 // parties, and using G2Element for encryption. This is a safe upper bound since:
 // - Message is O(96*t + 32*n) bytes.

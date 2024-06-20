@@ -5,8 +5,8 @@ use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::GroupElement;
 
-use crate::dkg::{Confirmation, Output, Party, DKG_MESSAGES_MAX_SIZE};
-use crate::dkg_v0::{create_fake_complaint, Message, ProcessedMessage};
+use crate::dkg::{Output, Party, DKG_MESSAGES_MAX_SIZE};
+use crate::dkg_v0::{create_fake_complaint, Confirmation, Message, ProcessedMessage};
 use crate::ecies::{PrivateKey, PublicKey};
 use crate::ecies_v0::MultiRecipientEncryption;
 use crate::mocked_dkg::generate_mocked_output;

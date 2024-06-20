@@ -19,7 +19,7 @@ use itertools::Itertools;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
-use crate::dkg::{Complaint, Confirmation, Output, Party};
+use crate::dkg::{Complaint, Output, Party};
 use crate::ecies::RecoveryPackage;
 use crate::ecies_v0::MultiRecipientEncryption;
 use tap::prelude::*;
@@ -93,6 +93,15 @@ impl<G: GroupElement, EG: GroupElement> VerifiedProcessedMessages<G, EG> {
     pub fn data(&self) -> &[ProcessedMessage<G, EG>] {
         &self.0
     }
+}
+
+/// A [Confirmation] is sent during the second phase of the protocol. It includes complaints
+/// created by receiver of invalid encrypted shares (if any).
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Confirmation<EG: GroupElement> {
+    pub sender: PartyId,
+    /// List of complaints against other parties. Empty if there are none.
+    pub complaints: Vec<Complaint<EG>>,
 }
 
 /// A dealer in the DKG ceremony.
