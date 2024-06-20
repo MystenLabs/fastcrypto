@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::QuadraticForm;
+use crate::groups::class_group::QuadraticForm;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed};
@@ -74,8 +74,8 @@ fn increment_and_shift_right(mut x: BigInt) -> BigInt {
 
 #[cfg(test)]
 mod tests {
-    use crate::class_group::Discriminant;
-    use crate::class_group::QuadraticForm;
+    use crate::groups::class_group::Discriminant;
+    use crate::groups::class_group::QuadraticForm;
     use num_bigint::BigInt;
 
     #[test]
