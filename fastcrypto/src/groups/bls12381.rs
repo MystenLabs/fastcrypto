@@ -792,7 +792,7 @@ impl ScalarType for Scalar {
 ///
 /// The input buffer must be at least 48 bytes long to ensure that there is only negligible bias in
 /// the output.
-pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
+pub fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
     assert!(buffer.len() >= 48);
     let mut ret = blst_fr::default();
     let mut tmp = blst_scalar::default();
