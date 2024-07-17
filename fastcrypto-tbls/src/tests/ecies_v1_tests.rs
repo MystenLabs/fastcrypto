@@ -5,7 +5,7 @@ use crate::ecies::{PrivateKey, PublicKey};
 use crate::ecies_v1::*;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::bls12381::min_sig::BLS12381KeyPair;
-use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
+use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar, SCALAR_LENGTH};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use fastcrypto::traits::KeyPair;
 use rand::thread_rng;
@@ -17,11 +17,12 @@ mod point_tests {
     use super::*;
     use crate::ecies::{PrivateKey, PublicKey};
     use fastcrypto::groups::HashToGroupElement;
+    use zeroize::Zeroize;
 
     #[test]
     fn test_multi_rec<Group: GroupElement + Serialize + DeserializeOwned>()
     where
-        Group::ScalarType: FiatShamirChallenge,
+        Group::ScalarType: FiatShamirChallenge + Zeroize,
         Group: HashToGroupElement,
     {
         let ro = RandomOracle::new("test");
@@ -118,4 +119,19 @@ fn test_blskeypair_to_group() {
         PublicKey::<G2Element>::from_private_key(&ecies_sk)
     );
     assert_eq!(*ecies_pk.as_element(), G2Element::generator() * sk);
+}
+
+#[test]
+fn test_zeroization_on_drop() {
+    let ptr: *const u8;
+    {
+        let sk = PrivateKey::<G2Element>::new(&mut thread_rng());
+        ptr = std::ptr::addr_of!(sk.0) as *const u8;
+    }
+
+    unsafe {
+        for i in 0..SCALAR_LENGTH {
+            assert_eq!(*ptr.add(i), 0);
+        }
+    }
 }

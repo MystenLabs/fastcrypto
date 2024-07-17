@@ -33,6 +33,7 @@ use serde::{de, Deserialize};
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
+use zeroize::Zeroize;
 
 /// Elements of the group G_1 in BLS 12-381.
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
@@ -652,6 +653,12 @@ impl GroupElement for Scalar {
 
     fn generator() -> Self {
         Self(BLST_FR_ONE)
+    }
+}
+
+impl Zeroize for Scalar {
+    fn zeroize(&mut self) {
+        self.0.l.zeroize();
     }
 }
 

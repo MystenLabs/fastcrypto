@@ -23,6 +23,7 @@ use crate::{ecies, ecies_v1};
 
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
+use zeroize::Zeroize;
 
 // TODO: Move Party, Complaint, Confirmation, Output here and remove old APIs
 
@@ -103,7 +104,7 @@ impl<G, EG> Party<G, EG>
 where
     G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
     EG: GroupElement + Serialize + HashToGroupElement + DeserializeOwned,
-    EG::ScalarType: FiatShamirChallenge,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.

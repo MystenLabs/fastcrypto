@@ -11,11 +11,12 @@ use rand::thread_rng;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::num::NonZeroU16;
+use zeroize::Zeroize;
 
 fn get_nodes<G>(n: u16) -> Vec<Node<G>>
 where
     G: GroupElement + Serialize + DeserializeOwned,
-    G::ScalarType: FiatShamirChallenge,
+    G::ScalarType: FiatShamirChallenge + Zeroize,
 {
     let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
     let pk = ecies::PublicKey::<G>::from_private_key(&sk);
