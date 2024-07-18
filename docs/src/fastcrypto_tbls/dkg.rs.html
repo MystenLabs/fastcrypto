@@ -66,6 +66,10 @@
 <a href="#66" id="66">66</a>
 <a href="#67" id="67">67</a>
 <a href="#68" id="68">68</a>
+<a href="#69" id="69">69</a>
+<a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -81,13 +85,17 @@
 <span class="kw">use </span><span class="kw">crate</span>::tbls::Share;
 <span class="kw">use </span>fastcrypto::groups::GroupElement;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="doccomment">/// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
 /// Party in the DKG protocol.
 </span><span class="attr">#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-</span><span class="kw">pub struct </span>Party&lt;G: GroupElement, EG: GroupElement&gt; {
+</span><span class="kw">pub struct </span>Party&lt;G: GroupElement, EG: GroupElement&gt;
+<span class="kw">where
+    </span>EG::ScalarType: Zeroize,
+{
     <span class="kw">pub </span>id: PartyId,
     <span class="kw">pub</span>(<span class="kw">crate</span>) nodes: Nodes&lt;EG&gt;,
     <span class="kw">pub </span>t: u16,

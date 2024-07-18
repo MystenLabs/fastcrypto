@@ -673,6 +673,7 @@
 <a href="#673" id="673">673</a>
 <a href="#674" id="674">674</a>
 <a href="#675" id="675">675</a>
+<a href="#676" id="676">676</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -698,6 +699,7 @@
 
 <span class="kw">use </span>tap::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>tracing::{debug, error, info, warn};
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="comment">// TODO: Move Party, Complaint, Confirmation, Output here and remove old APIs
 
@@ -778,7 +780,7 @@
 <span class="kw">where
     </span>G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
     EG: GroupElement + Serialize + HashToGroupElement + DeserializeOwned,
-    EG::ScalarType: FiatShamirChallenge,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     <span class="doccomment">/// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.

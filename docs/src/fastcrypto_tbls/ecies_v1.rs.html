@@ -213,6 +213,7 @@
 <a href="#213" id="213">213</a>
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -226,6 +227,7 @@
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>typenum::consts::{U16, U32};
 <span class="kw">use </span>typenum::Unsigned;
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="doccomment">/// Simple ECIES encryption using a generic group and AES-256-counter.
 ///
@@ -249,7 +251,7 @@
 
 <span class="kw">impl</span>&lt;G: GroupElement + Serialize&gt; MultiRecipientEncryption&lt;G&gt;
 <span class="kw">where
-    </span>&lt;G <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge,
+    </span>&lt;G <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge + Zeroize,
     G: HashToGroupElement,
 {
     <span class="kw">pub fn </span>encrypt&lt;R: AllowedRng&gt;(

@@ -729,6 +729,7 @@
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 //
@@ -755,6 +756,7 @@
 <span class="kw">use </span><span class="kw">crate</span>::ecies_v0::MultiRecipientEncryption;
 <span class="kw">use </span>tap::prelude::<span class="kw-2">*</span>;
 <span class="kw">use </span>tracing::{debug, error, info, warn};
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="doccomment">/// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -833,7 +835,7 @@
 <span class="kw">where
     </span>G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
     EG: GroupElement + Serialize + DeserializeOwned,
-    EG::ScalarType: FiatShamirChallenge,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     <span class="doccomment">/// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
@@ -1448,7 +1450,7 @@
 </span><span class="kw">pub fn </span>create_fake_complaint&lt;EG&gt;() -&gt; Complaint&lt;EG&gt;
 <span class="kw">where
     </span>EG: GroupElement + Serialize + DeserializeOwned,
-    &lt;EG <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge,
+    &lt;EG <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge + Zeroize,
 {
     <span class="kw">let </span>sk = ecies::PrivateKey::&lt;EG&gt;::new(<span class="kw-2">&amp;mut </span>rand::thread_rng());
     <span class="kw">let </span>pk = ecies::PublicKey::&lt;EG&gt;::from_private_key(<span class="kw-2">&amp;</span>sk);

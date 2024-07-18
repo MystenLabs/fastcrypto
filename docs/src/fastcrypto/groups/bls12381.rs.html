@@ -833,6 +833,13 @@
 <a href="#833" id="833">833</a>
 <a href="#834" id="834">834</a>
 <a href="#835" id="835">835</a>
+<a href="#836" id="836">836</a>
+<a href="#837" id="837">837</a>
+<a href="#838" id="838">838</a>
+<a href="#839" id="839">839</a>
+<a href="#840" id="840">840</a>
+<a href="#841" id="841">841</a>
+<a href="#842" id="842">842</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -868,6 +875,7 @@
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::ops::{Add, Div, Mul, Neg, Sub};
 <span class="kw">use </span>std::ptr;
+<span class="kw">use </span>zeroize::Zeroize;
 
 <span class="doccomment">/// Elements of the group G_1 in BLS 12-381.
 </span><span class="attr">#[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend)]
@@ -1487,6 +1495,12 @@
 
     <span class="kw">fn </span>generator() -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>(BLST_FR_ONE)
+    }
+}
+
+<span class="kw">impl </span>Zeroize <span class="kw">for </span>Scalar {
+    <span class="kw">fn </span>zeroize(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="self">self</span>.<span class="number">0</span>.l.zeroize();
     }
 }
 
