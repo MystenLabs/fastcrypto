@@ -59,7 +59,6 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         let mut proof = vec![];
 
         while t_i != 2 {
-            // TODO: iterations not a power of two
             debug_assert!(t_i.is_even());
             t_i >>= 1;
 
