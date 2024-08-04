@@ -102,7 +102,8 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
             y_i = y_i + &multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter));
         }
 
-        if y_i != x_i.double() {
+        let expected = repeated_doubling(&x_i, t_i);
+        if y_i != expected {
             return Err(InvalidProof);
         }
         Ok(())
