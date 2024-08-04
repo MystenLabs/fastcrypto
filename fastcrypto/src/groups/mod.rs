@@ -54,9 +54,21 @@ pub trait Scalar:
 }
 
 /// Trait for group elements that has a fast doubling operation.
-pub trait Doubling {
+pub trait Doubling: Clone {
     /// Compute 2 * Self = Self + Self.
     fn double(&self) -> Self;
+
+    /// Compute input * 2^repetitions by repeated doubling.
+    fn repeated_doubling(&self, repetitions: u64) -> Self {
+        if repetitions == 0 {
+            return self.clone();
+        }
+        let mut output = self.double();
+        for _ in 1..repetitions {
+            output = output.double();
+        }
+        output
+    }
 }
 
 pub trait Pairing: GroupElement {

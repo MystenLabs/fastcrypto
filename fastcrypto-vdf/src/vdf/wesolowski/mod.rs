@@ -24,7 +24,7 @@ mod fiat_shamir;
 pub struct WesolowskisVDF<
     G: ParameterizedGroupElement,
     F: FiatShamir<G>,
-    M: ScalarMultiplier<G, G::ScalarType>,
+    M: ScalarMultiplier<G, BigInt>,
 > {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -32,7 +32,7 @@ pub struct WesolowskisVDF<
     _scalar_multiplier: PhantomData<M>,
 }
 
-impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, G::ScalarType>>
+impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigInt>>
     WesolowskisVDF<G, F, M>
 {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
@@ -47,11 +47,8 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, G::S
     }
 }
 
-impl<
-        G: ParameterizedGroupElement<ScalarType = BigInt>,
-        F: FiatShamir<G>,
-        M: ScalarMultiplier<G, BigInt>,
-    > VDF for WesolowskisVDF<G, F, M>
+impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigInt>> VDF
+    for WesolowskisVDF<G, F, M>
 {
     type InputType = G;
     type OutputType = G;

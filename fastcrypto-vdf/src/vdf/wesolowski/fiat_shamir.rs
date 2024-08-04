@@ -23,11 +23,11 @@ pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
 pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge<M: ScalarMultiplier<G, G::ScalarType>>(
+    fn compute_challenge<M: ScalarMultiplier<G, BigInt>>(
         vdf: &WesolowskisVDF<G, Self, M>,
         input: &G,
         output: &G,
-    ) -> G::ScalarType;
+    ) -> BigInt;
 }
 
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.

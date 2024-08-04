@@ -295,8 +295,6 @@ impl ParameterizedGroupElement for QuadraticForm {
     /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
 
-    type ScalarType = BigInt;
-
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect("Doesn't fail")

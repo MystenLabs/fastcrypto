@@ -3,13 +3,12 @@
 
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_traits::{Signed, Zero};
+use num_traits::Signed;
 use serde::Serialize;
 use std::ops::{AddAssign, ShrAssign};
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::Doubling;
 
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
@@ -43,12 +42,14 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
 /// Replace t with (t+1) >> 1 and return true iff the initial value of t was odd.
 fn check_parity_and_iterate(t: &mut u64) -> bool {
     let parity = t.is_odd();
-    t.add_assign(1);
+    if parity {
+        t.add_assign(1);
+    }
     t.shr_assign(1);
     parity
 }
 
-impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for PietrzaksVDF<G> {
+impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
     type InputType = G;
     type OutputType = G;
     type ProofType = Vec<G>;
@@ -59,7 +60,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         }
 
         // Compute output = 2^iterations * input
-        let output = repeated_doubling(input, self.iterations);
+        let output = input.repeated_doubling(self.iterations);
 
         let mut x_i = input.clone();
         let mut y_i = output.clone();
@@ -75,7 +76,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
             }
 
             // TODO: Precompute some of the mu's
-            let mu_i = repeated_doubling(&x_i, t_i);
+            let mu_i = x_i.repeated_doubling(t_i);
 
             let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + &mu_i;
@@ -110,7 +111,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
             y_i = y_i + &multiply::<G>(mu_i, &r, G::zero(&self.group_parameter));
         }
 
-        let expected = repeated_doubling(&x_i, t_i);
+        let expected = x_i.repeated_doubling(t_i);
         if y_i != expected {
             return Err(InvalidProof);
         }
@@ -118,25 +119,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
     }
 }
 
-/// Compute input * 2^repetitions by repeated doubling.
-fn repeated_doubling<G: Doubling + Clone>(input: &G, repetitions: u64) -> G {
-    if repetitions.is_zero() {
-        return input.clone();
-    }
-    let mut output = input.double();
-    for _ in 1..repetitions {
-        output = output.double();
-    }
-    output
-}
-
 /// Compute element * scalar. It is assumed that the scalar is positive.
-fn multiply<G: ParameterizedGroupElement<ScalarType = BigInt>>(
-    element: &G,
-    scalar: &BigInt,
-    zero: G,
-) -> G {
-    debug_assert!(scalar.is_positive());
+fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigInt, zero: G) -> G {
+    debug_assert!(!scalar.is_negative());
     (0..scalar.bits())
         .map(|i| scalar.bit(i))
         .rev()
@@ -157,6 +142,7 @@ mod tests {
     use crate::vdf::pietrzak::{multiply, PietrzaksVDF};
     use crate::vdf::VDF;
     use num_bigint::BigInt;
+    use num_traits::{One, Zero};
 
     #[test]
     fn test_vdf() {
@@ -179,6 +165,15 @@ mod tests {
         let discriminant = Discriminant::from_seed(&[1, 2, 3], 512).unwrap();
         let input = QuadraticForm::generator(&discriminant);
 
+        assert_eq!(
+            QuadraticForm::zero(&discriminant),
+            multiply(&input, &BigInt::zero(), QuadraticForm::zero(&discriminant))
+        );
+        assert_eq!(
+            &input,
+            &multiply(&input, &BigInt::one(), QuadraticForm::zero(&discriminant))
+        );
+
         let exponent = 23;
         let output = multiply(
             &input,
@@ -190,7 +185,6 @@ mod tests {
         for _ in 1..exponent {
             expected_output = expected_output + &input;
         }
-
         assert_eq!(output, expected_output);
     }
 }
