@@ -1,20 +1,18 @@
-use crate::class_group::discriminant::Discriminant;
-use crate::class_group::QuadraticForm;
-use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
-use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
-use crate::vdf::VDF;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
-use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::multiplier::ScalarMultiplier;
-use fastcrypto::groups::Doubling;
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_prime::BitTest;
-use num_traits::{One, Zero};
 use serde::Serialize;
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::{Shr, ShrAssign};
+
+use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::Doubling;
+
+use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
+use crate::vdf::VDF;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
@@ -37,49 +35,6 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
-fn repeated_doubling<G: Doubling + Clone>(input: &G, doublings: u64) -> G {
-    let mut output = input.clone();
-    for _ in 0..doublings {
-        output = output.double();
-    }
-    output
-}
-
-fn multiply<G: ParameterizedGroupElement<ScalarType = BigInt>>(
-    element: &G,
-    scalar: &BigInt,
-    zero: G,
-) -> G {
-    let mut result = zero;
-    for i in (0..scalar.bits()).rev() {
-        result = result.double();
-        if scalar.bit(i) {
-            result = result + element;
-        }
-    }
-    result
-}
-
-#[test]
-fn test_multiply() {
-    let discriminant = Discriminant::from_seed(&[1, 2, 3], 512).unwrap();
-    let input = QuadraticForm::generator(&discriminant);
-
-    let exponent = 13;
-    let output = multiply(
-        &input,
-        &BigInt::from(exponent),
-        QuadraticForm::zero(&discriminant),
-    );
-
-    let mut expected_output = input.clone();
-    for _ in 1..exponent {
-        expected_output = expected_output + &input;
-    }
-
-    assert_eq!(output, expected_output);
-}
-
 impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for PietrzaksVDF<G> {
     type InputType = G;
     type OutputType = G;
@@ -93,47 +48,50 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         // Compute output = 2^iterations * input
         let output = repeated_doubling(input, self.iterations);
 
-        let tau = self.iterations.bits() as u64;
-
         let mut x_i = input.clone();
         let mut y_i = output.clone();
         let mut t_i = self.iterations;
 
-        let proof = (0..tau - 1)
-            .map(|i| {
-                let odd = t_i.is_odd();
+        let proof = (0..self.iterations.bits() - 1)
+            .map(|_| {
+                // TODO: iterations not a power of two
+                debug_assert!(t_i.is_even());
                 t_i >>= 1;
 
-                // TODO: Precompute
+                // TODO: Precompute some of the mu's
                 let mu_i = repeated_doubling(&x_i, t_i);
 
-                let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, t_i, &mu_i);
+                let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
                 x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + &mu_i;
                 y_i = multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)) + &y_i;
-
-                if odd {
-                    y_i = y_i.double();
-                }
 
                 mu_i
             })
             .collect();
 
-        assert_eq!(t_i, 1);
+        debug_assert_eq!(t_i, 1);
 
         Ok((output, proof))
     }
 
     fn verify(&self, input: &G, output: &G, proof: &Vec<G>) -> FastCryptoResult<()> {
+        if !input.is_in_group(&self.group_parameter)
+            || !output.is_in_group(&self.group_parameter)
+            || proof
+                .iter()
+                .any(|mu| !mu.is_in_group(&self.group_parameter))
+            || self.iterations == 0
+        {
+            return Err(InvalidInput);
+        }
+
         let mut x_i = input.clone();
         let mut y_i = output.clone();
-        let mut t_i = self.iterations;
 
         for mu_i in proof {
-            t_i >>= 1;
-            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, t_i, &mu_i);
+            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
-            y_i = y_i.add(&multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)));
+            y_i = y_i + &multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter));
         }
 
         if y_i != x_i.double() {
@@ -143,17 +101,44 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
     }
 }
 
+fn repeated_doubling<G: Doubling>(input: &G, repetitions: u64) -> G {
+    debug_assert!(repetitions > 0);
+    let mut output = input.double();
+    for _ in 1..repetitions {
+        output = output.double();
+    }
+    output
+}
+
+fn multiply<G: ParameterizedGroupElement<ScalarType = BigInt>>(
+    element: &G,
+    scalar: &BigInt,
+    zero: G,
+) -> G {
+    (0..scalar.bits())
+        .rev()
+        .map(|i| scalar.bit(i))
+        .fold(zero, |acc, bit| {
+            let mut result = acc.double();
+            if bit {
+                result = result + element;
+            }
+            result
+        })
+}
+
 #[cfg(test)]
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::Parameter;
-    use crate::vdf::pietrzak::PietrzaksVDF;
+    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use crate::vdf::pietrzak::{multiply, PietrzaksVDF};
     use crate::vdf::VDF;
+    use num_bigint::BigInt;
 
     #[test]
     fn test_vdf() {
-        let iterations = 64u64;
+        let iterations = 128u64;
         let discriminant = Discriminant::from_seed(&[0, 1, 2], 512).unwrap();
 
         let input = QuadraticForm::generator(&discriminant);
@@ -165,5 +150,25 @@ mod tests {
 
         let other_input = input.clone() + &input;
         assert!(vdf.verify(&other_input, &output, &proof).is_err())
+    }
+
+    #[test]
+    fn test_multiply() {
+        let discriminant = Discriminant::from_seed(&[1, 2, 3], 512).unwrap();
+        let input = QuadraticForm::generator(&discriminant);
+
+        let exponent = 23;
+        let output = multiply(
+            &input,
+            &BigInt::from(exponent),
+            QuadraticForm::zero(&discriminant),
+        );
+
+        let mut expected_output = input.clone();
+        for _ in 1..exponent {
+            expected_output = expected_output + &input;
+        }
+
+        assert_eq!(output, expected_output);
     }
 }

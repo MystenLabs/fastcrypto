@@ -10,7 +10,7 @@ use fastcrypto::hash::{HashFunction, Keccak256};
 use crate::math::parameterized_group::ParameterizedGroupElement;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
-pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 1;
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 pub trait FiatShamir<G: ParameterizedGroupElement<ScalarType = BigInt>>: Sized {
     fn compute_challenge(input: &G, output: &G, iterations: u64, proof: &G) -> G::ScalarType;
