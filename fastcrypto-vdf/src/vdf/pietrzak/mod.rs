@@ -3,8 +3,7 @@
 
 use num_bigint::BigInt;
 use num_integer::Integer;
-use num_prime::BitTest;
-use num_traits::Zero;
+use num_traits::{Signed, Zero};
 use serde::Serialize;
 use std::ops::{AddAssign, ShrAssign};
 
@@ -88,9 +87,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
     fn verify(&self, input: &G, output: &G, proof: &Vec<G>) -> FastCryptoResult<()> {
         if !input.is_in_group(&self.group_parameter)
             || !output.is_in_group(&self.group_parameter)
-            || proof
-                .iter()
-                .any(|mu| !mu.is_in_group(&self.group_parameter))
+            || !proof.iter().all(|mu| mu.is_in_group(&self.group_parameter))
             || self.iterations == 0
         {
             return Err(InvalidInput);
@@ -105,9 +102,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
                 y_i = y_i.double();
             }
 
-            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
+            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
-            y_i = y_i + &multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter));
+            y_i = y_i + &multiply::<G>(mu_i, &r, G::zero(&self.group_parameter));
         }
 
         let expected = repeated_doubling(&x_i, t_i);
@@ -118,8 +115,11 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
     }
 }
 
-fn repeated_doubling<G: Doubling>(input: &G, repetitions: u64) -> G {
-    debug_assert!(repetitions > 0);
+/// Compute input * 2^repetitions by repeated doubling.
+fn repeated_doubling<G: Doubling + Clone>(input: &G, repetitions: u64) -> G {
+    if repetitions.is_zero() {
+        return input.clone();
+    }
     let mut output = input.double();
     for _ in 1..repetitions {
         output = output.double();
@@ -127,14 +127,16 @@ fn repeated_doubling<G: Doubling>(input: &G, repetitions: u64) -> G {
     output
 }
 
+/// Compute element * scalar. It is assumed that the scalar is positive.
 fn multiply<G: ParameterizedGroupElement<ScalarType = BigInt>>(
     element: &G,
     scalar: &BigInt,
     zero: G,
 ) -> G {
+    debug_assert!(scalar.is_positive());
     (0..scalar.bits())
-        .rev()
         .map(|i| scalar.bit(i))
+        .rev()
         .fold(zero, |acc, bit| {
             let mut result = acc.double();
             if bit {

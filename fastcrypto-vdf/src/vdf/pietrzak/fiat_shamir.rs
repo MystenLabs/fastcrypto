@@ -31,7 +31,7 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> FiatShamir<G
             proof,
         })
         .expect("Failed to serialize FiatShamirInput");
-        let hash = Keccak256::digest(&seed);
+        let hash = Keccak256::digest(seed);
         debug_assert!(hash.digest.len() >= DEFAULT_CHALLENGE_SIZE_IN_BYTES);
         BigInt::from_bytes_be(Sign::Plus, &hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
     }
