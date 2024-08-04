@@ -20,6 +20,10 @@ pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 pub mod fiat_shamir;
 
+/// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
+/// Proofs are larger and verification is slower than in Wesolowski's construction, but the
+/// output of a VDF is unique, assuming that the used group have no small subgroups, and proving
+/// is faster.
 pub struct PietrzaksVDF<G: ParameterizedGroupElement> {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -36,11 +40,10 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
+/// Replace t with (t+1) >> 1 and return true iff the initial value of t was odd.
 fn check_parity_and_iterate(t: &mut u64) -> bool {
     let parity = t.is_odd();
-    if parity {
-        t.add_assign(1);
-    }
+    t.add_assign(1);
     t.shr_assign(1);
     parity
 }
