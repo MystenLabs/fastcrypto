@@ -6,6 +6,7 @@ use num_integer::Integer;
 use num_prime::BitTest;
 use num_traits::Zero;
 use serde::Serialize;
+use std::ops::{AddAssign, ShrAssign};
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -36,6 +37,15 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
+fn check_parity_and_iterate(t: &mut u64) -> bool {
+    let parity = t.is_odd();
+    if parity {
+        t.add_assign(1);
+    }
+    t.shr_assign(1);
+    parity
+}
+
 impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for PietrzaksVDF<G> {
     type InputType = G;
     type OutputType = G;
@@ -53,14 +63,14 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         let mut y_i = output.clone();
         let mut t_i = self.iterations;
 
+        // TODO: Determine size before looping
         let mut proof = vec![];
 
+        // Compute the full proof. This loop may stop at any time which will give a shorter proof that is computationally harder to verify.
         while t_i != 1 {
-            if t_i.is_odd() {
-                t_i += 1;
+            if check_parity_and_iterate(&mut t_i) {
                 y_i = y_i.double();
             }
-            t_i >>= 1;
 
             // TODO: Precompute some of the mu's
             let mu_i = repeated_doubling(&x_i, t_i);
@@ -91,11 +101,9 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         let mut t_i = self.iterations;
 
         for mu_i in proof {
-            if t_i.is_odd() {
-                t_i += 1;
+            if check_parity_and_iterate(&mut t_i) {
                 y_i = y_i.double();
             }
-            t_i >>= 1;
 
             let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
