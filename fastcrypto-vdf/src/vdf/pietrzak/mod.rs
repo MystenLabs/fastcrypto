@@ -1,4 +1,6 @@
-use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::class_group::discriminant::Discriminant;
+use crate::class_group::QuadraticForm;
+use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
@@ -12,7 +14,7 @@ use num_traits::{One, Zero};
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::mem;
-use std::ops::Shr;
+use std::ops::{Shr, ShrAssign};
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
@@ -48,7 +50,34 @@ fn multiply<G: ParameterizedGroupElement<ScalarType = BigInt>>(
     scalar: &BigInt,
     zero: G,
 ) -> G {
-    element.double()
+    let mut result = zero;
+    for i in (0..scalar.bits()).rev() {
+        result = result.double();
+        if scalar.bit(i) {
+            result = result + element;
+        }
+    }
+    result
+}
+
+#[test]
+fn test_multiply() {
+    let discriminant = Discriminant::from_seed(&[1, 2, 3], 512).unwrap();
+    let input = QuadraticForm::generator(&discriminant);
+
+    let exponent = 13;
+    let output = multiply(
+        &input,
+        &BigInt::from(exponent),
+        QuadraticForm::zero(&discriminant),
+    );
+
+    let mut expected_output = input.clone();
+    for _ in 1..exponent {
+        expected_output = expected_output + &input;
+    }
+
+    assert_eq!(output, expected_output);
 }
 
 impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for PietrzaksVDF<G> {
@@ -98,9 +127,11 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
     fn verify(&self, input: &G, output: &G, proof: &Vec<G>) -> FastCryptoResult<()> {
         let mut x_i = input.clone();
         let mut y_i = output.clone();
+        let mut t_i = self.iterations;
 
         for mu_i in proof {
-            let r = BigInt::from(7); // TODO: Random challenge
+            t_i >>= 1;
+            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, t_i, &mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
             y_i = y_i.add(&multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)));
         }
