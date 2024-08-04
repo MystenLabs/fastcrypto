@@ -4,6 +4,7 @@
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_prime::BitTest;
+use num_traits::Zero;
 use serde::Serialize;
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
@@ -27,11 +28,14 @@ pub struct PietrzaksVDF<G: ParameterizedGroupElement> {
 impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
-    pub fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
-        Self {
+    pub fn new(group_parameter: G::ParameterType, iterations: u64) -> FastCryptoResult<Self> {
+        if iterations.is_zero() || iterations.is_odd() {
+            return Err(InvalidInput);
+        }
+        Ok(Self {
             group_parameter,
             iterations,
-        }
+        })
     }
 }
 
@@ -52,24 +56,27 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
         let mut y_i = output.clone();
         let mut t_i = self.iterations;
 
-        let proof = (0..self.iterations.bits() - 1)
-            .map(|_| {
-                // TODO: iterations not a power of two
-                debug_assert!(t_i.is_even());
-                t_i >>= 1;
+        let mut proof = vec![];
 
-                // TODO: Precompute some of the mu's
-                let mu_i = repeated_doubling(&x_i, t_i);
+        while t_i != 2 {
+            // TODO: iterations not a power of two
+            debug_assert!(t_i.is_even());
+            t_i >>= 1;
 
-                let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
-                x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + &mu_i;
-                y_i = multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)) + &y_i;
+            // TODO: Precompute some of the mu's
+            let mu_i = repeated_doubling(&x_i, t_i);
 
-                mu_i
-            })
-            .collect();
+            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
+            x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + &mu_i;
+            y_i = multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)) + &y_i;
 
-        debug_assert_eq!(t_i, 1);
+            if t_i.is_odd() {
+                t_i += 1;
+                y_i = y_i.double();
+            }
+
+            proof.push(mu_i);
+        }
 
         Ok((output, proof))
     }
@@ -87,14 +94,23 @@ impl<G: ParameterizedGroupElement<ScalarType = BigInt> + Serialize> VDF for Piet
 
         let mut x_i = input.clone();
         let mut y_i = output.clone();
+        let mut t_i = self.iterations;
 
         for mu_i in proof {
+            debug_assert!(t_i.is_even());
+            t_i >>= 1;
+
             let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
             x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
             y_i = y_i + &multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter));
+
+            if t_i.is_odd() {
+                t_i += 1;
+                y_i = y_i.double();
+            }
         }
 
-        if y_i != x_i.double() {
+        if y_i != x_i.double().double() {
             return Err(InvalidProof);
         }
         Ok(())
@@ -138,12 +154,12 @@ mod tests {
 
     #[test]
     fn test_vdf() {
-        let iterations = 128u64;
+        let iterations = 136u64;
         let discriminant = Discriminant::from_seed(&[0, 1, 2], 512).unwrap();
 
         let input = QuadraticForm::generator(&discriminant);
 
-        let vdf = PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), iterations);
+        let vdf = PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), iterations).unwrap();
         let (output, proof) = vdf.evaluate(&input).unwrap();
 
         assert!(vdf.verify(&input, &output, &proof).is_ok());
