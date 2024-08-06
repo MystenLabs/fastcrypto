@@ -305,7 +305,7 @@ impl Default for crate::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::groups::bls12381::{G1_ELEMENT_BYTE_LENGTH, G1Element, G1ElementAsBytes};
+    use crate::groups::bls12381::{G1Element, G1ElementAsBytes, G1_ELEMENT_BYTE_LENGTH};
     use crate::groups::GroupElement;
     use schemars::schema_for;
 
