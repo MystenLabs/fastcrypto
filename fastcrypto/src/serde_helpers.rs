@@ -265,6 +265,36 @@ impl<const N: usize> Display for BytesRepresentation<N> {
     }
 }
 
+/// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
+/// of type `T` with the given deserialization function.
+pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T>(
+    bytes: &[u8],
+    from_byte_array: fn(&[u8; SIZE_IN_BYTES]) -> FastCryptoResult<T>,
+) -> FastCryptoResult<Vec<T>> {
+    if bytes.len() % SIZE_IN_BYTES != 0 {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    bytes
+        .chunks_exact(SIZE_IN_BYTES)
+        .map(|chunk| {
+            from_byte_array(
+                &chunk
+                    .try_into()
+                    .expect("Length of `chunk` is always equal to SIZE_IN_BYTES"),
+            )
+        })
+        .collect::<FastCryptoResult<Vec<T>>>()
+}
+
+/// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
+/// representations with the given deserialization function.
+pub fn serialize_vector<const SIZE_IN_BYTES: usize, T>(
+    elements: &[T],
+    to_byte_array: fn(&T) -> [u8; SIZE_IN_BYTES],
+) -> Vec<u8> {
+    elements.iter().flat_map(to_byte_array).collect()
+}
+
 // This is needed in Narwhal certificates but we don't want default implementations for all BytesRepresentations.
 impl Default for crate::bls12381::min_sig::BLS12381AggregateSignatureAsBytes {
     fn default() -> Self {

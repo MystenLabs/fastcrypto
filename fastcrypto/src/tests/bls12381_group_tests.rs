@@ -347,6 +347,41 @@ fn test_pairing_and_hash_to_curve() {
     let _ = G2Element::hash_to_group_element(&[]);
     let _ = G1Element::hash_to_group_element(&[1]);
     let _ = G2Element::hash_to_group_element(&[1]);
+
+    // Test multi-pairing
+    assert!(G1Element::multi_pairing(&[], &[pk1]).is_err());
+    assert_eq!(
+        G1Element::multi_pairing(&[], &[]).unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[e1], &[pk1]).unwrap(),
+        e1.pairing(&pk1)
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[e1, pk2], &[pk1, e2]).unwrap(),
+        e1.pairing(&pk1) + pk2.pairing(&e2)
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[G1Element::zero()], &[G2Element::zero()]).unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::multi_pairing(
+            &[G1Element::zero(), G1Element::zero()],
+            &[G2Element::zero(), G2Element::zero()]
+        )
+        .unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[G1Element::generator()], &[G2Element::zero()]).unwrap(),
+        GTElement::zero()
+    );
+    assert_eq!(
+        G1Element::multi_pairing(&[G1Element::zero()], &[G2Element::generator()]).unwrap(),
+        GTElement::zero()
+    );
 }
 
 #[test]
