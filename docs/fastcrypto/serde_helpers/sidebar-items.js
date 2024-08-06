@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["keypair_decode_base64"],"struct":["BytesRepresentation","SerializationHelper"],"trait":["ToFromByteArray"]};
+window.SIDEBAR_ITEMS = {"fn":["deserialize_vector","keypair_decode_base64","serialize_vector"],"struct":["BytesRepresentation","SerializationHelper"],"trait":["ToFromByteArray"]};
