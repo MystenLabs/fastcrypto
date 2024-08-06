@@ -357,34 +357,3 @@ mod tests {
         );
     }
 }
-
-/// Given a byte array of length `N * SIZE_IN_BYTES`, deserialize it into a vector of `N` elements
-/// of type `T`.
-pub fn deserialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
-    bytes: &[u8],
-) -> FastCryptoResult<Vec<T>> {
-    if bytes.len() % SIZE_IN_BYTES != 0 {
-        return Err(FastCryptoError::InvalidInput);
-    }
-    bytes
-        .chunks(SIZE_IN_BYTES)
-        .map(|chunk| {
-            T::from_byte_array(
-                &chunk
-                    .try_into()
-                    .map_err(|_| FastCryptoError::InvalidInput)?,
-            )
-        })
-        .collect::<FastCryptoResult<Vec<T>>>()
-}
-
-/// Serialize a vector of elements of type T into a byte array by simply concatenating their binary
-/// representations.
-pub fn serialize_vector<const SIZE_IN_BYTES: usize, T: ToFromByteArray<SIZE_IN_BYTES>>(
-    elements: &[T],
-) -> Vec<u8> {
-    elements
-        .iter()
-        .flat_map(|e| e.to_byte_array().to_vec())
-        .collect()
-}
