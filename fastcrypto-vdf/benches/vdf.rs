@@ -4,16 +4,19 @@
 #[macro_use]
 extern crate criterion;
 
+use std::rc::Rc;
+
 use criterion::measurement::Measurement;
-use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
-use fastcrypto_vdf::class_group::discriminant::Discriminant;
-use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::parameterized_group::Parameter;
-use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
-use fastcrypto_vdf::vdf::VDF;
-use num_bigint::BigInt;
+use criterion::{BenchmarkGroup, Criterion};
+use num_bigint::{BigInt, BigUint};
 use num_traits::Num;
-use rand::{thread_rng, RngCore};
+
+use fastcrypto_vdf::groups::class_group::discriminant::Discriminant;
+use fastcrypto_vdf::groups::class_group::QuadraticForm;
+use fastcrypto_vdf::groups::rsa_group::modulus::GOOGLE_RSA_MODULUS_4096;
+use fastcrypto_vdf::groups::rsa_group::RSAGroupElement;
+use fastcrypto_vdf::vdf::wesolowski::{DefaultRSABasedVDF, DefaultVDF};
+use fastcrypto_vdf::vdf::VDF;
 
 struct VerificationInputs {
     iterations: u64,
@@ -85,31 +88,25 @@ fn verify(c: &mut Criterion) {
     }, &mut group);
 }
 
-fn sample_discriminant(c: &mut Criterion) {
-    let bit_lengths = [512, 1024, 2048, 2400, 3072];
+fn rsa_vdf(c: &mut Criterion) {
+    let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
+    let vdf = DefaultRSABasedVDF::new(modulus.clone(), 1000);
 
-    let mut seed = [0u8; 32];
+    let input = RSAGroupElement::new(BigUint::from(2u64), &modulus);
 
-    let mut rng = thread_rng();
+    println!("Modulus bits: {}", modulus.value.bits());
 
-    for bit_length in bit_lengths {
-        c.bench_with_input(
-            BenchmarkId::new("Sample class group discriminant".to_string(), bit_length),
-            &bit_length,
-            |b, n| {
-                b.iter(|| {
-                    rng.try_fill_bytes(&mut seed).unwrap();
-                    Discriminant::from_seed(&seed, *n).unwrap();
-                })
-            },
-        );
-    }
+    let (output, proof) = vdf.evaluate(&input).unwrap();
+
+    c.bench_function("RSA VDF verify", move |b| {
+        b.iter(|| vdf.verify(&input, &output, &proof))
+    });
 }
 
 criterion_group! {
     name = vdf_benchmarks;
     config = Criterion::default().sample_size(100);
-    targets = verify, sample_discriminant
+    targets = verify, rsa_vdf
 }
 
 criterion_main!(vdf_benchmarks);

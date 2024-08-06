@@ -5,8 +5,8 @@
 //! binary quadratic forms which forms a group under composition. Here we use additive notation
 //! for the composition.
 
+use crate::groups::ParameterizedGroupElement;
 use crate::math::extended_gcd::{extended_euclidean_algorithm, EuclideanAlgorithmOutput};
-use crate::math::parameterized_group::ParameterizedGroupElement;
 use core::cell::OnceCell;
 use discriminant::Discriminant;
 use fastcrypto::error::FastCryptoError::InvalidInput;
@@ -38,7 +38,7 @@ pub(crate) mod reduction;
 pub mod discriminant;
 
 /// Serialization and deserialization for `num_bigint::BigInt`. The format used in num_bigint is
-/// a serialization of the u32 words which is hard to port to other platforms. Instead we serialize
+/// a serialization of the u32 words which is hard to port to other platforms. Instead, we serialize
 /// a big integer as the two's-complement byte representation in big-endian byte order. See also
 /// [BigInt::to_signed_bytes_be].
 mod bigint_serde;
@@ -104,11 +104,15 @@ impl QuadraticForm {
     }
 
     /// Compute the composition of this quadratic form with another quadratic form.
+    ///
+    /// This panics if the discriminants of the two forms do not match.
     pub fn compose(&self, rhs: &QuadraticForm) -> QuadraticForm {
         // Slightly optimised version of Algorithm 1 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
+
+        assert_eq!(self.discriminant(), rhs.discriminant());
 
         let u1 = &self.a;
         let v1 = &self.b;
@@ -295,8 +299,6 @@ impl ParameterizedGroupElement for QuadraticForm {
     /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
 
-    type ScalarType = BigInt;
-
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)
             .expect("Doesn't fail")
@@ -312,14 +314,6 @@ impl Add<&QuadraticForm> for QuadraticForm {
 
     fn add(self, rhs: &QuadraticForm) -> Self::Output {
         self.compose(rhs)
-    }
-}
-
-impl Add<QuadraticForm> for QuadraticForm {
-    type Output = QuadraticForm;
-
-    fn add(self, rhs: QuadraticForm) -> Self::Output {
-        self.compose(&rhs)
     }
 }
 

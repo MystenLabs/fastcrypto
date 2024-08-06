@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module contains a implementation of a verifiable delay function (VDF), using Wesolowski's
+//! This module contains an implementation of a verifiable delay function (VDF), using Wesolowski's
 //! construction with ideal class groups.
 
 use fastcrypto::error::FastCryptoResult;
@@ -38,8 +38,8 @@ pub trait VDF {
 mod tests {
     use fastcrypto::hash::{HashFunction, Sha256};
 
-    use crate::class_group::discriminant::DISCRIMINANT_3072;
-    use crate::class_group::QuadraticForm;
+    use crate::groups::class_group::discriminant::DISCRIMINANT_3072;
+    use crate::groups::class_group::QuadraticForm;
     use crate::vdf::wesolowski::DefaultVDF;
     use crate::vdf::VDF;
 

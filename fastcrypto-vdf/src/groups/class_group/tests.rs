@@ -3,9 +3,9 @@
 
 use num_bigint::BigInt;
 
-use crate::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
-use crate::class_group::QuadraticForm;
-use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::groups::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
+use crate::groups::class_group::QuadraticForm;
+use crate::groups::ParameterizedGroupElement;
 
 #[test]
 fn test_composition() {

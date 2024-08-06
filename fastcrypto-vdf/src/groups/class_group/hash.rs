@@ -15,8 +15,8 @@ use fastcrypto::error::FastCryptoResult;
 use fastcrypto::hash::HashFunction;
 use fastcrypto::hash::Sha256;
 
-use crate::class_group::discriminant::Discriminant;
-use crate::class_group::QuadraticForm;
+use crate::groups::class_group::discriminant::Discriminant;
+use crate::groups::class_group::QuadraticForm;
 use crate::math::crt::solve_congruence_equation_system;
 use crate::math::hash_prime::is_probable_prime;
 use crate::math::jacobi;
@@ -178,9 +178,9 @@ mod tests {
     use rand::thread_rng;
     use rand::RngCore;
 
-    use crate::class_group::discriminant::Discriminant;
-    use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use crate::groups::class_group::discriminant::Discriminant;
+    use crate::groups::class_group::QuadraticForm;
+    use crate::groups::ParameterizedGroupElement;
 
     #[test]
     fn test_qf_from_seed() {
