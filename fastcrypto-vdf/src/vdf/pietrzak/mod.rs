@@ -1,11 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::{AddAssign, ShrAssign};
+
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::Signed;
 use serde::Serialize;
-use std::ops::{AddAssign, ShrAssign};
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -66,8 +67,9 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
         let mut y_i = output.clone();
         let mut t_i = self.iterations;
 
-        // TODO: Determine size before looping
-        let mut proof = vec![];
+        // This is ceil(log_2(iterations)). See also https://oeis.org/A029837.
+        let iterations = 64 - (self.iterations - 1).leading_zeros();
+        let mut proof = Vec::with_capacity(iterations as usize);
 
         // Compute the full proof. This loop may stop at any time which will give a shorter proof that is computationally harder to verify.
         while t_i != 1 {
@@ -136,13 +138,14 @@ fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigInt, zero: G)
 
 #[cfg(test)]
 mod tests {
+    use num_bigint::BigInt;
+    use num_traits::{One, Zero};
+
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
     use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
     use crate::vdf::pietrzak::{multiply, PietrzaksVDF};
     use crate::vdf::VDF;
-    use num_bigint::BigInt;
-    use num_traits::{One, Zero};
 
     #[test]
     fn test_vdf() {
