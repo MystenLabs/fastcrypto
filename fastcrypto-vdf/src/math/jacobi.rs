@@ -1,13 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::error::FastCryptoError::InvalidInput;
-use fastcrypto::error::FastCryptoResult;
-use num_bigint::{BigInt, BigUint};
-use num_integer::Integer;
-use num_traits::{One, Signed, Zero};
 use std::mem::swap;
 use std::ops::{RemAssign, ShrAssign};
+
+use num_bigint::BigInt;
+use num_integer::Integer;
+use num_traits::{One, Signed, Zero};
+
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoResult;
 
 /// Compute the Jacobi symbol (a/m) for odd m. If m is prime, this is the same as the Legendre symbol.
 /// m must be odd and positive.
@@ -23,28 +25,23 @@ pub fn jacobi(a: &BigInt, m: &BigInt) -> FastCryptoResult<i8> {
     // The output
     let mut t = true;
 
-    // The second bit of m
-    let mut m_2nd_bit = m.bit(1);
+    let mut m_1 = m.bit(1);
 
     while !a.is_zero() {
-        // Shift a to the right until odd and store the parity of the number of shifts
-        let s_odd = into_odd_part_and_2_adic_valuation(&mut a);
+        // Remove all trailing zeros from a and adjust t accordingly
+        let trailing_zeros = a.trailing_zeros().expect("a is not zero");
+        if !trailing_zeros.is_zero() {
+            a.shr_assign(trailing_zeros);
+        }
 
-        // To check if m is 3 or 5 mod 8 we check that only one of the second and third bits are set
-        if s_odd && (m_2nd_bit ^ m.bit(2)) {
+        let a_1 = a.bit(1);
+        if (trailing_zeros.is_odd() && (m_1 ^ m.bit(2))) ^ (m_1 && a_1) {
             t = !t;
         }
 
+        // Swap a and m
+        m_1 = a_1;
         swap(&mut a, &mut m);
-
-        // a and m have been swapped
-        let a_2nd_bit = m_2nd_bit;
-        m_2nd_bit = m.bit(1);
-
-        // Check if both a and m are 3 mod 4
-        if a_2nd_bit && m_2nd_bit {
-            t = !t;
-        }
         a.rem_assign(&m);
     }
 
@@ -52,17 +49,6 @@ pub fn jacobi(a: &BigInt, m: &BigInt) -> FastCryptoResult<i8> {
         return Ok(if t { 1 } else { -1 });
     }
     Ok(0)
-}
-
-/// Given an integer a, find the largest power of two s such that a = 2^s * b for some odd b. Set
-/// a = b and return a boolean indicating whether s is odd.
-fn into_odd_part_and_2_adic_valuation(a: &mut BigUint) -> bool {
-    let mut s = false;
-    while a.is_even() {
-        a.shr_assign(1);
-        s = !s;
-    }
-    s
 }
 
 #[cfg(test)]
