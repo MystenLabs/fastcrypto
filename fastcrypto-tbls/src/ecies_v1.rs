@@ -11,6 +11,7 @@ use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::{Deserialize, Serialize};
 use typenum::consts::{U16, U32};
 use typenum::Unsigned;
+use zeroize::Zeroize;
 
 /// Simple ECIES encryption using a generic group and AES-256-counter.
 ///
@@ -34,7 +35,7 @@ pub struct MultiRecipientEncryption<G: GroupElement> {
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
 where
-    <G as GroupElement>::ScalarType: FiatShamirChallenge,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
     G: HashToGroupElement,
 {
     pub fn encrypt<R: AllowedRng>(

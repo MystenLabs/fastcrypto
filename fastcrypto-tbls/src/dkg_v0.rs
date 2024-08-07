@@ -24,6 +24,7 @@ use crate::ecies::RecoveryPackage;
 use crate::ecies_v0::MultiRecipientEncryption;
 use tap::prelude::*;
 use tracing::{debug, error, info, warn};
+use zeroize::Zeroize;
 
 /// [Message] holds all encrypted shares a dealer sends during the first phase of the
 /// protocol.
@@ -102,7 +103,7 @@ impl<G, EG> Party<G, EG>
 where
     G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
     EG: GroupElement + Serialize + DeserializeOwned,
-    EG::ScalarType: FiatShamirChallenge,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
@@ -717,7 +718,7 @@ where
 pub fn create_fake_complaint<EG>() -> Complaint<EG>
 where
     EG: GroupElement + Serialize + DeserializeOwned,
-    <EG as GroupElement>::ScalarType: FiatShamirChallenge,
+    <EG as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
 {
     let sk = ecies::PrivateKey::<EG>::new(&mut rand::thread_rng());
     let pk = ecies::PublicKey::<EG>::from_private_key(&sk);

@@ -19,11 +19,12 @@ use itertools::izip;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::collections::HashMap;
 use std::num::NonZeroU16;
+use zeroize::Zeroize;
 
 /// Party in the DKG protocol.
 pub struct Party<G: GroupElement>
 where
-    G::ScalarType: Serialize + DeserializeOwned,
+    G::ScalarType: Serialize + DeserializeOwned + Zeroize,
 {
     id: PartyId,
     nodes: Nodes<G>,
@@ -83,7 +84,7 @@ pub struct Complaint<G: GroupElement> {
 impl<G> Party<G>
 where
     G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: Serialize + DeserializeOwned + FiatShamirChallenge,
+    <G as GroupElement>::ScalarType: Serialize + DeserializeOwned + FiatShamirChallenge + Zeroize,
 {
     /// 1. Create a new private key and send the public key to all parties.
     ///

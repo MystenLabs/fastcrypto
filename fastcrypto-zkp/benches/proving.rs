@@ -1,24 +1,26 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use ark_bls12_377::{Bls12_377, Fr as Bls377Fr};
+
+use std::ops::Mul;
+
 use ark_bls12_381::{Bls12_381, Fr as BlsFr};
 use ark_bn254::{Bn254, Fr as Bn254Fr};
-
 use ark_ec::pairing::Pairing;
 use ark_ff::{PrimeField, UniformRand};
 use ark_groth16::Groth16;
+use ark_serialize::CanonicalSerialize;
 use ark_snark::SNARK;
 use ark_std::rand::thread_rng;
 use criterion::{
     criterion_group, criterion_main, measurement::Measurement, BenchmarkGroup, BenchmarkId,
     Criterion, SamplingMode,
 };
-use fastcrypto_zkp::dummy_circuits::DummyCircuit;
-use fastcrypto_zkp::{bls12381, bn254};
-use std::ops::Mul;
 
-#[path = "./conversions.rs"]
-mod conversions;
+use fastcrypto::groups::bls12381::{G1Element, Scalar};
+use fastcrypto::serde_helpers::ToFromByteArray;
+use fastcrypto_zkp::bn254;
+use fastcrypto_zkp::dummy_circuits::DummyCircuit;
+use fastcrypto_zkp::groth16::{Proof, VerifyingKey};
 
 #[path = "./utils.rs"]
 mod utils;
@@ -427,25 +429,36 @@ fn bench_our_verify<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
         };
 
         let (pk, ark_vk) = Groth16::<Bls12_381>::circuit_specific_setup(c, rng).unwrap();
-        let proof = bls12381::Proof::from(Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap());
-        let v = c.a.unwrap().mul(c.b.unwrap());
 
-        let vk = ark_vk.into();
+        let ark_proof = Groth16::<Bls12_381>::prove(&pk, c, rng).unwrap();
+        let mut proof_bytes = Vec::new();
+        ark_proof.serialize_compressed(&mut proof_bytes).unwrap();
+        let proof: Proof<G1Element> = bcs::from_bytes(&proof_bytes).unwrap();
+
+        let v = c.a.unwrap().mul(c.b.unwrap());
+        let mut v_bytes = [0u8; 32];
+        v.serialize_compressed(v_bytes.as_mut_slice()).unwrap();
+        v_bytes.reverse();
+        let v = Scalar::from_byte_array(&v_bytes).unwrap();
+
+        let mut vk_bytes = Vec::new();
+        ark_vk.serialize_compressed(&mut vk_bytes).unwrap();
+        let vk = VerifyingKey::from_arkworks_format(&vk_bytes).unwrap();
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 process verifying key", *size),
             &vk,
             |b, vk| {
-                b.iter(|| bls12381::verifier::PreparedVerifyingKey::from(vk));
+                b.iter(|| fastcrypto_zkp::bls12381::PreparedVerifyingKey::from(vk));
             },
         );
-        let pvk = bls12381::verifier::PreparedVerifyingKey::from(&vk);
+        let pvk = fastcrypto_zkp::bls12381::PreparedVerifyingKey::from(&vk);
 
         grp.bench_with_input(
             BenchmarkId::new("BLST-based Groth16 verify with processed vk", *size),
             &(pvk, v),
             |b, (pvk, v)| {
-                b.iter(|| pvk.verify(&[(*v).into()], &proof).unwrap());
+                b.iter(|| pvk.verify(&[*v], &proof).unwrap());
             },
         );
     }
@@ -464,12 +477,6 @@ fn prove(c: &mut Criterion) {
     group.sample_size(10);
     bench_prove::<Bn254Fr, Bn254, _>(&mut group);
     group.finish();
-
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Proving");
-    group.sampling_mode(SamplingMode::Flat); // This can take a *while*
-    group.sample_size(10);
-    bench_prove::<Bls377Fr, Bls12_377, _>(&mut group);
-    group.finish();
 }
 
 fn verify(c: &mut Criterion) {
@@ -482,10 +489,6 @@ fn verify(c: &mut Criterion) {
     // Add fields and pairing engines here
     let mut group: BenchmarkGroup<_> = c.benchmark_group("BN254 Verification");
     bench_verify::<Bn254Fr, Bn254, _>(&mut group);
-    group.finish();
-
-    let mut group: BenchmarkGroup<_> = c.benchmark_group("BLS12-377 Verification");
-    bench_verify::<Bls377Fr, Bls12_377, _>(&mut group);
     group.finish();
 
     let mut group: BenchmarkGroup<_> = c.benchmark_group("Elusiv Circuit Verification");
@@ -501,4 +504,4 @@ criterion_group! {
        prove,
 }
 
-criterion_main!(conversions::conversion_benches, proving_benches,);
+criterion_main!(proving_benches,);

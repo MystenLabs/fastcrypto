@@ -19,11 +19,12 @@ const MSG: &[u8; 4] = b"test";
 mod point_tests {
     use super::*;
     use crate::ecies::{PrivateKey, PublicKey};
+    use zeroize::Zeroize;
 
     #[test]
     fn test_decryption<Group: GroupElement + Serialize + DeserializeOwned>()
     where
-        Group::ScalarType: FiatShamirChallenge,
+        Group::ScalarType: FiatShamirChallenge + Zeroize,
     {
         let sk = PrivateKey::<Group>::new(&mut thread_rng());
         let pk = PublicKey::<Group>::from_private_key(&sk);
@@ -35,7 +36,7 @@ mod point_tests {
     #[test]
     fn test_recovery_package<Group: GroupElement + Serialize + DeserializeOwned>()
     where
-        Group::ScalarType: FiatShamirChallenge,
+        Group::ScalarType: FiatShamirChallenge + Zeroize,
     {
         let sk = PrivateKey::<Group>::new(&mut thread_rng());
         let pk = PublicKey::<Group>::from_private_key(&sk);
@@ -62,7 +63,7 @@ mod point_tests {
     #[test]
     fn test_multi_rec<Group: GroupElement + Serialize + DeserializeOwned>()
     where
-        Group::ScalarType: FiatShamirChallenge,
+        Group::ScalarType: FiatShamirChallenge + Zeroize,
     {
         let ro = RandomOracle::new("test");
         let keys_and_msg = (0..10u32)

@@ -19,7 +19,7 @@ hkdf = { version = "0.12.3", features = ["std"] }
 rand.workspace = true
 rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde.workspace = true
-serde_with = "2.1.0"
+serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
 signature = { version = "2.0.0" }
 tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
 zeroize.workspace = true

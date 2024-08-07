@@ -13,13 +13,17 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::Share;
 use fastcrypto::groups::GroupElement;
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
 
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Party<G: GroupElement, EG: GroupElement> {
+pub struct Party<G: GroupElement, EG: GroupElement>
+where
+    EG::ScalarType: Zeroize,
+{
     pub id: PartyId,
     pub(crate) nodes: Nodes<EG>,
     pub t: u16,

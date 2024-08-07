@@ -12,6 +12,7 @@ use fastcrypto::traits::{AllowedRng, ToFromBytes};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use typenum::consts::{U16, U32};
+use zeroize::Zeroize;
 
 ///
 /// Simple ECIES encryption using a generic group and AES-256-counter.
@@ -40,7 +41,7 @@ pub struct MultiRecipientEncryption<G: GroupElement>(G, Vec<Vec<u8>>, DLNizk<G>)
 impl<G> PrivateKey<G>
 where
     G: GroupElement + Serialize,
-    <G as GroupElement>::ScalarType: FiatShamirChallenge,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
 {
     pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
         Self(G::ScalarType::rand(rng))
@@ -80,7 +81,7 @@ where
 impl<G> PublicKey<G>
 where
     G: GroupElement + Serialize + DeserializeOwned,
-    <G as GroupElement>::ScalarType: FiatShamirChallenge,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
 {
     pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
         Self(G::generator() * sk.0)

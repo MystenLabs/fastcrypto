@@ -4,10 +4,12 @@
 use crate::nizk::DdhTupleNizk;
 use fastcrypto::groups::GroupElement;
 use serde::{Deserialize, Serialize};
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
-// TODO: Use ZeroizeOnDrop.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType);
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ZeroizeOnDrop)]
+pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType)
+where
+    G::ScalarType: Zeroize;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PublicKey<G: GroupElement>(pub(crate) G);
