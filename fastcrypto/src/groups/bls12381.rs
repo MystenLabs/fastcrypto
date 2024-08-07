@@ -32,6 +32,7 @@ use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
+use std::{panic, ptr};
 use std::ptr;
 use zeroize::Zeroize;
 
@@ -793,14 +794,24 @@ impl ScalarType for Scalar {
 /// The input buffer must be at least 48 bytes long to ensure that there is only negligible bias in
 /// the output.
 pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
-    assert!(buffer.len() >= 48);
+    match buffer_to_scalar_mod_r(buffer) {
+        Ok(scalar) => scalar,
+        Err(_) => panic!("Invalid input length"),
+    }
+}
+
+/// Similar to `reduce_mod_uniform_buffer`, returns a result of scalar, and does not panic on invalid length.
+pub fn buffer_to_scalar_mod_r(buffer: &[u8]) -> FastCryptoResult<Scalar> {
+    if buffer.len() < 48 {
+        return Err(FastCryptoError::InvalidInput);
+    }
     let mut ret = blst_fr::default();
     let mut tmp = blst_scalar::default();
     unsafe {
         blst_scalar_from_be_bytes(&mut tmp, buffer.as_ptr(), buffer.len());
         blst_fr_from_scalar(&mut ret, &tmp);
     }
-    Scalar(ret)
+    Ok(Scalar(ret))
 }
 
 impl FiatShamirChallenge for Scalar {
