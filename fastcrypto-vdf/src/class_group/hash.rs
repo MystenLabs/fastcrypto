@@ -26,6 +26,8 @@ impl QuadraticForm {
     ///
     /// The output will be a uniformly random element from the set of points (a,b,c) where a = p_1 ... p_k
     /// for some primes p_i < 2^lambda.
+    ///
+    /// If the discriminant is not a negative prime, an [InvalidInput] error may be returned.
     fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -60,8 +62,7 @@ impl QuadraticForm {
             b -= &a;
         }
 
-        Ok(QuadraticForm::from_a_b_and_discriminant(a, b, discriminant)
-            .expect("a and b are constructed such that this never fails"))
+        QuadraticForm::from_a_b_and_discriminant(a, b, discriminant)
     }
 
     /// Generate a random quadratic form from a seed with the given discriminant. This method is
