@@ -40,23 +40,31 @@ impl QuadraticForm {
     pub fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
-        prime_factor_size: u64,
-        primes: u64,
+        prime_factor_size_in_bytes: u64,
+        prime_factors: u64,
     ) -> FastCryptoResult<Self> {
         // Ensure that the image is sufficiently large
-        debug_assert!(primes as f64 * n_bit_primes(prime_factor_size * 8) >= 256f64);
+        debug_assert!(
+            prime_factors as f64 * n_bit_primes(prime_factor_size_in_bytes * 8) >= 256f64
+        );
 
         // Ensure that the prime factors are so large that they cannot be precomputed.
-        debug_assert!(n_bit_primes(prime_factor_size * 8) >= 128f64);
+        debug_assert!(n_bit_primes(prime_factor_size_in_bytes * 8) >= 128f64);
 
         // Ensure that the result will be reduced
         debug_assert!(
-            discriminant.as_bigint().abs().sqrt().shr(1) > BigInt::one().shl(prime_factor_size)
+            discriminant.as_bigint().abs().sqrt().shr(1)
+                > BigInt::one().shl(prime_factor_size_in_bytes)
         );
 
         // Sample a and b such that a < sqrt(|discriminant|)/2 has exactly k prime factors and b is
         // the square root of the discriminant modulo a.
-        let (a, mut b) = sample_modulus(discriminant, prime_factor_size, seed, primes)?;
+        let (a, mut b) = sample_modulus(
+            seed,
+            discriminant,
+            prime_factor_size_in_bytes,
+            prime_factors,
+        )?;
 
         // b must be odd but may be negative
         if b.is_even() {
@@ -86,9 +94,9 @@ impl QuadraticForm {
 /// the discriminant modulo `a`. If `k` is larger than the largest allowed `k` (as computed in
 /// [largest_allowed_k]) for the given discriminant, an [InvalidInput] error is returned.
 fn sample_modulus(
+    seed: &[u8],
     discriminant: &Discriminant,
     prime_factor_size_in_bytes: u64,
-    seed: &[u8],
     prime_factors: u64,
 ) -> FastCryptoResult<(BigInt, BigInt)> {
     // Seed a rng with the hash of the seed
@@ -105,9 +113,12 @@ fn sample_modulus(
                 continue;
             }
 
-            // The primality check does not try divisions with small primes, so we do it here. This speeds up the
-            // algorithm significantly.
-            if !trial_division(&factor, &PRIMES) {
+            // The primality check does not try divisions with small primes, so we do it here. This
+            // speeds up the algorithm significantly.
+            if PRIMES
+                .iter()
+                .any(|p| factor.is_multiple_of(&BigInt::from(*p)))
+            {
                 continue;
             }
 
@@ -134,7 +145,7 @@ fn sample_modulus(
     Ok((result, square_root))
 }
 
-/// Sample a random odd number in [1, bound)
+/// Sample a random odd number smaller than 2^{8*size_in_bytes}.
 fn sample_odd_number<R: Rng>(size_in_bytes: u64, rng: &mut R) -> BigInt {
     let mut bytes = vec![0u8; size_in_bytes as usize];
     rng.fill_bytes(&mut bytes);
@@ -146,16 +157,6 @@ fn sample_odd_number<R: Rng>(size_in_bytes: u64, rng: &mut R) -> BigInt {
 const PRIMES: [u64; 24] = [
     3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
 ];
-
-/// Perform trial division on `n` with the given primes. Returns true if neither of the divisors divide `n`
-fn trial_division(n: &BigInt, divisors: &[u64]) -> bool {
-    for p in divisors {
-        if n.is_multiple_of(&BigInt::from(*p)) {
-            return false;
-        }
-    }
-    true
-}
 
 #[cfg(test)]
 mod tests {
