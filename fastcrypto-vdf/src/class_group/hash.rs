@@ -151,8 +151,8 @@ fn sample_odd_number<R: Rng>(size_in_bytes: u64, rng: &mut R) -> BigInt {
     BigInt::from_bytes_le(Sign::Plus, &bytes)
 }
 
-/// The odd primes smaller than 100.
 lazy_static! {
+    /// The odd primes smaller than 100.
     pub static ref PRIMES: Vec<BigInt> = [
         3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89,
         97,
