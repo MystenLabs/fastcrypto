@@ -186,7 +186,7 @@ fn execute(cmd: Command) -> Result<String, Error> {
             let input = hex::decode(arguments.message)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid message."))?;
             let output = QuadraticForm::hash_to_group(&input, &DISCRIMINANT_3072)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "The k parameter was too big"))?;
+                .map_err(|_| Error::new(ErrorKind::InvalidInput, "The discriminant is invalid."))?;
 
             let output_bytes = hex::encode(bcs::to_bytes(&output).unwrap());
 
