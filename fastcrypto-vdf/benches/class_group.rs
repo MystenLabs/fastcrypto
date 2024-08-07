@@ -46,22 +46,12 @@ fn qf_from_seed_single<M: Measurement>(discriminant_string: &str, group: &mut Be
     let discriminant =
         Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap()).unwrap();
     let bits = discriminant.bits();
-    let discriminant_cloned = discriminant.clone();
 
     group.bench_function(format!("{} bits, default", bits), move |b| {
         let mut seed = [0u8; 32];
         thread_rng().fill_bytes(&mut seed);
         b.iter(|| QuadraticForm::hash_to_group_with_default_parameters(&seed, &discriminant))
     });
-
-    for k in [1, 2] {
-        let local_d = discriminant_cloned.clone();
-        group.bench_function(format!("{} bits/{}", bits, k), move |b| {
-            let mut seed = [0u8; 32];
-            thread_rng().fill_bytes(&mut seed);
-            b.iter(|| QuadraticForm::hash_to_group(&seed, &local_d, 34, k))
-        });
-    }
 }
 
 fn qf_from_seed(c: &mut Criterion) {

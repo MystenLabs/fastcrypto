@@ -21,23 +21,12 @@ use crate::math::hash_prime::is_probable_prime;
 use crate::math::jacobi;
 use crate::math::modular_sqrt::modular_square_root;
 
-/// Returns an approximation of the log2 of the number of primes smaller than 2^n.
-fn n_bit_primes(n: u64) -> f64 {
-    // The Prime Number Theorem states that the number of primes smaller than n is close to n / ln(n),
-    // so the number of primes smaller than 2^n is approximately:
-    //
-    // log2(2^n / ln 2^n) = n - log2(ln 2^n)
-    //                    = n - log2(n ln 2)
-    //                    = n - log2(n) - log2(ln 2)
-    n as f64 - (n as f64).log2() - 2f64.ln().log2()
-}
-
 impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant.
     ///
     /// The output will be a uniformly random element from the set of points (a,b,c) where a = p_1 ... p_k
     /// for some primes p_i < 2^lambda.
-    pub fn hash_to_group(
+    fn hash_to_group(
         seed: &[u8],
         discriminant: &Discriminant,
         prime_factor_size_in_bytes: u64,
@@ -54,7 +43,7 @@ impl QuadraticForm {
         // Ensure that the result will be reduced
         debug_assert!(
             discriminant.as_bigint().abs().sqrt().shr(1)
-                > BigInt::one().shl(prime_factor_size_in_bytes)
+                > BigInt::one().shl(prime_factors * prime_factor_size_in_bytes)
         );
 
         // Sample a and b such that a < sqrt(|discriminant|)/2 has exactly k prime factors and b is
@@ -75,11 +64,13 @@ impl QuadraticForm {
             .expect("a and b are constructed such that this never fails"))
     }
 
-    /// Generate a random quadratic form from a seed with the given discriminant. This method is deterministic, and it
-    /// is a random oracle on a large subset of the class group. This method picks a default `k` parameter and calls the
-    /// [hash_to_group](QuadraticForm::hash_to_group) function with this `k`.
+    /// Generate a random quadratic form from a seed with the given discriminant. This method is
+    /// deterministic, and it is a random oracle on a large subset of the class group. This method
+    /// picks default parameters and calls the [hash_to_group](QuadraticForm::hash_to_group)
+    /// function with these parameters.
     ///
-    /// This method returns an InvalidInput error if the discriminant is smaller than 800 bits.
+    /// This method returns an [InvalidInput] error if the discriminant is so small that there are
+    /// no secure parameters, and it may also happen if the discriminant is not a prime.
     pub fn hash_to_group_with_default_parameters(
         seed: &[u8],
         discriminant: &Discriminant,
@@ -90,9 +81,9 @@ impl QuadraticForm {
     }
 }
 
-/// Sample a product of `k` primes each of `size`bytes and return this along with the square root of
-/// the discriminant modulo `a`. If `k` is larger than the largest allowed `k` (as computed in
-/// [largest_allowed_k]) for the given discriminant, an [InvalidInput] error is returned.
+/// Sample a product of `prime_factors` primes each of size `prime_factor_size_in_bytes` and return
+/// this along with the square root of the discriminant modulo `a`. If the discriminant is not a
+/// prime, an [InvalidInput] error is returned.
 fn sample_modulus(
     seed: &[u8],
     discriminant: &Discriminant,
@@ -143,6 +134,17 @@ fn sample_modulus(
         .expect("The factors are distinct primes");
 
     Ok((result, square_root))
+}
+
+/// Returns an approximation of the log2 of the number of primes smaller than 2^n.
+fn n_bit_primes(n: u64) -> f64 {
+    // The Prime Number Theorem states that the number of primes smaller than n is close to n / ln(n),
+    // so the number of primes smaller than 2^n is approximately:
+    //
+    // log2(2^n / ln 2^n) = n - log2(ln 2^n)
+    //                    = n - log2(n ln 2)
+    //                    = n - log2(n) - log2(ln 2)
+    n as f64 - (n as f64).log2() - 2f64.ln().log2()
 }
 
 /// Sample a random odd number smaller than 2^{8*size_in_bytes}.
