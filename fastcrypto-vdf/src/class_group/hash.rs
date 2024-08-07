@@ -83,7 +83,7 @@ impl QuadraticForm {
 
 /// Sample a product of `prime_factors` primes each of size `prime_factor_size_in_bytes` and return
 /// this along with the square root of the discriminant modulo `a`. If the discriminant is not a
-/// prime, an [InvalidInput] error is returned.
+/// prime, an [InvalidInput] error may be returned.
 fn sample_modulus(
     seed: &[u8],
     discriminant: &Discriminant,
