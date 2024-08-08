@@ -21,6 +21,24 @@ use crate::math::hash_prime::is_probable_prime;
 use crate::math::jacobi;
 use crate::math::modular_sqrt::modular_square_root;
 
+const SECURITY_PARAMETER: u64 = 128;
+
+/// This lower limit ensures that the default, secure parameters set below give valid results,
+/// namely a reduced quadratic form.
+const MINIMAL_DISCRIMINANT_SIZE: u64 = 600;
+
+/// The image size of the hash function will be "Number of primes of size at most
+/// DEFAULT_PRIME_FACTOR_SIZE_IN_BYTES" * DEFAULT_PRIME_FACTORS, so these have been set such that
+/// the image is ~260 bits. See [n_bit_primes] for the details of this computation.
+const DEFAULT_PRIME_FACTORS: u64 = 2;
+
+/// The default size of the prime factors should be set such that it is not possible for an
+/// adversary to precompute the VDF on all quadratic forms with the first coordinate being the
+/// primes of this size. This is an issue because if an adversary can precompute (a1, _, _)^T and
+/// (a2, _, _)^T then it is possible to compute (a1*a2, _, _)^T as the composition (a1, _, _)^T *
+/// (a2, _, _)^T.
+const DEFAULT_PRIME_FACTOR_SIZE_IN_BYTES: u64 = 17;
+
 impl QuadraticForm {
     /// Generate a random quadratic form from a seed with the given discriminant. This method is
     /// deterministic, and it is a random oracle on a large subset of the class group.
@@ -28,12 +46,15 @@ impl QuadraticForm {
     /// This method returns an [InvalidInput] error if the discriminant is so small that there are
     /// no secure parameters, and it may also happen if the discriminant is not a prime.
     pub fn hash_to_group(seed: &[u8], discriminant: &Discriminant) -> FastCryptoResult<Self> {
-        // This lower limit ensures that the default, secure parameters give valid results, a reduced quadratic form.
-        if discriminant.bits() < 600 {
+        if discriminant.bits() <= MINIMAL_DISCRIMINANT_SIZE {
             return Err(InvalidInput);
         }
-        // Parameters are chosen such that the image of the hash function is ~260 bits to avoid collision and, and each prime factor is ~130 bits to avoid them being precomputed.
-        hash_to_group_with_custom_parameters(seed, discriminant, 17, 2)
+        hash_to_group_with_custom_parameters(
+            seed,
+            discriminant,
+            DEFAULT_PRIME_FACTOR_SIZE_IN_BYTES,
+            DEFAULT_PRIME_FACTORS,
+        )
     }
 }
 
@@ -53,10 +74,13 @@ fn hash_to_group_with_custom_parameters(
     prime_factors: u64,
 ) -> FastCryptoResult<QuadraticForm> {
     // Ensure that the image is sufficiently large
-    debug_assert!(prime_factors as f64 * n_bit_primes(prime_factor_size_in_bytes * 8) >= 256f64);
+    debug_assert!(
+        prime_factors as f64 * n_bit_primes(prime_factor_size_in_bytes * 8)
+            >= 2.0 * SECURITY_PARAMETER as f64
+    );
 
-    // Ensure that the prime factors are so large that the corresponding quadratic form be precomputed.
-    debug_assert!(n_bit_primes(prime_factor_size_in_bytes * 8) >= 128f64);
+    // Ensure that the prime factors are so large that the corresponding quadratic form cannot be precomputed.
+    debug_assert!(n_bit_primes(prime_factor_size_in_bytes * 8) >= SECURITY_PARAMETER as f64);
 
     // Ensure that the result will be reduced
     debug_assert!(
