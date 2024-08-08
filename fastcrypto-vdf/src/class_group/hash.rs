@@ -21,6 +21,8 @@ use crate::math::hash_prime::is_probable_prime;
 use crate::math::jacobi;
 use crate::math::modular_sqrt::modular_square_root;
 
+/// The security parameter for the hash function in bits. The image will be at least
+/// 2^{2*SECURITY_PARAMETER} large to ensure that the hash function is collision resistant.
 const SECURITY_PARAMETER: u64 = 128;
 
 /// This lower limit ensures that the default, secure parameters set below give valid results,
