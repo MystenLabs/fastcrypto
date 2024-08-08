@@ -21,9 +21,6 @@ pub trait ParameterizedGroupElement:
     /// The type of the parameter which uniquely defines this group.
     type ParameterType: Parameter;
 
-    /// Integer type used for multiplication.
-    type ScalarType: From<u64>;
-
     /// Return an instance of the identity element in this group.
     fn zero(parameter: &Self::ParameterType) -> Self;
 

@@ -6,6 +6,7 @@
 
 use fastcrypto::error::FastCryptoResult;
 
+pub mod pietrzak;
 pub mod wesolowski;
 
 /// This represents a Verifiable Delay Function (VDF) construction.
