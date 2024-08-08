@@ -3,7 +3,7 @@
 
 use std::ops::{AddAssign, ShrAssign};
 
-use num_bigint::BigInt;
+use num_bigint::BigUint;
 use num_integer::Integer;
 use num_traits::Signed;
 use serde::Serialize;
@@ -14,9 +14,6 @@ use fastcrypto::error::FastCryptoResult;
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
-
-/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
-pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 pub mod fiat_shamir;
 
@@ -122,8 +119,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
 }
 
 /// Compute element * scalar. It is assumed that the scalar is positive.
-fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigInt, zero: G) -> G {
-    debug_assert!(!scalar.is_negative());
+fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigUint, zero: G) -> G {
     (0..scalar.bits())
         .map(|i| scalar.bit(i))
         .rev()
@@ -138,7 +134,7 @@ fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigInt, zero: G)
 
 #[cfg(test)]
 mod tests {
-    use num_bigint::BigInt;
+    use num_bigint::BigUint;
     use num_traits::{One, Zero};
 
     use crate::class_group::discriminant::Discriminant;
@@ -170,17 +166,17 @@ mod tests {
 
         assert_eq!(
             QuadraticForm::zero(&discriminant),
-            multiply(&input, &BigInt::zero(), QuadraticForm::zero(&discriminant))
+            multiply(&input, &BigUint::zero(), QuadraticForm::zero(&discriminant))
         );
         assert_eq!(
             &input,
-            &multiply(&input, &BigInt::one(), QuadraticForm::zero(&discriminant))
+            &multiply(&input, &BigUint::one(), QuadraticForm::zero(&discriminant))
         );
 
-        let exponent = 23;
+        let exponent = 23u32;
         let output = multiply(
             &input,
-            &BigInt::from(exponent),
+            &BigUint::from(exponent),
             QuadraticForm::zero(&discriminant),
         );
 

@@ -3,7 +3,7 @@
 
 use std::marker::PhantomData;
 
-use num_bigint::{BigInt, Sign};
+use num_bigint::BigUint;
 use serde::Serialize;
 
 use fastcrypto::hash::{HashFunction, Keccak256};
@@ -14,7 +14,7 @@ use crate::math::parameterized_group::ParameterizedGroupElement;
 pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
-    fn compute_challenge(input: &G, output: &G, iterations: u64, proof: &G) -> BigInt;
+    fn compute_challenge(input: &G, output: &G, iterations: u64, proof: &G) -> BigUint;
 }
 
 pub(super) struct DefaultFiatShamir<G> {
@@ -22,7 +22,7 @@ pub(super) struct DefaultFiatShamir<G> {
 }
 
 impl<G: ParameterizedGroupElement + Serialize> FiatShamir<G> for DefaultFiatShamir<G> {
-    fn compute_challenge(input: &G, output: &G, iterations: u64, proof: &G) -> BigInt {
+    fn compute_challenge(input: &G, output: &G, iterations: u64, proof: &G) -> BigUint {
         let seed = bcs::to_bytes(&FiatShamirInput {
             input,
             output,
@@ -32,7 +32,7 @@ impl<G: ParameterizedGroupElement + Serialize> FiatShamir<G> for DefaultFiatSham
         .expect("Failed to serialize FiatShamirInput");
         let hash = Keccak256::digest(seed);
         debug_assert!(hash.digest.len() >= DEFAULT_CHALLENGE_SIZE_IN_BYTES);
-        BigInt::from_bytes_be(Sign::Plus, &hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
+        BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
     }
 }
 
