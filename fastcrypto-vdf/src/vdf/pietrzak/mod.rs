@@ -5,7 +5,6 @@ use std::ops::{AddAssign, ShrAssign};
 
 use num_bigint::BigUint;
 use num_integer::Integer;
-use num_traits::Signed;
 use serde::Serialize;
 
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
