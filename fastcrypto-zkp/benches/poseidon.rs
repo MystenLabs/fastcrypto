@@ -7,6 +7,7 @@ extern crate criterion;
 mod poseidon_benches {
     use ark_std::UniformRand;
     use criterion::*;
+    use fastcrypto_zkp::bn254::FieldElement;
 
     fn poseidon(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Poseidon");
@@ -17,11 +18,10 @@ mod poseidon_benches {
                 &size,
                 |b, size| {
                     let mut rng = ark_std::test_rng();
-                    let inputs: Vec<ark_bn254::Fr> =
-                        (0..*size).map(|_| ark_bn254::Fr::rand(&mut rng)).collect();
-                    b.iter(|| {
-                        fastcrypto_zkp::bn254::poseidon::poseidon_merkle_tree(inputs.clone())
-                    });
+                    let inputs: Vec<FieldElement> = (0..*size)
+                        .map(|_| FieldElement::from(ark_bn254::Fr::rand(&mut rng)))
+                        .collect();
+                    b.iter(|| fastcrypto_zkp::bn254::poseidon::poseidon_merkle_tree(&inputs));
                 },
             );
         }

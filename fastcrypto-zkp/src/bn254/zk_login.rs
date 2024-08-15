@@ -6,7 +6,7 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::utils::split_to_two_frs;
-use crate::bn254::poseidon::poseidon_zk_login;
+use crate::bn254::{poseidon, FieldElement};
 use crate::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
     CircomG2,
@@ -717,4 +717,22 @@ fn big_int_array_to_bits(integers: &[BigUint], intended_size: usize) -> FastCryp
         })
         .flatten_ok()
         .collect()
+}
+
+/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
+/// If input length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]),
+/// H(inputs[16..])), otherwise return an error.
+///
+/// This functions must be equivalent with the one found in the zk_login circuit.
+pub(crate) fn poseidon_zk_login(inputs: Vec<Bn254Fr>) -> FastCryptoResult<Bn254Fr> {
+    if inputs.is_empty() || inputs.len() > 32 {
+        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
+    }
+    poseidon::poseidon_merkle_tree(&inputs.into_iter().map(FieldElement).collect()).map(|x| x.0)
+}
+
+#[test]
+fn test_poseidon_zk_login_invalid_input() {
+    assert!(poseidon_zk_login(vec![]).is_err());
+    assert!(poseidon_zk_login(vec![Bn254Fr::from_str("123").unwrap(); 33]).is_err());
 }

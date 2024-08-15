@@ -3,12 +3,12 @@
 
 use std::str::FromStr;
 
-use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::utils::{
     gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
+use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,

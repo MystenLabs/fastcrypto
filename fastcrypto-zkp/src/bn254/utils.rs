@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::poseidon::poseidon_zk_login;
+use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
 use crate::zk_login_utils::Bn254FrElement;
