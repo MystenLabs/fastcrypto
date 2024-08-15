@@ -46,7 +46,7 @@ macro_rules! define_poseidon_hash {
 
 /// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
 /// elements, otherwise an error is returned.
-pub fn poseidon(inputs: &Vec<FieldElement>) -> Result<FieldElement, FastCryptoError> {
+pub fn poseidon(inputs: &[FieldElement]) -> Result<FieldElement, FastCryptoError> {
     if inputs.is_empty() || inputs.len() > 16 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
@@ -76,14 +76,14 @@ pub fn poseidon(inputs: &Vec<FieldElement>) -> Result<FieldElement, FastCryptoEr
 
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= MERKLE_TREE_DEGREE, calculate
 /// H(inputs), otherwise chunk the inputs into groups of MERKLE_TREE_DEGREE, hash them and input the results recursively.
-pub fn poseidon_merkle_tree(inputs: &Vec<FieldElement>) -> FastCryptoResult<FieldElement> {
+pub fn poseidon_merkle_tree(inputs: &[FieldElement]) -> FastCryptoResult<FieldElement> {
     if inputs.len() <= MERKLE_TREE_DEGREE {
         poseidon(inputs)
     } else {
         poseidon_merkle_tree(
             &inputs
                 .chunks(MERKLE_TREE_DEGREE)
-                .map(|chunk| poseidon(&chunk.to_vec()))
+                .map(poseidon)
                 .collect::<FastCryptoResult<Vec<_>>>()?,
         )
     }
@@ -185,7 +185,7 @@ mod test {
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = poseidon(&vec![input1, input2, input3, input4]).unwrap();
+        let hash = poseidon(&[input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
             FieldElement::from_str(
@@ -281,7 +281,7 @@ mod test {
         #[test]
         fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
 
-            let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
+            let inputs = r.iter().map(|ri| Fr::from_le_bytes_mod_order(ri)).collect::<Vec<_>>();
             let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
             let actual = poseidon_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();

@@ -728,7 +728,8 @@ pub(crate) fn poseidon_zk_login(inputs: Vec<Bn254Fr>) -> FastCryptoResult<Bn254F
     if inputs.is_empty() || inputs.len() > 32 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-    poseidon::poseidon_merkle_tree(&inputs.into_iter().map(FieldElement).collect()).map(|x| x.0)
+    poseidon::poseidon_merkle_tree(&inputs.into_iter().map(FieldElement).collect::<Vec<_>>())
+        .map(|x| x.0)
 }
 
 #[test]
