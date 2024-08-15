@@ -507,7 +507,7 @@ fn test_verify_zk_login() {
     let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
     let salt = "6588741469050502421550140105345050859";
     let iss = "https://accounts.google.com";
-    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt).unwrap()).into()])
+    let salt_hash = poseidon_zk_login(vec![Bn254Fr::from_str(salt).unwrap()])
         .unwrap()
         .to_string();
     assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
@@ -554,23 +554,23 @@ fn test_verify_zk_login() {
 
 #[test]
 fn test_all_inputs_hash() {
-    let jwt_sha2_hash_0 = Fr::from_str("248987002057371616691124650904415756047").unwrap();
-    let jwt_sha2_hash_1 = Fr::from_str("113498781424543581252500776698433499823").unwrap();
-    let masked_content_hash = Fr::from_str(
+    let jwt_sha2_hash_0 = Bn254Fr::from_str("248987002057371616691124650904415756047").unwrap();
+    let jwt_sha2_hash_1 = Bn254Fr::from_str("113498781424543581252500776698433499823").unwrap();
+    let masked_content_hash = Bn254Fr::from_str(
         "14900420995580824499222150327925943524564997104405553289134597516335134742309",
     )
     .unwrap();
-    let payload_start_index = Fr::from_str("103").unwrap();
-    let payload_len = Fr::from_str("564").unwrap();
-    let eph_public_key_0 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
-    let eph_public_key_1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
-    let max_epoch = Fr::from_str("10000").unwrap();
-    let num_sha2_blocks = Fr::from_str("11").unwrap();
-    let key_claim_name_f = Fr::from_str(
+    let payload_start_index = Bn254Fr::from_str("103").unwrap();
+    let payload_len = Bn254Fr::from_str("564").unwrap();
+    let eph_public_key_0 = Bn254Fr::from_str("17932473587154777519561053972421347139").unwrap();
+    let eph_public_key_1 = Bn254Fr::from_str("134696963602902907403122104327765350261").unwrap();
+    let max_epoch = Bn254Fr::from_str("10000").unwrap();
+    let num_sha2_blocks = Bn254Fr::from_str("11").unwrap();
+    let key_claim_name_f = Bn254Fr::from_str(
         "18523124550523841778801820019979000409432455608728354507022210389496924497355",
     )
     .unwrap();
-    let addr_seed = Fr::from_str(
+    let addr_seed = Bn254Fr::from_str(
         "15604334753912523265015800787270404628529489918817818174033741053550755333691",
     )
     .unwrap();

@@ -7,7 +7,7 @@
 use crate::bn254::api::SCALAR_SIZE;
 use ark_bn254::{Bn254, Fr};
 use ark_serialize::CanonicalDeserialize;
-use derive_more::From;
+use derive_more::{Display, From, FromStr, Into};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
 /// API that takes in serialized inputs
@@ -28,13 +28,13 @@ pub mod zk_login_api;
 /// Zk login utils
 pub mod utils;
 
-/// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
-#[derive(Debug, From)]
-pub struct FieldElement(pub(crate) ark_bn254::Fr);
+/// A field element in the BN254 construction. Thin wrapper around `ark_bn254::fields::fr::Fr`.
+#[derive(Clone, Debug, From, Into, PartialEq, Eq, Display, FromStr)]
+pub struct FieldElement(pub(crate) Fr);
 
 /// A Groth16 proof in the BN254 construction. Thin wrapper around `ark_groth16::Proof::<ark_bn254::Bn254>`.
 #[derive(Debug, From)]
-pub struct Proof(pub(crate) ark_groth16::Proof<ark_bn254::Bn254>);
+pub struct Proof(pub(crate) ark_groth16::Proof<Bn254>);
 
 /// A Groth16 verifying key in the BN254 construction. Thin wrapper around `ark_groth16::VerifyingKey::<ark_bn254::Bn254>`.
 #[derive(Debug, From)]
