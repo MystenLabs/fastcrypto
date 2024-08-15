@@ -508,7 +508,7 @@ fn test_verify_zk_login() {
     let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
     let salt = "6588741469050502421550140105345050859";
     let iss = "https://accounts.google.com";
-    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt).unwrap()).into()])
+    let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt).unwrap()).into()])
         .unwrap()
         .to_string();
     assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
@@ -576,7 +576,7 @@ fn test_all_inputs_hash() {
     )
     .unwrap();
 
-    let hash = poseidon_zk_login(vec![
+    let hash = poseidon_zk_login(&[
         jwt_sha2_hash_0,
         jwt_sha2_hash_1,
         masked_content_hash,

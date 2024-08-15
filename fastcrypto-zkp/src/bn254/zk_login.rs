@@ -495,7 +495,7 @@ impl ZkLoginInputs {
             hash_ascii_str_to_field(&self.iss_base64_details.value, MAX_ISS_LEN_B64)?;
         let header_f = hash_ascii_str_to_field(&self.header_base64, MAX_HEADER_LEN)?;
         let modulus_f = hash_to_field(&[BigUint::from_bytes_be(modulus)], 2048, PACK_WIDTH)?;
-        poseidon_zk_login(vec![
+        poseidon_zk_login(&[
             first,
             second,
             addr_seed,
@@ -674,7 +674,7 @@ fn hash_to_field(
     pack_width: u8,
 ) -> Result<Bn254Fr, FastCryptoError> {
     let packed = convert_base(input, in_width, pack_width)?;
-    poseidon_zk_login(packed)
+    poseidon_zk_login(&packed)
 }
 
 /// Helper function to pack field elements from big ints.
@@ -724,16 +724,16 @@ fn big_int_array_to_bits(integers: &[BigUint], intended_size: usize) -> FastCryp
 /// H(inputs[16..])), otherwise return an error.
 ///
 /// This functions must be equivalent with the one found in the zk_login circuit.
-pub(crate) fn poseidon_zk_login(inputs: Vec<Bn254Fr>) -> FastCryptoResult<Bn254Fr> {
+pub(crate) fn poseidon_zk_login(inputs: &[Bn254Fr]) -> FastCryptoResult<Bn254Fr> {
     if inputs.is_empty() || inputs.len() > 32 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-    poseidon::poseidon_merkle_tree(&inputs.into_iter().map(FieldElement).collect::<Vec<_>>())
+    poseidon::poseidon_merkle_tree(&inputs.iter().map(|x| FieldElement(*x)).collect::<Vec<_>>())
         .map(|x| x.0)
 }
 
 #[test]
 fn test_poseidon_zk_login_invalid_input() {
-    assert!(poseidon_zk_login(vec![]).is_err());
-    assert!(poseidon_zk_login(vec![Bn254Fr::from_str("123").unwrap(); 33]).is_err());
+    assert!(poseidon_zk_login(&[]).is_err());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 33]).is_err());
 }
