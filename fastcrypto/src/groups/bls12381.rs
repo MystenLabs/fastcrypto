@@ -802,7 +802,10 @@ pub(crate) fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
 /// Similar to `reduce_mod_uniform_buffer`, returns a result of scalar, and does not panic on invalid length.
 pub fn buffer_to_scalar_mod_r(buffer: &[u8]) -> FastCryptoResult<Scalar> {
     if buffer.len() < 48 {
-        return Err(FastCryptoError::InvalidInput);
+        return Err(FastCryptoError::InputTooShort(48));
+    }
+    if buffer.len() > 64 {
+        return Err(FastCryptoError::InputTooLong(64));
     }
     let mut ret = blst_fr::default();
     let mut tmp = blst_scalar::default();
