@@ -733,7 +733,9 @@ pub(crate) fn poseidon_zk_login(inputs: &[Bn254Fr]) -> FastCryptoResult<Bn254Fr>
 }
 
 #[test]
-fn test_poseidon_zk_login_invalid_input() {
+fn test_poseidon_zk_login_input_sizes() {
     assert!(poseidon_zk_login(&[]).is_err());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 1]).is_ok());
+    assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 32]).is_ok());
     assert!(poseidon_zk_login(&[Bn254Fr::from_str("123").unwrap(); 33]).is_err());
 }
