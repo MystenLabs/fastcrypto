@@ -5,6 +5,7 @@ use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
 use num_bigint::BigUint;
+use num_traits::Zero;
 use std::ops::{Add, Neg};
 
 /// This trait is implemented by types which can be used as parameters for a parameterized group.
@@ -28,8 +29,8 @@ pub trait ParameterizedGroupElement:
     /// Returns true if this is an element of the group defined by `parameter`.
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
 
-    /// Compute self * scalar using a "Double-and-Add" algorithm. Returns an `InvalidInput` error if
-    /// the input is not in the group defined by `parameter`.
+    /// Compute self * scalar using a "Double-and-Add" algorithm for a positive scalar. Returns an
+    /// `InvalidInput` error if the scalar is zero.
     fn multiply(
         &self,
         scalar: &BigUint,
@@ -38,16 +39,20 @@ pub trait ParameterizedGroupElement:
         if !self.is_in_group(parameter) {
             return Err(InvalidInput);
         }
-        let result = (0..scalar.bits()).rev().map(|i| scalar.bit(i)).fold(
-            Self::zero(parameter),
-            |acc, bit| {
+        if scalar.is_zero() {
+            return Ok(Self::zero(parameter));
+        }
+        let result = (0..scalar.bits())
+            .rev()
+            .map(|i| scalar.bit(i))
+            .skip(1) // The most significant bit is always 1.
+            .fold(self.clone(), |acc, bit| {
                 let mut res = acc.double();
                 if bit {
                     res = res + self;
                 }
                 res
-            },
-        );
+            });
         Ok(result)
     }
 }
@@ -64,11 +69,10 @@ mod tests {
     fn test_scalar_multiplication() {
         let discriminant = Discriminant::from_seed(b"test", 256).unwrap();
         let input = QuadraticForm::generator(&discriminant);
-        let zero = QuadraticForm::zero(&discriminant);
 
         // Edge cases
         assert_eq!(
-            zero,
+            QuadraticForm::zero(&discriminant),
             input.multiply(&BigUint::zero(), &discriminant).unwrap()
         );
         assert_eq!(

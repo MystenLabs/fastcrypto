@@ -1,10 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::{AddAssign, ShrAssign};
-
 use num_integer::Integer;
 use serde::Serialize;
+use std::ops::{AddAssign, ShrAssign};
 
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
@@ -34,16 +33,6 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
-/// Replace t with (t+1) >> 1 and return true iff the input was odd.
-fn check_parity_and_iterate(t: &mut u64) -> bool {
-    let parity = t.is_odd();
-    if parity {
-        t.add_assign(1);
-    }
-    t.shr_assign(1);
-    parity
-}
-
 impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
     type InputType = G;
     type OutputType = G;
@@ -57,28 +46,29 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
         // Compute output = 2^iterations * input
         let output = input.repeated_doubling(self.iterations);
 
-        let mut x_i = input.clone();
-        let mut y_i = output.clone();
-        let mut t_i = self.iterations;
+        let mut x = input.clone();
+        let mut y = output.clone();
+        let mut t = self.iterations;
 
         // This is ceil(log_2(iterations)). See also https://oeis.org/A029837.
         let iterations = 64 - (self.iterations - 1).leading_zeros();
         let mut proof = Vec::with_capacity(iterations as usize);
 
-        // Compute the full proof. This loop may stop at any time which will give a shorter proof that is computationally harder to verify.
-        while t_i != 1 {
-            if check_parity_and_iterate(&mut t_i) {
-                y_i = y_i.double();
+        // Compute the full proof. This loop may stop at any time which will give a shorter proof
+        // that is computationally harder to verify.
+        while t != 1 {
+            if check_parity_and_iterate(&mut t) {
+                y = y.double();
             }
 
             // TODO: Precompute some of the mu's
-            let mu_i = x_i.repeated_doubling(t_i);
+            let mu = x.repeated_doubling(t);
 
-            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
-            x_i = x_i.multiply(&r, &self.group_parameter)? + &mu_i;
-            y_i = mu_i.multiply(&r, &self.group_parameter)? + &y_i;
+            let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, &mu);
+            x = x.multiply(&r, &self.group_parameter)? + &mu;
+            y = mu.multiply(&r, &self.group_parameter)? + &y;
 
-            proof.push(mu_i);
+            proof.push(mu);
         }
 
         Ok((output, proof))
@@ -93,26 +83,37 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             return Err(InvalidInput);
         }
 
-        let mut x_i = input.clone();
-        let mut y_i = output.clone();
-        let mut t_i = self.iterations;
+        let mut x = input.clone();
+        let mut y = output.clone();
+        let mut t = self.iterations;
 
-        for mu_i in proof {
-            if check_parity_and_iterate(&mut t_i) {
-                y_i = y_i.double();
+        for mu in proof {
+            if check_parity_and_iterate(&mut t) {
+                y = y.double();
             }
 
-            let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, mu_i);
-            x_i = x_i.multiply(&r, &self.group_parameter)? + mu_i;
-            y_i = y_i + mu_i.multiply(&r, &self.group_parameter)?;
+            let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, mu);
+            x = x.multiply(&r, &self.group_parameter)? + mu;
+            y = mu.multiply(&r, &self.group_parameter)? + y;
         }
 
-        let expected = x_i.repeated_doubling(t_i);
-        if y_i != expected {
+        // In case the proof is shorter than the full proof, we need to compute the remaining powers.
+        let expected = x.repeated_doubling(t);
+        if y != expected {
             return Err(InvalidProof);
         }
         Ok(())
     }
+}
+
+/// Replace t with (t+1) >> 1 and return true iff the input was odd.
+fn check_parity_and_iterate(t: &mut u64) -> bool {
+    let parity = t.is_odd();
+    if parity {
+        t.add_assign(1);
+    }
+    t.shr_assign(1);
+    parity
 }
 
 #[cfg(test)]
