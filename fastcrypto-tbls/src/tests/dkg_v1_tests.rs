@@ -12,9 +12,10 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381::G2Element;
+use fastcrypto::groups::bls12381::{G2Element, Scalar};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::traits::AllowedRng;
+use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::{thread_rng, SeedableRng};
 
@@ -631,19 +632,23 @@ fn test_size_limits() {
     let t = n / 3;
     let k = 400;
 
+    // an approximation of the weights
+    let w = n / k;
+    let shares = (0..w).into_iter().map(|i| Scalar::from(i)).collect_vec();
+
     let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut thread_rng());
     let ro = RandomOracle::new("test");
     let keys_and_msg = (0..k)
         .map(|i| {
             let sk = PrivateKey::<EG>::new(&mut thread_rng());
             let pk = PublicKey::<EG>::from_private_key(&sk);
-            (sk, pk, format!("test {}", i))
+            (sk, pk, bcs::to_bytes(&shares).unwrap())
         })
         .collect::<Vec<_>>();
     let encrypted_shares = MultiRecipientEncryption::encrypt(
         &keys_and_msg
             .iter()
-            .map(|(_, pk, msg)| (pk.clone(), msg.as_bytes().to_vec()))
+            .map(|(_, pk, msg)| (pk.clone(), msg.clone()))
             .collect::<Vec<_>>(),
         &ro,
         &mut thread_rng(),
