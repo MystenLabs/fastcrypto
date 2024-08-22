@@ -3,7 +3,7 @@
 
 use num_integer::Integer;
 use serde::Serialize;
-use std::ops::{AddAssign, ShrAssign};
+use std::mem;
 
 use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
@@ -61,7 +61,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
                 y = y.double();
             }
 
-            // TODO: Precompute some of the mu's
+            // TODO: Precompute some of the mu's to speed up the proof generation.
             let mu = x.repeated_doubling(t);
 
             let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, &mu);
@@ -98,8 +98,8 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
         }
 
         // In case the proof is shorter than the full proof, we need to compute the remaining powers.
-        let expected = x.repeated_doubling(t);
-        if y != expected {
+        x = x.repeated_doubling(t);
+        if x != y {
             return Err(InvalidProof);
         }
         Ok(())
@@ -107,13 +107,9 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
 }
 
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
+#[inline]
 fn check_parity_and_iterate(t: &mut u64) -> bool {
-    let parity = t.is_odd();
-    if parity {
-        t.add_assign(1);
-    }
-    t.shr_assign(1);
-    parity
+    mem::replace(t, (*t + 1) << 1).is_odd()
 }
 
 #[cfg(test)]
