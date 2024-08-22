@@ -83,7 +83,7 @@ pub fn poseidon_merkle_tree(inputs: &[FieldElement]) -> FastCryptoResult<FieldEl
         poseidon_merkle_tree(
             &inputs
                 .chunks(MERKLE_TREE_DEGREE)
-                .map(poseidon)
+                .map(poseidon_merkle_tree)
                 .collect::<FastCryptoResult<Vec<_>>>()?,
         )
     }
