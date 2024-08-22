@@ -1,15 +1,14 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use num_integer::Integer;
-use serde::Serialize;
-use std::mem;
-
 use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
+use num_integer::Integer;
+use serde::Serialize;
+use std::mem;
 
 pub mod fiat_shamir;
 
