@@ -116,7 +116,7 @@ pub fn is_power_of_2(x: usize) -> bool {
     x & (x - 1) == 0
 }
 
-// We implement `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
+// We implement `ToLittleEndianByteArray` for `BigUint` in case it needs to be used as scalar for
 // multi-scalar multiplication.
 impl ToLittleEndianBytes for BigUint {
     fn to_le_bytes(&self) -> Vec<u8> {
