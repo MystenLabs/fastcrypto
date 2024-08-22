@@ -7,7 +7,7 @@ use crate::math::hash_prime::hash_prime;
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::wesolowski::WesolowskisVDF;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
-use num_bigint::BigInt;
+use num_bigint::BigUint;
 use serde::Serialize;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
@@ -23,11 +23,11 @@ pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
 pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
     /// Compute the prime modulus used in proving and verification. This is a Fiat-Shamir construction
     /// to make the Wesolowski VDF non-interactive.
-    fn compute_challenge<M: ScalarMultiplier<G, BigInt>>(
+    fn compute_challenge<M: ScalarMultiplier<G, BigUint>>(
         vdf: &WesolowskisVDF<G, Self, M>,
         input: &G,
         output: &G,
-    ) -> BigInt;
+    ) -> BigUint;
 }
 
 /// Implementation of the Fiat-Shamir challenge generation for usage with Wesolowski's VDF construction.
@@ -36,11 +36,11 @@ pub trait FiatShamir<G: ParameterizedGroupElement>: Sized {
 pub struct StrongFiatShamir {}
 
 impl FiatShamir<QuadraticForm> for StrongFiatShamir {
-    fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigInt>>(
+    fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigUint>>(
         vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
         input: &QuadraticForm,
         output: &QuadraticForm,
-    ) -> BigInt {
+    ) -> BigUint {
         let seed = bcs::to_bytes(&FiatShamirInput {
             input,
             output,
@@ -53,7 +53,6 @@ impl FiatShamir<QuadraticForm> for StrongFiatShamir {
             DEFAULT_CHALLENGE_SIZE_IN_BYTES,
             &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
         )
-        .into()
     }
 }
 
