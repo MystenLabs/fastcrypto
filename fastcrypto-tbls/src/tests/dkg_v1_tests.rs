@@ -634,12 +634,12 @@ fn test_size_limits() {
 
     // an approximation of the weights
     let w = n / k;
-    let shares = (0..w).into_iter().map(|i| Scalar::from(i)).collect_vec();
+    let shares = (0..w).map(Scalar::from).collect_vec();
 
     let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut thread_rng());
     let ro = RandomOracle::new("test");
     let keys_and_msg = (0..k)
-        .map(|i| {
+        .map(|_| {
             let sk = PrivateKey::<EG>::new(&mut thread_rng());
             let pk = PublicKey::<EG>::from_private_key(&sk);
             (sk, pk, bcs::to_bytes(&shares).unwrap())
