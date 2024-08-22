@@ -1,10 +1,11 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::{Add, Neg};
-
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
+use num_bigint::BigUint;
+use std::ops::{Add, Neg};
 
 /// This trait is implemented by types which can be used as parameters for a parameterized group.
 /// See [ParameterizedGroupElement].
@@ -26,4 +27,65 @@ pub trait ParameterizedGroupElement:
 
     /// Returns true if this is an element of the group defined by `parameter`.
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
+
+    /// Compute self * scalar using a "Double-and-Add" algorithm. Returns an `InvalidInput` error if
+    /// the input is not in the group defined by `parameter`.
+    fn multiply(
+        &self,
+        scalar: &BigUint,
+        parameter: &Self::ParameterType,
+    ) -> FastCryptoResult<Self> {
+        if !self.is_in_group(parameter) {
+            return Err(InvalidInput);
+        }
+        let result = (0..scalar.bits()).rev().map(|i| scalar.bit(i)).fold(
+            Self::zero(parameter),
+            |acc, bit| {
+                let mut res = acc.double();
+                if bit {
+                    res = res + self;
+                }
+                res
+            },
+        );
+        Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::class_group::discriminant::Discriminant;
+    use crate::class_group::QuadraticForm;
+    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use num_bigint::BigUint;
+    use num_traits::{One, Zero};
+
+    #[test]
+    fn test_scalar_multiplication() {
+        let discriminant = Discriminant::from_seed(b"test", 256).unwrap();
+        let input = QuadraticForm::generator(&discriminant);
+        let zero = QuadraticForm::zero(&discriminant);
+
+        // Edge cases
+        assert_eq!(
+            zero,
+            input.multiply(&BigUint::zero(), &discriminant).unwrap()
+        );
+        assert_eq!(
+            input,
+            input.multiply(&BigUint::one(), &discriminant).unwrap()
+        );
+
+        let exponent = 12345u64;
+        let output = input
+            .multiply(&BigUint::from(exponent), &discriminant)
+            .unwrap();
+
+        // Check alignment with repeated addition.
+        let mut expected_output = input.clone();
+        for _ in 1..exponent {
+            expected_output = expected_output + &input;
+        }
+        assert_eq!(output, expected_output);
+    }
 }

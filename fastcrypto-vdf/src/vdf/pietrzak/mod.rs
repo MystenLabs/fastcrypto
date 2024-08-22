@@ -3,16 +3,14 @@
 
 use std::ops::{AddAssign, ShrAssign};
 
-use num_bigint::BigUint;
 use num_integer::Integer;
 use serde::Serialize;
-
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
-use fastcrypto::error::FastCryptoResult;
 
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
+use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+use fastcrypto::error::FastCryptoResult;
 
 pub mod fiat_shamir;
 
@@ -36,7 +34,7 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
-/// Replace t with (t+1) >> 1 and return true iff the initial value of t was odd.
+/// Replace t with (t+1) >> 1 and return true iff the input was odd.
 fn check_parity_and_iterate(t: &mut u64) -> bool {
     let parity = t.is_odd();
     if parity {
@@ -77,8 +75,8 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             let mu_i = x_i.repeated_doubling(t_i);
 
             let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, &mu_i);
-            x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + &mu_i;
-            y_i = multiply::<G>(&mu_i, &r, G::zero(&self.group_parameter)) + &y_i;
+            x_i = x_i.multiply(&r, &self.group_parameter)? + &mu_i;
+            y_i = mu_i.multiply(&r, &self.group_parameter)? + &y_i;
 
             proof.push(mu_i);
         }
@@ -105,8 +103,8 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             }
 
             let r = DefaultFiatShamir::compute_challenge(&x_i, &y_i, self.iterations, mu_i);
-            x_i = multiply(&x_i, &r, G::zero(&self.group_parameter)) + mu_i;
-            y_i = y_i + &multiply::<G>(mu_i, &r, G::zero(&self.group_parameter));
+            x_i = x_i.multiply(&r, &self.group_parameter)? + mu_i;
+            y_i = y_i + mu_i.multiply(&r, &self.group_parameter)?;
         }
 
         let expected = x_i.repeated_doubling(t_i);
@@ -117,29 +115,12 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
     }
 }
 
-/// Compute element * scalar. It is assumed that the scalar is positive.
-fn multiply<G: ParameterizedGroupElement>(element: &G, scalar: &BigUint, zero: G) -> G {
-    (0..scalar.bits())
-        .map(|i| scalar.bit(i))
-        .rev()
-        .fold(zero, |acc, bit| {
-            let mut result = acc.double();
-            if bit {
-                result = result + element;
-            }
-            result
-        })
-}
-
 #[cfg(test)]
 mod tests {
-    use num_bigint::BigUint;
-    use num_traits::{One, Zero};
-
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
-    use crate::vdf::pietrzak::{multiply, PietrzaksVDF};
+    use crate::math::parameterized_group::Parameter;
+    use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;
 
     #[test]
@@ -156,33 +137,5 @@ mod tests {
 
         let other_input = input.clone() + &input;
         assert!(vdf.verify(&other_input, &output, &proof).is_err())
-    }
-
-    #[test]
-    fn test_multiply() {
-        let discriminant = Discriminant::from_seed(&[1, 2, 3], 512).unwrap();
-        let input = QuadraticForm::generator(&discriminant);
-
-        assert_eq!(
-            QuadraticForm::zero(&discriminant),
-            multiply(&input, &BigUint::zero(), QuadraticForm::zero(&discriminant))
-        );
-        assert_eq!(
-            &input,
-            &multiply(&input, &BigUint::one(), QuadraticForm::zero(&discriminant))
-        );
-
-        let exponent = 23u32;
-        let output = multiply(
-            &input,
-            &BigUint::from(exponent),
-            QuadraticForm::zero(&discriminant),
-        );
-
-        let mut expected_output = input.clone();
-        for _ in 1..exponent {
-            expected_output = expected_output + &input;
-        }
-        assert_eq!(output, expected_output);
     }
 }
