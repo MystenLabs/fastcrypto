@@ -50,9 +50,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
         let mut y = output.clone();
         let mut t = self.iterations;
 
-        // This is ceil(log_2(iterations)). See also https://oeis.org/A029837.
-        let iterations = 64 - (self.iterations - 1).leading_zeros();
-        let mut proof = Vec::with_capacity(iterations as usize);
+        let mut proof = Vec::new();
 
         // Compute the full proof. This loop may stop at any time which will give a shorter proof
         // that is computationally harder to verify.
