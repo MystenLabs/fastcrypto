@@ -6,7 +6,8 @@ use reqwest::Client;
 use serde_json::Value;
 
 use super::utils::split_to_two_frs;
-use crate::bn254::{poseidon, FieldElement};
+use crate::bn254::poseidon::poseidon_merkle_tree;
+use crate::bn254::FieldElement;
 use crate::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
     CircomG2,
@@ -728,8 +729,7 @@ pub(crate) fn poseidon_zk_login(inputs: &[Bn254Fr]) -> FastCryptoResult<Bn254Fr>
     if inputs.is_empty() || inputs.len() > 32 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-    poseidon::poseidon_merkle_tree(&inputs.iter().map(|x| FieldElement(*x)).collect::<Vec<_>>())
-        .map(|x| x.0)
+    poseidon_merkle_tree(&inputs.iter().map(|x| FieldElement(*x)).collect_vec()).map(|x| x.0)
 }
 
 #[test]
