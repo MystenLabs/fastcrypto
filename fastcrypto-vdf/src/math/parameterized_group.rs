@@ -1,11 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::Doubling;
 use num_bigint::BigUint;
-use num_traits::Zero;
 use std::ops::{Add, Neg};
 
 /// This trait is implemented by types which can be used as parameters for a parameterized group.
@@ -28,40 +26,31 @@ pub trait ParameterizedGroupElement:
 
     /// Returns true if this is an element of the group defined by `parameter`.
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
+}
 
-    /// Compute self * scalar using a "Double-and-Add" algorithm for a positive scalar. Returns an
-    /// `InvalidInput` error if the scalar is zero.
-    fn multiply(
-        &self,
-        scalar: &BigUint,
-        parameter: &Self::ParameterType,
-    ) -> FastCryptoResult<Self> {
-        if !self.is_in_group(parameter) {
-            return Err(InvalidInput);
-        }
-        if scalar.is_zero() {
-            return Ok(Self::zero(parameter));
-        }
-        let result = (0..scalar.bits())
-            .rev()
-            .map(|i| scalar.bit(i))
-            .skip(1) // The most significant bit is always 1.
-            .fold(self.clone(), |acc, bit| {
-                let mut res = acc.double();
-                if bit {
-                    res = res + self;
-                }
-                res
-            });
-        Ok(result)
-    }
+/// Compute self * scalar using a "Double-and-Add" algorithm for a positive scalar.
+pub(crate) fn multiply<G: ParameterizedGroupElement>(
+    input: &G,
+    scalar: &BigUint,
+    parameter: &G::ParameterType,
+) -> G {
+    (0..scalar.bits())
+        .rev()
+        .map(|i| scalar.bit(i))
+        .fold(G::zero(parameter), |acc, bit| {
+            let mut res = acc.double();
+            if bit {
+                res = res + input;
+            }
+            res
+        })
 }
 
 #[cfg(test)]
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use crate::math::parameterized_group::{multiply, Parameter, ParameterizedGroupElement};
     use num_bigint::BigUint;
     use num_traits::{One, Zero};
 
@@ -73,17 +62,12 @@ mod tests {
         // Edge cases
         assert_eq!(
             QuadraticForm::zero(&discriminant),
-            input.multiply(&BigUint::zero(), &discriminant).unwrap()
+            multiply(&input, &BigUint::zero(), &discriminant)
         );
-        assert_eq!(
-            input,
-            input.multiply(&BigUint::one(), &discriminant).unwrap()
-        );
+        assert_eq!(input, multiply(&input, &BigUint::one(), &discriminant));
 
         let exponent = 12345u64;
-        let output = input
-            .multiply(&BigUint::from(exponent), &discriminant)
-            .unwrap();
+        let output = multiply(&input, &BigUint::from(exponent), &discriminant);
 
         // Check alignment with repeated addition.
         let mut expected_output = input.clone();

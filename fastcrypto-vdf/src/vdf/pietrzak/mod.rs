@@ -5,7 +5,7 @@ use num_integer::Integer;
 use serde::Serialize;
 use std::ops::{AddAssign, ShrAssign};
 
-use crate::math::parameterized_group::ParameterizedGroupElement;
+use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
 use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
@@ -65,8 +65,8 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             let mu = x.repeated_doubling(t);
 
             let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, &mu);
-            x = x.multiply(&r, &self.group_parameter)? + &mu;
-            y = mu.multiply(&r, &self.group_parameter)? + &y;
+            x = multiply(&x, &r, &self.group_parameter) + &mu;
+            y = multiply(&mu, &r, &self.group_parameter) + &y;
 
             proof.push(mu);
         }
@@ -93,8 +93,8 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             }
 
             let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, mu);
-            x = x.multiply(&r, &self.group_parameter)? + mu;
-            y = mu.multiply(&r, &self.group_parameter)? + y;
+            x = multiply(&x, &r, &self.group_parameter) + mu;
+            y = multiply(mu, &r, &self.group_parameter) + y;
         }
 
         // In case the proof is shorter than the full proof, we need to compute the remaining powers.
