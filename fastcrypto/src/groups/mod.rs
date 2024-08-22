@@ -60,14 +60,7 @@ pub trait Doubling: Clone {
 
     /// Compute input * 2^repetitions by repeated doubling.
     fn repeated_doubling(&self, repetitions: u64) -> Self {
-        if repetitions == 0 {
-            return self.clone();
-        }
-        let mut output = self.double();
-        for _ in 1..repetitions {
-            output = output.double();
-        }
-        output
+        (0..repetitions).fold(self.clone(), |acc, _| acc.double())
     }
 }
 
