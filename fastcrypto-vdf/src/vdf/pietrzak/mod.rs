@@ -2,15 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
-use crate::vdf::pietrzak::fiat_shamir::{DefaultFiatShamir, FiatShamir};
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::hash::{HashFunction, Keccak256};
+use num_bigint::BigUint;
 use num_integer::Integer;
 use serde::Serialize;
 use std::mem;
 
-pub mod fiat_shamir;
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
 
 /// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
 /// Proofs are larger and verification is slower than in Wesolowski's construction, but the
@@ -61,7 +63,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             // TODO: Precompute some of the mu's to speed up the proof generation.
             let mu = x.repeated_doubling(t);
 
-            let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, &mu);
+            let r = compute_challenge(&x, &y, self.iterations, &mu);
             x = multiply(&x, &r, &self.group_parameter) + &mu;
             y = multiply(&mu, &r, &self.group_parameter) + &y;
 
@@ -89,7 +91,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
                 y = y.double();
             }
 
-            let r = DefaultFiatShamir::compute_challenge(&x, &y, self.iterations, mu);
+            let r = compute_challenge(&x, &y, self.iterations, mu);
             x = multiply(&x, &r, &self.group_parameter) + mu;
             y = multiply(mu, &r, &self.group_parameter) + y;
         }
@@ -101,6 +103,19 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
         }
         Ok(())
     }
+}
+
+/// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
+fn compute_challenge<G: ParameterizedGroupElement + Serialize>(
+    input: &G,
+    output: &G,
+    iterations: u64,
+    mu: &G,
+) -> BigUint {
+    let seed = bcs::to_bytes(&(input, output, iterations, mu))
+        .expect("Failed to serialize Fiat-Shamir input.");
+    let hash = Keccak256::digest(seed);
+    BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
 }
 
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
