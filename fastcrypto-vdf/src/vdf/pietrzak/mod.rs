@@ -106,7 +106,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
 #[inline]
 fn check_parity_and_iterate(t: &mut u64) -> bool {
-    mem::replace(t, (*t + 1) << 1).is_odd()
+    mem::replace(t, (*t + 1) >> 1).is_odd()
 }
 
 #[cfg(test)]
