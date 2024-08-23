@@ -1,14 +1,12 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::class_group::discriminant::Discriminant;
 use crate::class_group::QuadraticForm;
 use crate::math::hash_prime::hash_prime;
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::wesolowski::WesolowskisVDF;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
 use num_bigint::BigUint;
-use serde::Serialize;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 ///
@@ -41,25 +39,12 @@ impl FiatShamir<QuadraticForm> for StrongFiatShamir {
         input: &QuadraticForm,
         output: &QuadraticForm,
     ) -> BigUint {
-        let seed = bcs::to_bytes(&FiatShamirInput {
-            input,
-            output,
-            iterations: vdf.iterations,
-            group_parameter: &vdf.group_parameter,
-        })
-        .expect("Failed to serialize FiatShamirInput");
+        let seed = bcs::to_bytes(&(input, output, vdf.iterations, &vdf.group_parameter))
+            .expect("Failed to serialize Fiat-Shamir input");
         hash_prime(
             &seed,
             DEFAULT_CHALLENGE_SIZE_IN_BYTES,
             &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
         )
     }
-}
-
-#[derive(Serialize)]
-struct FiatShamirInput<'a> {
-    input: &'a QuadraticForm,
-    output: &'a QuadraticForm,
-    iterations: u64,
-    group_parameter: &'a Discriminant,
 }
