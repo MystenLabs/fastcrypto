@@ -236,7 +236,7 @@ impl OIDCProvider {
             "https://oauth.sui.io" => Ok(Self::TestIssuer),
             "https://accounts.karrier.one/" => Ok(Self::KarrierOne),
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
-            "https://oauth2.playtron.one" => Ok(Self::Credenza3),
+            "https://oauth2.playtron.one" => Ok(Self::Playtron),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
