@@ -109,6 +109,8 @@ pub enum OIDCProvider {
     Credenza3,
     /// This is a test issuer that will return a JWT non-interactively.
     TestIssuer,
+    /// https://oauth2.playtron.one/.well-known/jwks.json
+    Playtron,
 }
 
 impl FromStr for OIDCProvider {
@@ -126,6 +128,7 @@ impl FromStr for OIDCProvider {
             "Microsoft" => Ok(Self::Microsoft),
             "KarrierOne" => Ok(Self::KarrierOne),
             "Credenza3" => Ok(Self::Credenza3),
+            "Playtron" => Ok(Self::Playtron),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -156,6 +159,7 @@ impl ToString for OIDCProvider {
             Self::Microsoft => "Microsoft".to_string(),
             Self::KarrierOne => "KarrierOne".to_string(),
             Self::Credenza3 => "Credenza3".to_string(),
+            Self::Playtron => "Playtron".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -213,6 +217,10 @@ impl OIDCProvider {
                 "https://oauth.sui.io",
                 "https://jwt-tester.mystenlabs.com/.well-known/jwks.json",
             ),
+            OIDCProvider::Playtron => ProviderConfig::new(
+                "https://oauth2.playtron.one",
+                "https://oauth2.playtron.one/.well-known/jwks.json",
+            ),
         }
     }
 
@@ -228,6 +236,7 @@ impl OIDCProvider {
             "https://oauth.sui.io" => Ok(Self::TestIssuer),
             "https://accounts.karrier.one/" => Ok(Self::KarrierOne),
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
+            "https://oauth2.playtron.one" => Ok(Self::Credenza3),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
