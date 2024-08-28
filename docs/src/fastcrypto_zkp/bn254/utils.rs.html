@@ -241,6 +241,7 @@
 <a href="#241" id="241">241</a>
 <a href="#242" id="242">242</a>
 <a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -328,7 +329,8 @@
             OIDCProvider::Credenza3 =&gt; <span class="macro">format!</span>(<span class="string">"https://accounts.credenza3.com/oauth2/authorize?client_id={}&amp;response_type=token&amp;scope=openid+profile+email+phone&amp;redirect_uri={}&amp;nonce={}&amp;state=state"</span>, client_id, redirect_url, nonce),
             OIDCProvider::AwsTenant((region, tenant_id)) =&gt; <span class="macro">format!</span>(<span class="string">"https://{}.auth.{}.amazoncognito.com/login?response_type=token&amp;client_id={}&amp;redirect_uri={}&amp;nonce={}"</span>, tenant_id, region, client_id, redirect_url, nonce),
             OIDCProvider::TestIssuer =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Test issuer does not issue JWTs interactively, this is not valid to call. 
-        </span>})
+            </span>OIDCProvider::Playtron =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Playtron does not issue JWTs interactively, this is not valid to call.
+</span>})
 }
 
 <span class="doccomment">/// Return the token exchange URL for the given auth code.

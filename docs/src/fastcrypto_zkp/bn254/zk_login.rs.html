@@ -718,6 +718,15 @@
 <a href="#718" id="718">718</a>
 <a href="#719" id="719">719</a>
 <a href="#720" id="720">720</a>
+<a href="#721" id="721">721</a>
+<a href="#722" id="722">722</a>
+<a href="#723" id="723">723</a>
+<a href="#724" id="724">724</a>
+<a href="#725" id="725">725</a>
+<a href="#726" id="726">726</a>
+<a href="#727" id="727">727</a>
+<a href="#728" id="728">728</a>
+<a href="#729" id="729">729</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -829,6 +838,8 @@
     </span>Credenza3,
     <span class="doccomment">/// This is a test issuer that will return a JWT non-interactively.
     </span>TestIssuer,
+    <span class="doccomment">/// https://oauth2.playtron.one/.well-known/jwks.json
+    </span>Playtron,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
@@ -846,6 +857,7 @@
             <span class="string">"Microsoft" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="string">"KarrierOne" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
             <span class="string">"Credenza3" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
+            <span class="string">"Playtron" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>re = Regex::new(
                     <span class="string">r"AwsTenant-region:(?P&lt;region&gt;[^.]+)-tenant_id:(?P&lt;tenant_id&gt;[^/]+)"</span>,
@@ -876,6 +888,7 @@
             <span class="self">Self</span>::Microsoft =&gt; <span class="string">"Microsoft"</span>.to_string(),
             <span class="self">Self</span>::KarrierOne =&gt; <span class="string">"KarrierOne"</span>.to_string(),
             <span class="self">Self</span>::Credenza3 =&gt; <span class="string">"Credenza3"</span>.to_string(),
+            <span class="self">Self</span>::Playtron =&gt; <span class="string">"Playtron"</span>.to_string(),
             <span class="self">Self</span>::AwsTenant((region, tenant_id)) =&gt; {
                 <span class="macro">format!</span>(<span class="string">"AwsTenant-region:{}-tenant_id:{}"</span>, region, tenant_id)
             }
@@ -933,6 +946,10 @@
                 <span class="string">"https://oauth.sui.io"</span>,
                 <span class="string">"https://jwt-tester.mystenlabs.com/.well-known/jwks.json"</span>,
             ),
+            OIDCProvider::Playtron =&gt; ProviderConfig::new(
+                <span class="string">"https://oauth2.playtron.one"</span>,
+                <span class="string">"https://oauth2.playtron.one/.well-known/jwks.json"</span>,
+            ),
         }
     }
 
@@ -948,6 +965,7 @@
             <span class="string">"https://oauth.sui.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::TestIssuer),
             <span class="string">"https://accounts.karrier.one/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
             <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
+            <span class="string">"https://oauth2.playtron.one" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
                 <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
