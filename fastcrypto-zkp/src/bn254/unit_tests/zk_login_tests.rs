@@ -443,6 +443,7 @@ async fn test_get_jwks() {
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
         OIDCProvider::KarrierOne,
         OIDCProvider::Credenza3,
+        OIDCProvider::Playtron,
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());

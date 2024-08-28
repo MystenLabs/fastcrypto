@@ -85,7 +85,8 @@ pub fn get_oidc_url(
             OIDCProvider::Credenza3 => format!("https://accounts.credenza3.com/oauth2/authorize?client_id={}&response_type=token&scope=openid+profile+email+phone&redirect_uri={}&nonce={}&state=state", client_id, redirect_url, nonce),
             OIDCProvider::AwsTenant((region, tenant_id)) => format!("https://{}.auth.{}.amazoncognito.com/login?response_type=token&client_id={}&redirect_uri={}&nonce={}", tenant_id, region, client_id, redirect_url, nonce),
             OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
-        })
+            OIDCProvider::Playtron => return Err(FastCryptoError::InvalidInput), // Playtron does not issue JWTs interactively, this is not valid to call.
+})
 }
 
 /// Return the token exchange URL for the given auth code.
