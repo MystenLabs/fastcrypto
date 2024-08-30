@@ -23,6 +23,7 @@ use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
+use std::error::Error;
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -339,7 +340,8 @@ pub async fn fetch_jwks(
         .await
         .map_err(|e| {
             FastCryptoError::GeneralError(format!(
-                "Failed to get JWK {:?} {:?}",
+                "Failed to get JWK {:?} {:?} {:?}",
+                e.source(),
                 e.to_string(),
                 provider
             ))
