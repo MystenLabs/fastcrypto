@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::bn254::poseidon::poseidon_zk_login;
+use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 use crate::bn254::zk_login_api::Bn254Fr;
 use crate::zk_login_utils::Bn254FrElement;
@@ -43,7 +43,7 @@ pub fn gen_address_seed(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt)?).into()])?;
+    let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt)?).into()])?;
     gen_address_seed_with_salt_hash(&salt_hash.to_string(), name, value, aud)
 }
 
@@ -54,7 +54,7 @@ pub(crate) fn gen_address_seed_with_salt_hash(
     value: &str, // i.e. the sub value
     aud: &str,   // i.e. the client ID
 ) -> Result<String, FastCryptoError> {
-    Ok(poseidon_zk_login(vec![
+    Ok(poseidon_zk_login(&[
         hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)?,
         hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)?,
         hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)?,
@@ -118,7 +118,7 @@ pub fn get_nonce(
     let jwt_randomness =
         Bn254Fr::from_str(jwt_randomness).map_err(|_| FastCryptoError::InvalidInput)?;
 
-    let hash = poseidon_zk_login(vec![first, second, max_epoch, jwt_randomness])
+    let hash = poseidon_zk_login(&[first, second, max_epoch, jwt_randomness])
         .expect("inputs is not too long");
     let data = BigUint::from(hash).to_bytes_be();
     let truncated = &data[data.len() - 20..];

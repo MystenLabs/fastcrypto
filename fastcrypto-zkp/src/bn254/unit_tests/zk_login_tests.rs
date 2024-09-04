@@ -3,12 +3,12 @@
 
 use std::str::FromStr;
 
-use crate::bn254::poseidon::poseidon_zk_login;
 use crate::bn254::utils::{
     gen_address_seed, gen_address_seed_with_salt_hash, get_nonce, get_zk_login_address,
 };
 use crate::bn254::zk_login::big_int_array_to_bits;
 use crate::bn254::zk_login::bitarray_to_bytearray;
+use crate::bn254::zk_login::poseidon_zk_login;
 use crate::bn254::zk_login::{
     base64_to_bitarray, convert_base, decode_base64_url, hash_ascii_str_to_field, hash_to_field,
     parse_jwks, trim, verify_extended_claim, Claim, JWTDetails, JwkId,
@@ -509,7 +509,7 @@ fn test_verify_zk_login() {
     let aud = "575519204237-msop9ep45u2uo98hapqmngv8d84qdc8k.apps.googleusercontent.com";
     let salt = "6588741469050502421550140105345050859";
     let iss = "https://accounts.google.com";
-    let salt_hash = poseidon_zk_login(vec![(&Bn254FrElement::from_str(salt).unwrap()).into()])
+    let salt_hash = poseidon_zk_login(&[(&Bn254FrElement::from_str(salt).unwrap()).into()])
         .unwrap()
         .to_string();
     assert!(verify_zk_login_id(&address, name, value, aud, iss, &salt_hash).is_ok());
@@ -577,7 +577,7 @@ fn test_all_inputs_hash() {
     )
     .unwrap();
 
-    let hash = poseidon_zk_login(vec![
+    let hash = poseidon_zk_login(&[
         jwt_sha2_hash_0,
         jwt_sha2_hash_1,
         masked_content_hash,

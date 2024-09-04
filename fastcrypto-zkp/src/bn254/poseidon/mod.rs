@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bn254::poseidon::constants::*;
+use crate::bn254::FieldElement;
 use crate::FrRepr;
 use ark_bn254::Fr;
 use ark_ff::{BigInteger, PrimeField};
@@ -28,7 +29,7 @@ macro_rules! define_poseidon_hash {
         let mut poseidon = Poseidon::new(&$poseidon_constants);
         poseidon.reset();
         for input in $inputs.iter() {
-            poseidon.input(bn254_to_fr(*input)).expect("The number of inputs must be aligned with the constants");
+            poseidon.input(field_element_to_fr(input)).expect("The number of inputs must be aligned with the constants");
         }
         poseidon.hash_in_mode(OptimizedStatic);
 
@@ -45,11 +46,10 @@ macro_rules! define_poseidon_hash {
 
 /// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
 /// elements, otherwise an error is returned.
-pub fn poseidon(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
+pub fn poseidon(inputs: &[FieldElement]) -> Result<FieldElement, FastCryptoError> {
     if inputs.is_empty() || inputs.len() > 16 {
         return Err(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-
     // Instances of Poseidon and PoseidonConstants from neptune have different types depending on
     // the number of inputs, so unfortunately we need to use a macro here.
     let result = match inputs.len() {
@@ -71,31 +71,19 @@ pub fn poseidon(inputs: Vec<Fr>) -> Result<Fr, FastCryptoError> {
         16 => define_poseidon_hash!(inputs, POSEIDON_CONSTANTS_U16),
         _ => return Err(InvalidInput),
     };
-    Ok(fr_to_bn254fr(result))
-}
-
-/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
-/// If input length is <= 16, calculate H(inputs), if it is <= 32, calculate H(H(inputs[0..16]),
-/// H(inputs[16..])), otherwise return an error.
-///
-/// This functions must be equivalent with the one found in the zk_login circuit.
-pub(crate) fn poseidon_zk_login(inputs: Vec<Fr>) -> FastCryptoResult<Fr> {
-    if inputs.is_empty() || inputs.len() > 32 {
-        return Err(FastCryptoError::InputLengthWrong(inputs.len()));
-    }
-    poseidon_merkle_tree(inputs)
+    Ok(fr_to_field_element(result))
 }
 
 /// Calculate the poseidon hash of the field element inputs. If the input length is <= MERKLE_TREE_DEGREE, calculate
 /// H(inputs), otherwise chunk the inputs into groups of MERKLE_TREE_DEGREE, hash them and input the results recursively.
-pub fn poseidon_merkle_tree(inputs: Vec<Fr>) -> FastCryptoResult<Fr> {
+pub fn poseidon_merkle_tree(inputs: &[FieldElement]) -> FastCryptoResult<FieldElement> {
     if inputs.len() <= MERKLE_TREE_DEGREE {
         poseidon(inputs)
     } else {
         poseidon_merkle_tree(
-            inputs
+            &inputs
                 .chunks(MERKLE_TREE_DEGREE)
-                .map(|chunk| poseidon(chunk.to_vec()))
+                .map(poseidon)
                 .collect::<FastCryptoResult<Vec<_>>>()?,
         )
     }
@@ -115,7 +103,7 @@ pub fn poseidon_bytes(inputs: &[Vec<u8>]) -> FastCryptoResult<[u8; FIELD_ELEMENT
         .iter()
         .map(|b| canonical_le_bytes_to_field_element(b))
         .collect::<Result<Vec<_>, _>>()?;
-    let output_as_field_element = poseidon_merkle_tree(field_elements)?;
+    let output_as_field_element = poseidon_merkle_tree(&field_elements)?;
     Ok(field_element_to_canonical_le_bytes(
         &output_as_field_element,
     ))
@@ -126,7 +114,7 @@ pub fn poseidon_bytes(inputs: &[Vec<u8>]) -> FastCryptoResult<[u8; FIELD_ELEMENT
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> FastCryptoResult<Fr> {
+fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> FastCryptoResult<FieldElement> {
     match bytes.len().cmp(&FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less => Ok(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal => {
@@ -141,12 +129,16 @@ fn canonical_le_bytes_to_field_element(bytes: &[u8]) -> FastCryptoResult<Fr> {
         }
         Ordering::Greater => Err(InputTooLong(FIELD_ELEMENT_SIZE_IN_BYTES)),
     }
+    .map(FieldElement)
 }
 
 /// Convert a BN254 field element to a byte array as the little-endian representation of the
 /// underlying canonical integer representation of the element.
-fn field_element_to_canonical_le_bytes(field_element: &Fr) -> [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
+fn field_element_to_canonical_le_bytes(
+    field_element: &FieldElement,
+) -> [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
     field_element
+        .0
         .into_bigint()
         .to_bytes_le()
         .try_into()
@@ -154,16 +146,16 @@ fn field_element_to_canonical_le_bytes(field_element: &Fr) -> [u8; FIELD_ELEMENT
 }
 
 /// Convert an ff field element to an arkworks-ff field element.
-fn fr_to_bn254fr(fr: crate::Fr) -> Fr {
+fn fr_to_field_element(fr: crate::Fr) -> FieldElement {
     // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
-    Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
+    FieldElement(Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice()))
 }
 
 /// Convert an arkworks-ff field element to an ff field element.
-fn bn254_to_fr(fr: Fr) -> crate::Fr {
+fn field_element_to_fr(fr: &FieldElement) -> crate::Fr {
     let mut bytes = [0u8; 32];
     // We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
-    bytes.clone_from_slice(&fr.into_bigint().to_bytes_be());
+    bytes.clone_from_slice(&fr.0.into_bigint().to_bytes_be());
     crate::Fr::from_repr_vartime(FrRepr(bytes))
         .expect("The bytes of fr are guaranteed to be canonical here")
 }
@@ -172,7 +164,7 @@ fn bn254_to_fr(fr: Fr) -> crate::Fr {
 mod test {
     use crate::bn254::poseidon::poseidon_bytes;
     use crate::bn254::poseidon::{poseidon, poseidon_merkle_tree};
-    use crate::bn254::{poseidon::poseidon_zk_login, zk_login::Bn254Fr};
+    use crate::bn254::FieldElement;
     use ark_bn254::Fr;
     use ark_ff::{BigInteger, PrimeField};
     use lazy_static::lazy_static;
@@ -180,23 +172,23 @@ mod test {
     use proptest::collection;
     use std::str::FromStr;
 
-    fn to_bigint_arr(vals: Vec<u8>) -> Vec<Bn254Fr> {
-        vals.into_iter().map(Bn254Fr::from).collect()
+    fn to_bigint_arr(vals: Vec<u8>) -> Vec<FieldElement> {
+        vals.into_iter().map(Fr::from).map(FieldElement).collect()
     }
 
     #[test]
     fn poseidon_test() {
-        let input1 = Fr::from_str("134696963602902907403122104327765350261").unwrap();
-        let input2 = Fr::from_str("17932473587154777519561053972421347139").unwrap();
-        let input3 = Fr::from_str("10000").unwrap();
-        let input4 = Fr::from_str(
+        let input1 = FieldElement::from_str("134696963602902907403122104327765350261").unwrap();
+        let input2 = FieldElement::from_str("17932473587154777519561053972421347139").unwrap();
+        let input3 = FieldElement::from_str("10000").unwrap();
+        let input4 = FieldElement::from_str(
             "50683480294434968413708503290439057629605340925620961559740848568164438166",
         )
         .unwrap();
-        let hash = poseidon(vec![input1, input2, input3, input4]).unwrap();
+        let hash = poseidon(&[input1, input2, input3, input4]).unwrap();
         assert_eq!(
             hash,
-            Fr::from_str(
+            FieldElement::from_str(
                 "2272550810841985018139126931041192927190568084082399473943239080305281957330"
             )
             .unwrap()
@@ -204,21 +196,21 @@ mod test {
     }
     #[test]
     fn test_to_poseidon_hash() {
-        assert!(poseidon_merkle_tree(to_bigint_arr(vec![])).is_err());
+        assert!(poseidon_merkle_tree(&to_bigint_arr(vec![])).is_err());
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![1]))
+            poseidon_merkle_tree(&to_bigint_arr(vec![1]))
                 .unwrap()
                 .to_string(),
             "18586133768512220936620570745912940619677854269274689475585506675881198879027"
         );
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![1, 2]))
+            poseidon_merkle_tree(&to_bigint_arr(vec![1, 2]))
                 .unwrap()
                 .to_string(),
             "7853200120776062878684798364095072458815029376092732009249414926327459813530"
         );
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![
+            poseidon_merkle_tree(&to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
             ]))
             .unwrap()
@@ -226,7 +218,7 @@ mod test {
             "4203130618016961831408770638653325366880478848856764494148034853759773445968"
         );
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![
+            poseidon_merkle_tree(&to_bigint_arr(vec![
                 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16
             ]))
             .unwrap()
@@ -234,7 +226,7 @@ mod test {
             "9989051620750914585850546081941653841776809718687451684622678807385399211877"
         );
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![
+            poseidon_merkle_tree(&to_bigint_arr(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29
             ]))
@@ -243,7 +235,7 @@ mod test {
             "4123755143677678663754455867798672266093104048057302051129414708339780424023"
         );
         assert_eq!(
-            poseidon_merkle_tree(to_bigint_arr(vec![
+            poseidon_merkle_tree(&to_bigint_arr(vec![
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
                 23, 24, 25, 26, 27, 28, 29, 30, 31, 32
             ]))
@@ -251,11 +243,6 @@ mod test {
             .to_string(),
             "15368023340287843142129781602124963668572853984788169144128906033251913623349"
         );
-        assert!(poseidon_zk_login(to_bigint_arr(vec![
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-            24, 25, 26, 27, 28, 29, 30, 31, 32
-        ]))
-        .is_err());
     }
 
     #[test]
@@ -294,7 +281,7 @@ mod test {
         #[test]
         fn test_against_poseidon_ark(r in collection::vec(<[u8; 32]>::arbitrary(), 1..16)) {
 
-            let inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(&ri)).collect::<Vec<_>>();
+            let inputs = r.iter().map(|ri| Fr::from_le_bytes_mod_order(ri)).collect::<Vec<_>>();
             let expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
             let actual = poseidon_bytes(&inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::<Vec<_>>()).unwrap();
