@@ -12,12 +12,19 @@ use serde::Serialize;
 use std::mem;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
-pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 32;
+///
+/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (https://eprint.iacr.org/2018/627.pdf)
+/// which states that the challenge should be 2^l bits (see section 6), where l is the security
+/// parameter. Soundness is proven in section 6.3 in this paper.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 16;
 
 /// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
-/// Proofs are larger and verification is slower than in Wesolowski's construction, but the
-/// output of a VDF is unique, assuming that the used group have no small subgroups, and proving
-/// is faster.
+///
+/// The VDF is, as in [crate::vdf::wesolowski::WesolowskisVDF], based on the repeated squaring of an
+/// element in a group of unknown order. However, in this construction, proofs are larger and
+/// verification is slower than in Wesolowski's construction, but the output of a VDF is unique,
+/// assuming that the used group have no small subgroups, and proving is faster for the same number
+/// of iterations.
 pub struct PietrzaksVDF<G: ParameterizedGroupElement> {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -34,18 +41,23 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
     }
 }
 
-impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
+impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G>
+where
+    G::ParameterType: Serialize,
+{
     type InputType = G;
     type OutputType = G;
     type ProofType = Vec<G>;
 
     fn evaluate(&self, input: &G) -> FastCryptoResult<(G, Vec<G>)> {
+        // Proof generation works but is not optimised.
+
         if !input.is_in_group(&self.group_parameter) || self.iterations == 0 {
             return Err(InvalidInput);
         }
 
         // Compute output = 2^iterations * input
-        let output = input.repeated_doubling(self.iterations);
+        let output = input.clone().repeated_doubling(self.iterations);
 
         let mut x = input.clone();
         let mut y = output.clone();
@@ -61,9 +73,9 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
             }
 
             // TODO: Precompute some of the mu's to speed up the proof generation.
-            let mu = x.repeated_doubling(t);
+            let mu = x.clone().repeated_doubling(t);
 
-            let r = compute_challenge(&x, &y, self.iterations, &mu);
+            let r = compute_challenge(&x, &y, self.iterations, &mu, &self.group_parameter);
             x = multiply(&x, &r, &self.group_parameter) + &mu;
             y = multiply(&mu, &r, &self.group_parameter) + &y;
 
@@ -91,7 +103,7 @@ impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G> {
                 y = y.double();
             }
 
-            let r = compute_challenge(&x, &y, self.iterations, mu);
+            let r = compute_challenge(&x, &y, self.iterations, mu, &self.group_parameter);
             x = multiply(&x, &r, &self.group_parameter) + mu;
             y = multiply(mu, &r, &self.group_parameter) + y;
         }
@@ -111,8 +123,12 @@ fn compute_challenge<G: ParameterizedGroupElement + Serialize>(
     output: &G,
     iterations: u64,
     mu: &G,
-) -> BigUint {
-    let seed = bcs::to_bytes(&(input, output, iterations, mu))
+    group_parameter: &G::ParameterType,
+) -> BigUint
+where
+    G::ParameterType: Serialize,
+{
+    let seed = bcs::to_bytes(&(input, output, iterations, mu, group_parameter))
         .expect("Failed to serialize Fiat-Shamir input.");
     let hash = Keccak256::digest(seed);
     BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
@@ -121,6 +137,7 @@ fn compute_challenge<G: ParameterizedGroupElement + Serialize>(
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
 #[inline]
 fn check_parity_and_iterate(t: &mut u64) -> bool {
+    assert!(*t < u64::MAX);
     mem::replace(t, (*t + 1) >> 1).is_odd()
 }
 
@@ -146,5 +163,18 @@ mod tests {
 
         let other_input = input.clone() + &input;
         assert!(vdf.verify(&other_input, &output, &proof).is_err())
+    }
+
+    #[test]
+    fn test_vdf_edge_cases() {
+        let discriminant = Discriminant::from_seed(&[0, 1, 2], 512).unwrap();
+        let input = QuadraticForm::generator(&discriminant);
+
+        assert!(PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), 1)
+            .evaluate(&input)
+            .is_ok());
+        assert!(PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), 0)
+            .evaluate(&input)
+            .is_err());
     }
 }

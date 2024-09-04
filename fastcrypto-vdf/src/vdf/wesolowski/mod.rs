@@ -60,10 +60,7 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigU
         }
 
         // Compute output = 2^iterations * input
-        let mut output = input.clone();
-        for _ in 0..self.iterations {
-            output = output.double();
-        }
+        let output = input.clone().repeated_doubling(self.iterations);
 
         let multiplier = M::new(input.clone(), G::zero(&self.group_parameter));
 

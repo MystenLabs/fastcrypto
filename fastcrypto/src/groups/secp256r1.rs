@@ -38,7 +38,7 @@ impl GroupElement for ProjectivePoint {
 }
 
 impl Doubling for ProjectivePoint {
-    fn double(&self) -> Self {
+    fn double(self) -> Self {
         ProjectivePoint::from(self.0.double())
     }
 }
