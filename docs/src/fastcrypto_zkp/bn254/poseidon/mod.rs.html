@@ -289,23 +289,11 @@
 <a href="#289" id="289">289</a>
 <a href="#290" id="290">290</a>
 <a href="#291" id="291">291</a>
-<a href="#292" id="292">292</a>
-<a href="#293" id="293">293</a>
-<a href="#294" id="294">294</a>
-<a href="#295" id="295">295</a>
-<a href="#296" id="296">296</a>
-<a href="#297" id="297">297</a>
-<a href="#298" id="298">298</a>
-<a href="#299" id="299">299</a>
-<a href="#300" id="300">300</a>
-<a href="#301" id="301">301</a>
-<a href="#302" id="302">302</a>
-<a href="#303" id="303">303</a>
-<a href="#304" id="304">304</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::constants::<span class="kw-2">*</span>;
+<span class="kw">use </span><span class="kw">crate</span>::bn254::FieldElement;
 <span class="kw">use </span><span class="kw">crate</span>::FrRepr;
 <span class="kw">use </span>ark_bn254::Fr;
 <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
@@ -332,7 +320,7 @@
         <span class="kw">let </span><span class="kw-2">mut </span>poseidon = Poseidon::new(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$poseidon_constants</span>);
         poseidon.reset();
         <span class="kw">for </span>input <span class="kw">in </span><span class="macro-nonterminal">$inputs</span>.iter() {
-            poseidon.input(bn254_to_fr(<span class="kw-2">*</span>input)).expect(<span class="string">"The number of inputs must be aligned with the constants"</span>);
+            poseidon.input(field_element_to_fr(input)).expect(<span class="string">"The number of inputs must be aligned with the constants"</span>);
         }
         poseidon.hash_in_mode(OptimizedStatic);
 
@@ -349,11 +337,10 @@
 
 <span class="doccomment">/// Poseidon hash function over BN254. The input vector cannot be empty and must contain at most 16
 /// elements, otherwise an error is returned.
-</span><span class="kw">pub fn </span>poseidon(inputs: Vec&lt;Fr&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;Fr, FastCryptoError&gt; {
+</span><span class="kw">pub fn </span>poseidon(inputs: <span class="kw-2">&amp;</span>[FieldElement]) -&gt; <span class="prelude-ty">Result</span>&lt;FieldElement, FastCryptoError&gt; {
     <span class="kw">if </span>inputs.is_empty() || inputs.len() &gt; <span class="number">16 </span>{
         <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(inputs.len()));
     }
-
     <span class="comment">// Instances of Poseidon and PoseidonConstants from neptune have different types depending on
     // the number of inputs, so unfortunately we need to use a macro here.
     </span><span class="kw">let </span>result = <span class="kw">match </span>inputs.len() {
@@ -375,31 +362,19 @@
         <span class="number">16 </span>=&gt; <span class="macro">define_poseidon_hash!</span>(inputs, POSEIDON_CONSTANTS_U16),
         <span class="kw">_ </span>=&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput),
     };
-    <span class="prelude-val">Ok</span>(fr_to_bn254fr(result))
-}
-
-<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
-/// If input length is &lt;= 16, calculate H(inputs), if it is &lt;= 32, calculate H(H(inputs[0..16]),
-/// H(inputs[16..])), otherwise return an error.
-///
-/// This functions must be equivalent with the one found in the zk_login circuit.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>poseidon_zk_login(inputs: Vec&lt;Fr&gt;) -&gt; FastCryptoResult&lt;Fr&gt; {
-    <span class="kw">if </span>inputs.is_empty() || inputs.len() &gt; <span class="number">32 </span>{
-        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(inputs.len()));
-    }
-    poseidon_merkle_tree(inputs)
+    <span class="prelude-val">Ok</span>(fr_to_field_element(result))
 }
 
 <span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If the input length is &lt;= MERKLE_TREE_DEGREE, calculate
 /// H(inputs), otherwise chunk the inputs into groups of MERKLE_TREE_DEGREE, hash them and input the results recursively.
-</span><span class="kw">pub fn </span>poseidon_merkle_tree(inputs: Vec&lt;Fr&gt;) -&gt; FastCryptoResult&lt;Fr&gt; {
+</span><span class="kw">pub fn </span>poseidon_merkle_tree(inputs: <span class="kw-2">&amp;</span>[FieldElement]) -&gt; FastCryptoResult&lt;FieldElement&gt; {
     <span class="kw">if </span>inputs.len() &lt;= MERKLE_TREE_DEGREE {
         poseidon(inputs)
     } <span class="kw">else </span>{
         poseidon_merkle_tree(
-            inputs
+            <span class="kw-2">&amp;</span>inputs
                 .chunks(MERKLE_TREE_DEGREE)
-                .map(|chunk| poseidon(chunk.to_vec()))
+                .map(poseidon)
                 .collect::&lt;FastCryptoResult&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()<span class="question-mark">?</span>,
         )
     }
@@ -419,7 +394,7 @@
         .iter()
         .map(|b| canonical_le_bytes_to_field_element(b))
         .collect::&lt;<span class="prelude-ty">Result</span>&lt;Vec&lt;<span class="kw">_</span>&gt;, <span class="kw">_</span>&gt;&gt;()<span class="question-mark">?</span>;
-    <span class="kw">let </span>output_as_field_element = poseidon_merkle_tree(field_elements)<span class="question-mark">?</span>;
+    <span class="kw">let </span>output_as_field_element = poseidon_merkle_tree(<span class="kw-2">&amp;</span>field_elements)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(field_element_to_canonical_le_bytes(
         <span class="kw-2">&amp;</span>output_as_field_element,
     ))
@@ -430,7 +405,7 @@
 /// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
 ///
 /// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
-</span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;Fr&gt; {
+</span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;FieldElement&gt; {
     <span class="kw">match </span>bytes.len().cmp(<span class="kw-2">&amp;</span>FIELD_ELEMENT_SIZE_IN_BYTES) {
         Ordering::Less =&gt; <span class="prelude-val">Ok</span>(Fr::from_le_bytes_mod_order(bytes)),
         Ordering::Equal =&gt; {
@@ -445,29 +420,33 @@
         }
         Ordering::Greater =&gt; <span class="prelude-val">Err</span>(InputTooLong(FIELD_ELEMENT_SIZE_IN_BYTES)),
     }
+    .map(FieldElement)
 }
 
 <span class="doccomment">/// Convert a BN254 field element to a byte array as the little-endian representation of the
 /// underlying canonical integer representation of the element.
-</span><span class="kw">fn </span>field_element_to_canonical_le_bytes(field_element: <span class="kw-2">&amp;</span>Fr) -&gt; [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
+</span><span class="kw">fn </span>field_element_to_canonical_le_bytes(
+    field_element: <span class="kw-2">&amp;</span>FieldElement,
+) -&gt; [u8; FIELD_ELEMENT_SIZE_IN_BYTES] {
     field_element
-        .into_bigint()
+        .<span class="number">0
+        </span>.into_bigint()
         .to_bytes_le()
         .try_into()
         .expect(<span class="string">"The result is guaranteed to be 32 bytes"</span>)
 }
 
 <span class="doccomment">/// Convert an ff field element to an arkworks-ff field element.
-</span><span class="kw">fn </span>fr_to_bn254fr(fr: <span class="kw">crate</span>::Fr) -&gt; Fr {
+</span><span class="kw">fn </span>fr_to_field_element(fr: <span class="kw">crate</span>::Fr) -&gt; FieldElement {
     <span class="comment">// We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
-    </span>Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice())
+    </span>FieldElement(Fr::from_be_bytes_mod_order(fr.to_repr().as_byte_slice()))
 }
 
 <span class="doccomment">/// Convert an arkworks-ff field element to an ff field element.
-</span><span class="kw">fn </span>bn254_to_fr(fr: Fr) -&gt; <span class="kw">crate</span>::Fr {
+</span><span class="kw">fn </span>field_element_to_fr(fr: <span class="kw-2">&amp;</span>FieldElement) -&gt; <span class="kw">crate</span>::Fr {
     <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; <span class="number">32</span>];
     <span class="comment">// We use big-endian as in the definition of the BN254 prime field (see fastcrypto-zkp/src/lib.rs).
-    </span>bytes.clone_from_slice(<span class="kw-2">&amp;</span>fr.into_bigint().to_bytes_be());
+    </span>bytes.clone_from_slice(<span class="kw-2">&amp;</span>fr.<span class="number">0</span>.into_bigint().to_bytes_be());
     <span class="kw">crate</span>::Fr::from_repr_vartime(FrRepr(bytes))
         .expect(<span class="string">"The bytes of fr are guaranteed to be canonical here"</span>)
 }
@@ -476,7 +455,7 @@
 </span><span class="kw">mod </span>test {
     <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_bytes;
     <span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::{poseidon, poseidon_merkle_tree};
-    <span class="kw">use </span><span class="kw">crate</span>::bn254::{poseidon::poseidon_zk_login, zk_login::Bn254Fr};
+    <span class="kw">use </span><span class="kw">crate</span>::bn254::FieldElement;
     <span class="kw">use </span>ark_bn254::Fr;
     <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
     <span class="kw">use </span>lazy_static::lazy_static;
@@ -484,23 +463,23 @@
     <span class="kw">use </span>proptest::collection;
     <span class="kw">use </span>std::str::FromStr;
 
-    <span class="kw">fn </span>to_bigint_arr(vals: Vec&lt;u8&gt;) -&gt; Vec&lt;Bn254Fr&gt; {
-        vals.into_iter().map(Bn254Fr::from).collect()
+    <span class="kw">fn </span>to_bigint_arr(vals: Vec&lt;u8&gt;) -&gt; Vec&lt;FieldElement&gt; {
+        vals.into_iter().map(Fr::from).map(FieldElement).collect()
     }
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>poseidon_test() {
-        <span class="kw">let </span>input1 = Fr::from_str(<span class="string">"134696963602902907403122104327765350261"</span>).unwrap();
-        <span class="kw">let </span>input2 = Fr::from_str(<span class="string">"17932473587154777519561053972421347139"</span>).unwrap();
-        <span class="kw">let </span>input3 = Fr::from_str(<span class="string">"10000"</span>).unwrap();
-        <span class="kw">let </span>input4 = Fr::from_str(
+        <span class="kw">let </span>input1 = FieldElement::from_str(<span class="string">"134696963602902907403122104327765350261"</span>).unwrap();
+        <span class="kw">let </span>input2 = FieldElement::from_str(<span class="string">"17932473587154777519561053972421347139"</span>).unwrap();
+        <span class="kw">let </span>input3 = FieldElement::from_str(<span class="string">"10000"</span>).unwrap();
+        <span class="kw">let </span>input4 = FieldElement::from_str(
             <span class="string">"50683480294434968413708503290439057629605340925620961559740848568164438166"</span>,
         )
         .unwrap();
-        <span class="kw">let </span>hash = poseidon(<span class="macro">vec!</span>[input1, input2, input3, input4]).unwrap();
+        <span class="kw">let </span>hash = poseidon(<span class="kw-2">&amp;</span>[input1, input2, input3, input4]).unwrap();
         <span class="macro">assert_eq!</span>(
             hash,
-            Fr::from_str(
+            FieldElement::from_str(
                 <span class="string">"2272550810841985018139126931041192927190568084082399473943239080305281957330"
             </span>)
             .unwrap()
@@ -508,21 +487,21 @@
     }
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_to_poseidon_hash() {
-        <span class="macro">assert!</span>(poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[])).is_err());
+        <span class="macro">assert!</span>(poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[])).is_err());
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>]))
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>]))
                 .unwrap()
                 .to_string(),
             <span class="string">"18586133768512220936620570745912940619677854269274689475585506675881198879027"
         </span>);
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>]))
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[<span class="number">1</span>, <span class="number">2</span>]))
                 .unwrap()
                 .to_string(),
             <span class="string">"7853200120776062878684798364095072458815029376092732009249414926327459813530"
         </span>);
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15
             </span>]))
             .unwrap()
@@ -530,7 +509,7 @@
             <span class="string">"4203130618016961831408770638653325366880478848856764494148034853759773445968"
         </span>);
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16
             </span>]))
             .unwrap()
@@ -538,7 +517,7 @@
             <span class="string">"9989051620750914585850546081941653841776809718687451684622678807385399211877"
         </span>);
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>,
                 <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29
             </span>]))
@@ -547,7 +526,7 @@
             <span class="string">"4123755143677678663754455867798672266093104048057302051129414708339780424023"
         </span>);
         <span class="macro">assert_eq!</span>(
-            poseidon_merkle_tree(to_bigint_arr(<span class="macro">vec!</span>[
+            poseidon_merkle_tree(<span class="kw-2">&amp;</span>to_bigint_arr(<span class="macro">vec!</span>[
                 <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>,
                 <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29</span>, <span class="number">30</span>, <span class="number">31</span>, <span class="number">32
             </span>]))
@@ -555,11 +534,6 @@
             .to_string(),
             <span class="string">"15368023340287843142129781602124963668572853984788169144128906033251913623349"
         </span>);
-        <span class="macro">assert!</span>(poseidon_zk_login(to_bigint_arr(<span class="macro">vec!</span>[
-            <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>, <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>, <span class="number">23</span>,
-            <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29</span>, <span class="number">30</span>, <span class="number">31</span>, <span class="number">32
-        </span>]))
-        .is_err());
     }
 
     <span class="attr">#[test]
@@ -598,7 +572,7 @@
         <span class="attr">#[test]
         </span><span class="kw">fn </span>test_against_poseidon_ark(r <span class="kw">in </span>collection::vec(&lt;[u8; <span class="number">32</span>]&gt;::arbitrary(), <span class="number">1</span>..<span class="number">16</span>)) {
 
-            <span class="kw">let </span>inputs = r.into_iter().map(|ri| ark_bn254::Fr::from_le_bytes_mod_order(<span class="kw-2">&amp;</span>ri)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+            <span class="kw">let </span>inputs = r.iter().map(|ri| Fr::from_le_bytes_mod_order(ri)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
             <span class="kw">let </span>expected = POSEIDON_ARK.hash(inputs.clone()).unwrap().into_bigint().to_bytes_le();
 
             <span class="kw">let </span>actual = poseidon_bytes(<span class="kw-2">&amp;</span>inputs.iter().map(|i| i.into_bigint().to_bytes_le().to_vec()).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;()).unwrap();

@@ -729,6 +729,27 @@
 <a href="#729" id="729">729</a>
 <a href="#730" id="730">730</a>
 <a href="#731" id="731">731</a>
+<a href="#732" id="732">732</a>
+<a href="#733" id="733">733</a>
+<a href="#734" id="734">734</a>
+<a href="#735" id="735">735</a>
+<a href="#736" id="736">736</a>
+<a href="#737" id="737">737</a>
+<a href="#738" id="738">738</a>
+<a href="#739" id="739">739</a>
+<a href="#740" id="740">740</a>
+<a href="#741" id="741">741</a>
+<a href="#742" id="742">742</a>
+<a href="#743" id="743">743</a>
+<a href="#744" id="744">744</a>
+<a href="#745" id="745">745</a>
+<a href="#746" id="746">746</a>
+<a href="#747" id="747">747</a>
+<a href="#748" id="748">748</a>
+<a href="#749" id="749">749</a>
+<a href="#750" id="750">750</a>
+<a href="#751" id="751">751</a>
+<a href="#752" id="752">752</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -737,7 +758,8 @@
 <span class="kw">use </span>serde_json::Value;
 
 <span class="kw">use </span><span class="kw">super</span>::utils::split_to_two_frs;
-<span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_zk_login;
+<span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_merkle_tree;
+<span class="kw">use </span><span class="kw">crate</span>::bn254::FieldElement;
 <span class="kw">use </span><span class="kw">crate</span>::zk_login_utils::{
     g1_affine_from_str_projective, g2_affine_from_str_projective, Bn254FrElement, CircomG1,
     CircomG2,
@@ -1237,7 +1259,7 @@
             hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.iss_base64_details.value, MAX_ISS_LEN_B64)<span class="question-mark">?</span>;
         <span class="kw">let </span>header_f = hash_ascii_str_to_field(<span class="kw-2">&amp;</span><span class="self">self</span>.header_base64, MAX_HEADER_LEN)<span class="question-mark">?</span>;
         <span class="kw">let </span>modulus_f = hash_to_field(<span class="kw-2">&amp;</span>[BigUint::from_bytes_be(modulus)], <span class="number">2048</span>, PACK_WIDTH)<span class="question-mark">?</span>;
-        poseidon_zk_login(<span class="macro">vec!</span>[
+        poseidon_zk_login(<span class="kw-2">&amp;</span>[
             first,
             second,
             addr_seed,
@@ -1416,7 +1438,7 @@
     pack_width: u8,
 ) -&gt; <span class="prelude-ty">Result</span>&lt;Bn254Fr, FastCryptoError&gt; {
     <span class="kw">let </span>packed = convert_base(input, in_width, pack_width)<span class="question-mark">?</span>;
-    poseidon_zk_login(packed)
+    poseidon_zk_login(<span class="kw-2">&amp;</span>packed)
 }
 
 <span class="doccomment">/// Helper function to pack field elements from big ints.
@@ -1459,5 +1481,25 @@
         })
         .flatten_ok()
         .collect()
+}
+
+<span class="doccomment">/// Calculate the poseidon hash of the field element inputs. If there are no inputs, return an error.
+/// If input length is &lt;= 16, calculate H(inputs), if it is &lt;= 32, calculate H(H(inputs[0..16]),
+/// H(inputs[16..])), otherwise return an error.
+///
+/// This functions must be equivalent with the one found in the zk_login circuit.
+</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>poseidon_zk_login(inputs: <span class="kw-2">&amp;</span>[Bn254Fr]) -&gt; FastCryptoResult&lt;Bn254Fr&gt; {
+    <span class="kw">if </span>inputs.is_empty() || inputs.len() &gt; <span class="number">32 </span>{
+        <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputLengthWrong(inputs.len()));
+    }
+    poseidon_merkle_tree(<span class="kw-2">&amp;</span>inputs.iter().map(|x| FieldElement(<span class="kw-2">*</span>x)).collect_vec()).map(|x| x.<span class="number">0</span>)
+}
+
+<span class="attr">#[test]
+</span><span class="kw">fn </span>test_poseidon_zk_login_input_sizes() {
+    <span class="macro">assert!</span>(poseidon_zk_login(<span class="kw-2">&amp;</span>[]).is_err());
+    <span class="macro">assert!</span>(poseidon_zk_login(<span class="kw-2">&amp;</span>[Bn254Fr::from_str(<span class="string">"123"</span>).unwrap(); <span class="number">1</span>]).is_ok());
+    <span class="macro">assert!</span>(poseidon_zk_login(<span class="kw-2">&amp;</span>[Bn254Fr::from_str(<span class="string">"123"</span>).unwrap(); <span class="number">32</span>]).is_ok());
+    <span class="macro">assert!</span>(poseidon_zk_login(<span class="kw-2">&amp;</span>[Bn254Fr::from_str(<span class="string">"123"</span>).unwrap(); <span class="number">33</span>]).is_err());
 }
 </code></pre></div></section></main></body></html>

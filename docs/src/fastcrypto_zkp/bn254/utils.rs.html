@@ -245,7 +245,7 @@
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::poseidon_zk_login;
+</span><span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::poseidon_zk_login;
 <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login::{OIDCProvider, ZkLoginInputsReader};
 <span class="kw">use </span><span class="kw">crate</span>::bn254::zk_login_api::Bn254Fr;
 <span class="kw">use </span><span class="kw">crate</span>::zk_login_utils::Bn254FrElement;
@@ -287,7 +287,7 @@
     </span>value: <span class="kw-2">&amp;</span>str, <span class="comment">// i.e. the sub value
     </span>aud: <span class="kw-2">&amp;</span>str,   <span class="comment">// i.e. the client ID
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="kw">let </span>salt_hash = poseidon_zk_login(<span class="macro">vec!</span>[(<span class="kw-2">&amp;</span>Bn254FrElement::from_str(salt)<span class="question-mark">?</span>).into()])<span class="question-mark">?</span>;
+    <span class="kw">let </span>salt_hash = poseidon_zk_login(<span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>Bn254FrElement::from_str(salt)<span class="question-mark">?</span>).into()])<span class="question-mark">?</span>;
     gen_address_seed_with_salt_hash(<span class="kw-2">&amp;</span>salt_hash.to_string(), name, value, aud)
 }
 
@@ -298,7 +298,7 @@
     </span>value: <span class="kw-2">&amp;</span>str, <span class="comment">// i.e. the sub value
     </span>aud: <span class="kw-2">&amp;</span>str,   <span class="comment">// i.e. the client ID
 </span>) -&gt; <span class="prelude-ty">Result</span>&lt;String, FastCryptoError&gt; {
-    <span class="prelude-val">Ok</span>(poseidon_zk_login(<span class="macro">vec!</span>[
+    <span class="prelude-val">Ok</span>(poseidon_zk_login(<span class="kw-2">&amp;</span>[
         hash_ascii_str_to_field(name, MAX_KEY_CLAIM_NAME_LENGTH)<span class="question-mark">?</span>,
         hash_ascii_str_to_field(value, MAX_KEY_CLAIM_VALUE_LENGTH)<span class="question-mark">?</span>,
         hash_ascii_str_to_field(aud, MAX_AUD_VALUE_LENGTH)<span class="question-mark">?</span>,
@@ -362,7 +362,7 @@
     <span class="kw">let </span>jwt_randomness =
         Bn254Fr::from_str(jwt_randomness).map_err(|<span class="kw">_</span>| FastCryptoError::InvalidInput)<span class="question-mark">?</span>;
 
-    <span class="kw">let </span>hash = poseidon_zk_login(<span class="macro">vec!</span>[first, second, max_epoch, jwt_randomness])
+    <span class="kw">let </span>hash = poseidon_zk_login(<span class="kw-2">&amp;</span>[first, second, max_epoch, jwt_randomness])
         .expect(<span class="string">"inputs is not too long"</span>);
     <span class="kw">let </span>data = BigUint::from(hash).to_bytes_be();
     <span class="kw">let </span>truncated = <span class="kw-2">&amp;</span>data[data.len() - <span class="number">20</span>..];

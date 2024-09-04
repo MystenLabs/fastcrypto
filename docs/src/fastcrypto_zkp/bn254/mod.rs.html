@@ -84,7 +84,7 @@
 </span><span class="kw">use </span><span class="kw">crate</span>::bn254::api::SCALAR_SIZE;
 <span class="kw">use </span>ark_bn254::{Bn254, Fr};
 <span class="kw">use </span>ark_serialize::CanonicalDeserialize;
-<span class="kw">use </span>derive_more::From;
+<span class="kw">use </span>derive_more::{Display, From, FromStr, Into};
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 
 <span class="doccomment">/// API that takes in serialized inputs
@@ -105,13 +105,13 @@
 <span class="doccomment">/// Zk login utils
 </span><span class="kw">pub mod </span>utils;
 
-<span class="doccomment">/// A field element in the BN254 construction. Thin wrapper around `api::Bn254Fr`.
-</span><span class="attr">#[derive(Debug, From)]
-</span><span class="kw">pub struct </span>FieldElement(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_bn254::Fr);
+<span class="doccomment">/// A field element in the BN254 construction. Thin wrapper around `ark_bn254::fields::fr::Fr`.
+</span><span class="attr">#[derive(Clone, Debug, From, Into, PartialEq, Eq, Display, FromStr)]
+</span><span class="kw">pub struct </span>FieldElement(<span class="kw">pub</span>(<span class="kw">crate</span>) Fr);
 
 <span class="doccomment">/// A Groth16 proof in the BN254 construction. Thin wrapper around `ark_groth16::Proof::&lt;ark_bn254::Bn254&gt;`.
 </span><span class="attr">#[derive(Debug, From)]
-</span><span class="kw">pub struct </span>Proof(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_groth16::Proof&lt;ark_bn254::Bn254&gt;);
+</span><span class="kw">pub struct </span>Proof(<span class="kw">pub</span>(<span class="kw">crate</span>) ark_groth16::Proof&lt;Bn254&gt;);
 
 <span class="doccomment">/// A Groth16 verifying key in the BN254 construction. Thin wrapper around `ark_groth16::VerifyingKey::&lt;ark_bn254::Bn254&gt;`.
 </span><span class="attr">#[derive(Debug, From)]
