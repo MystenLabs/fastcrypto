@@ -137,8 +137,7 @@ where
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
 #[inline]
 fn check_parity_and_iterate(t: &mut u64) -> bool {
-    assert!(*t < u64::MAX);
-    mem::replace(t, (*t + 1) >> 1).is_odd()
+    mem::replace(t, (*t >> 1) + (*t & 1)).is_odd()
 }
 
 #[cfg(test)]
