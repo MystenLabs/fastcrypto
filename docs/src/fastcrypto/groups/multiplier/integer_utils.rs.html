@@ -207,7 +207,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::groups::multiplier::ToLittleEndianBytes;
-<span class="kw">use </span>num_bigint::BigInt;
+<span class="kw">use </span>num_bigint::BigUint;
 
 <span class="doccomment">/// Given a binary representation of a number in little-endian format, return the digits of its base
 /// `2^bits_per_digit` expansion.
@@ -321,12 +321,12 @@
     x &amp; (x - <span class="number">1</span>) == <span class="number">0
 </span>}
 
-<span class="comment">// We implementation `ToLittleEndianByteArray` for BigInt in case it needs to be used as scalar for
+<span class="comment">// We implement `ToLittleEndianByteArray` for `BigUint` in case it needs to be used as scalar for
 // multi-scalar multiplication.
-</span><span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>BigInt {
+</span><span class="kw">impl </span>ToLittleEndianBytes <span class="kw">for </span>BigUint {
     <span class="kw">fn </span>to_le_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.to_bytes_le().<span class="number">1
-    </span>}
+        <span class="self">self</span>.to_bytes_le()
+    }
 }
 
 <span class="attr">#[cfg(test)]

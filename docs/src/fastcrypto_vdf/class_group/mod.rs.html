@@ -345,12 +345,6 @@
 <a href="#345" id="345">345</a>
 <a href="#346" id="346">346</a>
 <a href="#347" id="347">347</a>
-<a href="#348" id="348">348</a>
-<a href="#349" id="349">349</a>
-<a href="#350" id="350">350</a>
-<a href="#351" id="351">351</a>
-<a href="#352" id="352">352</a>
-<a href="#353" id="353">353</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -558,26 +552,22 @@
 }
 
 <span class="kw">impl </span>Doubling <span class="kw">for </span>QuadraticForm {
-    <span class="kw">fn </span>double(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
+    <span class="kw">fn </span>double(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
         <span class="comment">// Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael &amp; Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
 
-        </span><span class="kw">let </span>u = <span class="kw-2">&amp;</span><span class="self">self</span>.a;
-        <span class="kw">let </span>v = <span class="kw-2">&amp;</span><span class="self">self</span>.b;
-        <span class="kw">let </span>w = <span class="kw-2">&amp;</span><span class="self">self</span>.c;
-
-        <span class="kw">let </span>EuclideanAlgorithmOutput {
+        </span><span class="kw">let </span>EuclideanAlgorithmOutput {
             gcd: g,
             x: <span class="kw">_</span>,
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm(u, v, <span class="bool-val">false</span>);
+        } = extended_euclidean_algorithm(<span class="kw-2">&amp;</span><span class="self">self</span>.a, <span class="kw-2">&amp;</span><span class="self">self</span>.b, <span class="bool-val">false</span>);
 
         <span class="kw">let </span>(bx, x, by, y, iterated) = partial_xgcd(
-            (<span class="kw-2">&amp;</span>y * w).mod_floor(<span class="kw-2">&amp;</span>capital_by),
+            (<span class="kw-2">&amp;</span>y * <span class="kw-2">&amp;</span><span class="self">self</span>.c).mod_floor(<span class="kw-2">&amp;</span>capital_by),
             capital_by.clone(),
             <span class="self">self</span>.partial_gcd_limit(),
         );
@@ -587,11 +577,11 @@
         <span class="kw">let </span><span class="kw-2">mut </span>v3 = -(by * <span class="kw-2">&amp;</span>bx) &lt;&lt; <span class="number">1</span>;
 
         <span class="kw">if </span>!iterated {
-            <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w) / <span class="kw-2">&amp;</span>capital_by;
-            v3 += v;
+            <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - <span class="kw-2">&amp;</span><span class="self">self</span>.c) / <span class="kw-2">&amp;</span>capital_by;
+            v3 += <span class="kw-2">&amp;</span><span class="self">self</span>.b;
             w3 -= <span class="kw-2">&amp;</span>g * <span class="kw-2">&amp;</span>dx;
         } <span class="kw">else </span>{
-            <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - w * <span class="kw-2">&amp;</span>x) / <span class="kw-2">&amp;</span>capital_by;
+            <span class="kw">let </span>dx = (<span class="kw-2">&amp;</span>bx * <span class="kw-2">&amp;</span>capital_dy - <span class="kw-2">&amp;</span><span class="self">self</span>.c * <span class="kw-2">&amp;</span>x) / <span class="kw-2">&amp;</span>capital_by;
             <span class="kw">let </span>q1 = <span class="kw-2">&amp;</span>dx * <span class="kw-2">&amp;</span>y;
             <span class="kw">let </span><span class="kw-2">mut </span>dy = <span class="kw-2">&amp;</span>q1 + <span class="kw-2">&amp;</span>capital_dy;
             v3 += <span class="kw-2">&amp;</span>g * (<span class="kw-2">&amp;</span>dy + <span class="kw-2">&amp;</span>q1);
@@ -647,8 +637,6 @@
 <span class="kw">impl </span>ParameterizedGroupElement <span class="kw">for </span>QuadraticForm {
     <span class="doccomment">/// The discriminant of a quadratic form defines the class group.
     </span><span class="kw">type </span>ParameterType = Discriminant;
-
-    <span class="kw">type </span>ScalarType = BigInt;
 
     <span class="kw">fn </span>zero(discriminant: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
         <span class="self">Self</span>::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)

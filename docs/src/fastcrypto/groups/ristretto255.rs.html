@@ -294,8 +294,8 @@
 }
 
 <span class="kw">impl </span>Doubling <span class="kw">for </span>RistrettoPoint {
-    <span class="kw">fn </span>double(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>(<span class="self">self</span>.<span class="number">0</span>.add(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>))
+    <span class="kw">fn </span>double(<span class="self">self</span>) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(<span class="self">self</span>.<span class="number">0</span>.add(<span class="self">self</span>.<span class="number">0</span>))
     }
 }
 

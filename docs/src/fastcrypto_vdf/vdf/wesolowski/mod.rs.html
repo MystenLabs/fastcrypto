@@ -198,15 +198,13 @@
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::ops::ShlAssign;
 
-<span class="kw">use </span>num_bigint::BigInt;
+<span class="kw">use </span>num_bigint::BigUint;
 <span class="kw">use </span>num_integer::Integer;
 
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
@@ -226,7 +224,7 @@
 </span><span class="kw">pub struct </span>WesolowskisVDF&lt;
     G: ParameterizedGroupElement,
     F: FiatShamir&lt;G&gt;,
-    M: ScalarMultiplier&lt;G, G::ScalarType&gt;,
+    M: ScalarMultiplier&lt;G, BigUint&gt;,
 &gt; {
     group_parameter: G::ParameterType,
     iterations: u64,
@@ -234,7 +232,7 @@
     _scalar_multiplier: PhantomData&lt;M&gt;,
 }
 
-<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, F: FiatShamir&lt;G&gt;, M: ScalarMultiplier&lt;G, G::ScalarType&gt;&gt;
+<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, F: FiatShamir&lt;G&gt;, M: ScalarMultiplier&lt;G, BigUint&gt;&gt;
     WesolowskisVDF&lt;G, F, M&gt;
 {
     <span class="doccomment">/// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
@@ -249,11 +247,8 @@
     }
 }
 
-<span class="kw">impl</span>&lt;
-        G: ParameterizedGroupElement&lt;ScalarType = BigInt&gt;,
-        F: FiatShamir&lt;G&gt;,
-        M: ScalarMultiplier&lt;G, BigInt&gt;,
-    &gt; VDF <span class="kw">for </span>WesolowskisVDF&lt;G, F, M&gt;
+<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, F: FiatShamir&lt;G&gt;, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; VDF
+    <span class="kw">for </span>WesolowskisVDF&lt;G, F, M&gt;
 {
     <span class="kw">type </span>InputType = G;
     <span class="kw">type </span>OutputType = G;
@@ -265,16 +260,13 @@
         }
 
         <span class="comment">// Compute output = 2^iterations * input
-        </span><span class="kw">let </span><span class="kw-2">mut </span>output = input.clone();
-        <span class="kw">for _ in </span><span class="number">0</span>..<span class="self">self</span>.iterations {
-            output = output.double();
-        }
+        </span><span class="kw">let </span>output = input.clone().repeated_doubling(<span class="self">self</span>.iterations);
 
         <span class="kw">let </span>multiplier = M::new(input.clone(), G::zero(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter));
 
         <span class="comment">// Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         </span><span class="kw">let </span>challenge = F::compute_challenge(<span class="self">self</span>, input, <span class="kw-2">&amp;</span>output);
-        <span class="kw">let </span><span class="kw-2">mut </span>quotient_remainder = (BigInt::from(<span class="number">0</span>), BigInt::from(<span class="number">2</span>));
+        <span class="kw">let </span><span class="kw-2">mut </span>quotient_remainder = (BigUint::from(<span class="number">0u8</span>), BigUint::from(<span class="number">2u8</span>));
         <span class="kw">let </span><span class="kw-2">mut </span>proof = multiplier.mul(<span class="kw-2">&amp;</span>quotient_remainder.<span class="number">0</span>);
         <span class="kw">for _ in </span><span class="number">1</span>..<span class="self">self</span>.iterations {
             quotient_remainder.<span class="number">1</span>.shl_assign(<span class="number">1</span>);
@@ -294,7 +286,11 @@
         }
 
         <span class="kw">let </span>challenge = F::compute_challenge(<span class="self">self</span>, input, output);
-        <span class="kw">let </span>r = BigInt::modpow(<span class="kw-2">&amp;</span>BigInt::from(<span class="number">2</span>), <span class="kw-2">&amp;</span>BigInt::from(<span class="self">self</span>.iterations), <span class="kw-2">&amp;</span>challenge);
+        <span class="kw">let </span>r = BigUint::modpow(
+            <span class="kw-2">&amp;</span>BigUint::from(<span class="number">2u8</span>),
+            <span class="kw-2">&amp;</span>BigUint::from(<span class="self">self</span>.iterations),
+            <span class="kw-2">&amp;</span>challenge,
+        );
         <span class="kw">let </span>multiplier = M::new(input.clone(), G::zero(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter));
 
         <span class="kw">if </span>multiplier.two_scalar_mul(<span class="kw-2">&amp;</span>r, proof, <span class="kw-2">&amp;</span>challenge) != <span class="kw-2">*</span>output {
@@ -309,7 +305,7 @@
 </span><span class="kw">pub type </span>DefaultVDF = WesolowskisVDF&lt;
     QuadraticForm,
     StrongFiatShamir,
-    WindowedScalarMultiplier&lt;QuadraticForm, BigInt, <span class="number">256</span>, <span class="number">5</span>&gt;,
+    WindowedScalarMultiplier&lt;QuadraticForm, BigUint, <span class="number">256</span>, <span class="number">5</span>&gt;,
 &gt;;
 
 <span class="attr">#[cfg(test)]
@@ -322,7 +318,7 @@
     <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
     <span class="kw">use </span>fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     <span class="kw">use </span>fastcrypto::groups::multiplier::ScalarMultiplier;
-    <span class="kw">use </span>num_bigint::BigInt;
+    <span class="kw">use </span>num_bigint::{BigInt, BigUint};
     <span class="kw">use </span>num_traits::Num;
     <span class="kw">use </span>std::str::FromStr;
 
@@ -378,7 +374,7 @@
         <span class="kw">let </span>vdf = WesolowskisVDF::&lt;
             QuadraticForm,
             ChiaFiatShamir,
-            WindowedScalarMultiplier&lt;QuadraticForm, BigInt, <span class="number">256</span>, <span class="number">5</span>&gt;,
+            WindowedScalarMultiplier&lt;QuadraticForm, BigUint, <span class="number">256</span>, <span class="number">5</span>&gt;,
         &gt;::new(discriminant.clone(), iterations);
 
         <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
@@ -388,13 +384,13 @@
     </span><span class="kw">struct </span>ChiaFiatShamir {}
 
     <span class="kw">impl </span>FiatShamir&lt;QuadraticForm&gt; <span class="kw">for </span>ChiaFiatShamir {
-        <span class="kw">fn </span>compute_challenge&lt;M: ScalarMultiplier&lt;QuadraticForm, BigInt&gt;&gt;(
+        <span class="kw">fn </span>compute_challenge&lt;M: ScalarMultiplier&lt;QuadraticForm, BigUint&gt;&gt;(
             _vdf: <span class="kw-2">&amp;</span>WesolowskisVDF&lt;QuadraticForm, <span class="self">Self</span>, M&gt;,
             _input: <span class="kw-2">&amp;</span>QuadraticForm,
             _output: <span class="kw-2">&amp;</span>QuadraticForm,
-        ) -&gt; BigInt {
+        ) -&gt; BigUint {
             <span class="comment">// Hardcoded challenge for the test vector
-            </span>BigInt::from_str_radix(
+            </span>BigUint::from_str_radix(
                 <span class="string">"a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f"</span>,
                 <span class="number">16</span>,
             )
