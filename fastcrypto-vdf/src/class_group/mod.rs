@@ -205,15 +205,11 @@ impl QuadraticForm {
 }
 
 impl Doubling for QuadraticForm {
-    fn double(&self) -> Self {
+    fn double(self) -> Self {
         // Slightly optimised version of Algorithm 2 from Jacobson, Jr, Michael & Poorten, Alfred
         // (2002). "Computational aspects of NUCOMP", Lecture Notes in Computer Science.
         // (https://www.researchgate.net/publication/221451638_Computational_aspects_of_NUCOMP)
         // The paragraph numbers and variable names follow the paper.
-
-        let u = &self.a;
-        let v = &self.b;
-        let w = &self.c;
 
         let EuclideanAlgorithmOutput {
             gcd: g,
@@ -221,10 +217,10 @@ impl Doubling for QuadraticForm {
             y,
             a_divided_by_gcd: capital_by,
             b_divided_by_gcd: capital_dy,
-        } = extended_euclidean_algorithm(u, v, false);
+        } = extended_euclidean_algorithm(&self.a, &self.b, false);
 
         let (bx, x, by, y, iterated) = partial_xgcd(
-            (&y * w).mod_floor(&capital_by),
+            (&y * &self.c).mod_floor(&capital_by),
             capital_by.clone(),
             self.partial_gcd_limit(),
         );
@@ -234,11 +230,11 @@ impl Doubling for QuadraticForm {
         let mut v3 = -(by * &bx) << 1;
 
         if !iterated {
-            let dx = (&bx * &capital_dy - w) / &capital_by;
-            v3 += v;
+            let dx = (&bx * &capital_dy - &self.c) / &capital_by;
+            v3 += &self.b;
             w3 -= &g * &dx;
         } else {
-            let dx = (&bx * &capital_dy - w * &x) / &capital_by;
+            let dx = (&bx * &capital_dy - &self.c * &x) / &capital_by;
             let q1 = &dx * &y;
             let mut dy = &q1 + &capital_dy;
             v3 += &g * (&dy + &q1);
@@ -294,8 +290,6 @@ fn partial_xgcd(
 impl ParameterizedGroupElement for QuadraticForm {
     /// The discriminant of a quadratic form defines the class group.
     type ParameterType = Discriminant;
-
-    type ScalarType = BigInt;
 
     fn zero(discriminant: &Self::ParameterType) -> Self {
         Self::from_a_b_and_discriminant(BigInt::one(), BigInt::one(), discriminant)

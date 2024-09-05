@@ -58,8 +58,8 @@ impl RistrettoPoint {
 }
 
 impl Doubling for RistrettoPoint {
-    fn double(&self) -> Self {
-        Self(self.0.add(&self.0))
+    fn double(self) -> Self {
+        Self(self.0.add(self.0))
     }
 }
 
