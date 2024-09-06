@@ -16,7 +16,7 @@ pub enum RSAModulus {
 
 impl RSAModulus {
     /// Return the value of the modulus as a [BigUint].
-    pub fn value(&self) -> &'static BigUint {
+    pub fn value(&self) -> &BigUint {
         match self {
             RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096,
             RSAModulus::AmazonRSA2048 => &AMAZON_RSA_MODULUS_2048,
@@ -24,7 +24,7 @@ impl RSAModulus {
     }
 
     /// Return half the value of the modulus rounded down as a [BigUint].
-    pub(super) fn half_value(&self) -> &'static BigUint {
+    pub(super) fn half_value(&self) -> &BigUint {
         match self {
             RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096_HALF,
             RSAModulus::AmazonRSA2048 => &AMAZON_RSA_MODULUS_2048_HALF,
