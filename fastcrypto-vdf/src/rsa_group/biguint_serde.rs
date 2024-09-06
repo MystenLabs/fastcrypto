@@ -31,9 +31,7 @@ mod tests {
 
     #[derive(Serialize, Deserialize, PartialEq, Eq, Debug)]
     #[serde(transparent)]
-    struct TestStruct(
-        #[serde(serialize_with = "serialize", deserialize_with = "deserialize")] BigUint,
-    );
+    struct TestStruct(#[serde(with = "super")] BigUint);
 
     #[test]
     fn test_serde() {
