@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"trait":["Parameter","ParameterizedGroupElement"]};
+window.SIDEBAR_ITEMS = {"trait":["ParameterizedGroupElement"]};

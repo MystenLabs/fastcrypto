@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/wesolowski/mod.rs`."><title>mod.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../../static.files/rustdoc-dd39b87e5fcfba68.css"><meta name="rustdoc-vars" data-root-path="../../../../" data-static-root-path="../../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.80.1 (3f5fd8dd4 2024-08-06)" data-channel="1.80.1" data-search-js="search-d52510db62a78183.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../../src-files.js"></script><script defer src="../../../../static.files/main-20a3ad099b048cf2.js"></script><noscript><link rel="stylesheet" href="../../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/wesolowski.rs`."><title>wesolowski.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-46f98efaafac5295.ttf.woff2,FiraSans-Regular-018c141bf0843ffd.woff2,FiraSans-Medium-8f9a781e4970d388.woff2,SourceCodePro-Regular-562dcc5011b6de7d.ttf.woff2,SourceCodePro-Semibold-d899c5a5c4aeb14a.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-76eba96aa4d2e634.css"><link rel="stylesheet" href="../../../static.files/rustdoc-c5d6553a23f1e5a6.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.81.0 (eeb90cda1 2024-09-04)" data-channel="1.81.0" data-search-js="search-d234aafac6c221dd.js" data-settings-js="settings-4313503d2e1961c2.js" ><script src="../../../static.files/storage-118b08c4c78b968e.js"></script><script defer src="../../../static.files/src-script-e66d777a5a92e9b2.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-d2fab2bf619172d3.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-df360f571f6edeae.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-422f7d1d52889060.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-2c020d218678b618.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers"><a href="#1" id="1">1</a>
 <a href="#2" id="2">2</a>
 <a href="#3" id="3">3</a>
 <a href="#4" id="4">4</a>
@@ -198,58 +198,133 @@
 <a href="#198" id="198">198</a>
 <a href="#199" id="199">199</a>
 <a href="#200" id="200">200</a>
+<a href="#201" id="201">201</a>
+<a href="#202" id="202">202</a>
+<a href="#203" id="203">203</a>
+<a href="#204" id="204">204</a>
+<a href="#205" id="205">205</a>
+<a href="#206" id="206">206</a>
+<a href="#207" id="207">207</a>
+<a href="#208" id="208">208</a>
+<a href="#209" id="209">209</a>
+<a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
+<a href="#213" id="213">213</a>
+<a href="#214" id="214">214</a>
+<a href="#215" id="215">215</a>
+<a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span>std::marker::PhantomData;
 <span class="kw">use </span>std::ops::ShlAssign;
 
-<span class="kw">use </span>num_bigint::BigUint;
-<span class="kw">use </span>num_integer::Integer;
-
 <span class="kw">use </span>fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 <span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 <span class="kw">use </span>fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 <span class="kw">use </span>fastcrypto::groups::multiplier::ScalarMultiplier;
-<span class="kw">use </span>fiat_shamir::{FiatShamir, StrongFiatShamir};
+<span class="kw">use </span>num_bigint::BigUint;
+<span class="kw">use </span>num_integer::Integer;
 
 <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+<span class="kw">use </span><span class="kw">crate</span>::math::hash_prime::hash_prime;
 <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::ParameterizedGroupElement;
 <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
 
-<span class="kw">mod </span>fiat_shamir;
+<span class="doccomment">/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+///
+/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+/// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
+/// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
+/// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
+/// to represent the n-th prime as log2(n * ln(n)). For n = 2^{2*128}, this is approximately 264 bits
+/// = 33 bytes. This is also the challenge size used by chiavdf.
+</span><span class="kw">pub const </span>DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = <span class="number">33</span>;
 
 <span class="doccomment">/// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
-</span><span class="kw">pub struct </span>WesolowskisVDF&lt;
-    G: ParameterizedGroupElement,
-    F: FiatShamir&lt;G&gt;,
-    M: ScalarMultiplier&lt;G, BigUint&gt;,
-&gt; {
+</span><span class="kw">pub struct </span>WesolowskisVDF&lt;G: ParameterizedGroupElement, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; {
     group_parameter: G::ParameterType,
     iterations: u64,
-    _fiat_shamir: PhantomData&lt;F&gt;,
+    challenge: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="kw-2">&amp;</span>G, <span class="kw-2">&amp;</span>G) -&gt; BigUint,
     _scalar_multiplier: PhantomData&lt;M&gt;,
 }
 
-<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, F: FiatShamir&lt;G&gt;, M: ScalarMultiplier&lt;G, BigUint&gt;&gt;
-    WesolowskisVDF&lt;G, F, M&gt;
-{
+<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; WesolowskisVDF&lt;G, M&gt; {
     <span class="doccomment">/// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
     </span><span class="kw">pub fn </span>new(group_parameter: G::ParameterType, iterations: u64) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             group_parameter,
             iterations,
-            _fiat_shamir: PhantomData::&lt;F&gt;,
+            challenge: compute_challenge,
+            _scalar_multiplier: PhantomData::&lt;M&gt;,
+        }
+    }
+
+    <span class="doccomment">/// Create a new VDF with a custom challenge function. This is useful for testing.
+    </span><span class="attr">#[cfg(test)]
+    </span><span class="kw">fn </span>new_with_custom_challenge(
+        group_parameter: G::ParameterType,
+        iterations: u64,
+        challenge: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>, <span class="kw-2">&amp;</span>G, <span class="kw-2">&amp;</span>G) -&gt; BigUint,
+    ) -&gt; <span class="self">Self </span>{
+        <span class="self">Self </span>{
+            group_parameter,
+            iterations,
+            challenge,
             _scalar_multiplier: PhantomData::&lt;M&gt;,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, F: FiatShamir&lt;G&gt;, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; VDF
-    <span class="kw">for </span>WesolowskisVDF&lt;G, F, M&gt;
-{
+<span class="kw">impl</span>&lt;G: ParameterizedGroupElement, M: ScalarMultiplier&lt;G, BigUint&gt;&gt; VDF <span class="kw">for </span>WesolowskisVDF&lt;G, M&gt; {
     <span class="kw">type </span>InputType = G;
     <span class="kw">type </span>OutputType = G;
     <span class="kw">type </span>ProofType = G;
@@ -265,7 +340,7 @@
         <span class="kw">let </span>multiplier = M::new(input.clone(), G::zero(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter));
 
         <span class="comment">// Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
-        </span><span class="kw">let </span>challenge = F::compute_challenge(<span class="self">self</span>, input, <span class="kw-2">&amp;</span>output);
+        </span><span class="kw">let </span>challenge = (<span class="self">self</span>.challenge)(<span class="self">self</span>, input, <span class="kw-2">&amp;</span>output);
         <span class="kw">let </span><span class="kw-2">mut </span>quotient_remainder = (BigUint::from(<span class="number">0u8</span>), BigUint::from(<span class="number">2u8</span>));
         <span class="kw">let </span><span class="kw-2">mut </span>proof = multiplier.mul(<span class="kw-2">&amp;</span>quotient_remainder.<span class="number">0</span>);
         <span class="kw">for _ in </span><span class="number">1</span>..<span class="self">self</span>.iterations {
@@ -285,7 +360,7 @@
             <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
         }
 
-        <span class="kw">let </span>challenge = F::compute_challenge(<span class="self">self</span>, input, output);
+        <span class="kw">let </span>challenge = (<span class="self">self</span>.challenge)(<span class="self">self</span>, input, output);
         <span class="kw">let </span>r = BigUint::modpow(
             <span class="kw-2">&amp;</span>BigUint::from(<span class="number">2u8</span>),
             <span class="kw-2">&amp;</span>BigUint::from(<span class="self">self</span>.iterations),
@@ -302,22 +377,31 @@
 
 <span class="doccomment">/// Implementation of Wesolowski's VDF construction over an imaginary class group using a strong
 /// Fiat-Shamir implementation.
-</span><span class="kw">pub type </span>DefaultVDF = WesolowskisVDF&lt;
-    QuadraticForm,
-    StrongFiatShamir,
-    WindowedScalarMultiplier&lt;QuadraticForm, BigUint, <span class="number">256</span>, <span class="number">5</span>&gt;,
-&gt;;
+</span><span class="kw">pub type </span>DefaultVDF =
+    WesolowskisVDF&lt;QuadraticForm, WindowedScalarMultiplier&lt;QuadraticForm, BigUint, <span class="number">256</span>, <span class="number">5</span>&gt;&gt;;
+
+<span class="kw">fn </span>compute_challenge&lt;G: ParameterizedGroupElement, M: ScalarMultiplier&lt;G, BigUint&gt;&gt;(
+    vdf: <span class="kw-2">&amp;</span>WesolowskisVDF&lt;G, M&gt;,
+    input: <span class="kw-2">&amp;</span>G,
+    output: <span class="kw-2">&amp;</span>G,
+) -&gt; BigUint {
+    <span class="kw">let </span>seed = bcs::to_bytes(<span class="kw-2">&amp;</span>(input, output, vdf.iterations, <span class="kw-2">&amp;</span>vdf.group_parameter))
+        .expect(<span class="string">"Failed to serialize Fiat-Shamir input"</span>);
+    hash_prime(
+        <span class="kw-2">&amp;</span>seed,
+        DEFAULT_CHALLENGE_SIZE_IN_BYTES,
+        <span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">8 </span>* DEFAULT_CHALLENGE_SIZE_IN_BYTES - <span class="number">1</span>],
+    )
+}
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
+    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
     <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::Parameter;
-    <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::fiat_shamir::FiatShamir;
     <span class="kw">use </span><span class="kw">crate</span>::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
     <span class="kw">use </span>fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
-    <span class="kw">use </span>fastcrypto::groups::multiplier::ScalarMultiplier;
+    <span class="kw">use </span>fastcrypto::hash::{HashFunction, Sha256};
     <span class="kw">use </span>num_bigint::{BigInt, BigUint};
     <span class="kw">use </span>num_traits::Num;
     <span class="kw">use </span>std::str::FromStr;
@@ -359,7 +443,8 @@
         <span class="kw">let </span>iterations = <span class="number">4194304u64</span>;
         <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
 
-        <span class="kw">let </span>output = QuadraticForm::from_a_b_and_discriminant(
+        <span class="comment">// Expected output and proof
+        </span><span class="kw">let </span>output = QuadraticForm::from_a_b_and_discriminant(
             BigInt::from_str(<span class="string">"5229738340597739241737971536347978272715235210410923937567237618049037412166200077244995787131087550307523694727956250097277310766933336068474825405652036"</span>).unwrap(),
             BigInt::from_str(<span class="string">"-3096696303705675681560871524238217371290270541873900921742966946679899781296678313618277916864547545067742976652559823874869615853670880196986766000673113"</span>).unwrap(),
             <span class="kw-2">&amp;</span>discriminant,
@@ -373,29 +458,66 @@
 
         <span class="kw">let </span>vdf = WesolowskisVDF::&lt;
             QuadraticForm,
-            ChiaFiatShamir,
             WindowedScalarMultiplier&lt;QuadraticForm, BigUint, <span class="number">256</span>, <span class="number">5</span>&gt;,
-        &gt;::new(discriminant.clone(), iterations);
+        &gt;::new_with_custom_challenge(
+            discriminant.clone(),
+            iterations,
+            |<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>| {
+                <span class="comment">// Hard-coded challenge
+                </span>BigUint::from_str_radix(
+                    <span class="string">"a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f"</span>,
+                    <span class="number">16</span>,
+                )
+                .unwrap()
+            },
+        );
 
         <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
     }
 
-    <span class="comment">// Dummy Fiat-Shamir implementation for the Chia test vector
-    </span><span class="kw">struct </span>ChiaFiatShamir {}
+    <span class="attr">#[test]
+    </span><span class="kw">fn </span>vdf_e2e_test() {
+        <span class="comment">// This test runs an e2e test of the VDF-based randomness protocol with a 3072 bit discriminant.
+        // Number of iterations for the VDF
+        </span><span class="kw">let </span>iterations = <span class="number">100</span>;
+        <span class="kw">let </span>vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), iterations);
 
-    <span class="kw">impl </span>FiatShamir&lt;QuadraticForm&gt; <span class="kw">for </span>ChiaFiatShamir {
-        <span class="kw">fn </span>compute_challenge&lt;M: ScalarMultiplier&lt;QuadraticForm, BigUint&gt;&gt;(
-            _vdf: <span class="kw-2">&amp;</span>WesolowskisVDF&lt;QuadraticForm, <span class="self">Self</span>, M&gt;,
-            _input: <span class="kw-2">&amp;</span>QuadraticForm,
-            _output: <span class="kw-2">&amp;</span>QuadraticForm,
-        ) -&gt; BigUint {
-            <span class="comment">// Hardcoded challenge for the test vector
-            </span>BigUint::from_str_radix(
-                <span class="string">"a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f"</span>,
-                <span class="number">16</span>,
-            )
-            .unwrap()
-        }
+        <span class="comment">// Add some randomness
+        </span><span class="kw">let </span><span class="kw-2">mut </span>combined_randomness = Vec::new();
+        <span class="kw">let </span>some_randomness = <span class="string">b"some randomness"</span>;
+        combined_randomness =
+            Sha256::digest([<span class="kw-2">&amp;</span>combined_randomness, some_randomness.as_ref()].concat()).to_vec();
+        <span class="kw">let </span>more_randomness = <span class="string">b"more randomness"</span>;
+        combined_randomness =
+            Sha256::digest([<span class="kw-2">&amp;</span>combined_randomness, more_randomness.as_ref()].concat()).to_vec();
+        <span class="macro">assert_eq!</span>(
+            combined_randomness,
+            hex::decode(<span class="string">"2ef29e01809053dcfc89e7acad77e13c2bf03b5a9a0bbfea555a1423f1f1ae23"</span>)
+                .unwrap()
+        );
+
+        <span class="comment">// Compute the VDF input from the combined randomness
+        </span><span class="kw">let </span>input = QuadraticForm::hash_to_group_with_default_parameters(
+            <span class="kw-2">&amp;</span>combined_randomness,
+            <span class="kw-2">&amp;</span>DISCRIMINANT_3072,
+        )
+        .unwrap();
+        <span class="macro">assert_eq!</span>(bcs::to_bytes(<span class="kw-2">&amp;</span>input).unwrap(), hex::decode(<span class="string">"bc01009ed67199c633da0faa75a8ed0ff5c3ae7c278c79aad85953cdf86d57101b1ee941e5239b7d614e5b16eac269c460f16d57a12c75b52c48fac643a1c4918fab86805fe08fcd6b38093a17143cca7550fd018b8bc6871fb441b406bec7a7f3a61c3b2a5aa9daca5f9a6fa474b270688de643323de1acc8073a3418bc1681a614c1abb5fa56b61a7d6df4260547c9f613c5f0dbd7cb91a478ac94b1cce6b1f4784dc161ec3c85bf02cf99fd460b0b25a44d1990dacd1fe7a43b797611ea0210645fef3905f7e1accf97bd3b868a8a99d4a1a546e5a55e20f343fc2724829f1770591b50a73c93ec9b8c01ce1fa6b84eddd5a7ddd077110e21b8e058bf2fed2592a5449db177ec0e32595b20bda5779c2f346b01df8c0d277d9d3a7fe0a04e67b210be60334efdadb7abc5ac001b71509c2d487d9d26443527c1b8b02dfcffc50ef98020f569cdf6fffca5870b0e502493fceee35b79eed99e2c758a0aff4c86b2af0dd223e270ecf84eb7405fe35a9e37d6b080efa3c59806c2ceffa82f38502f9d37b6c298cf07534347cd9ee436406784bd7e0a57d380dd3923ddca13d86f3b2c83a135f125f9429a6802247a0e926b54144d74e4e8f66f0303cdc91843ce7e1fb9c6276c000512c0709c7fbfde2b80e66db77222447ef6b4da4a698e011c6de95ad88738aea465c158288a54223c7f7152577cc48691af57e2631e3224b7c94e2a4c5034db35bbf9e807753fa51da8798bf63b7e6ebd857ca4cf01fcab7a33e63fa89eb386e2ef98046c44491bdf8d62ede2af4ab79ccac88e404abb649b92f49c9f9abcf2216bb628e96400a75a66c12b6ff1c6dae498dd4183ad989921ebc6a1be73127741333671eb72cd25eabc69fecc3c50da06b4a3af155264d4e39e8c681b8c5555d4cab748ed15d119527820e01854fa203c2deba3a67620d47733919e8c71d659e60e86db69905ebdc4dbeda67f77291c2202b2116a05f227f963a97eb8c87104b2df349f01f251aa22bbd41541998ce755309b98d9597d7ee26b6acaef1869885c775e6ceb710c36c07e401e17a8ccb838e33f64e43e4db3491b5cef6e800c4e494610ab81a8b489263b86976160d7d0106cab79bf2a2fce5b01e8f9d1fb069a98e814c94f10d9917b7ea27209bc822b35741f56a9aeadb75a7eae6a8cbd7df08e079db64fd48655f42c24c14bb6c72e744206a3e15deee45cab74d589deb1055e0e69fe508a2ef356dc4e2caaaf89f44a520722490374eade8573429d0d6d16e3c681853f96759cc6e3ea3aaad55284282abd40686281ff944c6a507086143cf76d0f7f93b486d552fa4698656cff8a325fea84943333645b29ee11c99555b2076a09466f6e602db663e1bd45c523a12a7fcd2328d5139d14b25561b94f62f69d436c5d4c92b01ae3a91baa1b5781bd0bf2156e1d0042ab2cbc6e10f4389868fc41d05b19bfe3dfcaacb0478b3dce887da8435c9d49f457fd54e129133e5ce87c39acb9206213daec867fca35e6b612c523fb9fba959542a777ea74"</span>).unwrap());
+
+        <span class="comment">// Compute the output of the VDF
+        </span><span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
+        <span class="macro">assert_eq!</span>(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap(), hex::decode(<span class="string">"c001503be6eff558a40ba145da5aa9d1270367f32cde44c1601846cdd3d0911abce8ab6adb6b82682b45107545e9ae1efca44dd6f3ba8d95a687652b94f479f6b1a37156c44194d6bc5f266098b75251b12de6fa67de6aea14250c0481694db5f24db5e3c89da3354aafc10c4bd0371f9a175d1b5b193190c4c1089ed7a95dc07f1ce29021b55f3aaa7eb65725d61277f0996b783c005a919ba121d81f211f63d188ac525056235504fe4858765dc6498362d98e8540287a0ff78424c18de53abe46c0014f847bd49f599960fe3c3b7cfc571cd854c7d21b0e9984070f7e168c872a6e6480d8fd37d30602f57a237b83ae961e6a4acb94b78c32d04f06058bda037d6ad313c81f823db25c53c265b02a29008f727f95010c82b0cf8745e77a7f4000dac929ba83a4594482b4e6ff59c93a78df5c816f244914329c145e288fd3fd4800a1cc2df23f386112e569608e6de40ee65fe870960b4e3fee4bb188d8db0dd5df3c2384eb24a797eb20cf8524d563663ccde866a405e2713cfafdb760e50c77a797c10100a31fc5ca0a91aa788d5f5df17a1433f1a0e6e4da440ce935b1b48dc6868c8fc00d7ee725ce21797a6c4440af02570466081479e99eee1a5b509a3e1ac2e000ed386c35d9fadd130df2a292fa5f9aa2c195c48c9d11e58ac98c8dbd2169721ed2d2c9f5544de17deeaa9655360ed7baa46820f5e008af1e3f028d819dee3fee50ab55b266385dfc8f65f7f0c1b6149e5295bfefb83b14db3a30b2cefd1495ba4e5ae39d2b729f9644fc28764d03243fad3e61145ed83cbf2708b60c0b7cac7148"</span>).unwrap());
+        <span class="macro">assert_eq!</span>(bcs::to_bytes(<span class="kw-2">&amp;</span>proof).unwrap(), hex::decode(<span class="string">"0101010180032cf35709e1301d02b40a0dbe3dadfe6ec1eeba8fb8060a1decd0c7a126ea3f27fadcad81435601b0e0abca5c89173ef639e5a88043aa29801e6799e430b509e479b57af981f9ddd48d3a8d5919f99258081557a08270bb441233c78030a01e03ec199b5e3eef5ccc9b1a3d4841cbe4ff529c22a8cd1b1b0075338d864e3890942df6b007d2c3e3a8ef1ce7490c6bbec5372adfcbf8704a1ffc9a69db8d9cdc54762f019036e450e457325eef74b794f3f16ff327d68079a5b9de49163d7323937374f8a785a8f9afe84d6a71b336e4de00f239ee3af1d7604a3985e610e1603bd0e1a4998e19fa0c8920ffd8d61b0a87eeee50ac7c03ff7c4708a34f3bc92fd0103758c954ee34032cee2c78ad8cdc79a35dbc810196b7bf6833e1c45c83b09c0d1b78bc6f8753e10770e7045b08d50b4aa16a75b27a096d5ec1331f1fd0a44e95a8737c20240c90307b5497d3470393c2a00da0649e86d13e820591296c644fc1eef9e7c6ca4967c5e19df3153cd7fbd598c271e11c10397349ddc8cc8452ec"</span>).unwrap());
+
+        <span class="comment">// Verify the output and proof
+        </span><span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+
+        <span class="comment">// Derive randomness from the output
+        </span><span class="kw">let </span>randomness = Sha256::digest(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap());
+        <span class="kw">let </span>expected =
+            hex::decode(<span class="string">"f9ea418d988bbe5b13839bb5958aa78d43cc9f57b3dc9d84cebc7c1f5b1a338e"</span>)
+                .unwrap();
+        <span class="macro">assert_eq!</span>(randomness.to_vec(), expected);
     }
 }
 </code></pre></div></section></main></body></html>
