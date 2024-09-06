@@ -28,7 +28,7 @@ pub struct RSAGroupElement {
 impl RSAGroupElement {
     /// Create a new RSA group element with the given value and modulus.
     pub fn new(value: BigUint, modulus: RSAModulus) -> Self {
-        Self { value, modulus }
+        Self { value, modulus }.reduce()
     }
 
     /// Return the modulus of this group element.
@@ -40,6 +40,18 @@ impl RSAGroupElement {
     pub fn value(&self) -> &BigUint {
         &self.value
     }
+
+    /// Ensure that the value is in the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
+    fn reduce(self) -> Self {
+        if &self.value < self.modulus.half_value() {
+            self
+        } else {
+            Self {
+                value: self.modulus.value() - self.value,
+                modulus: self.modulus,
+            }
+        }
+    }
 }
 
 impl Add<&Self> for RSAGroupElement {
@@ -47,21 +59,19 @@ impl Add<&Self> for RSAGroupElement {
 
     fn add(self, rhs: &Self) -> Self::Output {
         assert_eq!(self.modulus, rhs.modulus);
-        Self {
-            value: self.value.mul(&rhs.value).mod_floor(self.modulus.value()),
-            modulus: self.modulus,
-        }
+        Self::new(
+            self.value.mul(&rhs.value).mod_floor(self.modulus.value()),
+            self.modulus,
+        )
     }
 }
 
 impl Doubling for RSAGroupElement {
     fn double(self) -> Self {
-        Self {
-            value: self
-                .value
-                .modpow(&BigUint::from(2u8), self.modulus.value()),
-            modulus: self.modulus,
-        }
+        Self::new(
+            self.value.modpow(&BigUint::from(2u8), self.modulus.value()),
+            self.modulus,
+        )
     }
 }
 
@@ -84,6 +94,7 @@ mod tests {
     use crate::rsa_group::RSAGroupElement;
     use fastcrypto::groups::Doubling;
     use num_bigint::BigUint;
+    use num_traits::One;
     use std::ops::Add;
 
     #[test]
@@ -96,6 +107,10 @@ mod tests {
         let expected_double = element.clone().add(&element);
         let double = element.double();
         assert_eq!(&double, &expected_double);
+
+        let minus_one = RSAGroupElement::new(GoogleRSA4096.value() - BigUint::one(), GoogleRSA4096);
+        let one = RSAGroupElement::new(BigUint::one(), GoogleRSA4096);
+        assert_eq!(minus_one, one);
     }
 
     #[test]
