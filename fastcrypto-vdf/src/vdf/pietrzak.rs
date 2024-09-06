@@ -105,7 +105,7 @@ where
 
             let r = compute_challenge(self, &x, &y, mu);
             x = multiply(&x, &r, &self.group_parameter) + mu;
-            y = multiply(mu, &r, &self.group_parameter) + y;
+            y = multiply(mu, &r, &self.group_parameter) + &y;
         }
 
         // In case the proof is shorter than the full proof, we need to compute the remaining powers.
