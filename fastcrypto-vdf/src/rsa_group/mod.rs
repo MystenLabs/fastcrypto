@@ -50,7 +50,8 @@ impl RSAGroupElement {
         &self.value
     }
 
-    /// Ensure that the value is in the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
+    /// Assuming that self.value < modulus.value(), this returns the given value mapped to the subgroup
+    /// <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
     fn reduce(self) -> Self {
         if &self.value < self.modulus.half_value() {
             self
@@ -68,19 +69,13 @@ impl Add<&Self> for RSAGroupElement {
 
     fn add(self, rhs: &Self) -> Self::Output {
         assert_eq!(self.modulus, rhs.modulus);
-        Self::new(
-            self.value.mul(&rhs.value).mod_floor(self.modulus.value()),
-            self.modulus,
-        )
+        Self::new(self.value.mul(&rhs.value), self.modulus)
     }
 }
 
 impl Doubling for RSAGroupElement {
     fn double(self) -> Self {
-        Self::new(
-            self.value.modpow(&BigUint::from(2u8), self.modulus.value()),
-            self.modulus,
-        )
+        Self::new(self.value.pow(2), self.modulus)
     }
 }
 
