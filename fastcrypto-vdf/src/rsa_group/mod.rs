@@ -18,6 +18,9 @@ use modulus::RSAModulus;
 mod biguint_serde;
 pub mod modulus;
 
+/// This represents an element of the subgroup of an RSA group <i>Z<sub>N</sub><sup>*</sup> / <±1></i>
+/// where <i>N</i> is the product of two large primes. The set of supported moduli is a fixed list
+/// of public RSA moduli from renowned CAs. See also [RSAModulus].
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RSAGroupElement {
     #[serde(with = "biguint_serde")]
