@@ -4,7 +4,6 @@
 use crate::class_group::bigint_serde;
 use crate::math::hash_prime;
 use crate::math::hash_prime::is_probable_prime;
-use crate::math::parameterized_group::Parameter;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use lazy_static::lazy_static;
@@ -70,12 +69,10 @@ impl Discriminant {
     pub(crate) fn from_trusted_bigint(value: BigInt) -> Self {
         Self(value)
     }
-}
 
-impl Parameter for Discriminant {
     /// Compute a valid discriminant (aka a negative prime equal to 1 mod 8) based on the given seed.
     /// The size_in_bits must be divisible by 8.
-    fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
+    pub fn from_seed(seed: &[u8], size_in_bits: usize) -> FastCryptoResult<Discriminant> {
         if size_in_bits % 8 != 0 {
             return Err(InvalidInput);
         }

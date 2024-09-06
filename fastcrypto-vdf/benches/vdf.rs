@@ -8,7 +8,6 @@ use criterion::measurement::Measurement;
 use criterion::{BenchmarkGroup, BenchmarkId, Criterion};
 use fastcrypto_vdf::class_group::discriminant::Discriminant;
 use fastcrypto_vdf::class_group::QuadraticForm;
-use fastcrypto_vdf::math::parameterized_group::Parameter;
 use fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
 use fastcrypto_vdf::vdf::VDF;
 use num_bigint::BigInt;
