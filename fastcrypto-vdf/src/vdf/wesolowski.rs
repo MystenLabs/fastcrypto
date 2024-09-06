@@ -140,7 +140,7 @@ mod tests {
     use crate::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     use crate::vdf::VDF;
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
-    use fastcrypto::hash::Sha256;
+    use fastcrypto::hash::{HashFunction, Sha256};
     use num_bigint::{BigInt, BigUint};
     use num_traits::Num;
     use std::str::FromStr;
