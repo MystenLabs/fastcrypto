@@ -14,6 +14,8 @@ pub enum RSAModulus {
 }
 
 impl RSAModulus {
+
+    /// Return the value of the modulus as a [BigUint].
     pub fn value(&self) -> &'static BigUint {
         match self {
             RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096,
