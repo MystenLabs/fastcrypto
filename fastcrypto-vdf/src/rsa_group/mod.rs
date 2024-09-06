@@ -29,9 +29,15 @@ pub struct RSAGroupElement {
 }
 
 impl RSAGroupElement {
-    /// Create a new RSA group element with the given value and modulus.
+    /// Create a new RSA group element with the given value and modulus. The value will be reduced to
+    /// the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>, so it does not need to be in canonical
+    /// representation.
     pub fn new(value: BigUint, modulus: RSAModulus) -> Self {
-        Self { value, modulus }.reduce()
+        Self {
+            value: value.mod_floor(modulus.value()),
+            modulus,
+        }
+        .reduce()
     }
 
     /// Return the modulus of this group element.
