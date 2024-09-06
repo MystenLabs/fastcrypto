@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::ops::{Add, Mul};
-use std::rc::Rc;
 
 use num_bigint::BigUint;
 use num_integer::Integer;
@@ -19,36 +18,27 @@ use modulus::RSAModulus;
 mod biguint_serde;
 pub mod modulus;
 
-#[derive(Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RSAGroupElement {
     #[serde(with = "biguint_serde")]
     value: BigUint,
-    modulus: Rc<RSAModulus>,
+    modulus: RSAModulus,
 }
 
 impl RSAGroupElement {
     /// Create a new RSA group element with the given value and modulus.
-    pub fn new(value: BigUint, modulus: &Rc<RSAModulus>) -> Self {
-        Self {
-            value,
-            modulus: modulus.clone(),
-        }
+    pub fn new(value: BigUint, modulus: RSAModulus) -> Self {
+        Self { value, modulus }
     }
 
     /// Return the modulus of this group element.
-    pub fn modulus(&self) -> &BigUint {
-        &self.modulus.value
+    pub fn modulus(&self) -> &RSAModulus {
+        &self.modulus
     }
 
     /// Return the canonical representation of this group element.
     pub fn value(&self) -> &BigUint {
         &self.value
-    }
-}
-
-impl Clone for RSAGroupElement {
-    fn clone(&self) -> Self {
-        Self::new(self.value.clone(), &self.modulus)
     }
 }
 
@@ -58,7 +48,7 @@ impl Add<&Self> for RSAGroupElement {
     fn add(self, rhs: &Self) -> Self::Output {
         assert_eq!(self.modulus, rhs.modulus);
         Self {
-            value: self.value.mul(&rhs.value).mod_floor(&self.modulus.value),
+            value: self.value.mul(&rhs.value).mod_floor(self.modulus.value()),
             modulus: self.modulus,
         }
     }
@@ -67,40 +57,39 @@ impl Add<&Self> for RSAGroupElement {
 impl Doubling for RSAGroupElement {
     fn double(self) -> Self {
         Self {
-            value: self.value.modpow(&BigUint::from(2u8), &self.modulus.value),
-            modulus: Rc::clone(&self.modulus),
+            value: self
+                .value
+                .modpow(&BigUint::from(2u8), self.modulus.value()),
+            modulus: self.modulus,
         }
     }
 }
 
 impl ParameterizedGroupElement for RSAGroupElement {
-    type ParameterType = Rc<RSAModulus>;
+    type ParameterType = RSAModulus;
 
     fn zero(parameter: &Self::ParameterType) -> Self {
-        Self::new(BigUint::one(), parameter)
+        Self::new(BigUint::one(), parameter.clone())
     }
 
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
-        self.modulus.value == parameter.value
+        self.modulus == *parameter
     }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::math::parameterized_group::ParameterizedGroupElement;
-    use crate::rsa_group::modulus::{RSAModulus, GOOGLE_RSA_MODULUS_4096};
+    use crate::rsa_group::modulus::RSAModulus::{AmazonRSA2048, GoogleRSA4096};
     use crate::rsa_group::RSAGroupElement;
     use fastcrypto::groups::Doubling;
     use num_bigint::BigUint;
     use std::ops::Add;
-    use std::rc::Rc;
 
     #[test]
     fn test_group_ops() {
-        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
-
-        let zero = RSAGroupElement::zero(&modulus);
-        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
+        let zero = RSAGroupElement::zero(&GoogleRSA4096);
+        let element = RSAGroupElement::new(BigUint::from(7u32), GoogleRSA4096);
         let sum = element.clone().add(&zero);
         assert_eq!(&sum, &element);
 
@@ -110,36 +99,9 @@ mod tests {
     }
 
     #[test]
-    fn test_clone() {
-        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
-        assert_eq!(Rc::strong_count(&modulus), 1);
-
-        // Creates a new element so counter is incremented
-        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
-        assert_eq!(Rc::strong_count(&modulus), 2);
-
-        // Clones the element so counter is incremented
-        {
-            let _cloned_element = element.clone();
-            assert_eq!(Rc::strong_count(&modulus), 3);
-        }
-        // ...and decremented again when _cloned_element goes out of scope
-        assert_eq!(Rc::strong_count(&modulus), 2);
-
-        // Calling double creates a new element but consumes the input, so the counter is unchanged
-        let _double = element.double();
-        assert_eq!(Rc::strong_count(&modulus), 2);
-    }
-
-    #[test]
     fn test_is_in_group() {
-        let modulus = Rc::new(GOOGLE_RSA_MODULUS_4096.clone());
-        let element = RSAGroupElement::new(BigUint::from(7u32), &modulus);
-        assert!(element.is_in_group(&modulus));
-
-        let other_modulus = Rc::new(RSAModulus {
-            value: BigUint::from(15u32),
-        });
-        assert!(!element.is_in_group(&other_modulus));
+        let element = RSAGroupElement::new(BigUint::from(7u32), GoogleRSA4096);
+        assert!(element.is_in_group(&GoogleRSA4096));
+        assert!(!element.is_in_group(&AmazonRSA2048));
     }
 }
