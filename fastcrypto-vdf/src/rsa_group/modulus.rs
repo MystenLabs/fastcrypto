@@ -23,6 +23,7 @@ impl RSAModulus {
         }
     }
 
+    /// Return half the value of the modulus rounded down as a [BigUint].
     pub(super) fn half_value(&self) -> &'static BigUint {
         match self {
             RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096_HALF,
