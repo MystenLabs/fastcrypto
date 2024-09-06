@@ -75,7 +75,7 @@ where
             // TODO: Precompute some of the mu's to speed up the proof generation.
             let mu = x.clone().repeated_doubling(t);
 
-            let r = compute_challenge(&x, &y, self.iterations, &mu, &self.group_parameter);
+            let r = compute_challenge(self, &x, &y, &mu);
             x = multiply(&x, &r, &self.group_parameter) + &mu;
             y = multiply(&mu, &r, &self.group_parameter) + &y;
 
@@ -103,7 +103,7 @@ where
                 y = y.double();
             }
 
-            let r = compute_challenge(&x, &y, self.iterations, mu, &self.group_parameter);
+            let r = compute_challenge(self, &x, &y, mu);
             x = multiply(&x, &r, &self.group_parameter) + mu;
             y = multiply(mu, &r, &self.group_parameter) + y;
         }
@@ -119,16 +119,15 @@ where
 
 /// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
 fn compute_challenge<G: ParameterizedGroupElement + Serialize>(
+    vdf: &PietrzaksVDF<G>,
     input: &G,
     output: &G,
-    iterations: u64,
     mu: &G,
-    group_parameter: &G::ParameterType,
 ) -> BigUint
 where
     G::ParameterType: Serialize,
 {
-    let seed = bcs::to_bytes(&(input, output, iterations, mu, group_parameter))
+    let seed = bcs::to_bytes(&(input, output, mu, vdf.iterations, &vdf.group_parameter))
         .expect("Failed to serialize Fiat-Shamir input.");
     let hash = Keccak256::digest(seed);
     BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
@@ -144,7 +143,6 @@ fn check_parity_and_iterate(t: &mut u64) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::Parameter;
     use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;
 

@@ -180,7 +180,7 @@ mod tests {
 
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{Parameter, ParameterizedGroupElement};
+    use crate::math::parameterized_group::ParameterizedGroupElement;
 
     #[test]
     fn test_qf_from_seed() {

@@ -4,52 +4,66 @@
 use std::marker::PhantomData;
 use std::ops::ShlAssign;
 
-use num_bigint::BigUint;
-use num_integer::Integer;
-
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
 use fastcrypto::groups::multiplier::ScalarMultiplier;
-use fiat_shamir::{FiatShamir, StrongFiatShamir};
+use num_bigint::BigUint;
+use num_integer::Integer;
 
 use crate::class_group::QuadraticForm;
+use crate::math::hash_prime::hash_prime;
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::VDF;
 
-mod fiat_shamir;
+/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+///
+/// From Wesolowski (2018), "Efficient verifiable delay functions" (https://eprint.iacr.org/2018/623),
+/// we get that the challenge must be a random prime among the first 2^{2k} primes where k is the
+/// security parameter in bits. Setting k = 128, and recalling that the prime number theorem states
+/// that the n-th prime number is approximately n * ln(n), we can estimate the number of bits required
+/// to represent the n-th prime as log2(n * ln(n)). For n = 2^{2*128}, this is approximately 264 bits
+/// = 33 bytes. This is also the challenge size used by chiavdf.
+pub const DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = 33;
 
 /// An implementation of Wesolowski's VDF construction (https://eprint.iacr.org/2018/623) over a
 /// group of unknown order.
-pub struct WesolowskisVDF<
-    G: ParameterizedGroupElement,
-    F: FiatShamir<G>,
-    M: ScalarMultiplier<G, BigUint>,
-> {
+pub struct WesolowskisVDF<G: ParameterizedGroupElement, M: ScalarMultiplier<G, BigUint>> {
     group_parameter: G::ParameterType,
     iterations: u64,
-    _fiat_shamir: PhantomData<F>,
+    challenge: fn(&Self, &G, &G) -> BigUint,
     _scalar_multiplier: PhantomData<M>,
 }
 
-impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigUint>>
-    WesolowskisVDF<G, F, M>
-{
+impl<G: ParameterizedGroupElement, M: ScalarMultiplier<G, BigUint>> WesolowskisVDF<G, M> {
     /// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
     /// will require computing `2^iterations * input` which requires `iterations` group operations.
     pub fn new(group_parameter: G::ParameterType, iterations: u64) -> Self {
         Self {
             group_parameter,
             iterations,
-            _fiat_shamir: PhantomData::<F>,
+            challenge: compute_challenge,
+            _scalar_multiplier: PhantomData::<M>,
+        }
+    }
+
+    /// Create a new VDF with a custom challenge function. This is useful for testing.
+    #[cfg(test)]
+    fn new_with_custom_challenge(
+        group_parameter: G::ParameterType,
+        iterations: u64,
+        challenge: fn(&Self, &G, &G) -> BigUint,
+    ) -> Self {
+        Self {
+            group_parameter,
+            iterations,
+            challenge,
             _scalar_multiplier: PhantomData::<M>,
         }
     }
 }
 
-impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigUint>> VDF
-    for WesolowskisVDF<G, F, M>
-{
+impl<G: ParameterizedGroupElement, M: ScalarMultiplier<G, BigUint>> VDF for WesolowskisVDF<G, M> {
     type InputType = G;
     type OutputType = G;
     type ProofType = G;
@@ -65,7 +79,7 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigU
         let multiplier = M::new(input.clone(), G::zero(&self.group_parameter));
 
         // Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
-        let challenge = F::compute_challenge(self, input, &output);
+        let challenge = (self.challenge)(self, input, &output);
         let mut quotient_remainder = (BigUint::from(0u8), BigUint::from(2u8));
         let mut proof = multiplier.mul(&quotient_remainder.0);
         for _ in 1..self.iterations {
@@ -85,7 +99,7 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigU
             return Err(InvalidInput);
         }
 
-        let challenge = F::compute_challenge(self, input, output);
+        let challenge = (self.challenge)(self, input, output);
         let r = BigUint::modpow(
             &BigUint::from(2u8),
             &BigUint::from(self.iterations),
@@ -102,22 +116,30 @@ impl<G: ParameterizedGroupElement, F: FiatShamir<G>, M: ScalarMultiplier<G, BigU
 
 /// Implementation of Wesolowski's VDF construction over an imaginary class group using a strong
 /// Fiat-Shamir implementation.
-pub type DefaultVDF = WesolowskisVDF<
-    QuadraticForm,
-    StrongFiatShamir,
-    WindowedScalarMultiplier<QuadraticForm, BigUint, 256, 5>,
->;
+pub type DefaultVDF =
+    WesolowskisVDF<QuadraticForm, WindowedScalarMultiplier<QuadraticForm, BigUint, 256, 5>>;
+
+fn compute_challenge<G: ParameterizedGroupElement, M: ScalarMultiplier<G, BigUint>>(
+    vdf: &WesolowskisVDF<G, M>,
+    input: &G,
+    output: &G,
+) -> BigUint {
+    let seed = bcs::to_bytes(&(input, output, vdf.iterations, &vdf.group_parameter))
+        .expect("Failed to serialize Fiat-Shamir input");
+    hash_prime(
+        &seed,
+        DEFAULT_CHALLENGE_SIZE_IN_BYTES,
+        &[0, 8 * DEFAULT_CHALLENGE_SIZE_IN_BYTES - 1],
+    )
+}
 
 #[cfg(test)]
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::Parameter;
-    use crate::vdf::wesolowski::fiat_shamir::FiatShamir;
     use crate::vdf::wesolowski::{DefaultVDF, WesolowskisVDF};
     use crate::vdf::VDF;
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
-    use fastcrypto::groups::multiplier::ScalarMultiplier;
     use num_bigint::{BigInt, BigUint};
     use num_traits::Num;
     use std::str::FromStr;
@@ -173,28 +195,19 @@ mod tests {
 
         let vdf = WesolowskisVDF::<
             QuadraticForm,
-            ChiaFiatShamir,
             WindowedScalarMultiplier<QuadraticForm, BigUint, 256, 5>,
-        >::new(discriminant.clone(), iterations);
+        >::new_with_custom_challenge(
+            discriminant.clone(),
+            iterations,
+            |_, _, _| {
+                BigUint::from_str_radix(
+                    "a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f",
+                    16,
+                )
+                .unwrap()
+            },
+        );
 
         assert!(vdf.verify(&input, &output, &proof).is_ok());
-    }
-
-    // Dummy Fiat-Shamir implementation for the Chia test vector
-    struct ChiaFiatShamir {}
-
-    impl FiatShamir<QuadraticForm> for ChiaFiatShamir {
-        fn compute_challenge<M: ScalarMultiplier<QuadraticForm, BigUint>>(
-            _vdf: &WesolowskisVDF<QuadraticForm, Self, M>,
-            _input: &QuadraticForm,
-            _output: &QuadraticForm,
-        ) -> BigUint {
-            // Hardcoded challenge for the test vector
-            BigUint::from_str_radix(
-                "a8d8728e9942a994a3a1aa3d2fa21549aa1a7b37d3c315c6e705bda590689c640f",
-                16,
-            )
-            .unwrap()
-        }
     }
 }
