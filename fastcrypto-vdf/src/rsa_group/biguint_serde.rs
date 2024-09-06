@@ -2,24 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use num_bigint::BigUint;
-use serde::Deserialize;
-use serde::Deserializer;
-use serde::Serialize;
-use serde::Serializer;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<BigUint, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    Ok(BigUint::from_bytes_be(&<Vec<u8>>::deserialize(
-        deserializer,
-    )?))
+pub(super) fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<BigUint, D::Error> {
+    <Vec<u8>>::deserialize(deserializer).map(|b| BigUint::from_bytes_be(&b))
 }
 
-pub(crate) fn serialize<S>(value: &BigUint, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
+pub(super) fn serialize<S: Serializer>(value: &BigUint, serializer: S) -> Result<S::Ok, S::Error> {
     value.to_bytes_be().serialize(serializer)
 }
 
