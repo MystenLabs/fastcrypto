@@ -11,7 +11,7 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto" }
-num-bigint = { version = "0.4.4" }
+num-bigint = { version = "0.4.4", features = ["serde"] }
 num-traits = "0.2.16"
 num-integer = "0.1.45"
 num-prime = { version = "0.4.3", features = ["big-int"] }

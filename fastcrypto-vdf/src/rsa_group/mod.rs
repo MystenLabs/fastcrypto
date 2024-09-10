@@ -1,70 +1,47 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use std::ops::{Add, Mul};
-
 use num_bigint::BigUint;
-use num_integer::Integer;
 use num_traits::One;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use std::ops::{Add, Mul};
 
 use crate::math::parameterized_group::ParameterizedGroupElement;
 use fastcrypto::groups::Doubling;
 use modulus::RSAModulus;
 
-/// Serialization and deserialization for `num_bigint::BigUint`. The format used in num_bigint is
-/// a serialization of the u32 words which is hard to port to other platforms. Instead, we serialize
-/// a big integer in big-endian byte order. See also [BigUint::to_bytes_be].
-mod biguint_serde;
 pub mod modulus;
 
 /// This represents an element of the subgroup of an RSA group <i>Z<sub>N</sub><sup>*</sup> / <±1></i>
 /// where <i>N</i> is the product of two large primes. The set of supported moduli is a fixed list
 /// of public RSA moduli from renowned CAs. See also [RSAModulus].
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub struct RSAGroupElement {
-    #[serde(with = "biguint_serde")]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+pub struct RSAGroupElement<'a> {
     value: BigUint,
-    modulus: RSAModulus,
+
+    // We assume that the modulus is known from the context, so it is not serialized.
+    #[serde(skip)]
+    modulus: &'a RSAModulus,
 }
 
-impl RSAGroupElement {
+impl<'a> RSAGroupElement<'a> {
     /// Create a new RSA group element with the given value and modulus. The value will be reduced to
     /// the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>, so it does not need to be in canonical
     /// representation.
-    pub fn new(value: BigUint, modulus: RSAModulus) -> Self {
+    pub fn new(value: BigUint, modulus: &'a RSAModulus) -> Self {
         Self {
-            value: value.mod_floor(modulus.value()),
+            value: modulus.reduce(value),
             modulus,
         }
-        .reduce()
-    }
-
-    /// Return the modulus of this group element.
-    pub fn modulus(&self) -> &RSAModulus {
-        &self.modulus
     }
 
     /// Return the canonical representation of this group element.
     pub fn value(&self) -> &BigUint {
         &self.value
     }
-
-    /// Assuming that self.value < modulus.value(), this returns the given value mapped to the subgroup
-    /// <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
-    fn reduce(self) -> Self {
-        if &self.value < self.modulus.half_value() {
-            self
-        } else {
-            Self {
-                value: self.modulus.value() - self.value,
-                modulus: self.modulus,
-            }
-        }
-    }
 }
 
-impl Add<&Self> for RSAGroupElement {
+impl Add<&Self> for RSAGroupElement<'_> {
     type Output = Self;
 
     fn add(self, rhs: &Self) -> Self::Output {
@@ -73,17 +50,17 @@ impl Add<&Self> for RSAGroupElement {
     }
 }
 
-impl Doubling for RSAGroupElement {
+impl Doubling for RSAGroupElement<'_> {
     fn double(self) -> Self {
         Self::new(self.value.pow(2), self.modulus)
     }
 }
 
-impl ParameterizedGroupElement for RSAGroupElement {
-    type ParameterType = RSAModulus;
+impl<'a> ParameterizedGroupElement for RSAGroupElement<'a> {
+    type ParameterType = &'a RSAModulus;
 
     fn zero(parameter: &Self::ParameterType) -> Self {
-        Self::new(BigUint::one(), parameter.clone())
+        Self::new(BigUint::one(), parameter)
     }
 
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
@@ -94,7 +71,7 @@ impl ParameterizedGroupElement for RSAGroupElement {
 #[cfg(test)]
 mod tests {
     use crate::math::parameterized_group::ParameterizedGroupElement;
-    use crate::rsa_group::modulus::RSAModulus::{AmazonRSA2048, GoogleRSA4096};
+    use crate::rsa_group::modulus::test::{AMAZON_2048, GOOGLE_4096};
     use crate::rsa_group::RSAGroupElement;
     use fastcrypto::groups::Doubling;
     use num_bigint::BigUint;
@@ -103,8 +80,8 @@ mod tests {
 
     #[test]
     fn test_group_ops() {
-        let zero = RSAGroupElement::zero(&GoogleRSA4096);
-        let element = RSAGroupElement::new(BigUint::from(7u32), GoogleRSA4096);
+        let zero = RSAGroupElement::zero(&GOOGLE_4096);
+        let element = RSAGroupElement::new(BigUint::from(7u32), &GOOGLE_4096);
         let sum = element.clone().add(&zero);
         assert_eq!(&sum, &element);
 
@@ -112,15 +89,15 @@ mod tests {
         let double = element.double();
         assert_eq!(&double, &expected_double);
 
-        let minus_one = RSAGroupElement::new(GoogleRSA4096.value() - BigUint::one(), GoogleRSA4096);
-        let one = RSAGroupElement::new(BigUint::one(), GoogleRSA4096);
+        let minus_one = RSAGroupElement::new(&GOOGLE_4096.value - BigUint::one(), &GOOGLE_4096);
+        let one = RSAGroupElement::new(BigUint::one(), &GOOGLE_4096);
         assert_eq!(minus_one, one);
     }
 
     #[test]
     fn test_is_in_group() {
-        let element = RSAGroupElement::new(BigUint::from(7u32), GoogleRSA4096);
-        assert!(element.is_in_group(&GoogleRSA4096));
-        assert!(!element.is_in_group(&AmazonRSA2048));
+        let element = RSAGroupElement::new(BigUint::from(7u32), &GOOGLE_4096);
+        assert!(element.is_in_group(&GOOGLE_4096));
+        assert!(!element.is_in_group(&AMAZON_2048));
     }
 }

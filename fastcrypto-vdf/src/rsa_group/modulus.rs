@@ -1,43 +1,82 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use lazy_static::lazy_static;
+use fastcrypto::error::FastCryptoError;
 use num_bigint::BigUint;
-use num_traits::Num;
+use num_integer::Integer;
 use serde::{Deserialize, Serialize};
 use std::ops::Shr;
+use std::str::FromStr;
 
-/// The modulus for an RSA group. Only a fixed set of moduli are supported, represented by this enum.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-pub enum RSAModulus {
-    GoogleRSA4096,
-    AmazonRSA2048,
+#[derive(PartialEq, Eq, Debug, Deserialize, Serialize)]
+#[serde(from = "BigUint")]
+pub struct RSAModulus {
+    pub(crate) value: BigUint,
+
+    /// Precomputed value of `modulus / 2` for faster reduction.
+    #[serde(skip)]
+    half: BigUint,
+}
+
+impl FromStr for RSAModulus {
+    type Err = FastCryptoError;
+
+    /// Parse an RSA modulus from a decimal string. The modulus is not validated, so it is the caller's
+    /// responsibility to ensure that it is a valid RSA modulus.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        BigUint::from_str(s)
+            .map(Self::from)
+            .map_err(|_| FastCryptoError::InvalidInput)
+    }
+}
+
+impl From<BigUint> for RSAModulus {
+    /// Create an RSA modulus from a [BigUint]. The modulus is not validated, so it is the caller's
+    /// responsibility to ensure that it is a valid RSA modulus.
+    fn from(value: BigUint) -> Self {
+        let half = (&value).shr(1);
+        Self { value, half }
+    }
 }
 
 impl RSAModulus {
-    /// Return the value of the modulus as a [BigUint].
-    pub fn value(&self) -> &BigUint {
-        match self {
-            RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096,
-            RSAModulus::AmazonRSA2048 => &AMAZON_RSA_MODULUS_2048,
-        }
-    }
-
-    /// Return half the value of the modulus rounded down as a [BigUint].
-    pub(super) fn half_value(&self) -> &BigUint {
-        match self {
-            RSAModulus::GoogleRSA4096 => &GOOGLE_RSA_MODULUS_4096_HALF,
-            RSAModulus::AmazonRSA2048 => &AMAZON_RSA_MODULUS_2048_HALF,
+    /// Reduce the given value modulo this modulus. Further, if the value is greater than half of the
+    /// modulus, the result is negated. This is to ensure that the result is in the subgroup
+    /// <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
+    pub(super) fn reduce(&self, value: BigUint) -> BigUint {
+        let value = value.mod_floor(&self.value);
+        if value < self.half {
+            value
+        } else {
+            &self.value - value
         }
     }
 }
 
-lazy_static! {
-    // Modulus from Google Certificate, GTS Root R1 (https://pki.goog/repository/).
-    pub static ref GOOGLE_RSA_MODULUS_4096: BigUint = BigUint::from_str_radix("00b611028b1ee3a1779b3bdcbf943eb795a7403ca1fd82f97d32068271f6f68c7ffbe8dbbc6a2e9797a38c4bf92bf6b1f9ce841db1f9c597deefb9f2a3e9bc12895ea7aa52abf82327cba4b19c63dbd7997ef00a5eeb68a6f4c65a470d4d1033e34eb113a3c8186c4becfc0990df9d6429252307a1b4d23d2e60e0cfd20987bbcd48f04dc2c27a888abbbacf5919d6af8fb007b09e31f182c1c0df2ea66d6c190eb5d87e261a45033db079a49428ad0f7f26e5a808fe96e83c689453ee833a882b159609b2e07a8c2e75d69ceba756648f964f68ae3d97c2848fc0bc40c00b5cbdf687b3356cac18507f84e04ccd92d320e933bc5299af32b529b3252ab448f972e1ca64f7e682108de89dc28a88fa38668afc63f901f978fd7b5c77fa7687faecdfb10e799557b4bd26efd601d1eb160abb8e0bb5c5c58a55abd3acea914b29cc19a432254e2af16544d002ceaace49b4ea9f7c83b0407be743aba76ca38f7d8981fa4ca5ffd58ec3ce4be0b5d8b38e45cf76c0ed402bfd530fb0a7d53b0db18aa203de31adcc77ea6f7b3ed6df912212e6befad832fc1063145172de5dd61693bd296833ef3a66ec078a26df13d757657827de5e491400a2007f9aa821b6a9b195b0a5b90d1611dac76c483c40e07e0d5acd563cd19705b9cb4bed394b9cc43fd255136e24b0d671faf4c1bacced1bf5fe8141d800983d3ac8ae7a9837180595", 16).unwrap();
-    pub static ref GOOGLE_RSA_MODULUS_4096_HALF: BigUint = GOOGLE_RSA_MODULUS_4096.clone().shr(1);
+#[cfg(test)]
+pub(crate) mod test {
+    use crate::rsa_group::modulus::RSAModulus;
+    use lazy_static::lazy_static;
+    use std::str::FromStr;
 
-    // Modulus from Amazon CA 1 (https://www.amazontrust.com/repository/AmazonRootCA1.pem)
-    pub static ref AMAZON_RSA_MODULUS_2048: BigUint = BigUint::from_str_radix("b2788071ca78d5e371af478050747d6ed8d78876f49968f7582160f97484012fac022d86d3a0437a4eb2a4d036ba01be8ddb48c80717364cf4ee8823c73eeb37f5b519f84968b0ded7b976381d619ea4fe8236a5e54a56e445e1f9fdb416fa74da9c9b35392ffab02050066c7ad080b2a6f9afec47198f503807dca2873958f8bad5a9f948673096ee94785e6f89a351c0308666a14566ba54eba3c391f948dcffd1e8302d7d2d747035d78824f79ec4596ebb738717f2324628b843fab71daacab4f29f240e2d4bf7715c5e69ffea9502cb388aae50386fdbfb2d621bc5c71e54e177e067c80f9c8723d63f40207f2080c4804c3e3b24268e04ae6c9ac8aa0d", 16).unwrap();
-    pub static ref AMAZON_RSA_MODULUS_2048_HALF: BigUint = AMAZON_RSA_MODULUS_2048.clone().shr(1);
+    lazy_static! {
+        /// Modulus from Google Certificate, GTS Root R1 (https://pki.goog/repository/).
+        static ref GOOGLE: RSAModulus = RSAModulus::from_str("742766292573789461138430713106656498577482106105452767343211753017973550878861638590047246174848574634573720584492944669558785810905825702100325794803983120697401526210439826606874730300903862093323398754125584892080731234772626570955922576399434033022944334623029747454371697865218999618129768679013891932765999545116374192173968985738129135224425889467654431372779943313524100225335793262665132039441111162352797240438393795570253671786791600672076401253164614309929080014895216439462173458352253266568535919120175826866378039177020829725517356783703110010084715777806343235841345264684364598708732655710904078855499605447884872767583987312177520332134164321746982952420498393591583416464199126272682424674947720461866762624768163777784559646117979893432692133818266724658906066075396922419161138847526583266030290937955148683298741803605463007526904924936746018546134099068479370078440023459839544052468222048449819089106832452146002755336956394669648596035188293917750838002531358091511944112847917218550963597247358780879029417872466325821996717925086546502702016501643824750668459565101211439428003662613442032518886622942136328590823063627643918273848803884791311375697313014431195473178892344923166262358299334827234064598421").unwrap();
+        pub static ref GOOGLE_4096: &'static RSAModulus = &GOOGLE;
+
+        /// Modulus from Amazon CA 1 (https://www.amazontrust.com/repository/AmazonRootCA1.pem)
+        static ref AMAZON: RSAModulus = RSAModulus::from_str("22529839904807742196558773392430766620630713202204326167346456925862066285712069978308045976033918808540171076811098215136401323342247576789054764683787147408289170989302937775178809187827657352584557953877946352196797789035355954596527030584944622221752357105572088106020206921431118198373122638305846252087992561841631797199384157902018140720267433956687491591657652730221337591680012205319549572614035105482287002884850178224609018864719685310905426619874727796905080238179726224664042154200651710137931048812546957419686875805576245376866031854569863410951649630469236463991472642618512857920826701027482532358669").unwrap();
+        pub static ref AMAZON_2048: &'static RSAModulus = &AMAZON;
+    }
+
+    #[test]
+    fn test_serde() {
+        let test_values = vec![*GOOGLE_4096, *AMAZON_2048];
+        for modulus in test_values {
+            let serialized = bcs::to_bytes(&modulus).unwrap();
+
+            let deserialized: RSAModulus = bcs::from_bytes(&serialized).unwrap();
+            assert_eq!(modulus, &deserialized);
+        }
+    }
 }
