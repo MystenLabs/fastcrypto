@@ -84,7 +84,7 @@ impl<'a> ParameterizedGroupElement for RSAGroupElement<'a> {
     }
 
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
-        self.modulus == *parameter
+        &self.modulus == parameter
     }
 }
 
@@ -142,7 +142,7 @@ mod tests {
         let large_number_reduced = large_number.mod_floor(&GOOGLE_4096.value);
         let large_number_as_group_element =
             RSAGroupElement::new(large_number.clone(), &GOOGLE_4096);
-        assert!(&large_number_reduced >= &(&GOOGLE_4096.value).shr(1));
+        assert!(large_number_reduced >= (&GOOGLE_4096.value).shr(1));
         assert_eq!(
             large_number_as_group_element.value,
             &GOOGLE_4096.value - &large_number_reduced
