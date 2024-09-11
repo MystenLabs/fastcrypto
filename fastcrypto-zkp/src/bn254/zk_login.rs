@@ -113,6 +113,8 @@ pub enum OIDCProvider {
     TestIssuer,
     /// https://oauth2.playtron.one/.well-known/jwks.json
     Playtron,
+    /// https://auth.3dos.io/.well-known/openid-configuration
+    Threedos,
 }
 
 impl FromStr for OIDCProvider {
@@ -131,6 +133,7 @@ impl FromStr for OIDCProvider {
             "KarrierOne" => Ok(Self::KarrierOne),
             "Credenza3" => Ok(Self::Credenza3),
             "Playtron" => Ok(Self::Playtron),
+            "Threedos" => Ok(Self::Threedos),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -162,6 +165,7 @@ impl ToString for OIDCProvider {
             Self::KarrierOne => "KarrierOne".to_string(),
             Self::Credenza3 => "Credenza3".to_string(),
             Self::Playtron => "Playtron".to_string(),
+            Self::Threedos => "Threedos".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -223,6 +227,10 @@ impl OIDCProvider {
                 "https://oauth2.playtron.one",
                 "https://oauth2.playtron.one/.well-known/jwks.json",
             ),
+            OIDCProvider::Threedos => ProviderConfig::new(
+                "https://auth.3dos.io",
+                "https://auth.3dos.io/.well-known/jwks.json",
+            ),
         }
     }
 
@@ -239,6 +247,7 @@ impl OIDCProvider {
             "https://accounts.karrier.one/" => Ok(Self::KarrierOne),
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
+            "https://auth.3dos.io" => Ok(Self::Threedos),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {

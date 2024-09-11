@@ -444,6 +444,7 @@ async fn test_get_jwks() {
         OIDCProvider::KarrierOne,
         OIDCProvider::Credenza3,
         OIDCProvider::Playtron,
+        OIDCProvider::Threedos,
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());

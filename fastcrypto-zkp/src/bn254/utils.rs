@@ -86,6 +86,7 @@ pub fn get_oidc_url(
             OIDCProvider::AwsTenant((region, tenant_id)) => format!("https://{}.auth.{}.amazoncognito.com/login?response_type=token&client_id={}&redirect_uri={}&nonce={}", tenant_id, region, client_id, redirect_url, nonce),
             OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
             OIDCProvider::Playtron => return Err(FastCryptoError::InvalidInput), // Playtron does not issue JWTs interactively, this is not valid to call.
+            OIDCProvider::Threedos => return Err(FastCryptoError::InvalidInput), // Threedos does not issue JWTs interactively yet, this is not valid to call.
 })
 }
 
