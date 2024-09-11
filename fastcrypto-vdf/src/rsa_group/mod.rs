@@ -6,7 +6,7 @@ use fastcrypto::groups::Doubling;
 use fastcrypto::hash::{HashFunction, Keccak256};
 use modulus::RSAModulus;
 use num_bigint::BigUint;
-use num_traits::{One, ToBytes};
+use num_traits::One;
 use serde::Serialize;
 use std::ops::{Add, Mul};
 
@@ -47,14 +47,19 @@ impl<'a> RSAGroupElement<'a> {
     pub fn from_seed(seed: &[u8], modulus: &'a RSAModulus) -> Self {
         // The number of 32-byte chunks needed to sample enough bytes.
         let k = (modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES).div_ceil(32);
+        let k_bytes = (k as u64).to_be_bytes();
 
+        let modulus_bytes = modulus.value.to_bytes_be();
+
+        // H(i || k || seed length || seed || N) for i = 0, 1, ..., k-1
         let bytes: Vec<u8> = (0..k)
             .flat_map(|i| {
                 let mut hash = Keccak256::new();
-                hash.update(i.to_be_bytes());
-                hash.update(k.to_be_bytes());
+                hash.update((i as u64).to_be_bytes());
+                hash.update(k_bytes);
+                hash.update((seed.len() as u64).to_be_bytes());
                 hash.update(seed);
-                hash.update(modulus.value.to_be_bytes());
+                hash.update(&modulus_bytes);
                 hash.finalize().digest
             })
             .collect();
