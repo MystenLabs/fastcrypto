@@ -208,6 +208,8 @@
 <a href="#208" id="208">208</a>
 <a href="#209" id="209">209</a>
 <a href="#210" id="210">210</a>
+<a href="#211" id="211">211</a>
+<a href="#212" id="212">212</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -299,7 +301,9 @@
         // We can't use bcs because there, the length of the vector is prefixed as a single byte and
         // not a little-endian u64 as it is here.
 
-        </span><span class="kw">if </span>(bytes.len() - (G1_SIZE + <span class="number">3 </span>* G2_SIZE + size_of::&lt;u64&gt;())) % G1_SIZE != <span class="number">0 </span>{
+        </span><span class="kw">if </span>bytes.len() &lt; G1_SIZE + <span class="number">3 </span>* G2_SIZE + size_of::&lt;u64&gt;()
+            || (bytes.len() - (G1_SIZE + <span class="number">3 </span>* G2_SIZE + size_of::&lt;u64&gt;())) % G1_SIZE != <span class="number">0
+        </span>{
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput);
         }
 
