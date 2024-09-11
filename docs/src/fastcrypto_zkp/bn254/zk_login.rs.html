@@ -750,6 +750,15 @@
 <a href="#750" id="750">750</a>
 <a href="#751" id="751">751</a>
 <a href="#752" id="752">752</a>
+<a href="#753" id="753">753</a>
+<a href="#754" id="754">754</a>
+<a href="#755" id="755">755</a>
+<a href="#756" id="756">756</a>
+<a href="#757" id="757">757</a>
+<a href="#758" id="758">758</a>
+<a href="#759" id="759">759</a>
+<a href="#760" id="760">760</a>
+<a href="#761" id="761">761</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -865,6 +874,8 @@
     </span>TestIssuer,
     <span class="doccomment">/// https://oauth2.playtron.one/.well-known/jwks.json
     </span>Playtron,
+    <span class="doccomment">/// https://auth.3dos.io/.well-known/openid-configuration
+    </span>Threedos,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
@@ -883,6 +894,7 @@
             <span class="string">"KarrierOne" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
             <span class="string">"Credenza3" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             <span class="string">"Playtron" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
+            <span class="string">"Threedos" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>re = Regex::new(
                     <span class="string">r"AwsTenant-region:(?P&lt;region&gt;[^.]+)-tenant_id:(?P&lt;tenant_id&gt;[^/]+)"</span>,
@@ -914,6 +926,7 @@
             <span class="self">Self</span>::KarrierOne =&gt; <span class="string">"KarrierOne"</span>.to_string(),
             <span class="self">Self</span>::Credenza3 =&gt; <span class="string">"Credenza3"</span>.to_string(),
             <span class="self">Self</span>::Playtron =&gt; <span class="string">"Playtron"</span>.to_string(),
+            <span class="self">Self</span>::Threedos =&gt; <span class="string">"Threedos"</span>.to_string(),
             <span class="self">Self</span>::AwsTenant((region, tenant_id)) =&gt; {
                 <span class="macro">format!</span>(<span class="string">"AwsTenant-region:{}-tenant_id:{}"</span>, region, tenant_id)
             }
@@ -975,6 +988,10 @@
                 <span class="string">"https://oauth2.playtron.one"</span>,
                 <span class="string">"https://oauth2.playtron.one/.well-known/jwks.json"</span>,
             ),
+            OIDCProvider::Threedos =&gt; ProviderConfig::new(
+                <span class="string">"https://auth.3dos.io"</span>,
+                <span class="string">"https://auth.3dos.io/.well-known/jwks.json"</span>,
+            ),
         }
     }
 
@@ -991,6 +1008,7 @@
             <span class="string">"https://accounts.karrier.one/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::KarrierOne),
             <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             <span class="string">"https://oauth2.playtron.one" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
+            <span class="string">"https://auth.3dos.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
                 <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
