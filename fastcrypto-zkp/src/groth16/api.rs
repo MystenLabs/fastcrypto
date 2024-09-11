@@ -89,7 +89,9 @@ impl<G1: Pairing> VerifyingKey<G1> {
         // We can't use bcs because there, the length of the vector is prefixed as a single byte and
         // not a little-endian u64 as it is here.
 
-        if (bytes.len() - (G1_SIZE + 3 * G2_SIZE + size_of::<u64>())) % G1_SIZE != 0 {
+        if bytes.len() < G1_SIZE + 3 * G2_SIZE + size_of::<u64>()
+            || (bytes.len() - (G1_SIZE + 3 * G2_SIZE + size_of::<u64>())) % G1_SIZE != 0
+        {
             return Err(FastCryptoError::InvalidInput);
         }
 
