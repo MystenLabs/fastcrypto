@@ -47,7 +47,6 @@ impl<'a> RSAGroupElement<'a> {
     pub fn from_seed(seed: &[u8], modulus: &'a RSAModulus) -> Self {
         // The number of 32-byte chunks needed to sample enough bytes.
         let k = (modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES).div_ceil(32);
-        let k_bytes = (k as u64).to_be_bytes();
 
         let modulus_bytes = modulus.value.to_bytes_be();
 
@@ -56,7 +55,7 @@ impl<'a> RSAGroupElement<'a> {
             .flat_map(|i| {
                 let mut hash = Keccak256::new();
                 hash.update((i as u64).to_be_bytes());
-                hash.update(k_bytes);
+                hash.update((k as u64).to_be_bytes());
                 hash.update((seed.len() as u64).to_be_bytes());
                 hash.update(seed);
                 hash.update(&modulus_bytes);
