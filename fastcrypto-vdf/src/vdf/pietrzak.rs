@@ -143,7 +143,7 @@ fn check_parity_and_iterate(t: &mut u64) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::rsa_group::modulus::test::AMAZON_2048;
+    use crate::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
     use crate::rsa_group::RSAGroupElement;
     use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;
@@ -197,9 +197,9 @@ mod tests {
     #[test]
     fn test_vdf_rsa() {
         let iterations = 136u64;
-        let input = RSAGroupElement::new(7u32.into(), &AMAZON_2048);
+        let input = RSAGroupElement::new(7u32.into(), &AMAZON_MODULUS_2048_REF);
 
-        let vdf = PietrzaksVDF::<RSAGroupElement>::new(&AMAZON_2048, iterations);
+        let vdf = PietrzaksVDF::<RSAGroupElement>::new(&AMAZON_MODULUS_2048_REF, iterations);
         let (output, proof) = vdf.evaluate(&input).unwrap();
 
         // Regression tests
