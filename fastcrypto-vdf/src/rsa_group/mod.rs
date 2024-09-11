@@ -9,7 +9,6 @@ use num_bigint::BigUint;
 use num_traits::One;
 use serde::Serialize;
 use std::ops::{Add, Mul};
-use fastcrypto::error::FastCryptoResult;
 
 /// When generating a random element, we sample uniformly 8 bytes larger than the modulus to limit the bias by 2^{-64}.
 const BIAS_BYTES: usize = 16;
@@ -46,7 +45,6 @@ impl<'a> RSAGroupElement<'a> {
     /// Generate a uniformly random element of the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>
     /// using the given seed.
     pub fn from_seed(seed: &[u8], modulus: &'a RSAModulus) -> Self {
-
         // The number of 32-byte chunks needed to sample enough bytes.
         let k = (modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES).div_ceil(32);
 
@@ -63,7 +61,7 @@ impl<'a> RSAGroupElement<'a> {
             .flat_map(|i| {
                 let mut hash = Keccak256::new();
                 hash.update((i as u64).to_be_bytes());
-                hash.update(&inner_hash);
+                hash.update(inner_hash);
                 hash.finalize().digest
             })
             .collect();
