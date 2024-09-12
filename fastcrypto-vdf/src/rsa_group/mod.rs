@@ -21,7 +21,6 @@ pub mod modulus;
 pub struct RSAGroupElement<'a> {
     value: BigUint,
 
-    // We assume that the modulus is known from the context, so it is not serialized.
     #[serde(skip)]
     modulus: &'a RSAModulus,
 }
@@ -65,8 +64,7 @@ impl<'a> RSAGroupElement<'a> {
         hash.update(modulus.value.to_bytes_be());
         let inner_hash = hash.finalize().digest;
 
-        // Compute result = prod H(i || inner_hash) for i = 0, 1, ..., k-1
-        // interpreted as big-endian bytes.
+        // Compute result = H(0 || inner_hash) | ... | H(k-1 || inner_hash) interpreted as big-endian bytes.
         let bytes: Vec<u8> = (0..k)
             .flat_map(|i| {
                 let mut hash = Keccak256::new();
@@ -76,7 +74,7 @@ impl<'a> RSAGroupElement<'a> {
             })
             .collect();
 
-        // The sampled number is probably larger than the modulus, but this is reduced in the constructor.
+        // The sampled number is almost surely larger than the modulus, but this is reduced in the constructor.
         Self::new(BigUint::from_bytes_be(&bytes), modulus)
     }
 }
