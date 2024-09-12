@@ -10,11 +10,11 @@ use std::str::FromStr;
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
 pub struct RSAModulus {
-    pub(crate) value: BigUint,
+    pub(super) value: BigUint,
 
     /// Precomputed value of `modulus / 2` for faster reduction.
     #[serde(skip)]
-    half: BigUint,
+    pub(super) half: BigUint,
 }
 
 impl FromStr for RSAModulus {
