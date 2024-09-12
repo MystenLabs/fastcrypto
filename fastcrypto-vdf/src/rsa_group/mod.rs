@@ -53,8 +53,8 @@ impl<'a> RSAGroupElement<'a> {
     /// where `k` is the number of 32 byte chunks needed to sample `modulus size + [BIAS_BYTES]` bytes.
     pub fn from_seed(seed: &[u8], modulus: &'a RSAModulus) -> Self {
         // The number of 32-byte chunks needed to sample enough bytes.
-        let minimum_bits = modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES;
-        let k = minimum_bits.div_ceil(Keccak256::OUTPUT_SIZE);
+        let bytes = modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES;
+        let k = bytes.div_ceil(Keccak256::OUTPUT_SIZE);
 
         // Compute inner_hash = H(k || seed length || seed || modulus)
         let mut hash = Keccak256::new();
