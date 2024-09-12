@@ -9,3 +9,6 @@ pub mod vdf;
 
 #[cfg(any(test, feature = "experimental"))]
 pub mod math;
+
+#[cfg(any(test, feature = "experimental"))]
+pub mod rsa_group;

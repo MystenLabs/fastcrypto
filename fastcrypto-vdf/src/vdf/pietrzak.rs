@@ -105,7 +105,7 @@ where
 
             let r = compute_challenge(self, &x, &y, mu);
             x = multiply(&x, &r, &self.group_parameter) + mu;
-            y = multiply(mu, &r, &self.group_parameter) + y;
+            y = multiply(mu, &r, &self.group_parameter) + &y;
         }
 
         // In case the proof is shorter than the full proof, we need to compute the remaining powers.
@@ -143,8 +143,12 @@ fn check_parity_and_iterate(t: &mut u64) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
+    use crate::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
+    use crate::rsa_group::RSAGroupElement;
     use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;
+    use num_bigint::{BigInt, BigUint};
+    use std::str::FromStr;
 
     #[test]
     fn test_vdf() {
@@ -155,6 +159,21 @@ mod tests {
 
         let vdf = PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), iterations);
         let (output, proof) = vdf.evaluate(&input).unwrap();
+
+        // Regression tests
+        let expected = QuadraticForm::from_a_b_and_discriminant(
+            BigInt::from_str(
+                "13206998000609712751440666523761252432358037295085948932090770003917198208994",
+            )
+            .unwrap(),
+            BigInt::from_str(
+                "-7219543762309344565443896781132785043370346972592093790721340651476391057433",
+            )
+            .unwrap(),
+            &discriminant,
+        )
+        .unwrap();
+        assert_eq!(output, expected);
 
         assert!(vdf.verify(&input, &output, &proof).is_ok());
 
@@ -173,5 +192,22 @@ mod tests {
         assert!(PietrzaksVDF::<QuadraticForm>::new(discriminant.clone(), 0)
             .evaluate(&input)
             .is_err());
+    }
+
+    #[test]
+    fn test_vdf_rsa() {
+        let iterations = 136u64;
+        let input = RSAGroupElement::new(7u32.into(), &AMAZON_MODULUS_2048_REF);
+
+        let vdf = PietrzaksVDF::<RSAGroupElement>::new(&AMAZON_MODULUS_2048_REF, iterations);
+        let (output, proof) = vdf.evaluate(&input).unwrap();
+
+        // Regression tests
+        assert_eq!(output.value(), &BigUint::from_str("2916729428333236907384003242184677361436177746028521829074262794270450030614249791656280719383240637347810313226096694498769545443206627336734040174799816874893648275347170568080246298018251459166394606111665076144473956288322218549726358786461312990585124805408517840980926720744474390941814421387920163335970657049749743256686182627881823961603323280107182060168658389127157273203349284277273772693040421354262168429489840004941529927120543842810077679137948568146407590629247965765706139158405798203267187654092671067863393874252018466867363677473729172248315453692024494782080164026070367013679213682978612826272").unwrap());
+
+        assert!(vdf.verify(&input, &output, &proof).is_ok());
+
+        let other_input = input.clone() + &input;
+        assert!(vdf.verify(&other_input, &output, &proof).is_err())
     }
 }
