@@ -115,6 +115,8 @@ pub enum OIDCProvider {
     Playtron,
     /// https://auth.3dos.io/.well-known/openid-configuration
     Threedos,
+    /// https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration
+    Onefc,
 }
 
 impl FromStr for OIDCProvider {
@@ -134,6 +136,7 @@ impl FromStr for OIDCProvider {
             "Credenza3" => Ok(Self::Credenza3),
             "Playtron" => Ok(Self::Playtron),
             "Threedos" => Ok(Self::Threedos),
+            "Onefc" => Ok(Self::Onefc),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -166,6 +169,7 @@ impl ToString for OIDCProvider {
             Self::Credenza3 => "Credenza3".to_string(),
             Self::Playtron => "Playtron".to_string(),
             Self::Threedos => "Threedos".to_string(),
+            Self::Onefc => "Onefc".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -231,6 +235,10 @@ impl OIDCProvider {
                 "https://auth.3dos.io",
                 "https://auth.3dos.io/.well-known/jwks.json",
             ),
+            OIDCProvider::Onefc => ProviderConfig::new(
+                "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/",
+                "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/discovery/v2.0/keys",
+            ),
         }
     }
 
@@ -248,6 +256,7 @@ impl OIDCProvider {
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
             "https://auth.3dos.io" => Ok(Self::Threedos),
+            "https://https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => Ok(Self::Onefc),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
