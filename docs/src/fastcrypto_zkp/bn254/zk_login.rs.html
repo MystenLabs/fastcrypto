@@ -768,6 +768,8 @@
 <a href="#768" id="768">768</a>
 <a href="#769" id="769">769</a>
 <a href="#770" id="770">770</a>
+<a href="#771" id="771">771</a>
+<a href="#772" id="772">772</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -1026,7 +1028,9 @@
             <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             <span class="string">"https://oauth2.playtron.one" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
             <span class="string">"https://auth.3dos.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
-            <span class="string">"https://https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc),
+            <span class="string">"https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" </span>=&gt; {
+                <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc)
+            }
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
                 <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
