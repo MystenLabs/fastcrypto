@@ -759,6 +759,15 @@
 <a href="#759" id="759">759</a>
 <a href="#760" id="760">760</a>
 <a href="#761" id="761">761</a>
+<a href="#762" id="762">762</a>
+<a href="#763" id="763">763</a>
+<a href="#764" id="764">764</a>
+<a href="#765" id="765">765</a>
+<a href="#766" id="766">766</a>
+<a href="#767" id="767">767</a>
+<a href="#768" id="768">768</a>
+<a href="#769" id="769">769</a>
+<a href="#770" id="770">770</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -876,6 +885,8 @@
     </span>Playtron,
     <span class="doccomment">/// https://auth.3dos.io/.well-known/openid-configuration
     </span>Threedos,
+    <span class="doccomment">/// https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration
+    </span>Onefc,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
@@ -895,6 +906,7 @@
             <span class="string">"Credenza3" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             <span class="string">"Playtron" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
             <span class="string">"Threedos" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
+            <span class="string">"Onefc" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>re = Regex::new(
                     <span class="string">r"AwsTenant-region:(?P&lt;region&gt;[^.]+)-tenant_id:(?P&lt;tenant_id&gt;[^/]+)"</span>,
@@ -927,6 +939,7 @@
             <span class="self">Self</span>::Credenza3 =&gt; <span class="string">"Credenza3"</span>.to_string(),
             <span class="self">Self</span>::Playtron =&gt; <span class="string">"Playtron"</span>.to_string(),
             <span class="self">Self</span>::Threedos =&gt; <span class="string">"Threedos"</span>.to_string(),
+            <span class="self">Self</span>::Onefc =&gt; <span class="string">"Onefc"</span>.to_string(),
             <span class="self">Self</span>::AwsTenant((region, tenant_id)) =&gt; {
                 <span class="macro">format!</span>(<span class="string">"AwsTenant-region:{}-tenant_id:{}"</span>, region, tenant_id)
             }
@@ -992,6 +1005,10 @@
                 <span class="string">"https://auth.3dos.io"</span>,
                 <span class="string">"https://auth.3dos.io/.well-known/jwks.json"</span>,
             ),
+            OIDCProvider::Onefc =&gt; ProviderConfig::new(
+                <span class="string">"https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/"</span>,
+                <span class="string">"https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/discovery/v2.0/keys"</span>,
+            ),
         }
     }
 
@@ -1009,6 +1026,7 @@
             <span class="string">"https://accounts.credenza3.com" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Credenza3),
             <span class="string">"https://oauth2.playtron.one" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Playtron),
             <span class="string">"https://auth.3dos.io" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
+            <span class="string">"https://https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc),
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
                 <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
