@@ -219,6 +219,10 @@ fn test_prepare_pvk_bytes() {
     let mut modified_bytes = vk_bytes.clone();
     modified_bytes.pop();
     assert!(prepare_pvk_bytes(&modified_bytes).is_err());
+
+    // Empty vk
+    let empty_vk = vec![];
+    assert!(prepare_pvk_bytes(&empty_vk).is_err());
 }
 
 #[test]
