@@ -54,18 +54,18 @@ impl<'a> RSAGroupElement<'a> {
     pub fn from_seed(seed: &[u8], modulus: &'a RSAModulus) -> Self {
         // The number of 32-byte chunks needed to sample enough bytes.
         let bytes = modulus.value.bits().div_ceil(8) as usize + BIAS_BYTES;
-        let k = bytes.div_ceil(Keccak256::OUTPUT_SIZE);
+        let chunks = bytes.div_ceil(Keccak256::OUTPUT_SIZE);
 
         // Compute inner_hash = H(k || seed length || seed || modulus)
         let mut hash = Keccak256::new();
-        hash.update((k as u64).to_be_bytes());
+        hash.update((chunks as u64).to_be_bytes());
         hash.update((seed.len() as u64).to_be_bytes());
         hash.update(seed);
         hash.update(modulus.value.to_bytes_be());
         let inner_hash = hash.finalize().digest;
 
         // Compute result = H(0 || inner_hash) | ... | H(k-1 || inner_hash) interpreted as big-endian bytes.
-        let bytes: Vec<u8> = (0..k)
+        let bytes: Vec<u8> = (0..chunks)
             .flat_map(|i| {
                 let mut hash = Keccak256::new();
                 hash.update((i as u64).to_be_bytes());
