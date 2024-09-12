@@ -5,7 +5,7 @@ var srcIndex = new Map(JSON.parse('[\
 ["fastcrypto_cli",["",[],["lib.rs"]]],\
 ["fastcrypto_derive",["",[],["lib.rs"]]],\
 ["fastcrypto_tbls",["",[],["dkg.rs","dkg_v0.rs","dkg_v1.rs","dl_verification.rs","ecies.rs","ecies_v0.rs","ecies_v1.rs","lib.rs","mocked_dkg.rs","nizk.rs","nodes.rs","polynomial.rs","random_oracle.rs","tbls.rs","types.rs"]]],\
-["fastcrypto_vdf",["",[["class_group",[],["bigint_serde.rs","discriminant.rs","hash.rs","mod.rs","reduction.rs"]],["math",[],["crt.rs","extended_gcd.rs","hash_prime.rs","jacobi.rs","mod.rs","modular_sqrt.rs","parameterized_group.rs"]],["vdf",[],["mod.rs","pietrzak.rs","wesolowski.rs"]]],["lib.rs"]]],\
+["fastcrypto_vdf",["",[["class_group",[],["bigint_serde.rs","discriminant.rs","hash.rs","mod.rs","reduction.rs"]],["math",[],["crt.rs","extended_gcd.rs","hash_prime.rs","jacobi.rs","mod.rs","modular_sqrt.rs","parameterized_group.rs"]],["rsa_group",[],["mod.rs","modulus.rs"]],["vdf",[],["mod.rs","pietrzak.rs","wesolowski.rs"]]],["lib.rs"]]],\
 ["fastcrypto_zkp",["",[["bls12381",[["api",[],["conversions.rs","mod.rs"]]],["mod.rs"]],["bn254",[["poseidon",[],["constants.rs","mod.rs"]]],["api.rs","mod.rs","utils.rs","verifier.rs","zk_login.rs","zk_login_api.rs"]],["groth16",[],["api.rs","mod.rs"]]],["dummy_circuits.rs","lib.rs","zk_login_utils.rs"]]],\
 ["sigs_cli",["",[],["sigs_cli.rs"]]],\
 ["tlock_cli",["",[],["tlock.rs"]]],\

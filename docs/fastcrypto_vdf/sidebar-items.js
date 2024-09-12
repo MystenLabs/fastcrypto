@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["class_group","math","vdf"]};
+window.SIDEBAR_ITEMS = {"mod":["class_group","math","rsa_group","vdf"]};
