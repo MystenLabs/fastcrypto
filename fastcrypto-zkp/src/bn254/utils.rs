@@ -88,6 +88,7 @@ pub fn get_oidc_url(
             OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
             OIDCProvider::Playtron => return Err(FastCryptoError::InvalidInput), // Playtron does not issue JWTs interactively, this is not valid to call.
             OIDCProvider::Threedos => return Err(FastCryptoError::InvalidInput), // Threedos does not issue JWTs interactively yet, this is not valid to call.
+            OIDCProvider::FanTV => return Err(FastCryptoError::InvalidInput), // FanTV does not issue JWTs interactively yet, this is not valid to call.
 })
 }
 
