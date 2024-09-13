@@ -236,7 +236,11 @@ mod tests {
         );
 
         // Compute the VDF input from the combined randomness
-        let input = QuadraticForm::hash_to_group(&combined_randomness, &DISCRIMINANT_3072).unwrap();
+        let input = QuadraticForm::hash_to_group_with_default_parameters(
+            &combined_randomness,
+            &DISCRIMINANT_3072,
+        )
+        .unwrap();
         assert_eq!(bcs::to_bytes(&input).unwrap(), hex::decode("2300b094d4facc4b552df23714f5d09a6ddfde4f0d06163b7fda1fc022ebafa5be196f4d33fc3bce80649d3e64cb6d1497bf65f6b40ffcf5ca3211889b994019cf4dfa8697b0f69a70c5ee14ef438cf0e50b2f93786f506fde02412ad75a441ab785dbe34ce00cb829962e4216f964fb8c53852cc86e0977428322ef7d505e10c37260a9ebeb0cc66ddb59901556bc4a6fa9bc0f9d8159c3319f3a2e1781912000917a12054126a728b46dc6849cda81648e0f34200824a050fd1e01382bf4cfa17019ae2f6f48cfbe6e4ef84e1b00361ed6a4892e4b5db94e8847e0c7050637d668c5cbef08fc60fde9b5d68a02af4c5ed7f7ba99f3b68eb59fa2ea8a282b705124ec5577f166130a0c043823ea1a3fd495643dfbe8d294a9f034d91f8c8e76689a676ebe1ded776bdf7fd1e4050a84b8cead2e6adcd0ae7d12a6e221cb6579eb54911d3ce9739048924f3451c07b203ab811a9506d4d134b335eab6e84c49983f405f3d5b2040c522922e501086c19db5a82a4c7134a7cad5738bc884b382e4b3cfca0521a0e7eacd0d053855dcbb6fa897f122cc2b49df60d4d3424d37a01764b77b65b5f5472365ae3b82a3cb7f9f7a13d4a6ca100c4").unwrap());
 
         // Compute the output of the VDF
