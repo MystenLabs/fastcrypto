@@ -244,6 +244,9 @@
 <a href="#244" id="244">244</a>
 <a href="#245" id="245">245</a>
 <a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -334,6 +337,9 @@
             OIDCProvider::TestIssuer =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Test issuer does not issue JWTs interactively, this is not valid to call. 
             </span>OIDCProvider::Playtron =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Playtron does not issue JWTs interactively, this is not valid to call.
             </span>OIDCProvider::Threedos =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// Threedos does not issue JWTs interactively yet, this is not valid to call.
+            // FanTV case can call the following url to get the Token:
+            // https://fantv-apis.fantiger.com/v1/oauth2/auth?clientId={}&amp;redirectUri={}&amp;responseType=authorization_code&amp;scope=openid&amp;userId={}&amp;nonce={}
+            </span>OIDCProvider::FanTV =&gt; <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InvalidInput), <span class="comment">// FanTV does not issue JWTs interactively yet, this is not valid to call.
 </span>})
 }
 
