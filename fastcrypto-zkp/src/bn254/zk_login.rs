@@ -244,7 +244,7 @@ impl OIDCProvider {
                 "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/discovery/v2.0/keys",
             ),
             OIDCProvider::FanTV => ProviderConfig::new(
-                "https://accounts.fantv.world/",
+                "https://accounts.fantv.world",
                 "https://fantv-apis.fantiger.com/v1/web3/jwks.json",
             ),
         }
