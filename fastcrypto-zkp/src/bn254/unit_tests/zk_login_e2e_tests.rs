@@ -189,7 +189,7 @@ struct TestData {
     jwt: String,
     kid: String,
     n: String,
-    _provider: String,
+    provider: String,
 }
 
 #[tokio::test]
@@ -206,7 +206,10 @@ async fn test_end_to_end_all_providers() {
             provider,
             OIDCProvider::from_iss(&provider.get_config().iss).unwrap()
         );
-        println!("Testing provider: {:?}", provider);
+        println!(
+            "Testing provider: {:?} test case: {:?}",
+            provider, test_data.provider
+        );
         let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&test_data.jwt).await;
         let mut map = ImHashMap::new();
         map.insert(
