@@ -446,6 +446,7 @@ async fn test_get_jwks() {
         OIDCProvider::Playtron,
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
+        OIDCProvider::FanTV,
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
