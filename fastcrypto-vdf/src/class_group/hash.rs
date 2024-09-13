@@ -23,7 +23,7 @@ use crate::math::modular_sqrt::modular_square_root;
 
 /// The security parameter for the hash function in bits. The image will be at least
 /// 2^{2*SECURITY_PARAMETER} large to ensure that the hash function is collision resistant.
-const SECURITY_PARAMETER: u64 = 128;
+const SECURITY_PARAMETER_IN_BITS: u64 = 128;
 
 /// This lower limit ensures that the default, secure parameters set below give valid results,
 /// namely a reduced quadratic form.
@@ -78,11 +78,13 @@ fn hash_to_group_with_custom_parameters(
     // Ensure that the image is sufficiently large
     debug_assert!(
         prime_factors as f64 * n_bit_primes(prime_factor_size_in_bytes * 8)
-            >= 2.0 * SECURITY_PARAMETER as f64
+            >= 2.0 * SECURITY_PARAMETER_IN_BITS as f64
     );
 
     // Ensure that the prime factors are so large that the corresponding quadratic form cannot be precomputed.
-    debug_assert!(n_bit_primes(prime_factor_size_in_bytes * 8) >= SECURITY_PARAMETER as f64);
+    debug_assert!(
+        n_bit_primes(prime_factor_size_in_bytes * 8) >= SECURITY_PARAMETER_IN_BITS as f64
+    );
 
     // Ensure that the result will be reduced
     debug_assert!(
