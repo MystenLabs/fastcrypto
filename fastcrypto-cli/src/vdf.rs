@@ -185,8 +185,11 @@ fn execute(cmd: Command) -> Result<String, Error> {
         Command::Hash(arguments) => {
             let input = hex::decode(arguments.message)
                 .map_err(|_| Error::new(ErrorKind::InvalidInput, "Invalid message."))?;
-            let output = QuadraticForm::hash_to_group(&input, &DISCRIMINANT_3072)
-                .map_err(|_| Error::new(ErrorKind::InvalidInput, "The discriminant is invalid."))?;
+            let output =
+                QuadraticForm::hash_to_group_with_default_parameters(&input, &DISCRIMINANT_3072)
+                    .map_err(|_| {
+                        Error::new(ErrorKind::InvalidInput, "The discriminant is invalid.")
+                    })?;
 
             let output_bytes = hex::encode(bcs::to_bytes(&output).unwrap());
 

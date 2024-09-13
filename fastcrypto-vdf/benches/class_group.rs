@@ -18,8 +18,10 @@ fn class_group_ops_single<M: Measurement>(
     let discriminant =
         Discriminant::try_from(BigInt::from_str_radix(discriminant_string, 10).unwrap()).unwrap();
     let discriminant_size = discriminant.bits();
-    let x = QuadraticForm::hash_to_group(&[0, 1, 2], &discriminant).unwrap();
-    let y = QuadraticForm::hash_to_group(&[3, 4, 5], &discriminant).unwrap();
+    let x =
+        QuadraticForm::hash_to_group_with_default_parameters(&[0, 1, 2], &discriminant).unwrap();
+    let y =
+        QuadraticForm::hash_to_group_with_default_parameters(&[3, 4, 5], &discriminant).unwrap();
     let z = y.clone();
 
     group.bench_function(format!("Compose/{}", discriminant_size), move |b| {
@@ -51,7 +53,7 @@ fn hash_to_class_group_single<M: Measurement>(
     group.bench_function(format!("{} bits, default", bits), move |b| {
         let mut seed = [0u8; 32];
         thread_rng().fill_bytes(&mut seed);
-        b.iter(|| QuadraticForm::hash_to_group(&seed, &discriminant))
+        b.iter(|| QuadraticForm::hash_to_group_with_default_parameters(&seed, &discriminant))
     });
 }
 
