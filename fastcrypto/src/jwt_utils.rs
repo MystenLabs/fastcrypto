@@ -37,7 +37,7 @@ impl Claims {
 }
 
 // Parse and validate a JWT token, returns sub and aud.
-pub fn parse_and_validate_jwt(token: &str) -> Result<(String, String), FastCryptoError> {
+pub fn parse_and_validate_jwt(token: &str) -> Result<(String, String, String), FastCryptoError> {
     // Check if the token contains 3 parts.
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
@@ -48,7 +48,7 @@ pub fn parse_and_validate_jwt(token: &str) -> Result<(String, String), FastCrypt
 
     // Check if payload is well formed.
     let payload = Claims::from_encoded(parts[1])?;
-    Ok((payload.sub, payload.aud))
+    Ok((payload.sub, payload.aud, payload.iss))
 }
 
 /// Struct that represents a standard JWT header according to

@@ -189,7 +189,7 @@ struct TestData {
     jwt: String,
     kid: String,
     n: String,
-    provider: String,
+    _provider: String,
 }
 
 #[tokio::test]
@@ -199,8 +199,10 @@ async fn test_end_to_end_all_providers() {
         std::fs::File::open("src/bn254/zklogin_test_vectors.json").expect("Unable to open file");
     let test_datum: Vec<TestData> = serde_json::from_reader(file).unwrap();
     for test_data in test_datum {
-        println!("Testing provider: {:?}", test_data.provider);
         // Make a map of jwk ids to jwks just for Apple.
+        let (_, _, iss) = parse_and_validate_jwt(&test_data.jwt).unwrap();
+        let provider = OIDCProvider::from_iss(&iss).unwrap();
+        println!("Testing provider: {:?}", provider);
         let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&test_data.jwt).await;
         let mut map = ImHashMap::new();
         map.insert(
@@ -260,7 +262,7 @@ async fn get_test_inputs(parsed_token: &str) -> (u64, Vec<u8>, ZkLoginInputs) {
     )
     .await
     .unwrap();
-    let (sub, aud) = parse_and_validate_jwt(parsed_token).unwrap();
+    let (sub, aud, _) = parse_and_validate_jwt(parsed_token).unwrap();
     // Get the address seed.
     let address_seed = gen_address_seed(user_salt, "sub", &sub, &aud).unwrap();
     let zk_login_inputs = ZkLoginInputs::from_reader(reader, &address_seed).unwrap();
@@ -331,7 +333,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
         )
         .await
         .unwrap();
-        let (sub, aud) = parse_and_validate_jwt(&parsed_token).unwrap();
+        let (sub, aud, _) = parse_and_validate_jwt(&parsed_token).unwrap();
         // Get the address seed.
         let address_seed = gen_address_seed(&user_salt, "sub", &sub, &aud).unwrap();
         let zk_login_inputs =

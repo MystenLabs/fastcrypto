@@ -267,7 +267,7 @@ impl OIDCProvider {
             "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => {
                 Ok(Self::Onefc)
             }
-            "https://accounts.fantv.world/" => Ok(Self::FanTV),
+            "https://accounts.fantv.world" => Ok(Self::FanTV),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {

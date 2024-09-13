@@ -468,15 +468,21 @@ fn test_get_nonce() {
 #[test]
 fn test_get_provider_to_from_iss_to_from_str() {
     for p in [
+        OIDCProvider::Facebook,
         OIDCProvider::Google,
         OIDCProvider::Twitch,
-        OIDCProvider::Facebook,
         OIDCProvider::Slack,
         OIDCProvider::Kakao,
         OIDCProvider::Apple,
         OIDCProvider::Microsoft,
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
-        OIDCProvider::TestIssuer,
+        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
+        OIDCProvider::KarrierOne,
+        OIDCProvider::Credenza3,
+        OIDCProvider::Playtron,
+        OIDCProvider::Threedos,
+        OIDCProvider::Onefc,
+        OIDCProvider::FanTV,
     ] {
         // to/from iss
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
