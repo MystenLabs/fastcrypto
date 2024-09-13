@@ -57,7 +57,7 @@ jobs:
         run: cargo build --benches --features experimental,copy_key,unsecure_schemes
       - name: cargo test
       # TODO: `cargo nextest run` doesn't work on windows, so we use `cargo test` instead
-        run: cargo test --features experimental,copy_key,unsecure_schemes
+        run: cargo test --all-features
       - name: Doctests
         run: |
           cargo test --doc --features experimental,copy_key,unsecure_schemes
