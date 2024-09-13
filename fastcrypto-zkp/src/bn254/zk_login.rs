@@ -117,6 +117,8 @@ pub enum OIDCProvider {
     Threedos,
     /// https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/v2.0/.well-known/openid-configuration
     Onefc,
+    /// https://accounts.fantv.world/.well-known/openid-configuration
+    FanTV,
 }
 
 impl FromStr for OIDCProvider {
@@ -137,6 +139,7 @@ impl FromStr for OIDCProvider {
             "Playtron" => Ok(Self::Playtron),
             "Threedos" => Ok(Self::Threedos),
             "Onefc" => Ok(Self::Onefc),
+            "FanTV" => Ok(Self::FanTV),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -170,6 +173,7 @@ impl ToString for OIDCProvider {
             Self::Playtron => "Playtron".to_string(),
             Self::Threedos => "Threedos".to_string(),
             Self::Onefc => "Onefc".to_string(),
+            Self::FanTV => "FanTV".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -239,6 +243,10 @@ impl OIDCProvider {
                 "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/",
                 "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/discovery/v2.0/keys",
             ),
+            OIDCProvider::FanTV => ProviderConfig::new(
+                "https://accounts.fantv.world/",
+                "https://fantv-apis.fantiger.com/v1/web3/jwks.json",
+            ),
         }
     }
 
@@ -259,6 +267,7 @@ impl OIDCProvider {
             "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => {
                 Ok(Self::Onefc)
             }
+            "https://accounts.fantv.world/" => Ok(Self::FanTV),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
@@ -291,6 +300,8 @@ fn parse_aws_iss_substring(url: &str) -> Result<(&str, &str), FastCryptoError> {
         Err(FastCryptoError::InvalidInput)
     }
 }
+/// Parse the user_id from the iss string for FanTV.
+
 /// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
 /// The JWK is used to verify the JWT token.
