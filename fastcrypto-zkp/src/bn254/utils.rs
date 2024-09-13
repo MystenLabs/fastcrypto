@@ -88,6 +88,8 @@ pub fn get_oidc_url(
             OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
             OIDCProvider::Playtron => return Err(FastCryptoError::InvalidInput), // Playtron does not issue JWTs interactively, this is not valid to call.
             OIDCProvider::Threedos => return Err(FastCryptoError::InvalidInput), // Threedos does not issue JWTs interactively yet, this is not valid to call.
+            // FanTV case can call the following url to get the Token:
+            // https://fantv-apis.fantiger.com/v1/oauth2/auth?clientId={}&redirectUri={}&responseType=authorization_code&scope=openid&userId={}&nonce={}
             OIDCProvider::FanTV => return Err(FastCryptoError::InvalidInput), // FanTV does not issue JWTs interactively yet, this is not valid to call.
 })
 }

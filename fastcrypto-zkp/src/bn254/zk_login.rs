@@ -300,8 +300,6 @@ fn parse_aws_iss_substring(url: &str) -> Result<(&str, &str), FastCryptoError> {
         Err(FastCryptoError::InvalidInput)
     }
 }
-/// Parse the user_id from the iss string for FanTV.
-
 /// Struct that contains info for a JWK. A list of them for different kids can
 /// be retrieved from the JWK endpoint (e.g. <https://www.googleapis.com/oauth2/v3/certs>).
 /// The JWK is used to verify the JWT token.
