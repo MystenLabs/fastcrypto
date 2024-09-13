@@ -85,13 +85,9 @@ pub fn get_oidc_url(
             OIDCProvider::Credenza3 => format!("https://accounts.credenza3.com/oauth2/authorize?client_id={}&response_type=token&scope=openid+profile+email+phone&redirect_uri={}&nonce={}&state=state", client_id, redirect_url, nonce),
             OIDCProvider::Onefc => format!("https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/b2c_1a_prod_signupsignin_onesuizklogin/oauth2/v2.0/authorize?client_id={}&scope=openid&response_type=id_token&redirect_uri={}&nonce={}", client_id, redirect_url, nonce),
             OIDCProvider::AwsTenant((region, tenant_id)) => format!("https://{}.auth.{}.amazoncognito.com/login?response_type=token&client_id={}&redirect_uri={}&nonce={}", tenant_id, region, client_id, redirect_url, nonce),
-            OIDCProvider::TestIssuer => return Err(FastCryptoError::InvalidInput), // Test issuer does not issue JWTs interactively, this is not valid to call. 
-            OIDCProvider::Playtron => return Err(FastCryptoError::InvalidInput), // Playtron does not issue JWTs interactively, this is not valid to call.
-            OIDCProvider::Threedos => return Err(FastCryptoError::InvalidInput), // Threedos does not issue JWTs interactively yet, this is not valid to call.
-            // FanTV case can call the following url to get the Token:
-            // https://fantv-apis.fantiger.com/v1/oauth2/auth?clientId={}&redirectUri={}&responseType=authorization_code&scope=openid&userId={}&nonce={}
-            OIDCProvider::FanTV => return Err(FastCryptoError::InvalidInput), // FanTV does not issue JWTs interactively yet, this is not valid to call.
-})
+            // this URL is only useful if CLI testing from Sui is needed, can ignore if a frontend test plan is in place
+            _ => return Err(FastCryptoError::InvalidInput)
+    })
 }
 
 /// Return the token exchange URL for the given auth code.

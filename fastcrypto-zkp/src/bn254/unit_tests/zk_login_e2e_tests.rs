@@ -202,6 +202,10 @@ async fn test_end_to_end_all_providers() {
         // Make a map of jwk ids to jwks just for Apple.
         let (_, _, iss) = parse_and_validate_jwt(&test_data.jwt).unwrap();
         let provider = OIDCProvider::from_iss(&iss).unwrap();
+        assert_eq!(
+            provider,
+            OIDCProvider::from_iss(&provider.get_config().iss).unwrap()
+        );
         println!("Testing provider: {:?}", provider);
         let (max_epoch, eph_pubkey, zk_login_inputs) = get_test_inputs(&test_data.jwt).await;
         let mut map = ImHashMap::new();
