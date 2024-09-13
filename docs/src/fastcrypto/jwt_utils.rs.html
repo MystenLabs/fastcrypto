@@ -113,7 +113,7 @@
 }
 
 <span class="comment">// Parse and validate a JWT token, returns sub and aud.
-</span><span class="kw">pub fn </span>parse_and_validate_jwt(token: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(String, String), FastCryptoError&gt; {
+</span><span class="kw">pub fn </span>parse_and_validate_jwt(token: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;(String, String, String), FastCryptoError&gt; {
     <span class="comment">// Check if the token contains 3 parts.
     </span><span class="kw">let </span>parts: Vec&lt;<span class="kw-2">&amp;</span>str&gt; = token.split(<span class="string">'.'</span>).collect();
     <span class="kw">if </span>parts.len() != <span class="number">3 </span>{
@@ -124,7 +124,7 @@
 
     <span class="comment">// Check if payload is well formed.
     </span><span class="kw">let </span>payload = Claims::from_encoded(parts[<span class="number">1</span>])<span class="question-mark">?</span>;
-    <span class="prelude-val">Ok</span>((payload.sub, payload.aud))
+    <span class="prelude-val">Ok</span>((payload.sub, payload.aud, payload.iss))
 }
 
 <span class="doccomment">/// Struct that represents a standard JWT header according to
