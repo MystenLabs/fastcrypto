@@ -33,9 +33,7 @@ fn test_qf_to_from_bytes() {
 fn test_large_qf_to_from_bytes() {
     assert_eq!(DISCRIMINANT_3072.bits(), 3072);
 
-    let expected =
-        QuadraticForm::hash_to_group_with_default_parameters(&[1, 2, 3], &DISCRIMINANT_3072)
-            .unwrap();
+    let expected = QuadraticForm::hash_to_group(&[1, 2, 3], &DISCRIMINANT_3072).unwrap();
     let bytes = bcs::to_bytes(&expected).unwrap();
     let actual = bcs::from_bytes(&bytes).unwrap();
     assert_eq!(expected, actual);
