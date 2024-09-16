@@ -119,6 +119,8 @@ pub enum OIDCProvider {
     Onefc,
     /// https://accounts.fantv.world/.well-known/openid-configuration
     FanTV,
+    /// https://api.arden.cc/auth/jwks
+    Arden,
 }
 
 impl FromStr for OIDCProvider {
@@ -140,6 +142,7 @@ impl FromStr for OIDCProvider {
             "Threedos" => Ok(Self::Threedos),
             "Onefc" => Ok(Self::Onefc),
             "FanTV" => Ok(Self::FanTV),
+            "Arden" => Ok(Self::Arden),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -174,6 +177,7 @@ impl ToString for OIDCProvider {
             Self::Threedos => "Threedos".to_string(),
             Self::Onefc => "Onefc".to_string(),
             Self::FanTV => "FanTV".to_string(),
+            Self::Arden => "Arden".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -247,6 +251,10 @@ impl OIDCProvider {
                 "https://accounts.fantv.world",
                 "https://fantv-apis.fantiger.com/v1/web3/jwks.json",
             ),
+            OIDCProvider::Arden => ProviderConfig::new(
+                "https://oidc.arden.cc",
+                "https://api.arden.cc/auth/jwks",
+            ),
         }
     }
 
@@ -268,6 +276,7 @@ impl OIDCProvider {
                 Ok(Self::Onefc)
             }
             "https://accounts.fantv.world" => Ok(Self::FanTV),
+            "https://oidc.arden.cc" => Ok(Self::Arden),
             iss if match_micrsoft_iss_substring(iss) => Ok(Self::Microsoft),
             _ => match parse_aws_iss_substring(iss) {
                 Ok((region, tenant_id)) => {
