@@ -779,6 +779,15 @@
 <a href="#779" id="779">779</a>
 <a href="#780" id="780">780</a>
 <a href="#781" id="781">781</a>
+<a href="#782" id="782">782</a>
+<a href="#783" id="783">783</a>
+<a href="#784" id="784">784</a>
+<a href="#785" id="785">785</a>
+<a href="#786" id="786">786</a>
+<a href="#787" id="787">787</a>
+<a href="#788" id="788">788</a>
+<a href="#789" id="789">789</a>
+<a href="#790" id="790">790</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -900,6 +909,8 @@
     </span>Onefc,
     <span class="doccomment">/// https://accounts.fantv.world/.well-known/openid-configuration
     </span>FanTV,
+    <span class="doccomment">/// https://api.arden.cc/auth/jwks
+    </span>Arden,
 }
 
 <span class="kw">impl </span>FromStr <span class="kw">for </span>OIDCProvider {
@@ -921,6 +932,7 @@
             <span class="string">"Threedos" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Threedos),
             <span class="string">"Onefc" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc),
             <span class="string">"FanTV" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::FanTV),
+            <span class="string">"Arden" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Arden),
             <span class="kw">_ </span>=&gt; {
                 <span class="kw">let </span>re = Regex::new(
                     <span class="string">r"AwsTenant-region:(?P&lt;region&gt;[^.]+)-tenant_id:(?P&lt;tenant_id&gt;[^/]+)"</span>,
@@ -955,6 +967,7 @@
             <span class="self">Self</span>::Threedos =&gt; <span class="string">"Threedos"</span>.to_string(),
             <span class="self">Self</span>::Onefc =&gt; <span class="string">"Onefc"</span>.to_string(),
             <span class="self">Self</span>::FanTV =&gt; <span class="string">"FanTV"</span>.to_string(),
+            <span class="self">Self</span>::Arden =&gt; <span class="string">"Arden"</span>.to_string(),
             <span class="self">Self</span>::AwsTenant((region, tenant_id)) =&gt; {
                 <span class="macro">format!</span>(<span class="string">"AwsTenant-region:{}-tenant_id:{}"</span>, region, tenant_id)
             }
@@ -1028,6 +1041,10 @@
                 <span class="string">"https://accounts.fantv.world"</span>,
                 <span class="string">"https://fantv-apis.fantiger.com/v1/web3/jwks.json"</span>,
             ),
+            OIDCProvider::Arden =&gt; ProviderConfig::new(
+                <span class="string">"https://oidc.arden.cc"</span>,
+                <span class="string">"https://api.arden.cc/auth/jwks"</span>,
+            ),
         }
     }
 
@@ -1049,6 +1066,7 @@
                 <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Onefc)
             }
             <span class="string">"https://accounts.fantv.world" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::FanTV),
+            <span class="string">"https://oidc.arden.cc" </span>=&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Arden),
             iss <span class="kw">if </span>match_micrsoft_iss_substring(iss) =&gt; <span class="prelude-val">Ok</span>(<span class="self">Self</span>::Microsoft),
             <span class="kw">_ </span>=&gt; <span class="kw">match </span>parse_aws_iss_substring(iss) {
                 <span class="prelude-val">Ok</span>((region, tenant_id)) =&gt; {
