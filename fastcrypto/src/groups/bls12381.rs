@@ -4,10 +4,11 @@
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::encoding::{Encoding, Hex};
+use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-    Pairing, Scalar as ScalarType,
+    Pairing, Scalar as ScalarType, ToFromUncompressedBytes,
 };
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
@@ -20,11 +21,12 @@ use blst::{
     blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p1_uncompress,
-    blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
-    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
-    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
+    blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_add_or_double, blst_p2_affine,
+    blst_p2_cneg, blst_p2_compress, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
+    blst_p2_to_affine, blst_p2_uncompress, blst_scalar, blst_scalar_fr_check,
+    blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
+    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
@@ -332,6 +334,41 @@ impl Debug for G1Element {
 
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
+
+impl ToFromUncompressedBytes<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1Element {
+    fn to_uncompressed_bytes(&self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+        let mut bytes = [0u8; 2 * G1_ELEMENT_BYTE_LENGTH];
+        unsafe {
+            blst_p1_serialize(bytes.as_mut_ptr(), &self.0);
+        }
+        bytes
+    }
+
+    fn from_trusted_uncompressed_bytes(
+        bytes: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH],
+    ) -> FastCryptoResult<G1Element> {
+        // See https://github.com/supranational/blst for details on the serialization format.
+
+        // The compressed bit flag and the third bit flag (used to indicate sign of the y-coordinate
+        // for compressed representations) should not be set.
+        if bytes[0] & 0xA0 != 0 {
+            return Err(InvalidInput);
+        }
+
+        let mut result = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+
+            // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations
+            // which is why we checked for the compressed bit flag above.
+            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+            blst_p1_from_affine(&mut result, &affine);
+        }
+        Ok(Self(result))
+    }
+}
 
 impl Add for G2Element {
     type Output = Self;

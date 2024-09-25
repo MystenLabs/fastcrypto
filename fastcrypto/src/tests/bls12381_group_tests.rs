@@ -2,10 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
-use crate::groups::bls12381::{reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar};
+use crate::groups::bls12381::{
+    reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH,
+};
 use crate::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-    Scalar as ScalarTrait,
+    Scalar as ScalarTrait, ToFromUncompressedBytes,
 };
 use crate::serde_helpers::ToFromByteArray;
 use crate::test_helpers::verify_serialization;
@@ -652,4 +654,43 @@ fn test_serialization_gt() {
     bytes[bytes.len() - 1] += 2;
     assert!(GTElement::from_trusted_byte_array(&bytes).is_ok());
     assert!(GTElement::from_byte_array(&bytes).is_err());
+}
+
+#[test]
+fn test_g1_to_from_uncompressed() {
+    let a = G1Element::generator();
+    let uncompressed_bytes = a.to_uncompressed_bytes();
+    let b = G1Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
+
+    // Uncompressed bit flags is not set.
+    assert_eq!(uncompressed_bytes[0] & 0x80, 0);
+
+    // Infinity bit flag is not set.
+    assert_eq!(uncompressed_bytes[0] & 0x40, 0);
+
+    let mut compressed_bytes = a.to_byte_array();
+
+    // A vector with the first half being the compressed bytes and the second half being zeros should fail
+    let mut extended_compressed_bytes = compressed_bytes.to_vec();
+    extended_compressed_bytes.extend_from_slice(&[0; G1_ELEMENT_BYTE_LENGTH]);
+    let extended_compressed_bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH] =
+        extended_compressed_bytes.try_into().unwrap();
+    assert!(G1Element::from_trusted_uncompressed_bytes(&extended_compressed_bytes).is_err());
+
+    // If we clear the compressed bit flags, we should get the same bytes as the first half of the uncompressed bytes
+    compressed_bytes[0] &= 0x1f;
+    assert_eq!(
+        uncompressed_bytes[..G1_ELEMENT_BYTE_LENGTH],
+        compressed_bytes
+    );
+
+    // Test with point at infinity
+    let a = G1Element::zero();
+    let uncompressed_bytes = a.to_uncompressed_bytes();
+    let b = G1Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
+
+    // Point at infinity has the second bit flag set
+    assert_ne!(uncompressed_bytes[0] & 0x40, 0);
 }
