@@ -9,7 +9,7 @@ use num_traits::One;
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 use serde::Serialize;
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, SubAssign};
 
 pub mod modulus;
 

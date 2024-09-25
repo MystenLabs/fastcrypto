@@ -9,7 +9,7 @@ use fastcrypto::hash::{HashFunction, Keccak256};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use serde::Serialize;
-use std::mem;
+use std::{iter, mem};
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 ///
@@ -39,6 +39,14 @@ impl<G: ParameterizedGroupElement> PietrzaksVDF<G> {
             iterations,
         }
     }
+
+    /// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
+    fn compute_challenge(&self, input: &G, output: &G, mu: &G) -> BigUint {
+        let seed = bcs::to_bytes(&(input, output, mu, self.iterations, &self.group_parameter))
+            .expect("Failed to serialize Fiat-Shamir input.");
+        let hash = Keccak256::digest(seed);
+        BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
+    }
 }
 
 impl<G: ParameterizedGroupElement + Serialize> VDF for PietrzaksVDF<G>
@@ -61,23 +69,30 @@ where
 
         let mut x = input.clone();
         let mut y = output.clone();
-        let mut t = self.iterations;
 
         let mut proof = Vec::new();
 
+        let t = iter::successors(Some(self.iterations), |t| Some((*t + 1) >> 1))
+            .skip(1)
+            .take_while(|t| *t > 1);
+
+        if self.iterations.is_odd() {
+            y = y.double();
+        }
+
         // Compute the full proof. This loop may stop at any time which will give a shorter proof
         // that is computationally harder to verify.
-        while t != 1 {
-            if check_parity_and_iterate(&mut t) {
-                y = y.double();
-            }
-
+        for t_i in t {
             // TODO: Precompute some of the mu's to speed up the proof generation.
-            let mu = x.clone().repeated_doubling(t);
+            let mu = x.clone().repeated_doubling(t_i);
 
-            let r = compute_challenge(self, &x, &y, &mu);
+            let r = self.compute_challenge(&x, &y, &mu);
             x = multiply(&x, &r, &self.group_parameter) + &mu;
             y = multiply(&mu, &r, &self.group_parameter) + &y;
+
+            if t_i.is_odd() {
+                y = y.double();
+            }
 
             proof.push(mu);
         }
@@ -103,7 +118,7 @@ where
                 y = y.double();
             }
 
-            let r = compute_challenge(self, &x, &y, mu);
+            let r = self.compute_challenge(&x, &y, mu);
             x = multiply(&x, &r, &self.group_parameter) + mu;
             y = multiply(mu, &r, &self.group_parameter) + &y;
         }
@@ -117,22 +132,6 @@ where
     }
 }
 
-/// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
-fn compute_challenge<G: ParameterizedGroupElement + Serialize>(
-    vdf: &PietrzaksVDF<G>,
-    input: &G,
-    output: &G,
-    mu: &G,
-) -> BigUint
-where
-    G::ParameterType: Serialize,
-{
-    let seed = bcs::to_bytes(&(input, output, mu, vdf.iterations, &vdf.group_parameter))
-        .expect("Failed to serialize Fiat-Shamir input.");
-    let hash = Keccak256::digest(seed);
-    BigUint::from_bytes_be(&hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
-}
-
 /// Replace t with (t+1) >> 1 and return true iff the input was odd.
 #[inline]
 fn check_parity_and_iterate(t: &mut u64) -> bool {
@@ -143,7 +142,7 @@ fn check_parity_and_iterate(t: &mut u64) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
+    use crate::rsa_group::modulus::test::{AMAZON_MODULUS_2048_REF, GOOGLE_MODULUS_4096_REF};
     use crate::rsa_group::RSAGroupElement;
     use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;

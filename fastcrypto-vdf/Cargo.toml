@@ -44,3 +44,8 @@ required-features = ["experimental"]
 name = "math"
 harness = false
 required-features = ["experimental"]
+
+[[bench]]
+name = "vdf_rsa"
+harness = false
+required-features = ["experimental"]
