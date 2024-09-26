@@ -15,11 +15,7 @@ use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
-use blst::{
-    blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize,
-    blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
-    blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
-};
+use blst::{blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize, blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
 use rand::{rngs::StdRng, thread_rng, RngCore, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
@@ -673,6 +669,16 @@ fn test_g1_to_from_uncompressed() {
     // Infinity bit flag (2) should not be set.
     assert_eq!(uncompressed_bytes[0] & 0x40, 0);
 
+    // All zeros should fail
+    assert!(
+        G1Element::from_trusted_uncompressed_bytes(&[0u8; G1_ELEMENT_BYTE_LENGTH * 2]).is_err()
+    );
+
+    // A point not on the curve fails
+    let mut invalid_uncompressed = uncompressed_bytes;
+    invalid_uncompressed[1] += 1;
+    assert!(G1Element::from_trusted_uncompressed_bytes(&invalid_uncompressed).is_err());
+
     // A vector with the first half being the compressed bytes and the second half being zeros should fail
     let mut compressed_bytes = a.to_byte_array();
     let mut extended_compressed_bytes = compressed_bytes.to_vec();
@@ -722,6 +728,11 @@ fn test_g2_to_from_uncompressed() {
 
     // Infinity bit flag (2) should not be set.
     assert_eq!(uncompressed_bytes[0] & 0x40, 0);
+
+    // A point not on the curve fails
+    let mut invalid_uncompressed = uncompressed_bytes;
+    invalid_uncompressed[1] += 1;
+    assert!(G2Element::from_trusted_uncompressed_bytes(&invalid_uncompressed).is_err());
 
     // A vector with the first half being the compressed bytes and the second half being zeros should fail
     let mut compressed_bytes = a.to_byte_array();

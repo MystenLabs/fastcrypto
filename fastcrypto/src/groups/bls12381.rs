@@ -349,8 +349,9 @@ impl ToFromUncompressedBytes<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1Element {
     ) -> FastCryptoResult<G1Element> {
         // See https://github.com/supranational/blst for details on the serialization format.
 
-        // The compressed bit flag and the third bit flag (used to indicate sign of the y-coordinate
-        // for compressed representations) should not be set.
+        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check for the compressed bit flag which are the first and third bit flags (used to
+        // indicate sign of the y-coordinate for compressed representations) should not be set.
         if bytes[0] & 0xA0 != 0 {
             return Err(InvalidInput);
         }
@@ -359,8 +360,7 @@ impl ToFromUncompressedBytes<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1Element {
         unsafe {
             let mut affine = blst_p1_affine::default();
 
-            // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations
-            // which is why we checked for the compressed bit flag above.
+            // blst_p1_deserialize checks that the point is on the curve but NOT that it is in the G1 subgroup.
             if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(InvalidInput);
             }
@@ -576,8 +576,9 @@ impl ToFromUncompressedBytes<{ 2 * G2_ELEMENT_BYTE_LENGTH }> for G2Element {
     ) -> FastCryptoResult<G2Element> {
         // See https://github.com/supranational/blst for details on the serialization format.
 
-        // The compressed bit flag and the third bit flag (used to indicate sign of the y-coordinate
-        // for compressed representations) should not be set.
+        // Note that `blst_p2_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check for the compressed bit flag which are the first and third bit flags (used to
+        // indicate sign of the y-coordinate for compressed representations) should not be set.
         if bytes[0] & 0xA0 != 0 {
             return Err(InvalidInput);
         }
@@ -586,8 +587,7 @@ impl ToFromUncompressedBytes<{ 2 * G2_ELEMENT_BYTE_LENGTH }> for G2Element {
         unsafe {
             let mut affine = blst_p2_affine::default();
 
-            // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations
-            // which is why we checked for the compressed bit flag above.
+            // blst_p2_deserialize checks that the point is on the curve but NOT that it is in the G2 subgroup.
             if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(InvalidInput);
             }
