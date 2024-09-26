@@ -16,7 +16,7 @@ mod group_benches {
     use fastcrypto::groups::secp256r1::ProjectivePoint;
     use fastcrypto::groups::{
         secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-        Scalar,
+        Scalar, ToFromUncompressedBytes,
     };
     use fastcrypto::serde_helpers::ToFromByteArray;
     use rand::thread_rng;
@@ -211,6 +211,28 @@ mod group_benches {
         pairing_single::<G1Element, _>("BLS12381-G1", &mut group);
     }
 
+    fn sum_single<G: GroupElement, M: measurement::Measurement>(
+        name: &str,
+        c: &mut BenchmarkGroup<M>,
+    ) {
+        static NUMBER_OF_TERMS: [usize; 4] = [10, 100, 500, 1000];
+
+        for n in NUMBER_OF_TERMS {
+            let terms = (0..n)
+                .map(|_| G::generator() * G::ScalarType::rand(&mut thread_rng()))
+                .collect::<Vec<_>>();
+            c.bench_function(format!("{}/{}", name.to_string(), n), move |b| {
+                b.iter(|| G::sum(&terms))
+            });
+        }
+    }
+
+    fn sum(c: &mut Criterion) {
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Sum");
+        sum_single::<G1Element, _>("BLS12381-G1", &mut group);
+        sum_single::<G2Element, _>("BLS12381-G2", &mut group);
+    }
+
     /// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
     /// simply calling the GroupElement implementation. Only used for benchmarking.
     struct DefaultMultiplier<G: GroupElement>(G);
@@ -294,6 +316,7 @@ mod group_benches {
             pairing,
             double_scale,
             blst_msm,
+            sum,
     }
 }
 
