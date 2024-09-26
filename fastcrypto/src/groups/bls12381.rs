@@ -23,10 +23,10 @@ use blst::{
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
     blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
     blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_add_or_double, blst_p2_affine,
-    blst_p2_cneg, blst_p2_compress, blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult,
-    blst_p2_to_affine, blst_p2_uncompress, blst_scalar, blst_scalar_fr_check,
-    blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
-    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2,
+    blst_p2_mult, blst_p2_serialize, blst_p2_to_affine, blst_p2_uncompress, blst_scalar,
+    blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr,
+    p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
@@ -561,6 +561,41 @@ impl Debug for G2Element {
 
 serialize_deserialize_with_to_from_byte_array!(G2Element);
 generate_bytes_representation!(G2Element, G2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
+
+impl ToFromUncompressedBytes<{ 2 * G2_ELEMENT_BYTE_LENGTH }> for G2Element {
+    fn to_uncompressed_bytes(&self) -> [u8; 2 * G2_ELEMENT_BYTE_LENGTH] {
+        let mut bytes = [0u8; 2 * G2_ELEMENT_BYTE_LENGTH];
+        unsafe {
+            blst_p2_serialize(bytes.as_mut_ptr(), &self.0);
+        }
+        bytes
+    }
+
+    fn from_trusted_uncompressed_bytes(
+        bytes: &[u8; 2 * G2_ELEMENT_BYTE_LENGTH],
+    ) -> FastCryptoResult<G2Element> {
+        // See https://github.com/supranational/blst for details on the serialization format.
+
+        // The compressed bit flag and the third bit flag (used to indicate sign of the y-coordinate
+        // for compressed representations) should not be set.
+        if bytes[0] & 0xA0 != 0 {
+            return Err(InvalidInput);
+        }
+
+        let mut result = blst_p2::default();
+        unsafe {
+            let mut affine = blst_p2_affine::default();
+
+            // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations
+            // which is why we checked for the compressed bit flag above.
+            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+            blst_p2_from_affine(&mut result, &affine);
+        }
+        Ok(Self(result))
+    }
+}
 
 impl Add for GTElement {
     type Output = Self;

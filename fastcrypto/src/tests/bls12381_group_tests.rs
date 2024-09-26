@@ -4,6 +4,7 @@
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{
     reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH,
+    G2_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
@@ -659,26 +660,29 @@ fn test_serialization_gt() {
 #[test]
 fn test_g1_to_from_uncompressed() {
     let a = G1Element::generator();
+
     let uncompressed_bytes = a.to_uncompressed_bytes();
+    assert_eq!(uncompressed_bytes.len(), G1_ELEMENT_BYTE_LENGTH * 2);
+
     let b = G1Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
     assert_eq!(a, b);
 
-    // Uncompressed bit flags is not set.
-    assert_eq!(uncompressed_bytes[0] & 0x80, 0);
+    // Compressed bit flags (1 and 3) should not be set.
+    assert_eq!(uncompressed_bytes[0] & 0xA0, 0);
 
-    // Infinity bit flag is not set.
+    // Infinity bit flag (2) should not be set.
     assert_eq!(uncompressed_bytes[0] & 0x40, 0);
 
-    let mut compressed_bytes = a.to_byte_array();
-
     // A vector with the first half being the compressed bytes and the second half being zeros should fail
+    let mut compressed_bytes = a.to_byte_array();
     let mut extended_compressed_bytes = compressed_bytes.to_vec();
     extended_compressed_bytes.extend_from_slice(&[0; G1_ELEMENT_BYTE_LENGTH]);
     let extended_compressed_bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH] =
         extended_compressed_bytes.try_into().unwrap();
     assert!(G1Element::from_trusted_uncompressed_bytes(&extended_compressed_bytes).is_err());
 
-    // If we clear the compressed bit flags, we should get the same bytes as the first half of the uncompressed bytes
+    // If we clear the compressed bit flags (the first three), we should get the same bytes as the
+    // first half of the uncompressed bytes
     compressed_bytes[0] &= 0x1f;
     assert_eq!(
         uncompressed_bytes[..G1_ELEMENT_BYTE_LENGTH],
@@ -688,9 +692,67 @@ fn test_g1_to_from_uncompressed() {
     // Test with point at infinity
     let a = G1Element::zero();
     let uncompressed_bytes = a.to_uncompressed_bytes();
+    assert_eq!(uncompressed_bytes.len(), G1_ELEMENT_BYTE_LENGTH * 2);
+
+    // Only the point at infinity flag should be set.
+    assert_eq!(uncompressed_bytes[0], 0x40);
+
+    // The remaining bytes should all be zero
+    assert_eq!(
+        uncompressed_bytes[1..],
+        [0u8; G1_ELEMENT_BYTE_LENGTH * 2 - 1]
+    );
+
     let b = G1Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
     assert_eq!(a, b);
+}
 
-    // Point at infinity has the second bit flag set
-    assert_ne!(uncompressed_bytes[0] & 0x40, 0);
+#[test]
+fn test_g2_to_from_uncompressed() {
+    let a = G2Element::generator();
+
+    let uncompressed_bytes = a.to_uncompressed_bytes();
+    assert_eq!(uncompressed_bytes.len(), G2_ELEMENT_BYTE_LENGTH * 2);
+
+    let b = G2Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
+
+    // Compressed bit flags (1 and 3) should not be set.
+    assert_eq!(uncompressed_bytes[0] & 0xA0, 0);
+
+    // Infinity bit flag (2) should not be set.
+    assert_eq!(uncompressed_bytes[0] & 0x40, 0);
+
+    // A vector with the first half being the compressed bytes and the second half being zeros should fail
+    let mut compressed_bytes = a.to_byte_array();
+    let mut extended_compressed_bytes = compressed_bytes.to_vec();
+    extended_compressed_bytes.extend_from_slice(&[0; G2_ELEMENT_BYTE_LENGTH]);
+    let extended_compressed_bytes: [u8; 2 * G2_ELEMENT_BYTE_LENGTH] =
+        extended_compressed_bytes.try_into().unwrap();
+    assert!(G2Element::from_trusted_uncompressed_bytes(&extended_compressed_bytes).is_err());
+
+    // If we clear the compressed bit flags (the first three), we should get the same bytes as the
+    // first half of the uncompressed bytes
+    compressed_bytes[0] &= 0x1f;
+    assert_eq!(
+        uncompressed_bytes[..G2_ELEMENT_BYTE_LENGTH],
+        compressed_bytes
+    );
+
+    // Test with point at infinity
+    let a = G2Element::zero();
+    let uncompressed_bytes = a.to_uncompressed_bytes();
+    assert_eq!(uncompressed_bytes.len(), G2_ELEMENT_BYTE_LENGTH * 2);
+
+    // Only the point at infinity flag should be set.
+    assert_eq!(uncompressed_bytes[0], 0x40);
+
+    // The remaining bytes should all be zero
+    assert_eq!(
+        uncompressed_bytes[1..],
+        [0u8; G2_ELEMENT_BYTE_LENGTH * 2 - 1]
+    );
+
+    let b = G2Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
 }

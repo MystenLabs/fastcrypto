@@ -124,7 +124,7 @@ pub trait FromTrustedByteArray<const LENGTH: usize>: Sized {
 /// uses compressed representations of the data, which are smaller (half the size) but slower to
 /// deserialize.
 pub trait ToFromUncompressedBytes<const UNCOMPRESSED_LENGTH: usize>: Sized {
-    /// Convert the element to an uncompressed byte array.
+    /// Serialize an element to an uncompressed byte array.
     fn to_uncompressed_bytes(&self) -> [u8; UNCOMPRESSED_LENGTH];
 
     /// Convert an uncompressed byte array to the element. It is not verified whether the deserialized
