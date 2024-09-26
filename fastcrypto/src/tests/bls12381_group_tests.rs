@@ -15,7 +15,11 @@ use crate::test_helpers::verify_serialization;
 use crate::traits::Signer;
 use crate::traits::VerifyingKey;
 use crate::traits::{KeyPair, ToFromBytes};
-use blst::{blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize, blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve, blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR};
+use blst::{
+    blst_p1_affine, blst_p1_affine_generator, blst_p1_affine_on_curve, blst_p1_affine_serialize,
+    blst_p1_deserialize, blst_p2_affine, blst_p2_affine_generator, blst_p2_affine_on_curve,
+    blst_p2_affine_serialize, blst_p2_deserialize, BLST_ERROR,
+};
 use rand::{rngs::StdRng, thread_rng, RngCore, SeedableRng as _};
 
 const MSG: &[u8] = b"test message";
@@ -766,4 +770,26 @@ fn test_g2_to_from_uncompressed() {
 
     let b = G2Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
     assert_eq!(a, b);
+}
+
+#[test]
+fn test_g1_sum() {
+    let a = G1Element::generator();
+    let b = G1Element::generator() * Scalar::from(2u128);
+    let c = G1Element::generator() * Scalar::from(3u128);
+    let d = G1Element::sum(&[a, b, c]);
+    assert_eq!(d, G1Element::generator() * Scalar::from(6u128));
+    assert_eq!(a, G1Element::sum(&[a]));
+    assert_eq!(G1Element::zero(), G1Element::sum(&[]));
+}
+
+#[test]
+fn test_g2_sum() {
+    let a = G2Element::generator();
+    let b = G2Element::generator() * Scalar::from(2u128);
+    let c = G2Element::generator() * Scalar::from(3u128);
+    let d = G2Element::sum(&[a, b, c]);
+    assert_eq!(d, G2Element::generator() * Scalar::from(6u128));
+    assert_eq!(a, G2Element::sum(&[a]));
+    assert_eq!(G2Element::zero(), G2Element::sum(&[]));
 }

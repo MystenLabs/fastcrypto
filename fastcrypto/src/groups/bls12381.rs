@@ -22,11 +22,11 @@ use blst::{
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
     blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
-    blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_add_or_double, blst_p2_affine,
-    blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine, blst_p2_in_g2,
-    blst_p2_mult, blst_p2_serialize, blst_p2_to_affine, blst_p2_uncompress, blst_scalar,
-    blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr,
-    p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p1_to_affine, blst_p1_uncompress, blst_p2, blst_p2_add_or_double,
+    blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine,
+    blst_p2_in_g2, blst_p2_mult, blst_p2_serialize, blst_p2_to_affine, blst_p2_uncompress,
+    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
+    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
@@ -215,6 +215,14 @@ impl GroupElement for G1Element {
             blst_p1_from_affine(&mut ret, &BLS12_381_G1);
         }
         Self(ret)
+    }
+
+    fn sum(terms: &[Self]) -> Self {
+        if terms.is_empty() {
+            return Self::zero();
+        }
+        let terms = p1_affines::from(to_blst_type_slice(&terms));
+        Self(terms.add())
     }
 }
 
@@ -496,6 +504,14 @@ impl GroupElement for G2Element {
             blst_p2_from_affine(&mut ret, &BLS12_381_G2);
         }
         Self(ret)
+    }
+
+    fn sum(terms: &[Self]) -> Self {
+        if terms.is_empty() {
+            return Self::zero();
+        }
+        let terms = p2_affines::from(to_blst_type_slice(&terms));
+        Self(terms.add())
     }
 }
 

@@ -41,6 +41,11 @@ pub trait GroupElement:
 
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
+
+    /// Compute the sum of a list of group elements.
+    fn sum(terms: &[Self]) -> Self {
+        terms.iter().fold(Self::zero(), |acc, x| acc + x)
+    }
 }
 
 // TODO: Move Serialize + DeserializeOwned to GroupElement.
