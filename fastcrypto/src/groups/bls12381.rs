@@ -359,6 +359,11 @@ impl G1ElementUncompressed {
         Self(bytes)
     }
 
+    /// Return the binary representation of this element.
+    pub fn to_bytes(&self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+        self.0
+    }
+
     fn to_blst_p1_affine(&self) -> FastCryptoResult<blst_p1_affine> {
         let mut affine = blst_p1_affine::default();
         unsafe {
