@@ -400,7 +400,7 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
     }
 }
 
-pub fn sum_uncompressed(terms: &[G1ElementUncompressed]) -> FastCryptoResult<G1Element> {
+pub fn sum_g1_uncompressed(terms: &[G1ElementUncompressed]) -> FastCryptoResult<G1Element> {
     if terms.is_empty() {
         return Ok(G1Element::zero());
     }

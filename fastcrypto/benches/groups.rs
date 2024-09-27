@@ -7,7 +7,7 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
     use fastcrypto::groups::bls12381::{
-        sum_uncompressed, G1Element, G1ElementUncompressed, G2Element, GTElement,
+        sum_g1_uncompressed, G1Element, G1ElementUncompressed, G2Element, GTElement,
         Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
         GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
@@ -221,7 +221,7 @@ mod group_benches {
                 .map(|x| G1ElementUncompressed::from(&x))
                 .collect::<Vec<_>>();
             c.bench_function(&format!("Sum/BLS12381-G1/{}", n), move |b| {
-                b.iter(|| sum_uncompressed(terms.as_slice()))
+                b.iter(|| sum_g1_uncompressed(terms.as_slice()))
             });
         }
     }
