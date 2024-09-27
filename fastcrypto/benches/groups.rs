@@ -7,8 +7,8 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
     use fastcrypto::groups::bls12381::{
-        sum_affine, G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
-        G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
+        affine_to_raw, sum_raw_affine, G1Element, G2Element, GTElement, Scalar as BlsScalar,
+        G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
@@ -218,9 +218,10 @@ mod group_benches {
             let terms = (0..n)
                 .map(|_| G1Element::generator() * bls12381::Scalar::rand(&mut thread_rng()))
                 .map(|x: G1Element| x.to_uncompressed_bytes())
+                .map(|b| affine_to_raw(&b))
                 .collect::<Vec<_>>();
             c.bench_function(format!("{}/{}", name.to_string(), n), move |b| {
-                b.iter(|| sum_affine(terms.as_slice()))
+                b.iter(|| sum_raw_affine(terms.as_slice()))
             });
         }
     }

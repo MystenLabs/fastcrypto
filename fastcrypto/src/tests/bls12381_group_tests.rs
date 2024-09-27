@@ -3,8 +3,8 @@
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{
-    reduce_mod_uniform_buffer, sum_affine, G1Element, G2Element, GTElement, Scalar,
-    G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
+    affine_to_raw, reduce_mod_uniform_buffer, sum_raw_affine, G1Element, G2Element, GTElement,
+    Scalar, G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
@@ -808,7 +808,12 @@ fn test_g1_sum_fast() {
         b.to_uncompressed_bytes(),
         c.to_uncompressed_bytes(),
     ];
-    let sum = sum_affine(&bytes);
+    let raw_bytes = bytes
+        .iter()
+        .map(|b| affine_to_raw(b))
+        .collect::<Vec<[u8; 96]>>();
+
+    let sum = sum_raw_affine(&raw_bytes);
 
     assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
 }

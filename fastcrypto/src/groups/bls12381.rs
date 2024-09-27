@@ -20,13 +20,14 @@ use blst::{
     blst_fp12_one, blst_fp12_sqr, blst_fp_from_bendian, blst_fr, blst_fr_add, blst_fr_cneg,
     blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
-    blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
-    blst_p1_to_affine, blst_p1_uncompress, blst_p1s_add, blst_p2, blst_p2_add_or_double,
-    blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine,
-    blst_p2_in_g2, blst_p2_mult, blst_p2_serialize, blst_p2_to_affine, blst_p2_uncompress,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
-    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_affine_serialize, blst_p1_cneg,
+    blst_p1_compress, blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult,
+    blst_p1_serialize, blst_p1_to_affine, blst_p1_uncompress, blst_p1s_add, blst_p2,
+    blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize,
+    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_serialize, blst_p2_to_affine,
+    blst_p2_uncompress, blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes,
+    blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1,
+    BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
@@ -34,7 +35,7 @@ use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
-use std::ptr;
+use std::{mem, ptr};
 use zeroize::Zeroize;
 
 /// Elements of the group G_1 in BLS 12-381.
@@ -245,6 +246,36 @@ pub fn sum_affine(terms: &[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]]) -> G1Element {
     let mut ret = <blst_p1>::default();
     let p: [*const _; 2] = [&affine_points[0], ptr::null()];
     unsafe { blst_p1s_add(&mut ret, &p[0], terms.len()) };
+    G1Element(ret)
+}
+
+pub fn affine_to_raw(
+    affine: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH],
+) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+    let mut affine_pt = blst_p1_affine::default();
+    unsafe {
+        blst_p1_deserialize(&mut affine_pt, affine.as_ptr());
+    }
+    let affine_ptr = &affine_pt as *const _ as *const u8;
+    (0..2 * G1_ELEMENT_BYTE_LENGTH)
+        .map(|i| unsafe { *affine_ptr.offset(i as isize) })
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
+}
+
+pub fn sum_raw_affine(terms: &[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]]) -> G1Element {
+    if terms.is_empty() {
+        return G1Element::zero();
+    }
+
+    let mut ret = <blst_p1>::default();
+    unsafe {
+        let transmuted =
+            mem::transmute::<&[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]], &[blst_p1_affine]>(terms);
+        let p: [*const _; 2] = [&transmuted[0], ptr::null()];
+        blst_p1s_add(&mut ret, &p[0], terms.len());
+    }
     G1Element(ret)
 }
 
