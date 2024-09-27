@@ -717,21 +717,32 @@ fn test_g1_to_from_uncompressed() {
 
 #[test]
 fn test_g1_sum() {
+    // Empty sum
+    assert_eq!(sum_uncompressed(&[]).unwrap(), G1Element::zero());
+
+    // Non-trivial sum
     let a = G1Element::generator();
     let b = G1Element::generator() * Scalar::from(2u128);
     let c = G1Element::generator() * Scalar::from(3u128);
-
     let mut bytes: Vec<G1ElementUncompressed> = vec![(&a).into(), (&b).into(), (&c).into()];
-
     let sum = sum_uncompressed(&bytes).unwrap();
     assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
 
-    // Adding a zero doesn't change anything
+    // Adding zeros doesn't change anything
     bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
     let sum = sum_uncompressed(&bytes).unwrap();
     assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
 
-    let bytes = [G1ElementUncompressed::from(&G1Element::zero())];
+    // Singleton sum
+    let bytes = [(&b).into()];
+    let sum = sum_uncompressed(&bytes).unwrap();
+    assert_eq!(sum, b);
+
+    // Adding zero's
+    let mut bytes = vec![G1ElementUncompressed::from(&G1Element::zero())];
+    let sum = sum_uncompressed(&bytes).unwrap();
+    assert_eq!(sum, G1Element::zero());
+    bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
     let sum = sum_uncompressed(&bytes).unwrap();
     assert_eq!(sum, G1Element::zero());
 }
