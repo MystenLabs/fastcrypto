@@ -8,7 +8,7 @@ use crate::error::FastCryptoError::InvalidInput;
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
     FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
-    Pairing, Scalar as ScalarType, ToFromUncompressedBytes,
+    Pairing, Scalar as ScalarType,
 };
 use crate::serde_helpers::BytesRepresentation;
 use crate::serde_helpers::ToFromByteArray;
@@ -23,17 +23,16 @@ use blst::{
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
     blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
     blst_p1_to_affine, blst_p1_uncompress, blst_p1s_add, blst_p2, blst_p2_add_or_double,
-    blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_deserialize, blst_p2_from_affine,
-    blst_p2_in_g2, blst_p2_mult, blst_p2_serialize, blst_p2_to_affine, blst_p2_uncompress,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
-    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_from_affine, blst_p2_in_g2,
+    blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress, blst_scalar, blst_scalar_fr_check,
+    blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
+    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
 use once_cell::sync::OnceCell;
 use serde::{de, Deserialize};
 use std::fmt::Debug;
-use std::mem::transmute;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
 use zeroize::Zeroize;
@@ -217,60 +216,6 @@ impl GroupElement for G1Element {
         }
         Self(ret)
     }
-
-    fn sum(terms: &[Self]) -> Self {
-        if terms.is_empty() {
-            return Self::zero();
-        }
-        let terms = p1_affines::from(to_blst_type_slice(terms));
-        Self(terms.add())
-    }
-}
-
-pub fn sum_affine(terms: &[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]]) -> G1Element {
-    if terms.is_empty() {
-        return G1Element::zero();
-    }
-
-    let affine_points = terms
-        .iter()
-        .map(|t| unsafe {
-            let mut affine = blst_p1_affine::default();
-            blst_p1_deserialize(&mut affine, t.as_ptr());
-            affine
-        })
-        .collect::<Vec<_>>();
-
-    // Inspired by https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/bindings/rust/src/pippenger.rs#L334-L337
-    let mut ret = <blst_p1>::default();
-    let p: [*const _; 2] = [&affine_points[0], ptr::null()];
-    unsafe { blst_p1s_add(&mut ret, &p[0], terms.len()) };
-    G1Element(ret)
-}
-
-pub fn affine_to_raw(
-    affine: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH],
-) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
-    let mut affine_pt = blst_p1_affine::default();
-    unsafe {
-        blst_p1_deserialize(&mut affine_pt, affine.as_ptr());
-        transmute::<blst_p1_affine, [u8; 2 * G1_ELEMENT_BYTE_LENGTH]>(affine_pt)
-    }
-}
-
-pub fn sum_raw_affine(terms: &[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]]) -> G1Element {
-    if terms.is_empty() {
-        return G1Element::zero();
-    }
-
-    let mut ret = blst_p1::default();
-    unsafe {
-        let transmuted = transmute::<&[[u8; 2 * G1_ELEMENT_BYTE_LENGTH]], &[blst_p1_affine]>(terms);
-        // Inspired by https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/bindings/rust/src/pippenger.rs#L334-L337
-        let p: [*const _; 2] = [&transmuted[0], ptr::null()];
-        blst_p1s_add(&mut ret, &p[0], terms.len());
-    }
-    G1Element(ret)
 }
 
 impl Pairing for G1Element {
@@ -390,24 +335,51 @@ impl Debug for G1Element {
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
-impl ToFromUncompressedBytes<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1Element {
-    fn to_uncompressed_bytes(&self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+/// An uncompressed seralization of a G1 element. This format is longer than the compressed format
+/// used by `G1Element::serialize`, but is much faster to deserialize.
+#[derive(Clone, Debug)]
+#[repr(transparent)]
+pub struct G1ElementUncompressed(pub(crate) [u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
+
+impl From<&G1Element> for G1ElementUncompressed {
+    fn from(element: &G1Element) -> Self {
         let mut bytes = [0u8; 2 * G1_ELEMENT_BYTE_LENGTH];
         unsafe {
-            blst_p1_serialize(bytes.as_mut_ptr(), &self.0);
+            blst_p1_serialize(bytes.as_mut_ptr(), &element.0);
         }
-        bytes
+        G1ElementUncompressed(bytes)
+    }
+}
+
+impl G1ElementUncompressed {
+    /// Create a new `G1ElementUncompressed` from a byte array. The input is not validated so it should
+    /// come from a trusted source. If the input is not trusted, use the `G1Element::deserialize` method
+    /// and the `G1ElementUncompressed::from` method afterwards.
+    pub fn from_trusted_bytes(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Self {
+        Self(bytes)
     }
 
-    fn from_trusted_uncompressed_bytes(
-        bytes: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH],
-    ) -> FastCryptoResult<G1Element> {
+    fn to_blst_p1_affine(&self) -> FastCryptoResult<blst_p1_affine> {
+        let mut affine = blst_p1_affine::default();
+        unsafe {
+            if blst_p1_deserialize(&mut affine, self.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+        }
+        Ok(affine)
+    }
+}
+
+impl TryFrom<&G1ElementUncompressed> for G1Element {
+    type Error = FastCryptoError;
+
+    fn try_from(element: &G1ElementUncompressed) -> FastCryptoResult<G1Element> {
         // See https://github.com/supranational/blst for details on the serialization format.
 
         // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
         // so we check for the compressed bit flag which are the first and third bit flags (used to
         // indicate sign of the y-coordinate for compressed representations) should not be set.
-        if bytes[0] & 0xA0 != 0 {
+        if element.0[0] & 0xA0 != 0 {
             return Err(InvalidInput);
         }
 
@@ -416,13 +388,33 @@ impl ToFromUncompressedBytes<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1Element {
             let mut affine = blst_p1_affine::default();
 
             // blst_p1_deserialize checks that the point is on the curve but NOT that it is in the G1 subgroup.
-            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+            if blst_p1_deserialize(&mut affine, element.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
                 return Err(InvalidInput);
             }
             blst_p1_from_affine(&mut result, &affine);
+            if !blst_p1_in_g1(&result) {
+                return Err(InvalidInput);
+            }
         }
         Ok(Self(result))
     }
+}
+
+pub fn sum_uncompressed(terms: &[G1ElementUncompressed]) -> FastCryptoResult<G1Element> {
+    if terms.is_empty() {
+        return Ok(G1Element::zero());
+    }
+
+    let affine_points: Vec<blst_p1_affine> = terms
+        .iter()
+        .map(G1ElementUncompressed::to_blst_p1_affine)
+        .collect::<FastCryptoResult<Vec<_>>>()?;
+
+    // Inspired by https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/bindings/rust/src/pippenger.rs#L334-L337
+    let mut ret = <blst_p1>::default();
+    let p: [*const _; 2] = [&affine_points[0], ptr::null()];
+    unsafe { blst_p1s_add(&mut ret, &p[0], terms.len()) };
+    Ok(G1Element(ret))
 }
 
 impl Add for G2Element {
@@ -552,14 +544,6 @@ impl GroupElement for G2Element {
         }
         Self(ret)
     }
-
-    fn sum(terms: &[Self]) -> Self {
-        if terms.is_empty() {
-            return Self::zero();
-        }
-        let terms = p2_affines::from(to_blst_type_slice(terms));
-        Self(terms.add())
-    }
 }
 
 impl HashToGroupElement for G2Element {
@@ -624,41 +608,6 @@ impl Debug for G2Element {
 
 serialize_deserialize_with_to_from_byte_array!(G2Element);
 generate_bytes_representation!(G2Element, G2_ELEMENT_BYTE_LENGTH, G2ElementAsBytes);
-
-impl ToFromUncompressedBytes<{ 2 * G2_ELEMENT_BYTE_LENGTH }> for G2Element {
-    fn to_uncompressed_bytes(&self) -> [u8; 2 * G2_ELEMENT_BYTE_LENGTH] {
-        let mut bytes = [0u8; 2 * G2_ELEMENT_BYTE_LENGTH];
-        unsafe {
-            blst_p2_serialize(bytes.as_mut_ptr(), &self.0);
-        }
-        bytes
-    }
-
-    fn from_trusted_uncompressed_bytes(
-        bytes: &[u8; 2 * G2_ELEMENT_BYTE_LENGTH],
-    ) -> FastCryptoResult<G2Element> {
-        // See https://github.com/supranational/blst for details on the serialization format.
-
-        // Note that `blst_p2_deserialize` accepts both compressed and uncompressed serializations,
-        // so we check for the compressed bit flag which are the first and third bit flags (used to
-        // indicate sign of the y-coordinate for compressed representations) should not be set.
-        if bytes[0] & 0xA0 != 0 {
-            return Err(InvalidInput);
-        }
-
-        let mut result = blst_p2::default();
-        unsafe {
-            let mut affine = blst_p2_affine::default();
-
-            // blst_p2_deserialize checks that the point is on the curve but NOT that it is in the G2 subgroup.
-            if blst_p2_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
-                return Err(InvalidInput);
-            }
-            blst_p2_from_affine(&mut result, &affine);
-        }
-        Ok(Self(result))
-    }
-}
 
 impl Add for GTElement {
     type Output = Self;

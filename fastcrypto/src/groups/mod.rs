@@ -124,16 +124,3 @@ pub trait MultiScalarMul: GroupElement {
 pub trait FromTrustedByteArray<const LENGTH: usize>: Sized {
     fn from_trusted_byte_array(bytes: &[u8; LENGTH]) -> FastCryptoResult<Self>;
 }
-
-/// Trait for types that has an uncompressed representation. The [ToFromByteArray] implementations
-/// uses compressed representations of the data, which are smaller (half the size) but slower to
-/// deserialize.
-pub trait ToFromUncompressedBytes<const UNCOMPRESSED_LENGTH: usize>: Sized {
-    /// Serialize an element to an uncompressed byte array.
-    fn to_uncompressed_bytes(&self) -> [u8; UNCOMPRESSED_LENGTH];
-
-    /// Convert an uncompressed byte array to the element. It is not verified whether the deserialized
-    /// element is valid (e.g., in the group) or not.
-    fn from_trusted_uncompressed_bytes(bytes: &[u8; UNCOMPRESSED_LENGTH])
-        -> FastCryptoResult<Self>;
-}
