@@ -3,8 +3,8 @@
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
 use crate::groups::bls12381::{
-    reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar, G1_ELEMENT_BYTE_LENGTH,
-    G2_ELEMENT_BYTE_LENGTH,
+    reduce_mod_uniform_buffer, sum_affine, G1Element, G2Element, GTElement, Scalar,
+    G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH,
 };
 use crate::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
@@ -724,6 +724,9 @@ fn test_g2_to_from_uncompressed() {
     let uncompressed_bytes = a.to_uncompressed_bytes();
     assert_eq!(uncompressed_bytes.len(), G2_ELEMENT_BYTE_LENGTH * 2);
 
+    // Regression test
+    assert_eq!(uncompressed_bytes.as_slice(), hex::decode("13e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb80606c4a02ea734cc32acd2b02bc28b99cb3e287e85a763af267492ab572e99ab3f370d275cec1da1aaa9075ff05f79be0ce5d527727d6e118cc9cdc6da2e351aadfd9baa8cbdd3a76d429a695160d12c923ac9cc3baca289e193548608b82801").unwrap());
+
     let b = G2Element::from_trusted_uncompressed_bytes(&uncompressed_bytes).unwrap();
     assert_eq!(a, b);
 
@@ -792,4 +795,20 @@ fn test_g2_sum() {
     assert_eq!(d, G2Element::generator() * Scalar::from(6u128));
     assert_eq!(a, G2Element::sum(&[a]));
     assert_eq!(G2Element::zero(), G2Element::sum(&[]));
+}
+
+#[test]
+fn test_g1_sum_fast() {
+    let a = G1Element::generator();
+    let b = G1Element::generator() * Scalar::from(2u128);
+    let c = G1Element::generator() * Scalar::from(3u128);
+
+    let bytes = vec![
+        a.to_uncompressed_bytes(),
+        b.to_uncompressed_bytes(),
+        c.to_uncompressed_bytes(),
+    ];
+    let sum = sum_affine(&bytes);
+
+    assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
 }

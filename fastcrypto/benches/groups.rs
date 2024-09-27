@@ -7,7 +7,7 @@ mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
     use fastcrypto::groups::bls12381::{
-        G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
+        sum_affine, G1Element, G2Element, GTElement, Scalar as BlsScalar, G1_ELEMENT_BYTE_LENGTH,
         G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
     };
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
@@ -15,8 +15,8 @@ mod group_benches {
     use fastcrypto::groups::ristretto255::RistrettoPoint;
     use fastcrypto::groups::secp256r1::ProjectivePoint;
     use fastcrypto::groups::{
-        secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
-        Scalar, ToFromUncompressedBytes,
+        bls12381, secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement,
+        MultiScalarMul, Pairing, Scalar, ToFromUncompressedBytes,
     };
     use fastcrypto::serde_helpers::ToFromByteArray;
     use rand::thread_rng;
@@ -211,26 +211,24 @@ mod group_benches {
         pairing_single::<G1Element, _>("BLS12381-G1", &mut group);
     }
 
-    fn sum_single<G: GroupElement, M: measurement::Measurement>(
-        name: &str,
-        c: &mut BenchmarkGroup<M>,
-    ) {
+    fn sum_single<M: measurement::Measurement>(name: &str, c: &mut BenchmarkGroup<M>) {
         static NUMBER_OF_TERMS: [usize; 4] = [10, 100, 500, 1000];
 
         for n in NUMBER_OF_TERMS {
             let terms = (0..n)
-                .map(|_| G::generator() * G::ScalarType::rand(&mut thread_rng()))
+                .map(|_| G1Element::generator() * bls12381::Scalar::rand(&mut thread_rng()))
+                .map(|x: G1Element| x.to_uncompressed_bytes())
                 .collect::<Vec<_>>();
             c.bench_function(format!("{}/{}", name.to_string(), n), move |b| {
-                b.iter(|| G::sum(&terms))
+                b.iter(|| sum_affine(terms.as_slice()))
             });
         }
     }
 
     fn sum(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Sum");
-        sum_single::<G1Element, _>("BLS12381-G1", &mut group);
-        sum_single::<G2Element, _>("BLS12381-G2", &mut group);
+        sum_single::<_>("BLS12381-G1", &mut group);
+        //sum_single::<{ 2 * G2_ELEMENT_BYTE_LENGTH }, G2Element, _>("BLS12381-G2", &mut group);
     }
 
     /// Implementation of a `Multiplier` where scalar multiplication is done without any pre-computation by
