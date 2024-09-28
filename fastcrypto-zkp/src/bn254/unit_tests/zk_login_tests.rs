@@ -485,6 +485,7 @@ fn test_get_provider_to_from_iss_to_from_str() {
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
         OIDCProvider::FanTV,
+        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
     ] {
         // to/from iss
         assert_eq!(p, OIDCProvider::from_iss(&p.get_config().iss).unwrap());
