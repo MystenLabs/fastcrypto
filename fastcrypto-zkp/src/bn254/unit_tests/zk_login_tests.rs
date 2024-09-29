@@ -441,7 +441,6 @@ async fn test_get_jwks() {
         OIDCProvider::Microsoft,
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
-        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
         OIDCProvider::KarrierOne,
         OIDCProvider::Credenza3,
         OIDCProvider::Playtron,
@@ -449,6 +448,7 @@ async fn test_get_jwks() {
         OIDCProvider::Onefc,
         OIDCProvider::FanTV,
         OIDCProvider::Arden,
+        OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
     ] {
         let res = fetch_jwks(&p, &client).await;
         assert!(res.is_ok());
