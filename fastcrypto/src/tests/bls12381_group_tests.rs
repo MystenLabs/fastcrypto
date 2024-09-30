@@ -659,7 +659,7 @@ fn test_serialization_gt() {
 
 #[test]
 fn test_g1_to_uncompressed() {
-    let a = G1Element::generator();
+    let a = G1Element::generator() * Scalar::from(7u128);
 
     let uncompressed_bytes = G1ElementUncompressed::from(&a);
 
@@ -669,6 +669,10 @@ fn test_g1_to_uncompressed() {
     // Infinity bit flag (2) should not be set.
     assert_eq!(uncompressed_bytes.0[0] & 0x40, 0);
 
+    // Regression test
+    assert_eq!(&uncompressed_bytes.0, hex::decode("1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1c").unwrap().as_slice());
+
+    // Serialize the point-at-infinity
     let a = G1Element::zero();
     let uncompressed_bytes = G1ElementUncompressed::from(&a);
 
