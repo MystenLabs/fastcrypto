@@ -73,30 +73,18 @@
 <a href="#73" id="73">73</a>
 <a href="#74" id="74">74</a>
 <a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
-<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
-<span class="kw">use </span>num_bigint::{BigInt, BigUint};
+</span><span class="kw">use </span>std::mem::swap;
+<span class="kw">use </span>std::ops::{RemAssign, ShrAssign};
+
+<span class="kw">use </span>num_bigint::BigInt;
 <span class="kw">use </span>num_integer::Integer;
 <span class="kw">use </span>num_traits::{One, Signed, Zero};
-<span class="kw">use </span>std::mem::swap;
-<span class="kw">use </span>std::ops::{RemAssign, ShrAssign};
+
+<span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
+<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
 
 <span class="doccomment">/// Compute the Jacobi symbol (a/m) for odd m. If m is prime, this is the same as the Legendre symbol.
 /// m must be odd and positive.
@@ -112,28 +100,23 @@
     <span class="comment">// The output
     </span><span class="kw">let </span><span class="kw-2">mut </span>t = <span class="bool-val">true</span>;
 
-    <span class="comment">// The second bit of m
-    </span><span class="kw">let </span><span class="kw-2">mut </span>m_2nd_bit = m.bit(<span class="number">1</span>);
+    <span class="kw">let </span><span class="kw-2">mut </span>m_1 = m.bit(<span class="number">1</span>);
 
     <span class="kw">while </span>!a.is_zero() {
-        <span class="comment">// Shift a to the right until odd and store the parity of the number of shifts
-        </span><span class="kw">let </span>s_odd = into_odd_part_and_2_adic_valuation(<span class="kw-2">&amp;mut </span>a);
+        <span class="comment">// Remove all trailing zeros from a and adjust t accordingly
+        </span><span class="kw">let </span>trailing_zeros = a.trailing_zeros().expect(<span class="string">"a is not zero"</span>);
+        <span class="kw">if </span>!trailing_zeros.is_zero() {
+            a.shr_assign(trailing_zeros);
+        }
 
-        <span class="comment">// To check if m is 3 or 5 mod 8 we check that only one of the second and third bits are set
-        </span><span class="kw">if </span>s_odd &amp;&amp; (m_2nd_bit ^ m.bit(<span class="number">2</span>)) {
+        <span class="kw">let </span>a_1 = a.bit(<span class="number">1</span>);
+        <span class="kw">if </span>(trailing_zeros.is_odd() &amp;&amp; (m_1 ^ m.bit(<span class="number">2</span>))) ^ (m_1 &amp;&amp; a_1) {
             t = !t;
         }
 
+        <span class="comment">// Swap a and m
+        </span>m_1 = a_1;
         swap(<span class="kw-2">&amp;mut </span>a, <span class="kw-2">&amp;mut </span>m);
-
-        <span class="comment">// a and m have been swapped
-        </span><span class="kw">let </span>a_2nd_bit = m_2nd_bit;
-        m_2nd_bit = m.bit(<span class="number">1</span>);
-
-        <span class="comment">// Check if both a and m are 3 mod 4
-        </span><span class="kw">if </span>a_2nd_bit &amp;&amp; m_2nd_bit {
-            t = !t;
-        }
         a.rem_assign(<span class="kw-2">&amp;</span>m);
     }
 
@@ -141,17 +124,6 @@
         <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="kw">if </span>t { <span class="number">1 </span>} <span class="kw">else </span>{ -<span class="number">1 </span>});
     }
     <span class="prelude-val">Ok</span>(<span class="number">0</span>)
-}
-
-<span class="doccomment">/// Given an integer a, find the largest power of two s such that a = 2^s * b for some odd b. Set
-/// a = b and return a boolean indicating whether s is odd.
-</span><span class="kw">fn </span>into_odd_part_and_2_adic_valuation(a: <span class="kw-2">&amp;mut </span>BigUint) -&gt; bool {
-    <span class="kw">let </span><span class="kw-2">mut </span>s = <span class="bool-val">false</span>;
-    <span class="kw">while </span>a.is_even() {
-        a.shr_assign(<span class="number">1</span>);
-        s = !s;
-    }
-    s
 }
 
 <span class="attr">#[cfg(test)]
