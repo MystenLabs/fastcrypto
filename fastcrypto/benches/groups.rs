@@ -215,12 +215,46 @@ mod group_benches {
         static NUMBER_OF_TERMS: [usize; 4] = [10, 100, 500, 1000];
 
         for n in NUMBER_OF_TERMS {
-            let terms = (0..n)
+            let terms: Vec<G1Element> = (0..n)
                 .map(|_| G1Element::generator() * bls12381::Scalar::rand(&mut thread_rng()))
-                .map(|x| G1ElementUncompressed::from(&x))
+                .collect();
+
+            let terms_uncompressed = terms
+                .iter()
+                .map(G1ElementUncompressed::from)
+                .map(G1ElementUncompressed::into_byte_array)
                 .collect::<Vec<_>>();
-            c.bench_function(&format!("Sum/BLS12381-G1/{}", n), move |b| {
-                b.iter(|| G1ElementUncompressed::sum(terms.as_slice()))
+
+            let terms_compressed = terms
+                .iter()
+                .map(G1Element::to_byte_array)
+                .collect::<Vec<_>>();
+
+            c.bench_function(&format!("Sum/BLS12381-G1/{} uncompressed", n), move |b| {
+                b.iter_batched(
+                    || terms_uncompressed.clone(),
+                    |t| {
+                        let terms_deserialized = t
+                            .into_iter()
+                            .map(G1ElementUncompressed::from_trusted_byte_array)
+                            .collect::<Vec<_>>();
+                        G1ElementUncompressed::sum(terms_deserialized.as_slice())
+                    },
+                    criterion::BatchSize::SmallInput,
+                )
+            });
+
+            c.bench_function(&format!("Sum/BLS12381-G1/{} compressed", n), move |b| {
+                b.iter_batched(
+                    || terms_compressed.clone(),
+                    |t| {
+                        t.iter()
+                            .map(G1Element::from_trusted_byte_array)
+                            .map(Result::unwrap)
+                            .reduce(|a, b| a + b)
+                    },
+                    criterion::BatchSize::SmallInput,
+                )
             });
         }
     }

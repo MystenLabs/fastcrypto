@@ -339,7 +339,7 @@ generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsByt
 /// format used by `G1Element::serialize`, but is much faster to deserialize.
 ///
 /// The intended use of this struct is to deserialize and sum a large number of G1 elements without
-/// having to decompress each of them first.
+/// having to decompress them first.
 #[derive(Clone, Debug)]
 #[repr(transparent)]
 pub struct G1ElementUncompressed(pub(crate) [u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
