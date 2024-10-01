@@ -704,6 +704,11 @@ fn test_g1_sum() {
     let sum = G1ElementUncompressed::sum(&bytes).unwrap();
     assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
 
+    // Equal elements in sum
+    let bytes = vec![(&b).into(), (&b).into()];
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::generator() * Scalar::from(4u128));
+
     // Singleton sum
     let bytes = [(&b).into()];
     let sum = G1ElementUncompressed::sum(&bytes).unwrap();
