@@ -4,8 +4,7 @@
 use crate::bls12381::min_pk::DST_G2;
 use crate::bls12381::min_sig::DST_G1;
 use crate::encoding::{Encoding, Hex};
-use crate::error::FastCryptoError::InvalidInput;
-use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::error::{FastCryptoError, FastCryptoError::InvalidInput, FastCryptoResult};
 use crate::groups::{
     FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
     Pairing, Scalar as ScalarType,
@@ -335,7 +334,7 @@ impl Debug for G1Element {
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
-/// An uncompressed seralization of a G1 element. This format is two times longer than the compressed
+/// An uncompressed serialization of a G1 element. This format is two times longer than the compressed
 /// format used by `G1Element::serialize`, but is much faster to deserialize.
 ///
 /// The intended use of this struct is to deserialize and sum a large number of G1 elements without
@@ -354,6 +353,26 @@ impl From<&G1Element> for G1ElementUncompressed {
     }
 }
 
+impl TryFrom<&G1ElementUncompressed> for G1Element {
+    type Error = FastCryptoError;
+
+    fn try_from(value: &G1ElementUncompressed) -> Result<Self, Self::Error> {
+        let mut ret = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+            if blst_p1_deserialize(&mut affine, value.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+            blst_p1_from_affine(&mut ret, &affine);
+
+            if !blst_p1_in_g1(&ret) {
+                return Err(InvalidInput);
+            }
+        }
+        Ok(G1Element(ret))
+    }
+}
+
 impl G1ElementUncompressed {
     /// Create a new `G1ElementUncompressed` from a byte array.
     /// The input is not validated so it should come from a trusted source.
@@ -368,6 +387,7 @@ impl G1ElementUncompressed {
         self.0
     }
 
+    /// This will never fail if the input is a valid G1 element.
     fn to_blst_p1_affine(&self) -> FastCryptoResult<blst_p1_affine> {
         let mut affine = blst_p1_affine::default();
         unsafe {
@@ -382,6 +402,8 @@ impl G1ElementUncompressed {
     }
 
     /// Compute the sum of a slice of uncompressed G1 elements.
+    ///
+    /// This function will never fail if the inputs are valid G1 element.
     pub fn sum(terms: &[G1ElementUncompressed]) -> FastCryptoResult<G1Element> {
         if terms.is_empty() {
             return Ok(G1Element::zero());
