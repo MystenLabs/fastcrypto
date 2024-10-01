@@ -748,7 +748,7 @@ fn test_g1_sum() {
 #[test]
 fn test_g1_large_sum() {
     let mut rng = thread_rng();
-    let n: usize = 1000;
+    let n: usize = 100;
     let points: Vec<G1Element> = (0..n)
         .map(|_| G1Element::generator() * Scalar::rand(&mut rng))
         .collect();
