@@ -744,3 +744,18 @@ fn test_g1_sum() {
     let sum = G1ElementUncompressed::sum(&bytes).unwrap();
     assert_eq!(sum, G1Element::zero());
 }
+
+#[test]
+fn test_g1_large_sum() {
+    let mut rng = thread_rng();
+    let n: usize = 1000;
+    let points: Vec<G1Element> = (0..n)
+        .map(|_| G1Element::generator() * Scalar::rand(&mut rng))
+        .collect();
+    let expected = points.iter().fold(G1Element::zero(), |acc, p| acc + p);
+
+    let as_uncompressed: Vec<G1ElementUncompressed> =
+        points.iter().map(G1ElementUncompressed::from).collect();
+    let sum = G1ElementUncompressed::sum(as_uncompressed.as_slice()).unwrap();
+    assert_eq!(expected, sum);
+}
