@@ -672,6 +672,23 @@ fn test_g1_to_uncompressed() {
     // Regression test
     assert_eq!(&uncompressed_bytes.0, hex::decode("1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1c").unwrap().as_slice());
 
+    // Check round-trip
+    let b = G1Element::try_from(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
+
+    // Simply padding a compressed serialization with 0's will fail
+    let mut padded = b.to_byte_array().to_vec();
+    padded.extend_from_slice(&[0u8; G1_ELEMENT_BYTE_LENGTH]);
+    assert_eq!(padded.len(), 2 * G1_ELEMENT_BYTE_LENGTH);
+    let uncompressed = G1ElementUncompressed::from_trusted_byte_array(padded.try_into().unwrap());
+    assert!(G1Element::try_from(&uncompressed).is_err());
+
+    // A point not on the curve fails
+    let mut bytes = uncompressed_bytes.into_byte_array();
+    bytes[1] += 1;
+    let uncompressed_bytes = G1ElementUncompressed::from_trusted_byte_array(bytes);
+    assert!(G1Element::try_from(&uncompressed_bytes).is_err());
+
     // Serialize the point-at-infinity
     let a = G1Element::zero();
     let uncompressed_bytes = G1ElementUncompressed::from(&a);
@@ -684,6 +701,11 @@ fn test_g1_to_uncompressed() {
         uncompressed_bytes.0[1..],
         [0u8; G1_ELEMENT_BYTE_LENGTH * 2 - 1]
     );
+
+    // All zeros
+    let uncompressed =
+        G1ElementUncompressed::from_trusted_byte_array([0u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
+    assert!(G1Element::try_from(&uncompressed).is_err());
 }
 
 #[test]

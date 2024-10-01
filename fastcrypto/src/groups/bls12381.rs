@@ -357,6 +357,15 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
     type Error = FastCryptoError;
 
     fn try_from(value: &G1ElementUncompressed) -> Result<Self, Self::Error> {
+        // See https://github.com/supranational/blst for details on the serialization format.
+
+        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
+        // compressed points to indicate sign of the y-coordinate and should also not be set.
+        if value.0[0] & 0x20 != 0 || value.0[0] & 0x80 != 0 {
+            return Err(InvalidInput);
+        }
+
         let mut ret = blst_p1::default();
         unsafe {
             let mut affine = blst_p1_affine::default();
