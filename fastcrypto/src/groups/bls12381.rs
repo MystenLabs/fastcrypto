@@ -34,7 +34,6 @@ use serde::{de, Deserialize};
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
-use std::ptr::null;
 use zeroize::Zeroize;
 
 /// Elements of the group G_1 in BLS 12-381.
@@ -426,8 +425,11 @@ impl G1ElementUncompressed {
 
         // Inspired by https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/bindings/rust/src/pippenger.rs#L334-L337
         let mut ret = blst_p1::default();
-        let p: [*const _; 2] = [&affine_points[0], null()];
-        unsafe { blst_p1s_add(&mut ret, &p[0], terms.len()) };
+        let p = affine_points
+            .iter()
+            .map(|p| p as *const _)
+            .collect::<Vec<_>>();
+        unsafe { blst_p1s_add(&mut ret, p.as_ptr(), p.len()) };
         Ok(G1Element(ret))
     }
 }
