@@ -423,7 +423,6 @@ impl G1ElementUncompressed {
             .map(G1ElementUncompressed::to_blst_p1_affine)
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        // Inspired by https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/bindings/rust/src/pippenger.rs#L334-L337
         let mut ret = blst_p1::default();
         let p = affine_points
             .iter()
