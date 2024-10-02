@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::bls12381::min_pk::{BLS12381KeyPair, BLS12381Signature};
-use crate::groups::bls12381::{reduce_mod_uniform_buffer, G1Element, G2Element, GTElement, Scalar};
+use crate::groups::bls12381::{
+    reduce_mod_uniform_buffer, G1Element, G1ElementUncompressed, G2Element, GTElement, Scalar,
+    G1_ELEMENT_BYTE_LENGTH,
+};
 use crate::groups::{
     FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul, Pairing,
     Scalar as ScalarTrait,
@@ -652,4 +655,107 @@ fn test_serialization_gt() {
     bytes[bytes.len() - 1] += 2;
     assert!(GTElement::from_trusted_byte_array(&bytes).is_ok());
     assert!(GTElement::from_byte_array(&bytes).is_err());
+}
+
+#[test]
+fn test_g1_to_uncompressed() {
+    let a = G1Element::generator() * Scalar::from(7u128);
+
+    let uncompressed_bytes = G1ElementUncompressed::from(&a);
+
+    // Compressed bit flags (1 and 3) should not be set.
+    assert_eq!(uncompressed_bytes.0[0] & 0xA0, 0);
+
+    // Infinity bit flag (2) should not be set.
+    assert_eq!(uncompressed_bytes.0[0] & 0x40, 0);
+
+    // Regression test
+    assert_eq!(&uncompressed_bytes.0, hex::decode("1928f3beb93519eecf0145da903b40a4c97dca00b21f12ac0df3be9116ef2ef27b2ae6bcd4c5bc2d54ef5a70627efcb7108dadbaa4b636445639d5ae3089b3c43a8a1d47818edd1839d7383959a41c10fdc66849cfa1b08c5a11ec7e28981a1c").unwrap().as_slice());
+
+    // Check round-trip
+    let b = G1Element::try_from(&uncompressed_bytes).unwrap();
+    assert_eq!(a, b);
+
+    // Simply padding a compressed serialization with 0's will fail
+    let mut padded = b.to_byte_array().to_vec();
+    padded.extend_from_slice(&[0u8; G1_ELEMENT_BYTE_LENGTH]);
+    assert_eq!(padded.len(), 2 * G1_ELEMENT_BYTE_LENGTH);
+    let uncompressed = G1ElementUncompressed::from_trusted_byte_array(padded.try_into().unwrap());
+    assert!(G1Element::try_from(&uncompressed).is_err());
+
+    // A point not on the curve fails
+    let mut bytes = uncompressed_bytes.into_byte_array();
+    bytes[1] += 1;
+    let uncompressed_bytes = G1ElementUncompressed::from_trusted_byte_array(bytes);
+    assert!(G1Element::try_from(&uncompressed_bytes).is_err());
+
+    // Serialize the point-at-infinity
+    let a = G1Element::zero();
+    let uncompressed_bytes = G1ElementUncompressed::from(&a);
+
+    // Only the point at infinity flag should be set.
+    assert_eq!(uncompressed_bytes.0[0], 0x40);
+
+    // The remaining bytes should all be zero
+    assert_eq!(
+        uncompressed_bytes.0[1..],
+        [0u8; G1_ELEMENT_BYTE_LENGTH * 2 - 1]
+    );
+
+    // All zeros
+    let uncompressed =
+        G1ElementUncompressed::from_trusted_byte_array([0u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
+    assert!(G1Element::try_from(&uncompressed).is_err());
+}
+
+#[test]
+fn test_g1_sum() {
+    // Empty sum
+    assert_eq!(G1ElementUncompressed::sum(&[]).unwrap(), G1Element::zero());
+
+    // Non-trivial sum
+    let a = G1Element::generator();
+    let b = G1Element::generator() * Scalar::from(2u128);
+    let c = G1Element::generator() * Scalar::from(3u128);
+    let mut bytes: Vec<G1ElementUncompressed> = vec![(&a).into(), (&b).into(), (&c).into()];
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
+
+    // Adding zeros doesn't change anything
+    bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::generator() * Scalar::from(6u128));
+
+    // Equal elements in sum
+    let bytes = vec![(&b).into(), (&b).into()];
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::generator() * Scalar::from(4u128));
+
+    // Singleton sum
+    let bytes = [(&b).into()];
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, b);
+
+    // Adding zero's
+    let mut bytes = vec![G1ElementUncompressed::from(&G1Element::zero())];
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::zero());
+    bytes.push(G1ElementUncompressed::from(&G1Element::zero()));
+    let sum = G1ElementUncompressed::sum(&bytes).unwrap();
+    assert_eq!(sum, G1Element::zero());
+}
+
+#[test]
+fn test_g1_large_sum() {
+    let mut rng = thread_rng();
+    let n: usize = 100;
+    let points: Vec<G1Element> = (0..n)
+        .map(|_| G1Element::generator() * Scalar::rand(&mut rng))
+        .collect();
+    let expected = points.iter().fold(G1Element::zero(), |acc, p| acc + p);
+
+    let as_uncompressed: Vec<G1ElementUncompressed> =
+        points.iter().map(G1ElementUncompressed::from).collect();
+    let sum = G1ElementUncompressed::sum(as_uncompressed.as_slice()).unwrap();
+    assert_eq!(expected, sum);
 }
