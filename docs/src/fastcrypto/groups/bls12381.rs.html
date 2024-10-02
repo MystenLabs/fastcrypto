@@ -889,13 +889,113 @@
 <a href="#889" id="889">889</a>
 <a href="#890" id="890">890</a>
 <a href="#891" id="891">891</a>
+<a href="#892" id="892">892</a>
+<a href="#893" id="893">893</a>
+<a href="#894" id="894">894</a>
+<a href="#895" id="895">895</a>
+<a href="#896" id="896">896</a>
+<a href="#897" id="897">897</a>
+<a href="#898" id="898">898</a>
+<a href="#899" id="899">899</a>
+<a href="#900" id="900">900</a>
+<a href="#901" id="901">901</a>
+<a href="#902" id="902">902</a>
+<a href="#903" id="903">903</a>
+<a href="#904" id="904">904</a>
+<a href="#905" id="905">905</a>
+<a href="#906" id="906">906</a>
+<a href="#907" id="907">907</a>
+<a href="#908" id="908">908</a>
+<a href="#909" id="909">909</a>
+<a href="#910" id="910">910</a>
+<a href="#911" id="911">911</a>
+<a href="#912" id="912">912</a>
+<a href="#913" id="913">913</a>
+<a href="#914" id="914">914</a>
+<a href="#915" id="915">915</a>
+<a href="#916" id="916">916</a>
+<a href="#917" id="917">917</a>
+<a href="#918" id="918">918</a>
+<a href="#919" id="919">919</a>
+<a href="#920" id="920">920</a>
+<a href="#921" id="921">921</a>
+<a href="#922" id="922">922</a>
+<a href="#923" id="923">923</a>
+<a href="#924" id="924">924</a>
+<a href="#925" id="925">925</a>
+<a href="#926" id="926">926</a>
+<a href="#927" id="927">927</a>
+<a href="#928" id="928">928</a>
+<a href="#929" id="929">929</a>
+<a href="#930" id="930">930</a>
+<a href="#931" id="931">931</a>
+<a href="#932" id="932">932</a>
+<a href="#933" id="933">933</a>
+<a href="#934" id="934">934</a>
+<a href="#935" id="935">935</a>
+<a href="#936" id="936">936</a>
+<a href="#937" id="937">937</a>
+<a href="#938" id="938">938</a>
+<a href="#939" id="939">939</a>
+<a href="#940" id="940">940</a>
+<a href="#941" id="941">941</a>
+<a href="#942" id="942">942</a>
+<a href="#943" id="943">943</a>
+<a href="#944" id="944">944</a>
+<a href="#945" id="945">945</a>
+<a href="#946" id="946">946</a>
+<a href="#947" id="947">947</a>
+<a href="#948" id="948">948</a>
+<a href="#949" id="949">949</a>
+<a href="#950" id="950">950</a>
+<a href="#951" id="951">951</a>
+<a href="#952" id="952">952</a>
+<a href="#953" id="953">953</a>
+<a href="#954" id="954">954</a>
+<a href="#955" id="955">955</a>
+<a href="#956" id="956">956</a>
+<a href="#957" id="957">957</a>
+<a href="#958" id="958">958</a>
+<a href="#959" id="959">959</a>
+<a href="#960" id="960">960</a>
+<a href="#961" id="961">961</a>
+<a href="#962" id="962">962</a>
+<a href="#963" id="963">963</a>
+<a href="#964" id="964">964</a>
+<a href="#965" id="965">965</a>
+<a href="#966" id="966">966</a>
+<a href="#967" id="967">967</a>
+<a href="#968" id="968">968</a>
+<a href="#969" id="969">969</a>
+<a href="#970" id="970">970</a>
+<a href="#971" id="971">971</a>
+<a href="#972" id="972">972</a>
+<a href="#973" id="973">973</a>
+<a href="#974" id="974">974</a>
+<a href="#975" id="975">975</a>
+<a href="#976" id="976">976</a>
+<a href="#977" id="977">977</a>
+<a href="#978" id="978">978</a>
+<a href="#979" id="979">979</a>
+<a href="#980" id="980">980</a>
+<a href="#981" id="981">981</a>
+<a href="#982" id="982">982</a>
+<a href="#983" id="983">983</a>
+<a href="#984" id="984">984</a>
+<a href="#985" id="985">985</a>
+<a href="#986" id="986">986</a>
+<a href="#987" id="987">987</a>
+<a href="#988" id="988">988</a>
+<a href="#989" id="989">989</a>
+<a href="#990" id="990">990</a>
+<a href="#991" id="991">991</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::bls12381::min_pk::DST_G2;
 <span class="kw">use </span><span class="kw">crate</span>::bls12381::min_sig::DST_G1;
 <span class="kw">use </span><span class="kw">crate</span>::encoding::{Encoding, Hex};
-<span class="kw">use </span><span class="kw">crate</span>::error::{FastCryptoError, FastCryptoResult};
+<span class="kw">use </span><span class="kw">crate</span>::error::{FastCryptoError, FastCryptoError::InvalidInput, FastCryptoResult};
 <span class="kw">use </span><span class="kw">crate</span>::groups::{
     FiatShamirChallenge, FromTrustedByteArray, GroupElement, HashToGroupElement, MultiScalarMul,
     Pairing, Scalar <span class="kw">as </span>ScalarType,
@@ -911,11 +1011,12 @@
     blst_fr_from_scalar, blst_fr_from_uint64, blst_fr_inverse, blst_fr_mul, blst_fr_rshift,
     blst_fr_sub, blst_hash_to_g1, blst_hash_to_g2, blst_lendian_from_scalar, blst_miller_loop,
     blst_p1, blst_p1_add_or_double, blst_p1_affine, blst_p1_cneg, blst_p1_compress,
-    blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_to_affine, blst_p1_uncompress,
-    blst_p2, blst_p2_add_or_double, blst_p2_affine, blst_p2_cneg, blst_p2_compress,
-    blst_p2_from_affine, blst_p2_in_g2, blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress,
-    blst_scalar, blst_scalar_fr_check, blst_scalar_from_be_bytes, blst_scalar_from_bendian,
-    blst_scalar_from_fr, p1_affines, p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
+    blst_p1_deserialize, blst_p1_from_affine, blst_p1_in_g1, blst_p1_mult, blst_p1_serialize,
+    blst_p1_to_affine, blst_p1_uncompress, blst_p1s_add, blst_p2, blst_p2_add_or_double,
+    blst_p2_affine, blst_p2_cneg, blst_p2_compress, blst_p2_from_affine, blst_p2_in_g2,
+    blst_p2_mult, blst_p2_to_affine, blst_p2_uncompress, blst_scalar, blst_scalar_fr_check,
+    blst_scalar_from_be_bytes, blst_scalar_from_bendian, blst_scalar_from_fr, p1_affines,
+    p2_affines, BLS12_381_G1, BLS12_381_G2, BLST_ERROR,
 };
 <span class="kw">use </span>fastcrypto_derive::GroupOpsExtend;
 <span class="kw">use </span>hex_literal::hex;
@@ -1223,6 +1324,105 @@
 
 <span class="macro">serialize_deserialize_with_to_from_byte_array!</span>(G1Element);
 <span class="macro">generate_bytes_representation!</span>(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
+
+<span class="doccomment">/// An uncompressed serialization of a G1 element. This format is two times longer than the compressed
+/// format used by `G1Element::serialize`, but is much faster to deserialize.
+///
+/// The intended use of this struct is to deserialize and sum a large number of G1 elements without
+/// having to decompress them first.
+</span><span class="attr">#[derive(Clone, Debug)]
+#[repr(transparent)]
+</span><span class="kw">pub struct </span>G1ElementUncompressed(<span class="kw">pub</span>(<span class="kw">crate</span>) [u8; <span class="number">2 </span>* G1_ELEMENT_BYTE_LENGTH]);
+
+<span class="kw">impl </span>From&lt;<span class="kw-2">&amp;</span>G1Element&gt; <span class="kw">for </span>G1ElementUncompressed {
+    <span class="kw">fn </span>from(element: <span class="kw-2">&amp;</span>G1Element) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span><span class="kw-2">mut </span>bytes = [<span class="number">0u8</span>; <span class="number">2 </span>* G1_ELEMENT_BYTE_LENGTH];
+        <span class="kw">unsafe </span>{
+            blst_p1_serialize(bytes.as_mut_ptr(), <span class="kw-2">&amp;</span>element.<span class="number">0</span>);
+        }
+        G1ElementUncompressed(bytes)
+    }
+}
+
+<span class="kw">impl </span>TryFrom&lt;<span class="kw-2">&amp;</span>G1ElementUncompressed&gt; <span class="kw">for </span>G1Element {
+    <span class="kw">type </span>Error = FastCryptoError;
+
+    <span class="kw">fn </span>try_from(value: <span class="kw-2">&amp;</span>G1ElementUncompressed) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, <span class="self">Self</span>::Error&gt; {
+        <span class="comment">// See https://github.com/supranational/blst for details on the serialization format.
+
+        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
+        // compressed points to indicate sign of the y-coordinate and should also not be set.
+        </span><span class="kw">if </span>value.<span class="number">0</span>[<span class="number">0</span>] &amp; <span class="number">0x20 </span>!= <span class="number">0 </span>|| value.<span class="number">0</span>[<span class="number">0</span>] &amp; <span class="number">0x80 </span>!= <span class="number">0 </span>{
+            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_p1::default();
+        <span class="kw">unsafe </span>{
+            <span class="kw">let </span><span class="kw-2">mut </span>affine = blst_p1_affine::default();
+            <span class="kw">if </span>blst_p1_deserialize(<span class="kw-2">&amp;mut </span>affine, value.<span class="number">0</span>.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+            }
+            blst_p1_from_affine(<span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;</span>affine);
+
+            <span class="kw">if </span>!blst_p1_in_g1(<span class="kw-2">&amp;</span>ret) {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+            }
+        }
+        <span class="prelude-val">Ok</span>(G1Element(ret))
+    }
+}
+
+<span class="kw">impl </span>G1ElementUncompressed {
+    <span class="doccomment">/// Create a new `G1ElementUncompressed` from a byte array.
+    /// The input is not validated so it should come from a trusted source.
+    ///
+    /// See [the blst docs](https://github.com/supranational/blst/tree/master?tab=readme-ov-file#serialization-format) for details about the uncompressed serialization format.
+    </span><span class="kw">pub fn </span>from_trusted_byte_array(bytes: [u8; <span class="number">2 </span>* G1_ELEMENT_BYTE_LENGTH]) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(bytes)
+    }
+
+    <span class="doccomment">/// Get the byte array representation of this element.
+    </span><span class="kw">pub fn </span>into_byte_array(<span class="self">self</span>) -&gt; [u8; <span class="number">2 </span>* G1_ELEMENT_BYTE_LENGTH] {
+        <span class="self">self</span>.<span class="number">0
+    </span>}
+
+    <span class="doccomment">/// This will never fail if the input is a valid G1 element.
+    </span><span class="kw">fn </span>to_blst_p1_affine(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; FastCryptoResult&lt;blst_p1_affine&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>affine = blst_p1_affine::default();
+        <span class="kw">unsafe </span>{
+            <span class="comment">// This fails if the point is not on the curve or if it is (0, ±2) which is on the curve
+            // but not in the G1 subgroup. See https://github.com/supranational/blst/blob/6f3136ffb636974166a93f2f25436854fe8d10ff/src/e1.c#L296-L326.
+            // A subgroup check is not performed here.
+            </span><span class="kw">if </span>blst_p1_deserialize(<span class="kw-2">&amp;mut </span>affine, <span class="self">self</span>.<span class="number">0</span>.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+            }
+        }
+        <span class="prelude-val">Ok</span>(affine)
+    }
+
+    <span class="doccomment">/// Compute the sum of a slice of uncompressed G1 elements.
+    ///
+    /// This function will never fail if the inputs are valid G1 element.
+    </span><span class="kw">pub fn </span>sum(terms: <span class="kw-2">&amp;</span>[G1ElementUncompressed]) -&gt; FastCryptoResult&lt;G1Element&gt; {
+        <span class="kw">if </span>terms.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(G1Element::zero());
+        }
+
+        <span class="kw">let </span>affine_points: Vec&lt;blst_p1_affine&gt; = terms
+            .iter()
+            .map(G1ElementUncompressed::to_blst_p1_affine)
+            .collect::&lt;FastCryptoResult&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;&gt;()<span class="question-mark">?</span>;
+
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = blst_p1::default();
+        <span class="kw">let </span>p = affine_points
+            .iter()
+            .map(|p| p <span class="kw">as </span><span class="kw-2">*const </span><span class="kw">_</span>)
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+        <span class="kw">unsafe </span>{ blst_p1s_add(<span class="kw-2">&amp;mut </span>ret, p.as_ptr(), p.len()) };
+        <span class="prelude-val">Ok</span>(G1Element(ret))
+    }
+}
 
 <span class="kw">impl </span>Add <span class="kw">for </span>G2Element {
     <span class="kw">type </span>Output = <span class="self">Self</span>;
