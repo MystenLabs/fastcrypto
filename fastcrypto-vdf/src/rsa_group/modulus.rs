@@ -4,8 +4,9 @@
 use fastcrypto::error::FastCryptoError;
 use num_bigint::BigUint;
 use num_integer::Integer;
+use num_traits::One;
 use serde::Serialize;
-use std::ops::Shr;
+use std::ops::{Shl, Shr};
 use std::str::FromStr;
 
 #[derive(PartialEq, Eq, Debug, Serialize)]
@@ -15,6 +16,10 @@ pub struct RSAModulus {
     /// Precomputed value of `modulus / 2` for faster reduction.
     #[serde(skip)]
     pub(super) half: BigUint,
+
+    /// Precomputed value of `2^{2 * log(modulus)}` for fast modular reduction.
+    #[serde(skip)]
+    pub(super) r: BigUint,
 }
 
 impl FromStr for RSAModulus {
@@ -34,7 +39,8 @@ impl From<BigUint> for RSAModulus {
     /// responsibility to ensure that it is a valid RSA modulus.
     fn from(value: BigUint) -> Self {
         let half = (&value).shr(1);
-        Self { value, half }
+        let r = BigUint::one().shl(2 * value.bits()).div_floor(&value);
+        Self { value, half, r }
     }
 }
 
@@ -43,7 +49,12 @@ impl RSAModulus {
     /// modulus, the result is negated. This is to ensure that the result is in the subgroup
     /// <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
     pub(super) fn reduce(&self, value: BigUint) -> BigUint {
-        let value = value.mod_floor(&self.value);
+        self.ensure_in_subgroup(value.mod_floor(&self.value))
+    }
+
+    /// Assuming that <i>value < N</i>, ensure that the given value is in the subgroup <i>Z<sub>N</sub><sup>*</sup> / <±1></i>.
+    /// Panics if the value is greater than or equal to <i>N</i>.
+    pub(super) fn ensure_in_subgroup(&self, value: BigUint) -> BigUint {
         if value < self.half {
             value
         } else {

@@ -19,31 +19,28 @@ pub trait ParameterizedGroupElement:
 
     /// Returns true if this is an element of the group defined by `parameter`.
     fn is_in_group(&self, parameter: &Self::ParameterType) -> bool;
-}
 
-/// Compute self * scalar using a "Double-and-Add" algorithm for a positive scalar.
-pub(crate) fn multiply<G: ParameterizedGroupElement>(
-    input: &G,
-    scalar: &BigUint,
-    parameter: &G::ParameterType,
-) -> G {
-    (0..scalar.bits())
-        .rev()
-        .map(|i| scalar.bit(i))
-        .fold(G::zero(parameter), |acc, bit| {
-            let mut res = acc.double();
-            if bit {
-                res = res + input;
-            }
-            res
-        })
+    /// Compute self * scalar.
+    fn multiply(&self, scalar: &BigUint, parameter: &Self::ParameterType) -> Self {
+        // Generic double-and-add algorithm.
+        (0..scalar.bits())
+            .rev()
+            .map(|i| scalar.bit(i))
+            .fold(Self::zero(parameter), |acc, bit| {
+                let mut res = acc.double();
+                if bit {
+                    res = res + self;
+                }
+                res
+            })
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
+    use crate::math::parameterized_group::ParameterizedGroupElement;
     use num_bigint::BigUint;
     use num_traits::{One, Zero};
 
@@ -55,12 +52,12 @@ mod tests {
         // Edge cases
         assert_eq!(
             QuadraticForm::zero(&discriminant),
-            multiply(&input, &BigUint::zero(), &discriminant)
+            input.multiply(&BigUint::zero(), &discriminant)
         );
-        assert_eq!(input, multiply(&input, &BigUint::one(), &discriminant));
+        assert_eq!(input, input.multiply(&BigUint::one(), &discriminant));
 
         let exponent = 12345u64;
-        let output = multiply(&input, &BigUint::from(exponent), &discriminant);
+        let output = input.multiply(&BigUint::from(exponent), &discriminant);
 
         // Check alignment with repeated addition.
         let mut expected_output = input.clone();

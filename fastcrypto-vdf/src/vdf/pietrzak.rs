@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::math::parameterized_group::{multiply, ParameterizedGroupElement};
+use crate::math::parameterized_group::ParameterizedGroupElement;
 use crate::vdf::VDF;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -87,8 +87,8 @@ where
             let mu = x.clone().repeated_doubling(t_i);
 
             let r = self.compute_challenge(&x, &y, &mu);
-            x = multiply(&x, &r, &self.group_parameter) + &mu;
-            y = multiply(&mu, &r, &self.group_parameter) + &y;
+            x = x.multiply(&r, &self.group_parameter) + &mu;
+            y = mu.multiply(&r, &self.group_parameter) + &y;
 
             if t_i.is_odd() {
                 y = y.double();
@@ -119,8 +119,8 @@ where
             }
 
             let r = self.compute_challenge(&x, &y, mu);
-            x = multiply(&x, &r, &self.group_parameter) + mu;
-            y = multiply(mu, &r, &self.group_parameter) + &y;
+            x = x.multiply(&r, &self.group_parameter) + mu;
+            y = mu.multiply(&r, &self.group_parameter) + &y;
         }
 
         // In case the proof is shorter than the full proof, we need to compute the remaining powers.
@@ -142,7 +142,7 @@ fn check_parity_and_iterate(t: &mut u64) -> bool {
 mod tests {
     use crate::class_group::discriminant::Discriminant;
     use crate::class_group::QuadraticForm;
-    use crate::rsa_group::modulus::test::{AMAZON_MODULUS_2048_REF, GOOGLE_MODULUS_4096_REF};
+    use crate::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
     use crate::rsa_group::RSAGroupElement;
     use crate::vdf::pietrzak::PietrzaksVDF;
     use crate::vdf::VDF;
