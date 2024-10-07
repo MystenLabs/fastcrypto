@@ -16,10 +16,6 @@ pub struct RSAModulus {
     /// Precomputed value of `modulus / 2` for faster reduction.
     #[serde(skip)]
     pub(super) half: BigUint,
-
-    /// Precomputed value of `2^{2 * log(modulus)}` for fast modular reduction.
-    #[serde(skip)]
-    pub(super) r: BigUint,
 }
 
 impl FromStr for RSAModulus {
@@ -39,8 +35,7 @@ impl From<BigUint> for RSAModulus {
     /// responsibility to ensure that it is a valid RSA modulus.
     fn from(value: BigUint) -> Self {
         let half = (&value).shr(1);
-        let r = BigUint::one().shl(2 * value.bits()).div_floor(&value);
-        Self { value, half, r }
+        Self { value, half }
     }
 }
 
