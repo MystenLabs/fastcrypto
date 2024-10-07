@@ -9,7 +9,7 @@ use fastcrypto::hash::{HashFunction, Keccak256};
 use num_bigint::BigUint;
 use num_integer::Integer;
 use serde::Serialize;
-use std::{iter, mem};
+use std::mem;
 
 /// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
 ///
@@ -72,27 +72,21 @@ where
 
         let mut proof = Vec::new();
 
-        let t = iter::successors(Some(self.iterations), |t| Some((*t + 1) >> 1))
-            .skip(1)
-            .take_while(|t| *t > 1);
-
-        if self.iterations.is_odd() {
-            y = y.double();
-        }
+        let mut t = self.iterations;
 
         // Compute the full proof. This loop may stop at any time which will give a shorter proof
         // that is computationally harder to verify.
-        for t_i in t {
+        while t > 1 {
+            if check_parity_and_iterate(&mut t) {
+                y = y.double();
+            }
+
             // TODO: Precompute some of the mu's to speed up the proof generation.
-            let mu = x.clone().repeated_doubling(t_i);
+            let mu = x.clone().repeated_doubling(t);
 
             let r = self.compute_challenge(&x, &y, &mu);
             x = x.multiply(&r, &self.group_parameter) + &mu;
             y = mu.multiply(&r, &self.group_parameter) + &y;
-
-            if t_i.is_odd() {
-                y = y.double();
-            }
 
             proof.push(mu);
         }
