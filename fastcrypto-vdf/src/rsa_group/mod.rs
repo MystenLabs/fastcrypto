@@ -74,11 +74,10 @@ impl<'a> ParameterizedGroupElement for RSAGroupElement<'a> {
     }
 
     fn multiply(&self, scalar: &BigUint, modulus: &Self::ParameterType) -> Self {
-        let value = self.value.modpow(scalar, &modulus.value);
-        Self {
-            value: self.modulus.ensure_in_subgroup(value),
-            modulus,
-        }
+        let value = self
+            .modulus
+            .ensure_in_subgroup(self.value.modpow(scalar, &modulus.value));
+        Self { value, modulus }
     }
 }
 
