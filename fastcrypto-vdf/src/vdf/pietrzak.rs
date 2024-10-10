@@ -69,10 +69,9 @@ where
 
         let mut x = input.clone();
         let mut y = output.clone();
+        let mut t = self.iterations;
 
         let mut proof = Vec::new();
-
-        let mut t = self.iterations;
 
         // Compute the full proof. This loop may stop at any time which will give a shorter proof
         // that is computationally harder to verify.
