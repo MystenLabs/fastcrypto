@@ -75,7 +75,7 @@ where
 
         // Compute the full proof. This loop may stop at any time which will give a shorter proof
         // that is computationally harder to verify.
-        while t > 1 {
+        while t != 1 {
             if check_parity_and_iterate(&mut t) {
                 y = y.double();
             }
