@@ -65,12 +65,19 @@ impl Doubling for RSAGroupElement<'_> {
 impl<'a> ParameterizedGroupElement for RSAGroupElement<'a> {
     type ParameterType = &'a RSAModulus;
 
-    fn zero(parameter: &Self::ParameterType) -> Self {
-        Self::new(BigUint::one(), parameter)
+    fn zero(modulus: &Self::ParameterType) -> Self {
+        Self::new(BigUint::one(), modulus)
     }
 
-    fn is_in_group(&self, parameter: &Self::ParameterType) -> bool {
-        &self.modulus == parameter
+    fn is_in_group(&self, modulus: &Self::ParameterType) -> bool {
+        &self.modulus == modulus
+    }
+
+    fn multiply(&self, scalar: &BigUint, modulus: &Self::ParameterType) -> Self {
+        let value = self
+            .modulus
+            .ensure_in_subgroup(self.value.modpow(scalar, &modulus.value));
+        Self { value, modulus }
     }
 }
 
