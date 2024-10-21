@@ -26,12 +26,9 @@ pub trait ParameterizedGroupElement:
         (0..scalar.bits())
             .rev()
             .map(|i| scalar.bit(i))
-            .fold(Self::zero(parameter), |acc, bit| {
-                let mut res = acc.double();
-                if bit {
-                    res = res + self;
-                }
-                res
+            .fold(Self::zero(parameter), |acc, bit| match bit {
+                true => acc.double() + self,
+                false => acc.double(),
             })
     }
 }
