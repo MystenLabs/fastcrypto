@@ -332,7 +332,7 @@ pub type Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>;
 pub struct Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv);
 
 impl Aes256GcmSiv {
-    fn new(key: AesKey<U32>) -> Self {
+    pub fn new(key: AesKey<U32>) -> Self {
         Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv::new(&key.bytes))
     }
 }
