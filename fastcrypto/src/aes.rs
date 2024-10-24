@@ -32,7 +32,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use typenum::{U12, U16, U24, U32};
+use typenum::{U12, U16, U32};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Trait impl'd by encryption keys in symmetric cryptography
@@ -156,23 +156,17 @@ impl<N> Nonce for InitializationVector<N> where N: ArrayLength<u8> + Debug {}
 ///
 /// Aes in CTR mode
 ///
-pub struct AesCtr<KeySize: ArrayLength<u8>, Aes> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
-}
+pub struct AesCtr<Aes: KeySizeUser>(AesKey<Aes::KeySize>);
 
-impl<KeySize: ArrayLength<u8>, Aes> AesCtr<KeySize, Aes> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
-        Self {
-            key,
-            algorithm: PhantomData,
-        }
+impl<Aes: KeySizeUser> AesCtr<Aes> {
+    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
+        Self(key)
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes> Cipher for AesCtr<KeySize, Aes>
+impl<Aes> Cipher for AesCtr<Aes>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
+    Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser<BlockSize = U16>
@@ -183,50 +177,48 @@ where
 
     fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![0; plaintext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.0.bytes, &iv.bytes);
         cipher.apply_keystream_b2b(plaintext, &mut buffer).unwrap();
         buffer
     }
 
     fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.0.bytes, &iv.bytes);
         cipher.apply_keystream_b2b(ciphertext, &mut buffer).unwrap();
         Ok(buffer)
     }
 }
 
 /// AES128 in CTR-mode.
-pub type Aes128Ctr = AesCtr<U16, aes::Aes128>;
+pub type Aes128Ctr = AesCtr<aes::Aes128>;
 
 /// AES192 in CTR-mode.
-pub type Aes192Ctr = AesCtr<U24, aes::Aes192>;
+pub type Aes192Ctr = AesCtr<aes::Aes192>;
 
 /// AES256 in CTR-mode.
-pub type Aes256Ctr = AesCtr<U32, aes::Aes256>;
+pub type Aes256Ctr = AesCtr<aes::Aes256>;
 
 ///
 /// Aes in CBC mode
 ///
-pub struct AesCbc<KeySize: ArrayLength<u8>, Aes, Padding> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
+pub struct AesCbc<Aes: KeySizeUser, Padding> {
+    key: AesKey<Aes::KeySize>,
     padding: PhantomData<Padding>,
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, Padding> AesCbc<KeySize, Aes, Padding> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
+impl<Aes: KeySizeUser, Padding> AesCbc<Aes, Padding> {
+    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
         Self {
             key,
-            algorithm: PhantomData,
             padding: PhantomData,
         }
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, Padding> Cipher for AesCbc<KeySize, Aes, Padding>
+impl<Aes, Padding> Cipher for AesCbc<Aes, Padding>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
+    Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser<BlockSize = U16>
@@ -250,22 +242,22 @@ where
 }
 
 /// AES128 in CBC-mode using PKCS #7 padding.
-pub type Aes128CbcPkcs7 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Pkcs7>;
+pub type Aes128CbcPkcs7 = AesCbc<aes::Aes128, aes::cipher::block_padding::Pkcs7>;
 
 /// AES256 in CBC-mode using PKCS #7 padding.
-pub type Aes256CbcPkcs7 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Pkcs7>;
+pub type Aes256CbcPkcs7 = AesCbc<aes::Aes256, aes::cipher::block_padding::Pkcs7>;
 
 /// AES128 in CBC-mode using ISO 10126 padding.
-pub type Aes128CbcIso10126 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Iso10126>;
+pub type Aes128CbcIso10126 = AesCbc<aes::Aes128, aes::cipher::block_padding::Iso10126>;
 
 /// AES256 in CBC-mode using ISO 10126 padding.
-pub type Aes256CbcIso10126 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Iso10126>;
+pub type Aes256CbcIso10126 = AesCbc<aes::Aes256, aes::cipher::block_padding::Iso10126>;
 
 /// AES128 in CBC-mode using ANSI X9.23 padding.
-pub type Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::AnsiX923>;
+pub type Aes128CbcAnsiX923 = AesCbc<aes::Aes128, aes::cipher::block_padding::AnsiX923>;
 
 /// AES256 in CBC-mode using ANSI X9.23 padding.
-pub type Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
+pub type Aes256CbcAnsiX923 = AesCbc<aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
 /// AES in GCM mode (authenticated).
 pub struct AesGcm<Aes, NonceSize>(aes_gcm::AesGcm<Aes, NonceSize>);
