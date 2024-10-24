@@ -25,14 +25,14 @@ use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
     KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
 };
-use aes_gcm::AeadInPlace;
+use aes_gcm::{aead::Aead, AeadInPlace};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use typenum::{U16, U24, U32};
+use typenum::{U12, U16, U24, U32};
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Trait impl'd by encryption keys in symmetric cryptography
@@ -79,6 +79,18 @@ pub trait AuthenticatedCipher {
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, FastCryptoError>;
+}
+
+impl<AC: AuthenticatedCipher> Cipher for AC {
+    type IVType = AC::IVType;
+
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
+        self.encrypt_authenticated(iv, &[], plaintext)
+    }
+
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
+        self.decrypt_authenticated(iv, &[], ciphertext)
+    }
 }
 
 /// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
@@ -288,7 +300,7 @@ where
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = plaintext.to_vec();
         cipher
-            .encrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
+            .encrypt_in_place(&iv.bytes, aad, &mut buffer)
             .unwrap();
         buffer
     }
@@ -305,29 +317,9 @@ where
         let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = ciphertext.to_vec();
         cipher
-            .decrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
+            .decrypt_in_place(&iv.bytes, aad, &mut buffer)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(buffer)
-    }
-}
-
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> Cipher for AesGcm<KeySize, Aes, NonceSize>
-where
-    Aes: KeySizeUser<KeySize = KeySize>
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser<BlockSize = U16>
-        + BlockEncrypt,
-    NonceSize: ArrayLength<u8> + Debug,
-{
-    type IVType = InitializationVector<NonceSize>;
-
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
-        self.encrypt_authenticated(iv, b"", plaintext)
-    }
-
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
-        self.decrypt_authenticated(iv, b"", ciphertext)
     }
 }
 
@@ -336,3 +328,39 @@ pub type Aes128Gcm<NonceSize> = AesGcm<U16, aes::Aes128, NonceSize>;
 
 /// AES256 in GCM-mode (authenticated) using the given nonce size.
 pub type Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>;
+
+pub struct Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv);
+
+impl Aes256GcmSiv {
+    fn new(key: AesKey<U32>) -> Self {
+        Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv::new(&key.bytes))
+    }
+}
+
+impl AuthenticatedCipher for Aes256GcmSiv {
+    type IVType = InitializationVector<U12>;
+
+    fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
+        let mut buffer: Vec<u8> = plaintext.to_vec();
+        self.0
+            .encrypt_in_place(&iv.bytes, aad, &mut buffer)
+            .unwrap();
+        buffer
+    }
+
+    fn decrypt_authenticated(
+        &self,
+        iv: &Self::IVType,
+        aad: &[u8],
+        ciphertext: &[u8],
+    ) -> Result<Vec<u8>, FastCryptoError> {
+        if iv.as_bytes().is_empty() {
+            return Err(FastCryptoError::InputTooShort(1));
+        }
+        let mut buffer: Vec<u8> = ciphertext.to_vec();
+        self.0
+            .decrypt_in_place(&iv.bytes, aad, &mut buffer)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
+        Ok(buffer)
+    }
+}
