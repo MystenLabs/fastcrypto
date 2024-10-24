@@ -25,14 +25,14 @@ use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
     KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
 };
-use aes_gcm::AeadInPlace;
+use aes_gcm::{AeadCore, AeadInPlace};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use typenum::{U12, U16, U32};
+use typenum::U16;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Trait impl'd by encryption keys in symmetric cryptography
@@ -260,23 +260,19 @@ pub type Aes128CbcAnsiX923 = AesCbc<aes::Aes128, aes::cipher::block_padding::Ans
 pub type Aes256CbcAnsiX923 = AesCbc<aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
 /// AES in GCM mode (authenticated).
-pub struct AesGcm<Aes, NonceSize>(aes_gcm::AesGcm<Aes, NonceSize>);
+pub struct AeadWrapper<A: AeadInPlace>(A);
 
-impl<Aes, NonceSize> AesGcm<Aes, NonceSize>
-where
-    Aes: KeySizeUser + KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
-{
-    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
-        Self(aes_gcm::AesGcm::<Aes, NonceSize>::new(&key.bytes))
+impl<A: KeyInit + AeadInPlace> AeadWrapper<A> {
+    pub fn new(key: AesKey<A::KeySize>) -> Self {
+        Self(A::new(&key.bytes))
     }
 }
 
-impl<Aes, NonceSize> AuthenticatedCipher for AesGcm<Aes, NonceSize>
+impl<A: AeadInPlace> AuthenticatedCipher for AeadWrapper<A>
 where
-    Aes: KeySizeUser + KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
-    NonceSize: ArrayLength<u8> + Debug,
+    <A as AeadCore>::NonceSize: Debug,
 {
-    type IVType = InitializationVector<NonceSize>;
+    type IVType = InitializationVector<<A as AeadCore>::NonceSize>;
 
     fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
         let mut buffer: Vec<u8> = plaintext.to_vec();
@@ -304,43 +300,10 @@ where
 }
 
 /// AES128 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes128Gcm<NonceSize> = AesGcm<aes::Aes128, NonceSize>;
+pub type Aes128Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes128, NonceSize>>;
 
 /// AES256 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes256Gcm<NonceSize> = AesGcm<aes::Aes256, NonceSize>;
+pub type Aes256Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes256, NonceSize>>;
 
-pub struct Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv);
-
-impl Aes256GcmSiv {
-    pub fn new(key: AesKey<U32>) -> Self {
-        Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv::new(&key.bytes))
-    }
-}
-
-impl AuthenticatedCipher for Aes256GcmSiv {
-    type IVType = InitializationVector<U12>;
-
-    fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
-        let mut buffer: Vec<u8> = plaintext.to_vec();
-        self.0
-            .encrypt_in_place(&iv.bytes, aad, &mut buffer)
-            .unwrap();
-        buffer
-    }
-
-    fn decrypt_authenticated(
-        &self,
-        iv: &Self::IVType,
-        aad: &[u8],
-        ciphertext: &[u8],
-    ) -> Result<Vec<u8>, FastCryptoError> {
-        if iv.as_bytes().is_empty() {
-            return Err(FastCryptoError::InputTooShort(1));
-        }
-        let mut buffer: Vec<u8> = ciphertext.to_vec();
-        self.0
-            .decrypt_in_place(&iv.bytes, aad, &mut buffer)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
-        Ok(buffer)
-    }
-}
+/// AES256 in GCM-SIV (athenticated) mode with 96 bit nonces.
+pub type Aes256GcmSiv = AeadWrapper<aes_gcm_siv::Aes256GcmSiv>;
