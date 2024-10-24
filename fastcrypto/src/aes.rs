@@ -25,7 +25,7 @@ use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
     KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
 };
-use aes_gcm::{aead::Aead, AeadInPlace};
+use aes_gcm::AeadInPlace;
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
 use serde::de::DeserializeOwned;
@@ -268,38 +268,27 @@ pub type Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding
 pub type Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
 /// AES in GCM mode (authenticated).
-pub struct AesGcm<KeySize: ArrayLength<u8>, Aes, NonceSize> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
-    nonce_size: PhantomData<NonceSize>,
-}
+pub struct AesGcm<Aes, NonceSize>(aes_gcm::AesGcm<Aes, NonceSize>);
 
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AesGcm<KeySize, Aes, NonceSize> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
-        Self {
-            key,
-            algorithm: PhantomData,
-            nonce_size: PhantomData,
-        }
+impl<Aes, NonceSize> AesGcm<Aes, NonceSize>
+where
+    Aes: KeySizeUser + KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
+{
+    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
+        Self(aes_gcm::AesGcm::<Aes, NonceSize>::new(&key.bytes))
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AuthenticatedCipher
-    for AesGcm<KeySize, Aes, NonceSize>
+impl<Aes, NonceSize> AuthenticatedCipher for AesGcm<Aes, NonceSize>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser<BlockSize = U16>
-        + BlockEncrypt,
+    Aes: KeySizeUser + KeyInit + BlockCipher + BlockSizeUser<BlockSize = U16> + BlockEncrypt,
     NonceSize: ArrayLength<u8> + Debug,
 {
     type IVType = InitializationVector<NonceSize>;
 
     fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
-        let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = plaintext.to_vec();
-        cipher
+        self.0
             .encrypt_in_place(&iv.bytes, aad, &mut buffer)
             .unwrap();
         buffer
@@ -314,9 +303,8 @@ where
         if iv.as_bytes().is_empty() {
             return Err(FastCryptoError::InputTooShort(1));
         }
-        let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = ciphertext.to_vec();
-        cipher
+        self.0
             .decrypt_in_place(&iv.bytes, aad, &mut buffer)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(buffer)
@@ -324,10 +312,10 @@ where
 }
 
 /// AES128 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes128Gcm<NonceSize> = AesGcm<U16, aes::Aes128, NonceSize>;
+pub type Aes128Gcm<NonceSize> = AesGcm<aes::Aes128, NonceSize>;
 
 /// AES256 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>;
+pub type Aes256Gcm<NonceSize> = AesGcm<aes::Aes256, NonceSize>;
 
 pub struct Aes256GcmSiv(aes_gcm_siv::Aes256GcmSiv);
 
