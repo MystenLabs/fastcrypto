@@ -65,7 +65,7 @@ pub trait Doubling: Clone {
 }
 
 pub trait Pairing: GroupElement {
-    type Other: GroupElement;
+    type Other: GroupElement<ScalarType = Self::ScalarType>;
     type Output;
 
     fn pairing(&self, other: &Self::Other) -> <Self as Pairing>::Output;
