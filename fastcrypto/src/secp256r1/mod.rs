@@ -382,10 +382,15 @@ impl Secp256r1KeyPair {
 
         // Generate nonce according to RFC6979. The unwrap is safe because k is generated smaller
         // than the group size.
+        let order_bytes =
+            <elliptic_curve::bigint::Uint<4> as FieldBytesEncoding<NistP256>>::encode_field_bytes(
+                &NistP256::ORDER,
+            );
+
         let k = fr_p256_to_arkworks(
             &Scalar::from_repr(rfc6979::generate_k::<sha2::Sha256, _>(
                 &x.to_bytes(),
-                &NistP256::ORDER.encode_field_bytes(),
+                &order_bytes,
                 &fr_arkworks_to_p256(&z).to_bytes(),
                 &[],
             ))

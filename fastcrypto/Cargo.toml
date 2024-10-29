@@ -10,6 +10,13 @@ description = "Common cryptographic library used at Mysten Labs"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
+k256 = { version = "0.13.4", features = [
+  "ecdsa",
+  "sha256",
+  "hash2curve",
+  "arithmetic",
+  "expose-field",
+] }
 base64ct = { version = "1.5.3", features = ["alloc"] }
 bs58 = "0.4.0"
 ed25519-consensus = { version = "2.1.0", features = ["serde"] }
@@ -17,9 +24,17 @@ hex = "0.4.3"
 hex-literal = "0.4.1"
 hkdf = { version = "0.12.3", features = ["std"] }
 rand.workspace = true
-rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
+rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = [
+  "recovery",
+  "rand-std",
+  "bitcoin_hashes",
+  "global-context",
+] }
 serde.workspace = true
-serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
+serde_with = { version = "3", default-features = false, features = [
+  "alloc",
+  "macros",
+] }
 signature = { version = "2.0.0" }
 tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
 zeroize.workspace = true
@@ -115,7 +130,13 @@ aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr"]
 
 [dev-dependencies]
 criterion = "0.4.0"
-k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
+k256 = { version = "0.13.4", features = [
+  "ecdsa",
+  "sha256",
+  "hash2curve",
+  "arithmetic",
+  "expose-field",
+] }
 proptest = "1.1.0"
 serde-reflection = "0.3.6"
 wycheproof = "0.5.0"
