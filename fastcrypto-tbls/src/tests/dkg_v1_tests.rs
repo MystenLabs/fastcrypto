@@ -87,7 +87,7 @@ where
 {
     let ro = RandomOracle::new("dkg");
     let t = 3;
-    let (keys, nodes) = gen_keys_and_nodes::<EG>(6);
+    let (keys, nodes) = gen_keys_and_nodes(6);
 
     // Create the parties
     let d0 = Party::<G, EG>::new(
@@ -152,7 +152,7 @@ where
     );
     // d5 will receive invalid shares from d0, but its complaint will not be processed on time.
     let mut msg0 = d0.create_message_v1(&mut thread_rng()).unwrap();
-    let mut pk_and_msgs = decrypt_and_prepare_for_reenc::<G, EG>(&keys, &nodes, &msg0, &ro);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg0, &ro);
     pk_and_msgs[5] = pk_and_msgs[0].clone();
     msg0.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 0"), &mut thread_rng());
@@ -160,7 +160,7 @@ where
     // We will modify d1's message to make it invalid (emulating a cheating party). d0 and d1
     // should detect that and send complaints.
     let mut msg1 = d1.create_message_v1(&mut thread_rng()).unwrap();
-    let mut pk_and_msgs = decrypt_and_prepare_for_reenc::<G, EG>(&keys, &nodes, &msg1, &ro);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1, &ro);
     pk_and_msgs.swap(0, 1);
     msg1.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
