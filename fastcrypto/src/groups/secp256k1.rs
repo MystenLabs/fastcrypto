@@ -283,7 +283,7 @@ impl ToFromByteArray<PROJECTIVE_POINT_BYTE_LENGTH> for ProjectivePoint {
 
 impl HashToGroupElement for ProjectivePoint {
     fn hash_to_group_element(msg: &[u8]) -> Self {
-        let domain = "FOOBAR".as_bytes();
+        let domain = "secp256k1_XMD:SHA-256_SSWU_RO_".as_bytes();
         let mut u = [FieldElement::ZERO];
         hash_to_field::<ExpandMsgXmd<Sha256>, FieldElement>(&[msg], &[domain], &mut u)
             .expect("should never return error according to error cases described in ExpandMsgXmd");
