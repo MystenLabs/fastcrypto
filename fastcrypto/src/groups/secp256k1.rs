@@ -29,7 +29,6 @@ use sha2::{Digest, Sha256, Sha512};
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use zeroize::Zeroize;
 
-/// Elements of the group G_1 in BLS 12-381.
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend, Debug)]
 #[repr(transparent)]
 pub struct ProjectivePoint(SecpProjectivePoint);
@@ -133,12 +132,6 @@ impl ScalarType for Scalar {
     }
 }
 
-/// Reduce a big-endian integer of arbitrary size modulo the scalar field size and return the scalar.
-/// If the input bytes are uniformly distributed, the output will be uniformly distributed in the
-/// scalar field.
-///
-/// The input buffer must be at least 48 bytes long to ensure that there is only negligible bias in
-/// the output.
 fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
     match buffer_to_scalar_mod_r(buffer) {
         Ok(scalar) => scalar,
@@ -146,7 +139,6 @@ fn reduce_mod_uniform_buffer(buffer: &[u8]) -> Scalar {
     }
 }
 
-/// Similar to `reduce_mod_uniform_buffer`, returns a result of scalar, and does not panic on invalid length.
 fn buffer_to_scalar_mod_r(buffer: &[u8]) -> FastCryptoResult<Scalar> {
     let hash = Sha512::digest(buffer);
 
@@ -230,27 +222,21 @@ impl Neg for ProjectivePoint {
 
 impl MultiScalarMul for ProjectivePoint {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self> {
-        // Input validation
         if scalars.len() != points.len() || scalars.is_empty() {
             return Err(FastCryptoError::GeneralError(String::from(
                 "Invalid input: Scalars and points must have the same non-zero length",
             )));
         }
 
-        // Initialize the result to the identity element
         let mut result = SecpProjectivePoint::IDENTITY;
 
-        // Iterate over the scalars and points
         for (scalar, point) in scalars.iter().zip(points.iter()) {
-            // Skip zero scalars or identity points
             if scalar.0.is_zero().into() || point.0 == SecpProjectivePoint::IDENTITY {
                 continue;
             }
 
-            // Perform scalar multiplication
             let scalar_mul = point.0.mul(scalar.0);
 
-            // Accumulate the result
             result += scalar_mul;
         }
 
