@@ -2,8 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[cfg(feature = "copy_key")]
-use k256::ecdsa::signature::Signature as ExternalSignature;
-#[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Signer as ExternalSigner;
 #[cfg(feature = "copy_key")]
 use k256::ecdsa::signature::Verifier as ExternalVerifier;
@@ -483,7 +481,7 @@ proptest::proptest! {
         assert!(key_pair.public().verify(message, &signature).is_ok());
 
         // Use k256 to construct private key with the same bytes and sign the same message
-        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes()).unwrap();
+        let priv_key_1 = k256::ecdsa::SigningKey::from_bytes(key_pair_copied_3.private().as_bytes().into()).unwrap();
         let pub_key_1 = priv_key_1.verifying_key();
         let signature_1: k256::ecdsa::Signature = priv_key_1.sign(message);
         assert!(pub_key_1.verify(message, &signature_1).is_ok());
@@ -494,14 +492,14 @@ proptest::proptest! {
         // Two pubkeys are the same
         assert_eq!(
             key_pair.public().as_bytes(),
-            pub_key_1.to_bytes().as_slice()
+            pub_key_1.to_sec1_bytes().as_ref()
         );
 
         // Same signatures produced from both implementations
-        assert_eq!(signature.as_ref(), signature_1.as_bytes());
+        assert_eq!(signature.as_ref(), signature_1.to_bytes().as_slice());
 
         // Use fastcrypto keypair to verify a signature constructed by k256
-        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(signature_1.as_ref()).unwrap();
+        let secp_sig1 = bincode::deserialize::<Secp256k1Signature>(signature_1.to_bytes().as_slice()).unwrap();
         assert!(key_pair_copied_2.public().verify(message, &secp_sig1).is_ok());
 
         // Use k256 keypair to verify sig constructed by fastcrypto
