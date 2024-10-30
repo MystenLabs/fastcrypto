@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::{Confirmation, Party, DKG_MESSAGES_MAX_SIZE};
+use crate::dkg::{Confirmation, Output, Party, DKG_MESSAGES_MAX_SIZE};
 use crate::dkg_v0::create_fake_complaint;
 use crate::dkg_v1::{Message, ProcessedMessage};
 use crate::ecies::{PrivateKey, PublicKey};
@@ -13,11 +13,16 @@ use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G2Element, Scalar};
-use fastcrypto::groups::GroupElement;
+use fastcrypto::groups::secp256k1::ProjectivePoint;
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::prelude::StdRng;
+use rand::rngs::ThreadRng;
 use rand::{thread_rng, SeedableRng};
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use zeroize::Zeroize;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
@@ -27,14 +32,22 @@ type EG = G2Element;
 
 type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
 
-fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
-    gen_keys_and_nodes_rng(n, &mut thread_rng())
+fn gen_keys_and_nodes<EG>(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>)
+where
+    EG: GroupElement + Serialize + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    gen_keys_and_nodes_rng::<EG, ThreadRng>(n, &mut thread_rng())
 }
 
-fn gen_keys_and_nodes_rng<R: AllowedRng>(
+fn gen_keys_and_nodes_rng<EG, R: AllowedRng>(
     n: usize,
     rng: &mut R,
-) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
+) -> (Vec<KeyNodePair<EG>>, Nodes<EG>)
+where
+    EG: GroupElement + Serialize + DeserializeOwned,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let keys = (0..n)
         .map(|id| {
             let sk = PrivateKey::<EG>::new(rng);
@@ -54,13 +67,15 @@ fn gen_keys_and_nodes_rng<R: AllowedRng>(
     (keys, nodes)
 }
 
-// Enable if logs are needed
-// #[traced_test]
-#[test]
-fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
+fn dkg_e2e_5_parties_min_weight_2_threshold_3<G, EG>() -> (u16, Vec<Option<Output<G, EG>>>)
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let ro = RandomOracle::new("dkg");
     let t = 3;
-    let (keys, nodes) = gen_keys_and_nodes(6);
+    let (keys, nodes) = gen_keys_and_nodes::<EG>(6);
 
     // Create the parties
     let d0 = Party::<G, EG>::new(
@@ -125,7 +140,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     );
     // d5 will receive invalid shares from d0, but its complaint will not be processed on time.
     let mut msg0 = d0.create_message_v1(&mut thread_rng()).unwrap();
-    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg0, &ro);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc::<G, EG>(&keys, &nodes, &msg0, &ro);
     pk_and_msgs[5] = pk_and_msgs[0].clone();
     msg0.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 0"), &mut thread_rng());
@@ -133,7 +148,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     // We will modify d1's message to make it invalid (emulating a cheating party). d0 and d1
     // should detect that and send complaints.
     let mut msg1 = d1.create_message_v1(&mut thread_rng()).unwrap();
-    let mut pk_and_msgs = decrypt_and_prepare_for_reenc(&keys, &nodes, &msg1, &ro);
+    let mut pk_and_msgs = decrypt_and_prepare_for_reenc::<G, EG>(&keys, &nodes, &msg1, &ro);
     pk_and_msgs.swap(0, 1);
     msg1.encrypted_shares =
         MultiRecipientEncryption::encrypt(&pk_and_msgs, &ro.extend("encs 1"), &mut thread_rng());
@@ -250,7 +265,7 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     assert_eq!(ver_msg5.len(), 2);
 
     let o0 = d0.aggregate_v1(&ver_msg0);
-    let _o1 = d1.aggregate_v1(&ver_msg1);
+    let o1 = d1.aggregate_v1(&ver_msg1);
     let o2 = d2.aggregate_v1(&ver_msg2);
     let o3 = d3.aggregate_v1(&ver_msg3);
     let o5 = d5.aggregate_v1(&ver_msg5);
@@ -267,6 +282,16 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     poly += &msg5.vss_pk;
     assert_eq!(poly, o0.vss_pk);
 
+    (
+        t,
+        vec![Some(o0), Some(o1), Some(o2), Some(o3), None, Some(o5)],
+    )
+}
+
+fn sign_with_shares(threshold: u16, outputs: Vec<Option<Output<G2Element, G2Element>>>) {
+    let o0 = outputs[0].clone().unwrap();
+    let o3 = outputs[3].clone().unwrap();
+
     // Use the shares to sign the message.
     let sig00 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
     let sig30 = S::partial_sign(&o3.shares.as_ref().unwrap()[0], &MSG);
@@ -277,16 +302,30 @@ fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
     S::partial_verify(&o3.vss_pk, &MSG, &sig31).unwrap();
 
     let sigs = vec![sig00, sig30, sig31];
-    let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
+    let sig = S::aggregate(threshold, sigs.iter()).unwrap();
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 
-fn decrypt_and_prepare_for_reenc(
+// Enable if logs are needed
+// #[traced_test]
+#[test]
+fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
+    dkg_e2e_5_parties_min_weight_2_threshold_3::<ProjectivePoint, ProjectivePoint>();
+    let (threshold, outputs) = dkg_e2e_5_parties_min_weight_2_threshold_3::<G2Element, G2Element>();
+    sign_with_shares(threshold, outputs);
+}
+
+fn decrypt_and_prepare_for_reenc<G, EG>(
     keys: &[KeyNodePair<EG>],
     nodes: &Nodes<EG>,
     msg0: &Message<G, EG>,
     ro: &RandomOracle,
-) -> Vec<(PublicKey<EG>, Vec<u8>)> {
+) -> Vec<(PublicKey<EG>, Vec<u8>)>
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     nodes
         .iter()
         .map(|n| {
