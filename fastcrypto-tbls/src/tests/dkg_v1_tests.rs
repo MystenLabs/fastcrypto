@@ -12,11 +12,12 @@ use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
 use crate::types::ThresholdBls12381MinSig;
 use fastcrypto::error::FastCryptoError;
-use fastcrypto::groups::bls12381::{G2Element, Scalar};
+use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::secp256k1::ProjectivePoint;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
+use paste::paste;
 use rand::prelude::StdRng;
 use rand::rngs::ThreadRng;
 use rand::{thread_rng, SeedableRng};
@@ -26,11 +27,22 @@ use zeroize::Zeroize;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
-type G = G2Element;
 type S = ThresholdBls12381MinSig;
-type EG = G2Element;
 
 type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
+
+macro_rules! generate_tests {
+    ($test_fn:ident, $( ($type1:ty, $type2:ty, $alias:ident) ),* $(,)? ) => {
+        $(
+            paste! {
+                #[test]
+                fn [<test_ $test_fn _ $alias>]() {
+                    $test_fn::<$type1, $type2>();
+                }
+            }
+        )*
+    }
+}
 
 fn gen_keys_and_nodes<EG>(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>)
 where
@@ -306,15 +318,6 @@ fn sign_with_shares(threshold: u16, outputs: Vec<Option<Output<G2Element, G2Elem
     S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
 
-// Enable if logs are needed
-// #[traced_test]
-#[test]
-fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
-    dkg_e2e_5_parties_min_weight_2_threshold_3::<ProjectivePoint, ProjectivePoint>();
-    let (threshold, outputs) = dkg_e2e_5_parties_min_weight_2_threshold_3::<G2Element, G2Element>();
-    sign_with_shares(threshold, outputs);
-}
-
 fn decrypt_and_prepare_for_reenc<G, EG>(
     keys: &[KeyNodePair<EG>],
     nodes: &Nodes<EG>,
@@ -342,8 +345,21 @@ where
         .collect::<Vec<_>>()
 }
 
+// Enable if logs are needed
+// #[traced_test]
 #[test]
-fn test_party_new_errors() {
+fn test_dkg_e2e_5_parties_min_weight_2_threshold_3() {
+    dkg_e2e_5_parties_min_weight_2_threshold_3::<ProjectivePoint, ProjectivePoint>();
+    let (threshold, outputs) = dkg_e2e_5_parties_min_weight_2_threshold_3::<G2Element, G2Element>();
+    sign_with_shares(threshold, outputs);
+}
+
+fn party_new_errors<G, EG>()
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let ro = RandomOracle::new("dkg");
     let (keys, nodes) = gen_keys_and_nodes(4);
 
@@ -376,8 +392,18 @@ fn test_party_new_errors() {
     .is_err());
 }
 
-#[test]
-fn test_process_message_failures() {
+generate_tests!(
+    party_new_errors,
+    (ProjectivePoint, ProjectivePoint, secp256k1),
+    (G2Element, G2Element, bls12381),
+);
+
+fn process_message_failures<G, EG>()
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let ro = RandomOracle::new("dkg");
     let t = 3;
     let (keys, nodes) = gen_keys_and_nodes(4);
@@ -507,8 +533,18 @@ fn test_process_message_failures() {
     };
 }
 
-#[test]
-fn test_test_process_confirmations() {
+generate_tests!(
+    process_message_failures,
+    (ProjectivePoint, ProjectivePoint, secp256k1),
+    (G2Element, G2Element, bls12381),
+);
+
+fn process_confirmations<G, EG>()
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let ro = RandomOracle::new("dkg");
     let t = 3;
     let (keys, nodes) = gen_keys_and_nodes(6);
@@ -646,8 +682,18 @@ fn test_test_process_confirmations() {
     );
 }
 
-#[test]
-fn create_message_generates_valid_message() {
+generate_tests!(
+    process_confirmations,
+    (ProjectivePoint, ProjectivePoint, secp256k1),
+    (G2Element, G2Element, bls12381),
+);
+
+fn create_message_generates_valid_message<G, EG>()
+where
+    G: GroupElement + MultiScalarMul + Serialize + DeserializeOwned,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     let (keys, nodes) = gen_keys_and_nodes(4);
     let d = Party::<G, EG>::new(
         keys.get(1_usize).unwrap().1.clone(),
@@ -664,8 +710,18 @@ fn create_message_generates_valid_message() {
     assert_eq!(msg.vss_pk.degree(), 2);
 }
 
-#[test]
-fn test_size_limits() {
+generate_tests!(
+    create_message_generates_valid_message,
+    (ProjectivePoint, ProjectivePoint, secp256k1),
+    (G2Element, G2Element, bls12381),
+);
+
+fn size_limits<G, EG>()
+where
+    G: GroupElement,
+    EG: GroupElement + Serialize + DeserializeOwned + HashToGroupElement,
+    EG::ScalarType: FiatShamirChallenge + Zeroize,
+{
     // Confirm that messages sizes are within the limit for the extreme expected parameters.
     let n = 3333;
     let t = n / 3;
@@ -673,9 +729,9 @@ fn test_size_limits() {
 
     // an approximation of the weights
     let w = n / k;
-    let shares = (0..w).map(Scalar::from).collect_vec();
+    let shares = (0..w).map(G::ScalarType::from).collect_vec();
 
-    let p = Poly::<<G2Element as GroupElement>::ScalarType>::rand(t as u16, &mut thread_rng());
+    let p = Poly::<EG::ScalarType>::rand(t as u16, &mut thread_rng());
     let ro = RandomOracle::new("test");
     let keys_and_msg = (0..k)
         .map(|_| {
@@ -709,6 +765,12 @@ fn test_size_limits() {
     assert!(bcs::to_bytes(&conf).unwrap().len() <= DKG_MESSAGES_MAX_SIZE);
 }
 
+generate_tests!(
+    size_limits,
+    (ProjectivePoint, ProjectivePoint, secp256k1),
+    (G2Element, G2Element, bls12381),
+);
+
 #[test]
 fn test_serialized_message_regression() {
     let ro = RandomOracle::new("dkg");
@@ -716,7 +778,7 @@ fn test_serialized_message_regression() {
     let mut rng = StdRng::from_seed([1; 32]);
     let (keys, nodes) = gen_keys_and_nodes_rng(6, &mut rng);
 
-    let d0 = Party::<G, EG>::new(
+    let d0 = Party::<G2Element, G2Element>::new(
         keys.first().unwrap().1.clone(),
         nodes.clone(),
         t,
@@ -724,7 +786,7 @@ fn test_serialized_message_regression() {
         &mut rng,
     )
     .unwrap();
-    let d1 = Party::<G, EG>::new(
+    let d1 = Party::<G2Element, G2Element>::new(
         keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
@@ -732,7 +794,7 @@ fn test_serialized_message_regression() {
         &mut rng,
     )
     .unwrap();
-    let _d2 = Party::<G, EG>::new(
+    let _d2 = Party::<G2Element, G2Element>::new(
         keys.get(2_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
@@ -740,7 +802,7 @@ fn test_serialized_message_regression() {
         &mut rng,
     )
     .unwrap();
-    let d3 = Party::<G, EG>::new(
+    let d3 = Party::<G2Element, G2Element>::new(
         keys.get(3_usize).unwrap().1.clone(),
         nodes.clone(),
         t,

@@ -1381,6 +1381,7 @@ dependencies = [
  "generic-tests",
  "hex",
  "itertools 0.10.5",
+ "paste",
  "rand",
  "serde",
  "sha3 0.10.8",
