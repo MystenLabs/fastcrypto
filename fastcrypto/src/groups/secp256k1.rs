@@ -36,6 +36,9 @@ pub struct ProjectivePoint(SecpProjectivePoint);
 #[derive(Clone, Copy, Eq, PartialEq, GroupOpsExtend, Debug)]
 pub struct Scalar(SecpScalar);
 
+pub const PROJECTIVE_POINT_BYTE_LENGTH: usize = 33;
+pub const SCALAR_BYTE_LENGTH: usize = 32;
+
 impl Div<Scalar> for Scalar {
     type Output = FastCryptoResult<Self>;
 
@@ -77,7 +80,6 @@ impl Add for Scalar {
     }
 }
 
-pub const SCALAR_BYTE_LENGTH: usize = 32;
 impl FromTrustedByteArray<SCALAR_BYTE_LENGTH> for Scalar {
     fn from_trusted_byte_array(bytes: &[u8; SCALAR_BYTE_LENGTH]) -> FastCryptoResult<Self> {
         let mut padded_bytes = [0u8; 48];
@@ -244,8 +246,6 @@ impl MultiScalarMul for ProjectivePoint {
     }
 }
 
-pub const PROJECTIVE_POINT_BYTE_LENGTH: usize = 33;
-
 impl FromTrustedByteArray<PROJECTIVE_POINT_BYTE_LENGTH> for ProjectivePoint {
     fn from_trusted_byte_array(
         bytes: &[u8; PROJECTIVE_POINT_BYTE_LENGTH],
@@ -262,7 +262,6 @@ impl ToFromByteArray<PROJECTIVE_POINT_BYTE_LENGTH> for ProjectivePoint {
     }
 
     fn to_byte_array(&self) -> [u8; PROJECTIVE_POINT_BYTE_LENGTH] {
-        let mut bytes = [0u8; PROJECTIVE_POINT_BYTE_LENGTH];
         self.0.to_bytes().into()
     }
 }
