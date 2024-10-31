@@ -342,7 +342,7 @@
         <span class="comment">// Algorithm from page 3 on https://crypto.stanford.edu/~dabo/pubs/papers/VDFsurvey.pdf
         </span><span class="kw">let </span>challenge = (<span class="self">self</span>.challenge)(<span class="self">self</span>, input, <span class="kw-2">&amp;</span>output);
         <span class="kw">let </span><span class="kw-2">mut </span>quotient_remainder = (BigUint::from(<span class="number">0u8</span>), BigUint::from(<span class="number">2u8</span>));
-        <span class="kw">let </span><span class="kw-2">mut </span>proof = multiplier.mul(<span class="kw-2">&amp;</span>quotient_remainder.<span class="number">0</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>proof = G::zero(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter);
         <span class="kw">for _ in </span><span class="number">1</span>..<span class="self">self</span>.iterations {
             quotient_remainder.<span class="number">1</span>.shl_assign(<span class="number">1</span>);
             quotient_remainder = quotient_remainder.<span class="number">1</span>.div_mod_floor(<span class="kw-2">&amp;</span>challenge);

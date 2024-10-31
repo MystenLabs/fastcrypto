@@ -68,6 +68,11 @@
 <a href="#68" id="68">68</a>
 <a href="#69" id="69">69</a>
 <a href="#70" id="70">70</a>
+<a href="#71" id="71">71</a>
+<a href="#72" id="72">72</a>
+<a href="#73" id="73">73</a>
+<a href="#74" id="74">74</a>
+<a href="#75" id="75">75</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -113,7 +118,12 @@
     /// modulus, the result is negated. This is to ensure that the result is in the subgroup
     /// &lt;i&gt;Z&lt;sub&gt;N&lt;/sub&gt;&lt;sup&gt;*&lt;/sup&gt; / &lt;±1&gt;&lt;/i&gt;.
     </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>reduce(<span class="kw-2">&amp;</span><span class="self">self</span>, value: BigUint) -&gt; BigUint {
-        <span class="kw">let </span>value = value.mod_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.value);
+        <span class="self">self</span>.ensure_in_subgroup(value.mod_floor(<span class="kw-2">&amp;</span><span class="self">self</span>.value))
+    }
+
+    <span class="doccomment">/// Assuming that `value &lt; N`, this ensures that the given value is in the subgroup &lt;i&gt;Z&lt;sub&gt;N&lt;/sub&gt;&lt;sup&gt;*&lt;/sup&gt; / &lt;±1&gt;&lt;/i&gt;.
+    /// Panics if `value` is greater than or equal to `N`.
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>ensure_in_subgroup(<span class="kw-2">&amp;</span><span class="self">self</span>, value: BigUint) -&gt; BigUint {
         <span class="kw">if </span>value &lt; <span class="self">self</span>.half {
             value
         } <span class="kw">else </span>{

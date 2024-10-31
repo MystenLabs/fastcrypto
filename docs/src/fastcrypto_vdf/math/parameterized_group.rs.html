@@ -64,12 +64,6 @@
 <a href="#64" id="64">64</a>
 <a href="#65" id="65">65</a>
 <a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -91,31 +85,25 @@
 
     <span class="doccomment">/// Returns true if this is an element of the group defined by `parameter`.
     </span><span class="kw">fn </span>is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>, parameter: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; bool;
-}
 
-<span class="doccomment">/// Compute self * scalar using a "Double-and-Add" algorithm for a positive scalar.
-</span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>multiply&lt;G: ParameterizedGroupElement&gt;(
-    input: <span class="kw-2">&amp;</span>G,
-    scalar: <span class="kw-2">&amp;</span>BigUint,
-    parameter: <span class="kw-2">&amp;</span>G::ParameterType,
-) -&gt; G {
-    (<span class="number">0</span>..scalar.bits())
-        .rev()
-        .map(|i| scalar.bit(i))
-        .fold(G::zero(parameter), |acc, bit| {
-            <span class="kw">let </span><span class="kw-2">mut </span>res = acc.double();
-            <span class="kw">if </span>bit {
-                res = res + input;
-            }
-            res
-        })
+    <span class="doccomment">/// Compute self * scalar.
+    </span><span class="kw">fn </span>multiply(<span class="kw-2">&amp;</span><span class="self">self</span>, scalar: <span class="kw-2">&amp;</span>BigUint, parameter: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
+        <span class="comment">// Generic double-and-add algorithm.
+        </span>(<span class="number">0</span>..scalar.bits())
+            .rev()
+            .map(|i| scalar.bit(i))
+            .fold(<span class="self">Self</span>::zero(parameter), |acc, bit| <span class="kw">match </span>bit {
+                <span class="bool-val">true </span>=&gt; acc.double() + <span class="self">self</span>,
+                <span class="bool-val">false </span>=&gt; acc.double(),
+            })
+    }
 }
 
 <span class="attr">#[cfg(test)]
 </span><span class="kw">mod </span>tests {
     <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
     <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::{multiply, ParameterizedGroupElement};
+    <span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::ParameterizedGroupElement;
     <span class="kw">use </span>num_bigint::BigUint;
     <span class="kw">use </span>num_traits::{One, Zero};
 
@@ -127,12 +115,12 @@
         <span class="comment">// Edge cases
         </span><span class="macro">assert_eq!</span>(
             QuadraticForm::zero(<span class="kw-2">&amp;</span>discriminant),
-            multiply(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>BigUint::zero(), <span class="kw-2">&amp;</span>discriminant)
+            input.multiply(<span class="kw-2">&amp;</span>BigUint::zero(), <span class="kw-2">&amp;</span>discriminant)
         );
-        <span class="macro">assert_eq!</span>(input, multiply(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>BigUint::one(), <span class="kw-2">&amp;</span>discriminant));
+        <span class="macro">assert_eq!</span>(input, input.multiply(<span class="kw-2">&amp;</span>BigUint::one(), <span class="kw-2">&amp;</span>discriminant));
 
         <span class="kw">let </span>exponent = <span class="number">12345u64</span>;
-        <span class="kw">let </span>output = multiply(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>BigUint::from(exponent), <span class="kw-2">&amp;</span>discriminant);
+        <span class="kw">let </span>output = input.multiply(<span class="kw-2">&amp;</span>BigUint::from(exponent), <span class="kw-2">&amp;</span>discriminant);
 
         <span class="comment">// Check alignment with repeated addition.
         </span><span class="kw">let </span><span class="kw-2">mut </span>expected_output = input.clone();

@@ -154,6 +154,13 @@
 <a href="#154" id="154">154</a>
 <a href="#155" id="155">155</a>
 <a href="#156" id="156">156</a>
+<a href="#157" id="157">157</a>
+<a href="#158" id="158">158</a>
+<a href="#159" id="159">159</a>
+<a href="#160" id="160">160</a>
+<a href="#161" id="161">161</a>
+<a href="#162" id="162">162</a>
+<a href="#163" id="163">163</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -221,12 +228,19 @@
 <span class="kw">impl</span>&lt;<span class="lifetime">'a</span>&gt; ParameterizedGroupElement <span class="kw">for </span>RSAGroupElement&lt;<span class="lifetime">'a</span>&gt; {
     <span class="kw">type </span>ParameterType = <span class="kw-2">&amp;</span><span class="lifetime">'a </span>RSAModulus;
 
-    <span class="kw">fn </span>zero(parameter: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
-        <span class="self">Self</span>::new(BigUint::one(), parameter)
+    <span class="kw">fn </span>zero(modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>::new(BigUint::one(), modulus)
     }
 
-    <span class="kw">fn </span>is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>, parameter: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; bool {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.modulus == parameter
+    <span class="kw">fn </span>is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>, modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; bool {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.modulus == modulus
+    }
+
+    <span class="kw">fn </span>multiply(<span class="kw-2">&amp;</span><span class="self">self</span>, scalar: <span class="kw-2">&amp;</span>BigUint, modulus: <span class="kw-2">&amp;</span><span class="self">Self</span>::ParameterType) -&gt; <span class="self">Self </span>{
+        <span class="kw">let </span>value = <span class="self">self
+            </span>.modulus
+            .ensure_in_subgroup(<span class="self">self</span>.value.modpow(scalar, <span class="kw-2">&amp;</span>modulus.value));
+        <span class="self">Self </span>{ value, modulus }
     }
 }
 
