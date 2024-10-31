@@ -23,11 +23,11 @@ zeroize.workspace = true
 itertools = "0.10.5"
 hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
-paste = "1.0.15"
 
 [dev-dependencies]
 criterion = "0.4.0"
 generic-tests = "0.1.2"
+paste = "1.0.15"
 
 [[bench]]
 name = "polynomial"
