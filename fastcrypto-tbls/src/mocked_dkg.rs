@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::dkg::Output;
+use crate::dkg_v1::Output;
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::PrivatePoly;
 use fastcrypto::groups::GroupElement;

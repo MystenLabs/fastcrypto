@@ -10,7 +10,7 @@ use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{Eval, Poly, PrivatePoly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
-use crate::{ecies, ecies_v0};
+use crate::{ecies, ecies_v1};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{bls12381, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::hmac::{hmac_sha3_256, HmacKey};
@@ -40,7 +40,7 @@ const NUM_OF_ENCRYPTIONS_PER_SHARE: usize = 2;
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Encryptions<G: GroupElement> {
-    values: [ecies_v0::Encryption<G>; NUM_OF_ENCRYPTIONS_PER_SHARE],
+    values: [ecies_v1::Encryption<G>; NUM_OF_ENCRYPTIONS_PER_SHARE],
 }
 
 #[derive(Clone, Debug, Serialize)]
