@@ -4,6 +4,7 @@
 use criterion::{criterion_group, criterion_main, BenchmarkGroup, Criterion};
 use fastcrypto::groups::{bls12381, ristretto255};
 use fastcrypto_tbls::dkg_v1::Party;
+use fastcrypto_tbls::ecies_v1;
 use fastcrypto_tbls::nodes::{Node, Nodes, PartyId};
 use fastcrypto_tbls::random_oracle::RandomOracle;
 use itertools::iproduct;
