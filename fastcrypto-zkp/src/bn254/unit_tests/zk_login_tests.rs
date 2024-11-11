@@ -447,7 +447,7 @@ async fn test_get_jwks() {
         OIDCProvider::Threedos,
         OIDCProvider::Onefc,
         OIDCProvider::FanTV,
-        OIDCProvider::Arden,
+        // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
     ] {
         let res = fetch_jwks(&p, &client).await;
