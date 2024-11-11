@@ -43,7 +43,8 @@ impl Div<Scalar> for Scalar {
     type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Self) -> Self::Output {
-        let inv = rhs.0.invert().unwrap();
+        let inv: Option<SecpScalar> = rhs.0.invert().into();
+        let inv = inv.ok_or(FastCryptoError::InvalidInput)?;
         Ok(Scalar(self.0.mul(inv)))
     }
 }
