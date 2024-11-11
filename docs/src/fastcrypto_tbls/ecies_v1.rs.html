@@ -214,20 +214,67 @@
 <a href="#214" id="214">214</a>
 <a href="#215" id="215">215</a>
 <a href="#216" id="216">216</a>
+<a href="#217" id="217">217</a>
+<a href="#218" id="218">218</a>
+<a href="#219" id="219">219</a>
+<a href="#220" id="220">220</a>
+<a href="#221" id="221">221</a>
+<a href="#222" id="222">222</a>
+<a href="#223" id="223">223</a>
+<a href="#224" id="224">224</a>
+<a href="#225" id="225">225</a>
+<a href="#226" id="226">226</a>
+<a href="#227" id="227">227</a>
+<a href="#228" id="228">228</a>
+<a href="#229" id="229">229</a>
+<a href="#230" id="230">230</a>
+<a href="#231" id="231">231</a>
+<a href="#232" id="232">232</a>
+<a href="#233" id="233">233</a>
+<a href="#234" id="234">234</a>
+<a href="#235" id="235">235</a>
+<a href="#236" id="236">236</a>
+<a href="#237" id="237">237</a>
+<a href="#238" id="238">238</a>
+<a href="#239" id="239">239</a>
+<a href="#240" id="240">240</a>
+<a href="#241" id="241">241</a>
+<a href="#242" id="242">242</a>
+<a href="#243" id="243">243</a>
+<a href="#244" id="244">244</a>
+<a href="#245" id="245">245</a>
+<a href="#246" id="246">246</a>
+<a href="#247" id="247">247</a>
+<a href="#248" id="248">248</a>
+<a href="#249" id="249">249</a>
+<a href="#250" id="250">250</a>
+<a href="#251" id="251">251</a>
+<a href="#252" id="252">252</a>
+<a href="#253" id="253">253</a>
+<a href="#254" id="254">254</a>
+<a href="#255" id="255">255</a>
+<a href="#256" id="256">256</a>
+<a href="#257" id="257">257</a>
+<a href="#258" id="258">258</a>
+<a href="#259" id="259">259</a>
+<a href="#260" id="260">260</a>
+<a href="#261" id="261">261</a>
+<a href="#262" id="262">262</a>
+<a href="#263" id="263">263</a>
+<a href="#264" id="264">264</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::ecies::{PrivateKey, PublicKey, RecoveryPackage};
-<span class="kw">use </span><span class="kw">crate</span>::nizk::DdhTupleNizk;
+</span><span class="kw">use </span><span class="kw">crate</span>::nizk::DdhTupleNizk;
 <span class="kw">use </span><span class="kw">crate</span>::random_oracle::RandomOracle;
 <span class="kw">use </span>fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
 <span class="kw">use </span>fastcrypto::traits::{AllowedRng, ToFromBytes};
-<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>serde::{de::DeserializeOwned, Deserialize, Serialize};
 <span class="kw">use </span>typenum::consts::{U16, U32};
 <span class="kw">use </span>typenum::Unsigned;
-<span class="kw">use </span>zeroize::Zeroize;
+<span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
 <span class="doccomment">/// Simple ECIES encryption using a generic group and AES-256-counter.
 ///
@@ -238,15 +285,32 @@
 /// The encryption uses AES Counter mode and is not CCA secure as is.
 ///
 
-</span><span class="comment">// TODO: move PrivateKey and PublicKey here and remove old APIs
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ZeroizeOnDrop)]
+</span><span class="kw">pub struct </span>PrivateKey&lt;G: GroupElement&gt;(<span class="kw">pub</span>(<span class="kw">crate</span>) G::ScalarType)
+<span class="kw">where
+    </span>G::ScalarType: Zeroize;
 
-</span><span class="doccomment">/// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
+<span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>PublicKey&lt;G: GroupElement&gt;(<span class="kw">pub</span>(<span class="kw">crate</span>) G);
+
+<span class="doccomment">/// A recovery package that allows decrypting a *specific* ECIES Encryption.
+/// It also includes a NIZK proof of correctness (DDH-NIZK).
+</span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+</span><span class="kw">pub struct </span>RecoveryPackage&lt;G: GroupElement&gt; {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) ephemeral_key: G,
+    <span class="kw">pub</span>(<span class="kw">crate</span>) proof: DdhTupleNizk&lt;G&gt;,
+}
+
+<span class="kw">pub const </span>AES_KEY_LENGTH: usize = <span class="number">32</span>;
+
+<span class="doccomment">/// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
+/// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )
 </span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>MultiRecipientEncryption&lt;G: GroupElement&gt; {
     c: G,
     c_hat: G,
     encs: Vec&lt;Vec&lt;u8&gt;&gt;,
-    <span class="kw">pub </span>proof: DdhTupleNizk&lt;G&gt;,
+    proof: DdhTupleNizk&lt;G&gt;,
 }
 
 <span class="kw">impl</span>&lt;G: GroupElement + Serialize&gt; MultiRecipientEncryption&lt;G&gt;
@@ -313,8 +377,8 @@
             .ok_or(FastCryptoError::InvalidInput)
     }
 
-    <span class="doccomment">/// We assume that verify is called before decrypt and do not call it again here to
-    /// avoid redundant checks.
+    <span class="doccomment">/// Assumption: Verify is called before decrypt and do not call it again here to avoid redundant
+    /// checks.
     </span><span class="kw">pub fn </span>decrypt(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         sk: <span class="kw-2">&amp;</span>PrivateKey&lt;G&gt;,
@@ -330,7 +394,7 @@
             .expect(<span class="string">"Decrypt should never fail for CTR mode"</span>)
     }
 
-    <span class="doccomment">/// We assume that verify is called before decrypt and do not call it again here to
+    <span class="doccomment">/// Assumption: Verify is called before create_recovery_package and do not call it again here to
     /// avoid redundant checks.
     </span><span class="kw">pub fn </span>create_recovery_package&lt;R: AllowedRng&gt;(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -386,13 +450,11 @@
         <span class="self">self</span>.encs.is_empty()
     }
 
-    <span class="comment">// Used for debugging
-    </span><span class="kw">pub fn </span>ephemeral_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>G {
+    <span class="kw">pub fn </span>ephemeral_key(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>G {
         <span class="kw-2">&amp;</span><span class="self">self</span>.c
     }
 
-    <span class="comment">// Used for debugging
-    </span><span class="kw">pub fn </span>proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>DdhTupleNizk&lt;G&gt; {
+    <span class="kw">pub fn </span>proof(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>DdhTupleNizk&lt;G&gt; {
         <span class="kw-2">&amp;</span><span class="self">self</span>.proof
     }
 
@@ -429,5 +491,39 @@
         AesKey::&lt;U32&gt;::from_bytes(<span class="kw-2">&amp;</span>k[<span class="number">0</span>..U32::USIZE])
             .expect(<span class="string">"New shouldn't fail as use fixed size key is used"</span>),
     )
+}
+
+<span class="kw">impl</span>&lt;G&gt; PrivateKey&lt;G&gt;
+<span class="kw">where
+    </span>G: GroupElement + Serialize,
+    &lt;G <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    <span class="kw">pub fn </span>new&lt;R: AllowedRng&gt;(rng: <span class="kw-2">&amp;mut </span>R) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(G::ScalarType::rand(rng))
+    }
+
+    <span class="kw">pub fn </span>from(sc: G::ScalarType) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(sc)
+    }
+}
+
+<span class="kw">impl</span>&lt;G&gt; PublicKey&lt;G&gt;
+<span class="kw">where
+    </span>G: GroupElement + Serialize + DeserializeOwned,
+    &lt;G <span class="kw">as </span>GroupElement&gt;::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    <span class="kw">pub fn </span>from_private_key(sk: <span class="kw-2">&amp;</span>PrivateKey&lt;G&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(G::generator() * sk.<span class="number">0</span>)
+    }
+
+    <span class="kw">pub fn </span>as_element(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>G {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0
+    </span>}
+}
+
+<span class="kw">impl</span>&lt;G: GroupElement&gt; From&lt;G&gt; <span class="kw">for </span>PublicKey&lt;G&gt; {
+    <span class="kw">fn </span>from(p: G) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(p)
+    }
 }
 </code></pre></div></section></main></body></html>

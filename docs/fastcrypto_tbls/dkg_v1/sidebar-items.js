@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["Message","ProcessedMessage","UsedProcessedMessages","VerifiedProcessedMessages"]};
+window.SIDEBAR_ITEMS = {"constant":["DKG_MESSAGES_MAX_SIZE"],"struct":["Complaint","Confirmation","Message","Output","Party","ProcessedMessage","UsedProcessedMessages","VerifiedProcessedMessages"]};

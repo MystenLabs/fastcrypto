@@ -1,1 +1,0 @@
-window.SIDEBAR_ITEMS = {"constant":["AES_KEY_LENGTH"],"struct":["PrivateKey","PublicKey","RecoveryPackage"]};

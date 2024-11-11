@@ -207,7 +207,7 @@
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-</span><span class="kw">use </span><span class="kw">crate</span>::ecies;
+</span><span class="kw">use </span><span class="kw">crate</span>::ecies_v1;
 <span class="kw">use </span><span class="kw">crate</span>::types::ShareIndex;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>fastcrypto::groups::GroupElement;
@@ -221,7 +221,7 @@
 </span><span class="attr">#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 </span><span class="kw">pub struct </span>Node&lt;G: GroupElement&gt; {
     <span class="kw">pub </span>id: PartyId,
-    <span class="kw">pub </span>pk: ecies::PublicKey&lt;G&gt;,
+    <span class="kw">pub </span>pk: ecies_v1::PublicKey&lt;G&gt;,
     <span class="kw">pub </span>weight: u16, <span class="comment">// May be zero after reduce()
 </span>}
 
