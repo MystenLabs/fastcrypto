@@ -251,7 +251,8 @@ impl FromTrustedByteArray<PROJECTIVE_POINT_BYTE_LENGTH> for ProjectivePoint {
         bytes: &[u8; PROJECTIVE_POINT_BYTE_LENGTH],
     ) -> FastCryptoResult<Self> {
         Ok(ProjectivePoint(
-            SecpProjectivePoint::from_bytes(bytes.as_slice().into()).unwrap(),
+            SecpProjectivePoint::from_bytes(bytes.as_slice().into())
+                .expect("trusted input should be a valid point"),
         ))
     }
 }
