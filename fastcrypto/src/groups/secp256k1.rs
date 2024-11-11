@@ -131,7 +131,7 @@ impl ScalarType for Scalar {
         if self.0 == SecpScalar::ZERO {
             return Err(FastCryptoError::InvalidInput);
         }
-        Ok(Self(self.0.invert().unwrap()))
+        Ok(Self(self.0.invert().expect("checked above")))
     }
 }
 
