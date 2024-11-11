@@ -76,10 +76,6 @@ where
             proof,
         }
     }
-
-    pub fn as_element(&self) -> &G::ScalarType {
-        &self.0
-    }
 }
 
 impl<G> PublicKey<G>
