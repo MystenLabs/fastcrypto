@@ -1,17 +1,16 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies::{PrivateKey, PublicKey, RecoveryPackage};
 use crate::nizk::DdhTupleNizk;
 use crate::random_oracle::RandomOracle;
 use fastcrypto::aes::{Aes256Ctr, AesKey, Cipher, InitializationVector};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
 use fastcrypto::traits::{AllowedRng, ToFromBytes};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use typenum::consts::{U16, U32};
 use typenum::Unsigned;
-use zeroize::Zeroize;
+use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Simple ECIES encryption using a generic group and AES-256-counter.
 ///
@@ -22,15 +21,32 @@ use zeroize::Zeroize;
 /// The encryption uses AES Counter mode and is not CCA secure as is.
 ///
 
-// TODO: move PrivateKey and PublicKey here and remove old APIs
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ZeroizeOnDrop)]
+pub struct PrivateKey<G: GroupElement>(pub(crate) G::ScalarType)
+where
+    G::ScalarType: Zeroize;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PublicKey<G: GroupElement>(pub(crate) G);
+
+/// A recovery package that allows decrypting a *specific* ECIES Encryption.
+/// It also includes a NIZK proof of correctness (DDH-NIZK).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RecoveryPackage<G: GroupElement> {
+    pub(crate) ephemeral_key: G,
+    pub(crate) proof: DdhTupleNizk<G>,
+}
+
+pub const AES_KEY_LENGTH: usize = 32;
 
 /// Multi-recipient encryption with a proof-of-possession of the ephemeral key.
+/// (rG, r RO1(rG), {AES(k=RO2(rPK_i), m_i)}_i, DDH-NIZK(G, RO1(rG), rG, r RO1(rG)) )
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MultiRecipientEncryption<G: GroupElement> {
     c: G,
     c_hat: G,
     encs: Vec<Vec<u8>>,
-    pub proof: DdhTupleNizk<G>,
+    proof: DdhTupleNizk<G>,
 }
 
 impl<G: GroupElement + Serialize> MultiRecipientEncryption<G>
@@ -97,8 +113,8 @@ where
             .ok_or(FastCryptoError::InvalidInput)
     }
 
-    /// We assume that verify is called before decrypt and do not call it again here to
-    /// avoid redundant checks.
+    /// Assumption: Verify is called before decrypt and do not call it again here to avoid redundant
+    /// checks.
     pub fn decrypt(
         &self,
         sk: &PrivateKey<G>,
@@ -114,7 +130,7 @@ where
             .expect("Decrypt should never fail for CTR mode")
     }
 
-    /// We assume that verify is called before decrypt and do not call it again here to
+    /// Assumption: Verify is called before create_recovery_package and do not call it again here to
     /// avoid redundant checks.
     pub fn create_recovery_package<R: AllowedRng>(
         &self,
@@ -170,12 +186,10 @@ where
         self.encs.is_empty()
     }
 
-    // Used for debugging
     pub fn ephemeral_key(&self) -> &G {
         &self.c
     }
 
-    // Used for debugging
     pub fn proof(&self) -> &DdhTupleNizk<G> {
         &self.proof
     }
@@ -213,4 +227,38 @@ fn sym_cipher(k: &[u8; 64]) -> Aes256Ctr {
         AesKey::<U32>::from_bytes(&k[0..U32::USIZE])
             .expect("New shouldn't fail as use fixed size key is used"),
     )
+}
+
+impl<G> PrivateKey<G>
+where
+    G: GroupElement + Serialize,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    pub fn new<R: AllowedRng>(rng: &mut R) -> Self {
+        Self(G::ScalarType::rand(rng))
+    }
+
+    pub fn from(sc: G::ScalarType) -> Self {
+        Self(sc)
+    }
+}
+
+impl<G> PublicKey<G>
+where
+    G: GroupElement + Serialize + DeserializeOwned,
+    <G as GroupElement>::ScalarType: FiatShamirChallenge + Zeroize,
+{
+    pub fn from_private_key(sk: &PrivateKey<G>) -> Self {
+        Self(G::generator() * sk.0)
+    }
+
+    pub fn as_element(&self) -> &G {
+        &self.0
+    }
+}
+
+impl<G: GroupElement> From<G> for PublicKey<G> {
+    fn from(p: G) -> Self {
+        Self(p)
+    }
 }

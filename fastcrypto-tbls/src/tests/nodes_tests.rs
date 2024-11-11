@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies;
+use crate::ecies_v1;
 use crate::nodes::{Node, Nodes};
 use fastcrypto::groups::bls12381::G2Element;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
@@ -18,8 +18,8 @@ where
     G: GroupElement + Serialize + DeserializeOwned,
     G::ScalarType: FiatShamirChallenge + Zeroize,
 {
-    let sk = ecies::PrivateKey::<G>::new(&mut thread_rng());
-    let pk = ecies::PublicKey::<G>::from_private_key(&sk);
+    let sk = ecies_v1::PrivateKey::<G>::new(&mut thread_rng());
+    let pk = ecies_v1::PublicKey::<G>::from_private_key(&sk);
     (0..n)
         .map(|i| Node {
             id: i,

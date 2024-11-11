@@ -11,12 +11,8 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
-pub mod dkg;
-pub mod dkg_v0;
 pub mod dkg_v1;
 pub mod dl_verification;
-pub mod ecies;
-pub mod ecies_v0;
 pub mod ecies_v1;
 pub mod mocked_dkg;
 pub mod nizk;
@@ -26,8 +22,9 @@ pub mod random_oracle;
 pub mod tbls;
 pub mod types;
 
-#[cfg(any(test, feature = "experimental"))]
-pub mod nidkg;
+// TODO: needs to use ecies_v1
+// #[cfg(any(test, feature = "experimental"))]
+// pub mod nidkg;
 
 #[cfg(test)]
 #[path = "tests/tbls_tests.rs"]
@@ -38,20 +35,12 @@ pub mod tbls_tests;
 pub mod polynomial_tests;
 
 #[cfg(test)]
-#[path = "tests/ecies_v0_tests.rs"]
-pub mod ecies_v0_tests;
-
-#[cfg(test)]
 #[path = "tests/ecies_v1_tests.rs"]
 pub mod ecies_v1_tests;
 
 #[cfg(test)]
 #[path = "tests/random_oracle_tests.rs"]
 pub mod random_oracle_tests;
-
-#[cfg(test)]
-#[path = "tests/dkg_v0_tests.rs"]
-pub mod dkg_v0_tests;
 
 #[cfg(test)]
 #[path = "tests/dkg_v1_tests.rs"]
@@ -61,9 +50,10 @@ pub mod dkg_v1_tests;
 #[path = "tests/nodes_tests.rs"]
 pub mod nodes_tests;
 
-#[cfg(test)]
-#[path = "tests/nidkg_tests.rs"]
-pub mod nidkg_tests;
+// TODO: needs to use ecies_v1
+// #[cfg(test)]
+// #[path = "tests/nidkg_tests.rs"]
+// pub mod nidkg_tests;
 
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
