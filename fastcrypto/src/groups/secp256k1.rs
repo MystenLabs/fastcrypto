@@ -186,7 +186,8 @@ impl Div<Scalar> for ProjectivePoint {
     type Output = FastCryptoResult<Self>;
 
     fn div(self, rhs: Scalar) -> Self::Output {
-        let inv = rhs.0.invert().unwrap();
+        let inv: Option<SecpScalar> = rhs.0.invert().into();
+        let inv = inv.ok_or(FastCryptoError::InvalidInput)?;
         Ok(Self(self.0.mul(inv)))
     }
 }
