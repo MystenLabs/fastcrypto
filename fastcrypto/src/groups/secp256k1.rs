@@ -174,7 +174,7 @@ impl GroupElement for ProjectivePoint {
     type ScalarType = Scalar;
 
     fn zero() -> Self {
-        Self(SecpProjectivePoint::default())
+        Self(SecpProjectivePoint::IDENTITY)
     }
 
     fn generator() -> Self {
