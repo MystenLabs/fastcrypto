@@ -227,9 +227,7 @@ impl Neg for ProjectivePoint {
 impl MultiScalarMul for ProjectivePoint {
     fn multi_scalar_mul(scalars: &[Self::ScalarType], points: &[Self]) -> FastCryptoResult<Self> {
         if scalars.len() != points.len() || scalars.is_empty() {
-            return Err(FastCryptoError::GeneralError(String::from(
-                "Invalid input: Scalars and points must have the same non-zero length",
-            )));
+            return Err(FastCryptoError::InvalidInput);
         }
 
         let mut result = SecpProjectivePoint::IDENTITY;
