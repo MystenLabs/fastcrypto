@@ -307,35 +307,6 @@
 <a href="#307" id="307">307</a>
 <a href="#308" id="308">308</a>
 <a href="#309" id="309">309</a>
-<a href="#310" id="310">310</a>
-<a href="#311" id="311">311</a>
-<a href="#312" id="312">312</a>
-<a href="#313" id="313">313</a>
-<a href="#314" id="314">314</a>
-<a href="#315" id="315">315</a>
-<a href="#316" id="316">316</a>
-<a href="#317" id="317">317</a>
-<a href="#318" id="318">318</a>
-<a href="#319" id="319">319</a>
-<a href="#320" id="320">320</a>
-<a href="#321" id="321">321</a>
-<a href="#322" id="322">322</a>
-<a href="#323" id="323">323</a>
-<a href="#324" id="324">324</a>
-<a href="#325" id="325">325</a>
-<a href="#326" id="326">326</a>
-<a href="#327" id="327">327</a>
-<a href="#328" id="328">328</a>
-<a href="#329" id="329">329</a>
-<a href="#330" id="330">330</a>
-<a href="#331" id="331">331</a>
-<a href="#332" id="332">332</a>
-<a href="#333" id="333">333</a>
-<a href="#334" id="334">334</a>
-<a href="#335" id="335">335</a>
-<a href="#336" id="336">336</a>
-<a href="#337" id="337">337</a>
-<a href="#338" id="338">338</a>
 </pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -363,14 +334,14 @@
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
     KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
 };
-<span class="kw">use </span>aes_gcm::AeadInPlace;
+<span class="kw">use </span>aes_gcm::{AeadCore, AeadInPlace};
 <span class="kw">use </span>fastcrypto_derive::{SilentDebug, SilentDisplay};
 <span class="kw">use </span>generic_array::{ArrayLength, GenericArray};
 <span class="kw">use </span>serde::de::DeserializeOwned;
 <span class="kw">use </span>serde::{Deserialize, Serialize};
 <span class="kw">use </span>std::fmt::Debug;
 <span class="kw">use </span>std::marker::PhantomData;
-<span class="kw">use </span>typenum::{U16, U24, U32};
+<span class="kw">use </span>typenum::U16;
 <span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
 
 <span class="doccomment">/// Trait impl'd by encryption keys in symmetric cryptography
@@ -417,6 +388,18 @@
         aad: <span class="kw-2">&amp;</span>[u8],
         ciphertext: <span class="kw-2">&amp;</span>[u8],
     ) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt;;
+}
+
+<span class="kw">impl</span>&lt;AC: AuthenticatedCipher&gt; Cipher <span class="kw">for </span>AC {
+    <span class="kw">type </span>IVType = AC::IVType;
+
+    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
+        <span class="self">self</span>.encrypt_authenticated(iv, <span class="kw-2">&amp;</span>[], plaintext)
+    }
+
+    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
+        <span class="self">self</span>.decrypt_authenticated(iv, <span class="kw-2">&amp;</span>[], ciphertext)
+    }
 }
 
 <span class="doccomment">/// Struct wrapping an instance of a `generic_array::GenericArray&lt;u8, N&gt;`.
@@ -482,23 +465,17 @@
 <span class="doccomment">///
 /// Aes in CTR mode
 ///
-</span><span class="kw">pub struct </span>AesCtr&lt;KeySize: ArrayLength&lt;u8&gt;, Aes&gt; {
-    key: AesKey&lt;KeySize&gt;,
-    algorithm: PhantomData&lt;Aes&gt;,
-}
+</span><span class="kw">pub struct </span>AesCtr&lt;Aes: KeySizeUser&gt;(AesKey&lt;Aes::KeySize&gt;);
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes&gt; AesCtr&lt;KeySize, Aes&gt; {
-    <span class="kw">pub fn </span>new(key: AesKey&lt;KeySize&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            key,
-            algorithm: PhantomData,
-        }
+<span class="kw">impl</span>&lt;Aes: KeySizeUser&gt; AesCtr&lt;Aes&gt; {
+    <span class="kw">pub fn </span>new(key: AesKey&lt;Aes::KeySize&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(key)
     }
 }
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes&gt; Cipher <span class="kw">for </span>AesCtr&lt;KeySize, Aes&gt;
+<span class="kw">impl</span>&lt;Aes&gt; Cipher <span class="kw">for </span>AesCtr&lt;Aes&gt;
 <span class="kw">where
-    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+    </span>Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser&lt;BlockSize = U16&gt;
@@ -509,50 +486,48 @@
 
     <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; plaintext.len()];
-        <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
+        <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         cipher.apply_keystream_b2b(plaintext, <span class="kw-2">&amp;mut </span>buffer).unwrap();
         buffer
     }
 
     <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = <span class="macro">vec!</span>[<span class="number">0</span>; ciphertext.len()];
-        <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes, <span class="kw-2">&amp;</span>iv.bytes);
+        <span class="kw">let </span><span class="kw-2">mut </span>cipher = ctr::Ctr128BE::&lt;Aes&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>.bytes, <span class="kw-2">&amp;</span>iv.bytes);
         cipher.apply_keystream_b2b(ciphertext, <span class="kw-2">&amp;mut </span>buffer).unwrap();
         <span class="prelude-val">Ok</span>(buffer)
     }
 }
 
 <span class="doccomment">/// AES128 in CTR-mode.
-</span><span class="kw">pub type </span>Aes128Ctr = AesCtr&lt;U16, aes::Aes128&gt;;
+</span><span class="kw">pub type </span>Aes128Ctr = AesCtr&lt;aes::Aes128&gt;;
 
 <span class="doccomment">/// AES192 in CTR-mode.
-</span><span class="kw">pub type </span>Aes192Ctr = AesCtr&lt;U24, aes::Aes192&gt;;
+</span><span class="kw">pub type </span>Aes192Ctr = AesCtr&lt;aes::Aes192&gt;;
 
 <span class="doccomment">/// AES256 in CTR-mode.
-</span><span class="kw">pub type </span>Aes256Ctr = AesCtr&lt;U32, aes::Aes256&gt;;
+</span><span class="kw">pub type </span>Aes256Ctr = AesCtr&lt;aes::Aes256&gt;;
 
 <span class="doccomment">///
 /// Aes in CBC mode
 ///
-</span><span class="kw">pub struct </span>AesCbc&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, Padding&gt; {
-    key: AesKey&lt;KeySize&gt;,
-    algorithm: PhantomData&lt;Aes&gt;,
+</span><span class="kw">pub struct </span>AesCbc&lt;Aes: KeySizeUser, Padding&gt; {
+    key: AesKey&lt;Aes::KeySize&gt;,
     padding: PhantomData&lt;Padding&gt;,
 }
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, Padding&gt; AesCbc&lt;KeySize, Aes, Padding&gt; {
-    <span class="kw">pub fn </span>new(key: AesKey&lt;KeySize&gt;) -&gt; <span class="self">Self </span>{
+<span class="kw">impl</span>&lt;Aes: KeySizeUser, Padding&gt; AesCbc&lt;Aes, Padding&gt; {
+    <span class="kw">pub fn </span>new(key: AesKey&lt;Aes::KeySize&gt;) -&gt; <span class="self">Self </span>{
         <span class="self">Self </span>{
             key,
-            algorithm: PhantomData,
             padding: PhantomData,
         }
     }
 }
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, Padding&gt; Cipher <span class="kw">for </span>AesCbc&lt;KeySize, Aes, Padding&gt;
+<span class="kw">impl</span>&lt;Aes, Padding&gt; Cipher <span class="kw">for </span>AesCbc&lt;Aes, Padding&gt;
 <span class="kw">where
-    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
+    </span>Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser&lt;BlockSize = U16&gt;
@@ -576,57 +551,42 @@
 }
 
 <span class="doccomment">/// AES128 in CBC-mode using PKCS #7 padding.
-</span><span class="kw">pub type </span>Aes128CbcPkcs7 = AesCbc&lt;U16, aes::Aes128, aes::cipher::block_padding::Pkcs7&gt;;
+</span><span class="kw">pub type </span>Aes128CbcPkcs7 = AesCbc&lt;aes::Aes128, aes::cipher::block_padding::Pkcs7&gt;;
 
 <span class="doccomment">/// AES256 in CBC-mode using PKCS #7 padding.
-</span><span class="kw">pub type </span>Aes256CbcPkcs7 = AesCbc&lt;U32, aes::Aes256, aes::cipher::block_padding::Pkcs7&gt;;
+</span><span class="kw">pub type </span>Aes256CbcPkcs7 = AesCbc&lt;aes::Aes256, aes::cipher::block_padding::Pkcs7&gt;;
 
 <span class="doccomment">/// AES128 in CBC-mode using ISO 10126 padding.
-</span><span class="kw">pub type </span>Aes128CbcIso10126 = AesCbc&lt;U16, aes::Aes128, aes::cipher::block_padding::Iso10126&gt;;
+</span><span class="kw">pub type </span>Aes128CbcIso10126 = AesCbc&lt;aes::Aes128, aes::cipher::block_padding::Iso10126&gt;;
 
 <span class="doccomment">/// AES256 in CBC-mode using ISO 10126 padding.
-</span><span class="kw">pub type </span>Aes256CbcIso10126 = AesCbc&lt;U32, aes::Aes256, aes::cipher::block_padding::Iso10126&gt;;
+</span><span class="kw">pub type </span>Aes256CbcIso10126 = AesCbc&lt;aes::Aes256, aes::cipher::block_padding::Iso10126&gt;;
 
 <span class="doccomment">/// AES128 in CBC-mode using ANSI X9.23 padding.
-</span><span class="kw">pub type </span>Aes128CbcAnsiX923 = AesCbc&lt;U16, aes::Aes128, aes::cipher::block_padding::AnsiX923&gt;;
+</span><span class="kw">pub type </span>Aes128CbcAnsiX923 = AesCbc&lt;aes::Aes128, aes::cipher::block_padding::AnsiX923&gt;;
 
 <span class="doccomment">/// AES256 in CBC-mode using ANSI X9.23 padding.
-</span><span class="kw">pub type </span>Aes256CbcAnsiX923 = AesCbc&lt;U32, aes::Aes256, aes::cipher::block_padding::AnsiX923&gt;;
+</span><span class="kw">pub type </span>Aes256CbcAnsiX923 = AesCbc&lt;aes::Aes256, aes::cipher::block_padding::AnsiX923&gt;;
 
 <span class="doccomment">/// AES in GCM mode (authenticated).
-</span><span class="kw">pub struct </span>AesGcm&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; {
-    key: AesKey&lt;KeySize&gt;,
-    algorithm: PhantomData&lt;Aes&gt;,
-    nonce_size: PhantomData&lt;NonceSize&gt;,
-}
+</span><span class="kw">pub struct </span>AeadWrapper&lt;A: AeadInPlace&gt;(A);
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; AesGcm&lt;KeySize, Aes, NonceSize&gt; {
-    <span class="kw">pub fn </span>new(key: AesKey&lt;KeySize&gt;) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            key,
-            algorithm: PhantomData,
-            nonce_size: PhantomData,
-        }
+<span class="kw">impl</span>&lt;A: KeyInit + AeadInPlace&gt; AeadWrapper&lt;A&gt; {
+    <span class="kw">pub fn </span>new(key: AesKey&lt;A::KeySize&gt;) -&gt; <span class="self">Self </span>{
+        <span class="self">Self</span>(A::new(<span class="kw-2">&amp;</span>key.bytes))
     }
 }
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; AuthenticatedCipher
-    <span class="kw">for </span>AesGcm&lt;KeySize, Aes, NonceSize&gt;
+<span class="kw">impl</span>&lt;A: AeadInPlace&gt; AuthenticatedCipher <span class="kw">for </span>AeadWrapper&lt;A&gt;
 <span class="kw">where
-    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser&lt;BlockSize = U16&gt;
-        + BlockEncrypt,
-    NonceSize: ArrayLength&lt;u8&gt; + Debug,
+    </span>&lt;A <span class="kw">as </span>AeadCore&gt;::NonceSize: Debug,
 {
-    <span class="kw">type </span>IVType = InitializationVector&lt;NonceSize&gt;;
+    <span class="kw">type </span>IVType = InitializationVector&lt;&lt;A <span class="kw">as </span>AeadCore&gt;::NonceSize&gt;;
 
     <span class="kw">fn </span>encrypt_authenticated(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, aad: <span class="kw-2">&amp;</span>[u8], plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
-        <span class="kw">let </span>cipher = aes_gcm::AesGcm::&lt;Aes, NonceSize&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes);
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = plaintext.to_vec();
-        cipher
-            .encrypt_in_place(iv.as_bytes().into(), aad, <span class="kw-2">&amp;mut </span>buffer)
+        <span class="self">self</span>.<span class="number">0
+            </span>.encrypt_in_place(<span class="kw-2">&amp;</span>iv.bytes, aad, <span class="kw-2">&amp;mut </span>buffer)
             .unwrap();
         buffer
     }
@@ -640,38 +600,20 @@
         <span class="kw">if </span>iv.as_bytes().is_empty() {
             <span class="kw">return </span><span class="prelude-val">Err</span>(FastCryptoError::InputTooShort(<span class="number">1</span>));
         }
-        <span class="kw">let </span>cipher = aes_gcm::AesGcm::&lt;Aes, NonceSize&gt;::new(<span class="kw-2">&amp;</span><span class="self">self</span>.key.bytes);
         <span class="kw">let </span><span class="kw-2">mut </span>buffer: Vec&lt;u8&gt; = ciphertext.to_vec();
-        cipher
-            .decrypt_in_place(iv.as_bytes().into(), aad, <span class="kw-2">&amp;mut </span>buffer)
+        <span class="self">self</span>.<span class="number">0
+            </span>.decrypt_in_place(<span class="kw-2">&amp;</span>iv.bytes, aad, <span class="kw-2">&amp;mut </span>buffer)
             .map_err(|<span class="kw">_</span>| FastCryptoError::GeneralOpaqueError)<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(buffer)
     }
 }
 
-<span class="kw">impl</span>&lt;KeySize: ArrayLength&lt;u8&gt;, Aes, NonceSize&gt; Cipher <span class="kw">for </span>AesGcm&lt;KeySize, Aes, NonceSize&gt;
-<span class="kw">where
-    </span>Aes: KeySizeUser&lt;KeySize = KeySize&gt;
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser&lt;BlockSize = U16&gt;
-        + BlockEncrypt,
-    NonceSize: ArrayLength&lt;u8&gt; + Debug,
-{
-    <span class="kw">type </span>IVType = InitializationVector&lt;NonceSize&gt;;
-
-    <span class="kw">fn </span>encrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, plaintext: <span class="kw-2">&amp;</span>[u8]) -&gt; Vec&lt;u8&gt; {
-        <span class="self">self</span>.encrypt_authenticated(iv, <span class="string">b""</span>, plaintext)
-    }
-
-    <span class="kw">fn </span>decrypt(<span class="kw-2">&amp;</span><span class="self">self</span>, iv: <span class="kw-2">&amp;</span><span class="self">Self</span>::IVType, ciphertext: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Result</span>&lt;Vec&lt;u8&gt;, FastCryptoError&gt; {
-        <span class="self">self</span>.decrypt_authenticated(iv, <span class="string">b""</span>, ciphertext)
-    }
-}
-
 <span class="doccomment">/// AES128 in GCM-mode (authenticated) using the given nonce size.
-</span><span class="kw">pub type </span>Aes128Gcm&lt;NonceSize&gt; = AesGcm&lt;U16, aes::Aes128, NonceSize&gt;;
+</span><span class="kw">pub type </span>Aes128Gcm&lt;NonceSize&gt; = AeadWrapper&lt;aes_gcm::AesGcm&lt;aes::Aes128, NonceSize&gt;&gt;;
 
 <span class="doccomment">/// AES256 in GCM-mode (authenticated) using the given nonce size.
-</span><span class="kw">pub type </span>Aes256Gcm&lt;NonceSize&gt; = AesGcm&lt;U32, aes::Aes256, NonceSize&gt;;
+</span><span class="kw">pub type </span>Aes256Gcm&lt;NonceSize&gt; = AeadWrapper&lt;aes_gcm::AesGcm&lt;aes::Aes256, NonceSize&gt;&gt;;
+
+<span class="doccomment">/// AES256 in GCM-SIV (athenticated) mode with 96 bit nonces.
+</span><span class="kw">pub type </span>Aes256GcmSiv = AeadWrapper&lt;aes_gcm_siv::Aes256GcmSiv&gt;;
 </code></pre></div></section></main></body></html>
