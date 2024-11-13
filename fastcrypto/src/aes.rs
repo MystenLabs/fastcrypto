@@ -25,14 +25,14 @@ use aes::cipher::{
     BlockCipher, BlockDecrypt, BlockDecryptMut, BlockEncrypt, BlockEncryptMut, BlockSizeUser,
     KeyInit, KeyIvInit, KeySizeUser, StreamCipher,
 };
-use aes_gcm::AeadInPlace;
+use aes_gcm::{AeadCore, AeadInPlace};
 use fastcrypto_derive::{SilentDebug, SilentDisplay};
 use generic_array::{ArrayLength, GenericArray};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use std::fmt::Debug;
 use std::marker::PhantomData;
-use typenum::{U16, U24, U32};
+use typenum::U16;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 /// Trait impl'd by encryption keys in symmetric cryptography
@@ -79,6 +79,18 @@ pub trait AuthenticatedCipher {
         aad: &[u8],
         ciphertext: &[u8],
     ) -> Result<Vec<u8>, FastCryptoError>;
+}
+
+impl<AC: AuthenticatedCipher> Cipher for AC {
+    type IVType = AC::IVType;
+
+    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
+        self.encrypt_authenticated(iv, &[], plaintext)
+    }
+
+    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
+        self.decrypt_authenticated(iv, &[], ciphertext)
+    }
 }
 
 /// Struct wrapping an instance of a `generic_array::GenericArray<u8, N>`.
@@ -144,23 +156,17 @@ impl<N> Nonce for InitializationVector<N> where N: ArrayLength<u8> + Debug {}
 ///
 /// Aes in CTR mode
 ///
-pub struct AesCtr<KeySize: ArrayLength<u8>, Aes> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
-}
+pub struct AesCtr<Aes: KeySizeUser>(AesKey<Aes::KeySize>);
 
-impl<KeySize: ArrayLength<u8>, Aes> AesCtr<KeySize, Aes> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
-        Self {
-            key,
-            algorithm: PhantomData,
-        }
+impl<Aes: KeySizeUser> AesCtr<Aes> {
+    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
+        Self(key)
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes> Cipher for AesCtr<KeySize, Aes>
+impl<Aes> Cipher for AesCtr<Aes>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
+    Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser<BlockSize = U16>
@@ -171,50 +177,48 @@ where
 
     fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
         let mut buffer: Vec<u8> = vec![0; plaintext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.0.bytes, &iv.bytes);
         cipher.apply_keystream_b2b(plaintext, &mut buffer).unwrap();
         buffer
     }
 
     fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
         let mut buffer: Vec<u8> = vec![0; ciphertext.len()];
-        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.key.bytes, &iv.bytes);
+        let mut cipher = ctr::Ctr128BE::<Aes>::new(&self.0.bytes, &iv.bytes);
         cipher.apply_keystream_b2b(ciphertext, &mut buffer).unwrap();
         Ok(buffer)
     }
 }
 
 /// AES128 in CTR-mode.
-pub type Aes128Ctr = AesCtr<U16, aes::Aes128>;
+pub type Aes128Ctr = AesCtr<aes::Aes128>;
 
 /// AES192 in CTR-mode.
-pub type Aes192Ctr = AesCtr<U24, aes::Aes192>;
+pub type Aes192Ctr = AesCtr<aes::Aes192>;
 
 /// AES256 in CTR-mode.
-pub type Aes256Ctr = AesCtr<U32, aes::Aes256>;
+pub type Aes256Ctr = AesCtr<aes::Aes256>;
 
 ///
 /// Aes in CBC mode
 ///
-pub struct AesCbc<KeySize: ArrayLength<u8>, Aes, Padding> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
+pub struct AesCbc<Aes: KeySizeUser, Padding> {
+    key: AesKey<Aes::KeySize>,
     padding: PhantomData<Padding>,
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, Padding> AesCbc<KeySize, Aes, Padding> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
+impl<Aes: KeySizeUser, Padding> AesCbc<Aes, Padding> {
+    pub fn new(key: AesKey<Aes::KeySize>) -> Self {
         Self {
             key,
-            algorithm: PhantomData,
             padding: PhantomData,
         }
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, Padding> Cipher for AesCbc<KeySize, Aes, Padding>
+impl<Aes, Padding> Cipher for AesCbc<Aes, Padding>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
+    Aes: KeySizeUser
         + KeyInit
         + BlockCipher
         + BlockSizeUser<BlockSize = U16>
@@ -238,57 +242,42 @@ where
 }
 
 /// AES128 in CBC-mode using PKCS #7 padding.
-pub type Aes128CbcPkcs7 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Pkcs7>;
+pub type Aes128CbcPkcs7 = AesCbc<aes::Aes128, aes::cipher::block_padding::Pkcs7>;
 
 /// AES256 in CBC-mode using PKCS #7 padding.
-pub type Aes256CbcPkcs7 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Pkcs7>;
+pub type Aes256CbcPkcs7 = AesCbc<aes::Aes256, aes::cipher::block_padding::Pkcs7>;
 
 /// AES128 in CBC-mode using ISO 10126 padding.
-pub type Aes128CbcIso10126 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::Iso10126>;
+pub type Aes128CbcIso10126 = AesCbc<aes::Aes128, aes::cipher::block_padding::Iso10126>;
 
 /// AES256 in CBC-mode using ISO 10126 padding.
-pub type Aes256CbcIso10126 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::Iso10126>;
+pub type Aes256CbcIso10126 = AesCbc<aes::Aes256, aes::cipher::block_padding::Iso10126>;
 
 /// AES128 in CBC-mode using ANSI X9.23 padding.
-pub type Aes128CbcAnsiX923 = AesCbc<U16, aes::Aes128, aes::cipher::block_padding::AnsiX923>;
+pub type Aes128CbcAnsiX923 = AesCbc<aes::Aes128, aes::cipher::block_padding::AnsiX923>;
 
 /// AES256 in CBC-mode using ANSI X9.23 padding.
-pub type Aes256CbcAnsiX923 = AesCbc<U32, aes::Aes256, aes::cipher::block_padding::AnsiX923>;
+pub type Aes256CbcAnsiX923 = AesCbc<aes::Aes256, aes::cipher::block_padding::AnsiX923>;
 
 /// AES in GCM mode (authenticated).
-pub struct AesGcm<KeySize: ArrayLength<u8>, Aes, NonceSize> {
-    key: AesKey<KeySize>,
-    algorithm: PhantomData<Aes>,
-    nonce_size: PhantomData<NonceSize>,
-}
+pub struct AeadWrapper<A: AeadInPlace>(A);
 
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AesGcm<KeySize, Aes, NonceSize> {
-    pub fn new(key: AesKey<KeySize>) -> Self {
-        Self {
-            key,
-            algorithm: PhantomData,
-            nonce_size: PhantomData,
-        }
+impl<A: KeyInit + AeadInPlace> AeadWrapper<A> {
+    pub fn new(key: AesKey<A::KeySize>) -> Self {
+        Self(A::new(&key.bytes))
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> AuthenticatedCipher
-    for AesGcm<KeySize, Aes, NonceSize>
+impl<A: AeadInPlace> AuthenticatedCipher for AeadWrapper<A>
 where
-    Aes: KeySizeUser<KeySize = KeySize>
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser<BlockSize = U16>
-        + BlockEncrypt,
-    NonceSize: ArrayLength<u8> + Debug,
+    <A as AeadCore>::NonceSize: Debug,
 {
-    type IVType = InitializationVector<NonceSize>;
+    type IVType = InitializationVector<<A as AeadCore>::NonceSize>;
 
     fn encrypt_authenticated(&self, iv: &Self::IVType, aad: &[u8], plaintext: &[u8]) -> Vec<u8> {
-        let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = plaintext.to_vec();
-        cipher
-            .encrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
+        self.0
+            .encrypt_in_place(&iv.bytes, aad, &mut buffer)
             .unwrap();
         buffer
     }
@@ -302,37 +291,19 @@ where
         if iv.as_bytes().is_empty() {
             return Err(FastCryptoError::InputTooShort(1));
         }
-        let cipher = aes_gcm::AesGcm::<Aes, NonceSize>::new(&self.key.bytes);
         let mut buffer: Vec<u8> = ciphertext.to_vec();
-        cipher
-            .decrypt_in_place(iv.as_bytes().into(), aad, &mut buffer)
+        self.0
+            .decrypt_in_place(&iv.bytes, aad, &mut buffer)
             .map_err(|_| FastCryptoError::GeneralOpaqueError)?;
         Ok(buffer)
     }
 }
 
-impl<KeySize: ArrayLength<u8>, Aes, NonceSize> Cipher for AesGcm<KeySize, Aes, NonceSize>
-where
-    Aes: KeySizeUser<KeySize = KeySize>
-        + KeyInit
-        + BlockCipher
-        + BlockSizeUser<BlockSize = U16>
-        + BlockEncrypt,
-    NonceSize: ArrayLength<u8> + Debug,
-{
-    type IVType = InitializationVector<NonceSize>;
-
-    fn encrypt(&self, iv: &Self::IVType, plaintext: &[u8]) -> Vec<u8> {
-        self.encrypt_authenticated(iv, b"", plaintext)
-    }
-
-    fn decrypt(&self, iv: &Self::IVType, ciphertext: &[u8]) -> Result<Vec<u8>, FastCryptoError> {
-        self.decrypt_authenticated(iv, b"", ciphertext)
-    }
-}
-
 /// AES128 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes128Gcm<NonceSize> = AesGcm<U16, aes::Aes128, NonceSize>;
+pub type Aes128Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes128, NonceSize>>;
 
 /// AES256 in GCM-mode (authenticated) using the given nonce size.
-pub type Aes256Gcm<NonceSize> = AesGcm<U32, aes::Aes256, NonceSize>;
+pub type Aes256Gcm<NonceSize> = AeadWrapper<aes_gcm::AesGcm<aes::Aes256, NonceSize>>;
+
+/// AES256 in GCM-SIV (athenticated) mode with 96 bit nonces.
+pub type Aes256GcmSiv = AeadWrapper<aes_gcm_siv::Aes256GcmSiv>;

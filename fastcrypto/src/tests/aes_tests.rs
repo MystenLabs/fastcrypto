@@ -1,6 +1,6 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
-use crate::aes::{AuthenticatedCipher, Cipher};
+use crate::aes::{Aes256GcmSiv, AuthenticatedCipher, Cipher};
 use crate::{
     aes::{
         Aes128CbcPkcs7, Aes128Ctr, Aes128Gcm, Aes192Ctr, Aes256CbcPkcs7, Aes256Ctr, Aes256Gcm,
@@ -67,6 +67,11 @@ fn test_aes128gcm_encrypt_and_decrypt() {
 #[test]
 fn test_aes256gcm_encrypt_and_decrypt() {
     test_cipher::<U32, U12, _, _>(Aes256Gcm::<U12>::new);
+}
+
+#[test]
+fn test_aes256gcm_siv_encrypt_and_decrypt() {
+    test_cipher::<U32, U12, _, _>(Aes256GcmSiv::new);
 }
 
 fn test_cipher<
