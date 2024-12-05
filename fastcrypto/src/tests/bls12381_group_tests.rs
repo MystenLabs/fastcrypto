@@ -393,10 +393,12 @@ fn test_serde_and_regression() {
     let g1 = G1Element::generator();
     let g2 = G2Element::generator();
     let gt = GTElement::generator();
+    let ug1 = G1ElementUncompressed::from(&g1);
     let id1 = G1Element::zero();
     let id2 = G2Element::zero();
     let id3 = GTElement::zero();
     let id4 = Scalar::zero();
+    let id5 = G1ElementUncompressed::from(&id1);
 
     verify_serialization(
         &s1,
@@ -409,6 +411,7 @@ fn test_serde_and_regression() {
     verify_serialization(&g1, Some(hex::decode("97f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb").unwrap().as_slice()));
     verify_serialization(&g2, Some(hex::decode("93e02b6052719f607dacd3a088274f65596bd0d09920b61ab5da61bbdc7f5049334cf11213945d57e5ac7d055d042b7e024aa2b2f08f0a91260805272dc51051c6e47ad4fa403b02b4510b647ae3d1770bac0326a805bbefd48056c8c121bdb8").unwrap().as_slice()));
     verify_serialization(&gt, Some(hex::decode("1250ebd871fc0a92a7b2d83168d0d727272d441befa15c503dd8e90ce98db3e7b6d194f60839c508a84305aaca1789b6089a1c5b46e5110b86750ec6a532348868a84045483c92b7af5af689452eafabf1a8943e50439f1d59882a98eaa0170f19f26337d205fb469cd6bd15c3d5a04dc88784fbb3d0b2dbdea54d43b2b73f2cbb12d58386a8703e0f948226e47ee89d06fba23eb7c5af0d9f80940ca771b6ffd5857baaf222eb95a7d2809d61bfe02e1bfd1b68ff02f0b8102ae1c2d5d5ab1a1368bb445c7c2d209703f239689ce34c0378a68e72a6b3b216da0e22a5031b54ddff57309396b38c881c4c849ec23e87193502b86edb8857c273fa075a50512937e0794e1e65a7617c90d8bd66065b1fffe51d7a579973b1315021ec3c19934f11b8b424cd48bf38fcef68083b0b0ec5c81a93b330ee1a677d0d15ff7b984e8978ef48881e32fac91b93b47333e2ba5703350f55a7aefcd3c31b4fcb6ce5771cc6a0e9786ab5973320c806ad360829107ba810c5a09ffdd9be2291a0c25a99a201b2f522473d171391125ba84dc4007cfbf2f8da752f7c74185203fcca589ac719c34dffbbaad8431dad1c1fb597aaa5018107154f25a764bd3c79937a45b84546da634b8f6be14a8061e55cceba478b23f7dacaa35c8ca78beae9624045b4b604c581234d086a9902249b64728ffd21a189e87935a954051c7cdba7b3872629a4fafc05066245cb9108f0242d0fe3ef0f41e58663bf08cf068672cbd01a7ec73baca4d72ca93544deff686bfd6df543d48eaa24afe47e1efde449383b676631").unwrap().as_slice()));
+    verify_serialization(&ug1, Some(hex::decode("17f1d3a73197d7942695638c4fa9ac0fc3688c4f9774b905a14e3a3f171bac586c55e83ff97a1aeffb3af00adb22c6bb08b3f481e3aaa0f1a09e30ed741d8ae4fcf5e095d5d00af600db18cb2c04b3edd03cc744a2888ae40caa232946c5e7e1").unwrap().as_slice()));
     verify_serialization(&id1, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(&id2, Some(hex::decode("c00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
     verify_serialization(&id3, Some(hex::decode("000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
@@ -420,6 +423,7 @@ fn test_serde_and_regression() {
                 .as_slice(),
         ),
     );
+    verify_serialization(&id5, Some(hex::decode("400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000").unwrap().as_slice()));
 }
 
 #[test]
@@ -539,6 +543,45 @@ fn test_serialization_g1() {
         assert!(blst_p1_affine_on_curve(&p));
     };
     assert!(G1Element::from_byte_array(&bytes).is_err());
+}
+
+#[test]
+fn test_serialization_uncompressed_g1() {
+    let infinity_bit = 0x40;
+    let compressed_bit = 0x80;
+
+    // All zero serialization for G1 should fail.
+    let mut bytes = [0u8; 96];
+    assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
+
+    // Infinity w/o compressed byte should fail.
+    // Valid infinity
+    bytes[0] = infinity_bit;
+    assert_eq!(
+        G1ElementUncompressed::from(&G1Element::zero()),
+        G1ElementUncompressed::from_byte_array(&bytes).unwrap()
+    );
+
+    // Set the compressed bit should fail
+    bytes[0] |= compressed_bit;
+    assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
+
+    // to and from_byte_array should be inverses.
+    let mut bytes = G1ElementUncompressed::from(&G1Element::generator()).to_byte_array();
+    assert_eq!(
+        G1ElementUncompressed::from(&G1Element::generator()),
+        G1ElementUncompressed::from_byte_array(&bytes).unwrap()
+    );
+    assert_eq!(bytes[0] & compressed_bit, 0);
+
+    // Setting the compressed bit set, this should fail.
+    bytes[0] |= compressed_bit;
+    assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
+
+    // Test FromTrustedByteArray.
+    let bytes = G1ElementUncompressed::from(&G1Element::generator()).to_byte_array();
+    let g1 = G1ElementUncompressed::from_trusted_byte_array(bytes);
+    assert_eq!(g1, G1ElementUncompressed::from(&G1Element::generator()));
 }
 
 #[test]

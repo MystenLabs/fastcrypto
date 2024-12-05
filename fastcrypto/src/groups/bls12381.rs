@@ -339,7 +339,7 @@ generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsByt
 ///
 /// The intended use of this struct is to deserialize and sum a large number of G1 elements without
 /// having to decompress them first.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct G1ElementUncompressed(pub(crate) [u8; 2 * G1_ELEMENT_BYTE_LENGTH]);
 
@@ -381,6 +381,24 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
         Ok(G1Element(ret))
     }
 }
+
+impl ToFromByteArray<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1ElementUncompressed {
+    fn from_byte_array(bytes: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+        let uncompressed = Self::from_trusted_byte_array(*bytes);
+
+        // TODO: Refactor the validity check
+        if G1Element::try_from(&uncompressed).is_err() {
+            return Err(InvalidInput);
+        }
+        Ok(uncompressed)
+    }
+
+    fn to_byte_array(&self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+        self.0
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(G1ElementUncompressed);
 
 impl G1ElementUncompressed {
     /// Create a new `G1ElementUncompressed` from a byte array.
