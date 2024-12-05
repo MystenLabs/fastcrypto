@@ -578,6 +578,13 @@ fn test_serialization_uncompressed_g1() {
     bytes[0] |= compressed_bit;
     assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
 
+    // But if we take the first 48 bytes as a compressed serialization, it should work.
+    let compressed_bytes = bytes[0..48].try_into().unwrap();
+    assert_eq!(
+        G1Element::generator(),
+        G1Element::from_byte_array(&compressed_bytes).unwrap()
+    );
+
     // Test FromTrustedByteArray.
     let bytes = G1ElementUncompressed::from(&G1Element::generator()).to_byte_array();
     let g1 = G1ElementUncompressed::from_trusted_byte_array(bytes);
