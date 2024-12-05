@@ -60,6 +60,7 @@ pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
 pub const GT_ELEMENT_BYTE_LENGTH: usize = 576;
 pub const FP_BYTE_LENGTH: usize = 48;
+pub const G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH: usize = 96;
 
 impl Add for G1Element {
     type Output = Self;
@@ -382,18 +383,20 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
     }
 }
 
-impl ToFromByteArray<{ 2 * G1_ELEMENT_BYTE_LENGTH }> for G1ElementUncompressed {
-    fn from_byte_array(bytes: &[u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> FastCryptoResult<Self> {
+impl ToFromByteArray<G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH> for G1ElementUncompressed {
+    fn from_byte_array(
+        bytes: &[u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH],
+    ) -> FastCryptoResult<Self> {
         let uncompressed = Self::from_trusted_byte_array(*bytes);
 
-        // TODO: Refactor the validity check
+        // Use the validity check from G1Element::try_from
         if G1Element::try_from(&uncompressed).is_err() {
             return Err(InvalidInput);
         }
         Ok(uncompressed)
     }
 
-    fn to_byte_array(&self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+    fn to_byte_array(&self) -> [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH] {
         self.0
     }
 }
@@ -405,12 +408,12 @@ impl G1ElementUncompressed {
     /// The input is not validated so it should come from a trusted source.
     ///
     /// See [the blst docs](https://github.com/supranational/blst/tree/master?tab=readme-ov-file#serialization-format) for details about the uncompressed serialization format.
-    pub fn from_trusted_byte_array(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Self {
+    pub fn from_trusted_byte_array(bytes: [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH]) -> Self {
         Self(bytes)
     }
 
     /// Get the byte array representation of this element.
-    pub fn into_byte_array(self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+    pub fn into_byte_array(self) -> [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH] {
         self.0
     }
 
