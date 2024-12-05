@@ -558,7 +558,6 @@ fn test_serialization_uncompressed_g1() {
     // But trying to convert to G1Element fails.
     assert!(G1Element::try_from(&uncompressed).is_err());
 
-    // Infinity w/o compressed byte should fail.
     // Valid infinity
     bytes[0] = infinity_bit;
     assert_eq!(
@@ -566,9 +565,16 @@ fn test_serialization_uncompressed_g1() {
         G1ElementUncompressed::from_byte_array(&bytes).unwrap()
     );
 
-    // Set the compressed bit should fail
+    // Setting the compressed bit should fail
     bytes[0] |= compressed_bit;
     assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
+
+    // But if we take the first 48 bytes as a compressed serialization, it should work.
+    let compressed_bytes = bytes[0..48].try_into().unwrap();
+    assert_eq!(
+        G1Element::zero(),
+        G1Element::from_byte_array(&compressed_bytes).unwrap()
+    );
 
     // to and from_byte_array should be inverses.
     let mut bytes = G1ElementUncompressed::from(&G1Element::generator()).to_byte_array();
