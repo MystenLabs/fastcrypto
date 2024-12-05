@@ -553,6 +553,10 @@ fn test_serialization_uncompressed_g1() {
     // All zero serialization for G1 should fail.
     let mut bytes = [0u8; 96];
     assert!(G1ElementUncompressed::from_byte_array(&bytes).is_err());
+    // fromTrustedByteArray accepts invalid points.
+    let uncompressed = G1ElementUncompressed::from_trusted_byte_array(bytes);
+    // But trying to convert to G1Element fails.
+    assert!(G1Element::try_from(&uncompressed).is_err());
 
     // Infinity w/o compressed byte should fail.
     // Valid infinity
@@ -584,11 +588,6 @@ fn test_serialization_uncompressed_g1() {
         G1Element::generator(),
         G1Element::from_byte_array(&compressed_bytes).unwrap()
     );
-
-    // Test FromTrustedByteArray.
-    let bytes = G1ElementUncompressed::from(&G1Element::generator()).to_byte_array();
-    let g1 = G1ElementUncompressed::from_trusted_byte_array(bytes);
-    assert_eq!(g1, G1ElementUncompressed::from(&G1Element::generator()));
 }
 
 #[test]
