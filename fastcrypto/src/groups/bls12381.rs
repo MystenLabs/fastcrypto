@@ -333,12 +333,11 @@ impl Debug for G1Element {
 }
 
 impl G1Element {
-    /// Try to deserialize a G1 element from an uncompressed byte representation..
+    /// Try to deserialize a G1 element from an uncompressed byte representation.
+    /// See https://github.com/supranational/blst for details on the serialization format.
     pub fn try_from_uncompressed_bytes(
         bytes: &[u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH],
     ) -> FastCryptoResult<Self> {
-        // See https://github.com/supranational/blst for details on the serialization format.
-
         // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
         // so we check that the compressed bit flag (the 1st) is not set. The third is used for
         // compressed points to indicate sign of the y-coordinate and should also not be set.
