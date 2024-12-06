@@ -332,6 +332,36 @@ impl Debug for G1Element {
     }
 }
 
+impl G1Element {
+    /// Try to deserialize a G1 element from an uncompressed byte representation..
+    pub fn try_from_uncompressed_bytes(
+        bytes: &[u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH],
+    ) -> FastCryptoResult<Self> {
+        // See https://github.com/supranational/blst for details on the serialization format.
+
+        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
+        // compressed points to indicate sign of the y-coordinate and should also not be set.
+        if bytes[0] & 0x20 != 0 || bytes[0] & 0x80 != 0 {
+            return Err(InvalidInput);
+        }
+
+        let mut ret = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+            blst_p1_from_affine(&mut ret, &affine);
+
+            if !blst_p1_in_g1(&ret) {
+                return Err(InvalidInput);
+            }
+        }
+        Ok(G1Element(ret))
+    }
+}
+
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
@@ -358,50 +388,9 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
     type Error = FastCryptoError;
 
     fn try_from(value: &G1ElementUncompressed) -> Result<Self, Self::Error> {
-        // See https://github.com/supranational/blst for details on the serialization format.
-
-        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
-        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
-        // compressed points to indicate sign of the y-coordinate and should also not be set.
-        if value.0[0] & 0x20 != 0 || value.0[0] & 0x80 != 0 {
-            return Err(InvalidInput);
-        }
-
-        let mut ret = blst_p1::default();
-        unsafe {
-            let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, value.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
-                return Err(InvalidInput);
-            }
-            blst_p1_from_affine(&mut ret, &affine);
-
-            if !blst_p1_in_g1(&ret) {
-                return Err(InvalidInput);
-            }
-        }
-        Ok(G1Element(ret))
+        G1Element::try_from_uncompressed_bytes(&value.0)
     }
 }
-
-impl ToFromByteArray<G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH> for G1ElementUncompressed {
-    fn from_byte_array(
-        bytes: &[u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH],
-    ) -> FastCryptoResult<Self> {
-        let uncompressed = Self::from_trusted_byte_array(*bytes);
-
-        // Use the validity check from G1Element::try_from
-        if G1Element::try_from(&uncompressed).is_err() {
-            return Err(InvalidInput);
-        }
-        Ok(uncompressed)
-    }
-
-    fn to_byte_array(&self) -> [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH] {
-        self.0
-    }
-}
-
-serialize_deserialize_with_to_from_byte_array!(G1ElementUncompressed);
 
 impl G1ElementUncompressed {
     /// Create a new `G1ElementUncompressed` from a byte array.
