@@ -43,7 +43,7 @@ where
 /// - The high-level protocol is responsible for verifying that the 'sender' is correct in the
 ///   following messages (based on the chain's authentication).
 /// - The high-level protocol is responsible that all parties see the same order of messages.
-
+///
 /// A complaint/fraud claim against a dealer that created invalid encrypted share.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Complaint<EG: GroupElement> {
