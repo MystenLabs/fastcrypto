@@ -35,6 +35,7 @@ where
 /// (see more at [`PreparedVerifyingKey`]), serialized proof public input, which should
 /// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
 /// bytes each in little-endian format, and serialized proof points.
+#[allow(clippy::multiple_bound_locations)]
 pub fn verify_groth16_in_bytes<
     G1: Pairing,
     const G1_SIZE: usize,

@@ -19,6 +19,7 @@ mod point_tests {
     use fastcrypto::groups::HashToGroupElement;
     use zeroize::Zeroize;
 
+    #[allow(clippy::multiple_bound_locations)]
     #[test]
     fn test_multi_rec<Group: GroupElement + Serialize + DeserializeOwned>()
     where

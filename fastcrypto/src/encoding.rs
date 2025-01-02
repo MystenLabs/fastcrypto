@@ -215,7 +215,7 @@ impl Encoding for Base58 {
 }
 
 /// Bech32 encoding
-pub struct Bech32(String);
+pub struct Bech32;
 
 impl Bech32 {
     /// Decodes the Bech32 string to bytes, validating the given human readable part (hrp). See spec: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki

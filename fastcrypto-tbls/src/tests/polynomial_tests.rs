@@ -110,7 +110,7 @@ mod points_tests {
         let s1 = p.eval(NonZeroU16::new(10).unwrap());
         let s2 = p.eval(NonZeroU16::new(20).unwrap());
         let s3 = p.eval(NonZeroU16::new(30).unwrap());
-        let shares = vec![s1, s2, s3];
+        let shares = [s1, s2, s3];
         assert_eq!(
             Poly::<G::ScalarType>::recover_c0(3, shares.iter()).unwrap(),
             one
@@ -142,7 +142,7 @@ mod points_tests {
         let s1 = p.eval(NonZeroU16::new(10).unwrap());
         let s2 = p.eval(NonZeroU16::new(20).unwrap());
         let s3 = p.eval(NonZeroU16::new(30).unwrap());
-        let shares = vec![s1, s2, s3];
+        let shares = [s1, s2, s3];
         assert_eq!(Poly::<G>::recover_c0_msm(3, shares.iter()).unwrap(), one);
 
         // and random tests
@@ -186,7 +186,7 @@ mod points_tests {
             Poly::<G::ScalarType>::fast_mult(x, y) == Either::Left((G::ScalarType::from(x), y))
         );
 
-        let x = std::u128::MAX;
+        let x = u128::MAX;
         let y = 1u128;
         assert!(
             Poly::<G::ScalarType>::fast_mult(x, y) == Either::Left((G::ScalarType::from(x), y))

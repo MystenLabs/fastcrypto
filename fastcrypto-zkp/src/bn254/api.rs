@@ -33,7 +33,7 @@ pub fn verify_groth16_in_bytes(
         return Err(FastCryptoError::InputLengthWrong(SCALAR_SIZE));
     }
 
-    let pvk = PreparedVerifyingKey::deserialize(&vec![
+    let pvk = PreparedVerifyingKey::deserialize(&[
         vk_gamma_abc_g1_bytes,
         alpha_g1_beta_g2_bytes,
         gamma_g2_neg_pc_bytes,

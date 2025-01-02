@@ -25,6 +25,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::error::Error;
+use std::fmt::Display;
 use std::str::FromStr;
 
 #[cfg(test)]
@@ -160,26 +161,26 @@ impl FromStr for OIDCProvider {
     }
 }
 
-impl ToString for OIDCProvider {
-    fn to_string(&self) -> String {
+impl Display for OIDCProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Google => "Google".to_string(),
-            Self::Twitch => "Twitch".to_string(),
-            Self::Facebook => "Facebook".to_string(),
-            Self::Kakao => "Kakao".to_string(),
-            Self::Apple => "Apple".to_string(),
-            Self::Slack => "Slack".to_string(),
-            Self::TestIssuer => "TestIssuer".to_string(),
-            Self::Microsoft => "Microsoft".to_string(),
-            Self::KarrierOne => "KarrierOne".to_string(),
-            Self::Credenza3 => "Credenza3".to_string(),
-            Self::Playtron => "Playtron".to_string(),
-            Self::Threedos => "Threedos".to_string(),
-            Self::Onefc => "Onefc".to_string(),
-            Self::FanTV => "FanTV".to_string(),
-            Self::Arden => "Arden".to_string(),
+            Self::Google => write!(f, "Google"),
+            Self::Twitch => write!(f, "Twitch"),
+            Self::Facebook => write!(f, "Facebook"),
+            Self::Kakao => write!(f, "Kakao"),
+            Self::Apple => write!(f, "Apple"),
+            Self::Slack => write!(f, "Slack"),
+            Self::TestIssuer => write!(f, "TestIssuer"),
+            Self::Microsoft => write!(f, "Microsoft"),
+            Self::KarrierOne => write!(f, "KarrierOne"),
+            Self::Credenza3 => write!(f, "Credenza3"),
+            Self::Playtron => write!(f, "Playtron"),
+            Self::Threedos => write!(f, "Threedos"),
+            Self::Onefc => write!(f, "Onefc"),
+            Self::FanTV => write!(f, "FanTV"),
+            Self::Arden => write!(f, "Arden"),
             Self::AwsTenant((region, tenant_id)) => {
-                format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
+                write!(f, "AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
         }
     }
