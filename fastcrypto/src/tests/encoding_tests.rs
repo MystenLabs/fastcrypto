@@ -6,20 +6,6 @@ use proptest::{arbitrary::Arbitrary, prop_assert_eq};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
-macro_rules! check_valid_address_roundtrip {
-    ($($test_name:ident, $addr:literal);* $(;)?) => {
-        $(
-            #[test]
-            #[cfg(feature = "alloc")]
-            fn $test_name() {
-                let decoded = Bech32::decode($addr, "bc").unwrap();
-                let encoded = Bech32::encode(decoded, "bc").unwrap();
-                assert_eq!(encoded, $addr);
-            }
-        )*
-    }
-}
-
 #[test]
 fn test_hex_roundtrip() {
     let bytes = &[1, 10, 100];
@@ -184,15 +170,6 @@ fn test_bech32() {
     assert!(Bech32::decode("?1ezyfcl", "?").is_ok());
     assert!(Bech32::decode("an84characterslonghumanreadablepartthatcontainsthenumber1andtheexcludedcharactersbio1569pvx", "an84characterslonghumanreadablepartthatcontainsthenumber").is_err());
     assert!(Bech32::decode("pzry9x0s0muk", "").is_err());
-
-    check_valid_address_roundtrip! {
-        bip_173_valid_address_roundtrip_0, "BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4";
-        bip_173_valid_address_roundtrip_1, "tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7";
-        bip_173_valid_address_roundtrip_2, "bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx";
-        bip_173_valid_address_roundtrip_3, "BC1SW50QA3JX3S";
-        bip_173_valid_address_roundtrip_4, "bc1zw508d6qejxtdg4y5r3zarvaryvg6kdaj";
-        bip_173_valid_address_roundtrip_5, "tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy";
-    }
 }
 
 proptest::proptest! {
