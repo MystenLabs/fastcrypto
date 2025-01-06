@@ -101,7 +101,7 @@ fn bench_verify<F: PrimeField, E: Pairing<ScalarField = F>, M: Measurement>(
 // can be found at https://github.com/elusiv-privacy/circuits
 fn bench_verify_elusiv_circuit<M: Measurement>(grp: &mut BenchmarkGroup<M>) {
     // Vec of tuples where first is the proof bytes and second is the public input bytes
-    let elusiv_sample_proofs = vec![
+    let elusiv_sample_proofs = [
         (
             vec![
                 200, 64, 110, 88, 230, 195, 25, 66, 155, 223, 68, 156, 112, 239, 125, 21, 119, 131,

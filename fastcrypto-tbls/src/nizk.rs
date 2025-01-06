@@ -12,6 +12,7 @@ use tracing::debug;
 /// - Prover selects a random r and sends A=rG, B=rH.
 /// - Prover computes challenge c and sends z=r+c*x.
 /// - Verifier checks that zG=A+c(xG) and zH=B+c(xH).
+///
 /// The NIZK is (A, B, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DdhTupleNizk<G: GroupElement>(G, G, G::ScalarType);
@@ -103,10 +104,11 @@ where
     }
 }
 
-/// NIZKPoK for the DL [G, xG].
+///   NIZKPoK for the DL [G, xG].
 /// - Prover selects a random r and sends A=rG.
 /// - Prover computes challenge c and sends z=r+c*x.
 /// - Verifier checks that zG=A+c(xG).
+///
 /// The NIZK is (A, z) where c is implicitly computed using a random oracle.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DLNizk<G: GroupElement>(G, G::ScalarType);

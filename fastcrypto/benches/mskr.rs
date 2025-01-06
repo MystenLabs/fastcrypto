@@ -183,7 +183,7 @@ mod mskr_benches {
             .collect::<Vec<_>>();
         let pks = kps.iter().map(|kp| kp.public().clone()).collect::<Vec<_>>();
 
-        c.bench_function(&(name.to_string()), |b| {
+        c.bench_function(name.to_string(), |b| {
             b.iter(|| {
                 let mut csprng: rand::rngs::ThreadRng = thread_rng();
                 let kp = min_pk::BLS12381KeyPair::generate(&mut csprng);
@@ -227,7 +227,7 @@ mod mskr_benches {
         let mut csprng: rand::rngs::ThreadRng = thread_rng();
         let kp = min_pk::BLS12381KeyPair::generate(&mut csprng);
 
-        c.bench_function(&(name.to_string()), |b| {
+        c.bench_function(name.to_string(), |b| {
             b.iter(|| {
                 kp.sign(&msg);
             });

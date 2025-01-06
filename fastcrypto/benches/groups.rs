@@ -27,7 +27,7 @@ mod group_benches {
     ) {
         let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
         let y = G::generator() * G::ScalarType::rand(&mut thread_rng());
-        c.bench_function(&(name.to_string()), move |b| b.iter(|| x + y));
+        c.bench_function(name.to_string(), move |b| b.iter(|| x + y));
     }
 
     fn add(c: &mut Criterion) {
@@ -44,7 +44,7 @@ mod group_benches {
     ) {
         let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
         let y = G::ScalarType::rand(&mut thread_rng());
-        c.bench_function(&(name.to_string()), move |b| b.iter(|| x * y));
+        c.bench_function(name.to_string(), move |b| b.iter(|| x * y));
     }
 
     fn scale_single_precomputed<
@@ -59,7 +59,7 @@ mod group_benches {
         let y = G::ScalarType::rand(&mut thread_rng());
 
         let multiplier = Mul::new(x, G::zero());
-        c.bench_function(&(name.to_string()), move |b| b.iter(|| multiplier.mul(&y)));
+        c.bench_function(name.to_string(), move |b| b.iter(|| multiplier.mul(&y)));
     }
 
     fn scale(c: &mut Criterion) {
@@ -140,7 +140,7 @@ mod group_benches {
         let s2 = G::ScalarType::rand(&mut thread_rng());
 
         let multiplier = Mul::new(g1, G::zero());
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| multiplier.two_scalar_mul(&s1, &g2, &s2))
         });
     }
@@ -184,7 +184,7 @@ mod group_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let seed = b"Hello, World!";
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| G::hash_to_group_element(seed))
         });
     }
@@ -203,7 +203,7 @@ mod group_benches {
         let x = G::generator() * G::ScalarType::rand(&mut thread_rng());
         let y = G::Other::generator()
             * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(&mut thread_rng());
-        c.bench_function(&(name.to_string()), move |b| b.iter(|| G::pairing(&x, &y)));
+        c.bench_function(name.to_string(), move |b| b.iter(|| G::pairing(&x, &y)));
     }
 
     fn pairing(c: &mut Criterion) {
@@ -292,7 +292,7 @@ mod group_benches {
         c: &mut BenchmarkGroup<M>,
     ) {
         let as_bytes = G::generator().to_byte_array();
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| {
                 if trusted {
                     G::from_trusted_byte_array(&as_bytes).unwrap()

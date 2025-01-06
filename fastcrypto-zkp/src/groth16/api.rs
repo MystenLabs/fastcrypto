@@ -36,7 +36,7 @@ where
 /// be concatenated serialized field elements of the scalar field of [`crate::conversions::SCALAR_SIZE`]
 /// bytes each in little-endian format, and serialized proof points.
 pub fn verify_groth16_in_bytes<
-    G1: Pairing,
+    G1,
     const G1_SIZE: usize,
     const G2_SIZE: usize,
     const GT_SIZE: usize,
@@ -50,7 +50,7 @@ pub fn verify_groth16_in_bytes<
     proof_points_as_bytes: &[u8],
 ) -> Result<bool, FastCryptoError>
 where
-    G1: ToFromByteArray<G1_SIZE> + DeserializeOwned + MultiScalarMul,
+    G1: ToFromByteArray<G1_SIZE> + DeserializeOwned + MultiScalarMul + Pairing,
     <G1 as Pairing>::Other: ToFromByteArray<G2_SIZE> + DeserializeOwned,
     <G1 as Pairing>::Output: GroupElement + GTSerialize<GT_SIZE>,
     G1::ScalarType: FromLittleEndianByteArray<FR_SIZE>,

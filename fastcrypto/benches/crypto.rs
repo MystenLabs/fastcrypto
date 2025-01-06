@@ -28,7 +28,7 @@ mod signature_benches {
         let msg: &[u8] = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
-        c.bench_function(&(name.to_string()), move |b| b.iter(|| keypair.sign(msg)));
+        c.bench_function(name.to_string(), move |b| b.iter(|| keypair.sign(msg)));
     }
 
     fn sign_recoverable_single<KP: KeyPair + RecoverableSigner, M: measurement::Measurement>(
@@ -38,7 +38,7 @@ mod signature_benches {
         let msg: &[u8] = b"";
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| keypair.sign_recoverable(msg))
         });
     }
@@ -63,7 +63,7 @@ mod signature_benches {
         let keypair = KP::generate(&mut csprng);
         let public_key = keypair.public();
         let signature = keypair.sign(msg);
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| public_key.verify(msg, &signature))
         });
     }
@@ -76,9 +76,7 @@ mod signature_benches {
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign_recoverable(msg);
-        c.bench_function(&(name.to_string()), move |b| {
-            b.iter(|| signature.recover(msg))
-        });
+        c.bench_function(name.to_string(), move |b| b.iter(|| signature.recover(msg)));
     }
 
     fn verify(c: &mut Criterion) {

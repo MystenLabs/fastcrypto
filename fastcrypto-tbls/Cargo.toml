@@ -25,7 +25,7 @@ hex = "0.4.3"
 tap = { version = "1.0.1", features = [] }
 
 [dev-dependencies]
-criterion = "0.4.0"
+criterion = "0.5.1"
 generic-tests = "0.1.2"
 
 [[bench]]
@@ -47,3 +47,4 @@ harness = false
 
 [features]
 default = []
+experimental = []

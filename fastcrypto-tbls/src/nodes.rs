@@ -147,6 +147,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
     /// - The new weights are all divided by d (floor division)
     /// - The precision loss, counted as the sum of the remainders of the division by d, is at most
     ///   the allowed delta
+    ///
     /// In practice, allowed delta will be the extra liveness we would assume above 2f+1.
     ///
     /// total_weight_lower_bound allows limiting the level of reduction (e.g., in benchmarks). To

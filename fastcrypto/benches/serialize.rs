@@ -22,7 +22,7 @@ mod serialization_benches {
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign(msg);
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| bincode::serialize(&signature))
         });
     }
@@ -33,7 +33,7 @@ mod serialization_benches {
     ) {
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| bincode::serialize(&keypair.public()))
         });
     }
@@ -77,7 +77,7 @@ mod serialization_benches {
         let keypair = KP::generate(&mut csprng);
         let signature = keypair.sign(msg);
         let serialized = bincode::serialize(&signature).unwrap();
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| bincode::deserialize::<KP::Sig>(&serialized))
         });
     }
@@ -89,7 +89,7 @@ mod serialization_benches {
         let mut csprng: ThreadRng = thread_rng();
         let keypair = KP::generate(&mut csprng);
         let serialized = bincode::serialize(&keypair.public()).unwrap();
-        c.bench_function(&(name.to_string()), move |b| {
+        c.bench_function(name.to_string(), move |b| {
             b.iter(|| bincode::deserialize::<KP::PubKey>(&serialized))
         });
     }
