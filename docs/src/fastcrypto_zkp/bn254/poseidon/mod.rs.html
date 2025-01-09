@@ -286,10 +286,7 @@
 <a href="#285" id="285">285</a>
 <a href="#286" id="286">286</a>
 <a href="#287" id="287">287</a>
-<a href="#288" id="288">288</a>
-<a href="#289" id="289">289</a>
-<a href="#290" id="290">290</a>
-<a href="#291" id="291">291</a></pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<a href="#288" id="288">288</a></pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
 </span><span class="kw">use </span><span class="kw">crate</span>::bn254::poseidon::constants::<span class="kw-2">*</span>;
@@ -298,12 +295,11 @@
 <span class="kw">use </span>ark_bn254::Fr;
 <span class="kw">use </span>ark_ff::{BigInteger, PrimeField};
 <span class="kw">use </span>byte_slice_cast::AsByteSlice;
-<span class="kw">use </span>fastcrypto::error::FastCryptoError::{InputTooLong, InvalidInput};
+<span class="kw">use </span>fastcrypto::error::FastCryptoError::InvalidInput;
 <span class="kw">use </span>fastcrypto::error::{FastCryptoError, FastCryptoResult};
 <span class="kw">use </span>ff::PrimeField <span class="kw">as </span>OtherPrimeField;
 <span class="kw">use </span>neptune::poseidon::HashMode::OptimizedStatic;
 <span class="kw">use </span>neptune::Poseidon;
-<span class="kw">use </span>std::cmp::Ordering;
 
 <span class="doccomment">/// The output of the Poseidon hash function is a field element in BN254 which is 254 bits long, so
 /// we need 32 bytes to represent it as an integer.
@@ -381,12 +377,12 @@
 }
 
 <span class="doccomment">/// Calculate the poseidon hash of an array of inputs. Each input is interpreted as a BN254 field
-/// element assuming a little-endian encoding. The field elements are then hashed using the poseidon
-/// hash function ([poseidon_merkle_tree]) and the result is serialized as a little-endian integer (32
-/// bytes).
+/// element assuming a little-endian encoding and must be 32 bytes long.
+/// The field elements are then hashed using the poseidon hash function ([poseidon_merkle_tree])
+/// and the result is serialized as a little-endian integer (32 bytes).
 ///
 /// If one of the inputs is in non-canonical form, e.g. it represents an integer greater than the
-/// field size or is longer than 32 bytes, an error is returned.
+/// field size or is not exactly  32 bytes, an [InvalidInput] error is returned.
 ///
 /// This function is used as an interface to the poseidon hash function in the sui-framework.
 </span><span class="kw">pub fn </span>poseidon_bytes(inputs: <span class="kw-2">&amp;</span>[Vec&lt;u8&gt;]) -&gt; FastCryptoResult&lt;[u8; FIELD_ELEMENT_SIZE_IN_BYTES]&gt; {
@@ -402,25 +398,21 @@
 
 <span class="doccomment">/// Given a binary representation of a BN254 field element as an integer in little-endian encoding,
 /// this function returns the corresponding field element. If the field element is not canonical (is
-/// larger than the field size as an integer), an `FastCryptoError::InvalidInput` is returned.
+/// larger than the field size as an integer), an [InvalidInput] is returned.
 ///
-/// If more than 32 bytes is given, an `FastCryptoError::InputTooLong` is returned.
+/// If the input is not exactly 32 bytes long, an [InvalidInput] is returned.
 </span><span class="kw">fn </span>canonical_le_bytes_to_field_element(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; FastCryptoResult&lt;FieldElement&gt; {
-    <span class="kw">match </span>bytes.len().cmp(<span class="kw-2">&amp;</span>FIELD_ELEMENT_SIZE_IN_BYTES) {
-        Ordering::Less =&gt; <span class="prelude-val">Ok</span>(Fr::from_le_bytes_mod_order(bytes)),
-        Ordering::Equal =&gt; {
-            <span class="kw">let </span>field_element = Fr::from_le_bytes_mod_order(bytes);
-            <span class="comment">// Unfortunately, there doesn't seem to be a nice way to check if a modular reduction
-            // happened without doing the extra work of serializing the field element again.
-            </span><span class="kw">let </span>reduced_bytes = field_element.into_bigint().to_bytes_le();
-            <span class="kw">if </span>reduced_bytes != bytes {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-            }
-            <span class="prelude-val">Ok</span>(field_element)
-        }
-        Ordering::Greater =&gt; <span class="prelude-val">Err</span>(InputTooLong(FIELD_ELEMENT_SIZE_IN_BYTES)),
+    <span class="kw">if </span>bytes.len() != FIELD_ELEMENT_SIZE_IN_BYTES {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
     }
-    .map(FieldElement)
+    <span class="kw">let </span>field_element = Fr::from_le_bytes_mod_order(bytes);
+    <span class="comment">// Unfortunately, there doesn't seem to be a nice way to check if a modular reduction
+    // happened without doing the extra work of serializing the field element again.
+    </span><span class="kw">let </span>reduced_bytes = field_element.into_bigint().to_bytes_le();
+    <span class="kw">if </span>reduced_bytes != bytes {
+        <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+    }
+    <span class="prelude-val">Ok</span>(FieldElement(field_element))
 }
 
 <span class="doccomment">/// Convert a BN254 field element to a byte array as the little-endian representation of the
@@ -538,7 +530,10 @@
 
     <span class="attr">#[test]
     </span><span class="kw">fn </span>test_hash_to_bytes() {
-        <span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">1u8</span>]];
+        <span class="kw">let </span><span class="kw-2">mut </span>one = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="number">32</span>];
+        one[<span class="number">0</span>] = <span class="number">1</span>;
+
+        <span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[one.clone()];
         <span class="kw">let </span>hash = poseidon_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
         <span class="comment">// 18586133768512220936620570745912940619677854269274689475585506675881198879027 in decimal
         </span><span class="kw">let </span>expected =
@@ -546,8 +541,11 @@
                 .unwrap();
         <span class="macro">assert_eq!</span>(hash.as_slice(), <span class="kw-2">&amp;</span>expected);
 
+        <span class="kw">let </span><span class="kw-2">mut </span>two = <span class="macro">vec!</span>[<span class="number">0</span>; <span class="number">32</span>];
+        two[<span class="number">0</span>] = <span class="number">2</span>;
+
         <span class="comment">// 7853200120776062878684798364095072458815029376092732009249414926327459813530 in decimal
-        </span><span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">1u8</span>], <span class="macro">vec!</span>[<span class="number">2u8</span>]];
+        </span><span class="kw">let </span>inputs: Vec&lt;Vec&lt;u8&gt;&gt; = <span class="macro">vec!</span>[one.clone(), two.clone()];
         <span class="kw">let </span>hash = poseidon_bytes(<span class="kw-2">&amp;</span>inputs).unwrap();
         <span class="kw">let </span>expected =
             hex::decode(<span class="string">"9a1817447a60199e51453274f217362acfe962966b4cf63d4190d6e7f5c05c11"</span>)
@@ -557,10 +555,6 @@
         <span class="comment">// Input larger than the modulus
         </span><span class="kw">let </span>inputs = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">255</span>; <span class="number">32</span>]];
         <span class="macro">assert!</span>(poseidon_bytes(<span class="kw-2">&amp;</span>inputs).is_err());
-
-        <span class="comment">// Input smaller than the modulus
-        </span><span class="kw">let </span>inputs = <span class="macro">vec!</span>[<span class="macro">vec!</span>[<span class="number">255</span>; <span class="number">31</span>]];
-        <span class="macro">assert!</span>(poseidon_bytes(<span class="kw-2">&amp;</span>inputs).is_ok());
     }
 
     <span class="attr">#[cfg(test)]
