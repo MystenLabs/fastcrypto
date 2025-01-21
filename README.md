@@ -73,6 +73,10 @@ $ cargo build --bin ecvrf-cli
 $ target/debug/ecvrf-cli -h
 ```
 
+## WASM
+
+The `fastcrypto` crate can be used when building WASM modules. To do this, enable the `wasm` feature flag when including the `fastcrypto` crate in your `Cargo.toml` file and follow the instructions found in the [Rust and WASM book](https://rustwasm.github.io/docs/book/) to build the WASM module.
+
 ## Tests
 
 There exist unit tests for all primitives in all three crates, which can be run by: 
