@@ -241,6 +241,64 @@ where
     }
 }
 
+/// Unified decryption interface for on-chain use.
+/// 
+/// # Parameters
+/// - `key`: The AES key as a byte slice.
+/// - `iv`: The initialization vector as a byte slice.
+/// - `ciphertext`: The encrypted data.
+/// - `mode`: The AES mode to use (e.g., "AES128_CTR", "AES256_CBC").
+/// 
+/// # Returns
+/// - `Ok(Vec<u8>)`: The decrypted plaintext.
+/// - `Err(FastCryptoError)`: If decryption fails.
+///
+/// # Example
+/// ```
+/// use fastcrypto::aes::aes_decrypt_on_chain;
+///
+/// let key = [0u8; 16]; // Example key
+/// let iv = [0u8; 16]; // Example IV
+/// let ciphertext = vec![0x1f, 0x2e, 0x3d]; // Example ciphertext
+///
+/// let plaintext = aes_decrypt_on_chain(&key, &iv, &ciphertext, "AES128_CTR").unwrap();
+/// ```
+
+pub fn aes_decrypt_on_chain(
+    key: &[u8],
+    iv: &[u8],
+    ciphertext: &[u8],
+    mode: &str,
+) -> Result<Vec<u8>, FastCryptoError> {
+    match mode {
+        "AES128_CTR" => {
+            let aes_key = AesKey::<typenum::U16>::from_bytes(key)?;
+            let iv = InitializationVector::<typenum::U16>::from_bytes(iv)?;
+            let cipher = Aes128Ctr::new(aes_key);
+            cipher.decrypt(&iv, ciphertext)
+        }
+        "AES256_CTR" => {
+            let aes_key = AesKey::<typenum::U32>::from_bytes(key)?;
+            let iv = InitializationVector::<typenum::U16>::from_bytes(iv)?;
+            let cipher = Aes256Ctr::new(aes_key);
+            cipher.decrypt(&iv, ciphertext)
+        }
+        "AES128_CBC" => {
+            let aes_key = AesKey::<typenum::U16>::from_bytes(key)?;
+            let iv = InitializationVector::<typenum::U16>::from_bytes(iv)?;
+            let cipher = Aes128CbcPkcs7::new(aes_key);
+            cipher.decrypt(&iv, ciphertext)
+        }
+        "AES256_CBC" => {
+            let aes_key = AesKey::<typenum::U32>::from_bytes(key)?;
+            let iv = InitializationVector::<typenum::U16>::from_bytes(iv)?;
+            let cipher = Aes256CbcPkcs7::new(aes_key);
+            cipher.decrypt(&iv, ciphertext)
+        }
+        _ => Err(FastCryptoError::InvalidInput),
+    }
+}
+
 /// AES128 in CBC-mode using PKCS #7 padding.
 pub type Aes128CbcPkcs7 = AesCbc<aes::Aes128, aes::cipher::block_padding::Pkcs7>;
 
