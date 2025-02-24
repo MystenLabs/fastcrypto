@@ -21,12 +21,12 @@ tracing.workspace = true
 zeroize.workspace = true
 
 itertools = "0.10.5"
-hex = "0.4.3"
-tap = { version = "1.0.1", features = [] }
+hex = { workspace = true }
+tap = { workspace = true, features = [] }
 
 [dev-dependencies]
-criterion = "0.5.1"
-generic-tests = "0.1.2"
+criterion = { workspace = true }
+generic-tests = { workspace = true }
 
 [[bench]]
 name = "polynomial"

@@ -10,65 +10,65 @@ description = "Common cryptographic library used at Mysten Labs"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-base64ct = { version = "1.5.3", features = ["alloc"] }
-bs58 = "0.4.0"
-ed25519-consensus = { version = "2.1.0", features = ["serde"] }
-hex = "0.4.3"
-hex-literal = "0.4.1"
-hkdf = { version = "0.12.3", features = ["std"] }
+base64ct = { workspace = true, features = ["alloc"] }
+bs58 = { workspace = true }
+ed25519-consensus = { workspace = true, features = ["serde"] }
+hex = { workspace = true }
+hex-literal = { workspace = true }
+hkdf = { workspace = true, features = ["std"] }
 rand.workspace = true
 rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde.workspace = true
-serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
-signature = { version = "2.0.0" }
-tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
+serde_with = { workspace = true, features = ["alloc", "macros"] }
+signature = { workspace = true }
+tokio = { workspace = true, features = ["sync", "rt", "macros"] }
 zeroize.workspace = true
-curve25519-dalek-ng = "4.1.1"
-generic-array = { version = "0.14.6", features = ["serde"] }
+curve25519-dalek-ng = { workspace = true }
+generic-array = { workspace = true, features = ["serde"] }
 typenum.workspace = true
-auto_ops = "0.3.0"
-derive_more = "0.99.16"
-p256 = { version = "0.13.2", features = ["ecdsa"] }
-ecdsa = { version = "0.16.6", features = ["rfc6979", "verifying"] }
-rfc6979 = "0.4.0"
-blake2 = "0.10.6"
-blst = { version = "0.3.11", features = ["no-threads"] }
+auto_ops = { workspace = true }
+derive_more = { workspace = true }
+p256 = { workspace = true, features = ["ecdsa"] }
+ecdsa = { workspace = true, features = ["rfc6979", "verifying"] }
+rfc6979 = { workspace = true }
+blake2 = { workspace = true }
+blst = { workspace = true, features = ["no-threads"] }
 digest.workspace = true
-once_cell = "1.17.0"
-readonly = "0.2.3"
-sha2 = "0.10.6"
+once_cell = { workspace = true }
+readonly = { workspace = true }
+sha2 = { workspace = true }
 sha3.workspace = true
-thiserror = "1.0.38"
-schemars = "0.8.12"
+thiserror = { workspace = true }
+schemars = { workspace = true }
 bincode.workspace = true
-elliptic-curve = { version = "0.13.2", features = ["hash2curve"] }
-rsa = { version = "0.8.2", features = ["sha2"] }
-static_assertions = "1.1.0"
-ark-secp256r1 = "0.4.0"
-ark-ec = "0.4.1"
-ark-ff = "0.4.1"
-ark-serialize = "0.4.1"
-lazy_static = "1.4.0"
-fastcrypto-derive = { path = "../fastcrypto-derive", version = "0.1.3" }
-serde_json = "1.0.93"
-num-bigint = "0.4.4"
-bech32 = "0.9.1"
-getrandom = {version = "0.2.15", features = ["js"], optional = true}
+elliptic-curve = { workspace = true, features = ["hash2curve"] }
+rsa = { workspace = true, features = ["sha2"] }
+static_assertions = { workspace = true }
+ark-secp256r1 = { workspace = true }
+ark-ec = { workspace = true }
+ark-ff = { workspace = true }
+ark-serialize = { workspace = true }
+lazy_static = { workspace = true }
+fastcrypto-derive = { workspace = true }
+serde_json = { workspace = true }
+num-bigint = { workspace = true }
+bech32 = { workspace = true }
+getrandom = { workspace = true, features = ["js"], optional = true }
 
 # Required for bulletproofs
-bulletproofs = { version = "4.0.0", optional = true }
-merlin = { version = "3.0.0", optional = true }
+bulletproofs = { workspace = true, optional = true }
+merlin = { workspace = true, optional = true }
 
 # Required for the unsecure signature and hash schemes
-twox-hash = { version = "1.6.3", optional = true }
-serde-big-array = { version = "0.5.0", optional = true }
+twox-hash = { workspace = true, optional = true }
+serde-big-array = { workspace = true, optional = true }
 
 # Required for the aes feature
-aes = { version = "0.8.2", optional = true }
-ctr = { version = "0.9.2", optional = true }
-cbc = { version = "0.1.2", features = ["std"], optional = true }
-aes-gcm = { version = "0.10.1", optional = true }
-aes-gcm-siv = { version = "0.11.1", optional = true }
+aes = { workspace = true, optional = true }
+ctr = { workspace = true, optional = true }
+cbc = { workspace = true, features = ["std"], optional = true }
+aes-gcm = { workspace = true, optional = true }
+aes-gcm-siv = { workspace = true, optional = true }
 
 [[bench]]
 name = "crypto"
@@ -119,15 +119,15 @@ aes = ["dep:aes", "dep:cbc", "dep:aes-gcm", "dep:ctr", "dep:aes-gcm-siv"]
 wasm = ["dep:getrandom"]
 
 [dev-dependencies]
-criterion = "0.5.1"
-k256 = { version = "0.11.6", features = ["ecdsa", "sha256", "keccak256"] }
-proptest = "1.1.0"
-serde-reflection = "0.3.6"
-wycheproof = "0.5.0"
-faster-hex = "0.6.1"
-rustc-hex = "2.1.0"
-base64 = "0.21.0"
-radix64 = "0.6.2"
-base58 = "0.2.0"
-rust-base58 = "0.0.4"
+criterion = { workspace = true }
+k256 = { workspace = true, features = ["ecdsa", "sha256", "keccak256"] }
+proptest = { workspace = true }
+serde-reflection = { workspace = true }
+wycheproof = { workspace = true }
+faster-hex = { workspace = true }
+rustc-hex = { workspace = true }
+base64 = { workspace = true }
+radix64 = { workspace = true }
+base58 = { workspace = true }
+rust-base58 = { workspace = true }
 bcs.workspace = true

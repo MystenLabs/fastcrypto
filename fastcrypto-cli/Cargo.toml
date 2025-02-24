@@ -9,18 +9,18 @@ description = "Command line tools for cryptographic functions"
 repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
-clap = { version = "4.1.8", features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
 fastcrypto = { path = "../fastcrypto", features = ["copy_key"] }
-fastcrypto-vdf = { path = "../fastcrypto-vdf", features = ["experimental"] }
-hex = "0.4.3"
+fastcrypto-vdf = { workspace = true, features = ["experimental"] }
+hex = { workspace = true }
 rand.workspace = true
-exitcode = "1.1.2"
+exitcode = { workspace = true }
 bcs.workspace = true
-serde = { version = "1.0.156", features = ["derive"] }
+serde = { workspace = true, features = ["derive"] }
 
 [dev-dependencies]
-assert_cmd = "2.0.0"
-regex = "1.5.4"
+assert_cmd = { workspace = true }
+regex = { workspace = true }
 
 [[bin]]
 name = "ecvrf-cli"

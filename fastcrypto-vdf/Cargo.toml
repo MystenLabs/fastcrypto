@@ -11,24 +11,24 @@ repository = "https://github.com/MystenLabs/fastcrypto"
 
 [dependencies]
 fastcrypto = { path = "../fastcrypto" }
-num-bigint = { version = "0.4.4", features = ["serde", "rand"] }
-num-traits = "0.2.16"
-num-integer = "0.1.45"
-num-prime = { version = "0.4.3", features = ["big-int"] }
-rand = "0.8.5"
-rand_chacha = "0.3.1"
+num-bigint = { workspace = true, features = ["serde", "rand"] }
+num-traits = { workspace = true }
+num-integer = { workspace = true }
+num-prime = { workspace = true, features = ["big-int"] }
+rand = { workspace = true }
+rand_chacha = { workspace = true }
 serde.workspace = true
 bcs.workspace = true
-lazy_static = "1.4.0"
+lazy_static = { workspace = true }
 
 [features]
 experimental = []
 
 [dev-dependencies]
-hex = "0.4.3"
-criterion = "0.5.1"
-rand = "0.8.4"
-num-bigint-dig = "0.8.4"
+hex = { workspace = true }
+criterion = { workspace = true }
+rand = { workspace = true }
+num-bigint-dig = { workspace = true }
 
 [[bench]]
 name = "vdf"
