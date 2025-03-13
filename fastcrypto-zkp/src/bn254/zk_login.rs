@@ -26,7 +26,6 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::error::Error;
 use std::str::FromStr;
-use ark_std::iterable::Iterable;
 
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
