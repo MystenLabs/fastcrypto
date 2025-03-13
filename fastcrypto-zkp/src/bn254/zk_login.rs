@@ -26,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::cmp::Ordering::{Equal, Greater, Less};
 use std::error::Error;
 use std::str::FromStr;
+use ark_std::iterable::Iterable;
 
 #[cfg(test)]
 #[path = "unit_tests/zk_login_tests.rs"]
@@ -122,7 +123,9 @@ pub enum OIDCProvider {
     /// https://api.arden.cc/auth/jwks
     Arden,
 
-    Xone,
+    TestHuionepay,
+
+    Huionepay,
 }
 
 impl FromStr for OIDCProvider {
@@ -145,7 +148,8 @@ impl FromStr for OIDCProvider {
             "Onefc" => Ok(Self::Onefc),
             "FanTV" => Ok(Self::FanTV),
             "Arden" => Ok(Self::Arden),
-            "Xone" => Ok(Self::Xone),
+            "TestHuionepay" => Ok(Self::TestHuionepay),
+            "Huionepay" => Ok(Self::Huionepay),
             _ => {
                 let re = Regex::new(
                     r"AwsTenant-region:(?P<region>[^.]+)-tenant_id:(?P<tenant_id>[^/]+)",
@@ -181,7 +185,8 @@ impl ToString for OIDCProvider {
             Self::Onefc => "Onefc".to_string(),
             Self::FanTV => "FanTV".to_string(),
             Self::Arden => "Arden".to_string(),
-            Self::Xone => "Xone".to_string(),
+            Self::Huionepay => "Huionepay".to_string(),
+            Self::TestHuionepay => "TestHuionepay".to_string(),
             Self::AwsTenant((region, tenant_id)) => {
                 format!("AwsTenant-region:{}-tenant_id:{}", region, tenant_id)
             }
@@ -259,8 +264,12 @@ impl OIDCProvider {
                 "https://oidc.arden.cc",
                 "https://api.arden.cc/auth/jwks",
             ),
-            OIDCProvider::Xone => ProviderConfig::new(
-                "https://accounts.xone.com",
+            OIDCProvider::Huionepay => ProviderConfig::new(
+                "https://accounts.huionepay.com",
+                "https://salt-api-mainnet.huione.org/get_keys",
+            ),
+            OIDCProvider::TestHuionepay => ProviderConfig::new(
+                "https://test.huionepay.com",
                 "https://salt-api-testnet.huione.org/get_keys",
             ),
         }
@@ -280,7 +289,8 @@ impl OIDCProvider {
             "https://accounts.credenza3.com" => Ok(Self::Credenza3),
             "https://oauth2.playtron.one" => Ok(Self::Playtron),
             "https://auth.3dos.io" => Ok(Self::Threedos),
-            "https://accounts.xone.com" => Ok(Self::Xone),
+            "https://test.huionepay.com" => Ok(Self::TestHuionepay),
+            "https://accounts.huionepay.com" => Ok(Self::Huionepay),
             "https://login.onepassport.onefc.com/de3ee5c1-5644-4113-922d-e8336569a462/v2.0/" => {
                 Ok(Self::Onefc)
             }
