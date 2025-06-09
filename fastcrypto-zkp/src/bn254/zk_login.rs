@@ -265,7 +265,7 @@ impl OIDCProvider {
             ),
             OIDCProvider::Huionepay => ProviderConfig::new(
                 "https://accounts.huionepay.com",
-                "https://salt-api-mainnet.huione.org/get_keys",
+                "https://salt.h-tech.io/get_keys",
             ),
             OIDCProvider::TestHuionepay => ProviderConfig::new(
                 "https://test.huionepay.com",
