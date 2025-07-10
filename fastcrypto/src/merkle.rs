@@ -275,16 +275,14 @@ where
             }
 
             // Milestone: If right leaf is present, then right_leaf > target_leaf
-        } else {
-            if let Some((_, left_proof)) = &self.left_leaf {
-                let left_leaf_index = self.index - 1;
-                if !left_proof.is_right_most(left_leaf_index) {
-                    return false;
-                }
-            } else {
+        } else if let Some((_, left_proof)) = &self.left_leaf {
+            let left_leaf_index = self.index - 1;
+            if !left_proof.is_right_most(left_leaf_index) {
                 return false;
             }
             // Milestone: If right leaf is not present, then left leaf must be present and be the rightmost leaf
+        } else {
+            return false;
         }
 
         true
@@ -463,9 +461,9 @@ where
     ) -> FastCryptoResult<MerkleNonInclusionProof<L, T>> {
         let position = leaves.partition_point(|x| x <= target_leaf);
         if position > 0 && leaves[position - 1] == *target_leaf {
-            return Err(FastCryptoError::GeneralError(format!(
-                "Target leaf is already in the tree"
-            )));
+            return Err(FastCryptoError::GeneralError(
+                "Target leaf is already in the tree".to_string(),
+            ));
         }
 
         let left_leaf_proof = if position > 0 {
