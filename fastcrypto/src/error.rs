@@ -66,3 +66,9 @@ impl From<signature::Error> for FastCryptoError {
         FastCryptoError::InvalidSignature
     }
 }
+
+impl From<bcs::Error> for FastCryptoError {
+    fn from(_: bcs::Error) -> Self {
+        FastCryptoError::InvalidInput
+    }
+}
