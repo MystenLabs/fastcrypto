@@ -78,7 +78,9 @@ fn test_merkle_path_verify_fails_for_wrong_index() {
         let mt: MerkleTree = MerkleTree::build(&TEST_INPUT[..i]);
         for (index, leaf_data) in TEST_INPUT[..i].iter().enumerate() {
             let proof = mt.get_proof(index).unwrap();
-            assert!(proof.verify_proof(&mt.root(), leaf_data, index + 1).is_err());
+            assert!(proof
+                .verify_proof(&mt.root(), leaf_data, index + 1)
+                .is_err());
         }
     }
 }
