@@ -9,7 +9,6 @@ use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-// use tracing::Level;
 
 /// The length of the digests used in the merkle tree.
 pub const DIGEST_LEN: usize = 32;
@@ -66,8 +65,6 @@ impl AsRef<[u8]> for Node {
 /// The operations required to authenticate a Merkle proof.
 pub trait MerkleAuth: Clone + Debug {
     /// Verifies the proof given a Merkle root and the leaf data.
-    // TODO: Decide how to deal with tracing
-    // #[tracing::instrument(level = Level::DEBUG, skip(self, leaf))]
     fn verify_proof(&self, root: &Node, leaf: &[u8], leaf_index: usize) -> FastCryptoResult<()> {
         if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
             return Err(FastCryptoError::InvalidProof);
@@ -201,8 +198,6 @@ where
         I::IntoIter: ExactSizeIterator<Item = Node>,
     {
         let iter = iter.into_iter();
-        // TODO: Decide how to deal with tracing
-        // tracing::trace!("building Merkle tree over {} items", iter.len());
 
         // Create the capacity that we know will be needed, since the vec will be
         // reused by the call to from_leaf_nodes.
@@ -250,12 +245,8 @@ where
 
     /// Get the [`MerkleProof`] for the leaf at `leaf_index` consisting
     /// of all sibling hashes on the path from the leaf to the root.
-    // TODO: Decide how to deal with tracing
-    // #[tracing::instrument(skip_all, level = Level::DEBUG, fields(n_leaves = self.n_leaves))]
     pub fn get_proof(&self, leaf_index: usize) -> FastCryptoResult<MerkleProof<T>> {
-        // tracing::trace!("computing Merkle proof");
         if leaf_index >= self.n_leaves {
-            // tracing::warn!("leaf index out of bounds");
             return Err(FastCryptoError::GeneralError(format!(
                 "Leaf index out of bounds: {}",
                 leaf_index
