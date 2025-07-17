@@ -90,6 +90,26 @@ const BAD_JWK_BYTES: &[u8] = r#"{
         "keys":[{"alg":"ES256","e":"AQAB","kid":"1","kty":"RSA","n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw","use":"wrong usage"}]
       }"#.as_bytes();
 
+const PARTIAL_INVALID_JWK_BYTES: &[u8] = r#"{
+    "keys":[
+        {
+            "alg":"ES256",
+            "e":"AQAB",
+            "kid":"1",
+            "kty":"RSA",
+            "n":"6lq9MQ-q6hcxr7kOUp-tHlHtdcDsVLwVIw13iXUCvuDOeCi0VSuxCCUY6UmMjy53dX00ih2E4Y4UvlrmmurK0eG26b-HMNNAvCGsVXHU3RcRhVoHDaOwHwU72j7bpHn9XbP3Q3jebX6KIfNbei2MiR0Wyb8RZHE-aZhRYO8_-k9G2GycTpvc-2GBsP8VHLUKKfAs2B6sW3q3ymU6M0L-cFXkZ9fHkn9ejs-sqZPhMJxtBPBxoUIUQFTgv4VXTSv914f_YkNw-EjuwbgwXMvpyr06EyfImxHoxsZkFYB-qBYHtaMxTnFsZBr6fn8Ha2JqT1hoP7Z5r5wxDu3GQhKkHw",
+            "use":"sig"
+        },
+        {
+            "kid": "a378585d826a933cc207ce31cad63c019a53095c",
+            "kty": "RSA",
+            "alg": "RS256",
+            "use": "sig",
+            "n": "1aLDAmRq-QeOr1b8WbtpmD5D4CpE5S0YrNklM5BrRjuZ6FTG8AhqvyUUnAb7Dd1gCZgARbuk2yHOOca78JWX2ocAId9R4OV2PUoIYljDZ5gQJBaL6liMpolQjlqovmd7IpF8XZWudWU6Rfhoh-j6dd-8IHeJjBKMYij0CuA6HZ1L98vBW1ehEdnBZPfTe28H57hySzucnC1q1340h2E2cpCfLZ-vNoYQ4Qe-CZKpUAKOoOlC4tWCt2rLcsV_vXvmNlLv_UYGbJEFKS-I1tEwtlD71bvn9WWluE7L4pWlIolgzNyIz4yxe7G7V4jlvSSwsu1ZtIQzt5AtTC--5HEAyQ",
+            "e": "AQAB"
+        }
+    ]}"#.as_bytes();
+
 #[tokio::test]
 async fn test_verify_zk_login_google() {
     let user_salt = "206703048842351542647799591018316385612";
@@ -395,35 +415,39 @@ fn test_jwk_parse() {
         "wYvSKSQYKnGNV72_uVc9jbyUeTMsMbUgZPP0uVQX900To7A8a0XA3O17wuImgOG_BwGkpZrIRXF_RRYSK8IOH8N_ViTWh1vyEYSYwr_jfCpDoedJT0O6TZpBhBSmimtmO8ZBCkhZJ4w0AFNIMDPhMokbxwkEapjMA5zio_06dKfb3OBNmrwedZY86W1204-Pfma9Ih15Dm4o8SNFo5Sl0NNO4Ithvj2bbg1Bz1ydE4lMrXdSQL5C2uM9JYRJLnIjaYopBENwgf2Egc9CdVY8tr8jED-WQB6bcUBhDV6lJLZbpBlTHLkF1RlEMnIV2bDo02CryjThnz8l_-6G_7pJww"
     );
 
-    parse_jwks(GOOGLE_JWK_BYTES, &OIDCProvider::Google)
+    parse_jwks(GOOGLE_JWK_BYTES, &OIDCProvider::Google, false)
         .unwrap()
         .iter()
         .for_each(|content| {
             assert_eq!(content.0.iss, OIDCProvider::Google.get_config().iss);
         });
 
-    parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch)
+    parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch, false)
         .unwrap()
         .iter()
         .for_each(|content| {
             assert_eq!(content.0.iss, OIDCProvider::Twitch.get_config().iss);
         });
 
-    parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook)
+    parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook, false)
         .unwrap()
         .iter()
         .for_each(|content| {
             assert_eq!(content.0.iss, OIDCProvider::Facebook.get_config().iss);
         });
 
-    assert!(parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch).is_err());
+    assert!(parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch, false).is_err());
+
+    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, true).is_err());
+    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, false).is_ok());
 
     assert!(parse_jwks(
         r#"{
         "something":[]
       }"#
         .as_bytes(),
-        &OIDCProvider::Twitch
+        &OIDCProvider::Twitch,
+        false
     )
     .is_err());
 }
@@ -439,7 +463,6 @@ async fn test_get_jwks() {
         OIDCProvider::Kakao,
         OIDCProvider::Apple,
         OIDCProvider::Microsoft,
-        OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_LPSLCkC3A".to_string())),
         OIDCProvider::AwsTenant(("us-east-1".to_string(), "us-east-1_qPsZxYqd8".to_string())),
         OIDCProvider::KarrierOne,
         OIDCProvider::Credenza3,
@@ -450,7 +473,7 @@ async fn test_get_jwks() {
         // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
     ] {
-        let res = fetch_jwks(&p, &client).await;
+        let res = fetch_jwks(&p, &client, false).await;
         assert!(res.is_ok());
         res.unwrap().iter().for_each(|e| {
             assert_eq!(e.0.iss, p.get_config().iss);

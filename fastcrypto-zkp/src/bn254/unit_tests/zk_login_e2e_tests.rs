@@ -348,7 +348,7 @@ async fn test_end_to_end_test_issuer(test_input: TestInputStruct) {
 
         // Make a map of jwk ids to jwks just for Microsoft.
         let iss = zk_login_inputs.get_iss();
-        let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client)
+        let jwks = fetch_jwks(&OIDCProvider::from_iss(iss).unwrap(), &client, false)
             .await
             .unwrap();
         let mut map = ImHashMap::new();
