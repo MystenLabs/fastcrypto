@@ -2,8 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! A simple Merkle tree implementation.
-use core::marker::PhantomData;
-use std::fmt::Debug;
+
+extern crate alloc;
+
+use alloc::{format, vec::Vec};
+use core::{fmt::Debug, marker::PhantomData};
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{Blake2b256, Digest, HashFunction};
