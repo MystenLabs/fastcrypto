@@ -1,473 +1,236 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/pietrzak.rs`."><title>pietrzak.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../../static.files/storage-59e33391.js"></script><script defer src="../../../static.files/src-script-56102188.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">fastcrypto_vdf/vdf/</div>pietrzak.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a></pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-</span><span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::ParameterizedGroupElement;
-<span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
-<span class="kw">use </span>fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
-<span class="kw">use </span>fastcrypto::error::FastCryptoResult;
-<span class="kw">use </span>fastcrypto::hash::{HashFunction, Keccak256};
-<span class="kw">use </span>num_bigint::BigUint;
-<span class="kw">use </span>num_integer::Integer;
-<span class="kw">use </span>serde::Serialize;
-<span class="kw">use </span>std::mem;
-
-<span class="doccomment">/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
-///
-/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (https://eprint.iacr.org/2018/627.pdf)
-/// which states that the challenge should be 2^l bits (see section 6), where l is the security
-/// parameter. Soundness is proven in section 6.3 in this paper.
-</span><span class="kw">pub const </span>DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = <span class="number">16</span>;
-
-<span class="doccomment">/// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
-///
-/// The VDF is, as in [crate::vdf::wesolowski::WesolowskisVDF], based on the repeated squaring of an
-/// element in a group of unknown order. However, in this construction, proofs are larger and
-/// verification is slower than in Wesolowski's construction, but the output of a VDF is unique,
-/// assuming that the used group have no small subgroups, and proving is faster for the same number
-/// of iterations.
-</span><span class="kw">pub struct </span>PietrzaksVDF&lt;G: ParameterizedGroupElement&gt; {
-    group_parameter: G::ParameterType,
-    iterations: u64,
-}
-
-<span class="kw">impl</span>&lt;G: ParameterizedGroupElement&gt; PietrzaksVDF&lt;G&gt; {
-    <span class="doccomment">/// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
-    /// will require computing `2^iterations * input` which requires `iterations` group operations.
-    </span><span class="kw">pub fn </span>new(group_parameter: G::ParameterType, iterations: u64) -&gt; <span class="self">Self </span>{
-        <span class="self">Self </span>{
-            group_parameter,
-            iterations,
-        }
-    }
-
-    <span class="doccomment">/// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
-    </span><span class="kw">fn </span>compute_challenge(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G, output: <span class="kw-2">&amp;</span>G, mu: <span class="kw-2">&amp;</span>G) -&gt; BigUint {
-        <span class="kw">let </span>seed = bcs::to_bytes(<span class="kw-2">&amp;</span>(input, output, mu, <span class="self">self</span>.iterations, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter))
-            .expect(<span class="string">"Failed to serialize Fiat-Shamir input."</span>);
-        <span class="kw">let </span>hash = Keccak256::digest(seed);
-        BigUint::from_bytes_be(<span class="kw-2">&amp;</span>hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
-    }
-}
-
-<span class="kw">impl</span>&lt;G: ParameterizedGroupElement + Serialize&gt; VDF <span class="kw">for </span>PietrzaksVDF&lt;G&gt;
-<span class="kw">where
-    </span>G::ParameterType: Serialize,
-{
-    <span class="kw">type </span>InputType = G;
-    <span class="kw">type </span>OutputType = G;
-    <span class="kw">type </span>ProofType = Vec&lt;G&gt;;
-
-    <span class="kw">fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G) -&gt; FastCryptoResult&lt;(G, Vec&lt;G&gt;)&gt; {
-        <span class="comment">// Proof generation works but is not optimised.
-
-        </span><span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) || <span class="self">self</span>.iterations == <span class="number">0 </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="comment">// Compute output = 2^iterations * input
-        </span><span class="kw">let </span>output = input.clone().repeated_doubling(<span class="self">self</span>.iterations);
-
-        <span class="kw">let </span><span class="kw-2">mut </span>x = input.clone();
-        <span class="kw">let </span><span class="kw-2">mut </span>y = output.clone();
-        <span class="kw">let </span><span class="kw-2">mut </span>t = <span class="self">self</span>.iterations;
-
-        <span class="kw">let </span><span class="kw-2">mut </span>proof = Vec::new();
-
-        <span class="comment">// Compute the full proof. This loop may stop at any time which will give a shorter proof
-        // that is computationally harder to verify.
-        </span><span class="kw">while </span>t != <span class="number">1 </span>{
-            <span class="kw">if </span>check_parity_and_iterate(<span class="kw-2">&amp;mut </span>t) {
-                y = y.double();
-            }
-
-            <span class="comment">// TODO: Precompute some of the mu's to speed up the proof generation.
-            </span><span class="kw">let </span>mu = x.clone().repeated_doubling(t);
-
-            <span class="kw">let </span>r = <span class="self">self</span>.compute_challenge(<span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>y, <span class="kw-2">&amp;</span>mu);
-            x = x.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>mu;
-            y = mu.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>y;
-
-            proof.push(mu);
-        }
-
-        <span class="prelude-val">Ok</span>((output, proof))
-    }
-
-    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G, output: <span class="kw-2">&amp;</span>G, proof: <span class="kw-2">&amp;</span>Vec&lt;G&gt;) -&gt; FastCryptoResult&lt;()&gt; {
-        <span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter)
-            || !output.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter)
-            || !proof.iter().all(|mu| mu.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter))
-            || <span class="self">self</span>.iterations == <span class="number">0
-        </span>{
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
-        }
-
-        <span class="kw">let </span><span class="kw-2">mut </span>x = input.clone();
-        <span class="kw">let </span><span class="kw-2">mut </span>y = output.clone();
-        <span class="kw">let </span><span class="kw-2">mut </span>t = <span class="self">self</span>.iterations;
-
-        <span class="kw">for </span>mu <span class="kw">in </span>proof {
-            <span class="kw">if </span>check_parity_and_iterate(<span class="kw-2">&amp;mut </span>t) {
-                y = y.double();
-            }
-
-            <span class="kw">let </span>r = <span class="self">self</span>.compute_challenge(<span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>y, mu);
-            x = x.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + mu;
-            y = mu.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>y;
-        }
-
-        <span class="comment">// In case the proof is shorter than the full proof, we need to compute the remaining powers.
-        </span>x = x.repeated_doubling(t);
-        <span class="kw">if </span>x != y {
-            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidProof);
-        }
-        <span class="prelude-val">Ok</span>(())
-    }
-}
-
-<span class="doccomment">/// Replace t with (t+1) &gt;&gt; 1 and return true iff the input was odd.
-</span><span class="attr">#[inline]
-</span><span class="kw">fn </span>check_parity_and_iterate(t: <span class="kw-2">&amp;mut </span>u64) -&gt; bool {
-    mem::replace(t, (<span class="kw-2">*</span>t &gt;&gt; <span class="number">1</span>) + (<span class="kw-2">*</span>t &amp; <span class="number">1</span>)).is_odd()
-}
-
-<span class="attr">#[cfg(test)]
-</span><span class="kw">mod </span>tests {
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
-    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
-    <span class="kw">use </span><span class="kw">crate</span>::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
-    <span class="kw">use </span><span class="kw">crate</span>::rsa_group::RSAGroupElement;
-    <span class="kw">use </span><span class="kw">crate</span>::vdf::pietrzak::PietrzaksVDF;
-    <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
-    <span class="kw">use </span>num_bigint::{BigInt, BigUint};
-    <span class="kw">use </span>std::str::FromStr;
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_vdf() {
-        <span class="kw">let </span>iterations = <span class="number">136u64</span>;
-        <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="number">512</span>).unwrap();
-
-        <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
-
-        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), iterations);
-        <span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
-
-        <span class="comment">// Regression tests
-        </span><span class="kw">let </span>expected = QuadraticForm::from_a_b_and_discriminant(
-            BigInt::from_str(
-                <span class="string">"13206998000609712751440666523761252432358037295085948932090770003917198208994"</span>,
-            )
-            .unwrap(),
-            BigInt::from_str(
-                <span class="string">"-7219543762309344565443896781132785043370346972592093790721340651476391057433"</span>,
-            )
-            .unwrap(),
-            <span class="kw-2">&amp;</span>discriminant,
-        )
-        .unwrap();
-        <span class="macro">assert_eq!</span>(output, expected);
-
-        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
-
-        <span class="kw">let </span>other_input = input.clone() + <span class="kw-2">&amp;</span>input;
-        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>other_input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_err())
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_vdf_edge_cases() {
-        <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="number">512</span>).unwrap();
-        <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
-
-        <span class="macro">assert!</span>(PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), <span class="number">1</span>)
-            .evaluate(<span class="kw-2">&amp;</span>input)
-            .is_ok());
-        <span class="macro">assert!</span>(PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), <span class="number">0</span>)
-            .evaluate(<span class="kw-2">&amp;</span>input)
-            .is_err());
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_vdf_rsa() {
-        <span class="kw">let </span>iterations = <span class="number">136u64</span>;
-        <span class="kw">let </span>input = RSAGroupElement::new(<span class="number">7u32</span>.into(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
-
-        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;RSAGroupElement&gt;::new(<span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF, iterations);
-        <span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
-
-        <span class="comment">// Regression tests
-        </span><span class="macro">assert_eq!</span>(output.value(), <span class="kw-2">&amp;</span>BigUint::from_str(<span class="string">"2916729428333236907384003242184677361436177746028521829074262794270450030614249791656280719383240637347810313226096694498769545443206627336734040174799816874893648275347170568080246298018251459166394606111665076144473956288322218549726358786461312990585124805408517840980926720744474390941814421387920163335970657049749743256686182627881823961603323280107182060168658389127157273203349284277273772693040421354262168429489840004941529927120543842810077679137948568146407590629247965765706139158405798203267187654092671067863393874252018466867363677473729172248315453692024494782080164026070367013679213682978612826272"</span>).unwrap());
-
-        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
-
-        <span class="kw">let </span>other_input = input.clone() + <span class="kw-2">&amp;</span>input;
-        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>other_input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_err())
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verification() {
-        <span class="kw">let </span>iterations = <span class="number">100000u64</span>;
-        <span class="kw">let </span>input = RSAGroupElement::new(<span class="number">7u32</span>.into(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
-
-        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;RSAGroupElement&gt;::new(<span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF, iterations);
-
-        <span class="kw">let </span>output = RSAGroupElement::new(BigUint::from_str(<span class="string">"3672355472927810456151679905868758794616388736583581652860721896616180315835575064423750778001349052163223791724800901623993790866712822248888484109754966734883928871058715188132045817948670396453684148159917970871906760229102881786328076485709065174288114937597861379962478300572943579355762549162779462210911294105646062939394772010450396339819711345421231813212879300843731930189807951083800491228370195479515271316034750609611188992819886615677507435486955879522713591072027715880883277172276263534234336298488388979051136904224916555055212735687426081668066225539132052845808964107807201586990131791093492371778"</span>).unwrap(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
-
-        <span class="kw">let </span>proof = [
-            <span class="string">"8719512874474216460687150647680854955292132854750703068763484269093165999505251186898178062066004619862656663698343691868497980570426526019975578885850544581914946790597872355640934341428693413899572424721269873153938666911042969304059487718891954826837874698630809943131078862483827048179876513916989352726065292297373409109550091793480245914861995645289031849847427508439025383190674698027602276320860090412338328667933755723078371787557008469872399255533817861369300159517919410447709106340745759633527098227506660977309887993315579818822200330785614717258672305343338813672124794370455365197734851856001184976030"</span>,
-            <span class="string">"3524225440490227716581914005817764728689326138271987326546913156143949550779591139824077984832090908071998951770389914336769029333480915517009260387548811330930648406468414527213930607990485031826572327430297154420012068864491234371049362834108095572222288210563942740991735388228265830602511240768621994740770804049029617345757918078538264560135467586163671018157956690861770799025782115742787596459481739552535516586086172662006852110953782305125365361525831420213691071299126328246388152487905764478231871643596200406647908089848722382856021765764700103197413553278821980238755080812642569566460155874926864973989"</span>,
-            <span class="string">"3386256193912258600563321427374151160437651417107230398140990906215918611413870201888792916418033967177817103485384285178003637404550898822951512439384277984377627754055120144092077652950815810643804322665300251229793337536560764764926079235179412052806380151642397223785653772910005773851385366606281262555049596002588808028004178177665489626495310464581979168814142288652114023204247090962814602454684901841935354676441552550033218538383127851117213323460171046993929640395141844677358751651632616897741890084456824284415415554894221269513288351780048483154293635621337002324127284236944745716110705339322771478131"</span>,
-            <span class="string">"7408862030172429723032582356161847253198188005112855906630189356951227804097029509883935224836192563731148726408119632983128842196882987765881545177086653651757096748219643205448581241037817385331996915432821304066168098773880393211961153863820790217510052941214079784321117971743731404301810060365970610316645229069960509651124240339464525485721413226027035555493674864907371842778371294951677138477875018003840619969373647380251579931187688167577599725809029577381715849590344663076500835477018110706747067929066540698745588647653032284281207590297280558283161226254697184936417182114406611858688290199092351638794"</span>,
-            <span class="string">"9528369401155898421336374761623167878924922005826918572675787143246237849874471257635361123764028975937343311664804485861820128360684057779979271237362810683850151327885936654765160960323604793157027745850425197516858623567687919335408856735970509721863383148065881142539924459849066413081803234738981126021705399792445956657733940194160711501942192074012722676182134009812129315502787932498635715069416080651060699212375799959775531304461678248368699251392095272154244316553547920213132393799101764442827812390852292543047588306534171173257087058146331742057376971999785759427057334778797976189560957105013350467045"</span>,
-            <span class="string">"10294651820160651728456829898879555551196961487064613372692384294265418044982827373843041565455655933992371447144565864904575509809947198474416922744319637148661233405028052214366165153902932698351161834805653679280884257744536629934561559541496076130305993849014886971786115597309448966484871145453391677209950550556478590364500734905015127553627540473598051645020805146472132102067032709164655196448902087849028550166457630712049225557448992309930729811971031335828818305551184854572895352878770266426086789864481188000057417074198845278355152274308525042623428164257444044541498663412953148100768983136146188235997"</span>,
-            <span class="string">"4749045743059502299076848945196073558631005868948441651589845799068150488425734086270947139878995514214119726260212551705844889280663704807069073071616386852792450852711805042766312070760756053408646662762397826414400752299162726413950336169847086249885638830927861421398231965683427732018263765712940081366775804116587569845878336332182016655558080273929449303602571070901792076802687535487545915059452072480809069254144639332974988342423715575563084819806637919328178725980692796438546565820486572953340526856360623620668058599315200343597721637054937740264892162125653205249722406415399818735024248737314552063747"</span>,
-            <span class="string">"5272521386133313093121504847176339485318640410159988398538154570040609938127193342269575965623490130675739152927549782661334170941321238880903335951305493326431599940919086128527082527057864468821840814550477028653687293814925163394101119890565259089917449040659282833402394902253943586909550853333057424633788010291693428637999909856531013688038817805974292565379653351375127609695388247301423539646327950220115990830645404216008980887159586046198784837543462911777611082256896302074042733126733093536925128289699426032159423325697676408264099787619827716147575504711932293307925317181532838376975174334760490178044"</span>,
-            <span class="string">"4865631439244694792682051927120887855014714782764996443468316201280149186411764462638919743896836216210355086464033599674608823616620181993224084354774021985050767398675323086421509833372146310317782744044433481505781466337868841734616907727794600499486966898550073615373789361818554381065300597950458611369588509114065985025852518182253888929859936361242940138578344904177539257408094849163580060796966127477986366148739231408126796157723280304456556233704922267395211269025280937735721607598808102862937894271692476411316343801775630519501390182293503303960113390510808164020764496445889549138522442194944316766219"</span>,
-            <span class="string">"1716098664111733751302684239386687925838384836544658006905034083331006633019856429890234964042806996064770725585636147008586818637936193658888381443567507219576974926569248997425135873112782252084087049174247625853371226689113885574956468036468201035128573779522685641470930864834546438686526548212910642194495508777532033343509629089340426924730626446347003141889733967730229296355986139573616824252745173021579889146711264881818395175840508044230472692250294317790079274412733463156608459907600873015033659104883567469349509785038318299646299550636867596927464451110109337227918075217459535287195599185046432272198"</span>,
-            <span class="string">"10721991997697793738717595864735689654814408802179139713299139161130174918125420293856907422920539738936394204606043102026032040519309913895955997218242869889330722353056722164513913325053855254230359609203831468726499782865513152890774696492202216752929686242664105376380907060826609793521588890690791106895587503800467949772773581224066322672834898563688334924748703360423621150393100717027630221055080843102194314393166621862146840652586817200363151726362689280490364249590829799246039599450021900326960690007908969307676046114319938297872389335199854504572884094360772400490069773329668111595259339308363041063871"</span>,
-            <span class="string">"24993235836866849416196592570323660996972817499564456104037943507194360405061754866850348770077420997103335102890585709469767629001870643341451985396909081660774052156782419424390497656420915820543525425352103071684707145165891840374067169328373245883329511678687043434601293171271199312025423435502927076645446502230342559583292008660994947133886690268696014405994231692380704451596507223379197197420921324939035607218784585824666269355224282438899491842717180848598449014025167402088262687787425520237057062755968280168112911893559397514451243586114205429244216713755580836976353622394774491637290756440823473904"</span>,
-            <span class="string">"8002840044191636897394105768503100351367843810943426955203265943939407779211249672257698205017741561535958104095665612435684465282015904737730202451805337613184916942787797112106584192538882516595181912717026458237097485563704041509438199717078206419533982984474171725446518666727110378813664918107052405840880667070832701817128246672829292017261411874510037160227026367399797925223118665562035040322045995481973053566119964317652423365276712206105413327459764222767039305354559649984488929528403367306919207004930556248185192286629700484211799294085032088235292426962942458433119325773711776898892739174573133259798"</span>,
-            <span class="string">"9808298167953463044183224853747590991821290083082693475897746710109152766350649057730805604162385834890955802232144653208502844156265486182999277061377895494700822405534823371717810993077165144659899399251399946686003871122626066126316460159851320953097822716750103981636398570978788394229208496720512000415568014823831712088816947453635369935021640264506413372998966855334669695718142871353958255047552753123177745051748277174077245602488815883354127415057464229321675973890199622571893243720584859039940876060951672389949282570769956932017208645843036419518163184395801601473092002267026597399366492737904207164145"</span>,
-            <span class="string">"3419924672544574100524058325383025198496207713265005632195290353279586550544804988055757778145112066368161851153318915869887514873926726636081263451040999914232751332583833616365834650019287835558155301861869825336660948178770848366160254240651864317486675126510537151881923158433631746791994990810114742904187471698817430077934405459479950737131082312281050974043218768012562886561272629075590257984018309718254526858184923594606358659772686305061082946653881595244349982087597745499473392706220050012667178661314295322165215791098424265370584312926915581831293094295870670813932186950843650836176864709988630778898"</span>,
-            <span class="string">"3876660104277748734969970799207654963546831221524157837790450138448447235917188249028042741771865887141807354675325586321042930971396579383599429668029844089074571818157381649964860225310811444870630848131459324585689921588479979399255647304741995870412178808125039448834571923055165839896461006202917186695764779234307600813983399230786701019298692652551177614160338386117023117927173943068934500519930664358506164490744248358331236180729050425334573543140408803841919596166155205764351816894658586553341628917380296648889364729838239067182538618852656851850409265336348330079350182770839095482851902292535994651519"
-        </span>].into_iter().map(|s| RSAGroupElement::new(BigUint::from_str(s).unwrap(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
-
-        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
-    }
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-vdf/src/vdf/pietrzak.rs`."><title>pietrzak.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../../" data-static-root-path="../../../static.files/" data-current-crate="fastcrypto_vdf" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../../static.files/storage-4e99c027.js"></script><script defer src="../../../static.files/src-script-63605ae7.js"></script><script defer src="../../../src-files.js"></script><script defer src="../../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">fastcrypto_vdf/vdf/</div>pietrzak.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<a href=#2 id=2 data-nosnippet>2</a>// SPDX-License-Identifier: Apache-2.0
+<a href=#3 id=3 data-nosnippet>3</a>
+<a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span><span class="kw">crate</span>::math::parameterized_group::ParameterizedGroupElement;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>fastcrypto::error::FastCryptoResult;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>fastcrypto::hash::{HashFunction, Keccak256};
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>num_bigint::BigUint;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>num_integer::Integer;
+<a href=#11 id=11 data-nosnippet>11</a><span class="kw">use </span>serde::Serialize;
+<a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>std::mem;
+<a href=#13 id=13 data-nosnippet>13</a>
+<a href=#14 id=14 data-nosnippet>14</a><span class="doccomment">/// Default size in bytes of the Fiat-Shamir challenge used in proving and verification.
+<a href=#15 id=15 data-nosnippet>15</a>///
+<a href=#16 id=16 data-nosnippet>16</a>/// This is based on Pietrzak (2018), "Simple Verifiable Delay Functions" (https://eprint.iacr.org/2018/627.pdf)
+<a href=#17 id=17 data-nosnippet>17</a>/// which states that the challenge should be 2^l bits (see section 6), where l is the security
+<a href=#18 id=18 data-nosnippet>18</a>/// parameter. Soundness is proven in section 6.3 in this paper.
+<a href=#19 id=19 data-nosnippet>19</a></span><span class="kw">pub const </span>DEFAULT_CHALLENGE_SIZE_IN_BYTES: usize = <span class="number">16</span>;
+<a href=#20 id=20 data-nosnippet>20</a>
+<a href=#21 id=21 data-nosnippet>21</a><span class="doccomment">/// This implements Pietrzak's VDF construction from https://eprint.iacr.org/2018/627.pdf.
+<a href=#22 id=22 data-nosnippet>22</a>///
+<a href=#23 id=23 data-nosnippet>23</a>/// The VDF is, as in [crate::vdf::wesolowski::WesolowskisVDF], based on the repeated squaring of an
+<a href=#24 id=24 data-nosnippet>24</a>/// element in a group of unknown order. However, in this construction, proofs are larger and
+<a href=#25 id=25 data-nosnippet>25</a>/// verification is slower than in Wesolowski's construction, but the output of a VDF is unique,
+<a href=#26 id=26 data-nosnippet>26</a>/// assuming that the used group have no small subgroups, and proving is faster for the same number
+<a href=#27 id=27 data-nosnippet>27</a>/// of iterations.
+<a href=#28 id=28 data-nosnippet>28</a></span><span class="kw">pub struct </span>PietrzaksVDF&lt;G: ParameterizedGroupElement&gt; {
+<a href=#29 id=29 data-nosnippet>29</a>    group_parameter: G::ParameterType,
+<a href=#30 id=30 data-nosnippet>30</a>    iterations: u64,
+<a href=#31 id=31 data-nosnippet>31</a>}
+<a href=#32 id=32 data-nosnippet>32</a>
+<a href=#33 id=33 data-nosnippet>33</a><span class="kw">impl</span>&lt;G: ParameterizedGroupElement&gt; PietrzaksVDF&lt;G&gt; {
+<a href=#34 id=34 data-nosnippet>34</a>    <span class="doccomment">/// Create a new VDF using the group defined by the given group parameter. Evaluating this VDF
+<a href=#35 id=35 data-nosnippet>35</a>    /// will require computing `2^iterations * input` which requires `iterations` group operations.
+<a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub fn </span>new(group_parameter: G::ParameterType, iterations: u64) -&gt; <span class="self">Self </span>{
+<a href=#37 id=37 data-nosnippet>37</a>        <span class="self">Self </span>{
+<a href=#38 id=38 data-nosnippet>38</a>            group_parameter,
+<a href=#39 id=39 data-nosnippet>39</a>            iterations,
+<a href=#40 id=40 data-nosnippet>40</a>        }
+<a href=#41 id=41 data-nosnippet>41</a>    }
+<a href=#42 id=42 data-nosnippet>42</a>
+<a href=#43 id=43 data-nosnippet>43</a>    <span class="doccomment">/// Compute the Fiat-Shamir challenge used in Pietrzak's VDF construction.
+<a href=#44 id=44 data-nosnippet>44</a>    </span><span class="kw">fn </span>compute_challenge(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G, output: <span class="kw-2">&amp;</span>G, mu: <span class="kw-2">&amp;</span>G) -&gt; BigUint {
+<a href=#45 id=45 data-nosnippet>45</a>        <span class="kw">let </span>seed = bcs::to_bytes(<span class="kw-2">&amp;</span>(input, output, mu, <span class="self">self</span>.iterations, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter))
+<a href=#46 id=46 data-nosnippet>46</a>            .expect(<span class="string">"Failed to serialize Fiat-Shamir input."</span>);
+<a href=#47 id=47 data-nosnippet>47</a>        <span class="kw">let </span>hash = Keccak256::digest(seed);
+<a href=#48 id=48 data-nosnippet>48</a>        BigUint::from_bytes_be(<span class="kw-2">&amp;</span>hash.digest[..DEFAULT_CHALLENGE_SIZE_IN_BYTES])
+<a href=#49 id=49 data-nosnippet>49</a>    }
+<a href=#50 id=50 data-nosnippet>50</a>}
+<a href=#51 id=51 data-nosnippet>51</a>
+<a href=#52 id=52 data-nosnippet>52</a><span class="kw">impl</span>&lt;G: ParameterizedGroupElement + Serialize&gt; VDF <span class="kw">for </span>PietrzaksVDF&lt;G&gt;
+<a href=#53 id=53 data-nosnippet>53</a><span class="kw">where
+<a href=#54 id=54 data-nosnippet>54</a>    </span>G::ParameterType: Serialize,
+<a href=#55 id=55 data-nosnippet>55</a>{
+<a href=#56 id=56 data-nosnippet>56</a>    <span class="kw">type </span>InputType = G;
+<a href=#57 id=57 data-nosnippet>57</a>    <span class="kw">type </span>OutputType = G;
+<a href=#58 id=58 data-nosnippet>58</a>    <span class="kw">type </span>ProofType = Vec&lt;G&gt;;
+<a href=#59 id=59 data-nosnippet>59</a>
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="kw">fn </span>evaluate(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G) -&gt; FastCryptoResult&lt;(G, Vec&lt;G&gt;)&gt; {
+<a href=#61 id=61 data-nosnippet>61</a>        <span class="comment">// Proof generation works but is not optimised.
+<a href=#62 id=62 data-nosnippet>62</a>
+<a href=#63 id=63 data-nosnippet>63</a>        </span><span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) || <span class="self">self</span>.iterations == <span class="number">0 </span>{
+<a href=#64 id=64 data-nosnippet>64</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+<a href=#65 id=65 data-nosnippet>65</a>        }
+<a href=#66 id=66 data-nosnippet>66</a>
+<a href=#67 id=67 data-nosnippet>67</a>        <span class="comment">// Compute output = 2^iterations * input
+<a href=#68 id=68 data-nosnippet>68</a>        </span><span class="kw">let </span>output = input.clone().repeated_doubling(<span class="self">self</span>.iterations);
+<a href=#69 id=69 data-nosnippet>69</a>
+<a href=#70 id=70 data-nosnippet>70</a>        <span class="kw">let </span><span class="kw-2">mut </span>x = input.clone();
+<a href=#71 id=71 data-nosnippet>71</a>        <span class="kw">let </span><span class="kw-2">mut </span>y = output.clone();
+<a href=#72 id=72 data-nosnippet>72</a>        <span class="kw">let </span><span class="kw-2">mut </span>t = <span class="self">self</span>.iterations;
+<a href=#73 id=73 data-nosnippet>73</a>
+<a href=#74 id=74 data-nosnippet>74</a>        <span class="kw">let </span><span class="kw-2">mut </span>proof = Vec::new();
+<a href=#75 id=75 data-nosnippet>75</a>
+<a href=#76 id=76 data-nosnippet>76</a>        <span class="comment">// Compute the full proof. This loop may stop at any time which will give a shorter proof
+<a href=#77 id=77 data-nosnippet>77</a>        // that is computationally harder to verify.
+<a href=#78 id=78 data-nosnippet>78</a>        </span><span class="kw">while </span>t != <span class="number">1 </span>{
+<a href=#79 id=79 data-nosnippet>79</a>            <span class="kw">if </span>check_parity_and_iterate(<span class="kw-2">&amp;mut </span>t) {
+<a href=#80 id=80 data-nosnippet>80</a>                y = y.double();
+<a href=#81 id=81 data-nosnippet>81</a>            }
+<a href=#82 id=82 data-nosnippet>82</a>
+<a href=#83 id=83 data-nosnippet>83</a>            <span class="comment">// TODO: Precompute some of the mu's to speed up the proof generation.
+<a href=#84 id=84 data-nosnippet>84</a>            </span><span class="kw">let </span>mu = x.clone().repeated_doubling(t);
+<a href=#85 id=85 data-nosnippet>85</a>
+<a href=#86 id=86 data-nosnippet>86</a>            <span class="kw">let </span>r = <span class="self">self</span>.compute_challenge(<span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>y, <span class="kw-2">&amp;</span>mu);
+<a href=#87 id=87 data-nosnippet>87</a>            x = x.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>mu;
+<a href=#88 id=88 data-nosnippet>88</a>            y = mu.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>y;
+<a href=#89 id=89 data-nosnippet>89</a>
+<a href=#90 id=90 data-nosnippet>90</a>            proof.push(mu);
+<a href=#91 id=91 data-nosnippet>91</a>        }
+<a href=#92 id=92 data-nosnippet>92</a>
+<a href=#93 id=93 data-nosnippet>93</a>        <span class="prelude-val">Ok</span>((output, proof))
+<a href=#94 id=94 data-nosnippet>94</a>    }
+<a href=#95 id=95 data-nosnippet>95</a>
+<a href=#96 id=96 data-nosnippet>96</a>    <span class="kw">fn </span>verify(<span class="kw-2">&amp;</span><span class="self">self</span>, input: <span class="kw-2">&amp;</span>G, output: <span class="kw-2">&amp;</span>G, proof: <span class="kw-2">&amp;</span>Vec&lt;G&gt;) -&gt; FastCryptoResult&lt;()&gt; {
+<a href=#97 id=97 data-nosnippet>97</a>        <span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter)
+<a href=#98 id=98 data-nosnippet>98</a>            || !output.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter)
+<a href=#99 id=99 data-nosnippet>99</a>            || !proof.iter().all(|mu| mu.is_in_group(<span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter))
+<a href=#100 id=100 data-nosnippet>100</a>            || <span class="self">self</span>.iterations == <span class="number">0
+<a href=#101 id=101 data-nosnippet>101</a>        </span>{
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidInput);
+<a href=#103 id=103 data-nosnippet>103</a>        }
+<a href=#104 id=104 data-nosnippet>104</a>
+<a href=#105 id=105 data-nosnippet>105</a>        <span class="kw">let </span><span class="kw-2">mut </span>x = input.clone();
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="kw">let </span><span class="kw-2">mut </span>y = output.clone();
+<a href=#107 id=107 data-nosnippet>107</a>        <span class="kw">let </span><span class="kw-2">mut </span>t = <span class="self">self</span>.iterations;
+<a href=#108 id=108 data-nosnippet>108</a>
+<a href=#109 id=109 data-nosnippet>109</a>        <span class="kw">for </span>mu <span class="kw">in </span>proof {
+<a href=#110 id=110 data-nosnippet>110</a>            <span class="kw">if </span>check_parity_and_iterate(<span class="kw-2">&amp;mut </span>t) {
+<a href=#111 id=111 data-nosnippet>111</a>                y = y.double();
+<a href=#112 id=112 data-nosnippet>112</a>            }
+<a href=#113 id=113 data-nosnippet>113</a>
+<a href=#114 id=114 data-nosnippet>114</a>            <span class="kw">let </span>r = <span class="self">self</span>.compute_challenge(<span class="kw-2">&amp;</span>x, <span class="kw-2">&amp;</span>y, mu);
+<a href=#115 id=115 data-nosnippet>115</a>            x = x.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + mu;
+<a href=#116 id=116 data-nosnippet>116</a>            y = mu.multiply(<span class="kw-2">&amp;</span>r, <span class="kw-2">&amp;</span><span class="self">self</span>.group_parameter) + <span class="kw-2">&amp;</span>y;
+<a href=#117 id=117 data-nosnippet>117</a>        }
+<a href=#118 id=118 data-nosnippet>118</a>
+<a href=#119 id=119 data-nosnippet>119</a>        <span class="comment">// In case the proof is shorter than the full proof, we need to compute the remaining powers.
+<a href=#120 id=120 data-nosnippet>120</a>        </span>x = x.repeated_doubling(t);
+<a href=#121 id=121 data-nosnippet>121</a>        <span class="kw">if </span>x != y {
+<a href=#122 id=122 data-nosnippet>122</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(InvalidProof);
+<a href=#123 id=123 data-nosnippet>123</a>        }
+<a href=#124 id=124 data-nosnippet>124</a>        <span class="prelude-val">Ok</span>(())
+<a href=#125 id=125 data-nosnippet>125</a>    }
+<a href=#126 id=126 data-nosnippet>126</a>}
+<a href=#127 id=127 data-nosnippet>127</a>
+<a href=#128 id=128 data-nosnippet>128</a><span class="doccomment">/// Replace t with (t+1) &gt;&gt; 1 and return true iff the input was odd.
+<a href=#129 id=129 data-nosnippet>129</a></span><span class="attr">#[inline]
+<a href=#130 id=130 data-nosnippet>130</a></span><span class="kw">fn </span>check_parity_and_iterate(t: <span class="kw-2">&amp;mut </span>u64) -&gt; bool {
+<a href=#131 id=131 data-nosnippet>131</a>    mem::replace(t, (<span class="kw-2">*</span>t &gt;&gt; <span class="number">1</span>) + (<span class="kw-2">*</span>t &amp; <span class="number">1</span>)).is_odd()
+<a href=#132 id=132 data-nosnippet>132</a>}
+<a href=#133 id=133 data-nosnippet>133</a>
+<a href=#134 id=134 data-nosnippet>134</a><span class="attr">#[cfg(test)]
+<a href=#135 id=135 data-nosnippet>135</a></span><span class="kw">mod </span>tests {
+<a href=#136 id=136 data-nosnippet>136</a>    <span class="kw">use </span><span class="kw">crate</span>::class_group::discriminant::Discriminant;
+<a href=#137 id=137 data-nosnippet>137</a>    <span class="kw">use </span><span class="kw">crate</span>::class_group::QuadraticForm;
+<a href=#138 id=138 data-nosnippet>138</a>    <span class="kw">use </span><span class="kw">crate</span>::rsa_group::modulus::test::AMAZON_MODULUS_2048_REF;
+<a href=#139 id=139 data-nosnippet>139</a>    <span class="kw">use </span><span class="kw">crate</span>::rsa_group::RSAGroupElement;
+<a href=#140 id=140 data-nosnippet>140</a>    <span class="kw">use </span><span class="kw">crate</span>::vdf::pietrzak::PietrzaksVDF;
+<a href=#141 id=141 data-nosnippet>141</a>    <span class="kw">use </span><span class="kw">crate</span>::vdf::VDF;
+<a href=#142 id=142 data-nosnippet>142</a>    <span class="kw">use </span>num_bigint::{BigInt, BigUint};
+<a href=#143 id=143 data-nosnippet>143</a>    <span class="kw">use </span>std::str::FromStr;
+<a href=#144 id=144 data-nosnippet>144</a>
+<a href=#145 id=145 data-nosnippet>145</a>    <span class="attr">#[test]
+<a href=#146 id=146 data-nosnippet>146</a>    </span><span class="kw">fn </span>test_vdf() {
+<a href=#147 id=147 data-nosnippet>147</a>        <span class="kw">let </span>iterations = <span class="number">136u64</span>;
+<a href=#148 id=148 data-nosnippet>148</a>        <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="number">512</span>).unwrap();
+<a href=#149 id=149 data-nosnippet>149</a>
+<a href=#150 id=150 data-nosnippet>150</a>        <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
+<a href=#151 id=151 data-nosnippet>151</a>
+<a href=#152 id=152 data-nosnippet>152</a>        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), iterations);
+<a href=#153 id=153 data-nosnippet>153</a>        <span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
+<a href=#154 id=154 data-nosnippet>154</a>
+<a href=#155 id=155 data-nosnippet>155</a>        <span class="comment">// Regression tests
+<a href=#156 id=156 data-nosnippet>156</a>        </span><span class="kw">let </span>expected = QuadraticForm::from_a_b_and_discriminant(
+<a href=#157 id=157 data-nosnippet>157</a>            BigInt::from_str(
+<a href=#158 id=158 data-nosnippet>158</a>                <span class="string">"13206998000609712751440666523761252432358037295085948932090770003917198208994"</span>,
+<a href=#159 id=159 data-nosnippet>159</a>            )
+<a href=#160 id=160 data-nosnippet>160</a>            .unwrap(),
+<a href=#161 id=161 data-nosnippet>161</a>            BigInt::from_str(
+<a href=#162 id=162 data-nosnippet>162</a>                <span class="string">"-7219543762309344565443896781132785043370346972592093790721340651476391057433"</span>,
+<a href=#163 id=163 data-nosnippet>163</a>            )
+<a href=#164 id=164 data-nosnippet>164</a>            .unwrap(),
+<a href=#165 id=165 data-nosnippet>165</a>            <span class="kw-2">&amp;</span>discriminant,
+<a href=#166 id=166 data-nosnippet>166</a>        )
+<a href=#167 id=167 data-nosnippet>167</a>        .unwrap();
+<a href=#168 id=168 data-nosnippet>168</a>        <span class="macro">assert_eq!</span>(output, expected);
+<a href=#169 id=169 data-nosnippet>169</a>
+<a href=#170 id=170 data-nosnippet>170</a>        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+<a href=#171 id=171 data-nosnippet>171</a>
+<a href=#172 id=172 data-nosnippet>172</a>        <span class="kw">let </span>other_input = input.clone() + <span class="kw-2">&amp;</span>input;
+<a href=#173 id=173 data-nosnippet>173</a>        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>other_input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_err())
+<a href=#174 id=174 data-nosnippet>174</a>    }
+<a href=#175 id=175 data-nosnippet>175</a>
+<a href=#176 id=176 data-nosnippet>176</a>    <span class="attr">#[test]
+<a href=#177 id=177 data-nosnippet>177</a>    </span><span class="kw">fn </span>test_vdf_edge_cases() {
+<a href=#178 id=178 data-nosnippet>178</a>        <span class="kw">let </span>discriminant = Discriminant::from_seed(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="number">512</span>).unwrap();
+<a href=#179 id=179 data-nosnippet>179</a>        <span class="kw">let </span>input = QuadraticForm::generator(<span class="kw-2">&amp;</span>discriminant);
+<a href=#180 id=180 data-nosnippet>180</a>
+<a href=#181 id=181 data-nosnippet>181</a>        <span class="macro">assert!</span>(PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), <span class="number">1</span>)
+<a href=#182 id=182 data-nosnippet>182</a>            .evaluate(<span class="kw-2">&amp;</span>input)
+<a href=#183 id=183 data-nosnippet>183</a>            .is_ok());
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="macro">assert!</span>(PietrzaksVDF::&lt;QuadraticForm&gt;::new(discriminant.clone(), <span class="number">0</span>)
+<a href=#185 id=185 data-nosnippet>185</a>            .evaluate(<span class="kw-2">&amp;</span>input)
+<a href=#186 id=186 data-nosnippet>186</a>            .is_err());
+<a href=#187 id=187 data-nosnippet>187</a>    }
+<a href=#188 id=188 data-nosnippet>188</a>
+<a href=#189 id=189 data-nosnippet>189</a>    <span class="attr">#[test]
+<a href=#190 id=190 data-nosnippet>190</a>    </span><span class="kw">fn </span>test_vdf_rsa() {
+<a href=#191 id=191 data-nosnippet>191</a>        <span class="kw">let </span>iterations = <span class="number">136u64</span>;
+<a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>input = RSAGroupElement::new(<span class="number">7u32</span>.into(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;RSAGroupElement&gt;::new(<span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF, iterations);
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="kw">let </span>(output, proof) = vdf.evaluate(<span class="kw-2">&amp;</span>input).unwrap();
+<a href=#196 id=196 data-nosnippet>196</a>
+<a href=#197 id=197 data-nosnippet>197</a>        <span class="comment">// Regression tests
+<a href=#198 id=198 data-nosnippet>198</a>        </span><span class="macro">assert_eq!</span>(output.value(), <span class="kw-2">&amp;</span>BigUint::from_str(<span class="string">"2916729428333236907384003242184677361436177746028521829074262794270450030614249791656280719383240637347810313226096694498769545443206627336734040174799816874893648275347170568080246298018251459166394606111665076144473956288322218549726358786461312990585124805408517840980926720744474390941814421387920163335970657049749743256686182627881823961603323280107182060168658389127157273203349284277273772693040421354262168429489840004941529927120543842810077679137948568146407590629247965765706139158405798203267187654092671067863393874252018466867363677473729172248315453692024494782080164026070367013679213682978612826272"</span>).unwrap());
+<a href=#199 id=199 data-nosnippet>199</a>
+<a href=#200 id=200 data-nosnippet>200</a>        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+<a href=#201 id=201 data-nosnippet>201</a>
+<a href=#202 id=202 data-nosnippet>202</a>        <span class="kw">let </span>other_input = input.clone() + <span class="kw-2">&amp;</span>input;
+<a href=#203 id=203 data-nosnippet>203</a>        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>other_input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_err())
+<a href=#204 id=204 data-nosnippet>204</a>    }
+<a href=#205 id=205 data-nosnippet>205</a>
+<a href=#206 id=206 data-nosnippet>206</a>    <span class="attr">#[test]
+<a href=#207 id=207 data-nosnippet>207</a>    </span><span class="kw">fn </span>test_verification() {
+<a href=#208 id=208 data-nosnippet>208</a>        <span class="kw">let </span>iterations = <span class="number">100000u64</span>;
+<a href=#209 id=209 data-nosnippet>209</a>        <span class="kw">let </span>input = RSAGroupElement::new(<span class="number">7u32</span>.into(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
+<a href=#210 id=210 data-nosnippet>210</a>
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>vdf = PietrzaksVDF::&lt;RSAGroupElement&gt;::new(<span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF, iterations);
+<a href=#212 id=212 data-nosnippet>212</a>
+<a href=#213 id=213 data-nosnippet>213</a>        <span class="kw">let </span>output = RSAGroupElement::new(BigUint::from_str(<span class="string">"3672355472927810456151679905868758794616388736583581652860721896616180315835575064423750778001349052163223791724800901623993790866712822248888484109754966734883928871058715188132045817948670396453684148159917970871906760229102881786328076485709065174288114937597861379962478300572943579355762549162779462210911294105646062939394772010450396339819711345421231813212879300843731930189807951083800491228370195479515271316034750609611188992819886615677507435486955879522713591072027715880883277172276263534234336298488388979051136904224916555055212735687426081668066225539132052845808964107807201586990131791093492371778"</span>).unwrap(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF);
+<a href=#214 id=214 data-nosnippet>214</a>
+<a href=#215 id=215 data-nosnippet>215</a>        <span class="kw">let </span>proof = [
+<a href=#216 id=216 data-nosnippet>216</a>            <span class="string">"8719512874474216460687150647680854955292132854750703068763484269093165999505251186898178062066004619862656663698343691868497980570426526019975578885850544581914946790597872355640934341428693413899572424721269873153938666911042969304059487718891954826837874698630809943131078862483827048179876513916989352726065292297373409109550091793480245914861995645289031849847427508439025383190674698027602276320860090412338328667933755723078371787557008469872399255533817861369300159517919410447709106340745759633527098227506660977309887993315579818822200330785614717258672305343338813672124794370455365197734851856001184976030"</span>,
+<a href=#217 id=217 data-nosnippet>217</a>            <span class="string">"3524225440490227716581914005817764728689326138271987326546913156143949550779591139824077984832090908071998951770389914336769029333480915517009260387548811330930648406468414527213930607990485031826572327430297154420012068864491234371049362834108095572222288210563942740991735388228265830602511240768621994740770804049029617345757918078538264560135467586163671018157956690861770799025782115742787596459481739552535516586086172662006852110953782305125365361525831420213691071299126328246388152487905764478231871643596200406647908089848722382856021765764700103197413553278821980238755080812642569566460155874926864973989"</span>,
+<a href=#218 id=218 data-nosnippet>218</a>            <span class="string">"3386256193912258600563321427374151160437651417107230398140990906215918611413870201888792916418033967177817103485384285178003637404550898822951512439384277984377627754055120144092077652950815810643804322665300251229793337536560764764926079235179412052806380151642397223785653772910005773851385366606281262555049596002588808028004178177665489626495310464581979168814142288652114023204247090962814602454684901841935354676441552550033218538383127851117213323460171046993929640395141844677358751651632616897741890084456824284415415554894221269513288351780048483154293635621337002324127284236944745716110705339322771478131"</span>,
+<a href=#219 id=219 data-nosnippet>219</a>            <span class="string">"7408862030172429723032582356161847253198188005112855906630189356951227804097029509883935224836192563731148726408119632983128842196882987765881545177086653651757096748219643205448581241037817385331996915432821304066168098773880393211961153863820790217510052941214079784321117971743731404301810060365970610316645229069960509651124240339464525485721413226027035555493674864907371842778371294951677138477875018003840619969373647380251579931187688167577599725809029577381715849590344663076500835477018110706747067929066540698745588647653032284281207590297280558283161226254697184936417182114406611858688290199092351638794"</span>,
+<a href=#220 id=220 data-nosnippet>220</a>            <span class="string">"9528369401155898421336374761623167878924922005826918572675787143246237849874471257635361123764028975937343311664804485861820128360684057779979271237362810683850151327885936654765160960323604793157027745850425197516858623567687919335408856735970509721863383148065881142539924459849066413081803234738981126021705399792445956657733940194160711501942192074012722676182134009812129315502787932498635715069416080651060699212375799959775531304461678248368699251392095272154244316553547920213132393799101764442827812390852292543047588306534171173257087058146331742057376971999785759427057334778797976189560957105013350467045"</span>,
+<a href=#221 id=221 data-nosnippet>221</a>            <span class="string">"10294651820160651728456829898879555551196961487064613372692384294265418044982827373843041565455655933992371447144565864904575509809947198474416922744319637148661233405028052214366165153902932698351161834805653679280884257744536629934561559541496076130305993849014886971786115597309448966484871145453391677209950550556478590364500734905015127553627540473598051645020805146472132102067032709164655196448902087849028550166457630712049225557448992309930729811971031335828818305551184854572895352878770266426086789864481188000057417074198845278355152274308525042623428164257444044541498663412953148100768983136146188235997"</span>,
+<a href=#222 id=222 data-nosnippet>222</a>            <span class="string">"4749045743059502299076848945196073558631005868948441651589845799068150488425734086270947139878995514214119726260212551705844889280663704807069073071616386852792450852711805042766312070760756053408646662762397826414400752299162726413950336169847086249885638830927861421398231965683427732018263765712940081366775804116587569845878336332182016655558080273929449303602571070901792076802687535487545915059452072480809069254144639332974988342423715575563084819806637919328178725980692796438546565820486572953340526856360623620668058599315200343597721637054937740264892162125653205249722406415399818735024248737314552063747"</span>,
+<a href=#223 id=223 data-nosnippet>223</a>            <span class="string">"5272521386133313093121504847176339485318640410159988398538154570040609938127193342269575965623490130675739152927549782661334170941321238880903335951305493326431599940919086128527082527057864468821840814550477028653687293814925163394101119890565259089917449040659282833402394902253943586909550853333057424633788010291693428637999909856531013688038817805974292565379653351375127609695388247301423539646327950220115990830645404216008980887159586046198784837543462911777611082256896302074042733126733093536925128289699426032159423325697676408264099787619827716147575504711932293307925317181532838376975174334760490178044"</span>,
+<a href=#224 id=224 data-nosnippet>224</a>            <span class="string">"4865631439244694792682051927120887855014714782764996443468316201280149186411764462638919743896836216210355086464033599674608823616620181993224084354774021985050767398675323086421509833372146310317782744044433481505781466337868841734616907727794600499486966898550073615373789361818554381065300597950458611369588509114065985025852518182253888929859936361242940138578344904177539257408094849163580060796966127477986366148739231408126796157723280304456556233704922267395211269025280937735721607598808102862937894271692476411316343801775630519501390182293503303960113390510808164020764496445889549138522442194944316766219"</span>,
+<a href=#225 id=225 data-nosnippet>225</a>            <span class="string">"1716098664111733751302684239386687925838384836544658006905034083331006633019856429890234964042806996064770725585636147008586818637936193658888381443567507219576974926569248997425135873112782252084087049174247625853371226689113885574956468036468201035128573779522685641470930864834546438686526548212910642194495508777532033343509629089340426924730626446347003141889733967730229296355986139573616824252745173021579889146711264881818395175840508044230472692250294317790079274412733463156608459907600873015033659104883567469349509785038318299646299550636867596927464451110109337227918075217459535287195599185046432272198"</span>,
+<a href=#226 id=226 data-nosnippet>226</a>            <span class="string">"10721991997697793738717595864735689654814408802179139713299139161130174918125420293856907422920539738936394204606043102026032040519309913895955997218242869889330722353056722164513913325053855254230359609203831468726499782865513152890774696492202216752929686242664105376380907060826609793521588890690791106895587503800467949772773581224066322672834898563688334924748703360423621150393100717027630221055080843102194314393166621862146840652586817200363151726362689280490364249590829799246039599450021900326960690007908969307676046114319938297872389335199854504572884094360772400490069773329668111595259339308363041063871"</span>,
+<a href=#227 id=227 data-nosnippet>227</a>            <span class="string">"24993235836866849416196592570323660996972817499564456104037943507194360405061754866850348770077420997103335102890585709469767629001870643341451985396909081660774052156782419424390497656420915820543525425352103071684707145165891840374067169328373245883329511678687043434601293171271199312025423435502927076645446502230342559583292008660994947133886690268696014405994231692380704451596507223379197197420921324939035607218784585824666269355224282438899491842717180848598449014025167402088262687787425520237057062755968280168112911893559397514451243586114205429244216713755580836976353622394774491637290756440823473904"</span>,
+<a href=#228 id=228 data-nosnippet>228</a>            <span class="string">"8002840044191636897394105768503100351367843810943426955203265943939407779211249672257698205017741561535958104095665612435684465282015904737730202451805337613184916942787797112106584192538882516595181912717026458237097485563704041509438199717078206419533982984474171725446518666727110378813664918107052405840880667070832701817128246672829292017261411874510037160227026367399797925223118665562035040322045995481973053566119964317652423365276712206105413327459764222767039305354559649984488929528403367306919207004930556248185192286629700484211799294085032088235292426962942458433119325773711776898892739174573133259798"</span>,
+<a href=#229 id=229 data-nosnippet>229</a>            <span class="string">"9808298167953463044183224853747590991821290083082693475897746710109152766350649057730805604162385834890955802232144653208502844156265486182999277061377895494700822405534823371717810993077165144659899399251399946686003871122626066126316460159851320953097822716750103981636398570978788394229208496720512000415568014823831712088816947453635369935021640264506413372998966855334669695718142871353958255047552753123177745051748277174077245602488815883354127415057464229321675973890199622571893243720584859039940876060951672389949282570769956932017208645843036419518163184395801601473092002267026597399366492737904207164145"</span>,
+<a href=#230 id=230 data-nosnippet>230</a>            <span class="string">"3419924672544574100524058325383025198496207713265005632195290353279586550544804988055757778145112066368161851153318915869887514873926726636081263451040999914232751332583833616365834650019287835558155301861869825336660948178770848366160254240651864317486675126510537151881923158433631746791994990810114742904187471698817430077934405459479950737131082312281050974043218768012562886561272629075590257984018309718254526858184923594606358659772686305061082946653881595244349982087597745499473392706220050012667178661314295322165215791098424265370584312926915581831293094295870670813932186950843650836176864709988630778898"</span>,
+<a href=#231 id=231 data-nosnippet>231</a>            <span class="string">"3876660104277748734969970799207654963546831221524157837790450138448447235917188249028042741771865887141807354675325586321042930971396579383599429668029844089074571818157381649964860225310811444870630848131459324585689921588479979399255647304741995870412178808125039448834571923055165839896461006202917186695764779234307600813983399230786701019298692652551177614160338386117023117927173943068934500519930664358506164490744248358331236180729050425334573543140408803841919596166155205764351816894658586553341628917380296648889364729838239067182538618852656851850409265336348330079350182770839095482851902292535994651519"
+<a href=#232 id=232 data-nosnippet>232</a>        </span>].into_iter().map(|s| RSAGroupElement::new(BigUint::from_str(s).unwrap(), <span class="kw-2">&amp;</span>AMAZON_MODULUS_2048_REF)).collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>        <span class="macro">assert!</span>(vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok());
+<a href=#235 id=235 data-nosnippet>235</a>    }
+<a href=#236 id=236 data-nosnippet>236</a>}</code></pre></div></section></main></body></html>

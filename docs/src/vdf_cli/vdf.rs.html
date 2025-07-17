@@ -1,545 +1,272 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-42caa33d.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.84.0 (9fc6b4312 2025-01-07)" data-channel="1.84.0" data-search-js="search-92e6798f.js" data-settings-js="settings-0f613d39.js" ><script src="../../static.files/storage-59e33391.js"></script><script defer src="../../static.files/src-script-56102188.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-5f194d8c.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">vdf_cli/</div>vdf.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap"><div data-nosnippet><pre class="src-line-numbers">
-<a href="#1" id="1">1</a>
-<a href="#2" id="2">2</a>
-<a href="#3" id="3">3</a>
-<a href="#4" id="4">4</a>
-<a href="#5" id="5">5</a>
-<a href="#6" id="6">6</a>
-<a href="#7" id="7">7</a>
-<a href="#8" id="8">8</a>
-<a href="#9" id="9">9</a>
-<a href="#10" id="10">10</a>
-<a href="#11" id="11">11</a>
-<a href="#12" id="12">12</a>
-<a href="#13" id="13">13</a>
-<a href="#14" id="14">14</a>
-<a href="#15" id="15">15</a>
-<a href="#16" id="16">16</a>
-<a href="#17" id="17">17</a>
-<a href="#18" id="18">18</a>
-<a href="#19" id="19">19</a>
-<a href="#20" id="20">20</a>
-<a href="#21" id="21">21</a>
-<a href="#22" id="22">22</a>
-<a href="#23" id="23">23</a>
-<a href="#24" id="24">24</a>
-<a href="#25" id="25">25</a>
-<a href="#26" id="26">26</a>
-<a href="#27" id="27">27</a>
-<a href="#28" id="28">28</a>
-<a href="#29" id="29">29</a>
-<a href="#30" id="30">30</a>
-<a href="#31" id="31">31</a>
-<a href="#32" id="32">32</a>
-<a href="#33" id="33">33</a>
-<a href="#34" id="34">34</a>
-<a href="#35" id="35">35</a>
-<a href="#36" id="36">36</a>
-<a href="#37" id="37">37</a>
-<a href="#38" id="38">38</a>
-<a href="#39" id="39">39</a>
-<a href="#40" id="40">40</a>
-<a href="#41" id="41">41</a>
-<a href="#42" id="42">42</a>
-<a href="#43" id="43">43</a>
-<a href="#44" id="44">44</a>
-<a href="#45" id="45">45</a>
-<a href="#46" id="46">46</a>
-<a href="#47" id="47">47</a>
-<a href="#48" id="48">48</a>
-<a href="#49" id="49">49</a>
-<a href="#50" id="50">50</a>
-<a href="#51" id="51">51</a>
-<a href="#52" id="52">52</a>
-<a href="#53" id="53">53</a>
-<a href="#54" id="54">54</a>
-<a href="#55" id="55">55</a>
-<a href="#56" id="56">56</a>
-<a href="#57" id="57">57</a>
-<a href="#58" id="58">58</a>
-<a href="#59" id="59">59</a>
-<a href="#60" id="60">60</a>
-<a href="#61" id="61">61</a>
-<a href="#62" id="62">62</a>
-<a href="#63" id="63">63</a>
-<a href="#64" id="64">64</a>
-<a href="#65" id="65">65</a>
-<a href="#66" id="66">66</a>
-<a href="#67" id="67">67</a>
-<a href="#68" id="68">68</a>
-<a href="#69" id="69">69</a>
-<a href="#70" id="70">70</a>
-<a href="#71" id="71">71</a>
-<a href="#72" id="72">72</a>
-<a href="#73" id="73">73</a>
-<a href="#74" id="74">74</a>
-<a href="#75" id="75">75</a>
-<a href="#76" id="76">76</a>
-<a href="#77" id="77">77</a>
-<a href="#78" id="78">78</a>
-<a href="#79" id="79">79</a>
-<a href="#80" id="80">80</a>
-<a href="#81" id="81">81</a>
-<a href="#82" id="82">82</a>
-<a href="#83" id="83">83</a>
-<a href="#84" id="84">84</a>
-<a href="#85" id="85">85</a>
-<a href="#86" id="86">86</a>
-<a href="#87" id="87">87</a>
-<a href="#88" id="88">88</a>
-<a href="#89" id="89">89</a>
-<a href="#90" id="90">90</a>
-<a href="#91" id="91">91</a>
-<a href="#92" id="92">92</a>
-<a href="#93" id="93">93</a>
-<a href="#94" id="94">94</a>
-<a href="#95" id="95">95</a>
-<a href="#96" id="96">96</a>
-<a href="#97" id="97">97</a>
-<a href="#98" id="98">98</a>
-<a href="#99" id="99">99</a>
-<a href="#100" id="100">100</a>
-<a href="#101" id="101">101</a>
-<a href="#102" id="102">102</a>
-<a href="#103" id="103">103</a>
-<a href="#104" id="104">104</a>
-<a href="#105" id="105">105</a>
-<a href="#106" id="106">106</a>
-<a href="#107" id="107">107</a>
-<a href="#108" id="108">108</a>
-<a href="#109" id="109">109</a>
-<a href="#110" id="110">110</a>
-<a href="#111" id="111">111</a>
-<a href="#112" id="112">112</a>
-<a href="#113" id="113">113</a>
-<a href="#114" id="114">114</a>
-<a href="#115" id="115">115</a>
-<a href="#116" id="116">116</a>
-<a href="#117" id="117">117</a>
-<a href="#118" id="118">118</a>
-<a href="#119" id="119">119</a>
-<a href="#120" id="120">120</a>
-<a href="#121" id="121">121</a>
-<a href="#122" id="122">122</a>
-<a href="#123" id="123">123</a>
-<a href="#124" id="124">124</a>
-<a href="#125" id="125">125</a>
-<a href="#126" id="126">126</a>
-<a href="#127" id="127">127</a>
-<a href="#128" id="128">128</a>
-<a href="#129" id="129">129</a>
-<a href="#130" id="130">130</a>
-<a href="#131" id="131">131</a>
-<a href="#132" id="132">132</a>
-<a href="#133" id="133">133</a>
-<a href="#134" id="134">134</a>
-<a href="#135" id="135">135</a>
-<a href="#136" id="136">136</a>
-<a href="#137" id="137">137</a>
-<a href="#138" id="138">138</a>
-<a href="#139" id="139">139</a>
-<a href="#140" id="140">140</a>
-<a href="#141" id="141">141</a>
-<a href="#142" id="142">142</a>
-<a href="#143" id="143">143</a>
-<a href="#144" id="144">144</a>
-<a href="#145" id="145">145</a>
-<a href="#146" id="146">146</a>
-<a href="#147" id="147">147</a>
-<a href="#148" id="148">148</a>
-<a href="#149" id="149">149</a>
-<a href="#150" id="150">150</a>
-<a href="#151" id="151">151</a>
-<a href="#152" id="152">152</a>
-<a href="#153" id="153">153</a>
-<a href="#154" id="154">154</a>
-<a href="#155" id="155">155</a>
-<a href="#156" id="156">156</a>
-<a href="#157" id="157">157</a>
-<a href="#158" id="158">158</a>
-<a href="#159" id="159">159</a>
-<a href="#160" id="160">160</a>
-<a href="#161" id="161">161</a>
-<a href="#162" id="162">162</a>
-<a href="#163" id="163">163</a>
-<a href="#164" id="164">164</a>
-<a href="#165" id="165">165</a>
-<a href="#166" id="166">166</a>
-<a href="#167" id="167">167</a>
-<a href="#168" id="168">168</a>
-<a href="#169" id="169">169</a>
-<a href="#170" id="170">170</a>
-<a href="#171" id="171">171</a>
-<a href="#172" id="172">172</a>
-<a href="#173" id="173">173</a>
-<a href="#174" id="174">174</a>
-<a href="#175" id="175">175</a>
-<a href="#176" id="176">176</a>
-<a href="#177" id="177">177</a>
-<a href="#178" id="178">178</a>
-<a href="#179" id="179">179</a>
-<a href="#180" id="180">180</a>
-<a href="#181" id="181">181</a>
-<a href="#182" id="182">182</a>
-<a href="#183" id="183">183</a>
-<a href="#184" id="184">184</a>
-<a href="#185" id="185">185</a>
-<a href="#186" id="186">186</a>
-<a href="#187" id="187">187</a>
-<a href="#188" id="188">188</a>
-<a href="#189" id="189">189</a>
-<a href="#190" id="190">190</a>
-<a href="#191" id="191">191</a>
-<a href="#192" id="192">192</a>
-<a href="#193" id="193">193</a>
-<a href="#194" id="194">194</a>
-<a href="#195" id="195">195</a>
-<a href="#196" id="196">196</a>
-<a href="#197" id="197">197</a>
-<a href="#198" id="198">198</a>
-<a href="#199" id="199">199</a>
-<a href="#200" id="200">200</a>
-<a href="#201" id="201">201</a>
-<a href="#202" id="202">202</a>
-<a href="#203" id="203">203</a>
-<a href="#204" id="204">204</a>
-<a href="#205" id="205">205</a>
-<a href="#206" id="206">206</a>
-<a href="#207" id="207">207</a>
-<a href="#208" id="208">208</a>
-<a href="#209" id="209">209</a>
-<a href="#210" id="210">210</a>
-<a href="#211" id="211">211</a>
-<a href="#212" id="212">212</a>
-<a href="#213" id="213">213</a>
-<a href="#214" id="214">214</a>
-<a href="#215" id="215">215</a>
-<a href="#216" id="216">216</a>
-<a href="#217" id="217">217</a>
-<a href="#218" id="218">218</a>
-<a href="#219" id="219">219</a>
-<a href="#220" id="220">220</a>
-<a href="#221" id="221">221</a>
-<a href="#222" id="222">222</a>
-<a href="#223" id="223">223</a>
-<a href="#224" id="224">224</a>
-<a href="#225" id="225">225</a>
-<a href="#226" id="226">226</a>
-<a href="#227" id="227">227</a>
-<a href="#228" id="228">228</a>
-<a href="#229" id="229">229</a>
-<a href="#230" id="230">230</a>
-<a href="#231" id="231">231</a>
-<a href="#232" id="232">232</a>
-<a href="#233" id="233">233</a>
-<a href="#234" id="234">234</a>
-<a href="#235" id="235">235</a>
-<a href="#236" id="236">236</a>
-<a href="#237" id="237">237</a>
-<a href="#238" id="238">238</a>
-<a href="#239" id="239">239</a>
-<a href="#240" id="240">240</a>
-<a href="#241" id="241">241</a>
-<a href="#242" id="242">242</a>
-<a href="#243" id="243">243</a>
-<a href="#244" id="244">244</a>
-<a href="#245" id="245">245</a>
-<a href="#246" id="246">246</a>
-<a href="#247" id="247">247</a>
-<a href="#248" id="248">248</a>
-<a href="#249" id="249">249</a>
-<a href="#250" id="250">250</a>
-<a href="#251" id="251">251</a>
-<a href="#252" id="252">252</a>
-<a href="#253" id="253">253</a>
-<a href="#254" id="254">254</a>
-<a href="#255" id="255">255</a>
-<a href="#256" id="256">256</a>
-<a href="#257" id="257">257</a>
-<a href="#258" id="258">258</a>
-<a href="#259" id="259">259</a>
-<a href="#260" id="260">260</a>
-<a href="#261" id="261">261</a>
-<a href="#262" id="262">262</a>
-<a href="#263" id="263">263</a>
-<a href="#264" id="264">264</a>
-<a href="#265" id="265">265</a>
-<a href="#266" id="266">266</a>
-<a href="#267" id="267">267</a>
-<a href="#268" id="268">268</a>
-<a href="#269" id="269">269</a>
-<a href="#270" id="270">270</a>
-<a href="#271" id="271">271</a>
-<a href="#272" id="272">272</a></pre></div><pre class="rust"><code><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-</span><span class="kw">use </span>clap::Parser;
-<span class="kw">use </span>fastcrypto_vdf::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
-<span class="kw">use </span>fastcrypto_vdf::class_group::QuadraticForm;
-<span class="kw">use </span>fastcrypto_vdf::math::parameterized_group::ParameterizedGroupElement;
-<span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
-<span class="kw">use </span>fastcrypto_vdf::vdf::VDF;
-<span class="kw">use </span>std::io::{Error, ErrorKind};
-
-<span class="doccomment">/// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
-/// (https://inria.hal.science/hal-02882161/file/unknown-order.pdf)
-///
-/// A discriminant size of 3072 bits ensures that the computational hardness of computing the group order of a group
-/// with a randomly chosen discriminant is at least 128 bits with probability at least 1 - 2^{-40}.
-</span><span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">3072</span>;
-
-<span class="attr">#[derive(Parser)]
-#[command(name = <span class="string">"vdf-cli"</span>)]
-#[command(about = <span class="string">"Verifiable delay function using Wesolowski's construction over imaginary class groups"</span>, long_about = <span class="prelude-val">None</span>)]
-</span><span class="kw">enum </span>Command {
-    <span class="doccomment">/// Sample a random discriminant from a seed.
-    </span>Discriminant(DiscriminantArguments),
-
-    <span class="doccomment">/// Compute VDF output and proof.
-    </span>Evaluate(EvaluateArguments),
-
-    <span class="doccomment">/// Verify an output .
-    </span>Verify(VerifyArguments),
-
-    <span class="doccomment">/// Hash a binary message to a quadratic form.
-    </span>Hash(HashArguments),
-}
-
-<span class="attr">#[derive(Parser, Clone)]
-</span><span class="kw">struct </span>DiscriminantArguments {
-    <span class="doccomment">/// The hex encoded discriminant.
-    </span><span class="attr">#[clap(short, long)]
-    </span>seed: String,
-
-    <span class="doccomment">/// Bit length of the discriminant (default is 3072).
-    </span><span class="attr">#[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
-    </span>bit_length: u64,
-}
-
-<span class="attr">#[derive(Parser, Clone)]
-</span><span class="kw">struct </span>EvaluateArguments {
-    <span class="doccomment">/// The hex encoded input to the VDF.
-    </span><span class="attr">#[clap(long)]
-    </span>input: String,
-
-    <span class="doccomment">/// The number of iterations.
-    </span><span class="attr">#[clap(long)]
-    </span>iterations: u64,
-}
-
-<span class="attr">#[derive(Parser, Clone)]
-</span><span class="kw">struct </span>VerifyArguments {
-    <span class="doccomment">/// Iterations
-    </span><span class="attr">#[clap(long)]
-    </span>iterations: u64,
-
-    <span class="doccomment">/// The input to the VDF.
-    </span><span class="attr">#[clap(long)]
-    </span>input: String,
-
-    <span class="doccomment">/// The output of the VDF.
-    </span><span class="attr">#[clap(short, long)]
-    </span>output: String,
-
-    <span class="doccomment">/// The proof of the correctness of the VDF output.
-    </span><span class="attr">#[clap(short, long)]
-    </span>proof: String,
-}
-
-<span class="attr">#[derive(Parser, Clone)]
-</span><span class="kw">struct </span>HashArguments {
-    <span class="doccomment">/// The hex encoded input to the hash function.
-    </span><span class="attr">#[clap(short, long)]
-    </span>message: String,
-}
-
-<span class="kw">fn </span>main() {
-    <span class="kw">match </span>execute(Command::parse()) {
-        <span class="prelude-val">Ok</span>(res) =&gt; {
-            <span class="macro">println!</span>(<span class="string">"{}"</span>, res);
-            std::process::exit(exitcode::OK);
-        }
-        <span class="prelude-val">Err</span>(e) =&gt; {
-            <span class="macro">println!</span>(<span class="string">"Error: {}"</span>, e);
-            std::process::exit(exitcode::DATAERR);
-        }
-    }
-}
-
-<span class="kw">fn </span>execute(cmd: Command) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
-    <span class="kw">match </span>cmd {
-        Command::Discriminant(arguments) =&gt; {
-            <span class="kw">let </span>seed = hex::decode(arguments.seed)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid seed."</span>))<span class="question-mark">?</span>;
-            <span class="kw">let </span>discriminant =
-                Discriminant::from_seed(<span class="kw-2">&amp;</span>seed, arguments.bit_length <span class="kw">as </span>usize).unwrap();
-            <span class="kw">let </span>discriminant_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>discriminant).unwrap());
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Discriminant: "</span>.to_string();
-            result.push_str(<span class="kw-2">&amp;</span>discriminant_string);
-            <span class="prelude-val">Ok</span>(result)
-        }
-
-        Command::Evaluate(arguments) =&gt; {
-            <span class="kw">let </span>input_bytes = hex::decode(arguments.input)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input point."</span>))<span class="question-mark">?</span>;
-            <span class="kw">let </span>g = bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>input_bytes).map_err(|<span class="kw">_</span>| {
-                Error::new(
-                    ErrorKind::InvalidInput,
-                    <span class="string">"Invalid input point or discriminant."</span>,
-                )
-            })<span class="question-mark">?</span>;
-            <span class="kw">if </span>!g.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
-                    ErrorKind::InvalidInput,
-                    <span class="string">"Input point does not match discriminant."</span>,
-                ));
-            }
-
-            <span class="kw">let </span>vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), arguments.iterations);
-            <span class="kw">let </span>(output, proof) = vdf
-                .evaluate(<span class="kw-2">&amp;</span>g)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::Other, <span class="string">"VDF evaluation failed"</span>))<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>output_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap());
-            <span class="kw">let </span>proof_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>proof).unwrap());
-
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
-            result.push_str(<span class="kw-2">&amp;</span>output_string);
-            result.push_str(<span class="string">"\nProof:  "</span>);
-            result.push_str(<span class="kw-2">&amp;</span>proof_string);
-            <span class="prelude-val">Ok</span>(result)
-        }
-
-        Command::Verify(arguments) =&gt; {
-            <span class="kw">let </span>input =
-                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.input).map_err(|<span class="kw">_</span>| {
-                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
-                })<span class="question-mark">?</span>)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
-                    ErrorKind::InvalidInput,
-                    <span class="string">"Input has wrong discriminant."</span>,
-                ));
-            }
-
-            <span class="kw">let </span>output =
-                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.output).map_err(|<span class="kw">_</span>| {
-                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
-                })<span class="question-mark">?</span>)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!output.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
-                    ErrorKind::InvalidInput,
-                    <span class="string">"Output has wrong discriminant."</span>,
-                ));
-            }
-
-            <span class="kw">let </span>proof =
-                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.proof).map_err(|<span class="kw">_</span>| {
-                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof hex string."</span>)
-                })<span class="question-mark">?</span>)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
-            <span class="kw">if </span>!proof.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
-                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
-                    ErrorKind::InvalidInput,
-                    <span class="string">"Proof has wrong discriminant."</span>,
-                ));
-            }
-
-            <span class="kw">let </span>vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), arguments.iterations);
-            <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
-
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Verified: "</span>.to_string();
-            result.push_str(<span class="kw-2">&amp;</span>verifies.to_string());
-            <span class="prelude-val">Ok</span>(result)
-        }
-        Command::Hash(arguments) =&gt; {
-            <span class="kw">let </span>input = hex::decode(arguments.message)
-                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid message."</span>))<span class="question-mark">?</span>;
-            <span class="kw">let </span>output =
-                QuadraticForm::hash_to_group_with_default_parameters(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>DISCRIMINANT_3072)
-                    .map_err(|<span class="kw">_</span>| {
-                        Error::new(ErrorKind::InvalidInput, <span class="string">"The discriminant is invalid."</span>)
-                    })<span class="question-mark">?</span>;
-
-            <span class="kw">let </span>output_bytes = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap());
-
-            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
-            result.push_str(<span class="kw-2">&amp;</span>output_bytes);
-            <span class="prelude-val">Ok</span>(result)
-        }
-    }
-}
-
-<span class="attr">#[cfg(test)]
-</span><span class="kw">mod </span>tests {
-    <span class="kw">use crate</span>::{
-        execute, Command, DiscriminantArguments, EvaluateArguments, HashArguments, VerifyArguments,
-    };
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_discriminant() {
-        <span class="kw">let </span>seed = <span class="string">"abcd"</span>.to_string();
-        <span class="kw">let </span>result = execute(Command::Discriminant(DiscriminantArguments {
-            seed,
-            bit_length: <span class="number">1024</span>,
-        }))
-        .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Discriminant: 8101ff00934fb3e9ece6df62bc7490fe9563c8fc496010c448feaaf14aa9584d20137989988d7d0d22f93a9773aebc63a61a1e061017cfa20e6a8294840cbccb6c99797f174744fad9d3420b2fdf250572a5cbcce66474ac092b784c0c85b54a6b6c0faf2e1d4aca481641e63fdfefaa3f285f824c5559801f1129c49c279aa79975d9"</span>.to_string();
-        <span class="macro">assert_eq!</span>(expected, result);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_evaluate() {
-        <span class="kw">let </span>input = <span class="string">"bc01009ed67199c633da0faa75a8ed0ff5c3ae7c278c79aad85953cdf86d57101b1ee941e5239b7d614e5b16eac269c460f16d57a12c75b52c48fac643a1c4918fab86805fe08fcd6b38093a17143cca7550fd018b8bc6871fb441b406bec7a7f3a61c3b2a5aa9daca5f9a6fa474b270688de643323de1acc8073a3418bc1681a614c1abb5fa56b61a7d6df4260547c9f613c5f0dbd7cb91a478ac94b1cce6b1f4784dc161ec3c85bf02cf99fd460b0b25a44d1990dacd1fe7a43b797611ea0210645fef3905f7e1accf97bd3b868a8a99d4a1a546e5a55e20f343fc2724829f1770591b50a73c93ec9b8c01ce1fa6b84eddd5a7ddd077110e21b8e058bf2fed2592a5449db177ec0e32595b20bda5779c2f346b01df8c0d277d9d3a7fe0a04e67b210be60334efdadb7abc5ac001b71509c2d487d9d26443527c1b8b02dfcffc50ef98020f569cdf6fffca5870b0e502493fceee35b79eed99e2c758a0aff4c86b2af0dd223e270ecf84eb7405fe35a9e37d6b080efa3c59806c2ceffa82f38502f9d37b6c298cf07534347cd9ee436406784bd7e0a57d380dd3923ddca13d86f3b2c83a135f125f9429a6802247a0e926b54144d74e4e8f66f0303cdc91843ce7e1fb9c6276c000512c0709c7fbfde2b80e66db77222447ef6b4da4a698e011c6de95ad88738aea465c158288a54223c7f7152577cc48691af57e2631e3224b7c94e2a4c5034db35bbf9e807753fa51da8798bf63b7e6ebd857ca4cf01fcab7a33e63fa89eb386e2ef98046c44491bdf8d62ede2af4ab79ccac88e404abb649b92f49c9f9abcf2216bb628e96400a75a66c12b6ff1c6dae498dd4183ad989921ebc6a1be73127741333671eb72cd25eabc69fecc3c50da06b4a3af155264d4e39e8c681b8c5555d4cab748ed15d119527820e01854fa203c2deba3a67620d47733919e8c71d659e60e86db69905ebdc4dbeda67f77291c2202b2116a05f227f963a97eb8c87104b2df349f01f251aa22bbd41541998ce755309b98d9597d7ee26b6acaef1869885c775e6ceb710c36c07e401e17a8ccb838e33f64e43e4db3491b5cef6e800c4e494610ab81a8b489263b86976160d7d0106cab79bf2a2fce5b01e8f9d1fb069a98e814c94f10d9917b7ea27209bc822b35741f56a9aeadb75a7eae6a8cbd7df08e079db64fd48655f42c24c14bb6c72e744206a3e15deee45cab74d589deb1055e0e69fe508a2ef356dc4e2caaaf89f44a520722490374eade8573429d0d6d16e3c681853f96759cc6e3ea3aaad55284282abd40686281ff944c6a507086143cf76d0f7f93b486d552fa4698656cff8a325fea84943333645b29ee11c99555b2076a09466f6e602db663e1bd45c523a12a7fcd2328d5139d14b25561b94f62f69d436c5d4c92b01ae3a91baa1b5781bd0bf2156e1d0042ab2cbc6e10f4389868fc41d05b19bfe3dfcaacb0478b3dce887da8435c9d49f457fd54e129133e5ce87c39acb9206213daec867fca35e6b612c523fb9fba959542a777ea74"</span>.to_string();
-        <span class="kw">let </span>iterations = <span class="number">100u64</span>;
-        <span class="kw">let </span>result = execute(Command::Evaluate(EvaluateArguments {
-            input: input.clone(),
-            iterations,
-        }))
-        .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Output: c001503be6eff558a40ba145da5aa9d1270367f32cde44c1601846cdd3d0911abce8ab6adb6b82682b45107545e9ae1efca44dd6f3ba8d95a687652b94f479f6b1a37156c44194d6bc5f266098b75251b12de6fa67de6aea14250c0481694db5f24db5e3c89da3354aafc10c4bd0371f9a175d1b5b193190c4c1089ed7a95dc07f1ce29021b55f3aaa7eb65725d61277f0996b783c005a919ba121d81f211f63d188ac525056235504fe4858765dc6498362d98e8540287a0ff78424c18de53abe46c0014f847bd49f599960fe3c3b7cfc571cd854c7d21b0e9984070f7e168c872a6e6480d8fd37d30602f57a237b83ae961e6a4acb94b78c32d04f06058bda037d6ad313c81f823db25c53c265b02a29008f727f95010c82b0cf8745e77a7f4000dac929ba83a4594482b4e6ff59c93a78df5c816f244914329c145e288fd3fd4800a1cc2df23f386112e569608e6de40ee65fe870960b4e3fee4bb188d8db0dd5df3c2384eb24a797eb20cf8524d563663ccde866a405e2713cfafdb760e50c77a797c10100a31fc5ca0a91aa788d5f5df17a1433f1a0e6e4da440ce935b1b48dc6868c8fc00d7ee725ce21797a6c4440af02570466081479e99eee1a5b509a3e1ac2e000ed386c35d9fadd130df2a292fa5f9aa2c195c48c9d11e58ac98c8dbd2169721ed2d2c9f5544de17deeaa9655360ed7baa46820f5e008af1e3f028d819dee3fee50ab55b266385dfc8f65f7f0c1b6149e5295bfefb83b14db3a30b2cefd1495ba4e5ae39d2b729f9644fc28764d03243fad3e61145ed83cbf2708b60c0b7cac7148\nProof:  0101010180032cf35709e1301d02b40a0dbe3dadfe6ec1eeba8fb8060a1decd0c7a126ea3f27fadcad81435601b0e0abca5c89173ef639e5a88043aa29801e6799e430b509e479b57af981f9ddd48d3a8d5919f99258081557a08270bb441233c78030a01e03ec199b5e3eef5ccc9b1a3d4841cbe4ff529c22a8cd1b1b0075338d864e3890942df6b007d2c3e3a8ef1ce7490c6bbec5372adfcbf8704a1ffc9a69db8d9cdc54762f019036e450e457325eef74b794f3f16ff327d68079a5b9de49163d7323937374f8a785a8f9afe84d6a71b336e4de00f239ee3af1d7604a3985e610e1603bd0e1a4998e19fa0c8920ffd8d61b0a87eeee50ac7c03ff7c4708a34f3bc92fd0103758c954ee34032cee2c78ad8cdc79a35dbc810196b7bf6833e1c45c83b09c0d1b78bc6f8753e10770e7045b08d50b4aa16a75b27a096d5ec1331f1fd0a44e95a8737c20240c90307b5497d3470393c2a00da0649e86d13e820591296c644fc1eef9e7c6ca4967c5e19df3153cd7fbd598c271e11c10397349ddc8cc8452ec"</span>;
-        <span class="macro">assert_eq!</span>(expected, result);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_verify() {
-        <span class="kw">let </span>iterations = <span class="number">100u64</span>;
-        <span class="kw">let </span>input = <span class="string">"bc01009ed67199c633da0faa75a8ed0ff5c3ae7c278c79aad85953cdf86d57101b1ee941e5239b7d614e5b16eac269c460f16d57a12c75b52c48fac643a1c4918fab86805fe08fcd6b38093a17143cca7550fd018b8bc6871fb441b406bec7a7f3a61c3b2a5aa9daca5f9a6fa474b270688de643323de1acc8073a3418bc1681a614c1abb5fa56b61a7d6df4260547c9f613c5f0dbd7cb91a478ac94b1cce6b1f4784dc161ec3c85bf02cf99fd460b0b25a44d1990dacd1fe7a43b797611ea0210645fef3905f7e1accf97bd3b868a8a99d4a1a546e5a55e20f343fc2724829f1770591b50a73c93ec9b8c01ce1fa6b84eddd5a7ddd077110e21b8e058bf2fed2592a5449db177ec0e32595b20bda5779c2f346b01df8c0d277d9d3a7fe0a04e67b210be60334efdadb7abc5ac001b71509c2d487d9d26443527c1b8b02dfcffc50ef98020f569cdf6fffca5870b0e502493fceee35b79eed99e2c758a0aff4c86b2af0dd223e270ecf84eb7405fe35a9e37d6b080efa3c59806c2ceffa82f38502f9d37b6c298cf07534347cd9ee436406784bd7e0a57d380dd3923ddca13d86f3b2c83a135f125f9429a6802247a0e926b54144d74e4e8f66f0303cdc91843ce7e1fb9c6276c000512c0709c7fbfde2b80e66db77222447ef6b4da4a698e011c6de95ad88738aea465c158288a54223c7f7152577cc48691af57e2631e3224b7c94e2a4c5034db35bbf9e807753fa51da8798bf63b7e6ebd857ca4cf01fcab7a33e63fa89eb386e2ef98046c44491bdf8d62ede2af4ab79ccac88e404abb649b92f49c9f9abcf2216bb628e96400a75a66c12b6ff1c6dae498dd4183ad989921ebc6a1be73127741333671eb72cd25eabc69fecc3c50da06b4a3af155264d4e39e8c681b8c5555d4cab748ed15d119527820e01854fa203c2deba3a67620d47733919e8c71d659e60e86db69905ebdc4dbeda67f77291c2202b2116a05f227f963a97eb8c87104b2df349f01f251aa22bbd41541998ce755309b98d9597d7ee26b6acaef1869885c775e6ceb710c36c07e401e17a8ccb838e33f64e43e4db3491b5cef6e800c4e494610ab81a8b489263b86976160d7d0106cab79bf2a2fce5b01e8f9d1fb069a98e814c94f10d9917b7ea27209bc822b35741f56a9aeadb75a7eae6a8cbd7df08e079db64fd48655f42c24c14bb6c72e744206a3e15deee45cab74d589deb1055e0e69fe508a2ef356dc4e2caaaf89f44a520722490374eade8573429d0d6d16e3c681853f96759cc6e3ea3aaad55284282abd40686281ff944c6a507086143cf76d0f7f93b486d552fa4698656cff8a325fea84943333645b29ee11c99555b2076a09466f6e602db663e1bd45c523a12a7fcd2328d5139d14b25561b94f62f69d436c5d4c92b01ae3a91baa1b5781bd0bf2156e1d0042ab2cbc6e10f4389868fc41d05b19bfe3dfcaacb0478b3dce887da8435c9d49f457fd54e129133e5ce87c39acb9206213daec867fca35e6b612c523fb9fba959542a777ea74"</span>.to_string();
-        <span class="kw">let </span>output = <span class="string">"c001503be6eff558a40ba145da5aa9d1270367f32cde44c1601846cdd3d0911abce8ab6adb6b82682b45107545e9ae1efca44dd6f3ba8d95a687652b94f479f6b1a37156c44194d6bc5f266098b75251b12de6fa67de6aea14250c0481694db5f24db5e3c89da3354aafc10c4bd0371f9a175d1b5b193190c4c1089ed7a95dc07f1ce29021b55f3aaa7eb65725d61277f0996b783c005a919ba121d81f211f63d188ac525056235504fe4858765dc6498362d98e8540287a0ff78424c18de53abe46c0014f847bd49f599960fe3c3b7cfc571cd854c7d21b0e9984070f7e168c872a6e6480d8fd37d30602f57a237b83ae961e6a4acb94b78c32d04f06058bda037d6ad313c81f823db25c53c265b02a29008f727f95010c82b0cf8745e77a7f4000dac929ba83a4594482b4e6ff59c93a78df5c816f244914329c145e288fd3fd4800a1cc2df23f386112e569608e6de40ee65fe870960b4e3fee4bb188d8db0dd5df3c2384eb24a797eb20cf8524d563663ccde866a405e2713cfafdb760e50c77a797c10100a31fc5ca0a91aa788d5f5df17a1433f1a0e6e4da440ce935b1b48dc6868c8fc00d7ee725ce21797a6c4440af02570466081479e99eee1a5b509a3e1ac2e000ed386c35d9fadd130df2a292fa5f9aa2c195c48c9d11e58ac98c8dbd2169721ed2d2c9f5544de17deeaa9655360ed7baa46820f5e008af1e3f028d819dee3fee50ab55b266385dfc8f65f7f0c1b6149e5295bfefb83b14db3a30b2cefd1495ba4e5ae39d2b729f9644fc28764d03243fad3e61145ed83cbf2708b60c0b7cac7148"</span>.to_string();
-        <span class="kw">let </span>proof = <span class="string">"0101010180032cf35709e1301d02b40a0dbe3dadfe6ec1eeba8fb8060a1decd0c7a126ea3f27fadcad81435601b0e0abca5c89173ef639e5a88043aa29801e6799e430b509e479b57af981f9ddd48d3a8d5919f99258081557a08270bb441233c78030a01e03ec199b5e3eef5ccc9b1a3d4841cbe4ff529c22a8cd1b1b0075338d864e3890942df6b007d2c3e3a8ef1ce7490c6bbec5372adfcbf8704a1ffc9a69db8d9cdc54762f019036e450e457325eef74b794f3f16ff327d68079a5b9de49163d7323937374f8a785a8f9afe84d6a71b336e4de00f239ee3af1d7604a3985e610e1603bd0e1a4998e19fa0c8920ffd8d61b0a87eeee50ac7c03ff7c4708a34f3bc92fd0103758c954ee34032cee2c78ad8cdc79a35dbc810196b7bf6833e1c45c83b09c0d1b78bc6f8753e10770e7045b08d50b4aa16a75b27a096d5ec1331f1fd0a44e95a8737c20240c90307b5497d3470393c2a00da0649e86d13e820591296c644fc1eef9e7c6ca4967c5e19df3153cd7fbd598c271e11c10397349ddc8cc8452ec"</span>.to_string();
-        <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
-            iterations,
-            input: input.clone(),
-            output: output.clone(),
-            proof: proof.clone(),
-        }))
-        .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Verified: true"</span>;
-        <span class="macro">assert_eq!</span>(expected, result);
-
-        <span class="kw">let </span>other_iterations = <span class="number">2000u64</span>;
-        <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
-            iterations: other_iterations,
-            input,
-            output,
-            proof,
-        }))
-        .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Verified: false"</span>;
-        <span class="macro">assert_eq!</span>(expected, result);
-    }
-
-    <span class="attr">#[test]
-    </span><span class="kw">fn </span>test_hash() {
-        <span class="kw">let </span>seed = <span class="string">"abcd"</span>.to_string();
-        <span class="kw">let </span>result = execute(Command::Hash(HashArguments {
-            message: seed.clone(),
-        }))
-        .unwrap();
-        <span class="kw">let </span>expected = <span class="string">"Output: 227afa0a257a3fa140fad0ba29ade524a7cc097c706a7c59c363fede402870cbf192ef33fc06eddf144b2023a50256b388f8fd5a6ef59dd7275e2f7ae1288bef605158fa97e2af2684604395314a5176a655a940bb3ac3de025d92c53e95f69368f53575775e965be811f89c08d0c9dc702daea57afb3d6e5e48b8255fc93901580f01837abf0a6e94e3a29d6a9bcca669c611d3f94256b72c7a67415391607d89e15a3f82880bae011276e96f097895311e45caaa81dc7b35e3fe97d83cd392e7b94e1ddfa0f684be3e9106e0bda15c0153d2f8a6ba1528b796ca6bd24a5164eed50e63f7cd5837ef7c9a6d52451d66fca2221f04efe44b446896843b1bbf4ebc322d80781259afcc1a5780eedd3cde2cd98e44d3bfadb19a0253b6f0e7f957469e41ce8bc48f9516412b61097c858cc9fac2489f5a6467e1516d8ab93cf7849c34428589110b9d1e3d4d4e114480fe14db77eb545cd13b3a4f6fe43dc9002ec52d1400fbdba8a34ffab8b5200a002f0b13691f635304a2d266bee80263dbe996e03fe8840902922d814d5535f97a2602c24a276b95e48dc802d9e09288f411360ae69357d0c0018474992daa45dc6cde5a2fe02ae9d2"</span>;
-        <span class="macro">assert_eq!</span>(expected, result);
-    }
-}
-</code></pre></div></section></main></body></html>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `fastcrypto-cli/src/vdf.rs`."><title>vdf.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="vdf_cli" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">vdf_cli/</div>vdf.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="comment">// Copyright (c) 2022, Mysten Labs, Inc.
+<a href=#2 id=2 data-nosnippet>2</a>// SPDX-License-Identifier: Apache-2.0
+<a href=#3 id=3 data-nosnippet>3</a>
+<a href=#4 id=4 data-nosnippet>4</a></span><span class="kw">use </span>clap::Parser;
+<a href=#5 id=5 data-nosnippet>5</a><span class="kw">use </span>fastcrypto_vdf::class_group::discriminant::{Discriminant, DISCRIMINANT_3072};
+<a href=#6 id=6 data-nosnippet>6</a><span class="kw">use </span>fastcrypto_vdf::class_group::QuadraticForm;
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>fastcrypto_vdf::math::parameterized_group::ParameterizedGroupElement;
+<a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>fastcrypto_vdf::vdf::wesolowski::DefaultVDF;
+<a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>fastcrypto_vdf::vdf::VDF;
+<a href=#10 id=10 data-nosnippet>10</a><span class="kw">use </span>std::io::{Error, ErrorKind};
+<a href=#11 id=11 data-nosnippet>11</a>
+<a href=#12 id=12 data-nosnippet>12</a><span class="doccomment">/// This discriminant size is based on a lower bound from "Trustless unkown-order groups" by Dobson et al.
+<a href=#13 id=13 data-nosnippet>13</a>/// (https://inria.hal.science/hal-02882161/file/unknown-order.pdf)
+<a href=#14 id=14 data-nosnippet>14</a>///
+<a href=#15 id=15 data-nosnippet>15</a>/// A discriminant size of 3072 bits ensures that the computational hardness of computing the group order of a group
+<a href=#16 id=16 data-nosnippet>16</a>/// with a randomly chosen discriminant is at least 128 bits with probability at least 1 - 2^{-40}.
+<a href=#17 id=17 data-nosnippet>17</a></span><span class="kw">const </span>DEFAULT_DISCRIMINANT_BIT_LENGTH: u64 = <span class="number">3072</span>;
+<a href=#18 id=18 data-nosnippet>18</a>
+<a href=#19 id=19 data-nosnippet>19</a><span class="attr">#[derive(Parser)]
+<a href=#20 id=20 data-nosnippet>20</a>#[command(name = <span class="string">"vdf-cli"</span>)]
+<a href=#21 id=21 data-nosnippet>21</a>#[command(about = <span class="string">"Verifiable delay function using Wesolowski's construction over imaginary class groups"</span>, long_about = <span class="prelude-val">None</span>)]
+<a href=#22 id=22 data-nosnippet>22</a></span><span class="kw">enum </span>Command {
+<a href=#23 id=23 data-nosnippet>23</a>    <span class="doccomment">/// Sample a random discriminant from a seed.
+<a href=#24 id=24 data-nosnippet>24</a>    </span>Discriminant(DiscriminantArguments),
+<a href=#25 id=25 data-nosnippet>25</a>
+<a href=#26 id=26 data-nosnippet>26</a>    <span class="doccomment">/// Compute VDF output and proof.
+<a href=#27 id=27 data-nosnippet>27</a>    </span>Evaluate(EvaluateArguments),
+<a href=#28 id=28 data-nosnippet>28</a>
+<a href=#29 id=29 data-nosnippet>29</a>    <span class="doccomment">/// Verify an output .
+<a href=#30 id=30 data-nosnippet>30</a>    </span>Verify(VerifyArguments),
+<a href=#31 id=31 data-nosnippet>31</a>
+<a href=#32 id=32 data-nosnippet>32</a>    <span class="doccomment">/// Hash a binary message to a quadratic form.
+<a href=#33 id=33 data-nosnippet>33</a>    </span>Hash(HashArguments),
+<a href=#34 id=34 data-nosnippet>34</a>}
+<a href=#35 id=35 data-nosnippet>35</a>
+<a href=#36 id=36 data-nosnippet>36</a><span class="attr">#[derive(Parser, Clone)]
+<a href=#37 id=37 data-nosnippet>37</a></span><span class="kw">struct </span>DiscriminantArguments {
+<a href=#38 id=38 data-nosnippet>38</a>    <span class="doccomment">/// The hex encoded discriminant.
+<a href=#39 id=39 data-nosnippet>39</a>    </span><span class="attr">#[clap(short, long)]
+<a href=#40 id=40 data-nosnippet>40</a>    </span>seed: String,
+<a href=#41 id=41 data-nosnippet>41</a>
+<a href=#42 id=42 data-nosnippet>42</a>    <span class="doccomment">/// Bit length of the discriminant (default is 3072).
+<a href=#43 id=43 data-nosnippet>43</a>    </span><span class="attr">#[clap(short, long, default_value_t = DEFAULT_DISCRIMINANT_BIT_LENGTH)]
+<a href=#44 id=44 data-nosnippet>44</a>    </span>bit_length: u64,
+<a href=#45 id=45 data-nosnippet>45</a>}
+<a href=#46 id=46 data-nosnippet>46</a>
+<a href=#47 id=47 data-nosnippet>47</a><span class="attr">#[derive(Parser, Clone)]
+<a href=#48 id=48 data-nosnippet>48</a></span><span class="kw">struct </span>EvaluateArguments {
+<a href=#49 id=49 data-nosnippet>49</a>    <span class="doccomment">/// The hex encoded input to the VDF.
+<a href=#50 id=50 data-nosnippet>50</a>    </span><span class="attr">#[clap(long)]
+<a href=#51 id=51 data-nosnippet>51</a>    </span>input: String,
+<a href=#52 id=52 data-nosnippet>52</a>
+<a href=#53 id=53 data-nosnippet>53</a>    <span class="doccomment">/// The number of iterations.
+<a href=#54 id=54 data-nosnippet>54</a>    </span><span class="attr">#[clap(long)]
+<a href=#55 id=55 data-nosnippet>55</a>    </span>iterations: u64,
+<a href=#56 id=56 data-nosnippet>56</a>}
+<a href=#57 id=57 data-nosnippet>57</a>
+<a href=#58 id=58 data-nosnippet>58</a><span class="attr">#[derive(Parser, Clone)]
+<a href=#59 id=59 data-nosnippet>59</a></span><span class="kw">struct </span>VerifyArguments {
+<a href=#60 id=60 data-nosnippet>60</a>    <span class="doccomment">/// Iterations
+<a href=#61 id=61 data-nosnippet>61</a>    </span><span class="attr">#[clap(long)]
+<a href=#62 id=62 data-nosnippet>62</a>    </span>iterations: u64,
+<a href=#63 id=63 data-nosnippet>63</a>
+<a href=#64 id=64 data-nosnippet>64</a>    <span class="doccomment">/// The input to the VDF.
+<a href=#65 id=65 data-nosnippet>65</a>    </span><span class="attr">#[clap(long)]
+<a href=#66 id=66 data-nosnippet>66</a>    </span>input: String,
+<a href=#67 id=67 data-nosnippet>67</a>
+<a href=#68 id=68 data-nosnippet>68</a>    <span class="doccomment">/// The output of the VDF.
+<a href=#69 id=69 data-nosnippet>69</a>    </span><span class="attr">#[clap(short, long)]
+<a href=#70 id=70 data-nosnippet>70</a>    </span>output: String,
+<a href=#71 id=71 data-nosnippet>71</a>
+<a href=#72 id=72 data-nosnippet>72</a>    <span class="doccomment">/// The proof of the correctness of the VDF output.
+<a href=#73 id=73 data-nosnippet>73</a>    </span><span class="attr">#[clap(short, long)]
+<a href=#74 id=74 data-nosnippet>74</a>    </span>proof: String,
+<a href=#75 id=75 data-nosnippet>75</a>}
+<a href=#76 id=76 data-nosnippet>76</a>
+<a href=#77 id=77 data-nosnippet>77</a><span class="attr">#[derive(Parser, Clone)]
+<a href=#78 id=78 data-nosnippet>78</a></span><span class="kw">struct </span>HashArguments {
+<a href=#79 id=79 data-nosnippet>79</a>    <span class="doccomment">/// The hex encoded input to the hash function.
+<a href=#80 id=80 data-nosnippet>80</a>    </span><span class="attr">#[clap(short, long)]
+<a href=#81 id=81 data-nosnippet>81</a>    </span>message: String,
+<a href=#82 id=82 data-nosnippet>82</a>}
+<a href=#83 id=83 data-nosnippet>83</a>
+<a href=#84 id=84 data-nosnippet>84</a><span class="kw">fn </span>main() {
+<a href=#85 id=85 data-nosnippet>85</a>    <span class="kw">match </span>execute(Command::parse()) {
+<a href=#86 id=86 data-nosnippet>86</a>        <span class="prelude-val">Ok</span>(res) =&gt; {
+<a href=#87 id=87 data-nosnippet>87</a>            <span class="macro">println!</span>(<span class="string">"{}"</span>, res);
+<a href=#88 id=88 data-nosnippet>88</a>            std::process::exit(exitcode::OK);
+<a href=#89 id=89 data-nosnippet>89</a>        }
+<a href=#90 id=90 data-nosnippet>90</a>        <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#91 id=91 data-nosnippet>91</a>            <span class="macro">println!</span>(<span class="string">"Error: {}"</span>, e);
+<a href=#92 id=92 data-nosnippet>92</a>            std::process::exit(exitcode::DATAERR);
+<a href=#93 id=93 data-nosnippet>93</a>        }
+<a href=#94 id=94 data-nosnippet>94</a>    }
+<a href=#95 id=95 data-nosnippet>95</a>}
+<a href=#96 id=96 data-nosnippet>96</a>
+<a href=#97 id=97 data-nosnippet>97</a><span class="kw">fn </span>execute(cmd: Command) -&gt; <span class="prelude-ty">Result</span>&lt;String, Error&gt; {
+<a href=#98 id=98 data-nosnippet>98</a>    <span class="kw">match </span>cmd {
+<a href=#99 id=99 data-nosnippet>99</a>        Command::Discriminant(arguments) =&gt; {
+<a href=#100 id=100 data-nosnippet>100</a>            <span class="kw">let </span>seed = hex::decode(arguments.seed)
+<a href=#101 id=101 data-nosnippet>101</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid seed."</span>))<span class="question-mark">?</span>;
+<a href=#102 id=102 data-nosnippet>102</a>            <span class="kw">let </span>discriminant =
+<a href=#103 id=103 data-nosnippet>103</a>                Discriminant::from_seed(<span class="kw-2">&amp;</span>seed, arguments.bit_length <span class="kw">as </span>usize).unwrap();
+<a href=#104 id=104 data-nosnippet>104</a>            <span class="kw">let </span>discriminant_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>discriminant).unwrap());
+<a href=#105 id=105 data-nosnippet>105</a>            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Discriminant: "</span>.to_string();
+<a href=#106 id=106 data-nosnippet>106</a>            result.push_str(<span class="kw-2">&amp;</span>discriminant_string);
+<a href=#107 id=107 data-nosnippet>107</a>            <span class="prelude-val">Ok</span>(result)
+<a href=#108 id=108 data-nosnippet>108</a>        }
+<a href=#109 id=109 data-nosnippet>109</a>
+<a href=#110 id=110 data-nosnippet>110</a>        Command::Evaluate(arguments) =&gt; {
+<a href=#111 id=111 data-nosnippet>111</a>            <span class="kw">let </span>input_bytes = hex::decode(arguments.input)
+<a href=#112 id=112 data-nosnippet>112</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input point."</span>))<span class="question-mark">?</span>;
+<a href=#113 id=113 data-nosnippet>113</a>            <span class="kw">let </span>g = bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>input_bytes).map_err(|<span class="kw">_</span>| {
+<a href=#114 id=114 data-nosnippet>114</a>                Error::new(
+<a href=#115 id=115 data-nosnippet>115</a>                    ErrorKind::InvalidInput,
+<a href=#116 id=116 data-nosnippet>116</a>                    <span class="string">"Invalid input point or discriminant."</span>,
+<a href=#117 id=117 data-nosnippet>117</a>                )
+<a href=#118 id=118 data-nosnippet>118</a>            })<span class="question-mark">?</span>;
+<a href=#119 id=119 data-nosnippet>119</a>            <span class="kw">if </span>!g.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+<a href=#120 id=120 data-nosnippet>120</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
+<a href=#121 id=121 data-nosnippet>121</a>                    ErrorKind::InvalidInput,
+<a href=#122 id=122 data-nosnippet>122</a>                    <span class="string">"Input point does not match discriminant."</span>,
+<a href=#123 id=123 data-nosnippet>123</a>                ));
+<a href=#124 id=124 data-nosnippet>124</a>            }
+<a href=#125 id=125 data-nosnippet>125</a>
+<a href=#126 id=126 data-nosnippet>126</a>            <span class="kw">let </span>vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), arguments.iterations);
+<a href=#127 id=127 data-nosnippet>127</a>            <span class="kw">let </span>(output, proof) = vdf
+<a href=#128 id=128 data-nosnippet>128</a>                .evaluate(<span class="kw-2">&amp;</span>g)
+<a href=#129 id=129 data-nosnippet>129</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::Other, <span class="string">"VDF evaluation failed"</span>))<span class="question-mark">?</span>;
+<a href=#130 id=130 data-nosnippet>130</a>
+<a href=#131 id=131 data-nosnippet>131</a>            <span class="kw">let </span>output_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap());
+<a href=#132 id=132 data-nosnippet>132</a>            <span class="kw">let </span>proof_string = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>proof).unwrap());
+<a href=#133 id=133 data-nosnippet>133</a>
+<a href=#134 id=134 data-nosnippet>134</a>            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
+<a href=#135 id=135 data-nosnippet>135</a>            result.push_str(<span class="kw-2">&amp;</span>output_string);
+<a href=#136 id=136 data-nosnippet>136</a>            result.push_str(<span class="string">"\nProof:  "</span>);
+<a href=#137 id=137 data-nosnippet>137</a>            result.push_str(<span class="kw-2">&amp;</span>proof_string);
+<a href=#138 id=138 data-nosnippet>138</a>            <span class="prelude-val">Ok</span>(result)
+<a href=#139 id=139 data-nosnippet>139</a>        }
+<a href=#140 id=140 data-nosnippet>140</a>
+<a href=#141 id=141 data-nosnippet>141</a>        Command::Verify(arguments) =&gt; {
+<a href=#142 id=142 data-nosnippet>142</a>            <span class="kw">let </span>input =
+<a href=#143 id=143 data-nosnippet>143</a>                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.input).map_err(|<span class="kw">_</span>| {
+<a href=#144 id=144 data-nosnippet>144</a>                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
+<a href=#145 id=145 data-nosnippet>145</a>                })<span class="question-mark">?</span>)
+<a href=#146 id=146 data-nosnippet>146</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid input."</span>))<span class="question-mark">?</span>;
+<a href=#147 id=147 data-nosnippet>147</a>            <span class="kw">if </span>!input.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+<a href=#148 id=148 data-nosnippet>148</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
+<a href=#149 id=149 data-nosnippet>149</a>                    ErrorKind::InvalidInput,
+<a href=#150 id=150 data-nosnippet>150</a>                    <span class="string">"Input has wrong discriminant."</span>,
+<a href=#151 id=151 data-nosnippet>151</a>                ));
+<a href=#152 id=152 data-nosnippet>152</a>            }
+<a href=#153 id=153 data-nosnippet>153</a>
+<a href=#154 id=154 data-nosnippet>154</a>            <span class="kw">let </span>output =
+<a href=#155 id=155 data-nosnippet>155</a>                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.output).map_err(|<span class="kw">_</span>| {
+<a href=#156 id=156 data-nosnippet>156</a>                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output hex string."</span>)
+<a href=#157 id=157 data-nosnippet>157</a>                })<span class="question-mark">?</span>)
+<a href=#158 id=158 data-nosnippet>158</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid output."</span>))<span class="question-mark">?</span>;
+<a href=#159 id=159 data-nosnippet>159</a>            <span class="kw">if </span>!output.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+<a href=#160 id=160 data-nosnippet>160</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
+<a href=#161 id=161 data-nosnippet>161</a>                    ErrorKind::InvalidInput,
+<a href=#162 id=162 data-nosnippet>162</a>                    <span class="string">"Output has wrong discriminant."</span>,
+<a href=#163 id=163 data-nosnippet>163</a>                ));
+<a href=#164 id=164 data-nosnippet>164</a>            }
+<a href=#165 id=165 data-nosnippet>165</a>
+<a href=#166 id=166 data-nosnippet>166</a>            <span class="kw">let </span>proof =
+<a href=#167 id=167 data-nosnippet>167</a>                bcs::from_bytes::&lt;QuadraticForm&gt;(<span class="kw-2">&amp;</span>hex::decode(arguments.proof).map_err(|<span class="kw">_</span>| {
+<a href=#168 id=168 data-nosnippet>168</a>                    Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof hex string."</span>)
+<a href=#169 id=169 data-nosnippet>169</a>                })<span class="question-mark">?</span>)
+<a href=#170 id=170 data-nosnippet>170</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid proof."</span>))<span class="question-mark">?</span>;
+<a href=#171 id=171 data-nosnippet>171</a>            <span class="kw">if </span>!proof.is_in_group(<span class="kw-2">&amp;</span>DISCRIMINANT_3072) {
+<a href=#172 id=172 data-nosnippet>172</a>                <span class="kw">return </span><span class="prelude-val">Err</span>(Error::new(
+<a href=#173 id=173 data-nosnippet>173</a>                    ErrorKind::InvalidInput,
+<a href=#174 id=174 data-nosnippet>174</a>                    <span class="string">"Proof has wrong discriminant."</span>,
+<a href=#175 id=175 data-nosnippet>175</a>                ));
+<a href=#176 id=176 data-nosnippet>176</a>            }
+<a href=#177 id=177 data-nosnippet>177</a>
+<a href=#178 id=178 data-nosnippet>178</a>            <span class="kw">let </span>vdf = DefaultVDF::new(DISCRIMINANT_3072.clone(), arguments.iterations);
+<a href=#179 id=179 data-nosnippet>179</a>            <span class="kw">let </span>verifies = vdf.verify(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>output, <span class="kw-2">&amp;</span>proof).is_ok();
+<a href=#180 id=180 data-nosnippet>180</a>
+<a href=#181 id=181 data-nosnippet>181</a>            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Verified: "</span>.to_string();
+<a href=#182 id=182 data-nosnippet>182</a>            result.push_str(<span class="kw-2">&amp;</span>verifies.to_string());
+<a href=#183 id=183 data-nosnippet>183</a>            <span class="prelude-val">Ok</span>(result)
+<a href=#184 id=184 data-nosnippet>184</a>        }
+<a href=#185 id=185 data-nosnippet>185</a>        Command::Hash(arguments) =&gt; {
+<a href=#186 id=186 data-nosnippet>186</a>            <span class="kw">let </span>input = hex::decode(arguments.message)
+<a href=#187 id=187 data-nosnippet>187</a>                .map_err(|<span class="kw">_</span>| Error::new(ErrorKind::InvalidInput, <span class="string">"Invalid message."</span>))<span class="question-mark">?</span>;
+<a href=#188 id=188 data-nosnippet>188</a>            <span class="kw">let </span>output =
+<a href=#189 id=189 data-nosnippet>189</a>                QuadraticForm::hash_to_group_with_default_parameters(<span class="kw-2">&amp;</span>input, <span class="kw-2">&amp;</span>DISCRIMINANT_3072)
+<a href=#190 id=190 data-nosnippet>190</a>                    .map_err(|<span class="kw">_</span>| {
+<a href=#191 id=191 data-nosnippet>191</a>                        Error::new(ErrorKind::InvalidInput, <span class="string">"The discriminant is invalid."</span>)
+<a href=#192 id=192 data-nosnippet>192</a>                    })<span class="question-mark">?</span>;
+<a href=#193 id=193 data-nosnippet>193</a>
+<a href=#194 id=194 data-nosnippet>194</a>            <span class="kw">let </span>output_bytes = hex::encode(bcs::to_bytes(<span class="kw-2">&amp;</span>output).unwrap());
+<a href=#195 id=195 data-nosnippet>195</a>
+<a href=#196 id=196 data-nosnippet>196</a>            <span class="kw">let </span><span class="kw-2">mut </span>result = <span class="string">"Output: "</span>.to_string();
+<a href=#197 id=197 data-nosnippet>197</a>            result.push_str(<span class="kw-2">&amp;</span>output_bytes);
+<a href=#198 id=198 data-nosnippet>198</a>            <span class="prelude-val">Ok</span>(result)
+<a href=#199 id=199 data-nosnippet>199</a>        }
+<a href=#200 id=200 data-nosnippet>200</a>    }
+<a href=#201 id=201 data-nosnippet>201</a>}
+<a href=#202 id=202 data-nosnippet>202</a>
+<a href=#203 id=203 data-nosnippet>203</a><span class="attr">#[cfg(test)]
+<a href=#204 id=204 data-nosnippet>204</a></span><span class="kw">mod </span>tests {
+<a href=#205 id=205 data-nosnippet>205</a>    <span class="kw">use crate</span>::{
+<a href=#206 id=206 data-nosnippet>206</a>        execute, Command, DiscriminantArguments, EvaluateArguments, HashArguments, VerifyArguments,
+<a href=#207 id=207 data-nosnippet>207</a>    };
+<a href=#208 id=208 data-nosnippet>208</a>
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="attr">#[test]
+<a href=#210 id=210 data-nosnippet>210</a>    </span><span class="kw">fn </span>test_discriminant() {
+<a href=#211 id=211 data-nosnippet>211</a>        <span class="kw">let </span>seed = <span class="string">"abcd"</span>.to_string();
+<a href=#212 id=212 data-nosnippet>212</a>        <span class="kw">let </span>result = execute(Command::Discriminant(DiscriminantArguments {
+<a href=#213 id=213 data-nosnippet>213</a>            seed,
+<a href=#214 id=214 data-nosnippet>214</a>            bit_length: <span class="number">1024</span>,
+<a href=#215 id=215 data-nosnippet>215</a>        }))
+<a href=#216 id=216 data-nosnippet>216</a>        .unwrap();
+<a href=#217 id=217 data-nosnippet>217</a>        <span class="kw">let </span>expected = <span class="string">"Discriminant: 8101ff00934fb3e9ece6df62bc7490fe9563c8fc496010c448feaaf14aa9584d20137989988d7d0d22f93a9773aebc63a61a1e061017cfa20e6a8294840cbccb6c99797f174744fad9d3420b2fdf250572a5cbcce66474ac092b784c0c85b54a6b6c0faf2e1d4aca481641e63fdfefaa3f285f824c5559801f1129c49c279aa79975d9"</span>.to_string();
+<a href=#218 id=218 data-nosnippet>218</a>        <span class="macro">assert_eq!</span>(expected, result);
+<a href=#219 id=219 data-nosnippet>219</a>    }
+<a href=#220 id=220 data-nosnippet>220</a>
+<a href=#221 id=221 data-nosnippet>221</a>    <span class="attr">#[test]
+<a href=#222 id=222 data-nosnippet>222</a>    </span><span class="kw">fn </span>test_evaluate() {
+<a href=#223 id=223 data-nosnippet>223</a>        <span class="kw">let </span>input = <span class="string">"bc01009ed67199c633da0faa75a8ed0ff5c3ae7c278c79aad85953cdf86d57101b1ee941e5239b7d614e5b16eac269c460f16d57a12c75b52c48fac643a1c4918fab86805fe08fcd6b38093a17143cca7550fd018b8bc6871fb441b406bec7a7f3a61c3b2a5aa9daca5f9a6fa474b270688de643323de1acc8073a3418bc1681a614c1abb5fa56b61a7d6df4260547c9f613c5f0dbd7cb91a478ac94b1cce6b1f4784dc161ec3c85bf02cf99fd460b0b25a44d1990dacd1fe7a43b797611ea0210645fef3905f7e1accf97bd3b868a8a99d4a1a546e5a55e20f343fc2724829f1770591b50a73c93ec9b8c01ce1fa6b84eddd5a7ddd077110e21b8e058bf2fed2592a5449db177ec0e32595b20bda5779c2f346b01df8c0d277d9d3a7fe0a04e67b210be60334efdadb7abc5ac001b71509c2d487d9d26443527c1b8b02dfcffc50ef98020f569cdf6fffca5870b0e502493fceee35b79eed99e2c758a0aff4c86b2af0dd223e270ecf84eb7405fe35a9e37d6b080efa3c59806c2ceffa82f38502f9d37b6c298cf07534347cd9ee436406784bd7e0a57d380dd3923ddca13d86f3b2c83a135f125f9429a6802247a0e926b54144d74e4e8f66f0303cdc91843ce7e1fb9c6276c000512c0709c7fbfde2b80e66db77222447ef6b4da4a698e011c6de95ad88738aea465c158288a54223c7f7152577cc48691af57e2631e3224b7c94e2a4c5034db35bbf9e807753fa51da8798bf63b7e6ebd857ca4cf01fcab7a33e63fa89eb386e2ef98046c44491bdf8d62ede2af4ab79ccac88e404abb649b92f49c9f9abcf2216bb628e96400a75a66c12b6ff1c6dae498dd4183ad989921ebc6a1be73127741333671eb72cd25eabc69fecc3c50da06b4a3af155264d4e39e8c681b8c5555d4cab748ed15d119527820e01854fa203c2deba3a67620d47733919e8c71d659e60e86db69905ebdc4dbeda67f77291c2202b2116a05f227f963a97eb8c87104b2df349f01f251aa22bbd41541998ce755309b98d9597d7ee26b6acaef1869885c775e6ceb710c36c07e401e17a8ccb838e33f64e43e4db3491b5cef6e800c4e494610ab81a8b489263b86976160d7d0106cab79bf2a2fce5b01e8f9d1fb069a98e814c94f10d9917b7ea27209bc822b35741f56a9aeadb75a7eae6a8cbd7df08e079db64fd48655f42c24c14bb6c72e744206a3e15deee45cab74d589deb1055e0e69fe508a2ef356dc4e2caaaf89f44a520722490374eade8573429d0d6d16e3c681853f96759cc6e3ea3aaad55284282abd40686281ff944c6a507086143cf76d0f7f93b486d552fa4698656cff8a325fea84943333645b29ee11c99555b2076a09466f6e602db663e1bd45c523a12a7fcd2328d5139d14b25561b94f62f69d436c5d4c92b01ae3a91baa1b5781bd0bf2156e1d0042ab2cbc6e10f4389868fc41d05b19bfe3dfcaacb0478b3dce887da8435c9d49f457fd54e129133e5ce87c39acb9206213daec867fca35e6b612c523fb9fba959542a777ea74"</span>.to_string();
+<a href=#224 id=224 data-nosnippet>224</a>        <span class="kw">let </span>iterations = <span class="number">100u64</span>;
+<a href=#225 id=225 data-nosnippet>225</a>        <span class="kw">let </span>result = execute(Command::Evaluate(EvaluateArguments {
+<a href=#226 id=226 data-nosnippet>226</a>            input: input.clone(),
+<a href=#227 id=227 data-nosnippet>227</a>            iterations,
+<a href=#228 id=228 data-nosnippet>228</a>        }))
+<a href=#229 id=229 data-nosnippet>229</a>        .unwrap();
+<a href=#230 id=230 data-nosnippet>230</a>        <span class="kw">let </span>expected = <span class="string">"Output: c001503be6eff558a40ba145da5aa9d1270367f32cde44c1601846cdd3d0911abce8ab6adb6b82682b45107545e9ae1efca44dd6f3ba8d95a687652b94f479f6b1a37156c44194d6bc5f266098b75251b12de6fa67de6aea14250c0481694db5f24db5e3c89da3354aafc10c4bd0371f9a175d1b5b193190c4c1089ed7a95dc07f1ce29021b55f3aaa7eb65725d61277f0996b783c005a919ba121d81f211f63d188ac525056235504fe4858765dc6498362d98e8540287a0ff78424c18de53abe46c0014f847bd49f599960fe3c3b7cfc571cd854c7d21b0e9984070f7e168c872a6e6480d8fd37d30602f57a237b83ae961e6a4acb94b78c32d04f06058bda037d6ad313c81f823db25c53c265b02a29008f727f95010c82b0cf8745e77a7f4000dac929ba83a4594482b4e6ff59c93a78df5c816f244914329c145e288fd3fd4800a1cc2df23f386112e569608e6de40ee65fe870960b4e3fee4bb188d8db0dd5df3c2384eb24a797eb20cf8524d563663ccde866a405e2713cfafdb760e50c77a797c10100a31fc5ca0a91aa788d5f5df17a1433f1a0e6e4da440ce935b1b48dc6868c8fc00d7ee725ce21797a6c4440af02570466081479e99eee1a5b509a3e1ac2e000ed386c35d9fadd130df2a292fa5f9aa2c195c48c9d11e58ac98c8dbd2169721ed2d2c9f5544de17deeaa9655360ed7baa46820f5e008af1e3f028d819dee3fee50ab55b266385dfc8f65f7f0c1b6149e5295bfefb83b14db3a30b2cefd1495ba4e5ae39d2b729f9644fc28764d03243fad3e61145ed83cbf2708b60c0b7cac7148\nProof:  0101010180032cf35709e1301d02b40a0dbe3dadfe6ec1eeba8fb8060a1decd0c7a126ea3f27fadcad81435601b0e0abca5c89173ef639e5a88043aa29801e6799e430b509e479b57af981f9ddd48d3a8d5919f99258081557a08270bb441233c78030a01e03ec199b5e3eef5ccc9b1a3d4841cbe4ff529c22a8cd1b1b0075338d864e3890942df6b007d2c3e3a8ef1ce7490c6bbec5372adfcbf8704a1ffc9a69db8d9cdc54762f019036e450e457325eef74b794f3f16ff327d68079a5b9de49163d7323937374f8a785a8f9afe84d6a71b336e4de00f239ee3af1d7604a3985e610e1603bd0e1a4998e19fa0c8920ffd8d61b0a87eeee50ac7c03ff7c4708a34f3bc92fd0103758c954ee34032cee2c78ad8cdc79a35dbc810196b7bf6833e1c45c83b09c0d1b78bc6f8753e10770e7045b08d50b4aa16a75b27a096d5ec1331f1fd0a44e95a8737c20240c90307b5497d3470393c2a00da0649e86d13e820591296c644fc1eef9e7c6ca4967c5e19df3153cd7fbd598c271e11c10397349ddc8cc8452ec"</span>;
+<a href=#231 id=231 data-nosnippet>231</a>        <span class="macro">assert_eq!</span>(expected, result);
+<a href=#232 id=232 data-nosnippet>232</a>    }
+<a href=#233 id=233 data-nosnippet>233</a>
+<a href=#234 id=234 data-nosnippet>234</a>    <span class="attr">#[test]
+<a href=#235 id=235 data-nosnippet>235</a>    </span><span class="kw">fn </span>test_verify() {
+<a href=#236 id=236 data-nosnippet>236</a>        <span class="kw">let </span>iterations = <span class="number">100u64</span>;
+<a href=#237 id=237 data-nosnippet>237</a>        <span class="kw">let </span>input = <span class="string">"bc01009ed67199c633da0faa75a8ed0ff5c3ae7c278c79aad85953cdf86d57101b1ee941e5239b7d614e5b16eac269c460f16d57a12c75b52c48fac643a1c4918fab86805fe08fcd6b38093a17143cca7550fd018b8bc6871fb441b406bec7a7f3a61c3b2a5aa9daca5f9a6fa474b270688de643323de1acc8073a3418bc1681a614c1abb5fa56b61a7d6df4260547c9f613c5f0dbd7cb91a478ac94b1cce6b1f4784dc161ec3c85bf02cf99fd460b0b25a44d1990dacd1fe7a43b797611ea0210645fef3905f7e1accf97bd3b868a8a99d4a1a546e5a55e20f343fc2724829f1770591b50a73c93ec9b8c01ce1fa6b84eddd5a7ddd077110e21b8e058bf2fed2592a5449db177ec0e32595b20bda5779c2f346b01df8c0d277d9d3a7fe0a04e67b210be60334efdadb7abc5ac001b71509c2d487d9d26443527c1b8b02dfcffc50ef98020f569cdf6fffca5870b0e502493fceee35b79eed99e2c758a0aff4c86b2af0dd223e270ecf84eb7405fe35a9e37d6b080efa3c59806c2ceffa82f38502f9d37b6c298cf07534347cd9ee436406784bd7e0a57d380dd3923ddca13d86f3b2c83a135f125f9429a6802247a0e926b54144d74e4e8f66f0303cdc91843ce7e1fb9c6276c000512c0709c7fbfde2b80e66db77222447ef6b4da4a698e011c6de95ad88738aea465c158288a54223c7f7152577cc48691af57e2631e3224b7c94e2a4c5034db35bbf9e807753fa51da8798bf63b7e6ebd857ca4cf01fcab7a33e63fa89eb386e2ef98046c44491bdf8d62ede2af4ab79ccac88e404abb649b92f49c9f9abcf2216bb628e96400a75a66c12b6ff1c6dae498dd4183ad989921ebc6a1be73127741333671eb72cd25eabc69fecc3c50da06b4a3af155264d4e39e8c681b8c5555d4cab748ed15d119527820e01854fa203c2deba3a67620d47733919e8c71d659e60e86db69905ebdc4dbeda67f77291c2202b2116a05f227f963a97eb8c87104b2df349f01f251aa22bbd41541998ce755309b98d9597d7ee26b6acaef1869885c775e6ceb710c36c07e401e17a8ccb838e33f64e43e4db3491b5cef6e800c4e494610ab81a8b489263b86976160d7d0106cab79bf2a2fce5b01e8f9d1fb069a98e814c94f10d9917b7ea27209bc822b35741f56a9aeadb75a7eae6a8cbd7df08e079db64fd48655f42c24c14bb6c72e744206a3e15deee45cab74d589deb1055e0e69fe508a2ef356dc4e2caaaf89f44a520722490374eade8573429d0d6d16e3c681853f96759cc6e3ea3aaad55284282abd40686281ff944c6a507086143cf76d0f7f93b486d552fa4698656cff8a325fea84943333645b29ee11c99555b2076a09466f6e602db663e1bd45c523a12a7fcd2328d5139d14b25561b94f62f69d436c5d4c92b01ae3a91baa1b5781bd0bf2156e1d0042ab2cbc6e10f4389868fc41d05b19bfe3dfcaacb0478b3dce887da8435c9d49f457fd54e129133e5ce87c39acb9206213daec867fca35e6b612c523fb9fba959542a777ea74"</span>.to_string();
+<a href=#238 id=238 data-nosnippet>238</a>        <span class="kw">let </span>output = <span class="string">"c001503be6eff558a40ba145da5aa9d1270367f32cde44c1601846cdd3d0911abce8ab6adb6b82682b45107545e9ae1efca44dd6f3ba8d95a687652b94f479f6b1a37156c44194d6bc5f266098b75251b12de6fa67de6aea14250c0481694db5f24db5e3c89da3354aafc10c4bd0371f9a175d1b5b193190c4c1089ed7a95dc07f1ce29021b55f3aaa7eb65725d61277f0996b783c005a919ba121d81f211f63d188ac525056235504fe4858765dc6498362d98e8540287a0ff78424c18de53abe46c0014f847bd49f599960fe3c3b7cfc571cd854c7d21b0e9984070f7e168c872a6e6480d8fd37d30602f57a237b83ae961e6a4acb94b78c32d04f06058bda037d6ad313c81f823db25c53c265b02a29008f727f95010c82b0cf8745e77a7f4000dac929ba83a4594482b4e6ff59c93a78df5c816f244914329c145e288fd3fd4800a1cc2df23f386112e569608e6de40ee65fe870960b4e3fee4bb188d8db0dd5df3c2384eb24a797eb20cf8524d563663ccde866a405e2713cfafdb760e50c77a797c10100a31fc5ca0a91aa788d5f5df17a1433f1a0e6e4da440ce935b1b48dc6868c8fc00d7ee725ce21797a6c4440af02570466081479e99eee1a5b509a3e1ac2e000ed386c35d9fadd130df2a292fa5f9aa2c195c48c9d11e58ac98c8dbd2169721ed2d2c9f5544de17deeaa9655360ed7baa46820f5e008af1e3f028d819dee3fee50ab55b266385dfc8f65f7f0c1b6149e5295bfefb83b14db3a30b2cefd1495ba4e5ae39d2b729f9644fc28764d03243fad3e61145ed83cbf2708b60c0b7cac7148"</span>.to_string();
+<a href=#239 id=239 data-nosnippet>239</a>        <span class="kw">let </span>proof = <span class="string">"0101010180032cf35709e1301d02b40a0dbe3dadfe6ec1eeba8fb8060a1decd0c7a126ea3f27fadcad81435601b0e0abca5c89173ef639e5a88043aa29801e6799e430b509e479b57af981f9ddd48d3a8d5919f99258081557a08270bb441233c78030a01e03ec199b5e3eef5ccc9b1a3d4841cbe4ff529c22a8cd1b1b0075338d864e3890942df6b007d2c3e3a8ef1ce7490c6bbec5372adfcbf8704a1ffc9a69db8d9cdc54762f019036e450e457325eef74b794f3f16ff327d68079a5b9de49163d7323937374f8a785a8f9afe84d6a71b336e4de00f239ee3af1d7604a3985e610e1603bd0e1a4998e19fa0c8920ffd8d61b0a87eeee50ac7c03ff7c4708a34f3bc92fd0103758c954ee34032cee2c78ad8cdc79a35dbc810196b7bf6833e1c45c83b09c0d1b78bc6f8753e10770e7045b08d50b4aa16a75b27a096d5ec1331f1fd0a44e95a8737c20240c90307b5497d3470393c2a00da0649e86d13e820591296c644fc1eef9e7c6ca4967c5e19df3153cd7fbd598c271e11c10397349ddc8cc8452ec"</span>.to_string();
+<a href=#240 id=240 data-nosnippet>240</a>        <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
+<a href=#241 id=241 data-nosnippet>241</a>            iterations,
+<a href=#242 id=242 data-nosnippet>242</a>            input: input.clone(),
+<a href=#243 id=243 data-nosnippet>243</a>            output: output.clone(),
+<a href=#244 id=244 data-nosnippet>244</a>            proof: proof.clone(),
+<a href=#245 id=245 data-nosnippet>245</a>        }))
+<a href=#246 id=246 data-nosnippet>246</a>        .unwrap();
+<a href=#247 id=247 data-nosnippet>247</a>        <span class="kw">let </span>expected = <span class="string">"Verified: true"</span>;
+<a href=#248 id=248 data-nosnippet>248</a>        <span class="macro">assert_eq!</span>(expected, result);
+<a href=#249 id=249 data-nosnippet>249</a>
+<a href=#250 id=250 data-nosnippet>250</a>        <span class="kw">let </span>other_iterations = <span class="number">2000u64</span>;
+<a href=#251 id=251 data-nosnippet>251</a>        <span class="kw">let </span>result = execute(Command::Verify(VerifyArguments {
+<a href=#252 id=252 data-nosnippet>252</a>            iterations: other_iterations,
+<a href=#253 id=253 data-nosnippet>253</a>            input,
+<a href=#254 id=254 data-nosnippet>254</a>            output,
+<a href=#255 id=255 data-nosnippet>255</a>            proof,
+<a href=#256 id=256 data-nosnippet>256</a>        }))
+<a href=#257 id=257 data-nosnippet>257</a>        .unwrap();
+<a href=#258 id=258 data-nosnippet>258</a>        <span class="kw">let </span>expected = <span class="string">"Verified: false"</span>;
+<a href=#259 id=259 data-nosnippet>259</a>        <span class="macro">assert_eq!</span>(expected, result);
+<a href=#260 id=260 data-nosnippet>260</a>    }
+<a href=#261 id=261 data-nosnippet>261</a>
+<a href=#262 id=262 data-nosnippet>262</a>    <span class="attr">#[test]
+<a href=#263 id=263 data-nosnippet>263</a>    </span><span class="kw">fn </span>test_hash() {
+<a href=#264 id=264 data-nosnippet>264</a>        <span class="kw">let </span>seed = <span class="string">"abcd"</span>.to_string();
+<a href=#265 id=265 data-nosnippet>265</a>        <span class="kw">let </span>result = execute(Command::Hash(HashArguments {
+<a href=#266 id=266 data-nosnippet>266</a>            message: seed.clone(),
+<a href=#267 id=267 data-nosnippet>267</a>        }))
+<a href=#268 id=268 data-nosnippet>268</a>        .unwrap();
+<a href=#269 id=269 data-nosnippet>269</a>        <span class="kw">let </span>expected = <span class="string">"Output: 227afa0a257a3fa140fad0ba29ade524a7cc097c706a7c59c363fede402870cbf192ef33fc06eddf144b2023a50256b388f8fd5a6ef59dd7275e2f7ae1288bef605158fa97e2af2684604395314a5176a655a940bb3ac3de025d92c53e95f69368f53575775e965be811f89c08d0c9dc702daea57afb3d6e5e48b8255fc93901580f01837abf0a6e94e3a29d6a9bcca669c611d3f94256b72c7a67415391607d89e15a3f82880bae011276e96f097895311e45caaa81dc7b35e3fe97d83cd392e7b94e1ddfa0f684be3e9106e0bda15c0153d2f8a6ba1528b796ca6bd24a5164eed50e63f7cd5837ef7c9a6d52451d66fca2221f04efe44b446896843b1bbf4ebc322d80781259afcc1a5780eedd3cde2cd98e44d3bfadb19a0253b6f0e7f957469e41ce8bc48f9516412b61097c858cc9fac2489f5a6467e1516d8ab93cf7849c34428589110b9d1e3d4d4e114480fe14db77eb545cd13b3a4f6fe43dc9002ec52d1400fbdba8a34ffab8b5200a002f0b13691f635304a2d266bee80263dbe996e03fe8840902922d814d5535f97a2602c24a276b95e48dc802d9e09288f411360ae69357d0c0018474992daa45dc6cde5a2fe02ae9d2"</span>;
+<a href=#270 id=270 data-nosnippet>270</a>        <span class="macro">assert_eq!</span>(expected, result);
+<a href=#271 id=271 data-nosnippet>271</a>    }
+<a href=#272 id=272 data-nosnippet>272</a>}</code></pre></div></section></main></body></html>
