@@ -373,7 +373,7 @@ fn trim(str: String) -> String {
 pub async fn fetch_jwks(
     provider: &OIDCProvider,
     client: &Client,
-    error_on_invalid_jwk: bool,
+    skip_on_invalid_jwk: bool,
 ) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
     let response = client
         .get(provider.get_config().jwk_endpoint)
@@ -394,14 +394,14 @@ pub async fn fetch_jwks(
             provider
         ))
     })?;
-    parse_jwks(&bytes, provider, error_on_invalid_jwk)
+    parse_jwks(&bytes, provider, skip_on_invalid_jwk)
 }
 
 /// Parse the JWK bytes received from the given provider and return a list of JwkId -> JWK.
 pub fn parse_jwks(
     json_bytes: &[u8],
     provider: &OIDCProvider,
-    error_on_invalid_jwk: bool,
+    skip_on_invalid_jwk: bool,
 ) -> Result<Vec<(JwkId, JWK)>, FastCryptoError> {
     let json_str = String::from_utf8_lossy(json_bytes);
     let parsed_list: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&json_str);
@@ -409,7 +409,14 @@ pub fn parse_jwks(
         if let Some(keys) = parsed_list["keys"].as_array() {
             let mut ret = Vec::new();
             for k in keys {
-                if error_on_invalid_jwk {
+                if skip_on_invalid_jwk {
+                    // skips if invalid jwk is found, only error if no valid jwk is found for a provider.
+                    if let Ok(parsed) = serde_json::from_value::<JWKReader>(k.clone()) {
+                        if let Ok(jwk) = JWK::from_reader(parsed.clone()) {
+                            ret.push((JwkId::new(provider.get_config().iss, parsed.kid), jwk));
+                        }
+                    }
+                } else {
                     // legacy handling, if any jwk failed parsing, exit and error.
                     let parsed: JWKReader = serde_json::from_value(k.clone())
                         .map_err(|_| FastCryptoError::GeneralError("Parse error".to_string()))?;
@@ -418,16 +425,9 @@ pub fn parse_jwks(
                         JwkId::new(provider.get_config().iss, parsed.kid.clone()),
                         JWK::from_reader(parsed)?,
                     ));
-                } else {
-                    // skips if invalid jwk is found, only error if no valid jwk is found for a provider.
-                    if let Ok(parsed) = serde_json::from_value::<JWKReader>(k.clone()) {
-                        if let Ok(jwk) = JWK::from_reader(parsed.clone()) {
-                            ret.push((JwkId::new(provider.get_config().iss, parsed.kid), jwk));
-                        }
-                    }
                 }
             }
-            if !error_on_invalid_jwk && ret.is_empty() {
+            if skip_on_invalid_jwk && ret.is_empty() {
                 return Err(FastCryptoError::GeneralError(
                     "No valid JWKs found".to_string(),
                 ));
