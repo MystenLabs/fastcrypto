@@ -29,8 +29,9 @@ ignore = [
     "RUSTSEC-2024-0384",
     # allow outdated 'idna' until passkey-client crate is able to update (also in Sui)
     "RUSTSEC-2024-0421",
-    # allow unmaintained derivative crate used in transitive dependencies (ark-*, also in Sui)
+    # allow unmaintained derivative crate used in transitive dependencies (paste, ark-*, also in Sui)
     "RUSTSEC-2024-0388",
+    "RUSTSEC-2024-0436"
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
