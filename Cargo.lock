@@ -1308,6 +1308,7 @@ dependencies = [
  "static_assertions",
  "thiserror",
  "tokio",
+ "tracing",
  "twox-hash",
  "typenum",
  "wycheproof",
