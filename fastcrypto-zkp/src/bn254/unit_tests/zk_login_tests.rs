@@ -415,21 +415,21 @@ fn test_jwk_parse() {
         "wYvSKSQYKnGNV72_uVc9jbyUeTMsMbUgZPP0uVQX900To7A8a0XA3O17wuImgOG_BwGkpZrIRXF_RRYSK8IOH8N_ViTWh1vyEYSYwr_jfCpDoedJT0O6TZpBhBSmimtmO8ZBCkhZJ4w0AFNIMDPhMokbxwkEapjMA5zio_06dKfb3OBNmrwedZY86W1204-Pfma9Ih15Dm4o8SNFo5Sl0NNO4Ithvj2bbg1Bz1ydE4lMrXdSQL5C2uM9JYRJLnIjaYopBENwgf2Egc9CdVY8tr8jED-WQB6bcUBhDV6lJLZbpBlTHLkF1RlEMnIV2bDo02CryjThnz8l_-6G_7pJww"
     );
 
-    parse_jwks(GOOGLE_JWK_BYTES, &OIDCProvider::Google, false)
+    parse_jwks(GOOGLE_JWK_BYTES, &OIDCProvider::Google, true)
         .unwrap()
         .iter()
         .for_each(|content| {
             assert_eq!(content.0.iss, OIDCProvider::Google.get_config().iss);
         });
 
-    parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch, false)
+    parse_jwks(TWITCH_JWK_BYTES, &OIDCProvider::Twitch, true)
         .unwrap()
         .iter()
         .for_each(|content| {
             assert_eq!(content.0.iss, OIDCProvider::Twitch.get_config().iss);
         });
 
-    parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook, false)
+    parse_jwks(FACEBOOK_JWK_BYTES, &OIDCProvider::Facebook, true)
         .unwrap()
         .iter()
         .for_each(|content| {
@@ -438,8 +438,10 @@ fn test_jwk_parse() {
 
     assert!(parse_jwks(BAD_JWK_BYTES, &OIDCProvider::Twitch, false).is_err());
 
-    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, true).is_err());
-    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, false).is_ok());
+    // if skip flag is false, handle in legacy, error on an invalid jwk
+    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, false).is_err());
+    // if skip flag is true, skip an invalid jwk, and return the valid ones, returns ok.
+    assert!(parse_jwks(PARTIAL_INVALID_JWK_BYTES, &OIDCProvider::Twitch, true).is_ok());
 
     assert!(parse_jwks(
         r#"{
@@ -447,7 +449,7 @@ fn test_jwk_parse() {
       }"#
         .as_bytes(),
         &OIDCProvider::Twitch,
-        false
+        true
     )
     .is_err());
 }
@@ -473,7 +475,7 @@ async fn test_get_jwks() {
         // OIDCProvider::Arden, // TODO: disabling until the service is up again
         OIDCProvider::AwsTenant(("eu-west-3".to_string(), "eu-west-3_gGVCx53Es".to_string())), //Trace
     ] {
-        let res = fetch_jwks(&p, &client, false).await;
+        let res = fetch_jwks(&p, &client, true).await;
         assert!(res.is_ok());
         res.unwrap().iter().for_each(|e| {
             assert_eq!(e.0.iss, p.get_config().iss);
