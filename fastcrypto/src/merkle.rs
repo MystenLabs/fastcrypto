@@ -11,7 +11,6 @@ use core::{fmt::Debug, marker::PhantomData};
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::hash::{Blake2b256, Digest, HashFunction};
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 /// The length of the digests used in the merkle tree.
 pub const DIGEST_LEN: usize = 32;
@@ -19,11 +18,6 @@ pub const DIGEST_LEN: usize = 32;
 pub const LEAF_PREFIX: [u8; 1] = [0];
 pub const INNER_PREFIX: [u8; 1] = [1];
 pub const EMPTY_NODE: [u8; DIGEST_LEN] = [0; DIGEST_LEN];
-
-/// Returned if the specified index is out of bounds for a Merkle tree or proof.
-#[derive(Error, Debug, PartialEq, Eq)]
-#[error("index {0} is too large")]
-pub struct LeafIndexOutOfBounds(usize);
 
 /// A node in the Merkle tree.
 #[derive(Clone, PartialEq, Eq, Debug, Deserialize, Serialize)]
@@ -65,41 +59,12 @@ impl AsRef<[u8]> for Node {
     }
 }
 
-/// The operations required to authenticate a Merkle proof.
-pub trait MerkleAuth: Clone + Debug {
-    /// Verifies the proof given a Merkle root and the leaf data.
-    fn verify_proof(&self, root: &Node, leaf: &[u8], leaf_index: usize) -> FastCryptoResult<()> {
-        if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
-            return Err(FastCryptoError::InvalidProof);
-        }
-        Ok(())
-    }
-
-    /// Recomputes the Merkle root from the proof and the provided leaf data.
-    ///
-    /// Returns `None` if the provided index is too large.
-    fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node>;
-}
-
 /// A proof that some data is at index `leaf_index` in a [`MerkleTree`].
 #[derive(Serialize, Deserialize)]
 pub struct MerkleProof<T = Blake2b256> {
     _hash_type: PhantomData<T>,
     /// The sibling hash values on the path from the leaf to the root.
     path: Vec<Node>,
-}
-
-impl<T> MerkleProof<T>
-where
-    T: HashFunction<DIGEST_LEN>,
-{
-    /// Construct Merkle proof from list of hashes and leaf index.
-    pub fn new(path: &[Node]) -> Self {
-        Self {
-            _hash_type: PhantomData,
-            path: path.into(),
-        }
-    }
 }
 
 // Cannot be derived as many hash functions don't implement `Clone` and the derive is not smart
@@ -123,11 +88,38 @@ impl<T> core::fmt::Debug for MerkleProof<T> {
     }
 }
 
-impl<T> MerkleAuth for MerkleProof<T>
+impl<T> PartialEq for MerkleProof<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.path.eq(&other.path)
+    }
+}
+
+impl Eq for MerkleProof {}
+
+impl<T> MerkleProof<T>
 where
     T: HashFunction<DIGEST_LEN>,
 {
-    fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
+    /// Construct Merkle proof from list of hashes and leaf index.
+    pub fn new(path: &[Node]) -> Self {
+        Self {
+            _hash_type: PhantomData,
+            path: path.into(),
+        }
+    }
+
+    /// Verifies the proof given a Merkle root and the leaf data.
+    pub fn verify_proof(&self, root: &Node, leaf: &[u8], leaf_index: usize) -> FastCryptoResult<()> {
+        if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
+            return Err(FastCryptoError::InvalidProof);
+        }
+        Ok(())
+    }
+
+    /// Recomputes the Merkle root from the proof and the provided leaf data.
+    ///
+    /// Returns `None` if the provided index is too large.
+    pub fn compute_root(&self, leaf: &[u8], leaf_index: usize) -> Option<Node> {
         if leaf_index >> self.path.len() != 0 {
             return None;
         }
@@ -148,14 +140,6 @@ where
         Some(current_hash)
     }
 }
-
-impl<T> PartialEq for MerkleProof<T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.path.eq(&other.path)
-    }
-}
-
-impl Eq for MerkleProof {}
 
 /// Merkle tree using a hash function `T` (default: [`Blake2b256`]) from the [`fastcrypto`] crate.
 ///
