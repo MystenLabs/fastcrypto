@@ -109,7 +109,12 @@ where
     }
 
     /// Verifies the proof given a Merkle root and the leaf data.
-    pub fn verify_proof(&self, root: &Node, leaf: &[u8], leaf_index: usize) -> FastCryptoResult<()> {
+    pub fn verify_proof(
+        &self,
+        root: &Node,
+        leaf: &[u8],
+        leaf_index: usize,
+    ) -> FastCryptoResult<()> {
         if self.compute_root(leaf, leaf_index).as_ref() != Some(root) {
             return Err(FastCryptoError::InvalidProof);
         }
