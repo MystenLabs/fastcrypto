@@ -175,7 +175,6 @@ where
 }
 
 /// A proof that some data is not in a Merkle tree.
-/// Note that the requirement for `Serialize` trait on leaves can be relaxed later if needed.
 #[derive(Serialize, Deserialize)]
 #[serde(bound(
     serialize = "L: Serialize",
