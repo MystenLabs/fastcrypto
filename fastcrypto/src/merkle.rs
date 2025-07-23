@@ -6,6 +6,7 @@
 extern crate alloc;
 
 use alloc::{format, vec::Vec};
+use bcs::to_bytes;
 use core::{fmt::Debug, marker::PhantomData};
 
 use crate::error::{FastCryptoError, FastCryptoResult};
@@ -121,6 +122,16 @@ where
         Ok(())
     }
 
+    pub fn verify_proof_with_unserialized_leaf<L: Serialize>(
+        &self,
+        root: &Node,
+        leaf: &L,
+        leaf_index: usize,
+    ) -> FastCryptoResult<()> {
+        let bytes = to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
+        self.verify_proof(root, &bytes, leaf_index)
+    }
+
     /// Recomputes the Merkle root from the proof and the provided leaf data.
     ///
     /// Returns `None` if the provided index is too large.
@@ -143,6 +154,139 @@ where
             level_index /= 2;
         }
         Some(current_hash)
+    }
+
+    // Check if the proof is for the rightmost leaf in the tree
+    pub fn is_right_most(&self, leaf_index: usize) -> bool {
+        let mut level_index = leaf_index;
+        for sibling in self.path.iter() {
+            // The sibling hash of the current node
+            if level_index % 2 == 0 {
+                // The current node is a left child
+                if sibling.as_ref() != EMPTY_NODE.as_ref() {
+                    return false;
+                }
+            }
+            // Update to the level index one level up in the tree
+            level_index /= 2;
+        }
+        true
+    }
+}
+
+/// A proof that some data is not in a Merkle tree.
+/// Note that the requirement for `Serialize` trait on leaves can be relaxed later if needed.
+#[derive(Serialize, Deserialize)]
+pub struct MerkleNonInclusionProof<L, T = Blake2b256>
+where
+    L: Ord + Serialize,
+{
+    _hash_type: PhantomData<T>,
+    pub index: usize,
+    pub left_leaf: Option<(L, MerkleProof<T>)>,
+    pub right_leaf: Option<(L, MerkleProof<T>)>,
+}
+
+impl<L, T> MerkleNonInclusionProof<L, T>
+where
+    T: HashFunction<DIGEST_LEN>,
+    L: Ord + Serialize,
+{
+    pub fn new(
+        left_leaf: Option<(L, MerkleProof<T>)>,
+        right_leaf: Option<(L, MerkleProof<T>)>,
+        index: usize,
+    ) -> Self {
+        Self {
+            _hash_type: PhantomData,
+            left_leaf,
+            right_leaf,
+            index,
+        }
+    }
+}
+
+impl<L, T> core::fmt::Debug for MerkleNonInclusionProof<L, T>
+where
+    L: Debug + Ord + Serialize,
+    T: HashFunction<DIGEST_LEN>,
+{
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct(&format!(
+            "MerkleNonInclusionProof<L={}, T={}>",
+            std::any::type_name::<L>(),
+            std::any::type_name::<T>()
+        ))
+        .field("left_leaf", &self.left_leaf)
+        .field("right_leaf", &self.right_leaf)
+        .field("index", &self.index)
+        .finish()
+    }
+}
+
+/// Non inclusion proof verification implemented using the Serialize trait.
+impl<L, T> MerkleNonInclusionProof<L, T>
+where
+    T: HashFunction<DIGEST_LEN>,
+    L: Ord + Serialize,
+{
+    fn is_valid_neighbor(
+        &self,
+        neighbor: &L,
+        proof: &MerkleProof<T>,
+        neighbor_index: usize,
+        root: &Node,
+    ) -> FastCryptoResult<()> {
+        proof.verify_proof_with_unserialized_leaf(root, neighbor, neighbor_index)
+    }
+
+    // Prove non-inclusion of target_leaf in a Merkle tree assuming that the tree is sorted.
+    // Edge case explanations
+    // - Empty tree: no leaves, automatically valid
+    // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0
+    // - Target leaf larger than all: left neighbor must be rightmost leaf
+    pub fn verify_proof(&self, root: &Node, target_leaf: &L) -> FastCryptoResult<()> {
+        // Note: For empty trees, we don't need to check anything
+        if root.as_ref() == EMPTY_NODE.as_ref() {
+            return Ok(());
+        }
+
+        let right_leaf_index = self.index;
+
+        if let Some((left_leaf, left_proof)) = &self.left_leaf {
+            let left_leaf_index = self.index - 1;
+            // Check that the left leaf is a valid neighbor
+            self.is_valid_neighbor(left_leaf, left_proof, left_leaf_index, root)?;
+            // Check that the left leaf is less than the target leaf
+            if left_leaf >= target_leaf {
+                return Err(FastCryptoError::InvalidProof);
+            }
+            // Milestone: If left leaf is present, then left_leaf < target_leaf
+        } else if right_leaf_index != 0 || self.right_leaf.is_none() {
+            return Err(FastCryptoError::InvalidProof);
+            // Milestone: If left leaf is not present, then right leaf must be present with index 0.
+        }
+
+        if let Some((right_leaf, right_proof)) = &self.right_leaf {
+            // Check that the right leaf is a valid neighbor
+            self.is_valid_neighbor(right_leaf, right_proof, right_leaf_index, root)?;
+            // Check that the right leaf is greater than the target leaf
+            if right_leaf <= target_leaf {
+                return Err(FastCryptoError::InvalidProof);
+            }
+
+            // Milestone: If right leaf is present, then right_leaf > target_leaf
+        } else if let Some((_, left_proof)) = &self.left_leaf {
+            let left_leaf_index = self.index - 1;
+            if !left_proof.is_right_most(left_leaf_index) {
+                return Err(FastCryptoError::InvalidProof);
+            }
+            // Milestone: If right leaf is not present, then left leaf must be present and be the rightmost leaf
+        } else {
+            return Err(FastCryptoError::InvalidProof);
+        }
+
+        Ok(())
     }
 }
 
@@ -174,13 +318,34 @@ where
     T: HashFunction<DIGEST_LEN>,
 {
     /// Create the [`MerkleTree`] as a commitment to the provided data.
-    pub fn build<I>(iter: I) -> Self
+    pub fn build_from_serialized<I>(iter: I) -> Self
     where
         I: IntoIterator,
         I::IntoIter: ExactSizeIterator,
         I::Item: AsRef<[u8]>,
     {
         Self::build_from_leaf_hashes(iter.into_iter().map(|leaf| leaf_hash::<T>(leaf.as_ref())))
+    }
+
+    /// Create the [`MerkleTree`] as a commitment to the provided data.
+    /// The data is serialized using BCS and then hashed to produce the leaf hashes.
+    /// Note: Sometimes implementing AsRef<[u8]> makes the calling code more complex.
+    /// In those cases, prefer this method over build_from_serialized.
+    /// On the other hand, we pay the cost of serializing the leaves multiple times.
+    pub fn build_from_unserialized<I>(iter: I) -> FastCryptoResult<Self>
+    where
+        I: IntoIterator,
+        I::IntoIter: ExactSizeIterator,
+        I::Item: Serialize,
+    {
+        let leaf_hashes: FastCryptoResult<Vec<Node>> = iter
+            .into_iter()
+            .map(|leaf| {
+                let bytes = to_bytes(&leaf).map_err(|_| FastCryptoError::InvalidInput)?;
+                Ok(leaf_hash::<T>(&bytes))
+            })
+            .collect();
+        Ok(Self::build_from_leaf_hashes(leaf_hashes?))
     }
 
     /// Create the [`MerkleTree`] as a commitment to the provided data hashes.
@@ -268,6 +433,39 @@ where
             _hash_type: PhantomData,
             path,
         })
+    }
+
+    /// Compute the non-inclusion proof for the target leaf.
+    /// Returns an error if the target leaf is already in the tree.
+    pub fn compute_non_inclusion_proof<L: Ord + Serialize + Clone>(
+        &self,
+        leaves: &[L],
+        target_leaf: &L,
+    ) -> FastCryptoResult<MerkleNonInclusionProof<L, T>> {
+        let position = leaves.partition_point(|x| x <= target_leaf);
+        if position > 0 && leaves[position - 1] == *target_leaf {
+            return Err(FastCryptoError::GeneralError(
+                "Target leaf is already in the tree".to_string(),
+            ));
+        }
+
+        let left_leaf_proof = if position > 0 {
+            Some((leaves[position - 1].clone(), self.get_proof(position - 1)?))
+        } else {
+            None
+        };
+
+        let right_leaf_proof = if position < leaves.len() {
+            Some((leaves[position].clone(), self.get_proof(position)?))
+        } else {
+            None
+        };
+
+        Ok(MerkleNonInclusionProof::new(
+            left_leaf_proof,
+            right_leaf_proof,
+            position,
+        ))
     }
 }
 

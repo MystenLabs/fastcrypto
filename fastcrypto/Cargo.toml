@@ -54,6 +54,7 @@ serde_json = "1.0.93"
 num-bigint = "0.4.4"
 bech32 = "0.9.1"
 getrandom = {version = "0.2.15", features = ["js"], optional = true}
+bcs.workspace = true
 
 # Required for bulletproofs
 bulletproofs = { version = "4.0.0", optional = true }
@@ -130,4 +131,3 @@ base64 = "0.21.0"
 radix64 = "0.6.2"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
-bcs.workspace = true
