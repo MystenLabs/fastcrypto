@@ -9,7 +9,6 @@ mod merkle_benches {
     use super::*;
     use criterion::*;
     use fastcrypto::merkle::*;
-    use once_cell::sync::OnceCell;
     use serde::{Deserialize, Serialize};
 
     // Mimicking ObjectCheckpointState in Sui
@@ -18,22 +17,27 @@ mod merkle_benches {
         id: [u8; 32],
         data: Option<[u8; 32]>,
         #[serde(skip)]
-        bytes: OnceCell<Vec<u8>>,
+        bytes: Vec<u8>,
     }
 
     impl TestLeaf {
-        fn random() -> Self {
+        fn new(id: [u8; 32], data: Option<[u8; 32]>) -> Self {
+            let serialized = bcs::to_bytes(&(id, data)).unwrap();
             Self {
-                id: rand::random::<[u8; 32]>(),
-                data: Some(rand::random::<[u8; 32]>()),
-                bytes: OnceCell::new(),
+                id,
+                data,
+                bytes: serialized,
             }
+        }
+
+        fn random() -> Self {
+            Self::new(rand::random::<[u8; 32]>(), Some(rand::random::<[u8; 32]>()))
         }
     }
 
     impl AsRef<[u8]> for TestLeaf {
         fn as_ref(&self) -> &[u8] {
-            self.bytes.get_or_init(|| bcs::to_bytes(&self).unwrap())
+            &self.bytes
         }
     }
 
