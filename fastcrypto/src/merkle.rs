@@ -6,7 +6,6 @@
 extern crate alloc;
 
 use alloc::{format, vec::Vec};
-use bcs::to_bytes;
 use core::{fmt::Debug, marker::PhantomData};
 
 use crate::error::{FastCryptoError, FastCryptoResult};
@@ -128,7 +127,7 @@ where
         leaf: &L,
         leaf_index: usize,
     ) -> FastCryptoResult<()> {
-        let bytes = to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
+        let bytes = bcs::to_bytes(leaf).map_err(|_| FastCryptoError::InvalidInput)?;
         self.verify_proof(root, &bytes, leaf_index)
     }
 
@@ -262,10 +261,12 @@ where
 
         let right_leaf_index = self.index;
 
-        if let Some((left_leaf, left_proof)) = &self.left_leaf {
-            let left_leaf_index = self.index - 1;
+        // left_leaf_with_idx is None if either left_leaf is None or if index is zero
+        let left_leaf_with_idx = self.left_leaf.as_ref().zip(self.index.checked_sub(1));
+
+        if let Some(((left_leaf, left_proof), left_leaf_index)) = &left_leaf_with_idx {
             // Check that the left leaf is a valid neighbor
-            self.is_valid_neighbor(left_leaf, left_proof, left_leaf_index, root)?;
+            self.is_valid_neighbor(left_leaf, left_proof, *left_leaf_index, root)?;
             // Check that the left leaf is less than the target leaf
             if left_leaf >= target_leaf {
                 return Err(FastCryptoError::InvalidProof);
@@ -285,8 +286,7 @@ where
             }
 
             // Milestone: If right leaf is present, then right_leaf > target_leaf
-        } else if let Some((_, left_proof)) = &self.left_leaf {
-            let left_leaf_index = self.index - 1;
+        } else if let Some(((_, left_proof), left_leaf_index)) = left_leaf_with_idx {
             if !left_proof.is_right_most(left_leaf_index) {
                 return Err(FastCryptoError::InvalidProof);
             }
@@ -347,14 +347,15 @@ where
         I::IntoIter: ExactSizeIterator,
         I::Item: Serialize,
     {
-        let leaf_hashes: FastCryptoResult<Vec<Node>> = iter
+        let leaf_hashes = iter
             .into_iter()
             .map(|leaf| {
-                let bytes = to_bytes(&leaf).map_err(|_| FastCryptoError::InvalidInput)?;
-                Ok(leaf_hash::<T>(&bytes))
+                bcs::to_bytes(&leaf)
+                    .map_err(|_| FastCryptoError::InvalidInput)
+                    .map(|bytes| leaf_hash::<T>(&bytes))
             })
-            .collect();
-        Ok(Self::build_from_leaf_hashes(leaf_hashes?))
+            .collect::<FastCryptoResult<Vec<Node>>>()?;
+        Ok(Self::build_from_leaf_hashes(leaf_hashes))
     }
 
     /// Create the [`MerkleTree`] as a commitment to the provided data hashes.

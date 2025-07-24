@@ -166,6 +166,19 @@ fn test_non_inclusion_multiple_leaves() {
     }
 }
 
+#[test]
+fn test_non_inclusion_failure_zero_index_some_left_leaf() {
+    let mt: MerkleTree = MerkleTree::build_from_unserialized(&["foo".as_bytes()]).unwrap();
+    let leaf = "fake_leaf".as_bytes();
+    let fake_proof = MerkleNonInclusionProof {
+        index: 0,
+        left_leaf: Some((leaf, mt.get_proof(0).unwrap())),
+        right_leaf: Some((leaf, mt.get_proof(0).unwrap())),
+    };
+    // Make sure that it does not panic
+    assert!(fake_proof.verify_proof(&mt.root(), &leaf).is_err());
+}
+
 use serde::{Deserialize, Serialize};
 
 // Test struct for serialization tests
