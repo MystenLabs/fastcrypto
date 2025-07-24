@@ -174,7 +174,15 @@ where
     }
 }
 
-/// A proof that some data is not in a Merkle tree.
+/// A proof that some leaf is not in a Merkle tree.
+/// To be used *only* when the tree is built over sorted leaves.
+///
+/// The proof contains:
+/// - index: where the target leaf would be inserted in the sorted leaves.
+/// - left_leaf, right_leaf: inclusion proofs for neighboring leaves at index - 1 & index.
+///
+/// The serde bound is needed because Rust is not smart enough to see that T does not need to be serialized
+/// (see `test_serialization_with_blake2b256` which fails without the bound).
 #[derive(Serialize, Deserialize)]
 #[serde(bound(
     serialize = "L: Serialize",
@@ -184,7 +192,6 @@ pub struct MerkleNonInclusionProof<L, T = Blake2b256>
 where
     L: Ord + Serialize,
 {
-    _hash_type: PhantomData<T>,
     pub index: usize,
     pub left_leaf: Option<(L, MerkleProof<T>)>,
     pub right_leaf: Option<(L, MerkleProof<T>)>,
@@ -201,7 +208,6 @@ where
         index: usize,
     ) -> Self {
         Self {
-            _hash_type: PhantomData,
             left_leaf,
             right_leaf,
             index,
@@ -243,7 +249,7 @@ where
         proof.verify_proof_with_unserialized_leaf(root, neighbor, neighbor_index)
     }
 
-    // Prove non-inclusion of target_leaf in a Merkle tree assuming that the tree is sorted.
+    // Proves non-inclusion of a leaf assuming sorted tree.
     // Edge case explanations
     // - Empty tree: no leaves, automatically valid
     // - Target leaf smaller than all: no left neighbor, right neighbor must be at position 0
