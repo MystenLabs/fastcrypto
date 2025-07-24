@@ -101,6 +101,10 @@ harness = false
 name = "hash"
 harness = false
 
+[[bench]]
+name = "merkle"
+harness = false
+
 [features]
 default = []
 

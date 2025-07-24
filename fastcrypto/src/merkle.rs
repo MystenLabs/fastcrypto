@@ -333,7 +333,11 @@ where
         I::IntoIter: ExactSizeIterator,
         I::Item: AsRef<[u8]>,
     {
-        Self::build_from_leaf_hashes(iter.into_iter().map(|leaf| leaf_hash::<T>(leaf.as_ref())))
+        let leaf_hashes = iter
+            .into_iter()
+            .map(|leaf| leaf_hash::<T>(leaf.as_ref()))
+            .collect::<Vec<_>>();
+        Self::build_from_leaf_hashes(leaf_hashes)
     }
 
     /// Create the [`MerkleTree`] as a commitment to the provided data.
@@ -354,7 +358,7 @@ where
                     .map_err(|_| FastCryptoError::InvalidInput)
                     .map(|bytes| leaf_hash::<T>(&bytes))
             })
-            .collect::<FastCryptoResult<Vec<Node>>>()?;
+            .collect::<FastCryptoResult<Vec<_>>>()?;
         Ok(Self::build_from_leaf_hashes(leaf_hashes))
     }
 
