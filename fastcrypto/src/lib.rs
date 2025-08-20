@@ -85,6 +85,10 @@ pub mod utils_tests;
 pub mod secp256r1_group_tests;
 
 #[cfg(test)]
+#[path = "tests/secp256k1_group_tests.rs"]
+pub mod secp256k1_group_tests;
+
+#[cfg(test)]
 #[path = "tests/merkle_tests.rs"]
 pub mod merkle_tests;
 
