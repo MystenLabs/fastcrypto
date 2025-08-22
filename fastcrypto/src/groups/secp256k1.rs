@@ -85,10 +85,13 @@ impl MultiScalarMul for ProjectivePoint {
         scalars: &[Self::ScalarType],
         points: &[Self],
     ) -> Result<Self, FastCryptoError> {
+        // Fail early if the lengths do not match
+        if scalars.len() != points.len() {
+            return Err(FastCryptoError::InvalidInput);
+        }
         let scalars = scalars.iter().map(|s| s.0).collect::<Vec<_>>();
         let points = points.iter().map(|g| g.0.into_affine()).collect::<Vec<_>>();
-        let result = Projective::msm(&points, &scalars).map_err(|_| FastCryptoError::InvalidInput)?;
-        Ok(ProjectivePoint(result))
+        Projective::msm(&points, &scalars).map_err(|_| FastCryptoError::GeneralOpaqueError).map(ProjectivePoint)
     }
 }
 
