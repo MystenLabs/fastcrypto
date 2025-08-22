@@ -3,7 +3,7 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::windowed::multi_scalar_mul;
-use crate::groups::multiplier::ToLittleEndianBytes  ;
+use crate::groups::multiplier::ToLittleEndianBytes;
 use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;

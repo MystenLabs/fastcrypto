@@ -10,14 +10,6 @@ use crate::serde_helpers::ToFromByteArray;
 use rand::thread_rng;
 
 #[test]
-fn test_to_from_byte_array() {
-    let scalar = secp256k1::Scalar::rand(&mut thread_rng());
-    let bytes = scalar.to_byte_array();
-    let reconstructed = Scalar::from_byte_array(&bytes).unwrap();
-    assert_eq!(scalar, reconstructed);
-}
-
-#[test]
 fn test_arithmetic() {
     let p = ProjectivePoint::generator();
     let two_p = p + p;
@@ -49,6 +41,11 @@ fn test_serde() {
 #[test]
 fn test_regression() {
     let scalar = secp256k1::Scalar::from(7);
+    assert_eq!(
+        scalar.to_byte_array().to_vec(),
+        hex::decode("0700000000000000000000000000000000000000000000000000000000000000").unwrap()
+    );
+
     let point = ProjectivePoint::generator() * scalar;
     assert_eq!(
         point.to_byte_array().to_vec(),
