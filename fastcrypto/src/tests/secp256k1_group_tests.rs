@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::{Doubling, GroupElement};
+use std::ops::Neg;
 
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};
 use crate::groups::{secp256k1, Scalar as ScalarTrait};
@@ -32,4 +33,31 @@ fn test_arithmetic() {
     assert_eq!(res.unwrap(), Scalar::from(2 << 63));
 }
 
-// TODO: add serde tests & regression
+#[test]
+fn test_serde() {
+    let scalar = secp256k1::Scalar::rand(&mut thread_rng());
+    let bytes = scalar.to_byte_array();
+    let reconstructed = Scalar::from_byte_array(&bytes).unwrap();
+    assert_eq!(scalar, reconstructed);
+
+    let point = ProjectivePoint::generator() * scalar;
+    let point_bytes = point.to_byte_array();
+    let reconstructed_point = ProjectivePoint::from_byte_array(&point_bytes).unwrap();
+    assert_eq!(point, reconstructed_point);
+}
+
+#[test]
+fn test_regression() {
+    let scalar = secp256k1::Scalar::from(7);
+    let point = ProjectivePoint::generator() * scalar;
+    assert_eq!(
+        point.to_byte_array().to_vec(),
+        hex::decode("bcf9c4caeddd2be99ce330037e9b413d0e7aeaf265f398a3eab45d6e64f0bd5c00").unwrap()
+    );
+
+    let negate = point.neg();
+    assert_eq!(
+        negate.to_byte_array().to_vec(),
+        hex::decode("bcf9c4caeddd2be99ce330037e9b413d0e7aeaf265f398a3eab45d6e64f0bd5c80").unwrap()
+    );
+}

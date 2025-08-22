@@ -16,7 +16,11 @@ use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
+/// Size of a serialized scalar in bytes.
 pub const SCALAR_SIZE_IN_BYTES: usize = 32;
+
+/// Size of a serialized point in bytes. This uses compressed serialization.
+pub const POINT_SIZE_IN_BYTES: usize = 33;
 
 /// A point on the Secp256k1 curve in projective coordinates.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -48,7 +52,6 @@ impl Mul<Scalar> for ProjectivePoint {
     }
 }
 
-#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for ProjectivePoint {
     type Output = Result<ProjectivePoint, FastCryptoError>;
 
@@ -56,6 +59,25 @@ impl Div<Scalar> for ProjectivePoint {
         Ok(self * rhs.inverse()?)
     }
 }
+
+impl ToFromByteArray<POINT_SIZE_IN_BYTES> for ProjectivePoint {
+    fn from_byte_array(bytes: &[u8; POINT_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+        Ok(ProjectivePoint(
+            Projective::deserialize_compressed(bytes.as_slice())
+                .map_err(|_| FastCryptoError::InvalidInput)?,
+        ))
+    }
+
+    fn to_byte_array(&self) -> [u8; POINT_SIZE_IN_BYTES] {
+        let mut bytes = [0u8; POINT_SIZE_IN_BYTES];
+        self.0
+            .serialize_compressed(&mut bytes[..])
+            .expect("Is always 33 bytes");
+        bytes
+    }
+}
+
+serialize_deserialize_with_to_from_byte_array!(ProjectivePoint);
 
 /// A field element in the prime field of the same order as the curve.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -81,7 +103,6 @@ impl Mul<Scalar> for Scalar {
     }
 }
 
-#[allow(clippy::suspicious_arithmetic_impl)]
 impl Div<Scalar> for Scalar {
     type Output = Result<Scalar, FastCryptoError>;
 
