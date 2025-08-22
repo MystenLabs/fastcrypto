@@ -2,13 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::multiplier::windowed::multi_scalar_mul_256;
 use crate::groups::multiplier::ToLittleEndianBytes;
 use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
-use ark_ec::Group;
+use ark_ec::{CurveGroup, Group, VariableBaseMSM};
 use ark_ff::{Field, One, UniformRand, Zero};
 use ark_secp256k1::{Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -86,7 +85,10 @@ impl MultiScalarMul for ProjectivePoint {
         scalars: &[Self::ScalarType],
         points: &[Self],
     ) -> Result<Self, FastCryptoError> {
-        multi_scalar_mul_256(scalars, points)
+        let scalars = scalars.iter().map(|s| s.0).collect::<Vec<_>>();
+        let points = points.iter().map(|g| g.0.into_affine()).collect::<Vec<_>>();
+        let result = Projective::msm(&points, &scalars).map_err(|_| FastCryptoError::InvalidInput)?;
+        Ok(ProjectivePoint(result))
     }
 }
 
