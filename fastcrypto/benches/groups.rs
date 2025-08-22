@@ -115,10 +115,9 @@ mod group_benches {
         c.bench_function(BenchmarkId::new(name.to_string(), len), move |b| {
             b.iter(|| G::multi_scalar_mul(&scalars, &points).unwrap())
         });
-        c.bench_function(
-            BenchmarkId::new(format!("{} naive", name), len),
-            move |b| b.iter(|| msm_reference(&scalars_copy, &points_copy)),
-        );
+        c.bench_function(BenchmarkId::new(format!("{} naive", name), len), move |b| {
+            b.iter(|| msm_reference(&scalars_copy, &points_copy))
+        });
     }
 
     /// A reference implementation of multi-scalar multiplication for benchmarking purposes.

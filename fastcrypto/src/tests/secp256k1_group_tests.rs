@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::groups::{Doubling, GroupElement, MultiScalarMul};
-use std::ops::Neg;
+use std::ops::{Mul, Neg};
 
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};
 use crate::groups::{secp256k1, Scalar as ScalarTrait};
@@ -75,11 +75,44 @@ fn test_msm() {
         }
         let actual = ProjectivePoint::multi_scalar_mul(&scalars, &points).unwrap();
         assert_eq!(expected, actual);
-
-        assert_eq!(
-            ProjectivePoint::zero(),
-            ProjectivePoint::multi_scalar_mul(&[], &[]).unwrap()
-        );
         assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], &points).is_err());
     }
+}
+
+#[test]
+fn test_msm_edge_cases() {
+    assert_eq!(
+        ProjectivePoint::zero(),
+        ProjectivePoint::multi_scalar_mul(&[], &[]).unwrap()
+    );
+
+    assert_eq!(
+        ProjectivePoint::zero(),
+        ProjectivePoint::multi_scalar_mul(&[Scalar::from(0)], &[ProjectivePoint::generator()])
+            .unwrap()
+    );
+
+    assert_eq!(
+        ProjectivePoint::generator(),
+        ProjectivePoint::multi_scalar_mul(&[Scalar::from(1)], &[ProjectivePoint::generator()])
+            .unwrap()
+    );
+
+    assert_eq!(
+        ProjectivePoint::zero(),
+        ProjectivePoint::multi_scalar_mul(
+            &[Scalar::from(1).neg(), Scalar::from(1)],
+            &[ProjectivePoint::generator(), ProjectivePoint::generator()]
+        )
+        .unwrap()
+    );
+
+    assert_eq!(
+        ProjectivePoint::generator().mul(Scalar::from(2)),
+        ProjectivePoint::multi_scalar_mul(
+            &[Scalar::from(1), Scalar::from(1)],
+            &[ProjectivePoint::generator(), ProjectivePoint::generator()]
+        )
+        .unwrap()
+    );
 }
