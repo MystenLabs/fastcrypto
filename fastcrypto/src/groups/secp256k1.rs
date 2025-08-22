@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::multiplier::ToLittleEndianBytes;
-use crate::groups::{Doubling, GroupElement, Scalar as ScalarTrait};
+use crate::groups::multiplier::windowed::multi_scalar_mul;
+use crate::groups::multiplier::ToLittleEndianBytes  ;
+use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -14,6 +15,7 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
+use std::collections::HashMap;
 use std::ops::{Div, Mul};
 
 /// Size of a serialized scalar in bytes.
@@ -55,6 +57,7 @@ impl Mul<Scalar> for ProjectivePoint {
 impl Div<Scalar> for ProjectivePoint {
     type Output = Result<ProjectivePoint, FastCryptoError>;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, rhs: Scalar) -> Result<ProjectivePoint, FastCryptoError> {
         Ok(self * rhs.inverse()?)
     }
@@ -78,6 +81,15 @@ impl ToFromByteArray<POINT_SIZE_IN_BYTES> for ProjectivePoint {
 }
 
 serialize_deserialize_with_to_from_byte_array!(ProjectivePoint);
+
+impl MultiScalarMul for ProjectivePoint {
+    fn multi_scalar_mul(
+        scalars: &[Self::ScalarType],
+        points: &[Self],
+    ) -> Result<Self, FastCryptoError> {
+        multi_scalar_mul(scalars, points, &HashMap::new(), 5, ProjectivePoint::zero())
+    }
+}
 
 /// A field element in the prime field of the same order as the curve.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -106,6 +118,7 @@ impl Mul<Scalar> for Scalar {
 impl Div<Scalar> for Scalar {
     type Output = Result<Scalar, FastCryptoError>;
 
+    #[allow(clippy::suspicious_arithmetic_impl)]
     fn div(self, rhs: Scalar) -> Result<Scalar, FastCryptoError> {
         Ok(self * rhs.inverse()?)
     }

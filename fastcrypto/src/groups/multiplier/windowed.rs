@@ -1,15 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::error::{FastCryptoError, FastCryptoResult};
+use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
+use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
+use crate::groups::Doubling;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::iter::successors;
 use std::marker::PhantomData;
 use std::ops::Add;
-
-use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
-use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
-use crate::groups::Doubling;
 
 /// This scalar multiplier uses pre-computation with the windowed method. This multiplier is particularly
 /// fast for double multiplications, where a sliding window method is used, but this implies that the
@@ -90,6 +90,7 @@ impl<
             SLIDING_WINDOW_WIDTH,
             self.cache[0].clone(),
         )
+        .expect("Length of input vectors are fixed")
     }
 }
 
@@ -105,22 +106,26 @@ impl<
 /// The `default_window_width` is the window width for the elements that does not have a precomputation
 /// table and may be set to any value >= 1. As rule-of-thumb, this should be set to approximately
 /// the bit length of the square root of the scalar size for optimal performance.
+///
+/// Returns an error if the lengths of the scalars and elements do not match.
 pub fn multi_scalar_mul<
     G: Doubling + for<'a> Add<&'a G, Output = G> + Clone + Debug,
     S: ToLittleEndianBytes + Clone + Debug,
-    const N: usize,
 >(
-    scalars: &[S; N],
-    elements: &[G; N],
+    scalars: &[S],
+    elements: &[G],
     precomputed_multiples: &HashMap<usize, Vec<G>>,
     default_window_width: usize,
     zero: G,
-) -> G {
-    if N == 0 {
-        return zero;
+) -> FastCryptoResult<G> {
+    if scalars.len() != elements.len() {
+        return Err(FastCryptoError::InvalidInput);
+    } else if scalars.is_empty() {
+        return Ok(zero);
     }
+    let n = scalars.len();
 
-    let mut window_sizes = [0usize; N];
+    let mut window_sizes = vec![0usize; n];
 
     // Compute missing precomputation tables.
     let mut missing_precomputations = HashMap::new();
@@ -132,7 +137,7 @@ pub fn multi_scalar_mul<
 
     // Create vector with all precomputation tables.
     let mut all_precomputed_multiples = vec![];
-    for i in 0..N {
+    for i in 0..n {
         match precomputed_multiples.get(&i).take() {
             Some(precomputed_multiples) => {
                 all_precomputed_multiples.push(precomputed_multiples);
@@ -161,9 +166,9 @@ pub fn multi_scalar_mul<
     // beginning of a window, and we continue the iteration. When the iterations exists the window,
     // we add the corresponding precomputed value and keeps iterating until the next one bit is found
     // which marks the beginning of the next window.
-    let mut is_in_window = [false; N];
-    let mut index_in_window = [0usize; N]; // Counter for the current window
-    let mut precomputed_multiple_index = [0usize; N];
+    let mut is_in_window = vec![false; n];
+    let mut index_in_window = vec![0usize; n]; // Counter for the current window
+    let mut precomputed_multiple_index = vec![0usize; n];
 
     // We may skip doubling until result is non-zero.
     let mut is_zero = true;
@@ -174,7 +179,7 @@ pub fn multi_scalar_mul<
         if !is_zero {
             result = result.double();
         }
-        for i in 0..N {
+        for i in 0..n {
             if is_in_window[i] {
                 // A window has been set for this scalar. Keep iterating until the window is finished.
                 index_in_window[i] += 1;
@@ -211,7 +216,7 @@ pub fn multi_scalar_mul<
             }
         }
     }
-    result
+    Ok(result)
 }
 
 /// Compute multiples <i>2<sup>w-1</sup> base_element, (2<sup>w-1</sup> + 1) base_element, ..., (2<sup>w</sup> - 1) base_element</i>.

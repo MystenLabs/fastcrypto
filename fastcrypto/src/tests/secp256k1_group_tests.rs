@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{Doubling, GroupElement};
+use crate::groups::{Doubling, GroupElement, MultiScalarMul};
 use std::ops::Neg;
 
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};
@@ -60,4 +60,29 @@ fn test_regression() {
         negate.to_byte_array().to_vec(),
         hex::decode("bcf9c4caeddd2be99ce330037e9b413d0e7aeaf265f398a3eab45d6e64f0bd5c80").unwrap()
     );
+}
+
+#[test]
+fn test_msm() {
+    for l in 1..50 {
+        let mut scalars = Vec::new();
+        let mut points = Vec::new();
+        let mut expected = ProjectivePoint::zero();
+        for _ in 0..l {
+            let s = Scalar::rand(&mut thread_rng());
+            let e = Scalar::rand(&mut thread_rng());
+            let g = ProjectivePoint::generator() * e;
+            expected += g * s;
+            scalars.push(s);
+            points.push(g);
+        }
+        let actual = ProjectivePoint::multi_scalar_mul(&scalars, &points).unwrap();
+        assert_eq!(expected, actual);
+
+        assert_eq!(
+            ProjectivePoint::zero(),
+            ProjectivePoint::multi_scalar_mul(&[], &[]).unwrap()
+        );
+        assert!(ProjectivePoint::multi_scalar_mul(&scalars[1..], &points).is_err());
+    }
 }
