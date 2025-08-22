@@ -6,7 +6,6 @@ extern crate criterion;
 mod group_benches {
     use criterion::measurement::Measurement;
     use criterion::{measurement, BenchmarkGroup, BenchmarkId, Criterion};
-    use fastcrypto::groups;
     use fastcrypto::groups::bls12381::{
         G1Element, G1ElementUncompressed, G2Element, GTElement, Scalar as BlsScalar,
         G1_ELEMENT_BYTE_LENGTH, G2_ELEMENT_BYTE_LENGTH, GT_ELEMENT_BYTE_LENGTH, SCALAR_LENGTH,
@@ -117,7 +116,7 @@ mod group_benches {
             b.iter(|| G::multi_scalar_mul(&scalars, &points).unwrap())
         });
         c.bench_function(
-            BenchmarkId::new(format!("{} baseline", name.to_string()), len),
+            BenchmarkId::new(format!("{} naive", name), len),
             move |b| b.iter(|| msm_reference(&scalars_copy, &points_copy)),
         );
     }
@@ -139,8 +138,8 @@ mod group_benches {
     }
 
     fn msm(c: &mut Criterion) {
-        static INPUT_SIZES: [usize; 8] = [8, 16, 32, 64, 128, 256, 512, 1024];
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM using BLST");
+        static INPUT_SIZES: [usize; 6] = [32, 64, 128, 256, 512, 1024];
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM");
         for size in INPUT_SIZES.iter() {
             msm_single::<G1Element, _>("BLS12381-G1", size, &mut group);
         }
