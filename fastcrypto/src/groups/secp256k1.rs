@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::multiplier::windowed::multi_scalar_mul;
+use crate::groups::multiplier::windowed::multi_scalar_mul_256;
 use crate::groups::multiplier::ToLittleEndianBytes;
 use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
@@ -15,7 +15,6 @@ use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
 use serde::{de, Deserialize};
-use std::collections::HashMap;
 use std::ops::{Div, Mul};
 
 /// Size of a serialized scalar in bytes.
@@ -87,7 +86,7 @@ impl MultiScalarMul for ProjectivePoint {
         scalars: &[Self::ScalarType],
         points: &[Self],
     ) -> Result<Self, FastCryptoError> {
-        multi_scalar_mul(scalars, points, &HashMap::new(), 5, ProjectivePoint::zero())
+        multi_scalar_mul_256(scalars, points)
     }
 }
 

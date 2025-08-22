@@ -4,7 +4,7 @@
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::integer_utils::{get_bits_from_bytes, is_power_of_2, test_bit};
 use crate::groups::multiplier::{integer_utils, ScalarMultiplier, ToLittleEndianBytes};
-use crate::groups::Doubling;
+use crate::groups::{Doubling, GroupElement};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::iter::successors;
@@ -92,6 +92,25 @@ impl<
         )
         .expect("Length of input vectors are fixed")
     }
+}
+
+/// Convenience method for computing the linear combination of the given scalars and group elements in a group with size ~256 bits.
+pub fn multi_scalar_mul_256<G: GroupElement + Doubling>(
+    scalars: &[G::ScalarType],
+    elements: &[G],
+) -> FastCryptoResult<G>
+where
+    G::ScalarType: ToLittleEndianBytes,
+{
+    // A good default value for the window width, computed as log2(sqrt(256)).
+    let default_window_width = 5;
+    multi_scalar_mul(
+        scalars,
+        elements,
+        &HashMap::new(),
+        default_window_width,
+        G::zero(),
+    )
 }
 
 /// This method computes the linear combination of the given scalars and group elements using the
