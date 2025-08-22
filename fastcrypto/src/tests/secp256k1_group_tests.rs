@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::groups::{Doubling, GroupElement, MultiScalarMul};
+use crate::groups::{Doubling, GroupElement, HashToGroupElement, MultiScalarMul};
 use std::ops::{Mul, Neg};
 
 use crate::groups::secp256k1::{ProjectivePoint, Scalar};
@@ -114,5 +114,50 @@ fn test_msm_edge_cases() {
             &[ProjectivePoint::generator(), ProjectivePoint::generator()]
         )
         .unwrap()
+    );
+}
+
+#[test]
+fn test_hash_to_group() {
+    // Test that outputs are not equal for different inputs
+    assert_ne!(
+        ProjectivePoint::hash_to_group_element(b"Hello, world!"),
+        ProjectivePoint::hash_to_group_element(b"Hello, world")
+    );
+
+    // Regression
+    assert_eq!(
+        ProjectivePoint::hash_to_group_element(b"Hello, world!")
+            .to_byte_array()
+            .to_vec(),
+        hex::decode("9266c6ba9e9a4eb81f79e20a8b8cfbde9c64cc5a31e95533505f690f210c292e80").unwrap()
+    );
+
+    // Hashing empty input
+    assert_eq!(
+        ProjectivePoint::hash_to_group_element(&[])
+            .to_byte_array()
+            .to_vec(),
+        hex::decode("c3b95c933e5605d220ae38cb4f528f708b664c5869c34d02cfdfc8371b98e67780").unwrap()
+    );
+
+    // Large input
+    assert_eq!(
+        ProjectivePoint::hash_to_group_element(&[0u8; 65536])
+            .to_byte_array()
+            .to_vec(),
+        hex::decode("44792ad36239dd0710f58526cdafad92b2868e302d0d6d3f676793303056be2f80").unwrap()
+    );
+}
+
+#[test]
+fn test_point_conversion() {
+    assert_eq!(
+        ProjectivePoint::from(&(k256::ProjectivePoint::GENERATOR * k256::Scalar::from(7u64))),
+        ProjectivePoint::generator() * Scalar::from(7)
+    );
+    assert_eq!(
+        ProjectivePoint::from(&k256::ProjectivePoint::IDENTITY),
+        ProjectivePoint::zero()
     );
 }

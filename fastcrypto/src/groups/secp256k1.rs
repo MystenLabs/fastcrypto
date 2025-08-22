@@ -1,18 +1,27 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! Implementation of the Secp256k1 (aka K-256) curve.
+
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::multiplier::ToLittleEndianBytes;
-use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
+use crate::groups::{
+    Doubling, GroupElement, HashToGroupElement, MultiScalarMul, Scalar as ScalarTrait,
+};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
 use ark_ec::{CurveGroup, Group, VariableBaseMSM};
 use ark_ff::{Field, One, UniformRand, Zero};
-use ark_secp256k1::{Fr, Projective};
+use ark_secp256k1::{Affine, Fq, Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
+use k256::elliptic_curve::bigint::{ArrayDecoding, ArrayEncoding};
+use k256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
+use k256::elliptic_curve::sec1::ToEncodedPoint;
+use k256::elliptic_curve::Group as GroupTrait;
+use k256::Secp256k1;
 use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
@@ -91,7 +100,41 @@ impl MultiScalarMul for ProjectivePoint {
         }
         let scalars = scalars.iter().map(|s| s.0).collect::<Vec<_>>();
         let points = points.iter().map(|g| g.0.into_affine()).collect::<Vec<_>>();
-        Projective::msm(&points, &scalars).map_err(|_| FastCryptoError::GeneralOpaqueError).map(ProjectivePoint)
+        Projective::msm(&points, &scalars)
+            .map_err(|_| FastCryptoError::GeneralOpaqueError)
+            .map(ProjectivePoint)
+    }
+}
+impl From<&k256::ProjectivePoint> for ProjectivePoint {
+    fn from(from: &k256::ProjectivePoint) -> Self {
+        if from.is_identity().into() {
+            return ProjectivePoint(Projective::zero());
+        }
+
+        let encoded_point = from.to_encoded_point(false);
+        let x = convert_fq(encoded_point.x().expect("Uncompressed and not identity"));
+        let y = convert_fq(encoded_point.y().expect("Uncompressed and not identity"));
+
+        ProjectivePoint(Projective::from(Affine::new(x, y)))
+    }
+}
+
+/// Convert a representation of a field element in the k256 crate to a field element [Fq] in the arkworks library.
+fn convert_fq(fq: &k256::FieldBytes) -> Fq {
+    // Invert endianness to match arkworks representation
+    Fq::deserialize_uncompressed(fq.into_uint_le().to_be_byte_array().as_slice()).unwrap()
+}
+
+/// The hash domain separation tag used for hashing to group elements in Secp256k1.
+pub const HASH_DST: &[u8; 31] = b"FASTCRYPTO_HASH2CURVE_SECP256K1";
+
+impl HashToGroupElement for ProjectivePoint {
+    fn hash_to_group_element(msg: &[u8]) -> Self {
+        // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
+        // or if the output of the hash function (Sha3_256) is too big. So since these are fixed, we can safely unwrap.
+        ProjectivePoint::from(
+            &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha3::Sha3_256>>(&[msg], HASH_DST).unwrap(),
+        )
     }
 }
 
