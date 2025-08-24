@@ -168,16 +168,32 @@ where
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
+        if t > (nodes.total_weight() / 2) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Self::new_any_t(enc_sk, nodes, t, random_oracle, rng)
+    }
+
+    /// In the sync setting we can use any value of t
+    pub fn new_any_t<R: AllowedRng>(
+        enc_sk: ecies_v1::PrivateKey<EG>,
+        nodes: Nodes<EG>,
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+        rng: &mut R,
+    ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense.
+        if t > nodes.total_weight() || t == 0 {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         // Confirm that my ecies pk is in the nodes.
         let enc_pk = ecies_v1::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)?;
-        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
-        if t > (nodes.total_weight() / 2) || t == 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
         let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
@@ -699,6 +715,16 @@ where
         rng: &mut R,
     ) -> FastCryptoResult<Output<G, EG>> {
         let verified_messages = self.process_confirmations(messages, confirmations, rng)?;
+        Ok(self.aggregate(&verified_messages))
+    }
+
+    /// Optimistic version of the complete function that assumes all messages are valid and if other
+    /// parties received invalid shares, the higher level protocol will handle it.
+    pub fn complete_optimistic<R: AllowedRng>(
+        &self,
+        messages: &UsedProcessedMessages<G, EG>,
+    ) -> FastCryptoResult<Output<G, EG>> {
+        let verified_messages = VerifiedProcessedMessages::filter_from(messages, &[]);
         Ok(self.aggregate(&verified_messages))
     }
 
