@@ -9,7 +9,7 @@ use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::Poly;
 use crate::random_oracle::RandomOracle;
 use crate::tbls::ThresholdBls;
-use crate::types::ThresholdBls12381MinSig;
+use crate::types::{ShareIndex, ThresholdBls12381MinSig};
 use fastcrypto::error::FastCryptoError;
 use fastcrypto::groups::bls12381::{G2Element, Scalar};
 use fastcrypto::groups::GroupElement;
@@ -17,6 +17,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use rand::prelude::StdRng;
 use rand::{thread_rng, SeedableRng};
+use std::collections::HashMap;
 
 const MSG: [u8; 4] = [1, 2, 3, 4];
 
@@ -27,12 +28,13 @@ type EG = G2Element;
 type KeyNodePair<EG> = (PartyId, PrivateKey<EG>, PublicKey<EG>);
 
 fn gen_keys_and_nodes(n: usize) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
-    gen_keys_and_nodes_rng(n, &mut thread_rng())
+    gen_keys_and_nodes_rng(n, &mut thread_rng(), false)
 }
 
 fn gen_keys_and_nodes_rng<R: AllowedRng>(
     n: usize,
     rng: &mut R,
+    fixed_weight: bool,
 ) -> (Vec<KeyNodePair<EG>>, Nodes<EG>) {
     let keys = (0..n)
         .map(|id| {
@@ -46,7 +48,15 @@ fn gen_keys_and_nodes_rng<R: AllowedRng>(
         .map(|(id, _sk, pk)| Node::<EG> {
             id: *id,
             pk: pk.clone(),
-            weight: if *id == 2 { 0 } else { 2 + id },
+            weight: if fixed_weight {
+                1
+            } else {
+                if *id == 2 {
+                    0
+                } else {
+                    2 + id
+                }
+            },
         })
         .collect();
     let nodes = Nodes::new(nodes).unwrap();
@@ -666,7 +676,7 @@ fn test_serialized_message_regression() {
     let ro = RandomOracle::new("dkg");
     let t = 3;
     let mut rng = StdRng::from_seed([1; 32]);
-    let (keys, nodes) = gen_keys_and_nodes_rng(6, &mut rng);
+    let (keys, nodes) = gen_keys_and_nodes_rng(6, &mut rng, false);
 
     let d0 = Party::<G, EG>::new(
         keys.first().unwrap().1.clone(),
@@ -731,4 +741,205 @@ fn test_serialized_message_regression() {
     let expected_conf0 = "00000103009242c26a0ef926f97ff4eb739a6ee2fed88efbacb79392cff978cad2b66a07c0b9e20333aad7a2fc1567a2b27b1b777e0fd52d8525ef903b43c828a5894d8f110479f0422ddd69a893fc4abce54dda795532de21303d072b164d601bac0d111b98db3bd4924d5ca3cf5c031f790ace67834ad4aa592cd93060b092e2db540e01e436182aad5d6ad21e458d0ee217970018a28cb7c0c7174e2d0667fd4093ad214c94169a53bd0a159c8cd62657efce03e215d31daec89a67ef79b34cfab0dca1a141e9fe2fd6d9b627c2bb8df63f4738e2a810b27bf6514162c89c641a7bee56358ff9624f087940b01ae54aaa06999016237bb392d54891e564925324dc4da99cd9f1145d50ba447c4b36eac8ff60caac14c94d5b595c6a830746b12fa34c9c026d4688a438c233e2bd93c124405f03ce1ce7de4b18a1caa5a6d6c5b386309b";
     assert_eq!(hex::encode(bcs::to_bytes(&msg0).unwrap()), expected_msg0);
     assert_eq!(hex::encode(bcs::to_bytes(&conf0).unwrap()), expected_conf0);
+}
+
+#[test]
+fn test_e2e_3_parties_threshold_2() {
+    let ro = RandomOracle::new("dkg");
+
+    ////// DKG 2 out of 3 //////
+
+    let t = 2;
+    let (keys, nodes) = gen_keys_and_nodes_rng(3, &mut thread_rng(), true);
+
+    // Create the parties
+    let d0 = Party::<G, EG>::new_any_t(
+        keys.first().unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+    assert_eq!(d0.t(), t);
+    let d1 = Party::<G, EG>::new_any_t(
+        keys.get(1_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+    let d2 = Party::<G, EG>::new_any_t(
+        keys.get(2_usize).unwrap().1.clone(),
+        nodes.clone(),
+        t,
+        ro.clone(),
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+
+    let msg0 = d0.create_message(&mut thread_rng()).unwrap();
+    let msg1 = d1.create_message(&mut thread_rng()).unwrap();
+    let msg2 = d2.create_message(&mut thread_rng()).unwrap();
+
+    let all_messages = vec![msg0.clone(), msg1, msg0.clone(), msg2]; // duplicates should be ignored
+
+    // merge() should succeed and ignore duplicates and include 1 complaint
+    let proc_msg0 = &all_messages
+        .iter()
+        .map(|m| d0.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = d0.merge(proc_msg0).unwrap();
+    assert!(conf0.complaints.is_empty());
+    assert_eq!(used_msgs0.0.len(), 3);
+
+    let proc_msg1 = &all_messages
+        .iter()
+        .map(|m| d1.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (_, used_msgs1) = d1.merge(proc_msg1).unwrap();
+
+    let proc_msg2 = &all_messages
+        .iter()
+        .map(|m| d2.process_message(m.clone(), &mut thread_rng()).unwrap())
+        .collect::<Vec<_>>();
+    let (conf2, used_msgs2) = d2.merge(proc_msg2).unwrap();
+    assert!(conf2.complaints.is_empty());
+
+    let o0 = d0.complete_optimistic(&used_msgs0).unwrap();
+    let o1 = d1.complete_optimistic(&used_msgs1).unwrap();
+    let o2 = d2.complete_optimistic(&used_msgs2).unwrap();
+
+    assert!(o0.shares.is_some());
+    assert!(o1.shares.is_some());
+    assert!(o2.shares.is_some());
+    assert_eq!(o0.vss_pk, o1.vss_pk);
+    assert_eq!(o0.vss_pk, o2.vss_pk);
+
+    // Use the shares to sign the message.
+    let sig0 = S::partial_sign(&o0.shares.as_ref().unwrap()[0], &MSG);
+    let sig1 = S::partial_sign(&o1.shares.as_ref().unwrap()[0], &MSG);
+    let sig2 = S::partial_sign(&o2.shares.as_ref().unwrap()[0], &MSG);
+
+    S::partial_verify(&o0.vss_pk, &MSG, &sig0).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig1).unwrap();
+    S::partial_verify(&o0.vss_pk, &MSG, &sig2).unwrap();
+
+    let sigs = vec![sig0, sig1, sig2];
+    let sig = S::aggregate(d0.t(), sigs.iter()).unwrap();
+    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
+
+    ////// key rotation to 3 out of 4 //////
+    let nt = 3; // new t
+    let (nkeys, nnodes) = gen_keys_and_nodes_rng(4, &mut thread_rng(), true);
+
+    // Create the parties, first two are from previous committee
+    let nd0 = Party::<G, EG>::new_any_t(
+        nkeys.first().unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        Some(o1.shares.unwrap()[0].value),
+        &mut thread_rng(),
+    )
+    .unwrap();
+    assert_eq!(nd0.t(), nt);
+    let nd1 = Party::<G, EG>::new_any_t(
+        nkeys.get(1_usize).unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        Some(o0.shares.unwrap()[0].value),
+        &mut thread_rng(),
+    )
+    .unwrap();
+    let nd2 = Party::<G, EG>::new_any_t(
+        nkeys.get(2_usize).unwrap().1.clone(),
+        nnodes.clone(),
+        nt,
+        ro.clone(),
+        None,
+        &mut thread_rng(),
+    )
+    .unwrap();
+
+    let msg0 = nd0.create_message(&mut thread_rng()).unwrap();
+    let msg1 = nd1.create_message(&mut thread_rng()).unwrap();
+
+    let expected_pks = [
+        o0.vss_pk.eval(ShareIndex::new(2).unwrap()).value,
+        o0.vss_pk.eval(ShareIndex::new(1).unwrap()).value,
+    ];
+
+    let all_messages = vec![msg0, msg1];
+
+    // merge() should succeed and ignore duplicates and include 1 complaint
+    let proc_msg0 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd0.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (conf0, used_msgs0) = nd0.merge_for_threshold(proc_msg0, t).unwrap();
+    assert!(conf0.complaints.is_empty());
+    assert_eq!(used_msgs0.0.len(), 2);
+
+    let proc_msg1 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd1.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (conf1, used_msgs1) = nd1.merge_for_threshold(proc_msg1, t).unwrap();
+
+    let proc_msg2 = &all_messages
+        .iter()
+        .zip(expected_pks.iter())
+        .map(|(m, epk)| {
+            nd2.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+                .unwrap()
+        })
+        .collect::<Vec<_>>();
+    let (conf2, used_msgs2) = nd2.merge_for_threshold(proc_msg2, t).unwrap();
+    assert!(conf2.complaints.is_empty());
+
+    let new_sender_to_old_map: HashMap<PartyId, PartyId> = [(0, 1), (1, 0)].into();
+    let no0 = nd0
+        .complete_optimistic_interpolation_weight_one(&used_msgs0, t, &new_sender_to_old_map)
+        .unwrap();
+    let no1 = nd1
+        .complete_optimistic_interpolation_weight_one(&used_msgs1, t, &new_sender_to_old_map)
+        .unwrap();
+    let no2 = nd2
+        .complete_optimistic_interpolation_weight_one(&used_msgs2, t, &new_sender_to_old_map)
+        .unwrap();
+
+    assert!(no0.shares.is_some());
+    assert!(no1.shares.is_some());
+    assert!(no2.shares.is_some());
+    assert_eq!(no0.vss_pk, no1.vss_pk);
+    assert_eq!(no0.vss_pk, no2.vss_pk);
+
+    assert_eq!(no0.vss_pk.c0(), o0.vss_pk.c0());
+
+    // Use the shares to sign the message.
+    let sig0 = S::partial_sign(&no0.shares.as_ref().unwrap()[0], &MSG);
+    let sig1 = S::partial_sign(&no1.shares.as_ref().unwrap()[0], &MSG);
+    let sig2 = S::partial_sign(&no2.shares.as_ref().unwrap()[0], &MSG);
+
+    S::partial_verify(&no0.vss_pk, &MSG, &sig0).unwrap();
+    S::partial_verify(&no0.vss_pk, &MSG, &sig1).unwrap();
+    S::partial_verify(&no0.vss_pk, &MSG, &sig2).unwrap();
+
+    let sigs = vec![sig0, sig1, sig2];
+    let sig = S::aggregate(nd0.t(), sigs.iter()).unwrap();
+    S::verify(o0.vss_pk.c0(), &MSG, &sig).unwrap();
 }
