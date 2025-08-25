@@ -22,7 +22,6 @@ use k256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::Group as GroupTrait;
 use k256::Secp256k1;
-use num_bigint::BigUint;
 use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
@@ -238,13 +237,9 @@ mod schnorr {
     use crate::error::{FastCryptoError, FastCryptoResult};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
-    use crate::hash::{HashFunction, Sha256};
     use ark_ec::{AffineRepr, CurveGroup};
     use ark_ff::{BigInteger, PrimeField};
     use ark_secp256k1::{Affine, Fq, Fr, Projective};
-    use digest::Mac;
-    use k256::ecdsa::signature::Signer;
-    use k256::ecdsa::signature::Verifier;
     use num_bigint::BigUint;
 
     fn hash(name: &str, data: &[u8]) -> [u8; 32] {
