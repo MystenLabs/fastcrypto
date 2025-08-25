@@ -235,6 +235,7 @@ impl ToLittleEndianBytes for Scalar {
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
 mod schnorr {
+    use crate::error::{FastCryptoError, FastCryptoResult};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
     use crate::hash::{HashFunction, Sha256};
@@ -357,6 +358,30 @@ mod schnorr {
             .unwrap()
     }
 
+    fn verify(
+        pk: &ProjectivePoint,
+        msg: &[u8],
+        signature: &(ProjectivePoint, Scalar),
+    ) -> FastCryptoResult<()> {
+        let (r, s) = signature;
+        if s.as_big_uint().is_zero() || s.as_big_uint() >= Fr::MODULUS.into() {
+            return Err(FastCryptoError::InvalidSignature);
+        }
+        if !has_even_y(r) {
+            return Err(FastCryptoError::InvalidSignature);
+        }
+        let e = hash_to_scalar(
+            "BIP0340/challenge",
+            &[&bytes_point(r), &bytes_point(pk), msg].concat(),
+        );
+        let s_g = ProjectivePoint::generator() * *s;
+        if s_g == *r + (*pk * e) {
+            Ok(())
+        } else {
+            Err(FastCryptoError::InvalidSignature)
+        }
+    }
+
     #[test]
     fn test_generator() {
         let x_bytes: [u8; 32] =
@@ -422,7 +447,8 @@ mod schnorr {
                 .unwrap()
                 .try_into()
                 .unwrap(),
-        );
+        )
+        .unwrap();
         let aux_rand =
             hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap();
@@ -433,5 +459,7 @@ mod schnorr {
         let signature = sign(&sk, &msg, &aux_rand).unwrap();
         let signature_bytes = signature_bytes(&signature);
         assert_eq!(expected_signature, signature_bytes);
+
+        assert!(verify(&pk, &msg, &signature).is_ok());
     }
 }
