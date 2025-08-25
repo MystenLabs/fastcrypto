@@ -13,9 +13,8 @@ mod group_benches {
     use fastcrypto::groups::multiplier::windowed::WindowedScalarMultiplier;
     use fastcrypto::groups::multiplier::ScalarMultiplier;
     use fastcrypto::groups::ristretto255::RistrettoPoint;
-    use fastcrypto::groups::secp256r1::ProjectivePoint;
     use fastcrypto::groups::{
-        bls12381, secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement,
+        bls12381, secp256k1, secp256r1, FromTrustedByteArray, GroupElement, HashToGroupElement,
         MultiScalarMul, Pairing, Scalar,
     };
     use fastcrypto::serde_helpers::ToFromByteArray;
@@ -68,36 +67,36 @@ mod group_benches {
         scale_single::<G2Element, _>("BLS12381-G2", &mut group);
         scale_single::<GTElement, _>("BLS12381-GT", &mut group);
         scale_single::<RistrettoPoint, _>("Ristretto255", &mut group);
-        scale_single::<ProjectivePoint, _>("Secp256r1", &mut group);
+        scale_single::<secp256r1::ProjectivePoint, _>("Secp256r1", &mut group);
 
         scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Fixed window (16)", &mut group);
         scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Fixed window (32)", &mut group);
         scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Fixed window (64)", &mut group);
         scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Fixed window (128)", &mut group);
         scale_single_precomputed::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Fixed window (256)", &mut group);
     }
 
-    fn blst_msm_single<G: GroupElement + MultiScalarMul, M: Measurement>(
+    fn msm_single<G: GroupElement + MultiScalarMul, M: Measurement>(
         name: &str,
         len: &usize,
         c: &mut BenchmarkGroup<M>,
@@ -110,19 +109,44 @@ mod group_benches {
                 )
             })
             .unzip();
+
+        let scalars_copy = scalars.clone();
+        let points_copy = points.clone();
         c.bench_function(BenchmarkId::new(name.to_string(), len), move |b| {
             b.iter(|| G::multi_scalar_mul(&scalars, &points).unwrap())
         });
+        c.bench_function(BenchmarkId::new(format!("{} naive", name), len), move |b| {
+            b.iter(|| msm_reference(&scalars_copy, &points_copy))
+        });
     }
 
-    fn blst_msm(c: &mut Criterion) {
+    /// A reference implementation of multi-scalar multiplication for benchmarking purposes.
+    /// Computes the MSM using multiplication and addition in a straightforward manner.
+    fn msm_reference<G: GroupElement + MultiScalarMul>(
+        scalars: &[G::ScalarType],
+        points: &[G],
+    ) -> G {
+        if scalars.len() != points.len() {
+            panic!("Scalars and points must have the same length");
+        }
+        let mut result = G::zero();
+        for (scalar, point) in scalars.iter().zip(points.iter()) {
+            result += *point * scalar;
+        }
+        result
+    }
+
+    fn msm(c: &mut Criterion) {
         static INPUT_SIZES: [usize; 6] = [32, 64, 128, 256, 512, 1024];
-        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM using BLST");
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("MSM");
         for size in INPUT_SIZES.iter() {
-            blst_msm_single::<G1Element, _>("BLS12381-G1", size, &mut group);
+            msm_single::<G1Element, _>("BLS12381-G1", size, &mut group);
         }
         for size in INPUT_SIZES.iter() {
-            blst_msm_single::<G2Element, _>("BLS12381-G2", size, &mut group);
+            msm_single::<G2Element, _>("BLS12381-G2", size, &mut group);
+        }
+        for size in INPUT_SIZES.iter() {
+            msm_single::<secp256k1::ProjectivePoint, _>("secp256k1", size, &mut group);
         }
     }
 
@@ -149,34 +173,35 @@ mod group_benches {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Double Scalar Multiplication");
 
         double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 16, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 16, 5>,
             _,
         >("Secp256r1 Straus (16)", &mut group);
         double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 32, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 32, 5>,
             _,
         >("Secp256r1 Straus (32)", &mut group);
         double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 64, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 64, 5>,
             _,
         >("Secp256r1 Straus (64)", &mut group);
         double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 128, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 128, 5>,
             _,
         >("Secp256r1 Straus (128)", &mut group);
         double_scale_single::<
-            ProjectivePoint,
-            WindowedScalarMultiplier<ProjectivePoint, secp256r1::Scalar, 256, 5>,
+            secp256r1::ProjectivePoint,
+            WindowedScalarMultiplier<secp256r1::ProjectivePoint, secp256r1::Scalar, 256, 5>,
             _,
         >("Secp256r1 Straus (256)", &mut group);
-        double_scale_single::<ProjectivePoint, DefaultMultiplier<ProjectivePoint>, _>(
-            "Secp256r1",
-            &mut group,
-        );
+        double_scale_single::<
+            secp256r1::ProjectivePoint,
+            DefaultMultiplier<secp256r1::ProjectivePoint>,
+            _,
+        >("Secp256r1", &mut group);
     }
 
     fn hash_to_group_single<G: GroupElement + HashToGroupElement, M: measurement::Measurement>(
@@ -341,7 +366,7 @@ mod group_benches {
             hash_to_group,
             pairing,
             double_scale,
-            blst_msm,
+            msm,
             sum,
     }
 }

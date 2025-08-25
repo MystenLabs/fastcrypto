@@ -14,6 +14,7 @@ pub mod ristretto255;
 pub mod secp256r1;
 
 pub mod multiplier;
+pub mod secp256k1;
 
 /// Trait impl'd by elements of an additive cyclic group.
 pub trait GroupElement:
