@@ -331,35 +331,22 @@ mod schnorr {
     }
 
     fn sign(sk: &Scalar, msg: &[u8], aad: &[u8]) -> Option<(ProjectivePoint, Scalar)> {
-        println!("msg: {}", hex::encode(msg));
-        println!("aad: {}", hex::encode(aad));
         let p = ProjectivePoint::generator() * *sk;
         let d = if has_even_y(&p) { *sk } else { -*sk };
 
-        let aux_hash = hash("BIP0340/aux", aad);
-        println!("aux hash: {}", hex::encode(aux_hash));
-        let t = xor(&bytes_scalar(&d), &aux_hash);
-        println!("t: {}", hex::encode(t));
-
+        let t = xor(&bytes_scalar(&d), &hash("BIP0340/aux", aad));
         let k_prime = hash_to_scalar("BIP0340/nonce", &[&t, &bytes_point(&p), msg].concat());
-        println!("k': {}", hex::encode(bytes_scalar(&k_prime)));
         if k_prime.as_big_uint().is_zero() {
             return None;
         }
 
         let r = ProjectivePoint::generator() * k_prime;
-        println!("R: ({}, {})", hex::encode(x(&r)), hex::encode(y(&r)));
         let k = if has_even_y(&r) { k_prime } else { -k_prime };
-        println!("k: {}", hex::encode(bytes_scalar(&k)));
         let e = hash_to_scalar(
             "BIP0340/challenge",
             &[&bytes_point(&r), &bytes_point(&p), msg].concat(),
         );
-        println!("e: {}", hex::encode(bytes_scalar(&e)));
-
         let s = k + e * d;
-        println!("s: {}", hex::encode(bytes_scalar(&s)));
-
         Some((r, s))
     }
 
