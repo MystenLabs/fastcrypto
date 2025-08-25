@@ -753,30 +753,33 @@ fn test_e2e_dkg_and_key_rotation() {
     let (keys, nodes) = gen_keys_and_nodes_rng(3, &mut thread_rng(), true);
 
     // Create the parties
-    let d0 = Party::<G, EG>::new_any_t(
+    let d0 = Party::<G, EG>::new_advanced(
         keys.first().unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
         None,
+        None,
         &mut thread_rng(),
     )
     .unwrap();
     assert_eq!(d0.t(), t);
-    let d1 = Party::<G, EG>::new_any_t(
+    let d1 = Party::<G, EG>::new_advanced(
         keys.get(1_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
         None,
+        None,
         &mut thread_rng(),
     )
     .unwrap();
-    let d2 = Party::<G, EG>::new_any_t(
+    let d2 = Party::<G, EG>::new_advanced(
         keys.get(2_usize).unwrap().1.clone(),
         nodes.clone(),
         t,
         ro.clone(),
+        None,
         None,
         &mut thread_rng(),
     )
@@ -838,31 +841,34 @@ fn test_e2e_dkg_and_key_rotation() {
     let (nkeys, nnodes) = gen_keys_and_nodes_rng(4, &mut thread_rng(), true);
 
     // Create the parties, first two are from previous committee
-    let nd0 = Party::<G, EG>::new_any_t(
+    let nd0 = Party::<G, EG>::new_advanced(
         nkeys.first().unwrap().1.clone(),
         nnodes.clone(),
         nt,
         ro.clone(),
         Some(o1.shares.unwrap()[0].value),
+        Some(2),
         &mut thread_rng(),
     )
     .unwrap();
     assert_eq!(nd0.t(), nt);
-    let nd1 = Party::<G, EG>::new_any_t(
+    let nd1 = Party::<G, EG>::new_advanced(
         nkeys.get(1_usize).unwrap().1.clone(),
         nnodes.clone(),
         nt,
         ro.clone(),
         Some(o0.shares.unwrap()[0].value),
+        Some(2),
         &mut thread_rng(),
     )
     .unwrap();
-    let nd2 = Party::<G, EG>::new_any_t(
+    let nd2 = Party::<G, EG>::new_advanced(
         nkeys.get(2_usize).unwrap().1.clone(),
         nnodes.clone(),
         nt,
         ro.clone(),
         None,
+        Some(2),
         &mut thread_rng(),
     )
     .unwrap();
@@ -886,7 +892,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf0, used_msgs0) = nd0.merge_with_threshold(proc_msg0, t).unwrap();
+    let (conf0, used_msgs0) = nd0.merge(proc_msg0).unwrap();
     assert!(conf0.complaints.is_empty());
     assert_eq!(used_msgs0.0.len(), 2);
 
@@ -898,7 +904,7 @@ fn test_e2e_dkg_and_key_rotation() {
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (_, used_msgs1) = nd1.merge_with_threshold(proc_msg1, t).unwrap();
+    let (_, used_msgs1) = nd1.merge(proc_msg1).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
@@ -908,18 +914,18 @@ fn test_e2e_dkg_and_key_rotation() {
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf2, used_msgs2) = nd2.merge_with_threshold(proc_msg2, t).unwrap();
+    let (conf2, used_msgs2) = nd2.merge(proc_msg2).unwrap();
     assert!(conf2.complaints.is_empty());
 
     let new_sender_to_old_map: HashMap<PartyId, PartyId> = [(0, 1), (1, 0)].into();
     let no0 = nd0
-        .complete_optimistic_key_rotation(&used_msgs0, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs0, &new_sender_to_old_map)
         .unwrap();
     let no1 = nd1
-        .complete_optimistic_key_rotation(&used_msgs1, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs1, &new_sender_to_old_map)
         .unwrap();
     let no2 = nd2
-        .complete_optimistic_key_rotation(&used_msgs2, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs2, &new_sender_to_old_map)
         .unwrap();
 
     assert!(no0.shares.is_some());

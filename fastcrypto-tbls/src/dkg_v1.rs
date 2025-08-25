@@ -37,6 +37,7 @@ where
     pub random_oracle: RandomOracle,
     pub(crate) enc_sk: ecies_v1::PrivateKey<EG>,
     pub(crate) vss_sk: PrivatePoly<G>,
+    pub old_t: Option<u16>, // Used only for key rotation
 }
 
 /// Assumptions:
@@ -172,18 +173,20 @@ where
         if t > (nodes.total_weight() / 2) {
             return Err(FastCryptoError::InvalidInput);
         }
-        Self::new_any_t(enc_sk, nodes, t, random_oracle, None, rng)
+        Self::new_advanced(enc_sk, nodes, t, random_oracle, None, None, rng)
     }
 
     /// Alternative to new(), to be used for:
     /// - Any threshold t, useful in the sync setting.
     /// - Passing a secret/share for key rotation (should be set to None for DKG).
-    pub fn new_any_t<R: AllowedRng>(
+    /// - Passing old threshold for key rotation (should be set to None for DKG).
+    pub fn new_advanced<R: AllowedRng>(
         enc_sk: ecies_v1::PrivateKey<EG>,
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         secret: Option<G::ScalarType>, // Should be used only for key rotation.
+        old_t: Option<u16>,          // Used only for key rotation
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
         // Sanity check that the threshold makes sense.
@@ -226,6 +229,7 @@ where
             random_oracle,
             enc_sk,
             vss_sk,
+            old_t,
         })
     }
 
@@ -482,16 +486,6 @@ where
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
     ) -> FastCryptoResult<(Confirmation<EG>, UsedProcessedMessages<G, EG>)> {
-        self.merge_with_threshold(processed_messages, self.t)
-    }
-
-    /// Alternative to merge() that allows specifying a different threshold.
-    /// Useful for key rotation when the old threshold is required.
-    pub fn merge_with_threshold(
-        &self,
-        processed_messages: &[ProcessedMessage<G, EG>],
-        required_t: u16,
-    ) -> FastCryptoResult<(Confirmation<EG>, UsedProcessedMessages<G, EG>)> {
         debug!("DKG: Trying to merge {} messages", processed_messages.len());
         let filtered_messages = UsedProcessedMessages::from(processed_messages);
         // Verify we have enough messages
@@ -505,6 +499,7 @@ where
                     .weight as u32
             })
             .sum::<u32>();
+        let required_t = self.old_t.unwrap_or(self.t);
         if total_weight < (required_t as u32) {
             debug!("Merge failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
@@ -770,7 +765,6 @@ where
     pub fn complete_optimistic_key_rotation(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
-        old_t: u16, // The previous threshold
         // Mapping party id from new committee to its id in the previous committee
         new_to_old_party_ids: &HashMap<PartyId, PartyId>,
     ) -> FastCryptoResult<Output<G, EG>> {
@@ -781,6 +775,7 @@ where
 
         // Do not filter out any message, assume all are valid.
         let messages = VerifiedProcessedMessages::filter_from(messages, &[]);
+        let old_t = self.old_t.ok_or(FastCryptoError::InvalidInput)?;
         if messages.len() != old_t as usize {
             return Err(FastCryptoError::InvalidInput);
         }
