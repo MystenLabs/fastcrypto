@@ -744,7 +744,9 @@ fn test_serialized_message_regression() {
 }
 
 #[test]
-fn test_e2e_3_parties_threshold_2() {
+fn test_e2e_dkg_and_key_rotation() {
+    // TODO: test also non happy flows
+
     let ro = RandomOracle::new("dkg");
 
     ////// DKG 2 out of 3 //////
@@ -882,11 +884,11 @@ fn test_e2e_3_parties_threshold_2() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd0.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+            nd0.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf0, used_msgs0) = nd0.merge_for_threshold(proc_msg0, t).unwrap();
+    let (conf0, used_msgs0) = nd0.merge_with_threshold(proc_msg0, t).unwrap();
     assert!(conf0.complaints.is_empty());
     assert_eq!(used_msgs0.0.len(), 2);
 
@@ -894,32 +896,32 @@ fn test_e2e_3_parties_threshold_2() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd1.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+            nd1.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf1, used_msgs1) = nd1.merge_for_threshold(proc_msg1, t).unwrap();
+    let (conf1, used_msgs1) = nd1.merge_with_threshold(proc_msg1, t).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd2.process_message_fixed_pk(m.clone(), &epk, &mut thread_rng())
+            nd2.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf2, used_msgs2) = nd2.merge_for_threshold(proc_msg2, t).unwrap();
+    let (conf2, used_msgs2) = nd2.merge_with_threshold(proc_msg2, t).unwrap();
     assert!(conf2.complaints.is_empty());
 
     let new_sender_to_old_map: HashMap<PartyId, PartyId> = [(0, 1), (1, 0)].into();
     let no0 = nd0
-        .complete_optimistic_interpolation_weight_one(&used_msgs0, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs0, t, &new_sender_to_old_map)
         .unwrap();
     let no1 = nd1
-        .complete_optimistic_interpolation_weight_one(&used_msgs1, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs1, t, &new_sender_to_old_map)
         .unwrap();
     let no2 = nd2
-        .complete_optimistic_interpolation_weight_one(&used_msgs2, t, &new_sender_to_old_map)
+        .complete_optimistic_key_rotation(&used_msgs2, t, &new_sender_to_old_map)
         .unwrap();
 
     assert!(no0.shares.is_some());

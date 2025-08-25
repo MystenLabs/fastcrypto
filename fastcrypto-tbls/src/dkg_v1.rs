@@ -454,7 +454,7 @@ where
     }
 
     /// Alternative to process_message for a known vss.c0 public key, useful for key rotation.
-    pub fn process_message_fixed_pk<R: AllowedRng>(
+    pub fn process_message_and_check_pk<R: AllowedRng>(
         &self,
         message: Message<G, EG>,
         partial_pk: &G,
@@ -482,10 +482,12 @@ where
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
     ) -> FastCryptoResult<(Confirmation<EG>, UsedProcessedMessages<G, EG>)> {
-        self.merge_for_threshold(processed_messages, self.t)
+        self.merge_with_threshold(processed_messages, self.t)
     }
 
-    pub fn merge_for_threshold(
+    /// Alternative to merge() that allows specifying a different threshold.
+    /// Useful for key rotation when the old threshold is required.
+    pub fn merge_with_threshold(
         &self,
         processed_messages: &[ProcessedMessage<G, EG>],
         required_t: u16,
@@ -765,7 +767,7 @@ where
 
     /// Alternative to complete() - Optimistic variant that interpolates the shares instead of
     /// summing them, to be used for key rotation. Works only if all weights are 1.
-    pub fn complete_optimistic_interpolation_weight_one(
+    pub fn complete_optimistic_key_rotation(
         &self,
         messages: &UsedProcessedMessages<G, EG>,
         old_t: u16, // The previous threshold
