@@ -130,7 +130,7 @@ fn test_hash_to_group() {
         ProjectivePoint::hash_to_group_element(b"Hello, world!")
             .to_byte_array()
             .to_vec(),
-        hex::decode("9266c6ba9e9a4eb81f79e20a8b8cfbde9c64cc5a31e95533505f690f210c292e80").unwrap()
+        hex::decode("01152edfc9b37a11548a9866a3f61d38a0d6d35a451385876929af08e59b8b2e80").unwrap()
     );
 
     // Hashing empty input
@@ -138,15 +138,15 @@ fn test_hash_to_group() {
         ProjectivePoint::hash_to_group_element(&[])
             .to_byte_array()
             .to_vec(),
-        hex::decode("c3b95c933e5605d220ae38cb4f528f708b664c5869c34d02cfdfc8371b98e67780").unwrap()
+        hex::decode("21673ed2d26a84ae6fea1cce285c70e229b3b959bbfc99aa90d93ef734d033b080").unwrap()
     );
 
     // Large input
     assert_eq!(
-        ProjectivePoint::hash_to_group_element(&[0u8; 65536])
+        ProjectivePoint::hash_to_group_element(&[0u8; 65537])
             .to_byte_array()
             .to_vec(),
-        hex::decode("44792ad36239dd0710f58526cdafad92b2868e302d0d6d3f676793303056be2f80").unwrap()
+        hex::decode("99a1b5a9a8d21a6897cff9f476601bfcc0395362e2ac7309ad8977e231197e5d80").unwrap()
     );
 }
 

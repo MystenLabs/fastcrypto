@@ -129,21 +129,15 @@ fn convert_fq(fq: &k256::FieldBytes) -> Fq {
     Fq::deserialize_uncompressed(fq.into_uint_le().to_be_byte_array().as_slice()).unwrap()
 }
 
-/// The hash domain separation tag used for hashing to group elements in Secp256k1.
-pub const HASH_DST: &[u8; 11] = b"FASTCRYPTO_";
-
 impl HashToGroupElement for ProjectivePoint {
     fn hash_to_group_element(msg: &[u8]) -> Self {
         // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/.
-
-        let mut input = HASH_DST.to_vec();
-        input.extend_from_slice(msg);
 
         // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
         // or if the output of the hash function (sha256) is too big. So since these are fixed, we can safely unwrap.
         ProjectivePoint::from(
             &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha2::Sha256>>(
-                &[&input],
+                &[msg],
                 b"secp256k1_XMD:SHA-256_SSWU_RO_",
             )
             .unwrap(),
