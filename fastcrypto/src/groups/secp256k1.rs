@@ -131,7 +131,8 @@ fn convert_fq(fq: &k256::FieldBytes) -> Fq {
 
 impl HashToGroupElement for ProjectivePoint {
     fn hash_to_group_element(msg: &[u8]) -> Self {
-        // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/.
+        // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/
+        // and the secp256k1_XMD:SHA-256_SSWU_RO_ suite defined in section 8.7.
 
         // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
         // or if the output of the hash function (sha256) is too big. So since these are fixed, we can safely unwrap.
