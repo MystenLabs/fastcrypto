@@ -11,7 +11,7 @@ use crate::groups::{
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
-use ark_ec::{CurveGroup, Group, VariableBaseMSM};
+use ark_ec::{Group, ScalarMul, VariableBaseMSM};
 use ark_ff::{Field, One, UniformRand, Zero};
 use ark_secp256k1::{Affine, Fq, Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
@@ -99,10 +99,14 @@ impl MultiScalarMul for ProjectivePoint {
             return Err(FastCryptoError::InvalidInput);
         }
         let scalars = scalars.iter().map(|s| s.0).collect::<Vec<_>>();
-        let points = points.iter().map(|g| g.0.into_affine()).collect::<Vec<_>>();
-        Projective::msm(&points, &scalars)
-            .map_err(|_| FastCryptoError::GeneralOpaqueError)
-            .map(ProjectivePoint)
+        Projective::msm(
+            &Projective::batch_convert_to_mul_base(
+                points.iter().map(|p| p.0).collect::<Vec<_>>().as_slice(),
+            ),
+            &scalars,
+        )
+        .map_err(|_| FastCryptoError::GeneralOpaqueError)
+        .map(ProjectivePoint)
     }
 }
 impl From<&k256::ProjectivePoint> for ProjectivePoint {
@@ -126,14 +130,23 @@ fn convert_fq(fq: &k256::FieldBytes) -> Fq {
 }
 
 /// The hash domain separation tag used for hashing to group elements in Secp256k1.
-pub const HASH_DST: &[u8; 31] = b"FASTCRYPTO_HASH2CURVE_SECP256K1";
+pub const HASH_DST: &[u8; 11] = b"FASTCRYPTO_";
 
 impl HashToGroupElement for ProjectivePoint {
     fn hash_to_group_element(msg: &[u8]) -> Self {
+        // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/.
+
+        let mut input = HASH_DST.to_vec();
+        input.extend_from_slice(msg);
+
         // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
-        // or if the output of the hash function (Sha3_256) is too big. So since these are fixed, we can safely unwrap.
+        // or if the output of the hash function (sha256) is too big. So since these are fixed, we can safely unwrap.
         ProjectivePoint::from(
-            &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha3::Sha3_256>>(&[msg], HASH_DST).unwrap(),
+            &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha2::Sha256>>(
+                &[&input],
+                b"secp256k1_XMD:SHA-256_SSWU_RO_",
+            )
+            .unwrap(),
         )
     }
 }
