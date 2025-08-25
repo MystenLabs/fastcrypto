@@ -50,12 +50,10 @@ fn gen_keys_and_nodes_rng<R: AllowedRng>(
             pk: pk.clone(),
             weight: if fixed_weight {
                 1
+            } else if *id == 2 {
+                0
             } else {
-                if *id == 2 {
-                    0
-                } else {
-                    2 + id
-                }
+                2 + id
             },
         })
         .collect();
@@ -884,7 +882,7 @@ fn test_e2e_dkg_and_key_rotation() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd0.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
+            nd0.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
@@ -896,17 +894,17 @@ fn test_e2e_dkg_and_key_rotation() {
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd1.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
+            nd1.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
-    let (conf1, used_msgs1) = nd1.merge_with_threshold(proc_msg1, t).unwrap();
+    let (_, used_msgs1) = nd1.merge_with_threshold(proc_msg1, t).unwrap();
 
     let proc_msg2 = &all_messages
         .iter()
         .zip(expected_pks.iter())
         .map(|(m, epk)| {
-            nd2.process_message_and_check_pk(m.clone(), &epk, &mut thread_rng())
+            nd2.process_message_and_check_pk(m.clone(), epk, &mut thread_rng())
                 .unwrap()
         })
         .collect::<Vec<_>>();
