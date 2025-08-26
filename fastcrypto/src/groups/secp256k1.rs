@@ -294,7 +294,6 @@ pub mod schnorr {
     use crate::hash::HashFunction;
     use crate::serde_helpers::ToFromByteArray;
     use crate::{hash, serialize_deserialize_with_to_from_byte_array};
-    use ark_ec::CurveGroup;
 
     pub const SIGNATURE_SIZE_IN_BYTES: usize = 64;
     pub const PUBLIC_KEY_SIZE_IN_BYTES: usize = 32;
@@ -302,33 +301,29 @@ pub mod schnorr {
 
     /// A Schnorr signature as defined in BIP-340. The r point must have an even y-coordinate and the s scalar cannot be zero.
     pub struct SchnorrSignature {
-        r: ProjectivePoint,
+        r: [u8; 32],
         s: Scalar,
-    }
-
-    impl TryFrom<(ProjectivePoint, Scalar)> for SchnorrSignature {
-        type Error = FastCryptoError;
-
-        fn try_from((r, s): (ProjectivePoint, Scalar)) -> Result<Self, Self::Error> {
-            if !r.has_even_y()? || s.is_zero() {
-                return Err(FastCryptoError::InvalidInput);
-            }
-            Ok(SchnorrSignature { r, s })
-        }
     }
 
     impl ToFromByteArray<SIGNATURE_SIZE_IN_BYTES> for SchnorrSignature {
         fn from_byte_array(bytes: &[u8; SIGNATURE_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
-            let r_bytes: [u8; 32] = bytes[0..32].try_into().unwrap();
+            let r: [u8; 32] = bytes[0..32].try_into().unwrap();
             let s_bytes: [u8; 32] = bytes[32..64].try_into().unwrap();
-            let r = ProjectivePoint::with_even_y_from_x_be_bytes(&r_bytes)?;
+
+            // Fails if not on curve
+            let _ = ProjectivePoint::with_even_y_from_x_be_bytes(&r)?;
+
             let s = Scalar::from_byte_array(&s_bytes)?;
-            Self::try_from((r, s))
+            if s.is_zero() {
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            Ok(Self { r, s })
         }
 
         fn to_byte_array(&self) -> [u8; SIGNATURE_SIZE_IN_BYTES] {
             let mut bytes = [0u8; SIGNATURE_SIZE_IN_BYTES];
-            bytes[..32].copy_from_slice(&self.r.x_as_be_bytes().expect("Not infinity"));
+            bytes[..32].copy_from_slice(&self.r);
             bytes[32..].copy_from_slice(&self.s.to_byte_array());
             bytes
         }
@@ -437,9 +432,9 @@ pub mod schnorr {
         Scalar::from_bytes_mod_order(&hash(tag, data))
     }
 
-    fn xor(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
-        let mut res = [0u8; 32];
-        for i in 0..32 {
+    fn xor<const N: usize>(a: &[u8; N], b: &[u8; N]) -> [u8; N] {
+        let mut res = [0u8; N];
+        for i in 0..N {
             res[i] = a[i] ^ b[i];
         }
         res
@@ -450,6 +445,7 @@ pub mod schnorr {
         /// Follows the specifications from BIP-0340.
         pub fn sign(&self, msg: &[u8], aad: &[u8]) -> FastCryptoResult<SchnorrSignature> {
             let pk = SchnorrPublicKey::from(self);
+
             let t = xor(&self.to_byte_array(), &hash(Aux, [aad]));
             let k_prime = hash_to_scalar(Nonce, [&t, &pk.to_byte_array(), msg]);
             if k_prime.is_zero() {
@@ -462,8 +458,9 @@ pub mod schnorr {
             } else {
                 -k_prime
             };
+            let r = r.x_as_be_bytes()?;
 
-            let e = hash_to_scalar(Challenge, [&r.x_as_be_bytes()?, &pk.to_byte_array(), msg]);
+            let e = hash_to_scalar(Challenge, [&r, &pk.to_byte_array(), msg]);
             let s = k + self.0 * e;
 
             let signature = SchnorrSignature { r, s };
@@ -477,13 +474,17 @@ pub mod schnorr {
         /// Verify a signature on a message with this public key.
         pub fn verify(&self, msg: &[u8], sig: &SchnorrSignature) -> FastCryptoResult<()> {
             let SchnorrSignature { r, s } = sig;
-            let e = hash_to_scalar(Challenge, [&r.x_as_be_bytes()?, &self.to_byte_array(), msg]);
+            let e = hash_to_scalar(Challenge, [r, &self.to_byte_array(), msg]);
             let expected = ProjectivePoint::multi_scalar_mul(
                 &[*s, -e],
                 &[ProjectivePoint::generator(), self.0],
             )
-            .unwrap();
-            if r.0.into_affine() != expected.0.into_affine() {
+            .expect("Fixed size inputs");
+
+            if expected.is_zero()
+                || !expected.has_even_y()?
+                || r != &expected.x_as_be_bytes().expect("Not infinity")
+            {
                 return Err(FastCryptoError::InvalidSignature);
             }
             Ok(())
@@ -513,10 +514,12 @@ pub mod schnorr {
 
     #[cfg(test)]
     mod tests {
-        use crate::groups::secp256k1::schnorr::{SchnorrPrivateKey, SchnorrPublicKey};
+        use crate::groups::secp256k1::schnorr::{
+            SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature,
+        };
         use crate::serde_helpers::ToFromByteArray;
 
-        struct ValidTestVector {
+        struct SigningTestVector {
             sk: &'static str,
             pk: &'static str,
             aux_rand: &'static str,
@@ -524,7 +527,7 @@ pub mod schnorr {
             signature: &'static str,
         }
 
-        fn test_valid_test_vector(v: ValidTestVector) {
+        fn test_signing_test_vector(v: SigningTestVector) {
             let sk =
                 SchnorrPrivateKey::from_byte_array(&hex::decode(v.sk).unwrap().try_into().unwrap())
                     .unwrap();
@@ -547,31 +550,168 @@ pub mod schnorr {
         fn valid_test_vectors() {
             // https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
             let test_vectors = [
-                ValidTestVector {
+                SigningTestVector {
+                    sk: "0000000000000000000000000000000000000000000000000000000000000003",
+                    pk: "F9308A019258C31049344F85F89D5229B531C845836F99B08601F113BCE036F9",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000000",
+                    msg: "0000000000000000000000000000000000000000000000000000000000000000",
+                    signature: "E907831F80848D1069A5371B402410364BDF1C5F8307B0084C55F1CE2DCA821525F66A4A85EA8B71E482A74F382D2CE5EBEEE8FDB2172F477DF4900D310536C0",
+                },
+            SigningTestVector {
                     sk: "B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF",
                     pk: "DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659",
                     aux_rand: "0000000000000000000000000000000000000000000000000000000000000001",
                     msg: "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89",
                     signature: "6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A",
                 },
-                ValidTestVector {
+                SigningTestVector {
                     sk: "C90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9",
                     pk: "DD308AFEC5777E13121FA72B9CC1B7CC0139715309B086C960E18FD969774EB8",
                     aux_rand: "C87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D906",
                     msg: "7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C",
                     signature: "5831AAEED7B44BB74E5EAB94BA9D4294C49BCF2A60728D8B4C200F50DD313C1BAB745879A5AD954A72C45A91C3A51D3C7ADEA98D82F8481E0E1E03674A6F3FB7",
                 },
-                ValidTestVector {
+                SigningTestVector {
                     sk: "0B432B2677937381AEF05BB02A66ECD012773062CF3FA2549E44F58ED2401710",
                     pk: "25D1DFF95105F5253C4022F628A996AD3A0D95FBF21D468A1B33F8C160D8F517",
                     aux_rand: "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                     msg: "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
                     signature: "7EB0509757E246F19449885651611CB965ECC1A187DD51B64FDA1EDC9637D5EC97582B9CB13DB3933705B32BA982AF5AF25FD78881EBB32771FC5922EFC66EA3",
-                }
+                },
+                SigningTestVector {
+                    sk: "0340034003400340034003400340034003400340034003400340034003400340",
+                    pk: "778CAA53B4393AC467774D09497A87224BF9FAB6F6E68B23086497324D6FD117",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000000",
+                    msg: "",
+                    signature: "71535DB165ECD9FBBC046E5FFAEA61186BB6AD436732FCCC25291A55895464CF6069CE26BF03466228F19A3A62DB8A649F2D560FAC652827D1AF0574E427AB63",
+                },
+                SigningTestVector {
+                    sk: "0340034003400340034003400340034003400340034003400340034003400340",
+                    pk: "778CAA53B4393AC467774D09497A87224BF9FAB6F6E68B23086497324D6FD117",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000000",
+                    msg: "11",
+                    signature: "08A20A0AFEF64124649232E0693C583AB1B9934AE63B4C3511F3AE1134C6A303EA3173BFEA6683BD101FA5AA5DBC1996FE7CACFC5A577D33EC14564CEC2BACBF",
+                },
+                SigningTestVector {
+                    sk: "0340034003400340034003400340034003400340034003400340034003400340",
+                    pk: "778CAA53B4393AC467774D09497A87224BF9FAB6F6E68B23086497324D6FD117",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000000",
+                    msg: "0102030405060708090A0B0C0D0E0F1011",
+                    signature: "5130F39A4059B43BC7CAC09A19ECE52B5D8699D1A71E3C52DA9AFDB6B50AC370C4A482B77BF960F8681540E25B6771ECE1E5A37FD80E5A51897C5566A97EA5A5",
+                },
+                SigningTestVector {
+                    sk: "0340034003400340034003400340034003400340034003400340034003400340",
+                    pk: "778CAA53B4393AC467774D09497A87224BF9FAB6F6E68B23086497324D6FD117",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000000",
+                    msg: "99999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999",
+                    signature: "403B12B0D8555A344175EA7EC746566303321E5DBFA8BE6F091635163ECA79A8585ED3E3170807E7C03B720FC54C7B23897FCBA0E9D0B4A06894CFD249F22367",
+                },
             ];
 
             for v in test_vectors {
-                test_valid_test_vector(v);
+                test_signing_test_vector(v);
+            }
+        }
+
+        #[test]
+        fn test_invalid_pk() {
+            let invalid_pk = "EEFDEA4CDB677750A420FEE807EACF21EB9898AE79B9768766E4FAA04A2D4A34";
+            assert!(SchnorrPublicKey::from_byte_array(
+                &hex::decode(invalid_pk).unwrap().try_into().unwrap()
+            )
+            .is_err());
+
+            let other_invalid_pk =
+                "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC30";
+            assert!(SchnorrPublicKey::from_byte_array(
+                &hex::decode(other_invalid_pk).unwrap().try_into().unwrap()
+            )
+            .is_err());
+        }
+
+        #[test]
+        fn test_invalid_signature() {
+            let invalid_signature_1 = "4A298DACAE57395A15D0795DDBFD1DCB564DA82B0F269BC70A74F8220429BA1D69E89B4C5564D00349106B8497785DD7D1D713A8AE82B32FA79D5F7FC407D39B";
+            assert!(SchnorrSignature::from_byte_array(
+                &hex::decode(invalid_signature_1)
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            )
+            .is_err());
+
+            let invalid_signature_2 = "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F69E89B4C5564D00349106B8497785DD7D1D713A8AE82B32FA79D5F7FC407D39B";
+            assert!(SchnorrSignature::from_byte_array(
+                &hex::decode(invalid_signature_2)
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            )
+            .is_err());
+
+            let invalid_signature_3 = "6CFF5C3BA86C69EA4B7376F31A9BCB4F74C1976089B2D9963DA2E5543E177769FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
+            assert!(SchnorrSignature::from_byte_array(
+                &hex::decode(invalid_signature_3)
+                    .unwrap()
+                    .try_into()
+                    .unwrap()
+            )
+            .is_err());
+        }
+
+        struct VerifyTestVector {
+            verifies: bool,
+            pk: &'static str,
+            msg: &'static str,
+            signature: &'static str,
+        }
+
+        fn verify_test_vector(v: VerifyTestVector) {
+            let pk =
+                SchnorrPublicKey::from_byte_array(&hex::decode(v.pk).unwrap().try_into().unwrap())
+                    .unwrap();
+            let msg = hex::decode(v.msg).unwrap();
+            let expected_signature = hex::decode(v.signature).unwrap();
+            let signature =
+                SchnorrSignature::from_byte_array(&expected_signature.try_into().unwrap()).unwrap();
+            assert_eq!(pk.verify(&msg, &signature).is_ok(), v.verifies);
+        }
+
+        #[test]
+        fn test_verify_test_vectors() {
+            // https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+            let test_vectors = [
+                VerifyTestVector {
+                    verifies: true,
+                    pk: "D69C3509BB99E412E68B0FE8544E72837DFA30746D8BE2AA65975F29D22DC7B9",
+                    msg: "4DF3C3F68FCC83B27E9D42C90431A72499F17875C81A599B566C9889B9696703",
+                    signature: "00000000000000000000003B78CE563F89A0ED9414F5AA28AD0D96D6795F9C6376AFB1548AF603B3EB45C9F8207DEE1060CB71C04E80F593060B07D28308D7F4",
+                },
+                // has_even_y(R) is false
+                VerifyTestVector {
+                    verifies: false,
+                    pk: "DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659",
+                    msg: "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89",
+                    signature: "FFF97BD5755EEEA420453A14355235D382F6472F8568A18B2F057A14602975563CC27944640AC607CD107AE10923D9EF7A73C643E166BE5EBEAFA34B1AC553E2",
+                },
+                // negated message
+                VerifyTestVector {
+                    verifies: false,
+                    pk: "DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659",
+                    msg: "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89",
+                    signature: "1FA62E331EDBC21C394792D2AB1100A7B432B013DF3F6FF4F99FCB33E0E1515F28890B3EDB6E7189B630448B515CE4F8622A954CFE545735AAEA5134FCCDB2BD",
+                },
+                // Negated s value
+                VerifyTestVector {
+                    verifies: false,
+                    pk: "DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659",
+                    msg: "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89",
+                    signature: "6CFF5C3BA86C69EA4B7376F31A9BCB4F74C1976089B2D9963DA2E5543E177769961764B3AA9B2FFCB6EF947B6887A226E8D7C93E00C5ED0C1834FF0D0C2E6DA6",
+                },
+            ];
+
+            for v in test_vectors {
+                verify_test_vector(v);
             }
         }
     }
