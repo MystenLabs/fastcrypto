@@ -21,6 +21,7 @@ use k256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::Group as GroupTrait;
 use k256::Secp256k1;
+use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use std::ops::{Div, Mul};
 
@@ -29,6 +30,13 @@ pub const SCALAR_SIZE_IN_BYTES: usize = 32;
 
 /// Size of a serialized point in bytes. This uses compressed serialization.
 pub const POINT_SIZE_IN_BYTES: usize = 33;
+
+lazy_static! {
+    pub static ref FQ_MODULUS: BigUint =
+        BigUint::from_bytes_be(Fq::MODULUS.to_bytes_be().as_slice());
+    pub static ref FR_MODULUS: BigUint =
+        BigUint::from_bytes_be(Fr::MODULUS.to_bytes_be().as_slice());
+}
 
 /// A point on the Secp256k1 curve in projective coordinates.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -49,14 +57,14 @@ impl ProjectivePoint {
             .into_bigint()
             .to_bytes_be()
             .try_into()
-            .expect("Is always 32 bytes"))
+            .expect("Always 32 bytes"))
     }
 
     /// Lift an x-coordinate to a point on the curve with an even y-coordinate.
     /// Returns an error if x is not the x-coordinate of a point on the curve.
     pub fn with_even_y_from_x_be_bytes(x: &[u8; 32]) -> FastCryptoResult<Self> {
         let x = BigUint::from_bytes_be(x);
-        if x >= BigUint::from_bytes_be(&Fq::MODULUS.to_bytes_be()) {
+        if x >= *FQ_MODULUS {
             return Err(FastCryptoError::InvalidInput);
         }
         let x = Fq::from(x);
@@ -68,10 +76,7 @@ impl ProjectivePoint {
                 } else {
                     y2.into_bigint()
                 };
-                Ok(ProjectivePoint(Projective::from(Affine::new(
-                    x,
-                    Fq::from(even_y),
-                ))))
+                Ok(ProjectivePoint(Affine::new(x, Fq::from(even_y)).into()))
             }
             None => Err(FastCryptoError::InvalidInput),
         }
@@ -80,7 +85,7 @@ impl ProjectivePoint {
     /// Returns true iff the y-coordinate of this point is even.
     /// Returns an `InvalidInput` error if this is the identity point.
     pub fn has_even_y(&self) -> FastCryptoResult<bool> {
-        if self.0.is_zero() {
+        if self.is_zero() {
             return Err(FastCryptoError::InvalidInput);
         }
         Ok(self
@@ -274,12 +279,19 @@ impl ScalarTrait for Scalar {
 impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
         // Align serialization with the k256 crate which follows the Bitcoin implementation
-        // TODO: Check canonical repr
-        Ok(Scalar::from_bytes_mod_order(bytes))
+        let value = BigUint::from_bytes_be(bytes);
+        if value >= *FR_MODULUS {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Ok(Scalar(Fr::from(value)))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
-        self.0.into_bigint().to_bytes_be().try_into().unwrap()
+        self.0
+            .into_bigint()
+            .to_bytes_be()
+            .try_into()
+            .expect("Always 32 bytes")
     }
 }
 
@@ -338,7 +350,7 @@ pub mod schnorr {
         type Error = FastCryptoError;
 
         fn try_from(value: &ProjectivePoint) -> Result<Self, Self::Error> {
-            if value.is_zero() {
+            if value.is_zero() || !value.has_even_y()? {
                 return Err(FastCryptoError::InvalidInput);
             }
             Ok(SchnorrPublicKey(*value))
@@ -380,6 +392,9 @@ pub mod schnorr {
             }
 
             // Ensure that the corresponding public key has an even y-coordinate
+            //
+            // It would perhaps make more sense to fail here if the y-coordinate is not even,
+            // but in that case the test vectors do not pass.
             let value = if (ProjectivePoint::generator() * value).has_even_y()? {
                 value
             } else {
@@ -445,9 +460,10 @@ pub mod schnorr {
         /// Follows the specifications from BIP-0340.
         pub fn sign(&self, msg: &[u8], aad: &[u8]) -> FastCryptoResult<SchnorrSignature> {
             let pk = SchnorrPublicKey::from(self);
+            let pk_bytes = pk.to_byte_array();
 
             let t = xor(&self.to_byte_array(), &hash(Aux, [aad]));
-            let k_prime = hash_to_scalar(Nonce, [&t, &pk.to_byte_array(), msg]);
+            let k_prime = hash_to_scalar(Nonce, [&t, &pk_bytes, msg]);
             if k_prime.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
             }
@@ -460,7 +476,7 @@ pub mod schnorr {
             };
             let r = r.x_as_be_bytes()?;
 
-            let e = hash_to_scalar(Challenge, [&r, &pk.to_byte_array(), msg]);
+            let e = hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
             let s = k + self.0 * e;
 
             let signature = SchnorrSignature { r, s };
