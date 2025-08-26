@@ -289,9 +289,9 @@ pub mod schnorr {
     use crate::groups::secp256k1::schnorr::Tag::{Aux, Challenge, Nonce};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
-    use crate::{hash, serialize_deserialize_with_to_from_byte_array};
     use crate::hash::HashFunction;
     use crate::serde_helpers::ToFromByteArray;
+    use crate::{hash, serialize_deserialize_with_to_from_byte_array};
 
     pub const SIGNATURE_SIZE_IN_BYTES: usize = 64;
     pub const PUBLIC_KEY_SIZE_IN_BYTES: usize = 32;
@@ -354,7 +354,9 @@ pub mod schnorr {
     }
 
     impl ToFromByteArray<PUBLIC_KEY_SIZE_IN_BYTES> for SchnorrPublicKey {
-        fn from_byte_array(bytes: &[u8; PUBLIC_KEY_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+        fn from_byte_array(
+            bytes: &[u8; PUBLIC_KEY_SIZE_IN_BYTES],
+        ) -> Result<Self, FastCryptoError> {
             Ok(SchnorrPublicKey(
                 ProjectivePoint::with_even_y_from_x_be_bytes(bytes)?,
             ))
@@ -382,7 +384,9 @@ pub mod schnorr {
     }
 
     impl ToFromByteArray<PRIVATE_KEY_SIZE_IN_BYTES> for SchnorrPrivateKey {
-        fn from_byte_array(bytes: &[u8; PRIVATE_KEY_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+        fn from_byte_array(
+            bytes: &[u8; PRIVATE_KEY_SIZE_IN_BYTES],
+        ) -> Result<Self, FastCryptoError> {
             SchnorrPrivateKey::try_from(Scalar::from_byte_array(bytes)?)
         }
 
@@ -513,21 +517,27 @@ pub mod schnorr {
         }
 
         fn test_valid_test_vector(v: ValidTestVector) {
-            let sk = SchnorrPrivateKey::from_byte_array(
-                &hex::decode(v.sk).unwrap().try_into().unwrap(),
-            )
-                .unwrap();
-            let pk = SchnorrPublicKey::from_byte_array(
-                &hex::decode(v.pk).unwrap().try_into().unwrap(),
-            ).unwrap();
-            assert_eq!(SchnorrPublicKey::from(&sk).0, pk.0, "Public key does not match private key");
+            let sk =
+                SchnorrPrivateKey::from_byte_array(&hex::decode(v.sk).unwrap().try_into().unwrap())
+                    .unwrap();
+            let pk =
+                SchnorrPublicKey::from_byte_array(&hex::decode(v.pk).unwrap().try_into().unwrap())
+                    .unwrap();
+            assert_eq!(
+                SchnorrPublicKey::from(&sk).0,
+                pk.0,
+                "Public key does not match private key"
+            );
 
             let aux_rand = hex::decode(v.aux_rand).unwrap();
             let msg = hex::decode(v.msg).unwrap();
             let expected_signature = hex::decode(v.signature).unwrap();
             let signature = sk.sign(&msg, &aux_rand).unwrap();
             let signature_bytes = signature.to_byte_array();
-            assert_eq!(expected_signature, signature_bytes, "Signature does not match expected signature");
+            assert_eq!(
+                expected_signature, signature_bytes,
+                "Signature does not match expected signature"
+            );
         }
 
         #[test]
