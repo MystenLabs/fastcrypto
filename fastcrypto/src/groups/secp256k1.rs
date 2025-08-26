@@ -156,7 +156,7 @@ impl Scalar {
         Scalar(Fr::from_be_bytes_mod_order(bytes.as_slice()))
     }
 
-    pub fn as_big_uint(&self) -> BigInt<4> {
+    pub fn as_big_int(&self) -> BigInt<4> {
         self.0.into_bigint()
     }
 }
@@ -233,27 +233,88 @@ impl ToLittleEndianBytes for Scalar {
 
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
-mod schnorr {
+pub mod schnorr {
     use crate::error::{FastCryptoError, FastCryptoResult};
+    use crate::groups::secp256k1::schnorr::Tag::{Aux, Challenge, Nonce};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
+    use crate::hash;
+    use crate::hash::HashFunction;
+    use crate::serde_helpers::ToFromByteArray;
     use ark_ec::{AffineRepr, CurveGroup};
-    use ark_ff::{BigInteger, PrimeField};
+    use ark_ff::{BigInteger, PrimeField, Zero};
     use ark_secp256k1::{Affine, Fq, Fr, Projective};
     use num_bigint::BigUint;
 
-    fn hash(name: &str, data: &[u8]) -> [u8; 32] {
-        use sha2::Digest;
-        let mut hasher = sha2::Sha256::new();
-        let tag_hash = sha2::Sha256::digest(name.as_bytes());
+    pub struct SchnorrSignature(ProjectivePoint, Scalar);
+
+    impl ToFromByteArray<64> for SchnorrSignature {
+        fn from_byte_array(bytes: &[u8; 64]) -> Result<Self, FastCryptoError> {
+            let r_bytes: [u8; 32] = bytes[0..32].try_into().unwrap();
+            let s_bytes: [u8; 32] = bytes[32..64].try_into().unwrap();
+            let r = lift_x(&r_bytes).ok_or(FastCryptoError::InvalidInput)?;
+            let s = int(&s_bytes).ok_or(FastCryptoError::InvalidInput)?;
+            Ok(SchnorrSignature(r, s))
+        }
+
+        fn to_byte_array(&self) -> [u8; 64] {
+            let mut bytes = [0u8; 64];
+            bytes[..32].copy_from_slice(&bytes_point(&self.0));
+            bytes[32..].copy_from_slice(&bytes_scalar(&self.1));
+            bytes
+        }
+    }
+
+    pub struct SchnorrPublicKey(ProjectivePoint);
+
+    impl ToFromByteArray<32> for SchnorrPublicKey {
+        fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
+            Ok(SchnorrPublicKey(
+                lift_x(bytes).ok_or(FastCryptoError::InvalidInput)?,
+            ))
+        }
+
+        fn to_byte_array(&self) -> [u8; 32] {
+            bytes_point(&self.0)
+        }
+    }
+
+    pub struct SchnorrPrivateKey(Scalar);
+
+    impl ToFromByteArray<32> for SchnorrPrivateKey {
+        fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
+            Ok(SchnorrPrivateKey(
+                int(bytes).ok_or(FastCryptoError::InvalidInput)?,
+            ))
+        }
+
+        fn to_byte_array(&self) -> [u8; 32] {
+            bytes_scalar(&self.0)
+        }
+    }
+
+    enum Tag {
+        Aux,
+        Nonce,
+        Challenge,
+    }
+
+    fn hash<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> [u8; 32] {
+        let name = match tag {
+            Aux => "BIP0340/aux",
+            Nonce => "BIP0340/nonce",
+            Challenge => "BIP0340/challenge",
+        };
+        let mut hasher = hash::Sha256::new();
+        let tag_hash = hash::Sha256::digest(name.as_bytes());
         hasher.update(&tag_hash);
         hasher.update(&tag_hash);
-        hasher.update(data);
+        data.into_iter().for_each(|d| hasher.update(&d));
         hasher.finalize().into()
     }
 
-    fn hash_to_scalar(name: &str, data: &[u8]) -> Scalar {
-        Scalar::from_bytes_mod_order(&hash(name, data))
+    fn hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
+        Scalar::from_bytes_mod_order(&hash(tag, data))
     }
 
     fn int(be_bytes: &[u8; 32]) -> Option<Scalar> {
@@ -295,6 +356,9 @@ mod schnorr {
     }
 
     fn has_even_y(point: &ProjectivePoint) -> bool {
+        if point.0.is_zero() {
+            return false;
+        }
         let affine = point.0.into_affine();
         affine.y().unwrap().into_bigint().is_even()
     }
@@ -327,20 +391,24 @@ mod schnorr {
     }
 
     fn sign(sk: &Scalar, msg: &[u8], aad: &[u8]) -> Option<(ProjectivePoint, Scalar)> {
+        if sk.as_big_int().is_zero() {
+            return None;
+        }
+
         let p = ProjectivePoint::generator() * *sk;
         let d = if has_even_y(&p) { *sk } else { -*sk };
 
-        let t = xor(&bytes_scalar(&d), &hash("BIP0340/aux", aad));
-        let k_prime = hash_to_scalar("BIP0340/nonce", &[&t, &bytes_point(&p), msg].concat());
-        if k_prime.as_big_uint().is_zero() {
+        let t = xor(&bytes_scalar(&d), &hash(Aux, [aad]));
+        let k_prime = hash_to_scalar(Nonce, [&t, &bytes_point(&p), msg]);
+        if k_prime.as_big_int().is_zero() {
             return None;
         }
 
         let r = ProjectivePoint::generator() * k_prime;
         let k = if has_even_y(&r) { k_prime } else { -k_prime };
         let e = hash_to_scalar(
-            "BIP0340/challenge",
-            &[&bytes_point(&r), &bytes_point(&p), msg].concat(),
+            Challenge,
+            [bytes_point(&r).as_slice(), bytes_point(&p).as_slice(), msg],
         );
         let s = k + e * d;
         Some((r, s))
@@ -356,19 +424,15 @@ mod schnorr {
     fn verify(
         pk: &ProjectivePoint,
         msg: &[u8],
-        signature: &(ProjectivePoint, Scalar),
+        (r, s): &(ProjectivePoint, Scalar),
     ) -> FastCryptoResult<()> {
-        let (r, s) = signature;
-        if s.as_big_uint().is_zero() || s.as_big_uint() >= Fr::MODULUS.into() {
+        if s.as_big_int().is_zero() || s.as_big_int() >= Fr::MODULUS.into() {
             return Err(FastCryptoError::InvalidSignature);
         }
         if !has_even_y(r) {
             return Err(FastCryptoError::InvalidSignature);
         }
-        let e = hash_to_scalar(
-            "BIP0340/challenge",
-            &[&bytes_point(r), &bytes_point(pk), msg].concat(),
-        );
+        let e = hash_to_scalar(Challenge, [&bytes_point(r), &bytes_point(pk), msg]);
         let s_g = ProjectivePoint::generator() * *s;
         if s_g == *r + (*pk * e) {
             Ok(())
