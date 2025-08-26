@@ -16,7 +16,6 @@ use ark_secp256r1::{Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
 pub const SCALAR_SIZE_IN_BYTES: usize = 32;

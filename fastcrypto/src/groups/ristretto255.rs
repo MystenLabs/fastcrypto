@@ -22,7 +22,6 @@ use curve25519_dalek_ng::scalar::Scalar as ExternalRistrettoScalar;
 use curve25519_dalek_ng::traits::{Identity, VartimeMultiscalarMul};
 use derive_more::{Add, Div, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use serde::{de, Deserialize};
 use std::ops::{Add, Div, Mul};
 use zeroize::Zeroize;
 

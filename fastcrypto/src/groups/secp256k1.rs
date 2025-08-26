@@ -4,7 +4,6 @@
 //! Implementation of the Secp256k1 (aka K-256) curve.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::multiplier::ToLittleEndianBytes;
 use crate::groups::{
     Doubling, GroupElement, HashToGroupElement, MultiScalarMul, Scalar as ScalarTrait,
 };
@@ -12,7 +11,7 @@ use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
 use ark_ec::{AffineRepr, CurveGroup, Group, ScalarMul, VariableBaseMSM};
-use ark_ff::{BigInt, BigInteger, Field, One, PrimeField, UniformRand, Zero};
+use ark_ff::{BigInteger, Field, One, PrimeField, UniformRand, Zero};
 use ark_secp256k1::{Affine, Fq, Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
@@ -23,7 +22,6 @@ use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::elliptic_curve::Group as GroupTrait;
 use k256::Secp256k1;
 use num_bigint::BigUint;
-use serde::{de, Deserialize};
 use std::ops::{Div, Mul};
 
 /// Size of a serialized scalar in bytes.
@@ -38,7 +36,6 @@ pub struct ProjectivePoint(pub(crate) Projective);
 
 impl ProjectivePoint {
     /// Returns the x-coordinate of this point as a big-endian byte array.
-    /// This is the encoding used in BIP-0340.
     /// Returns an `InvalidInput` error if this is the identity point.
     pub fn x_as_be_bytes(&self) -> FastCryptoResult<[u8; 32]> {
         if self.0.is_zero() {
@@ -53,6 +50,24 @@ impl ProjectivePoint {
             .to_bytes_be()
             .try_into()
             .expect("Is always 32 bytes"))
+    }
+
+    /// Lift an x-coordinate to a point on the curve with an even y-coordinate.
+    /// Returns an error if x is not the x-coordinate of a point on the curve.
+    pub fn with_even_y_from_x_be_bytes(x: &[u8; 32]) -> FastCryptoResult<Self> {
+        let x = BigUint::from_bytes_be(x);
+        if x >= BigUint::from_bytes_be(&Fq::MODULUS.to_bytes_be()) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let x = Fq::from(x);
+        match Affine::get_ys_from_x_unchecked(x) {
+            Some((y1, y2)) => {
+                // y2 = n - y1 so one of them must be even
+                let even_y = if y1.into_bigint().is_even() { y1 } else { y2 };
+                Ok(ProjectivePoint(Projective::from(Affine::new(x, even_y))))
+            }
+            None => Err(FastCryptoError::InvalidInput),
+        }
     }
 
     /// Returns true iff the y-coordinate of this point is even.
@@ -191,14 +206,16 @@ impl HashToGroupElement for ProjectivePoint {
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
 pub struct Scalar(pub(crate) Fr);
 
+impl Scalar {}
+
 impl Scalar {
     /// Create a scalar from a big-endian byte representation, reducing it modulo the group order if necessary.
     pub fn from_bytes_mod_order(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Self {
         Scalar(Fr::from_be_bytes_mod_order(bytes.as_slice()))
     }
 
-    pub fn as_big_int(&self) -> BigInt<4> {
-        self.0.into_bigint()
+    pub fn is_zero(&self) -> bool {
+        self.0.is_zero()
     }
 }
 
@@ -253,10 +270,10 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
     fn from_byte_array(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
         // Align serialization with the k256 crate which follows the Bitcoin implementation
         let x = BigUint::from_bytes_be(bytes);
-        match Fr::try_from(x) {
-            Ok(x) => Ok(Scalar(x)),
-            Err(_) => Err(FastCryptoError::InvalidInput),
+        if x >= BigUint::from_bytes_be(&Fr::MODULUS.to_bytes_be()) {
+            return Err(FastCryptoError::InvalidInput);
         }
+        Ok(Scalar(Fr::from(x)))
     }
 
     fn to_byte_array(&self) -> [u8; SCALAR_SIZE_IN_BYTES] {
@@ -266,37 +283,55 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
 
 serialize_deserialize_with_to_from_byte_array!(Scalar);
 
+/// A Schnorr signature scheme as defined in BIP-0340 (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 pub mod schnorr {
     use crate::error::{FastCryptoError, FastCryptoResult};
     use crate::groups::secp256k1::schnorr::Tag::{Aux, Challenge, Nonce};
     use crate::groups::secp256k1::{ProjectivePoint, Scalar};
     use crate::groups::GroupElement;
-    use crate::hash;
+    use crate::{hash, serialize_deserialize_with_to_from_byte_array};
     use crate::hash::HashFunction;
     use crate::serde_helpers::ToFromByteArray;
-    use ark_ec::CurveGroup;
-    use ark_ff::{BigInteger, PrimeField};
-    use ark_secp256k1::{Affine, Fq, Projective};
-    use num_bigint::BigUint;
 
-    pub struct SchnorrSignature(ProjectivePoint, Scalar);
+    pub const SIGNATURE_SIZE_IN_BYTES: usize = 64;
+    pub const PUBLIC_KEY_SIZE_IN_BYTES: usize = 32;
+    pub const PRIVATE_KEY_SIZE_IN_BYTES: usize = 32;
 
-    impl ToFromByteArray<64> for SchnorrSignature {
-        fn from_byte_array(bytes: &[u8; 64]) -> Result<Self, FastCryptoError> {
+    /// A Schnorr signature as defined in BIP-340. The r point must have an even y-coordinate and the s scalar cannot be zero.
+    pub struct SchnorrSignature {
+        r: ProjectivePoint,
+        s: Scalar,
+    }
+
+    impl TryFrom<(ProjectivePoint, Scalar)> for SchnorrSignature {
+        type Error = FastCryptoError;
+
+        fn try_from((r, s): (ProjectivePoint, Scalar)) -> Result<Self, Self::Error> {
+            if !r.has_even_y()? || s.is_zero() {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            Ok(SchnorrSignature { r, s })
+        }
+    }
+
+    impl ToFromByteArray<SIGNATURE_SIZE_IN_BYTES> for SchnorrSignature {
+        fn from_byte_array(bytes: &[u8; SIGNATURE_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
             let r_bytes: [u8; 32] = bytes[0..32].try_into().unwrap();
             let s_bytes: [u8; 32] = bytes[32..64].try_into().unwrap();
-            let r = lift_x(&r_bytes)?;
+            let r = ProjectivePoint::with_even_y_from_x_be_bytes(&r_bytes)?;
             let s = Scalar::from_byte_array(&s_bytes)?;
-            Ok(SchnorrSignature(r, s))
+            Self::try_from((r, s))
         }
 
-        fn to_byte_array(&self) -> [u8; 64] {
-            let mut bytes = [0u8; 64];
-            bytes[..32].copy_from_slice(&self.0.x_as_be_bytes().expect("Not infinity"));
-            bytes[32..].copy_from_slice(&self.1.to_byte_array());
+        fn to_byte_array(&self) -> [u8; SIGNATURE_SIZE_IN_BYTES] {
+            let mut bytes = [0u8; SIGNATURE_SIZE_IN_BYTES];
+            bytes[..32].copy_from_slice(&self.r.x_as_be_bytes().expect("Not infinity"));
+            bytes[32..].copy_from_slice(&self.s.to_byte_array());
             bytes
         }
     }
+
+    serialize_deserialize_with_to_from_byte_array!(SchnorrSignature);
 
     /// A Schnorr public key as defined in BIP-340. The point cannot be the point at infinity.
     pub struct SchnorrPublicKey(ProjectivePoint);
@@ -318,27 +353,45 @@ pub mod schnorr {
         }
     }
 
-    impl ToFromByteArray<32> for SchnorrPublicKey {
-        fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
-            Ok(SchnorrPublicKey(lift_x(bytes)?))
+    impl ToFromByteArray<PUBLIC_KEY_SIZE_IN_BYTES> for SchnorrPublicKey {
+        fn from_byte_array(bytes: &[u8; PUBLIC_KEY_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+            Ok(SchnorrPublicKey(
+                ProjectivePoint::with_even_y_from_x_be_bytes(bytes)?,
+            ))
         }
 
-        fn to_byte_array(&self) -> [u8; 32] {
+        fn to_byte_array(&self) -> [u8; PUBLIC_KEY_SIZE_IN_BYTES] {
             self.0.x_as_be_bytes().expect("Cannot be infinity")
         }
     }
 
+    serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
+
+    /// A Schnorr private key. The scalar cannot be zero.
     pub struct SchnorrPrivateKey(Scalar);
 
-    impl ToFromByteArray<32> for SchnorrPrivateKey {
-        fn from_byte_array(bytes: &[u8; 32]) -> Result<Self, FastCryptoError> {
-            Ok(SchnorrPrivateKey(Scalar::from_byte_array(bytes)?))
+    impl TryFrom<Scalar> for SchnorrPrivateKey {
+        type Error = FastCryptoError;
+
+        fn try_from(value: Scalar) -> Result<Self, Self::Error> {
+            if value.is_zero() {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            Ok(SchnorrPrivateKey(value))
+        }
+    }
+
+    impl ToFromByteArray<PRIVATE_KEY_SIZE_IN_BYTES> for SchnorrPrivateKey {
+        fn from_byte_array(bytes: &[u8; PRIVATE_KEY_SIZE_IN_BYTES]) -> Result<Self, FastCryptoError> {
+            SchnorrPrivateKey::try_from(Scalar::from_byte_array(bytes)?)
         }
 
-        fn to_byte_array(&self) -> [u8; 32] {
+        fn to_byte_array(&self) -> [u8; PRIVATE_KEY_SIZE_IN_BYTES] {
             self.0.to_byte_array()
         }
     }
+
+    serialize_deserialize_with_to_from_byte_array!(SchnorrPrivateKey);
 
     enum Tag {
         Aux,
@@ -358,35 +411,14 @@ pub mod schnorr {
         let name = get_tag(tag);
         let mut hasher = hash::Sha256::new();
         let tag_hash = hash::Sha256::digest(name.as_bytes());
-        hasher.update(&tag_hash);
-        hasher.update(&tag_hash);
+        hasher.update(tag_hash);
+        hasher.update(tag_hash);
         data.into_iter().for_each(|d| hasher.update(d));
         hasher.finalize().into()
     }
 
     fn hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
         Scalar::from_bytes_mod_order(&hash(tag, data))
-    }
-
-    /// Lift an x-coordinate to a point on the curve with an even y-coordinate.
-    /// Returns an error if x is not the x-coordinate of a point on the curve.
-    fn lift_x(x: &[u8; 32]) -> FastCryptoResult<ProjectivePoint> {
-        let x = BigUint::from_bytes_be(x);
-        match Fq::try_from(x) {
-            Ok(x) => match Affine::get_ys_from_x_unchecked(x.clone()) {
-                Some((y1, y2)) => {
-                    // y2 = n - y1 so one of them must be even
-                    let even_y = if y1.clone().into_bigint().is_even() {
-                        y1
-                    } else {
-                        y2
-                    };
-                    Ok(ProjectivePoint(Projective::from(Affine::new(x, even_y))))
-                }
-                None => Err(FastCryptoError::InvalidInput),
-            },
-            Err(_) => Err(FastCryptoError::InvalidInput),
-        }
     }
 
     fn xor(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
@@ -397,52 +429,52 @@ pub mod schnorr {
         res
     }
 
-    fn sign(sk: &SchnorrPrivateKey, msg: &[u8], aad: &[u8]) -> FastCryptoResult<SchnorrSignature> {
-        if sk.0.as_big_int().is_zero() {
-            return Err(FastCryptoError::InvalidInput);
+    impl SchnorrPrivateKey {
+        /// Sign a message with this private key and the given auxiliary random data.
+        /// Follows the specifications from BIP-0340.
+        pub fn sign(&self, msg: &[u8], aad: &[u8]) -> FastCryptoResult<SchnorrSignature> {
+            let pk = SchnorrPublicKey::from(self);
+            let d = if pk.0.has_even_y().expect("sk is not zero") {
+                self.0
+            } else {
+                -self.0
+            };
+
+            let t = xor(&d.to_byte_array(), &hash(Aux, [aad]));
+            let k_prime = hash_to_scalar(Nonce, [&t, &pk.to_byte_array(), msg]);
+            if k_prime.is_zero() {
+                return Err(FastCryptoError::InvalidInput);
+            }
+
+            let r = ProjectivePoint::generator() * k_prime;
+            let k = if r.has_even_y().expect("r is not infinity") {
+                k_prime
+            } else {
+                -k_prime
+            };
+            let e = hash_to_scalar(Challenge, [&r.x_as_be_bytes()?, &pk.to_byte_array(), msg]);
+            let s = k + d * e;
+
+            let signature = SchnorrSignature { r, s };
+            pk.verify(msg, &signature)?;
+
+            Ok(signature)
         }
-
-        let p = ProjectivePoint::generator() * sk.0;
-        let d = if p.has_even_y().expect("sk is not zero") {
-            sk.0
-        } else {
-            -sk.0
-        };
-
-        let t = xor(&d.to_byte_array(), &hash(Aux, [aad]));
-        let k_prime = hash_to_scalar(Nonce, [&t, &p.x_as_be_bytes()?, msg]);
-        if k_prime.as_big_int().is_zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-
-        let r = ProjectivePoint::generator() * k_prime;
-        let k = if r.has_even_y().expect("k_prime is not zero") {
-            k_prime
-        } else {
-            -k_prime
-        };
-        let e = hash_to_scalar(Challenge, [&r.x_as_be_bytes()?, &p.x_as_be_bytes()?, msg]);
-        let s = k + e * d;
-        Ok(SchnorrSignature(r, s))
     }
 
-    fn verify(pk: &SchnorrPublicKey, msg: &[u8], sig: &SchnorrSignature) -> FastCryptoResult<()> {
-        let SchnorrSignature(r, s) = sig;
-        if s.as_big_int().is_zero() {
-            return Err(FastCryptoError::InvalidSignature);
-        }
-        if !r.has_even_y()? {
-            return Err(FastCryptoError::InvalidSignature);
-        }
-        let e = hash_to_scalar(
-            Challenge,
-            [&r.x_as_be_bytes()?, &pk.0.x_as_be_bytes()?, msg],
-        );
-        let s_g = ProjectivePoint::generator() * *s;
-        if s_g == *r + (pk.0 * e) {
-            Ok(())
-        } else {
-            Err(FastCryptoError::InvalidSignature)
+    impl SchnorrPublicKey {
+        /// Verify a signature on a message with this public key.
+        pub fn verify(&self, msg: &[u8], sig: &SchnorrSignature) -> FastCryptoResult<()> {
+            let SchnorrSignature { r, s } = sig;
+            let e = hash_to_scalar(
+                Challenge,
+                [&r.x_as_be_bytes()?, &self.0.x_as_be_bytes()?, msg],
+            );
+            if ProjectivePoint::generator() * s == r + self.0 * e {
+                Ok(())
+            } else {
+                Err(FastCryptoError::InvalidSignature)
+            }
         }
     }
 
@@ -461,70 +493,73 @@ pub mod schnorr {
         );
         assert!(ProjectivePoint::generator().has_even_y().unwrap());
 
-        assert_eq!(lift_x(&x_bytes).unwrap(), ProjectivePoint::generator());
+        assert_eq!(
+            ProjectivePoint::with_even_y_from_x_be_bytes(&x_bytes).unwrap(),
+            ProjectivePoint::generator()
+        );
     }
 
-    #[test]
-    fn reference() {
-        let sk = k256::schnorr::SigningKey::from_bytes(
-            &hex::decode("B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF")
-                .unwrap(),
-        )
-        .unwrap();
-        let pk = k256::schnorr::VerifyingKey::from_bytes(
-            &hex::decode("DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659")
-                .unwrap(),
-        )
-        .unwrap();
+    #[cfg(test)]
+    mod tests {
+        use crate::groups::secp256k1::schnorr::{SchnorrPrivateKey, SchnorrPublicKey};
+        use crate::serde_helpers::ToFromByteArray;
 
-        let aux_rand =
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
-                .unwrap()
-                .try_into()
-                .unwrap();
-        let msg = hex::decode("243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89")
-            .unwrap()
-            .try_into()
-            .unwrap();
-        let signature = sk.try_sign_prehashed(&msg, &aux_rand).unwrap();
-        assert!(pk.verify_prehashed(&msg, &signature).is_ok());
+        struct ValidTestVector {
+            sk: &'static str,
+            pk: &'static str,
+            aux_rand: &'static str,
+            msg: &'static str,
+            signature: &'static str,
+        }
 
-        let expected_signature = hex::decode("6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A").unwrap();
-        assert_eq!(signature.as_bytes().to_vec(), expected_signature);
-    }
-
-    #[test]
-    fn test_schnorr() {
-        // Test vector 1 from https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
-        let sk = SchnorrPrivateKey(
-            Scalar::from_byte_array(
-                &hex::decode("B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF")
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
+        fn test_valid_test_vector(v: ValidTestVector) {
+            let sk = SchnorrPrivateKey::from_byte_array(
+                &hex::decode(v.sk).unwrap().try_into().unwrap(),
             )
-            .unwrap(),
-        );
-        let pk = SchnorrPublicKey(
-            lift_x(
-                &hex::decode("DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659")
-                    .unwrap()
-                    .try_into()
-                    .unwrap(),
-            )
-            .unwrap(),
-        );
-        let aux_rand =
-            hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap();
-        let msg = hex::decode("243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89")
-            .unwrap();
-        let expected_signature = hex::decode("6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A").unwrap();
+            let pk = SchnorrPublicKey::from_byte_array(
+                &hex::decode(v.pk).unwrap().try_into().unwrap(),
+            ).unwrap();
+            assert_eq!(SchnorrPublicKey::from(&sk).0, pk.0, "Public key does not match private key");
 
-        let signature = sign(&sk, &msg, &aux_rand).unwrap();
-        let signature_bytes = signature.to_byte_array();
-        assert_eq!(expected_signature, signature_bytes);
+            let aux_rand = hex::decode(v.aux_rand).unwrap();
+            let msg = hex::decode(v.msg).unwrap();
+            let expected_signature = hex::decode(v.signature).unwrap();
+            let signature = sk.sign(&msg, &aux_rand).unwrap();
+            let signature_bytes = signature.to_byte_array();
+            assert_eq!(expected_signature, signature_bytes, "Signature does not match expected signature");
+        }
 
-        assert!(verify(&pk, &msg, &signature).is_ok());
+        #[test]
+        fn valid_test_vectors() {
+            // https://github.com/bitcoin/bips/blob/master/bip-0340/test-vectors.csv
+            let test_vectors = [
+                ValidTestVector {
+                    sk: "B7E151628AED2A6ABF7158809CF4F3C762E7160F38B4DA56A784D9045190CFEF",
+                    pk: "DFF1D77F2A671C5F36183726DB2341BE58FEAE1DA2DECED843240F7B502BA659",
+                    aux_rand: "0000000000000000000000000000000000000000000000000000000000000001",
+                    msg: "243F6A8885A308D313198A2E03707344A4093822299F31D0082EFA98EC4E6C89",
+                    signature: "6896BD60EEAE296DB48A229FF71DFE071BDE413E6D43F917DC8DCF8C78DE33418906D11AC976ABCCB20B091292BFF4EA897EFCB639EA871CFA95F6DE339E4B0A",
+                },
+                ValidTestVector {
+                    sk: "C90FDAA22168C234C4C6628B80DC1CD129024E088A67CC74020BBEA63B14E5C9",
+                    pk: "DD308AFEC5777E13121FA72B9CC1B7CC0139715309B086C960E18FD969774EB8",
+                    aux_rand: "C87AA53824B4D7AE2EB035A2B5BBBCCC080E76CDC6D1692C4B0B62D798E6D906",
+                    msg: "7E2D58D8B3BCDF1ABADEC7829054F90DDA9805AAB56C77333024B9D0A508B75C",
+                    signature: "5831AAEED7B44BB74E5EAB94BA9D4294C49BCF2A60728D8B4C200F50DD313C1BAB745879A5AD954A72C45A91C3A51D3C7ADEA98D82F8481E0E1E03674A6F3FB7",
+                },
+                // ValidTestVector {
+                //     sk: "0B432B2677937381AEF05BB02A66ECD012773062CF3FA2549E44F58ED2401710",
+                //     pk: "25D1DFF95105F5253C4022F628A996AD3A0D95FBF21D468A1B33F8C160D8F517",
+                //     aux_rand: "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                //     msg: "FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
+                //     signature: "7EB0509757E246F19449885651611CB965ECC1A187DD51B64FDA1EDC9637D5EC97582B9CB13DB3933705B32BA982AF5AF25FD78881EBB32771FC5922EFC66EA3",
+                // }
+            ];
+
+            for v in test_vectors {
+                test_valid_test_vector(v);
+            }
+        }
     }
 }

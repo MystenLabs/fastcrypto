@@ -30,7 +30,6 @@ use blst::{
 use fastcrypto_derive::GroupOpsExtend;
 use hex_literal::hex;
 use once_cell::sync::OnceCell;
-use serde::{de, Deserialize};
 use std::fmt::Debug;
 use std::ops::{Add, Div, Mul, Neg, Sub};
 use std::ptr;
