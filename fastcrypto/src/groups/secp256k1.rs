@@ -343,7 +343,8 @@ pub mod schnorr {
 
     serialize_deserialize_with_to_from_byte_array!(SchnorrSignature);
 
-    /// A Schnorr public key as defined in BIP-340. The point cannot be the point at infinity.
+    /// A Schnorr public key as defined in BIP-340.
+    /// The point cannot be the point at infinity and the y-coordinate must be even.
     pub struct SchnorrPublicKey(ProjectivePoint);
 
     impl TryFrom<&ProjectivePoint> for SchnorrPublicKey {
