@@ -55,6 +55,7 @@ pub mod nodes_tests;
 // #[path = "tests/nidkg_tests.rs"]
 // pub mod nidkg_tests;
 
+mod batched_avss;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;

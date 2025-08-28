@@ -9,11 +9,11 @@ use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Mul};
 
 /// Types
 
@@ -51,6 +51,14 @@ impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
         if self.0.len() < other.0.len() {
             self.0.extend_from_slice(&other.0[self.0.len()..]);
         }
+    }
+}
+
+impl<C: Scalar> Mul<&C> for Poly<C> {
+    type Output = Poly<C>;
+
+    fn mul(self, rhs: &C) -> Self::Output {
+        Poly(self.0.into_iter().map(|c| c * rhs).collect())
     }
 }
 
@@ -244,4 +252,33 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
         Ok(res)
     }
+}
+
+pub fn interpolate<C: Scalar>(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+    if points.is_empty() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    if !points.iter().map(|p| p.index).all_unique() {
+        return Err(FastCryptoError::InvalidInput);
+    }
+    let x = C::from(index.get() as u128);
+    let value: C = points
+        .iter()
+        .enumerate()
+        .map(|(j, eval_j)| {
+            let x_j = C::from(eval_j.index.get() as u128);
+            let y_j = eval_j.value;
+            points
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| *i != j)
+                .map(|(_, eval_i)| {
+                    let x_i = C::from(eval_i.index.get() as u128);
+                    ((x - x_i) / (x_j - x_i)).expect("Divisor is never zero")
+                })
+                .fold(y_j, |acc, factor| acc * factor)
+        })
+        .fold(C::zero(), |acc, term| acc + term);
+
+    Ok(Eval { index, value })
 }
