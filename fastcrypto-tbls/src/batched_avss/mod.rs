@@ -81,7 +81,7 @@ where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
     G::ScalarType: FiatShamirChallenge,
 {
-    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
+    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces along with their corresponding public keys.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> (Message<G, EG>, Output<G>) {
         // TODO: weights + higher thresholds
         let n = 3 * self.f + 1;
@@ -187,7 +187,7 @@ where
         Ok(shares)
     }
 
-    /// 4. When 2f+1 signatures has been collected in the certificate, the receivers can now verify it.
+    /// 4. When 2f+1 signatures have been collected in the certificate, the receivers can now verify it.
     ///  - If the receiver is already in the certificate, do nothing.
     ///  - If it is not in the certificate, but it is able to decrypt and verify its shares, store the shares and do nothing.
     ///  - If it is not in the certificate and cannot decrypt or verify its shares, it creates a complaint with a recovery package for its shares.
