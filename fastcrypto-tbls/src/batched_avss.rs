@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::batched_avss::Extension::{Encryption, Recovery};
 use crate::ecies_v1;
 use crate::ecies_v1::{PublicKey, RecoveryPackage};
 use crate::nodes::PartyId;
@@ -19,39 +20,57 @@ use std::marker::PhantomData;
 use tracing::debug;
 use zeroize::Zeroize;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Shares<C: GroupElement> {
-    pub r: Vec<C>,
-    pub r_prime: C,
-}
-
+/// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<G, EG: GroupElement> {
-    L: u16,
+    nonces: u16,
     f: u16,
     public_keys: Vec<PublicKey<EG>>,
     random_oracle: RandomOracle,
     _group: PhantomData<G>,
 }
 
+impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
+    fn base(&self) -> &RandomOracle {
+        &self.random_oracle
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Message<G: GroupElement, EG: GroupElement> {
     c: Vec<G>,
     c_prime: G,
-    e: ecies_v1::MultiRecipientEncryption<EG>,
+    encryptions: ecies_v1::MultiRecipientEncryption<EG>,
     p_double_prime: Poly<G::ScalarType>,
 }
+
+/// The shares for a receiver, containing L shares and one for the combined polynomial.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Shares<C: GroupElement> {
+    pub r: Vec<C>,
+    pub r_prime: C,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Nonces<C: GroupElement>(Vec<C>);
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
 where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
     G::ScalarType: FiatShamirChallenge,
 {
-    pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> Message<G, EG> {
+    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares.
+    pub fn create_message<Rng: AllowedRng>(
+        &self,
+        rng: &mut Rng,
+    ) -> (Message<G, EG>, Nonces<G::ScalarType>) {
         let n = 3 * self.f + 1;
 
-        let p = (0..self.L)
+        let p = (0..self.nonces)
             .map(|_| Poly::<G::ScalarType>::rand(self.f, rng))
             .collect::<Vec<_>>();
+
+        let nonces = p.iter().map(|p_l| *p_l.c0()).collect::<Vec<_>>();
+
         let p_prime = Poly::<G::ScalarType>::rand(self.f, rng);
         let c = p
             .iter()
@@ -88,7 +107,7 @@ where
         );
 
         let ro = self.random_oracle.extend("fiatshamir");
-        let gamma = (1..=self.L)
+        let gamma = (1..=self.nonces)
             .map(|l| ro.evaluate(&(l, &c, c_prime, &e)))
             .map(|b| G::ScalarType::fiat_shamir_reduction_to_group_element(&b))
             .collect::<Vec<_>>();
@@ -98,12 +117,15 @@ where
             p_double_prime += &(p_l.clone() * gamma_l);
         }
 
-        Message {
-            c,
-            c_prime,
-            e,
-            p_double_prime,
-        }
+        (
+            Message {
+                c,
+                c_prime,
+                encryptions: e,
+                p_double_prime,
+            },
+            Nonces(nonces),
+        )
     }
 }
 
@@ -115,16 +137,18 @@ where
     G::ScalarType: FiatShamirChallenge,
     EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
+    /// 2. Each receiver processes the message, verifies and decrypts its shares. If this works, the shares are stored and the receiver can contribute a signature on the message to a certificate.
     pub fn process_message(&mut self, message: &Message<G, EG>) -> FastCryptoResult<()> {
         // TODO: Sanity checks?
 
-        message.e.verify(&self.random_oracle.extend("encryption"))?;
+        let ro = self.random_oracle.extend("encryption");
 
-        let decrypted = message.e.decrypt(
-            &self.secret_key,
-            &self.random_oracle.extend("encryption"),
-            (self.index - 1) as usize,
-        );
+        message.encryptions.verify(&ro)?;
+
+        let decrypted =
+            message
+                .encryptions
+                .decrypt(&self.secret_key, &ro, (self.index - 1) as usize);
         let shares: Shares<G::ScalarType> =
             bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
 
@@ -144,6 +168,10 @@ where
         Ok(())
     }
 
+    /// 4. When 2f+1 signatures has been collected in the certificate, the receivers can now verify it.
+    ///  - If the receiver is already in the certificate, do nothing.
+    ///  - If it is not in the certificate, but it is able to decrypt and verify its shares, store the shares and do nothing.
+    ///  - If it is not in the certificate and cannot decrypt or verify its shares, it creates a complaint with a recovery package for its shares.
     pub fn process_certificate(
         &mut self,
         cert: &impl Certificate<G, EG>,
@@ -161,18 +189,20 @@ where
             Ok(_) => Ok(None),
             Err(_) => {
                 let ro = self.random_oracle.extend("encryption");
-                cert.message().e.verify(&ro)?;
+                cert.message().encryptions.verify(&ro)?;
                 Ok(Some(Complaint {
                     index: self.index,
-                    proof: cert
-                        .message()
-                        .e
-                        .create_recovery_package(&self.secret_key, &ro, rng),
+                    proof: cert.message().encryptions.create_recovery_package(
+                        &self.secret_key,
+                        &ro,
+                        rng,
+                    ),
                 }))
             }
         }
     }
 
+    /// 5. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
     pub fn handle_complaint(
         &self,
         message: &Message<G, EG>,
@@ -183,7 +213,7 @@ where
         self.check_complaint_proof(message, &complaint, &pk)?;
 
         Ok(ComplaintResponse {
-            recovery_package: message.e.create_recovery_package(
+            recovery_package: message.encryptions.create_recovery_package(
                 &self.secret_key,
                 &self.random_oracle.extend("encryption"),
                 rng,
@@ -193,12 +223,13 @@ where
 
     fn compute_gamma(&self, message: &Message<G, EG>) -> Vec<G::ScalarType> {
         let ro_gamma = self.random_oracle.extend("fiatshamir");
-        (1..=self.L)
-            .map(|l| ro_gamma.evaluate(&(l, &message.c, message.c_prime, &message.e)))
+        (1..=self.nonces)
+            .map(|l| ro_gamma.evaluate(&(l, &message.c, message.c_prime, &message.encryptions)))
             .map(|b| G::ScalarType::fiat_shamir_reduction_to_group_element(&b))
             .collect::<Vec<_>>()
     }
 
+    /// Helper function to verify the consistency of the shares, e.g. that <i>r' + &Sigma;<sub>l</sub> &gamma;<sub>l</sub> r<sub>li</sub> = p''(i)<i>.
     fn verify_shares(
         &self,
         r: &[G::ScalarType],
@@ -206,7 +237,7 @@ where
         gamma: Option<&Vec<G::ScalarType>>,
         message: &Message<G, EG>,
     ) -> FastCryptoResult<()> {
-        if r.len() != self.L as usize {
+        if r.len() != self.nonces as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -215,7 +246,7 @@ where
             None => &self.compute_gamma(message),
         };
 
-        if gamma.len() != self.L as usize {
+        if gamma.len() != self.nonces as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -233,6 +264,7 @@ where
         Ok(())
     }
 
+    /// 6. Upon receiving f+1 valid responses, the accuser can recover its shares.
     pub fn recover_shares(
         &mut self,
         message: &Message<G, EG>,
@@ -242,7 +274,7 @@ where
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let ro = self.random_oracle_recovery(self.index);
+        let ro = self.random_oracle_extension(Recovery(self.index));
         let ro_enc = self.random_oracle.extend("encryption");
 
         // Ignore invalid responses
@@ -250,7 +282,7 @@ where
             .iter()
             .map(|(i, pk, r)| {
                 message
-                    .e
+                    .encryptions
                     .decrypt_with_recovery_package(
                         &r.recovery_package,
                         &ro,
@@ -285,7 +317,7 @@ where
         )?
         .value;
 
-        let r = (0..self.L)
+        let r = (0..self.nonces)
             .map(|l| {
                 interpolate(
                     share_index,
@@ -308,11 +340,6 @@ where
         Ok(())
     }
 
-    fn random_oracle_recovery(&self, accuser: PartyId) -> RandomOracle {
-        self.random_oracle
-            .extend(&format!("recovery of {accuser}",))
-    }
-
     #[allow(clippy::too_many_arguments)]
     fn check_complaint_proof(
         &self,
@@ -322,10 +349,10 @@ where
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint
         // is invalid.
-        let buffer = message.e.decrypt_with_recovery_package(
+        let buffer = message.encryptions.decrypt_with_recovery_package(
             &complaint.proof,
-            &self.random_oracle_recovery(complaint.index),
-            &self.random_oracle.extend("encryption"),
+            &self.random_oracle_extension(Recovery(complaint.index)),
+            &self.random_oracle_extension(Encryption),
             receiver_pk,
             complaint.index as usize,
         )?;
@@ -334,11 +361,12 @@ where
             Ok(s) => s,
             Err(_) => {
                 debug!("check_complaint_proof failed to deserialize shares");
+
                 return Ok(());
             }
         };
 
-        if shares.r.len() != self.L as usize {
+        if shares.r.len() != self.nonces as usize {
             debug!("check_complaint_proof recovered invalid number of shares");
             return Ok(());
         }
@@ -383,10 +411,39 @@ where
 {
     index: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
-    L: u16,
+    nonces: u16,
     random_oracle: RandomOracle,
     f: u16,
     shares: Option<Shares<G::ScalarType>>,
+}
+
+impl<G: GroupElement, EG: GroupElement> RandomOracleExtensions for Receiver<G, EG>
+where
+    EG::ScalarType: Zeroize,
+{
+    fn base(&self) -> &RandomOracle {
+        &self.random_oracle
+    }
+}
+
+enum Extension {
+    Recovery(PartyId),
+    Encryption,
+    FiatShamir,
+}
+
+/// Helper trait to extend a random oracle with context-specific strings.
+trait RandomOracleExtensions {
+    fn base(&self) -> &RandomOracle;
+
+    fn random_oracle_extension(&self, extension: Extension) -> RandomOracle {
+        let extension_string = match extension {
+            Recovery(accuser) => &format!("recovery of {accuser}"),
+            Encryption => "encryption",
+            Extension::FiatShamir => "fiatshamir",
+        };
+        self.base().extend(extension_string)
+    }
 }
 
 #[cfg(test)]
@@ -394,14 +451,18 @@ mod tests {
     use crate::batched_avss::{Certificate, Dealer, Message, Receiver};
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
+    use crate::polynomial::{Eval, Poly};
     use crate::random_oracle::RandomOracle;
+    use crate::types::ShareIndex;
     use fastcrypto::groups::bls12381::{G1Element, G2Element};
     use fastcrypto::groups::GroupElement;
+    use itertools::Itertools;
 
     #[test]
     fn test_e2e() {
         let f = 2;
         let n = 3 * f + 1;
+        let L = 3;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -415,8 +476,8 @@ mod tests {
         let random_oracle = RandomOracle::new("tbls test");
 
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            L: 3,
-            f: 2,
+            nonces: L,
+            f,
             public_keys: pks,
             random_oracle,
             _group: Default::default(),
@@ -428,14 +489,14 @@ mod tests {
             .map(|(i, sk)| Receiver {
                 index: (i + 1) as u16,
                 secret_key: sk.clone(),
-                L: 3,
+                nonces: 3,
                 random_oracle: RandomOracle::new("tbls test"),
                 f: 2,
                 shares: None,
             })
             .collect::<Vec<_>>();
 
-        let message = dealer.create_message(&mut rng);
+        let (message, nonces) = dealer.create_message(&mut rng);
 
         for receiver in receivers.iter_mut() {
             receiver.process_message(&message).unwrap();
@@ -453,6 +514,27 @@ mod tests {
                 .process_certificate(&certificate, &mut rng)
                 .unwrap()
                 .is_none());
+        }
+
+        let secrets = (0..L)
+            .map(|l| {
+                let shares = receivers
+                    .iter()
+                    .map(|r| (r.index, r.shares.as_ref().unwrap().r[l as usize]))
+                    .collect::<Vec<_>>();
+                Poly::recover_c0(
+                    n,
+                    shares.iter().map(|(i, v)| Eval {
+                        index: ShareIndex::new(*i).unwrap(),
+                        value: *v,
+                    }),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        for l in 0..L {
+            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
         }
     }
 
