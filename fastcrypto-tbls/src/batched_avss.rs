@@ -58,18 +58,15 @@ pub struct Shares<C: GroupElement> {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Nonces<C: GroupElement>(Vec<C>);
+pub struct Nonces<G: GroupElement>(Vec<(G, G::ScalarType)>);
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
 where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
     G::ScalarType: FiatShamirChallenge,
 {
-    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares.
-    pub fn create_message<Rng: AllowedRng>(
-        &self,
-        rng: &mut Rng,
-    ) -> (Message<G, EG>, Nonces<G::ScalarType>) {
+    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
+    pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> (Message<G, EG>, Nonces<G>) {
         let n = 3 * self.f + 1;
 
         let p = (0..self.number_of_nonces)
@@ -117,7 +114,11 @@ where
             p_double_prime += &(p_l.clone() * gamma_l);
         }
 
-        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
+        let nonces = p
+            .iter()
+            .zip(c.iter())
+            .map(|(p_l, c_l)| (*c_l, *p_l.c0()))
+            .collect();
 
         (
             Message {
@@ -532,7 +533,7 @@ mod tests {
 
         let certificate = TestCertificate {
             message: message.clone(),
-            included: vec![1, 2, 3, 4, 5, 6, 7],
+            included: vec![1, 2, 3, 4, 5], // 2f+1
         };
 
         for receiver in receivers.iter_mut() {
@@ -561,7 +562,11 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
+            assert_eq!(secrets[l as usize], nonces.0[l as usize].1);
+            assert_eq!(
+                G1Element::generator() * secrets[l as usize],
+                nonces.0[l as usize].0
+            );
         }
     }
 
