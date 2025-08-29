@@ -100,9 +100,9 @@
 <a href=#100 id=100 data-nosnippet>100</a>                    <span class="bool-val">true </span>=&gt; {
 <a href=#101 id=101 data-nosnippet>101</a>                        <span class="kw">let </span>s = String::deserialize(deserializer)<span class="question-mark">?</span>;
 <a href=#102 id=102 data-nosnippet>102</a>                        <span class="kw">let </span>decoded = Base64::decode(<span class="kw-2">&amp;</span>s)
-<a href=#103 id=103 data-nosnippet>103</a>                            .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">"Base64 decoding failed"</span>))<span class="question-mark">?</span>;
+<a href=#103 id=103 data-nosnippet>103</a>                            .map_err(|<span class="kw">_</span>| ::serde::de::Error::custom(<span class="string">"Base64 decoding failed"</span>))<span class="question-mark">?</span>;
 <a href=#104 id=104 data-nosnippet>104</a>                        <span class="kw">if </span>decoded.len() != { &lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;<span class="macro-nonterminal">::BYTE_LENGTH </span>} {
-<a href=#105 id=105 data-nosnippet>105</a>                            <span class="kw">return </span><span class="prelude-val">Err</span>(de::Error::custom(<span class="macro">format!</span>(
+<a href=#105 id=105 data-nosnippet>105</a>                            <span class="kw">return </span><span class="prelude-val">Err</span>(::serde::de::Error::custom(<span class="macro">format!</span>(
 <a href=#106 id=106 data-nosnippet>106</a>                                <span class="string">"Invalid buffer length {}, expecting {}"</span>,
 <a href=#107 id=107 data-nosnippet>107</a>                                decoded.len(),
 <a href=#108 id=108 data-nosnippet>108</a>                                { &lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;<span class="macro-nonterminal">::BYTE_LENGTH </span>}
@@ -112,12 +112,12 @@
 <a href=#112 id=112 data-nosnippet>112</a>                    }
 <a href=#113 id=113 data-nosnippet>113</a>                    <span class="bool-val">false </span>=&gt; {
 <a href=#114 id=114 data-nosnippet>114</a>                        <span class="kw">let </span>helper: SerializationHelper&lt;{ &lt;<span class="macro-nonterminal">$</span><span class="kw">type</span>&gt;<span class="macro-nonterminal">::BYTE_LENGTH </span>}&gt; =
-<a href=#115 id=115 data-nosnippet>115</a>                            Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
+<a href=#115 id=115 data-nosnippet>115</a>                            ::serde::Deserialize::deserialize(deserializer)<span class="question-mark">?</span>;
 <a href=#116 id=116 data-nosnippet>116</a>                        helper.<span class="number">0
 <a href=#117 id=117 data-nosnippet>117</a>                    </span>}
 <a href=#118 id=118 data-nosnippet>118</a>                };
 <a href=#119 id=119 data-nosnippet>119</a>                <span class="self">Self</span>::from_byte_array(<span class="kw-2">&amp;</span>bytes)
-<a href=#120 id=120 data-nosnippet>120</a>                    .map_err(|<span class="kw">_</span>| de::Error::custom(<span class="string">"Failed in reconstructing the object"</span>))
+<a href=#120 id=120 data-nosnippet>120</a>                    .map_err(|<span class="kw">_</span>| ::serde::de::Error::custom(<span class="string">"Failed in reconstructing the object"</span>))
 <a href=#121 id=121 data-nosnippet>121</a>            }
 <a href=#122 id=122 data-nosnippet>122</a>        }
 <a href=#123 id=123 data-nosnippet>123</a>    };
