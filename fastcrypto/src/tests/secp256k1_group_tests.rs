@@ -43,7 +43,7 @@ fn test_regression() {
     let scalar = secp256k1::Scalar::from(7);
     assert_eq!(
         scalar.to_byte_array().to_vec(),
-        hex::decode("0700000000000000000000000000000000000000000000000000000000000000").unwrap()
+        hex::decode("0000000000000000000000000000000000000000000000000000000000000007").unwrap()
     );
 
     let point = ProjectivePoint::generator() * scalar;

@@ -100,9 +100,9 @@ macro_rules! serialize_deserialize_with_to_from_byte_array {
                     true => {
                         let s = String::deserialize(deserializer)?;
                         let decoded = Base64::decode(&s)
-                            .map_err(|_| de::Error::custom("Base64 decoding failed"))?;
+                            .map_err(|_| ::serde::de::Error::custom("Base64 decoding failed"))?;
                         if decoded.len() != { <$type>::BYTE_LENGTH } {
-                            return Err(de::Error::custom(format!(
+                            return Err(::serde::de::Error::custom(format!(
                                 "Invalid buffer length {}, expecting {}",
                                 decoded.len(),
                                 { <$type>::BYTE_LENGTH }
@@ -112,12 +112,12 @@ macro_rules! serialize_deserialize_with_to_from_byte_array {
                     }
                     false => {
                         let helper: SerializationHelper<{ <$type>::BYTE_LENGTH }> =
-                            Deserialize::deserialize(deserializer)?;
+                            ::serde::Deserialize::deserialize(deserializer)?;
                         helper.0
                     }
                 };
                 Self::from_byte_array(&bytes)
-                    .map_err(|_| de::Error::custom("Failed in reconstructing the object"))
+                    .map_err(|_| ::serde::de::Error::custom("Failed in reconstructing the object"))
             }
         }
     };

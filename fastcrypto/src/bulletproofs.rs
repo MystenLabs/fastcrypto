@@ -31,9 +31,6 @@ use crate::{
     error::FastCryptoError, serialize_deserialize_with_to_from_byte_array, traits::ToFromBytes,
 };
 
-use serde::de;
-use serde::Deserialize;
-
 //
 // Pedersen commitments
 //
