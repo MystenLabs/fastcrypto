@@ -383,18 +383,7 @@ where
             return Ok(());
         }
 
-        let gamma = self.compute_gamma_from_message(message);
-
-        if shares
-            .r
-            .iter()
-            .zip(&gamma)
-            .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
-            != message
-                .p_double_prime
-                .eval(ShareIndex::new(self.index).unwrap())
-                .value
-        {
+        if self.verify_shares(&shares, None, message).is_err() {
             return Ok(());
         }
 
