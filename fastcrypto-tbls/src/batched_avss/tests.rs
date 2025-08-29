@@ -36,7 +36,7 @@ fn test_happy_path() {
     let dealer: Dealer<G1Element, G2Element> = Dealer {
         number_of_nonces,
         f,
-        public_keys: pks,
+        public_keys: pks.clone(),
         random_oracle,
         _group: PhantomData::default(),
     };
@@ -50,6 +50,7 @@ fn test_happy_path() {
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
             f,
+            public_keys: pks.clone(),
             _group: PhantomData::default(),
         })
         .collect::<Vec<_>>();
@@ -154,6 +155,7 @@ fn test_share_recovery() {
             random_oracle: RandomOracle::new("tbls test"),
             f,
             _group: PhantomData::default(),
+            public_keys: pks.clone(),
         })
         .collect::<Vec<_>>();
 
@@ -189,14 +191,8 @@ fn test_share_recovery() {
                 .map(|r| {
                     (
                         r.index,
-                        PublicKey::from_private_key(&r.secret_key),
-                        r.handle_complaint(
-                            &message,
-                            &pks[0],
-                            &complaint.clone().unwrap(),
-                            &mut rng,
-                        )
-                        .unwrap(),
+                        r.handle_complaint(&message, &complaint.clone().unwrap(), &mut rng)
+                            .unwrap(),
                     )
                 })
                 .collect::<Vec<_>>();

@@ -35,6 +35,7 @@ where
 {
     index: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
+    public_keys: Vec<PublicKey<EG>>,
     number_of_nonces: u16,
     random_oracle: RandomOracle,
     f: u16,
@@ -226,12 +227,14 @@ where
     pub fn handle_complaint(
         &self,
         message: &Message<G, EG>,
-        pk: &PublicKey<EG>,
         complaint: &Complaint<EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
-        self.check_complaint_proof(message, complaint, pk)?;
-
+        self.check_complaint_proof(
+            message,
+            complaint,
+            &self.public_keys[complaint.index as usize - 1],
+        )?;
         Ok(ComplaintResponse {
             recovery_package: message.encryptions.create_recovery_package(
                 &self.secret_key,
@@ -281,7 +284,7 @@ where
     pub fn recover_shares(
         &mut self,
         message: &Message<G, EG>,
-        responses: Vec<(PartyId, PublicKey<EG>, ComplaintResponse<EG>)>,
+        responses: Vec<(PartyId, ComplaintResponse<EG>)>,
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
         if responses.len() < (self.f + 1) as usize {
             return Err(FastCryptoError::InvalidInput);
@@ -292,14 +295,14 @@ where
         // Ignore invalid responses
         let shares = responses
             .iter()
-            .map(|(i, pk, r)| {
+            .map(|(i, r)| {
                 message
                     .encryptions
                     .decrypt_with_recovery_package(
                         &r.recovery_package,
                         &self.random_oracle_extension(Recovery(*i)),
                         &ro_encryption,
-                        pk,
+                        &self.public_keys[*i as usize - 1],
                         *i as usize - 1,
                     )
                     .map(|b| (i, b))
