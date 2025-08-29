@@ -349,12 +349,10 @@ where
             })
             .collect::<Vec<_>>();
 
-        let shares = Shares {
-            r: r.clone(),
-            r_prime,
-        };
+        let shares = Shares { r, r_prime };
         self.verify_shares(&shares, None, message)?;
-        Ok(Shares { r, r_prime })
+
+        Ok(shares)
     }
 
     fn check_complaint_proof(
