@@ -262,21 +262,23 @@ pub fn interpolate<C: Scalar>(index: ShareIndex, points: &[Eval<C>]) -> FastCryp
         return Err(FastCryptoError::InvalidInput);
     }
     let x = C::from(index.get() as u128);
-    let value: C = points
+
+    // Convert indices to scalars for interpolation.
+    let points = points
+        .iter()
+        .map(|p| (C::from(p.index.get() as u128), p.value))
+        .collect::<Vec<_>>();
+
+    let value = points
         .iter()
         .enumerate()
-        .map(|(j, eval_j)| {
-            let x_j = C::from(eval_j.index.get() as u128);
-            let y_j = eval_j.value;
+        .map(|(j, (x_j, y_j))| {
             points
                 .iter()
                 .enumerate()
                 .filter(|(i, _)| *i != j)
-                .map(|(_, eval_i)| {
-                    let x_i = C::from(eval_i.index.get() as u128);
-                    ((x - x_i) / (x_j - x_i)).expect("Divisor is never zero")
-                })
-                .fold(y_j, |acc, factor| acc * factor)
+                .map(|(_, (x_i, _))| ((x - x_i) / (*x_j - x_i)).expect("Divisor is never zero"))
+                .fold(*y_j, |acc, factor| acc * factor)
         })
         .fold(C::zero(), |acc, term| acc + term);
 
