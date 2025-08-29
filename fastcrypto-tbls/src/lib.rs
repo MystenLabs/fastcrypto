@@ -11,6 +11,7 @@
 //! A crate that implements threshold BLS (tBLS) and distributed key generation (DKG)
 //! protocols.
 
+pub mod batched_avss;
 pub mod dkg_v1;
 pub mod dl_verification;
 pub mod ecies_v1;
@@ -55,7 +56,6 @@ pub mod nodes_tests;
 // #[path = "tests/nidkg_tests.rs"]
 // pub mod nidkg_tests;
 
-mod batched_avss;
 #[cfg(test)]
 #[path = "tests/nizk_tests.rs"]
 pub mod nizk_tests;

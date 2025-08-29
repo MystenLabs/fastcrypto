@@ -1,6 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+#[cfg(test)]
 mod tests;
 
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
@@ -175,8 +176,8 @@ where
         );
         let shares = bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
 
-        let gamma = self.compute_gamma_from_message(&message);
-        self.verify_shares(&shares, Some(&gamma), &message)?;
+        let gamma = self.compute_gamma_from_message(message);
+        self.verify_shares(&shares, Some(&gamma), message)?;
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         if G::generator() * message.p_double_prime.c0()
@@ -325,7 +326,7 @@ where
             &shares
                 .iter()
                 .map(|(i, s)| Eval {
-                    index: ShareIndex::new(**i as u16).unwrap(),
+                    index: ShareIndex::new(**i).unwrap(),
                     value: s.r_prime,
                 })
                 .collect::<Vec<_>>(),
@@ -339,7 +340,7 @@ where
                     &shares
                         .iter()
                         .map(|(i, s)| Eval {
-                            index: ShareIndex::new(**i as u16).unwrap(),
+                            index: ShareIndex::new(**i).unwrap(),
                             value: s.r[l as usize],
                         })
                         .collect::<Vec<_>>(),

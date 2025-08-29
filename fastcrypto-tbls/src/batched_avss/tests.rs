@@ -38,7 +38,7 @@ fn test_happy_path() {
         f,
         public_keys: pks.clone(),
         random_oracle,
-        _group: PhantomData::default(),
+        _group: PhantomData,
     };
 
     let mut receivers = sks
@@ -51,7 +51,7 @@ fn test_happy_path() {
             random_oracle: RandomOracle::new("tbls test"),
             f,
             public_keys: pks.clone(),
-            _group: PhantomData::default(),
+            _group: PhantomData,
         })
         .collect::<Vec<_>>();
 
@@ -142,7 +142,7 @@ fn test_share_recovery() {
         f,
         public_keys: pks.clone(),
         random_oracle,
-        _group: PhantomData::default(),
+        _group: PhantomData,
     };
 
     let mut receivers = sks
@@ -154,7 +154,7 @@ fn test_share_recovery() {
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
             f,
-            _group: PhantomData::default(),
+            _group: PhantomData,
             public_keys: pks.clone(),
         })
         .collect::<Vec<_>>();
