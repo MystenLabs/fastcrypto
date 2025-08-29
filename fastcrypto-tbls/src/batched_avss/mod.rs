@@ -15,8 +15,8 @@ use fastcrypto::error::FastCryptoError::InvalidProof;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 use tracing::debug;
 use zeroize::Zeroize;
@@ -34,7 +34,7 @@ pub struct Receiver<G, EG: GroupElement>
 where
     EG::ScalarType: Zeroize,
 {
-    index: u16,
+    id: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
     public_keys: Vec<PublicKey<EG>>,
     number_of_nonces: u16,
@@ -57,7 +57,7 @@ pub struct ComplaintResponse<EG: GroupElement> {
 
 #[derive(Clone, Debug)]
 pub struct Complaint<EG: GroupElement> {
-    index: PartyId,
+    party_id: PartyId,
     proof: RecoveryPackage<EG>,
 }
 
@@ -172,7 +172,7 @@ where
         let decrypted = message.encryptions.decrypt(
             &self.secret_key,
             &random_oracle_encryption,
-            (self.index - 1) as usize,
+            to_index(self.id),
         );
         let shares = bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
 
@@ -202,7 +202,7 @@ where
             return Err(FastCryptoError::InvalidInput);
         }
 
-        if cert.includes_receiver(self.index) {
+        if cert.includes_receiver(self.id) {
             return Ok(None);
         }
 
@@ -213,10 +213,10 @@ where
                     .encryptions
                     .verify(&self.random_oracle_extension(Encryption))?;
                 Ok(Some(Complaint {
-                    index: self.index,
+                    party_id: self.id,
                     proof: cert.message().encryptions.create_recovery_package(
                         &self.secret_key,
-                        &self.random_oracle_extension(Recovery(self.index)),
+                        &self.random_oracle_extension(Recovery(self.id)),
                         rng,
                     ),
                 }))
@@ -234,12 +234,12 @@ where
         self.check_complaint_proof(
             message,
             complaint,
-            &self.public_keys[complaint.index as usize - 1],
+            &self.public_keys[to_index(complaint.party_id)],
         )?;
         Ok(ComplaintResponse {
             recovery_package: message.encryptions.create_recovery_package(
                 &self.secret_key,
-                &self.random_oracle_extension(Recovery(self.index)),
+                &self.random_oracle_extension(Recovery(self.id)),
                 rng,
             ),
         })
@@ -273,7 +273,7 @@ where
             .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
             != message
                 .p_double_prime
-                .eval(ShareIndex::new(self.index).unwrap())
+                .eval(ShareIndex::new(self.id).unwrap())
                 .value
         {
             return Err(FastCryptoError::InvalidInput);
@@ -285,10 +285,10 @@ where
     pub fn recover_shares(
         &mut self,
         message: &Message<G, EG>,
-        responses: Vec<(PartyId, ComplaintResponse<EG>)>,
+        responses: &[(PartyId, ComplaintResponse<EG>)],
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
         if responses.len() < (self.f + 1) as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::InputTooShort((self.f + 1) as usize));
         }
 
         let ro_encryption = self.random_oracle_extension(Encryption);
@@ -296,37 +296,36 @@ where
         // Ignore invalid responses
         let shares = responses
             .iter()
-            .map(|(i, r)| {
+            .filter_map(|(id, response)| {
                 message
                     .encryptions
                     .decrypt_with_recovery_package(
-                        &r.recovery_package,
-                        &self.random_oracle_extension(Recovery(*i)),
+                        &response.recovery_package,
+                        &self.random_oracle_extension(Recovery(*id)),
                         &ro_encryption,
-                        &self.public_keys[*i as usize - 1],
-                        *i as usize - 1,
+                        &self.public_keys[to_index(id)],
+                        to_index(id),
                     )
-                    .map(|b| (i, b))
+                    .map(|bytes| {
+                        bcs::from_bytes::<Shares<G::ScalarType>>(bytes.as_slice())
+                            .map_err(|_| FastCryptoError::InvalidInput)
+                            .map(|decrypted| (ShareIndex::new(*id).unwrap(), decrypted))
+                    })
+                    .ok()
             })
-            .map_ok(|(i, b)| {
-                bcs::from_bytes::<Shares<G::ScalarType>>(b.as_slice())
-                    .map_err(|_| FastCryptoError::InvalidInput)
-                    .map(|b| (i, b))
-            })
-            .filter_map(Result::ok)
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
         if shares.len() < (self.f + 1) as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let share_index = ShareIndex::new(self.index).unwrap();
+        let share_index = ShareIndex::new(self.id).unwrap();
         let r_prime = interpolate(
             share_index,
             &shares
                 .iter()
-                .map(|(i, s)| Eval {
-                    index: ShareIndex::new(**i).unwrap(),
+                .map(|(index, s)| Eval {
+                    index: *index,
                     value: s.r_prime,
                 })
                 .collect::<Vec<_>>(),
@@ -339,8 +338,8 @@ where
                     share_index,
                     &shares
                         .iter()
-                        .map(|(i, s)| Eval {
-                            index: ShareIndex::new(**i).unwrap(),
+                        .map(|(index, s)| Eval {
+                            index: *index,
                             value: s.r[l as usize],
                         })
                         .collect::<Vec<_>>(),
@@ -368,10 +367,10 @@ where
         // is invalid.
         let buffer = message.encryptions.decrypt_with_recovery_package(
             &complaint.proof,
-            &self.random_oracle_extension(Recovery(complaint.index)),
+            &self.random_oracle_extension(Recovery(complaint.party_id)),
             &self.random_oracle_extension(Encryption),
             receiver_pk,
-            complaint.index as usize - 1,
+            to_index(complaint.party_id),
         )?;
 
         let shares: Shares<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
@@ -426,16 +425,21 @@ where
         c_prime: &G,
         e: &MultiRecipientEncryption<EG>,
     ) -> Vec<G::ScalarType> {
-        let ro_gamma = self.random_oracle_extension(Challenge);
+        let random_oracle = self.random_oracle_extension(Challenge);
         (1..=c.len())
-            .map(|l| ro_gamma.evaluate(&(l, c, c_prime, e)))
-            .map(|b| G::ScalarType::fiat_shamir_reduction_to_group_element(&b))
+            .map(|l| random_oracle.evaluate(&(l, c, c_prime, e)))
+            .map(|bytes| G::ScalarType::fiat_shamir_reduction_to_group_element(&bytes))
             .collect::<Vec<_>>()
     }
 
     fn compute_gamma_from_message(&self, message: &Message<G, EG>) -> Vec<G::ScalarType> {
         self.compute_gamma(message.c.as_slice(), &message.c_prime, &message.encryptions)
     }
+}
+
+/// Convert a PartyId in the range 1..n to an index in the range 0..n-1.
+fn to_index<I: Borrow<PartyId>>(id: I) -> usize {
+    *id.borrow() as usize - 1
 }
 
 impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {

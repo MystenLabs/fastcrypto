@@ -45,7 +45,7 @@ fn test_happy_path() {
         .into_iter()
         .enumerate()
         .map(|(i, secret_key)| Receiver {
-            index: (i + 1) as u16,
+            id: (i + 1) as u16,
             secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
@@ -59,7 +59,7 @@ fn test_happy_path() {
 
     let all_shares = receivers
         .iter()
-        .map(|receiver| (receiver.index, receiver.process_message(&message).unwrap()))
+        .map(|receiver| (receiver.id, receiver.process_message(&message).unwrap()))
         .collect::<HashMap<_, _>>();
 
     let certificate = TestCertificate {
@@ -79,7 +79,7 @@ fn test_happy_path() {
         .map(|l| {
             let shares = receivers
                 .iter()
-                .map(|r| (r.index, all_shares.get(&r.index).unwrap().r[l as usize]))
+                .map(|r| (r.id, all_shares.get(&r.id).unwrap().r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 f + 1,
@@ -149,7 +149,7 @@ fn test_share_recovery() {
         .into_iter()
         .enumerate()
         .map(|(i, secret_key)| Receiver {
-            index: (i + 1) as u16,
+            id: (i + 1) as u16,
             secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
@@ -163,11 +163,7 @@ fn test_share_recovery() {
 
     let mut all_shares = receivers
         .iter()
-        .map(|receiver| {
-            receiver
-                .process_message(&message)
-                .map(|s| (receiver.index, s))
-        })
+        .map(|receiver| receiver.process_message(&message).map(|s| (receiver.id, s)))
         .filter_map(Result::ok)
         .collect::<HashMap<_, _>>();
 
@@ -190,13 +186,13 @@ fn test_share_recovery() {
                 .skip(1)
                 .map(|r| {
                     (
-                        r.index,
+                        r.id,
                         r.handle_complaint(&message, &complaint.clone().unwrap(), &mut rng)
                             .unwrap(),
                     )
                 })
                 .collect::<Vec<_>>();
-            let shares = receivers[0].recover_shares(&message, responses).unwrap();
+            let shares = receivers[0].recover_shares(&message, &responses).unwrap();
             all_shares.insert(1, shares);
         } else {
             assert!(complaint.is_none());
@@ -208,7 +204,7 @@ fn test_share_recovery() {
         .map(|l| {
             let shares = receivers
                 .iter()
-                .map(|r| (r.index, all_shares.get(&r.index).unwrap().r[l as usize]))
+                .map(|r| (r.id, all_shares.get(&r.id).unwrap().r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 f + 1,
