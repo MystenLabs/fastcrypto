@@ -22,7 +22,7 @@ use zeroize::Zeroize;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<G, EG: GroupElement> {
-    nonces: u16,
+    number_of_nonces: u16,
     f: u16,
     public_keys: Vec<PublicKey<EG>>,
     random_oracle: RandomOracle,
@@ -46,7 +46,7 @@ where
 pub struct Message<G: GroupElement, EG: GroupElement> {
     c: Vec<G>,
     c_prime: G,
-    encryptions: ecies_v1::MultiRecipientEncryption<EG>,
+    encryptions: MultiRecipientEncryption<EG>,
     p_double_prime: Poly<G::ScalarType>,
 }
 
@@ -72,12 +72,9 @@ where
     ) -> (Message<G, EG>, Nonces<G::ScalarType>) {
         let n = 3 * self.f + 1;
 
-        let p = (0..self.nonces)
+        let p = (0..self.number_of_nonces)
             .map(|_| Poly::<G::ScalarType>::rand(self.f, rng))
             .collect::<Vec<_>>();
-
-        let nonces = p.iter().map(|p_l| *p_l.c0()).collect::<Vec<_>>();
-
         let p_prime = Poly::<G::ScalarType>::rand(self.f, rng);
         let c = p
             .iter()
@@ -96,13 +93,13 @@ where
             .map(|j| p_prime.eval(ShareIndex::new(j).unwrap()).value)
             .collect();
 
-        let e = ecies_v1::MultiRecipientEncryption::encrypt(
+        let encryptions = MultiRecipientEncryption::encrypt(
             &self
                 .public_keys
                 .iter()
                 .enumerate()
                 .map(|(j, pk)| {
-                    let msg: Shares<G::ScalarType> = Shares {
+                    let msg = Shares {
                         r: r.iter().map(|r_l| r_l[j]).collect(),
                         r_prime: r_prime[j],
                     };
@@ -113,18 +110,20 @@ where
             rng,
         );
 
-        let gamma = self.compute_gamma(&c, &c_prime, &e);
+        let gamma = self.compute_gamma(&c, &c_prime, &encryptions);
 
         let mut p_double_prime = p_prime;
         for (p_l, gamma_l) in p.iter().zip(&gamma) {
             p_double_prime += &(p_l.clone() * gamma_l);
         }
 
+        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
+
         (
             Message {
                 c,
                 c_prime,
-                encryptions: e,
+                encryptions,
                 p_double_prime,
             },
             Nonces(nonces),
@@ -154,12 +153,10 @@ where
             message
                 .encryptions
                 .decrypt(&self.secret_key, &ro, (self.index - 1) as usize);
-        let shares: Shares<G::ScalarType> =
-            bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
+        let shares = bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
 
         let gamma = self.compute_gamma_from_message(&message);
-
-        self.verify_shares(&shares.r, &shares.r_prime, Some(&gamma), &message)?;
+        self.verify_shares(&shares, Some(&gamma), &message)?;
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         if G::generator() * message.p_double_prime.c0()
@@ -227,12 +224,11 @@ where
     /// Helper function to verify the consistency of the shares, e.g. that <i>r' + &Sigma;<sub>l</sub> &gamma;<sub>l</sub> r<sub>li</sub> = p''(i)<i>.
     fn verify_shares(
         &self,
-        r: &[G::ScalarType],
-        r_prime: &G::ScalarType,
+        shares: &Shares<G::ScalarType>,
         gamma: Option<&Vec<G::ScalarType>>,
         message: &Message<G, EG>,
     ) -> FastCryptoResult<()> {
-        if r.len() != self.nonces as usize {
+        if shares.r.len() != self.number_of_nonces as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -241,14 +237,16 @@ where
             None => &self.compute_gamma_from_message(message),
         };
 
-        if gamma.len() != self.nonces as usize {
+        if gamma.len() != self.number_of_nonces as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
         // Verify that r' + sum_l r_l * gamma_l == p''(i)
-        if r.iter()
+        if shares
+            .r
+            .iter()
             .zip(gamma)
-            .fold(*r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
+            .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
             != message
                 .p_double_prime
                 .eval(ShareIndex::new(self.index).unwrap())
@@ -312,7 +310,7 @@ where
         )?
         .value;
 
-        let r = (0..self.nonces)
+        let r = (0..self.number_of_nonces)
             .map(|l| {
                 interpolate(
                     share_index,
@@ -329,7 +327,11 @@ where
             })
             .collect::<Vec<_>>();
 
-        self.verify_shares(&r, &r_prime, None, message)?;
+        let shares = Shares {
+            r: r.clone(),
+            r_prime,
+        };
+        self.verify_shares(&shares, None, message)?;
         Ok(Shares { r, r_prime })
     }
 
@@ -354,12 +356,11 @@ where
             Ok(s) => s,
             Err(_) => {
                 debug!("check_complaint_proof failed to deserialize shares");
-
                 return Ok(());
             }
         };
 
-        if shares.r.len() != self.nonces as usize {
+        if shares.r.len() != self.number_of_nonces as usize {
             debug!("check_complaint_proof recovered invalid number of shares");
             return Ok(());
         }
@@ -404,7 +405,7 @@ where
 {
     index: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
-    nonces: u16,
+    number_of_nonces: u16,
     random_oracle: RandomOracle,
     f: u16,
     _group: PhantomData<G>,
@@ -480,15 +481,15 @@ mod tests {
     use crate::types::ShareIndex;
     use fastcrypto::groups::bls12381::{G1Element, G2Element};
     use fastcrypto::groups::GroupElement;
-    use itertools::Itertools;
     use std::collections::HashMap;
     use std::marker::PhantomData;
 
     #[test]
-    fn test_e2e() {
+    fn test_happy_path() {
+        // No complaints, all honest
         let f = 2;
         let n = 3 * f + 1;
-        let L = 3;
+        let number_of_nonces = 3;
 
         let mut rng = rand::thread_rng();
         let sks = (0..n)
@@ -502,7 +503,7 @@ mod tests {
         let random_oracle = RandomOracle::new("tbls test");
 
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            nonces: L,
+            number_of_nonces,
             f,
             public_keys: pks,
             random_oracle,
@@ -510,12 +511,12 @@ mod tests {
         };
 
         let mut receivers = sks
-            .iter()
+            .into_iter()
             .enumerate()
-            .map(|(i, sk)| Receiver {
+            .map(|(i, secret_key)| Receiver {
                 index: (i + 1) as u16,
-                secret_key: sk.clone(),
-                nonces: L,
+                secret_key,
+                number_of_nonces,
                 random_oracle: RandomOracle::new("tbls test"),
                 f,
                 _group: PhantomData::default(),
@@ -542,15 +543,15 @@ mod tests {
                 .is_none());
         }
 
-        let secrets = (0..L)
+        let secrets = (0..number_of_nonces)
             .map(|l| {
                 let shares = receivers
                     .iter()
                     .map(|r| (r.index, all_shares.get(&r.index).unwrap().r[l as usize]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    n,
-                    shares.iter().map(|(i, v)| Eval {
+                    f + 1,
+                    shares.iter().take((f + 1) as usize).map(|(i, v)| Eval {
                         index: ShareIndex::new(*i).unwrap(),
                         value: *v,
                     }),
@@ -559,7 +560,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        for l in 0..L {
+        for l in 0..number_of_nonces {
             assert_eq!(secrets[l as usize], nonces.0[l as usize]);
         }
     }
