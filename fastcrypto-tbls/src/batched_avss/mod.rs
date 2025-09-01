@@ -6,15 +6,16 @@ mod tests;
 
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
 use crate::ecies_v1;
-use crate::ecies_v1::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
+use crate::ecies_v1::{MultiRecipientEncryption, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::InvalidProof;
+use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
@@ -108,11 +109,10 @@ where
             &self
                 .nodes
                 .iter()
-                .enumerate()
-                .map(|(j, node)| {
+                .map(|node| {
                     let msg = Shares {
-                        r: r.iter().map(|r_l| r_l[j]).collect(),
-                        r_prime: r_prime[j],
+                        r: r.iter().map(|r_l| r_l[node.id as usize]).collect(),
+                        r_prime: r_prime[node.id as usize],
                     };
                     (node.pk.clone(), bcs::to_bytes(&msg).unwrap())
                 })
@@ -186,7 +186,7 @@ where
         Ok(shares)
     }
 
-    /// 4. When 2f+1 signatures have been collected in the certificate, the receivers can now verify it.
+    /// 4. When 2t+1 signatures have been collected in the certificate, the receivers can now verify it.
     ///  - If the receiver is already in the certificate, do nothing.
     ///  - If it is not in the certificate, but it is able to decrypt and verify its shares, store the shares and do nothing.
     ///  - If it is not in the certificate and cannot decrypt or verify its shares, it creates a complaint with a recovery package for its shares.
@@ -231,7 +231,7 @@ where
         self.check_complaint_proof(
             message,
             complaint,
-            &self.nodes.node_id_to_node(complaint.party_id).unwrap(),
+            self.nodes.node_id_to_node(complaint.party_id)?,
         )?;
         Ok(ComplaintResponse {
             recovery_package: message.encryptions.create_recovery_package(
@@ -250,7 +250,7 @@ where
         message: &Message<G, EG>,
     ) -> FastCryptoResult<()> {
         if shares.r.len() != self.number_of_nonces as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
 
         let gamma = match gamma {
@@ -259,7 +259,7 @@ where
         };
 
         if gamma.len() != self.number_of_nonces as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
 
         // Verify that r' + sum_l r_l * gamma_l == p''(i)
@@ -299,12 +299,12 @@ where
                         &response.recovery_package,
                         &self.random_oracle_extension(Recovery(*id)),
                         &ro_encryption,
-                        &self.nodes.node_id_to_node(*id).unwrap().pk, // TODO: Handle invalid ID
+                        &self.nodes.node_id_to_node(*id).ok()?.pk, // Ignore invalid IDs
                         *id as usize,
                     )
                     .map(|bytes| {
                         bcs::from_bytes::<Shares<G::ScalarType>>(bytes.as_slice())
-                            .map_err(|_| FastCryptoError::InvalidInput)
+                            .map_err(|_| InvalidInput)
                             .map(|decrypted| (id, decrypted))
                     })
                     .tap_err(|_| warn!("Ignoring invalid recovery package from {}", id))
@@ -343,10 +343,9 @@ where
                         })
                         .collect::<Vec<_>>(),
                 )
-                .unwrap()
-                .value
             })
-            .collect::<Vec<_>>();
+            .map_ok(|res| res.value)
+            .collect::<FastCryptoResult<Vec<_>>>()?;
 
         let shares = Shares { r, r_prime };
         self.verify_shares(&shares, None, message)?;
@@ -354,14 +353,15 @@ where
         Ok(shares)
     }
 
+    /// Helper function to verify that the complaint is valid, i.e., that the recovery package decrypts to valid shares.
+    /// This returns [Ok] if the complaint is valid, and [Err] if it is invalid.
     fn check_complaint_proof(
         &self,
         message: &Message<G, EG>,
         complaint: &Complaint<EG>,
         receiver: &Node<EG>,
     ) -> FastCryptoResult<()> {
-        // Check that the recovery package is valid, and if not, return an error since the complaint
-        // is invalid.
+        // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
         let buffer = message.encryptions.decrypt_with_recovery_package(
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.party_id)),
@@ -423,7 +423,7 @@ where
         e: &MultiRecipientEncryption<EG>,
     ) -> Vec<G::ScalarType> {
         let random_oracle = self.random_oracle_extension(Challenge);
-        (1..=c.len())
+        (0..c.len())
             .map(|l| random_oracle.evaluate(&(l, c, c_prime, e)))
             .map(|bytes| G::ScalarType::fiat_shamir_reduction_to_group_element(&bytes))
             .collect::<Vec<_>>()
@@ -464,6 +464,7 @@ where
 {
 }
 
+/// Convert from PartyId (0-indexed) to ShareIndex (1-indexed).
 fn to_index(id: impl Borrow<PartyId>) -> ShareIndex {
-    ShareIndex::new(*id.borrow() as u16 + 1).expect("nonzero")
+    ShareIndex::new(*id.borrow() + 1).expect("nonzero")
 }

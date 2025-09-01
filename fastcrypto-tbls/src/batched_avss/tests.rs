@@ -5,10 +5,9 @@ use crate::batched_avss::{
 };
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
-use crate::nodes::{Nodes, PartyId};
+use crate::nodes::Nodes;
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::types::ShareIndex;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement};
 use fastcrypto::traits::AllowedRng;
