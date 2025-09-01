@@ -37,6 +37,7 @@ where
     pub random_oracle: RandomOracle,
     pub(crate) enc_sk: ecies_v1::PrivateKey<EG>,
     pub(crate) vss_sk: PrivatePoly<G>,
+    pub old_t: Option<u16>, // Used only for key rotation
 }
 
 /// Assumptions:
@@ -168,19 +169,44 @@ where
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
+        if t > (nodes.total_weight() / 2) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        Self::new_advanced(enc_sk, nodes, t, random_oracle, None, None, rng)
+    }
+
+    /// Alternative to new(), to be used for:
+    /// - Any threshold t, useful in the sync setting.
+    /// - Passing a secret/share for key rotation (should be set to None for DKG).
+    /// - Passing old threshold for key rotation (should be set to None for DKG).
+    pub fn new_advanced<R: AllowedRng>(
+        enc_sk: ecies_v1::PrivateKey<EG>,
+        nodes: Nodes<EG>,
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+        secret: Option<G::ScalarType>, // Should be used only for key rotation.
+        old_t: Option<u16>,          // Used only for key rotation
+        rng: &mut R,
+    ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense.
+        if t > nodes.total_weight() || t == 0 || old_t.is_some_and(|ot| ot == 0) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
         // Confirm that my ecies pk is in the nodes.
         let enc_pk = ecies_v1::PublicKey::<EG>::from_private_key(&enc_sk);
         let my_node = nodes
             .iter()
             .find(|n| n.pk == enc_pk)
             .ok_or(FastCryptoError::InvalidInput)?;
-        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
-        if t > (nodes.total_weight() / 2) || t == 0 {
-            return Err(FastCryptoError::InvalidInput);
-        }
         // TODO: [comm opt] Instead of generating the polynomial at random, use PRF generated values
         // to reduce communication.
-        let vss_sk = PrivatePoly::<G>::rand(t - 1, rng);
+        let vss_sk = if let Some(secret) = secret {
+            PrivatePoly::<G>::rand_fixed_c0(t - 1, secret, rng)
+        } else {
+            PrivatePoly::<G>::rand(t - 1, rng)
+        };
 
         // TODO: remove once the protocol is stable since it's a non negligible computation.
         let vss_pk = vss_sk.commit::<G>();
@@ -203,6 +229,7 @@ where
             random_oracle,
             enc_sk,
             vss_sk,
+            old_t,
         })
     }
 
@@ -430,6 +457,25 @@ where
         })
     }
 
+    /// Alternative to process_message for a known vss.c0 public key, useful for key rotation.
+    pub fn process_message_and_check_pk<R: AllowedRng>(
+        &self,
+        message: Message<G, EG>,
+        partial_pk: &G,
+        rng: &mut R,
+    ) -> FastCryptoResult<ProcessedMessage<G, EG>> {
+        if message.vss_pk.c0() != partial_pk {
+            warn!(
+                "DKG: Processing message from party {} failed, invalid vss pk c0 {:?}, expected {:?}",
+                message.sender,
+                message.vss_pk.c0(),
+                partial_pk
+            );
+            return Err(FastCryptoError::InvalidMessage);
+        };
+        self.process_message(message, rng)
+    }
+
     /// 6. Merge results from multiple ProcessedMessages so only one message needs to be sent.
     ///
     ///    Returns NotEnoughInputs if the threshold t is not met.
@@ -453,7 +499,8 @@ where
                     .weight as u32
             })
             .sum::<u32>();
-        if total_weight < (self.t as u32) {
+        let required_t = self.old_t.unwrap_or(self.t);
+        if total_weight < (required_t as u32) {
             debug!("Merge failed with total weight {total_weight}");
             return Err(FastCryptoError::NotEnoughInputs);
         }
@@ -700,6 +747,113 @@ where
     ) -> FastCryptoResult<Output<G, EG>> {
         let verified_messages = self.process_confirmations(messages, confirmations, rng)?;
         Ok(self.aggregate(&verified_messages))
+    }
+
+    /// Alternative to complete() - Optimistic version that assumes all messages are valid and if
+    /// other parties received invalid shares, the higher level protocol will handle it.
+    pub fn complete_optimistic(
+        &self,
+        messages: &UsedProcessedMessages<G, EG>,
+    ) -> FastCryptoResult<Output<G, EG>> {
+        // Do not filter out any messages, assume all are valid.
+        let verified_messages = VerifiedProcessedMessages::filter_from(messages, &[]);
+        Ok(self.aggregate(&verified_messages))
+    }
+
+    /// Alternative to complete() - Optimistic variant that interpolates the shares instead of
+    /// summing them, to be used for key rotation. Works only if all weights are 1.
+    pub fn complete_optimistic_key_rotation(
+        &self,
+        messages: &UsedProcessedMessages<G, EG>,
+        // Mapping party id from new committee to its id in the previous committee
+        new_to_old_party_ids: &HashMap<PartyId, PartyId>,
+    ) -> FastCryptoResult<Output<G, EG>> {
+        // Check that all weights are 1.
+        if self.nodes.iter().any(|n| n.weight != 1) {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        // Check the mapping is valid: unique and all parties exist in the new committee.
+        if new_to_old_party_ids.values().collect::<HashSet<_>>().len() != new_to_old_party_ids.len()
+            || new_to_old_party_ids
+                .keys()
+                .any(|id| self.nodes.node_id_to_node(*id).is_err())
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        // Do not filter out any message, assume all are valid.
+        let messages = VerifiedProcessedMessages::filter_from(messages, &[]);
+        let old_t = self.old_t.ok_or(FastCryptoError::InvalidInput)?;
+        if messages.len() != old_t as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
+
+        let mut new_sender_to_old_share_id = HashMap::new();
+        for m in messages.0.iter() {
+            if !new_to_old_party_ids.contains_key(&m.message.sender) {
+                return Err(FastCryptoError::InvalidInput);
+            }
+            let old_share_id = new_to_old_party_ids
+                .get(&m.message.sender)
+                .expect("checked above that the sender is valid")
+                + 1; // +1 since the old party ids are 0-based.
+            new_sender_to_old_share_id.insert(
+                m.message.sender,
+                ShareIndex::new(old_share_id).expect("nonzero"),
+            );
+        }
+
+        // Interpolate my shares.
+        let shares = messages
+            .0
+            .iter()
+            .map(|m| Share {
+                index: *new_sender_to_old_share_id
+                    .get(&m.message.sender)
+                    .expect("checked above"),
+                value: m
+                    .shares
+                    .iter()
+                    .map(|s| s.value)
+                    .exactly_one()
+                    .expect("weight is 1"),
+            })
+            .collect::<Vec<_>>();
+        let share = PrivatePoly::<G>::recover_c0(old_t, shares.iter())
+            .expect("checked we have exactly t shares");
+        let my_share_id = self
+            .nodes
+            .share_ids_of(self.id)
+            .expect("my id is valid")
+            .into_iter()
+            .exactly_one()
+            .expect("tested above that weight is 1");
+        let shares = vec![Share {
+            index: my_share_id,
+            value: share,
+        }];
+
+        let vss_pk = (0..self.t)
+            .map(|i| {
+                let mut partial_keys = Vec::new();
+                for m in messages.0.iter() {
+                    let share = Share {
+                        index: *new_sender_to_old_share_id
+                            .get(&m.message.sender)
+                            .expect("checked above that the sender is valid"),
+                        value: *m.message.vss_pk.coefficient(i as usize),
+                    };
+                    partial_keys.push(share);
+                }
+                PublicPoly::<G>::recover_c0_msm(old_t, partial_keys.iter())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(Output {
+            nodes: self.nodes.clone(),
+            vss_pk: vss_pk.into(),
+            shares: Some(shares),
+        })
     }
 
     // Returns an error if the *complaint* is invalid (counterintuitive).

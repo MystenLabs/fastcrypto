@@ -153,8 +153,7 @@ impl<C: GroupElement> Poly<C> {
     }
 
     /// Given exactly `t` polynomial evaluations, it will recover the polynomial's constant term.
-    // Currently only in used by tests, but protocols use the msm alternative.
-    #[cfg(test)]
+    /// For group elements better use recover_c0_msm.
     pub fn recover_c0(
         t: u16,
         shares: impl Iterator<Item = impl Borrow<Eval<C>>> + Clone,
@@ -184,6 +183,17 @@ impl<C: GroupElement> Poly<C> {
         &self.0[0]
     }
 
+    pub fn coefficient(&self, i: usize) -> &C {
+        if i >= self.0.len() {
+            panic!(
+                "Index out of bounds: requested {}, but polynomial has degree {}",
+                i,
+                self.degree()
+            );
+        }
+        &self.0[i]
+    }
+
     /// Returns the coefficients of the polynomial.
     pub fn as_vec(&self) -> &Vec<C> {
         &self.0
@@ -198,6 +208,14 @@ impl<C: Scalar> Poly<C> {
     /// In the context of secret sharing, the threshold is the degree + 1.
     pub fn rand<R: AllowedRng>(degree: u16, rng: &mut R) -> Self {
         let coeffs: Vec<C> = (0..=degree).map(|_| C::rand(rng)).collect();
+        Self::from(coeffs)
+    }
+
+    /// Returns a new polynomial of the given degree where the constant term is
+    /// fixed to `c0` and the rest of the coefficients are sampled at random.
+    pub fn rand_fixed_c0<R: AllowedRng>(degree: u16, c0: C, rng: &mut R) -> Self {
+        let mut coeffs = Self::rand(degree, rng).0;
+        coeffs[0] = c0;
         Self::from(coeffs)
     }
 
