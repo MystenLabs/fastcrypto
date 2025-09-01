@@ -4,9 +4,7 @@
 //! Implementation of the Secp256k1 (aka K-256) curve.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::{
-    Doubling, GroupElement, HashToGroupElement, MultiScalarMul, Scalar as ScalarTrait,
-};
+use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -16,11 +14,6 @@ use ark_secp256k1::{Affine, Fq, Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use k256::elliptic_curve::bigint::{ArrayDecoding, ArrayEncoding};
-use k256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
-use k256::elliptic_curve::Group as GroupTrait;
-use k256::Secp256k1;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use std::ops::{Div, Mul};
@@ -175,42 +168,6 @@ impl MultiScalarMul for ProjectivePoint {
         )
         .map_err(|_| FastCryptoError::GeneralOpaqueError)
         .map(ProjectivePoint)
-    }
-}
-impl From<&k256::ProjectivePoint> for ProjectivePoint {
-    fn from(from: &k256::ProjectivePoint) -> Self {
-        if from.is_identity().into() {
-            return ProjectivePoint(Projective::zero());
-        }
-
-        let encoded_point = from.to_encoded_point(false);
-        let x = convert_fq(encoded_point.x().expect("Uncompressed and not identity"));
-        let y = convert_fq(encoded_point.y().expect("Uncompressed and not identity"));
-
-        ProjectivePoint(Projective::from(Affine::new(x, y)))
-    }
-}
-
-/// Convert a representation of a field element in the k256 crate to a field element [Fq] in the arkworks library.
-fn convert_fq(fq: &k256::FieldBytes) -> Fq {
-    // Invert endianness to match arkworks representation
-    Fq::deserialize_uncompressed(fq.into_uint_le().to_be_byte_array().as_slice()).unwrap()
-}
-
-impl HashToGroupElement for ProjectivePoint {
-    fn hash_to_group_element(msg: &[u8]) -> Self {
-        // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/
-        // and the secp256k1_XMD:SHA-256_SSWU_RO_ suite defined in section 8.7.
-
-        // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
-        // or if the output of the hash function (sha256) is too big. So since these are fixed, we can safely unwrap.
-        ProjectivePoint::from(
-            &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha2::Sha256>>(
-                &[msg],
-                b"secp256k1_XMD:SHA-256_SSWU_RO_",
-            )
-            .unwrap(),
-        )
     }
 }
 
