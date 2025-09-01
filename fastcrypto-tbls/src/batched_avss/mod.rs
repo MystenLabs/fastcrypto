@@ -7,7 +7,7 @@ mod tests;
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey, RecoveryPackage};
-use crate::nodes::PartyId;
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
@@ -26,7 +26,7 @@ use zeroize::Zeroize;
 pub struct Dealer<G, EG: GroupElement> {
     number_of_nonces: u16,
     threshold: u16,
-    nodes: Vec<Node<EG>>,
+    nodes: Nodes<EG>,
     random_oracle: RandomOracle,
     _group: PhantomData<G>,
 }
@@ -37,16 +37,11 @@ where
 {
     id: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
-    nodes: Vec<Node<EG>>,
+    nodes: Nodes<EG>,
     number_of_nonces: u16,
     random_oracle: RandomOracle,
     threshold: u16,
     _group: PhantomData<G>,
-}
-
-#[derive(Clone, Debug)]
-pub struct Node<EG: GroupElement> {
-    public_key: PublicKey<EG>,
 }
 
 #[derive(Clone, Debug)]
@@ -105,15 +100,9 @@ where
         let c_prime = G::generator() * p_prime.c0();
         let r: Vec<Vec<G::ScalarType>> = p
             .iter()
-            .map(|p_l| {
-                (1..=n)
-                    .map(|j| p_l.eval(ShareIndex::new(j).unwrap()).value)
-                    .collect()
-            })
+            .map(|p_l| (0..n).map(|j| p_l.eval(to_index(j)).value).collect())
             .collect();
-        let r_prime: Vec<G::ScalarType> = (1..=n)
-            .map(|j| p_prime.eval(ShareIndex::new(j).unwrap()).value)
-            .collect();
+        let r_prime: Vec<G::ScalarType> = (0..n).map(|j| p_prime.eval(to_index(j)).value).collect();
 
         let encryptions = MultiRecipientEncryption::encrypt(
             &self
@@ -125,7 +114,7 @@ where
                         r: r.iter().map(|r_l| r_l[j]).collect(),
                         r_prime: r_prime[j],
                     };
-                    (node.public_key.clone(), bcs::to_bytes(&msg).unwrap())
+                    (node.pk.clone(), bcs::to_bytes(&msg).unwrap())
                 })
                 .collect::<Vec<_>>(),
             &self.random_oracle_extension(Encryption),
@@ -180,7 +169,7 @@ where
         let decrypted = message.encryptions.decrypt(
             &self.secret_key,
             &random_oracle_encryption,
-            to_index(self.id),
+            self.id as usize,
         );
         let shares = bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
 
@@ -242,7 +231,7 @@ where
         self.check_complaint_proof(
             message,
             complaint,
-            &self.nodes[to_index(complaint.party_id)],
+            &self.nodes.node_id_to_node(complaint.party_id).unwrap(),
         )?;
         Ok(ComplaintResponse {
             recovery_package: message.encryptions.create_recovery_package(
@@ -279,10 +268,7 @@ where
             .iter()
             .zip(gamma)
             .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
-            != message
-                .p_double_prime
-                .eval(ShareIndex::new(self.id).unwrap())
-                .value
+            != message.p_double_prime.eval(to_index(self.id)).value
         {
             return Err(FastCryptoError::InvalidInput);
         }
@@ -313,13 +299,13 @@ where
                         &response.recovery_package,
                         &self.random_oracle_extension(Recovery(*id)),
                         &ro_encryption,
-                        &self.nodes[to_index(id)].public_key,
-                        to_index(id),
+                        &self.nodes.node_id_to_node(*id).unwrap().pk, // TODO: Handle invalid ID
+                        *id as usize,
                     )
                     .map(|bytes| {
                         bcs::from_bytes::<Shares<G::ScalarType>>(bytes.as_slice())
                             .map_err(|_| FastCryptoError::InvalidInput)
-                            .map(|decrypted| (ShareIndex::new(*id).unwrap(), decrypted))
+                            .map(|decrypted| (id, decrypted))
                     })
                     .tap_err(|_| warn!("Ignoring invalid recovery package from {}", id))
                     .ok()
@@ -332,13 +318,13 @@ where
             ));
         }
 
-        let share_index = ShareIndex::new(self.id).unwrap();
+        let share_index = to_index(self.id);
         let r_prime = interpolate(
             share_index,
             &shares
                 .iter()
-                .map(|(index, s)| Eval {
-                    index: *index,
+                .map(|(id, s)| Eval {
+                    index: to_index(*id),
                     value: s.r_prime,
                 })
                 .collect::<Vec<_>>(),
@@ -351,8 +337,8 @@ where
                     share_index,
                     &shares
                         .iter()
-                        .map(|(index, s)| Eval {
-                            index: *index,
+                        .map(|(id, s)| Eval {
+                            index: to_index(*id),
                             value: s.r[l as usize],
                         })
                         .collect::<Vec<_>>(),
@@ -380,8 +366,8 @@ where
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.party_id)),
             &self.random_oracle_extension(Encryption),
-            &receiver.public_key,
-            to_index(complaint.party_id),
+            &receiver.pk,
+            complaint.party_id as usize,
         )?;
 
         let shares: Shares<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
@@ -448,11 +434,6 @@ where
     }
 }
 
-/// Convert a PartyId in the range 1..n to an index in the range 0..n-1.
-fn to_index<I: Borrow<PartyId>>(id: I) -> usize {
-    *id.borrow() as usize - 1
-}
-
 impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
     fn base(&self) -> &RandomOracle {
         &self.random_oracle
@@ -481,4 +462,8 @@ where
     G::ScalarType: FiatShamirChallenge,
     EG::ScalarType: Zeroize,
 {
+}
+
+fn to_index(id: impl Borrow<PartyId>) -> ShareIndex {
+    ShareIndex::new(*id.borrow() as u16 + 1).expect("nonzero")
 }
