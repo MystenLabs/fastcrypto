@@ -1,5 +1,8 @@
 use crate::batched_avss::Extension::Encryption;
-use crate::batched_avss::{Certificate, Dealer, FiatShamirImpl, Message, Node, Output, RandomOracleExtensions, Receiver, Shares};
+use crate::batched_avss::{
+    Certificate, Dealer, FiatShamirImpl, Message, Node, Output, RandomOracleExtensions, Receiver,
+    Shares,
+};
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
 use crate::polynomial::{Eval, Poly};
@@ -27,7 +30,7 @@ fn test_happy_path() {
     let nodes = sks
         .iter()
         .map(|sk| Node {
-            public_key: PublicKey::from_private_key(sk)
+            public_key: PublicKey::from_private_key(sk),
         })
         .collect::<Vec<_>>();
 
@@ -83,10 +86,13 @@ fn test_happy_path() {
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
-                shares.iter().take((threshold + 1) as usize).map(|(i, v)| Eval {
-                    index: ShareIndex::new(*i).unwrap(),
-                    value: *v,
-                }),
+                shares
+                    .iter()
+                    .take((threshold + 1) as usize)
+                    .map(|(i, v)| Eval {
+                        index: ShareIndex::new(*i).unwrap(),
+                        value: *v,
+                    }),
             )
             .unwrap()
         })
@@ -133,8 +139,9 @@ fn test_share_recovery() {
     let nodes = sks
         .iter()
         .map(|sk| Node {
-            public_key: PublicKey::from_private_key(sk)
-        }).collect::<Vec<_>>();
+            public_key: PublicKey::from_private_key(sk),
+        })
+        .collect::<Vec<_>>();
 
     let random_oracle = RandomOracle::new("tbls test");
 
@@ -209,10 +216,13 @@ fn test_share_recovery() {
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
-                shares.iter().take((threshold + 1) as usize).map(|(i, v)| Eval {
-                    index: ShareIndex::new(*i).unwrap(),
-                    value: *v,
-                }),
+                shares
+                    .iter()
+                    .take((threshold + 1) as usize)
+                    .map(|(i, v)| Eval {
+                        index: ShareIndex::new(*i).unwrap(),
+                        value: *v,
+                    }),
             )
             .unwrap()
         })

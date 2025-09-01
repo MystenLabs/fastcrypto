@@ -18,7 +18,8 @@ use fastcrypto::traits::AllowedRng;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
-use tracing::debug;
+use tap::TapFallible;
+use tracing::{debug, warn};
 use zeroize::Zeroize;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
@@ -169,7 +170,9 @@ where
         &self,
         message: &Message<G, EG>,
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
-        // TODO: Sanity checks?
+        if message.p_double_prime.degree() > self.threshold as usize {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         let random_oracle_encryption = self.random_oracle_extension(Encryption);
         message.encryptions.verify(&random_oracle_encryption)?;
@@ -293,7 +296,9 @@ where
         responses: &[(PartyId, ComplaintResponse<EG>)],
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
         if responses.len() < (self.threshold + 1) as usize {
-            return Err(FastCryptoError::InputTooShort((self.threshold + 1) as usize));
+            return Err(FastCryptoError::InputTooShort(
+                (self.threshold + 1) as usize,
+            ));
         }
 
         let ro_encryption = self.random_oracle_extension(Encryption);
@@ -316,12 +321,15 @@ where
                             .map_err(|_| FastCryptoError::InvalidInput)
                             .map(|decrypted| (ShareIndex::new(*id).unwrap(), decrypted))
                     })
+                    .tap_err(|_| warn!("Ignoring invalid recovery package from {}", id))
                     .ok()
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
         if shares.len() < (self.threshold + 1) as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(FastCryptoError::GeneralError(
+                "Not enough valid responses".to_string(),
+            ));
         }
 
         let share_index = ShareIndex::new(self.id).unwrap();
