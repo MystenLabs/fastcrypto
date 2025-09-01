@@ -190,7 +190,7 @@ where
         rng: &mut R,
     ) -> FastCryptoResult<Self> {
         // Sanity check that the threshold makes sense.
-        if t > nodes.total_weight() || t == 0 {
+        if t > nodes.total_weight() || t == 0 || old_t.is_some_and(|ot| ot == 0) {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -772,6 +772,14 @@ where
         if self.nodes.iter().any(|n| n.weight != 1) {
             return Err(FastCryptoError::InvalidInput);
         }
+        // Check the mapping is valid: unique and all parties exist in the new committee.
+        if new_to_old_party_ids.values().collect::<HashSet<_>>().len() != new_to_old_party_ids.len()
+            || new_to_old_party_ids
+                .keys()
+                .any(|id| self.nodes.node_id_to_node(*id).is_err())
+        {
+            return Err(FastCryptoError::InvalidInput);
+        }
 
         // Do not filter out any message, assume all are valid.
         let messages = VerifiedProcessedMessages::filter_from(messages, &[]);
@@ -796,9 +804,10 @@ where
         }
 
         // Interpolate my shares.
-        let mut shares = Vec::new();
-        for m in messages.0.iter() {
-            let share = Share {
+        let shares = messages
+            .0
+            .iter()
+            .map(|m| Share {
                 index: *new_sender_to_old_share_id
                     .get(&m.message.sender)
                     .expect("checked above"),
@@ -808,9 +817,8 @@ where
                     .map(|s| s.value)
                     .exactly_one()
                     .expect("weight is 1"),
-            };
-            shares.push(share);
-        }
+            })
+            .collect::<Vec<_>>();
         let share = PrivatePoly::<G>::recover_c0(old_t, shares.iter())
             .expect("checked we have exactly t shares");
         let my_share_id = self

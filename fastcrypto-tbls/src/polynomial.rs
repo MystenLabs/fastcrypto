@@ -214,8 +214,8 @@ impl<C: Scalar> Poly<C> {
     /// Returns a new polynomial of the given degree where the constant term is
     /// fixed to `c0` and the rest of the coefficients are sampled at random.
     pub fn rand_fixed_c0<R: AllowedRng>(degree: u16, c0: C, rng: &mut R) -> Self {
-        let mut coeffs: Vec<C> = (0..degree).map(|_| C::rand(rng)).collect();
-        coeffs.insert(0, c0);
+        let mut coeffs = Self::rand(degree, rng).0;
+        coeffs[0] = c0;
         Self::from(coeffs)
     }
 
