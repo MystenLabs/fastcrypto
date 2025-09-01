@@ -24,8 +24,8 @@ use zeroize::Zeroize;
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<G, EG: GroupElement> {
     number_of_nonces: u16,
-    f: u16,
-    public_keys: Vec<PublicKey<EG>>,
+    threshold: u16,
+    nodes: Vec<Node<EG>>,
     random_oracle: RandomOracle,
     _group: PhantomData<G>,
 }
@@ -36,11 +36,16 @@ where
 {
     id: u16,
     secret_key: ecies_v1::PrivateKey<EG>,
-    public_keys: Vec<PublicKey<EG>>,
+    nodes: Vec<Node<EG>>,
     number_of_nonces: u16,
     random_oracle: RandomOracle,
-    f: u16,
+    threshold: u16,
     _group: PhantomData<G>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Node<EG: GroupElement> {
+    public_key: PublicKey<EG>,
 }
 
 #[derive(Clone, Debug)]
@@ -86,12 +91,12 @@ where
     /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces along with their corresponding public keys.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> (Message<G, EG>, Output<G>) {
         // TODO: weights + higher thresholds
-        let n = 3 * self.f + 1;
+        let n = 3 * self.threshold + 1;
 
         let p = (0..self.number_of_nonces)
-            .map(|_| Poly::<G::ScalarType>::rand(self.f, rng))
+            .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
             .collect::<Vec<_>>();
-        let p_prime = Poly::<G::ScalarType>::rand(self.f, rng);
+        let p_prime = Poly::<G::ScalarType>::rand(self.threshold, rng);
         let c = p
             .iter()
             .map(|p_l| G::generator() * p_l.c0())
@@ -111,15 +116,15 @@ where
 
         let encryptions = MultiRecipientEncryption::encrypt(
             &self
-                .public_keys
+                .nodes
                 .iter()
                 .enumerate()
-                .map(|(j, pk)| {
+                .map(|(j, node)| {
                     let msg = Shares {
                         r: r.iter().map(|r_l| r_l[j]).collect(),
                         r_prime: r_prime[j],
                     };
-                    (pk.clone(), bcs::to_bytes(&msg).unwrap())
+                    (node.public_key.clone(), bcs::to_bytes(&msg).unwrap())
                 })
                 .collect::<Vec<_>>(),
             &self.random_oracle_extension(Encryption),
@@ -198,7 +203,7 @@ where
         cert: &impl Certificate<G, EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Option<Complaint<EG>>> {
-        if !cert.is_valid((2 * self.f + 1) as usize) {
+        if !cert.is_valid((2 * self.threshold + 1) as usize) {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -234,7 +239,7 @@ where
         self.check_complaint_proof(
             message,
             complaint,
-            &self.public_keys[to_index(complaint.party_id)],
+            &self.nodes[to_index(complaint.party_id)],
         )?;
         Ok(ComplaintResponse {
             recovery_package: message.encryptions.create_recovery_package(
@@ -287,8 +292,8 @@ where
         message: &Message<G, EG>,
         responses: &[(PartyId, ComplaintResponse<EG>)],
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
-        if responses.len() < (self.f + 1) as usize {
-            return Err(FastCryptoError::InputTooShort((self.f + 1) as usize));
+        if responses.len() < (self.threshold + 1) as usize {
+            return Err(FastCryptoError::InputTooShort((self.threshold + 1) as usize));
         }
 
         let ro_encryption = self.random_oracle_extension(Encryption);
@@ -303,7 +308,7 @@ where
                         &response.recovery_package,
                         &self.random_oracle_extension(Recovery(*id)),
                         &ro_encryption,
-                        &self.public_keys[to_index(id)],
+                        &self.nodes[to_index(id)].public_key,
                         to_index(id),
                     )
                     .map(|bytes| {
@@ -315,7 +320,7 @@ where
             })
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        if shares.len() < (self.f + 1) as usize {
+        if shares.len() < (self.threshold + 1) as usize {
             return Err(FastCryptoError::InvalidInput);
         }
 
@@ -359,7 +364,7 @@ where
         &self,
         message: &Message<G, EG>,
         complaint: &Complaint<EG>,
-        receiver_pk: &PublicKey<EG>,
+        receiver: &Node<EG>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint
         // is invalid.
@@ -367,7 +372,7 @@ where
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.party_id)),
             &self.random_oracle_extension(Encryption),
-            receiver_pk,
+            &receiver.public_key,
             to_index(complaint.party_id),
         )?;
 

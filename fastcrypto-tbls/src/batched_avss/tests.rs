@@ -1,7 +1,5 @@
 use crate::batched_avss::Extension::Encryption;
-use crate::batched_avss::{
-    Certificate, Dealer, FiatShamirImpl, Message, Output, RandomOracleExtensions, Receiver, Shares,
-};
+use crate::batched_avss::{Certificate, Dealer, FiatShamirImpl, Message, Node, Output, RandomOracleExtensions, Receiver, Shares};
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
 use crate::polynomial::{Eval, Poly};
@@ -18,25 +16,27 @@ use zeroize::Zeroize;
 #[test]
 fn test_happy_path() {
     // No complaints, all honest
-    let f = 2;
-    let n = 3 * f + 1;
+    let threshold = 2;
+    let n = 3 * threshold + 1;
     let number_of_nonces = 3;
 
     let mut rng = rand::thread_rng();
     let sks = (0..n)
         .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
         .collect::<Vec<_>>();
-    let pks = sks
+    let nodes = sks
         .iter()
-        .map(PublicKey::from_private_key)
+        .map(|sk| Node {
+            public_key: PublicKey::from_private_key(sk)
+        })
         .collect::<Vec<_>>();
 
     let random_oracle = RandomOracle::new("tbls test");
 
     let dealer: Dealer<G1Element, G2Element> = Dealer {
         number_of_nonces,
-        f,
-        public_keys: pks.clone(),
+        threshold,
+        nodes: nodes.clone(),
         random_oracle,
         _group: PhantomData,
     };
@@ -49,8 +49,8 @@ fn test_happy_path() {
             secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
-            f,
-            public_keys: pks.clone(),
+            threshold,
+            nodes: nodes.clone(),
             _group: PhantomData,
         })
         .collect::<Vec<_>>();
@@ -82,8 +82,8 @@ fn test_happy_path() {
                 .map(|r| (r.id, all_shares.get(&r.id).unwrap().r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
-                f + 1,
-                shares.iter().take((f + 1) as usize).map(|(i, v)| Eval {
+                threshold + 1,
+                shares.iter().take((threshold + 1) as usize).map(|(i, v)| Eval {
                     index: ShareIndex::new(*i).unwrap(),
                     value: *v,
                 }),
@@ -122,25 +122,26 @@ impl<G: GroupElement, EG: GroupElement> Certificate<G, EG> for TestCertificate<G
 
 #[test]
 fn test_share_recovery() {
-    let f = 2;
-    let n = 3 * f + 1;
+    let threshold = 2;
+    let n = 3 * threshold + 1;
     let number_of_nonces = 3;
 
     let mut rng = rand::thread_rng();
     let sks = (0..n)
         .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
         .collect::<Vec<_>>();
-    let pks = sks
+    let nodes = sks
         .iter()
-        .map(PublicKey::from_private_key)
-        .collect::<Vec<_>>();
+        .map(|sk| Node {
+            public_key: PublicKey::from_private_key(sk)
+        }).collect::<Vec<_>>();
 
     let random_oracle = RandomOracle::new("tbls test");
 
     let dealer: Dealer<G1Element, G2Element> = Dealer {
         number_of_nonces,
-        f,
-        public_keys: pks.clone(),
+        threshold,
+        nodes: nodes.clone(),
         random_oracle,
         _group: PhantomData,
     };
@@ -153,9 +154,9 @@ fn test_share_recovery() {
             secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
-            f,
+            threshold,
             _group: PhantomData,
-            public_keys: pks.clone(),
+            nodes: nodes.clone(),
         })
         .collect::<Vec<_>>();
 
@@ -207,8 +208,8 @@ fn test_share_recovery() {
                 .map(|r| (r.id, all_shares.get(&r.id).unwrap().r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
-                f + 1,
-                shares.iter().take((f + 1) as usize).map(|(i, v)| Eval {
+                threshold + 1,
+                shares.iter().take((threshold + 1) as usize).map(|(i, v)| Eval {
                     index: ShareIndex::new(*i).unwrap(),
                     value: *v,
                 }),
@@ -237,12 +238,12 @@ where
         rng: &mut Rng,
     ) -> (Message<G, EG>, Output<G>) {
         // TODO: weights + higher thresholds
-        let n = 3 * self.f + 1;
+        let n = 3 * self.threshold + 1;
 
         let p = (0..self.number_of_nonces)
-            .map(|_| Poly::<G::ScalarType>::rand(self.f, rng))
+            .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
             .collect::<Vec<_>>();
-        let p_prime = Poly::<G::ScalarType>::rand(self.f, rng);
+        let p_prime = Poly::<G::ScalarType>::rand(self.threshold, rng);
         let c = p
             .iter()
             .map(|p_l| G::generator() * p_l.c0())
@@ -265,15 +266,15 @@ where
 
         let encryptions = MultiRecipientEncryption::encrypt(
             &self
-                .public_keys
+                .nodes
                 .iter()
                 .enumerate()
-                .map(|(j, pk)| {
+                .map(|(j, node)| {
                     let msg = Shares {
                         r: r.iter().map(|r_l| r_l[j]).collect(),
                         r_prime: r_prime[j],
                     };
-                    (pk.clone(), bcs::to_bytes(&msg).unwrap())
+                    (node.public_key.clone(), bcs::to_bytes(&msg).unwrap())
                 })
                 .collect::<Vec<_>>(),
             &self.random_oracle_extension(Encryption),
