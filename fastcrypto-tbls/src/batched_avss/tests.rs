@@ -63,7 +63,7 @@ fn test_happy_path() {
         })
         .collect::<Vec<_>>();
 
-    let (message, nonces) = dealer.create_message(&mut rng);
+    let (message, output) = dealer.create_message(&mut rng);
 
     let all_shares = receivers
         .iter()
@@ -104,10 +104,10 @@ fn test_happy_path() {
         .collect::<Vec<_>>();
 
     for l in 0..number_of_nonces {
-        assert_eq!(secrets[l as usize], nonces.0[l as usize].1);
+        assert_eq!(secrets[l as usize], output.nonces[l as usize]);
         assert_eq!(
             G1Element::generator() * secrets[l as usize],
-            nonces.0[l as usize].0
+            output.public_keys[l as usize]
         );
     }
 }
@@ -177,7 +177,7 @@ fn test_share_recovery() {
         })
         .collect::<Vec<_>>();
 
-    let (message, nonces) = dealer.create_message_cheating(&mut rng);
+    let (message, output) = dealer.create_message_cheating(&mut rng);
 
     let mut all_shares = receivers
         .iter()
@@ -239,10 +239,10 @@ fn test_share_recovery() {
         .collect::<Vec<_>>();
 
     for l in 0..number_of_nonces {
-        assert_eq!(secrets[l as usize], nonces.0[l as usize].1);
+        assert_eq!(secrets[l as usize], output.nonces[l as usize]);
         assert_eq!(
             G1Element::generator() * secrets[l as usize],
-            nonces.0[l as usize].0
+            output.public_keys[l as usize]
         );
     }
 }
@@ -302,11 +302,8 @@ where
             p_double_prime += &(p_l.clone() * gamma_l);
         }
 
-        let nonces = p
-            .iter()
-            .zip(c.iter())
-            .map(|(p_l, c_l)| (*c_l, *p_l.c0()))
-            .collect();
+        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
+        let public_keys = c.clone();
 
         (
             Message {
@@ -315,7 +312,10 @@ where
                 encryptions,
                 p_double_prime,
             },
-            Output(nonces),
+            Output {
+                nonces,
+                public_keys,
+            },
         )
     }
 }

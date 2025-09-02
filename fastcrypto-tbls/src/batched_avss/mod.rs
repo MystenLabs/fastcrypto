@@ -6,7 +6,7 @@ mod tests;
 
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
 use crate::ecies_v1;
-use crate::ecies_v1::{MultiRecipientEncryption, RecoveryPackage};
+use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
@@ -37,7 +37,7 @@ where
     EG::ScalarType: Zeroize,
 {
     id: u16,
-    secret_key: ecies_v1::PrivateKey<EG>,
+    secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     number_of_nonces: u16,
     random_oracle: RandomOracle,
@@ -69,7 +69,7 @@ pub trait Certificate<G: GroupElement, EG: GroupElement> {
     fn includes_receiver(&self, index: u16) -> bool;
 }
 
-/// The shares for a receiver, containing L shares and one for the combined polynomial.
+/// The shares for a receiver, containing shares for each nonce and one for the combined polynomial.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Shares<C: GroupElement> {
     pub r: Vec<C>,
@@ -78,17 +78,38 @@ pub struct Shares<C: GroupElement> {
 
 /// The output of the dealer: The nonces and their corresponding public keys.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Output<G: GroupElement>(Vec<(G, G::ScalarType)>);
+pub struct Output<G: GroupElement> {
+    nonces: Vec<G::ScalarType>,
+    public_keys: Vec<G>,
+}
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
 where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
     G::ScalarType: FiatShamirChallenge,
 {
+    pub fn new(
+        number_of_nonces: u16,
+        nodes: Nodes<EG>,
+        threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+    ) -> FastCryptoResult<Self> {
+        // Sanity check that the threshold makes sense (t <= n/2 since we later wait for 2t-1).
+        if threshold > (nodes.total_weight() / 2) {
+            return Err(InvalidInput);
+        }
+        Ok(Self {
+            number_of_nonces,
+            threshold,
+            nodes,
+            random_oracle,
+            _group: PhantomData,
+        })
+    }
+
     /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces along with their corresponding public keys.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> (Message<G, EG>, Output<G>) {
-        // TODO: weights + higher thresholds
-        let n = 3 * self.threshold + 1;
+        let n = self.nodes.total_weight();
 
         let p = (0..self.number_of_nonces)
             .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
@@ -99,6 +120,7 @@ where
             .map(|p_l| G::generator() * p_l.c0())
             .collect::<Vec<_>>();
         let c_prime = G::generator() * p_prime.c0();
+
         let r: Vec<Vec<G::ScalarType>> = p
             .iter()
             .map(|p_l| (0..n).map(|j| p_l.eval(to_index(j)).value).collect())
@@ -125,14 +147,11 @@ where
 
         let mut p_double_prime = p_prime;
         for (p_l, gamma_l) in p.iter().zip(&gamma) {
-            p_double_prime += &(p_l.clone() * gamma_l);
+            p_double_prime += &(p_l.clone() * gamma_l); // TODO: Impl MSM for polynomials
         }
 
-        let nonces = p
-            .iter()
-            .zip(c.iter())
-            .map(|(p_l, c_l)| (*c_l, *p_l.c0()))
-            .collect();
+        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
+        let public_keys = c.clone();
 
         (
             Message {
@@ -141,7 +160,10 @@ where
                 encryptions,
                 p_double_prime,
             },
-            Output(nonces),
+            Output {
+                nonces,
+                public_keys,
+            },
         )
     }
 }
@@ -160,7 +182,7 @@ where
         message: &Message<G, EG>,
     ) -> FastCryptoResult<Shares<G::ScalarType>> {
         if message.p_double_prime.degree() > self.threshold as usize {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
 
         let random_oracle_encryption = self.random_oracle_extension(Encryption);
@@ -171,7 +193,7 @@ where
             &random_oracle_encryption,
             self.id as usize,
         );
-        let shares = bcs::from_bytes(&decrypted).map_err(|_| FastCryptoError::InvalidInput)?;
+        let shares = bcs::from_bytes(&decrypted).map_err(|_| InvalidInput)?;
 
         let gamma = self.compute_gamma_from_message(message);
         self.verify_shares(&shares, Some(&gamma), message)?;
@@ -180,7 +202,7 @@ where
         if G::generator() * message.p_double_prime.c0()
             != message.c_prime + G::multi_scalar_mul(&gamma, &message.c)?
         {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
 
         Ok(shares)
@@ -196,7 +218,7 @@ where
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Option<Complaint<EG>>> {
         if !cert.is_valid((2 * self.threshold + 1) as usize) {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
 
         if cert.includes_receiver(self.id) {
@@ -466,5 +488,5 @@ where
 
 /// Convert from PartyId (0-indexed) to ShareIndex (1-indexed).
 fn to_index(id: impl Borrow<PartyId>) -> ShareIndex {
-    ShareIndex::new(*id.borrow() + 1).expect("nonzero")
+    ShareIndex::new(*id.borrow() + 1).expect("Always non-zero")
 }
