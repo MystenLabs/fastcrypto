@@ -1,13 +1,15 @@
 use crate::batched_avss::Extension::Encryption;
 use crate::batched_avss::{
-    to_index, Certificate, Dealer, FiatShamirImpl, Message, Node, Output, RandomOracleExtensions,
-    Receiver, Shares,
+    Certificate, Dealer, FiatShamirImpl, Message, Node, NonceShares, Output,
+    RandomOracleExtensions, Receiver,
 };
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
 use crate::nodes::Nodes;
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
+use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement};
 use fastcrypto::traits::AllowedRng;
@@ -63,7 +65,7 @@ fn test_happy_path() {
         })
         .collect::<Vec<_>>();
 
-    let (message, output) = dealer.create_message(&mut rng);
+    let (message, output) = dealer.create_message(&mut rng).unwrap();
 
     let all_shares = receivers
         .iter()
@@ -87,7 +89,7 @@ fn test_happy_path() {
         .map(|l| {
             let shares = receivers
                 .iter()
-                .map(|r| (r.id, all_shares.get(&r.id).unwrap().r[l as usize]))
+                .map(|r| (r.id, all_shares.get(&r.id).unwrap()[0].r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
@@ -95,7 +97,7 @@ fn test_happy_path() {
                     .iter()
                     .take((threshold + 1) as usize)
                     .map(|(id, v)| Eval {
-                        index: to_index(id),
+                        index: ShareIndex::try_from(id + 1).unwrap(),
                         value: *v,
                     }),
             )
@@ -177,7 +179,7 @@ fn test_share_recovery() {
         })
         .collect::<Vec<_>>();
 
-    let (message, output) = dealer.create_message_cheating(&mut rng);
+    let (message, output) = dealer.create_message_cheating(&mut rng).unwrap();
 
     let mut all_shares = receivers
         .iter()
@@ -222,7 +224,7 @@ fn test_share_recovery() {
         .map(|l| {
             let shares = all_shares
                 .iter()
-                .map(|(id, s)| (*id, s.r[l as usize]))
+                .map(|(id, s)| (*id, s[0].r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
@@ -230,7 +232,7 @@ fn test_share_recovery() {
                     .iter()
                     .take((threshold + 1) as usize)
                     .map(|(id, v)| Eval {
-                        index: to_index(id),
+                        index: ShareIndex::try_from(id + 1).unwrap(),
                         value: *v,
                     }),
             )
@@ -256,9 +258,9 @@ where
     pub fn create_message_cheating<Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
-    ) -> (Message<G, EG>, Output<G>) {
+    ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
         // TODO: weights + higher thresholds
-        let n = 3 * self.threshold + 1;
+        let n = self.nodes.total_weight();
 
         let p = (0..self.number_of_nonces)
             .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
@@ -271,24 +273,46 @@ where
         let c_prime = G::generator() * p_prime.c0();
         let mut r: Vec<Vec<G::ScalarType>> = p
             .iter()
-            .map(|p_l| (0..n).map(|j| p_l.eval(to_index(j)).value).collect())
+            .map(|p_l| {
+                (0..n)
+                    .map(|j| p_l.eval(ShareIndex::try_from(j + 1).unwrap()).value)
+                    .collect()
+            })
             .collect();
-        let r_prime: Vec<G::ScalarType> = (0..n).map(|j| p_prime.eval(to_index(j)).value).collect();
+        let r_prime: Vec<G::ScalarType> = (0..n)
+            .map(|j| p_prime.eval(ShareIndex::try_from(j + 1).unwrap()).value)
+            .collect();
 
         // Modify the first share of the first nonce to be incorrect
         r[0][0] += G::ScalarType::from(1u128);
+
+        let shares_for_node = self
+            .nodes
+            .iter()
+            .map(|node| {
+                let share_ids = self.nodes.share_ids_of(node.id)?;
+                Ok(share_ids
+                    .iter()
+                    .map(|share_id| NonceShares {
+                        index: *share_id,
+                        r: r.iter()
+                            .map(|r_l| r_l[share_id.get() as usize - 1])
+                            .collect(),
+                        r_prime: r_prime[share_id.get() as usize - 1],
+                    })
+                    .collect::<Vec<NonceShares<G::ScalarType>>>())
+            })
+            .collect::<FastCryptoResult<Vec<Vec<NonceShares<G::ScalarType>>>>>()?;
 
         let encryptions = MultiRecipientEncryption::encrypt(
             &self
                 .nodes
                 .iter()
-                .enumerate()
-                .map(|(j, node)| {
-                    let msg = Shares {
-                        r: r.iter().map(|r_l| r_l[j]).collect(),
-                        r_prime: r_prime[j],
-                    };
-                    (node.pk.clone(), bcs::to_bytes(&msg).unwrap())
+                .map(|node| {
+                    (
+                        node.pk.clone(),
+                        bcs::to_bytes(&shares_for_node[node.id as usize]).unwrap(),
+                    )
                 })
                 .collect::<Vec<_>>(),
             &self.random_oracle_extension(Encryption),
@@ -305,7 +329,7 @@ where
         let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
         let public_keys = c.clone();
 
-        (
+        Ok((
             Message {
                 c,
                 c_prime,
@@ -316,6 +340,6 @@ where
                 nonces,
                 public_keys,
             },
-        )
+        ))
     }
 }

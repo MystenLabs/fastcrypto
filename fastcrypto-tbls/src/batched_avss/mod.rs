@@ -5,12 +5,11 @@
 mod tests;
 
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
-use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::types::ShareIndex;
+use crate::types::{Share, ShareIndex};
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
@@ -18,6 +17,7 @@ use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
+use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use tap::TapFallible;
 use tracing::{debug, warn};
@@ -71,7 +71,8 @@ pub trait Certificate<G: GroupElement, EG: GroupElement> {
 
 /// The shares for a receiver, containing shares for each nonce and one for the combined polynomial.
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Shares<C: GroupElement> {
+pub struct NonceShares<C: GroupElement> {
+    pub index: ShareIndex,
     pub r: Vec<C>,
     pub r_prime: C,
 }
@@ -108,7 +109,10 @@ where
     }
 
     /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces along with their corresponding public keys.
-    pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> (Message<G, EG>, Output<G>) {
+    pub fn create_message<Rng: AllowedRng>(
+        &self,
+        rng: &mut Rng,
+    ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
         let n = self.nodes.total_weight();
 
         let p = (0..self.number_of_nonces)
@@ -123,20 +127,43 @@ where
 
         let r: Vec<Vec<G::ScalarType>> = p
             .iter()
-            .map(|p_l| (0..n).map(|j| p_l.eval(to_index(j)).value).collect())
+            .map(|p_l| {
+                (1..=n)
+                    .map(|j| p_l.eval(ShareIndex::new(j).unwrap()).value)
+                    .collect()
+            })
             .collect();
-        let r_prime: Vec<G::ScalarType> = (0..n).map(|j| p_prime.eval(to_index(j)).value).collect();
+        let r_prime: Vec<G::ScalarType> = (1..=n)
+            .map(|j| p_prime.eval(ShareIndex::new(j).unwrap()).value)
+            .collect();
+
+        let shares_for_node = self
+            .nodes
+            .iter()
+            .map(|node| {
+                let share_ids = self.nodes.share_ids_of(node.id)?;
+                Ok(share_ids
+                    .iter()
+                    .map(|share_id| NonceShares {
+                        index: *share_id,
+                        r: r.iter()
+                            .map(|r_l| r_l[share_id.get() as usize - 1])
+                            .collect(),
+                        r_prime: r_prime[share_id.get() as usize - 1],
+                    })
+                    .collect::<Vec<NonceShares<G::ScalarType>>>())
+            })
+            .collect::<FastCryptoResult<Vec<Vec<NonceShares<G::ScalarType>>>>>()?;
 
         let encryptions = MultiRecipientEncryption::encrypt(
             &self
                 .nodes
                 .iter()
                 .map(|node| {
-                    let msg = Shares {
-                        r: r.iter().map(|r_l| r_l[node.id as usize]).collect(),
-                        r_prime: r_prime[node.id as usize],
-                    };
-                    (node.pk.clone(), bcs::to_bytes(&msg).unwrap())
+                    (
+                        node.pk.clone(),
+                        bcs::to_bytes(&shares_for_node[node.id as usize]).unwrap(),
+                    )
                 })
                 .collect::<Vec<_>>(),
             &self.random_oracle_extension(Encryption),
@@ -147,13 +174,13 @@ where
 
         let mut p_double_prime = p_prime;
         for (p_l, gamma_l) in p.iter().zip(&gamma) {
-            p_double_prime += &(p_l.clone() * gamma_l); // TODO: Impl MSM for polynomials
+            p_double_prime += &(p_l.clone() * gamma_l); // TODO: Impl MSM for polynomials?
         }
 
         let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
         let public_keys = c.clone();
 
-        (
+        Ok((
             Message {
                 c,
                 c_prime,
@@ -164,7 +191,7 @@ where
                 nonces,
                 public_keys,
             },
-        )
+        ))
     }
 }
 
@@ -180,7 +207,7 @@ where
     pub fn process_message(
         &self,
         message: &Message<G, EG>,
-    ) -> FastCryptoResult<Shares<G::ScalarType>> {
+    ) -> FastCryptoResult<Vec<NonceShares<G::ScalarType>>> {
         if message.p_double_prime.degree() > self.threshold as usize {
             return Err(InvalidInput);
         }
@@ -193,10 +220,13 @@ where
             &random_oracle_encryption,
             self.id as usize,
         );
-        let shares = bcs::from_bytes(&decrypted).map_err(|_| InvalidInput)?;
+        let all_shares: Vec<NonceShares<G::ScalarType>> =
+            bcs::from_bytes(&decrypted).map_err(|_| InvalidInput)?;
 
         let gamma = self.compute_gamma_from_message(message);
-        self.verify_shares(&shares, Some(&gamma), message)?;
+        for shares in &all_shares {
+            self.verify_shares(shares, Some(&gamma), message)?;
+        }
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         if G::generator() * message.p_double_prime.c0()
@@ -205,7 +235,7 @@ where
             return Err(InvalidInput);
         }
 
-        Ok(shares)
+        Ok(all_shares)
     }
 
     /// 4. When 2t+1 signatures have been collected in the certificate, the receivers can now verify it.
@@ -267,7 +297,7 @@ where
     /// Helper function to verify the consistency of the shares, e.g. that <i>r' + &Sigma;<sub>l</sub> &gamma;<sub>l</sub> r<sub>li</sub> = p''(i)<i>.
     fn verify_shares(
         &self,
-        shares: &Shares<G::ScalarType>,
+        shares: &NonceShares<G::ScalarType>,
         gamma: Option<&Vec<G::ScalarType>>,
         message: &Message<G, EG>,
     ) -> FastCryptoResult<()> {
@@ -290,9 +320,9 @@ where
             .iter()
             .zip(gamma)
             .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
-            != message.p_double_prime.eval(to_index(self.id)).value
+            != message.p_double_prime.eval(shares.index).value
         {
-            return Err(FastCryptoError::InvalidInput);
+            return Err(InvalidInput);
         }
         Ok(())
     }
@@ -302,7 +332,8 @@ where
         &mut self,
         message: &Message<G, EG>,
         responses: &[(PartyId, ComplaintResponse<EG>)],
-    ) -> FastCryptoResult<Shares<G::ScalarType>> {
+    ) -> FastCryptoResult<Vec<NonceShares<G::ScalarType>>> {
+        // TODO: Account for weights here.
         if responses.len() < (self.threshold + 1) as usize {
             return Err(FastCryptoError::InputTooShort(
                 (self.threshold + 1) as usize,
@@ -325,14 +356,15 @@ where
                         *id as usize,
                     )
                     .map(|bytes| {
-                        bcs::from_bytes::<Shares<G::ScalarType>>(bytes.as_slice())
+                        bcs::from_bytes::<Vec<NonceShares<G::ScalarType>>>(bytes.as_slice())
                             .map_err(|_| InvalidInput)
-                            .map(|decrypted| (id, decrypted))
+                            .map(|decrypted| decrypted)
                     })
                     .tap_err(|_| warn!("Ignoring invalid recovery package from {}", id))
                     .ok()
             })
-            .collect::<FastCryptoResult<Vec<_>>>()?;
+            .flatten_ok()
+            .collect::<FastCryptoResult<Vec<NonceShares<_>>>>()?;
 
         if shares.len() < (self.threshold + 1) as usize {
             return Err(FastCryptoError::GeneralError(
@@ -340,38 +372,51 @@ where
             ));
         }
 
-        let share_index = to_index(self.id);
-        let r_prime = interpolate(
-            share_index,
-            &shares
-                .iter()
-                .map(|(id, s)| Eval {
-                    index: to_index(*id),
-                    value: s.r_prime,
-                })
-                .collect::<Vec<_>>(),
-        )?
-        .value;
-
-        let r = (0..self.number_of_nonces)
-            .map(|l| {
-                interpolate(
-                    share_index,
+        let shares = self
+            .nodes
+            .share_ids_of(self.id)?
+            .iter()
+            .map(|index| {
+                let index = *index;
+                let r_prime = interpolate(
+                    index,
                     &shares
                         .iter()
-                        .map(|(id, s)| Eval {
-                            index: to_index(*id),
-                            value: s.r[l as usize],
+                        .map(|s| Eval {
+                            index: s.index,
+                            value: s.r_prime,
                         })
                         .collect::<Vec<_>>(),
-                )
+                )?
+                .value;
+
+                let r = (0..self.number_of_nonces)
+                    .map(|l| {
+                        interpolate(
+                            index,
+                            &shares
+                                .iter()
+                                .map(|s| Eval {
+                                    index: s.index,
+                                    value: s.r[l as usize],
+                                })
+                                .collect::<Vec<_>>(),
+                        )
+                    })
+                    .map_ok(|res| res.value)
+                    .collect::<FastCryptoResult<Vec<_>>>()?;
+
+                Ok(NonceShares { index, r, r_prime })
             })
-            .map_ok(|res| res.value)
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
-        let shares = Shares { r, r_prime };
-        self.verify_shares(&shares, None, message)?;
-
+        let gamma = self.compute_gamma_from_message(message);
+        if shares
+            .iter()
+            .any(|s| self.verify_shares(s, Some(&gamma), message).is_err())
+        {
+            return Err(InvalidInput);
+        }
         Ok(shares)
     }
 
@@ -392,7 +437,7 @@ where
             complaint.party_id as usize,
         )?;
 
-        let shares: Shares<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
+        let shares: NonceShares<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
             Ok(s) => s,
             Err(_) => {
                 debug!("check_complaint_proof failed to deserialize shares");
@@ -484,9 +529,4 @@ where
     G::ScalarType: FiatShamirChallenge,
     EG::ScalarType: Zeroize,
 {
-}
-
-/// Convert from PartyId (0-indexed) to ShareIndex (1-indexed).
-fn to_index(id: impl Borrow<PartyId>) -> ShareIndex {
-    ShareIndex::new(*id.borrow() + 1).expect("Always non-zero")
 }
