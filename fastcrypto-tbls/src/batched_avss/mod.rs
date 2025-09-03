@@ -64,7 +64,7 @@ pub struct Complaint<EG: GroupElement> {
 pub trait Certificate<G: GroupElement, EG: GroupElement> {
     fn message(&self) -> Message<G, EG>;
     fn is_valid(&self, threshold: usize) -> bool;
-    fn includes_receiver(&self, index: u16) -> bool;
+    fn includes(&self, id: &PartyId) -> bool;
 }
 
 /// The shares for a receiver, containing shares for each nonce and one for the combined polynomial.
@@ -235,10 +235,11 @@ where
             return Err(InvalidInput);
         }
 
-        if cert.includes_receiver(self.id) {
+        if cert.includes(&self.id) {
             return Ok(None);
         }
 
+        // TODO: Verify message is called both in process_message and in create_complaint, so a receiver will call it up to three times
         match self.process_message(&cert.message()) {
             Ok(_) => Ok(None),
             Err(_) => Ok(Some(self.create_complaint(&cert.message(), rng)?)),
@@ -271,6 +272,7 @@ where
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
         self.check_complaint_proof(message, complaint, complaint.party_id)?;
+        message.ciphertext.verify(&self.random_oracle_extension(Encryption))?;
         Ok(ComplaintResponse {
             recovery_package: message.ciphertext.create_recovery_package(
                 &self.secret_key,
@@ -345,7 +347,7 @@ where
                             &response.recovery_package,
                             &self.random_oracle_extension(Recovery(node.id)),
                             &ro_encryption,
-                            &node.pk, // Ignore invalid IDs
+                            &node.pk,
                             *id as usize,
                         )
                     })
@@ -357,7 +359,7 @@ where
                     .ok()
             })
             .flatten()
-            .collect::<Vec<NonceShares<_>>>();
+            .collect_vec();
 
         // We ignore the invalid responses and just check that we have enough valid ones here.
         if response_shares.len() < (self.threshold + 1) as usize {

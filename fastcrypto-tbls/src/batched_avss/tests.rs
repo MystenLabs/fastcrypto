@@ -5,7 +5,7 @@ use crate::batched_avss::{
 };
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
-use crate::nodes::Nodes;
+use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
@@ -232,8 +232,8 @@ impl<G: GroupElement, EG: GroupElement + Serialize> Certificate<G, EG> for TestC
         weights.iter().sum::<usize>() >= threshold
     }
 
-    fn includes_receiver(&self, index: u16) -> bool {
-        self.included.contains(&index)
+    fn includes(&self, index: &PartyId) -> bool {
+        self.included.contains(index)
     }
 }
 
