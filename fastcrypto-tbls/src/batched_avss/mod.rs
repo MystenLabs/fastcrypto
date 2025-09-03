@@ -121,29 +121,28 @@ where
         let c_prime = commit(&p_prime);
 
         // Encrypt
-        let plaintexts = self
+        let pk_and_msgs = self
             .nodes
             .iter()
-            .map(|n| (&n.pk, self.nodes.share_ids_of(n.id).unwrap()))
+            .map(|n| (n.pk.clone(), self.nodes.share_ids_of(n.id).unwrap()))
             .map(|(pk, share_ids)| {
                 (
                     pk,
                     share_ids
-                        .iter()
-                        .map(|index| {
-                            let index = *index;
-                            let r = p.iter().map(|p_l| p_l.eval(index).value).collect();
-                            let r_prime = p_prime.eval(index).value;
-                            NonceShares { index, r, r_prime }
+                        .into_iter()
+                        .map(|index| NonceShares {
+                            index,
+                            r: p.iter().map(|p_l| p_l.eval(index).value).collect(),
+                            r_prime: p_prime.eval(index).value,
                         })
                         .collect_vec(),
                 )
             })
-            .map(|(pk, shares)| (pk.clone(), bcs::to_bytes(&shares).unwrap()))
+            .map(|(pk, shares)| (pk, bcs::to_bytes(&shares).unwrap()))
             .collect_vec();
 
         let ciphertext = MultiRecipientEncryption::encrypt(
-            &plaintexts,
+            &pk_and_msgs,
             &self.random_oracle_extension(Encryption),
             rng,
         );
@@ -191,8 +190,8 @@ where
         }
 
         let random_oracle_encryption = self.random_oracle_extension(Encryption);
-        message.ciphertext.verify(&random_oracle_encryption)?;
 
+        message.ciphertext.verify(&random_oracle_encryption)?;
         let plaintext = message.ciphertext.decrypt(
             &self.secret_key,
             &random_oracle_encryption,
@@ -225,6 +224,8 @@ where
     ///  - If the receiver is already in the certificate, do nothing.
     ///  - If it is not in the certificate, but it is able to decrypt and verify its shares, store the shares and do nothing.
     ///  - If it is not in the certificate and cannot decrypt or verify its shares, it creates a complaint with a recovery package for its shares.
+    ///
+    /// Returns an error if the certificate or the encrypted shares are invalid.
     pub fn process_certificate(
         &self,
         cert: &impl Certificate<G, EG>,
@@ -238,19 +239,28 @@ where
             return Ok(None);
         }
 
-        // ? At what point should cert.message.verify be called? Now, it is called in process_certificate of the client, so if it fails we get a complaint.
-
         match self.process_message(&cert.message()) {
             Ok(_) => Ok(None),
-            Err(_) => Ok(Some(Complaint {
-                party_id: self.id,
-                proof: cert.message().ciphertext.create_recovery_package(
-                    &self.secret_key,
-                    &self.random_oracle_extension(Recovery(self.id)),
-                    rng,
-                ),
-            })),
+            Err(_) => Ok(Some(self.create_complaint(&cert.message(), rng)?)),
         }
+    }
+
+    fn create_complaint(
+        &self,
+        message: &Message<G, EG>,
+        rng: &mut impl AllowedRng,
+    ) -> FastCryptoResult<Complaint<EG>> {
+        message
+            .ciphertext
+            .verify(&self.random_oracle_extension(Encryption))?;
+        Ok(Complaint {
+            party_id: self.id,
+            proof: message.ciphertext.create_recovery_package(
+                &self.secret_key,
+                &self.random_oracle_extension(Recovery(self.id)),
+                rng,
+            ),
+        })
     }
 
     /// 5. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
@@ -260,11 +270,7 @@ where
         complaint: &Complaint<EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
-        self.check_complaint_proof(
-            message,
-            complaint,
-            self.nodes.node_id_to_node(complaint.party_id)?,
-        )?;
+        self.check_complaint_proof(message, complaint, complaint.party_id)?;
         Ok(ComplaintResponse {
             recovery_package: message.ciphertext.create_recovery_package(
                 &self.secret_key,
@@ -411,14 +417,16 @@ where
         &self,
         message: &Message<G, EG>,
         complaint: &Complaint<EG>,
-        receiver: &Node<EG>,
+        id: PartyId,
     ) -> FastCryptoResult<()> {
+        let pk = &self.nodes.node_id_to_node(id)?.pk;
+
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
         let buffer = message.ciphertext.decrypt_with_recovery_package(
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.party_id)),
             &self.random_oracle_extension(Encryption),
-            &receiver.pk,
+            &pk,
             complaint.party_id as usize,
         )?;
 

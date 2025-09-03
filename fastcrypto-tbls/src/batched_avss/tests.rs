@@ -13,6 +13,7 @@ use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups::bls12381::{G1Element, G2Element};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement};
 use fastcrypto::traits::AllowedRng;
+use itertools::Itertools;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -20,7 +21,7 @@ use zeroize::Zeroize;
 
 #[test]
 fn test_happy_path() {
-    // No complaints, all honest
+    // No complaints, all honest. All have weight 1
     let threshold = 2;
     let n = 3 * threshold + 1;
     let number_of_nonces = 3;
@@ -75,6 +76,7 @@ fn test_happy_path() {
     let certificate = TestCertificate {
         message: message.clone(),
         included: vec![1, 2, 3, 4, 5], // 2f+1
+        nodes: nodes.clone(),
     };
 
     for receiver in receivers.iter_mut() {
@@ -114,18 +116,120 @@ fn test_happy_path() {
     }
 }
 
+#[test]
+fn test_happy_path_non_equal_weights() {
+    // No complaints, all honest
+    let threshold = 2;
+    let weights: Vec<u16> = vec![1, 2, 3, 4];
+    let number_of_nonces = 3;
+
+    let mut rng = rand::thread_rng();
+    let sks = weights
+        .iter()
+        .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
+        .collect::<Vec<_>>();
+    let nodes = Nodes::new(
+        weights
+            .into_iter()
+            .enumerate()
+            .map(|(i, weight)| Node {
+                id: i as u16,
+                pk: PublicKey::from_private_key(&sks[i]),
+                weight,
+            })
+            .collect::<Vec<_>>(),
+    )
+    .unwrap();
+
+    let random_oracle = RandomOracle::new("tbls test");
+
+    let dealer: Dealer<G1Element, G2Element> = Dealer {
+        number_of_nonces,
+        threshold,
+        nodes: nodes.clone(),
+        random_oracle,
+        _group: PhantomData,
+    };
+
+    let mut receivers = sks
+        .into_iter()
+        .enumerate()
+        .map(|(i, secret_key)| Receiver {
+            id: i as u16,
+            secret_key,
+            number_of_nonces,
+            random_oracle: RandomOracle::new("tbls test"),
+            threshold,
+            nodes: nodes.clone(),
+            _group: PhantomData,
+        })
+        .collect::<Vec<_>>();
+
+    let (message, output) = dealer.create_message(&mut rng).unwrap();
+
+    let all_shares = receivers
+        .iter()
+        .map(|receiver| (receiver.process_message(&message).unwrap()))
+        .flatten()
+        .collect::<Vec<_>>();
+
+    let certificate = TestCertificate {
+        message: message.clone(),
+        included: vec![0, 1, 2],
+        nodes: nodes.clone(),
+    };
+
+    for receiver in receivers.iter_mut() {
+        // Expect no complaints
+        assert!(receiver
+            .process_certificate(&certificate, &mut rng)
+            .unwrap()
+            .is_none());
+    }
+
+    let secrets = (0..number_of_nonces)
+        .map(|l| {
+            Poly::recover_c0(
+                threshold + 1,
+                all_shares
+                    .iter()
+                    .take((threshold + 1) as usize)
+                    .map(|s| Eval {
+                        index: s.index,
+                        value: s.r[l as usize],
+                    }),
+            )
+            .unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    for l in 0..number_of_nonces {
+        assert_eq!(secrets[l as usize], output.nonces[l as usize]);
+        assert_eq!(
+            G1Element::generator() * secrets[l as usize],
+            output.public_keys[l as usize]
+        );
+    }
+}
+
 pub struct TestCertificate<G: GroupElement, EG: GroupElement> {
     message: Message<G, EG>,
     included: Vec<u16>,
+    nodes: Nodes<EG>,
 }
 
-impl<G: GroupElement, EG: GroupElement> Certificate<G, EG> for TestCertificate<G, EG> {
+impl<G: GroupElement, EG: GroupElement + Serialize> Certificate<G, EG> for TestCertificate<G, EG> {
     fn message(&self) -> Message<G, EG> {
         self.message.clone()
     }
 
     fn is_valid(&self, threshold: usize) -> bool {
-        self.included.len() >= threshold
+        let weights = self
+            .included
+            .iter()
+            .map(|id| self.nodes.share_ids_of(*id).unwrap().len())
+            .collect_vec();
+        weights.iter().sum::<usize>() >= threshold
     }
 
     fn includes_receiver(&self, index: u16) -> bool {
@@ -193,6 +297,7 @@ fn test_share_recovery() {
     let certificate = TestCertificate {
         message: message.clone(),
         included: vec![2, 3, 4, 5, 6], // 2f+1
+        nodes: nodes.clone(),
     };
 
     for i in 0..n {
