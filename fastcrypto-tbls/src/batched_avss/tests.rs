@@ -333,7 +333,7 @@ where
             Message {
                 c,
                 c_prime,
-                encryptions,
+                ciphertext: encryptions,
                 p_double_prime,
             },
             Output {

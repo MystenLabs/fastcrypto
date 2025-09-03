@@ -9,15 +9,13 @@ use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::types::{Share, ShareIndex};
+use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
-use std::borrow::Borrow;
-use std::collections::BTreeMap;
 use std::marker::PhantomData;
 use tap::TapFallible;
 use tracing::{debug, warn};
@@ -36,7 +34,7 @@ pub struct Receiver<G, EG: GroupElement>
 where
     EG::ScalarType: Zeroize,
 {
-    id: u16,
+    id: PartyId,
     secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     number_of_nonces: u16,
@@ -49,7 +47,7 @@ where
 pub struct Message<G: GroupElement, EG: GroupElement> {
     c: Vec<G>,
     c_prime: G,
-    encryptions: MultiRecipientEncryption<EG>,
+    ciphertext: MultiRecipientEncryption<EG>,
     p_double_prime: Poly<G::ScalarType>,
 }
 
@@ -108,69 +106,49 @@ where
         })
     }
 
-    /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces along with their corresponding public keys.
+    /// 1. The Dealer samples nonces, generates shares and broadcasts the encrypted shares.
+    ///    This also returns the nonces along with their corresponding public keys.
     pub fn create_message<Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
-        let n = self.nodes.total_weight();
-
         let p = (0..self.number_of_nonces)
             .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
-            .collect::<Vec<_>>();
+            .collect_vec();
+        let c = p.iter().map(commit).collect_vec();
+
         let p_prime = Poly::<G::ScalarType>::rand(self.threshold, rng);
-        let c = p
-            .iter()
-            .map(|p_l| G::generator() * p_l.c0())
-            .collect::<Vec<_>>();
-        let c_prime = G::generator() * p_prime.c0();
+        let c_prime = commit(&p_prime);
 
-        let r: Vec<Vec<G::ScalarType>> = p
-            .iter()
-            .map(|p_l| {
-                (1..=n)
-                    .map(|j| p_l.eval(ShareIndex::new(j).unwrap()).value)
-                    .collect()
-            })
-            .collect();
-        let r_prime: Vec<G::ScalarType> = (1..=n)
-            .map(|j| p_prime.eval(ShareIndex::new(j).unwrap()).value)
-            .collect();
-
-        let shares_for_node = self
+        // Encrypt
+        let plaintexts = self
             .nodes
             .iter()
-            .map(|node| {
-                let share_ids = self.nodes.share_ids_of(node.id)?;
-                Ok(share_ids
-                    .iter()
-                    .map(|share_id| NonceShares {
-                        index: *share_id,
-                        r: r.iter()
-                            .map(|r_l| r_l[share_id.get() as usize - 1])
-                            .collect(),
-                        r_prime: r_prime[share_id.get() as usize - 1],
-                    })
-                    .collect::<Vec<NonceShares<G::ScalarType>>>())
+            .map(|n| (&n.pk, self.nodes.share_ids_of(n.id).unwrap()))
+            .map(|(pk, share_ids)| {
+                (
+                    pk,
+                    share_ids
+                        .iter()
+                        .map(|index| {
+                            let index = *index;
+                            let r = p.iter().map(|p_l| p_l.eval(index).value).collect();
+                            let r_prime = p_prime.eval(index).value;
+                            NonceShares { index, r, r_prime }
+                        })
+                        .collect_vec(),
+                )
             })
-            .collect::<FastCryptoResult<Vec<Vec<NonceShares<G::ScalarType>>>>>()?;
+            .map(|(pk, shares)| (pk.clone(), bcs::to_bytes(&shares).unwrap()))
+            .collect_vec();
 
-        let encryptions = MultiRecipientEncryption::encrypt(
-            &self
-                .nodes
-                .iter()
-                .map(|node| {
-                    (
-                        node.pk.clone(),
-                        bcs::to_bytes(&shares_for_node[node.id as usize]).unwrap(),
-                    )
-                })
-                .collect::<Vec<_>>(),
+        let ciphertext = MultiRecipientEncryption::encrypt(
+            &plaintexts,
             &self.random_oracle_extension(Encryption),
             rng,
         );
 
-        let gamma = self.compute_gamma(&c, &c_prime, &encryptions);
+        let gamma = self.compute_gamma(&c, &c_prime, &ciphertext);
 
         let mut p_double_prime = p_prime;
         for (p_l, gamma_l) in p.iter().zip(&gamma) {
@@ -184,7 +162,7 @@ where
             Message {
                 c,
                 c_prime,
-                encryptions,
+                ciphertext,
                 p_double_prime,
             },
             Output {
@@ -213,15 +191,20 @@ where
         }
 
         let random_oracle_encryption = self.random_oracle_extension(Encryption);
-        message.encryptions.verify(&random_oracle_encryption)?;
+        message.ciphertext.verify(&random_oracle_encryption)?;
 
-        let decrypted = message.encryptions.decrypt(
+        let plaintext = message.ciphertext.decrypt(
             &self.secret_key,
             &random_oracle_encryption,
             self.id as usize,
         );
         let all_shares: Vec<NonceShares<G::ScalarType>> =
-            bcs::from_bytes(&decrypted).map_err(|_| InvalidInput)?;
+            bcs::from_bytes(&plaintext).map_err(|_| InvalidInput)?;
+
+        // Check that we received the correct number of shares.
+        if all_shares.len() != self.nodes.share_ids_of(self.id)?.len() {
+            return Err(InvalidInput);
+        }
 
         let gamma = self.compute_gamma_from_message(message);
         for shares in &all_shares {
@@ -255,21 +238,18 @@ where
             return Ok(None);
         }
 
+        // ? At what point should cert.message.verify be called? Now, it is called in process_certificate of the client, so if it fails we get a complaint.
+
         match self.process_message(&cert.message()) {
             Ok(_) => Ok(None),
-            Err(_) => {
-                cert.message()
-                    .encryptions
-                    .verify(&self.random_oracle_extension(Encryption))?;
-                Ok(Some(Complaint {
-                    party_id: self.id,
-                    proof: cert.message().encryptions.create_recovery_package(
-                        &self.secret_key,
-                        &self.random_oracle_extension(Recovery(self.id)),
-                        rng,
-                    ),
-                }))
-            }
+            Err(_) => Ok(Some(Complaint {
+                party_id: self.id,
+                proof: cert.message().ciphertext.create_recovery_package(
+                    &self.secret_key,
+                    &self.random_oracle_extension(Recovery(self.id)),
+                    rng,
+                ),
+            })),
         }
     }
 
@@ -286,7 +266,7 @@ where
             self.nodes.node_id_to_node(complaint.party_id)?,
         )?;
         Ok(ComplaintResponse {
-            recovery_package: message.encryptions.create_recovery_package(
+            recovery_package: message.ciphertext.create_recovery_package(
                 &self.secret_key,
                 &self.random_oracle_extension(Recovery(self.id)),
                 rng,
@@ -328,13 +308,20 @@ where
     }
 
     /// 6. Upon receiving f+1 valid responses, the accuser can recover its shares.
+    /// Fails if there are not enough valid responses to recover the shares.
     pub fn recover_shares(
         &mut self,
         message: &Message<G, EG>,
         responses: &[(PartyId, ComplaintResponse<EG>)],
     ) -> FastCryptoResult<Vec<NonceShares<G::ScalarType>>> {
-        // TODO: Account for weights here.
-        if responses.len() < (self.threshold + 1) as usize {
+        // Sanity check that we have enough responses (by weight) to recover the shares.
+        let response_weights = responses
+            .iter()
+            .map(|(id, _)| self.nodes.share_ids_of(*id))
+            .map_ok(|ids| ids.len())
+            .collect::<FastCryptoResult<Vec<_>>>()?;
+        let total_response_weight: usize = response_weights.iter().sum();
+        if total_response_weight < (self.threshold + 1) as usize {
             return Err(FastCryptoError::InputTooShort(
                 (self.threshold + 1) as usize,
             ));
@@ -342,37 +329,38 @@ where
 
         let ro_encryption = self.random_oracle_extension(Encryption);
 
-        // Ignore invalid responses
-        let shares = responses
+        let response_shares = responses
             .iter()
             .filter_map(|(id, response)| {
-                message
-                    .encryptions
-                    .decrypt_with_recovery_package(
-                        &response.recovery_package,
-                        &self.random_oracle_extension(Recovery(*id)),
-                        &ro_encryption,
-                        &self.nodes.node_id_to_node(*id).ok()?.pk, // Ignore invalid IDs
-                        *id as usize,
-                    )
-                    .map(|bytes| {
+                self.nodes
+                    .node_id_to_node(*id)
+                    .and_then(|node| {
+                        message.ciphertext.decrypt_with_recovery_package(
+                            &response.recovery_package,
+                            &self.random_oracle_extension(Recovery(node.id)),
+                            &ro_encryption,
+                            &node.pk, // Ignore invalid IDs
+                            *id as usize,
+                        )
+                    })
+                    .and_then(|bytes| {
                         bcs::from_bytes::<Vec<NonceShares<G::ScalarType>>>(bytes.as_slice())
                             .map_err(|_| InvalidInput)
-                            .map(|decrypted| decrypted)
                     })
                     .tap_err(|_| warn!("Ignoring invalid recovery package from {}", id))
                     .ok()
             })
-            .flatten_ok()
-            .collect::<FastCryptoResult<Vec<NonceShares<_>>>>()?;
+            .flatten()
+            .collect::<Vec<NonceShares<_>>>();
 
-        if shares.len() < (self.threshold + 1) as usize {
+        // We ignore the invalid responses and just check that we have enough valid ones here.
+        if response_shares.len() < (self.threshold + 1) as usize {
             return Err(FastCryptoError::GeneralError(
                 "Not enough valid responses".to_string(),
             ));
         }
 
-        let shares = self
+        let my_shares = self
             .nodes
             .share_ids_of(self.id)?
             .iter()
@@ -380,7 +368,7 @@ where
                 let index = *index;
                 let r_prime = interpolate(
                     index,
-                    &shares
+                    &response_shares
                         .iter()
                         .map(|s| Eval {
                             index: s.index,
@@ -394,7 +382,7 @@ where
                     .map(|l| {
                         interpolate(
                             index,
-                            &shares
+                            &response_shares
                                 .iter()
                                 .map(|s| Eval {
                                     index: s.index,
@@ -411,13 +399,10 @@ where
             .collect::<FastCryptoResult<Vec<_>>>()?;
 
         let gamma = self.compute_gamma_from_message(message);
-        if shares
-            .iter()
-            .any(|s| self.verify_shares(s, Some(&gamma), message).is_err())
-        {
-            return Err(InvalidInput);
+        for shares in &my_shares {
+            self.verify_shares(shares, Some(&gamma), message)?;
         }
-        Ok(shares)
+        Ok(my_shares)
     }
 
     /// Helper function to verify that the complaint is valid, i.e., that the recovery package decrypts to valid shares.
@@ -429,7 +414,7 @@ where
         receiver: &Node<EG>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
-        let buffer = message.encryptions.decrypt_with_recovery_package(
+        let buffer = message.ciphertext.decrypt_with_recovery_package(
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.party_id)),
             &self.random_oracle_extension(Encryption),
@@ -497,8 +482,12 @@ where
     }
 
     fn compute_gamma_from_message(&self, message: &Message<G, EG>) -> Vec<G::ScalarType> {
-        self.compute_gamma(message.c.as_slice(), &message.c_prime, &message.encryptions)
+        self.compute_gamma(message.c.as_slice(), &message.c_prime, &message.ciphertext)
     }
+}
+
+fn commit<G: GroupElement>(p: &Poly<G::ScalarType>) -> G {
+    G::generator() * p.c0()
 }
 
 impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
