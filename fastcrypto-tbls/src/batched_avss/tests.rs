@@ -1,7 +1,7 @@
 use crate::batched_avss::Extension::Encryption;
 use crate::batched_avss::{
-    Certificate, Dealer, FiatShamirImpl, Message, NonceShares, Output, RandomOracleExtensions,
-    Receiver,
+    Certificate, Complaint, Dealer, DealerOutput, FiatShamirImpl, Message, NonceShares,
+    ProcessCertificateResult, RandomOracleExtensions, Receiver,
 };
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
@@ -74,24 +74,27 @@ fn test_happy_path() {
         .collect::<HashMap<_, _>>();
 
     let certificate = TestCertificate {
-        message: message.clone(),
         included: vec![1, 2, 3, 4, 5], // 2f+1
         nodes: nodes.clone(),
     };
 
     for receiver in receivers.iter_mut() {
-        // Expect no complaints
-        assert!(receiver
-            .process_certificate(&certificate, &mut rng)
+        receiver
+            .process_certificate(&message, &certificate, &mut rng)
             .unwrap()
-            .is_none());
+            .assert_no_complaint();
     }
 
     let secrets = (0..number_of_nonces)
         .map(|l| {
             let shares = receivers
                 .iter()
-                .map(|r| (r.id, all_shares.get(&r.id).unwrap()[0].r[l as usize]))
+                .map(|r| {
+                    (
+                        r.id,
+                        all_shares.get(&r.id).unwrap().all_shares[0].r[l as usize],
+                    )
+                })
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
@@ -165,22 +168,24 @@ fn test_happy_path_non_equal_weights() {
 
     let all_shares = receivers
         .iter()
-        .map(|receiver| (receiver.process_message(&message).unwrap()))
+        .map(|receiver| receiver.process_message(&message).unwrap().all_shares)
         .flatten()
         .collect::<Vec<_>>();
 
     let certificate = TestCertificate {
-        message: message.clone(),
         included: vec![0, 1, 2],
         nodes: nodes.clone(),
     };
 
     for receiver in receivers.iter_mut() {
         // Expect no complaints
-        assert!(receiver
-            .process_certificate(&certificate, &mut rng)
+        match receiver
+            .process_certificate(&message, &certificate, &mut rng)
             .unwrap()
-            .is_none());
+        {
+            ProcessCertificateResult::Complaint(_) => panic!("Expected no complaints"),
+            _ => {}
+        }
     }
 
     let secrets = (0..number_of_nonces)
@@ -204,18 +209,13 @@ fn test_happy_path_non_equal_weights() {
     }
 }
 
-pub struct TestCertificate<G: GroupElement, EG: GroupElement> {
-    message: Message<G, EG>,
+pub struct TestCertificate<EG: GroupElement> {
     included: Vec<u16>,
     nodes: Nodes<EG>,
 }
 
-impl<G: GroupElement, EG: GroupElement + Serialize> Certificate<G, EG> for TestCertificate<G, EG> {
-    fn message(&self) -> Message<G, EG> {
-        self.message.clone()
-    }
-
-    fn is_valid(&self, threshold: usize) -> bool {
+impl<G: GroupElement, EG: GroupElement + Serialize> Certificate<G, EG> for TestCertificate<EG> {
+    fn is_valid(&self, _message: &Message<G, EG>, threshold: usize) -> bool {
         let weights = self
             .included
             .iter()
@@ -287,32 +287,25 @@ fn test_share_recovery() {
     assert!(all_shares.get(&0).is_none());
 
     let certificate = TestCertificate {
-        message: message.clone(),
         included: vec![2, 3, 4, 5, 6], // 2f+1
         nodes: nodes.clone(),
     };
 
     for i in 0..n {
         let complaint = receivers[i as usize]
-            .process_certificate(&certificate, &mut rng)
+            .process_certificate(&message, &certificate, &mut rng)
             .unwrap();
         if i == 0 {
-            assert!(complaint.is_some());
+            let c = complaint.assert_complaint();
             let responses = receivers
                 .iter()
                 .skip(1)
-                .map(|r| {
-                    (
-                        r.id,
-                        r.handle_complaint(&message, &complaint.clone().unwrap(), &mut rng)
-                            .unwrap(),
-                    )
-                })
+                .map(|r| r.handle_complaint(&message, c, &mut rng).unwrap())
                 .collect::<Vec<_>>();
-            let shares = receivers[0].recover_shares(&message, &responses).unwrap();
+            let shares = receivers[0].recover(&message, &responses).unwrap();
             all_shares.insert(0, shares);
         } else {
-            assert!(complaint.is_none());
+            complaint.assert_no_complaint();
         }
     }
 
@@ -321,7 +314,7 @@ fn test_share_recovery() {
         .map(|l| {
             let shares = all_shares
                 .iter()
-                .map(|(id, s)| (*id, s[0].r[l as usize]))
+                .map(|(id, s)| (*id, s.all_shares[0].r[l as usize]))
                 .collect::<Vec<_>>();
             Poly::recover_c0(
                 threshold + 1,
@@ -351,7 +344,7 @@ where
     pub fn create_message_cheating<Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
-    ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
+    ) -> FastCryptoResult<(Message<G, EG>, DealerOutput<G>)> {
         let n = self.nodes.total_weight();
 
         let polynomials = (0..self.number_of_nonces)
@@ -429,7 +422,23 @@ where
                 ciphertext,
                 q,
             },
-            Output { nonces },
+            DealerOutput { nonces },
         ))
+    }
+}
+
+impl<G: GroupElement, EG: GroupElement> ProcessCertificateResult<G, EG> {
+    fn assert_complaint(&self) -> &Complaint<EG> {
+        match self {
+            ProcessCertificateResult::Complaint(c) => c,
+            _ => panic!("Expected a complaint"),
+        }
+    }
+
+    fn assert_no_complaint(&self) {
+        match self {
+            ProcessCertificateResult::Complaint(_) => panic!("Expected no complaint"),
+            _ => {}
+        }
     }
 }

@@ -88,6 +88,15 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         self.total_weight
     }
 
+    /// Total weight of a subset of the parties. Returns error if any party does not exist.
+    pub fn total_weight_of(&self, ids: impl Iterator<Item = PartyId>) -> FastCryptoResult<u16> {
+        let mut total_weight = 0;
+        for id in ids {
+            total_weight += self.node_id_to_node(id)?.weight;
+        }
+        Ok(total_weight)
+    }
+
     /// Number of nodes.
     pub fn num_nodes(&self) -> usize {
         self.nodes.len()
