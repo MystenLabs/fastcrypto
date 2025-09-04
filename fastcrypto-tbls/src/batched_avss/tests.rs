@@ -57,7 +57,7 @@ fn test_happy_path() {
         .enumerate()
         .map(|(i, secret_key)| Receiver {
             id: i as u16,
-            secret_key,
+            enc_secret_key: secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
             threshold,
@@ -155,7 +155,7 @@ fn test_happy_path_non_equal_weights() {
         .enumerate()
         .map(|(i, secret_key)| Receiver {
             id: i as u16,
-            secret_key,
+            enc_secret_key: secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
             threshold,
@@ -266,7 +266,7 @@ fn test_share_recovery() {
         .enumerate()
         .map(|(i, secret_key)| Receiver {
             id: i as u16,
-            secret_key,
+            enc_secret_key: secret_key,
             number_of_nonces,
             random_oracle: RandomOracle::new("tbls test"),
             threshold,

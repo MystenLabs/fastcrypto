@@ -35,7 +35,7 @@ where
     EG::ScalarType: Zeroize,
 {
     id: PartyId,
-    secret_key: PrivateKey<EG>,
+    enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     number_of_nonces: u16,
     random_oracle: RandomOracle,
@@ -43,6 +43,19 @@ where
     _group: PhantomData<G>,
 }
 
+/// The output of the dealer: The distributed nonces.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DealerOutput<G: GroupElement> {
+    pub nonces: Vec<G::ScalarType>,
+}
+
+/// The output of a receiver: The shares for each nonce.
+#[derive(Debug, Clone)]
+pub struct ReceiverOutput<G: GroupElement> {
+    pub all_shares: Vec<NonceShares<G::ScalarType>>,
+}
+
+/// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
 #[derive(Clone, Debug)]
 pub struct Message<G: GroupElement, EG: GroupElement> {
     public_keys: Vec<G>,
@@ -51,6 +64,13 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     q: Poly<G::ScalarType>,
 }
 
+/// A certificate on a [Message].
+pub trait Certificate<G: GroupElement, EG: GroupElement> {
+    fn is_valid(&self, message: &Message<G, EG>, threshold: usize) -> bool;
+    fn includes(&self, id: &PartyId) -> bool;
+}
+
+/// The result of processing a certificate by a receiver: Either valid shares, a complaint, or ignore if the receiver was already included.
 #[derive(Debug, Clone)]
 pub enum ProcessCertificateResult<G: GroupElement, EG: GroupElement> {
     Valid(ReceiverOutput<G>),
@@ -58,21 +78,18 @@ pub enum ProcessCertificateResult<G: GroupElement, EG: GroupElement> {
     Ignore,
 }
 
+/// A complaint by a receiver that it could not decrypt or verify its shares.
 #[derive(Clone, Debug)]
 pub struct Complaint<EG: GroupElement> {
     party_id: PartyId,
     proof: RecoveryPackage<EG>,
 }
 
+/// A response to a complaint, containing a recovery package for the accuser.
 #[derive(Debug, Clone)]
 pub struct ComplaintResponse<EG: GroupElement> {
     party_id: PartyId,
     recovery_package: RecoveryPackage<EG>,
-}
-
-pub trait Certificate<G: GroupElement, EG: GroupElement> {
-    fn is_valid(&self, message: &Message<G, EG>, threshold: usize) -> bool;
-    fn includes(&self, id: &PartyId) -> bool;
 }
 
 /// The shares for a receiver, containing shares for each nonce and one for the combined polynomial.
@@ -81,17 +98,6 @@ pub struct NonceShares<C: GroupElement> {
     pub index: ShareIndex,
     pub r: Vec<C>,
     pub r_prime: C,
-}
-
-/// The output of the dealer: The nonces and their corresponding public keys.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DealerOutput<G: GroupElement> {
-    pub nonces: Vec<G::ScalarType>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ReceiverOutput<G: GroupElement> {
-    pub all_shares: Vec<NonceShares<G::ScalarType>>,
 }
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
@@ -129,13 +135,14 @@ where
             .collect_vec();
         let public_keys = polynomials.iter().map(pk_from_sk).collect_vec();
 
-        // Secrets to be shared
+        // Random secrets (nonces) to be shared
         let nonces = polynomials.iter().map(|p_l| *p_l.c0()).collect();
 
+        // "blinding" polynomials as defined in https://eprint.iacr.org/2023/536.pdf.
         let p_prime = Poly::rand(self.threshold, rng);
         let c_prime = pk_from_sk(&p_prime);
 
-        // Encrypt
+        // Encrypt all shares to the receivers
         let pk_and_msgs = self
             .nodes
             .iter()
@@ -167,6 +174,7 @@ where
 
         let gamma = self.compute_gamma(&public_keys, &c_prime, &ciphertext);
 
+        // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let mut q = p_prime;
         for (p_l, gamma_l) in polynomials.into_iter().zip(&gamma) {
             q += &(p_l * gamma_l); // TODO: Impl MSM for polynomials?
@@ -202,7 +210,7 @@ where
 
         message.ciphertext.verify(&random_oracle_encryption)?;
         let plaintext = message.ciphertext.decrypt(
-            &self.secret_key,
+            &self.enc_secret_key,
             &random_oracle_encryption,
             self.id as usize,
         );
@@ -260,7 +268,7 @@ where
                 Ok(ProcessCertificateResult::Complaint(Complaint {
                     party_id: self.id,
                     proof: message.ciphertext.create_recovery_package(
-                        &self.secret_key,
+                        &self.enc_secret_key,
                         &self.random_oracle_extension(Recovery(self.id)),
                         rng,
                     ),
@@ -283,7 +291,7 @@ where
         Ok(ComplaintResponse {
             party_id: self.id,
             recovery_package: message.ciphertext.create_recovery_package(
-                &self.secret_key,
+                &self.enc_secret_key,
                 &self.random_oracle_extension(Recovery(self.id)),
                 rng,
             ),
