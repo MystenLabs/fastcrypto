@@ -6,7 +6,7 @@ mod tests;
 
 use crate::batched_avss::Extension::{Challenge, Encryption, Recovery};
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
-use crate::nodes::{Node, Nodes, PartyId};
+use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{interpolate, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
@@ -45,10 +45,10 @@ where
 
 #[derive(Clone, Debug)]
 pub struct Message<G: GroupElement, EG: GroupElement> {
-    c: Vec<G>,
+    public_keys: Vec<G>,
     c_prime: G,
     ciphertext: MultiRecipientEncryption<EG>,
-    p_double_prime: Poly<G::ScalarType>,
+    q: Poly<G::ScalarType>,
 }
 
 pub struct ComplaintResponse<EG: GroupElement> {
@@ -79,7 +79,11 @@ pub struct NonceShares<C: GroupElement> {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Output<G: GroupElement> {
     nonces: Vec<G::ScalarType>,
-    public_keys: Vec<G>,
+}
+
+pub struct ReceiverOutput<G: GroupElement> {
+    pub shares: Vec<NonceShares<G::ScalarType>>,
+    pub partial_public_keys: Vec<G>,
 }
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
@@ -112,27 +116,33 @@ where
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
-        let p = (0..self.number_of_nonces)
-            .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
+        let polynomials = (0..self.number_of_nonces)
+            .map(|_| Poly::rand(self.threshold, rng))
             .collect_vec();
-        let c = p.iter().map(commit).collect_vec();
+        let public_keys = polynomials.iter().map(pk_from_sk).collect_vec();
 
-        let p_prime = Poly::<G::ScalarType>::rand(self.threshold, rng);
-        let c_prime = commit(&p_prime);
+        // Secrets to be shared
+        let nonces = polynomials.iter().map(|p_l| *p_l.c0()).collect();
+
+        let p_prime = Poly::rand(self.threshold, rng);
+        let c_prime = pk_from_sk(&p_prime);
 
         // Encrypt
         let pk_and_msgs = self
             .nodes
             .iter()
-            .map(|n| (n.pk.clone(), self.nodes.share_ids_of(n.id).unwrap()))
-            .map(|(pk, share_ids)| {
+            .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+            .map(|(public_key, share_ids)| {
                 (
-                    pk,
+                    public_key,
                     share_ids
                         .into_iter()
                         .map(|index| NonceShares {
                             index,
-                            r: p.iter().map(|p_l| p_l.eval(index).value).collect(),
+                            r: polynomials
+                                .iter()
+                                .map(|p_l| p_l.eval(index).value)
+                                .collect(),
                             r_prime: p_prime.eval(index).value,
                         })
                         .collect_vec(),
@@ -147,27 +157,21 @@ where
             rng,
         );
 
-        let gamma = self.compute_gamma(&c, &c_prime, &ciphertext);
+        let gamma = self.compute_gamma(&public_keys, &c_prime, &ciphertext);
 
-        let mut p_double_prime = p_prime;
-        for (p_l, gamma_l) in p.iter().zip(&gamma) {
-            p_double_prime += &(p_l.clone() * gamma_l); // TODO: Impl MSM for polynomials?
+        let mut q = p_prime;
+        for (p_l, gamma_l) in polynomials.into_iter().zip(&gamma) {
+            q += &(p_l * gamma_l); // TODO: Impl MSM for polynomials?
         }
-
-        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
-        let public_keys = c.clone();
 
         Ok((
             Message {
-                c,
+                public_keys,
                 c_prime,
                 ciphertext,
-                p_double_prime,
+                q,
             },
-            Output {
-                nonces,
-                public_keys,
-            },
+            Output { nonces },
         ))
     }
 }
@@ -185,7 +189,7 @@ where
         &self,
         message: &Message<G, EG>,
     ) -> FastCryptoResult<Vec<NonceShares<G::ScalarType>>> {
-        if message.p_double_prime.degree() > self.threshold as usize {
+        if message.q.degree() > self.threshold as usize {
             return Err(InvalidInput);
         }
 
@@ -211,8 +215,8 @@ where
         }
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        if G::generator() * message.p_double_prime.c0()
-            != message.c_prime + G::multi_scalar_mul(&gamma, &message.c)?
+        if G::generator() * message.q.c0()
+            != message.c_prime + G::multi_scalar_mul(&gamma, &message.public_keys)?
         {
             return Err(InvalidInput);
         }
@@ -272,7 +276,9 @@ where
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
         self.check_complaint_proof(message, complaint, complaint.party_id)?;
-        message.ciphertext.verify(&self.random_oracle_extension(Encryption))?;
+        message
+            .ciphertext
+            .verify(&self.random_oracle_extension(Encryption))?;
         Ok(ComplaintResponse {
             recovery_package: message.ciphertext.create_recovery_package(
                 &self.secret_key,
@@ -308,7 +314,7 @@ where
             .iter()
             .zip(gamma)
             .fold(shares.r_prime, |acc, (r_l, gamma_l)| acc + (*r_l * gamma_l))
-            != message.p_double_prime.eval(shares.index).value
+            != message.q.eval(shares.index).value
         {
             return Err(InvalidInput);
         }
@@ -492,11 +498,15 @@ where
     }
 
     fn compute_gamma_from_message(&self, message: &Message<G, EG>) -> Vec<G::ScalarType> {
-        self.compute_gamma(message.c.as_slice(), &message.c_prime, &message.ciphertext)
+        self.compute_gamma(
+            message.public_keys.as_slice(),
+            &message.c_prime,
+            &message.ciphertext,
+        )
     }
 }
 
-fn commit<G: GroupElement>(p: &Poly<G::ScalarType>) -> G {
+fn pk_from_sk<G: GroupElement>(p: &Poly<G::ScalarType>) -> G {
     G::generator() * p.c0()
 }
 

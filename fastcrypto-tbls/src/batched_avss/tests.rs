@@ -1,11 +1,11 @@
 use crate::batched_avss::Extension::Encryption;
 use crate::batched_avss::{
-    Certificate, Dealer, FiatShamirImpl, Message, Node, NonceShares, Output,
-    RandomOracleExtensions, Receiver,
+    Certificate, Dealer, FiatShamirImpl, Message, NonceShares, Output, RandomOracleExtensions,
+    Receiver,
 };
 use crate::ecies_v1;
 use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
-use crate::nodes::{Nodes, PartyId};
+use crate::nodes::{Node, Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
@@ -109,10 +109,6 @@ fn test_happy_path() {
 
     for l in 0..number_of_nonces {
         assert_eq!(secrets[l as usize], output.nonces[l as usize]);
-        assert_eq!(
-            G1Element::generator() * secrets[l as usize],
-            output.public_keys[l as usize]
-        );
     }
 }
 
@@ -205,10 +201,6 @@ fn test_happy_path_non_equal_weights() {
 
     for l in 0..number_of_nonces {
         assert_eq!(secrets[l as usize], output.nonces[l as usize]);
-        assert_eq!(
-            G1Element::generator() * secrets[l as usize],
-            output.public_keys[l as usize]
-        );
     }
 }
 
@@ -347,10 +339,6 @@ fn test_share_recovery() {
 
     for l in 0..number_of_nonces {
         assert_eq!(secrets[l as usize], output.nonces[l as usize]);
-        assert_eq!(
-            G1Element::generator() * secrets[l as usize],
-            output.public_keys[l as usize]
-        );
     }
 }
 
@@ -364,19 +352,20 @@ where
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<(Message<G, EG>, Output<G>)> {
-        // TODO: weights + higher thresholds
         let n = self.nodes.total_weight();
 
-        let p = (0..self.number_of_nonces)
-            .map(|_| Poly::<G::ScalarType>::rand(self.threshold, rng))
+        let polynomials = (0..self.number_of_nonces)
+            .map(|_| Poly::rand(self.threshold, rng))
             .collect::<Vec<_>>();
-        let p_prime = Poly::<G::ScalarType>::rand(self.threshold, rng);
-        let c = p
+        let public_keys = polynomials
             .iter()
             .map(|p_l| G::generator() * p_l.c0())
             .collect::<Vec<_>>();
+
+        let p_prime = Poly::rand(self.threshold, rng);
         let c_prime = G::generator() * p_prime.c0();
-        let mut r: Vec<Vec<G::ScalarType>> = p
+
+        let mut r: Vec<Vec<G::ScalarType>> = polynomials
             .iter()
             .map(|p_l| {
                 (0..n)
@@ -409,7 +398,7 @@ where
             })
             .collect::<FastCryptoResult<Vec<Vec<NonceShares<G::ScalarType>>>>>()?;
 
-        let encryptions = MultiRecipientEncryption::encrypt(
+        let ciphertext = MultiRecipientEncryption::encrypt(
             &self
                 .nodes
                 .iter()
@@ -424,27 +413,23 @@ where
             rng,
         );
 
-        let gamma = self.compute_gamma(&c, &c_prime, &encryptions);
+        let gamma = self.compute_gamma(&public_keys, &c_prime, &ciphertext);
 
-        let mut p_double_prime = p_prime;
-        for (p_l, gamma_l) in p.iter().zip(&gamma) {
-            p_double_prime += &(p_l.clone() * gamma_l);
+        let mut q = p_prime;
+        for (p_l, gamma_l) in polynomials.iter().zip(&gamma) {
+            q += &(p_l.clone() * gamma_l);
         }
 
-        let nonces = p.iter().map(|p_l| *p_l.c0()).collect();
-        let public_keys = c.clone();
+        let nonces = polynomials.iter().map(|p_l| *p_l.c0()).collect();
 
         Ok((
             Message {
-                c,
-                c_prime,
-                ciphertext: encryptions,
-                p_double_prime,
-            },
-            Output {
-                nonces,
                 public_keys,
+                c_prime,
+                ciphertext,
+                q,
             },
+            Output { nonces },
         ))
     }
 }
