@@ -81,14 +81,14 @@ pub enum ProcessCertificateResult<G: GroupElement, EG: GroupElement> {
 /// A complaint by a receiver that it could not decrypt or verify its shares.
 #[derive(Clone, Debug)]
 pub struct Complaint<EG: GroupElement> {
-    party_id: PartyId,
+    accuser_id: PartyId,
     proof: RecoveryPackage<EG>,
 }
 
 /// A response to a complaint, containing a recovery package for the accuser.
 #[derive(Debug, Clone)]
 pub struct ComplaintResponse<EG: GroupElement> {
-    party_id: PartyId,
+    responder_id: PartyId,
     recovery_package: RecoveryPackage<EG>,
 }
 
@@ -177,7 +177,7 @@ where
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let mut q = p_prime;
         for (p_l, gamma_l) in polynomials.into_iter().zip(&gamma) {
-            q += &(p_l * gamma_l); // TODO: Impl MSM for polynomials?
+            q += &(p_l * gamma_l);
         }
 
         Ok((
@@ -266,7 +266,7 @@ where
                     .ciphertext
                     .verify(&self.random_oracle_extension(Encryption))?;
                 Ok(ProcessCertificateResult::Complaint(Complaint {
-                    party_id: self.id,
+                    accuser_id: self.id,
                     proof: message.ciphertext.create_recovery_package(
                         &self.enc_secret_key,
                         &self.random_oracle_extension(Recovery(self.id)),
@@ -284,12 +284,12 @@ where
         complaint: &Complaint<EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
-        self.check_complaint_proof(message, complaint, complaint.party_id)?;
+        self.check_complaint_proof(message, complaint)?;
         message
             .ciphertext
             .verify(&self.random_oracle_extension(Encryption))?;
         Ok(ComplaintResponse {
-            party_id: self.id,
+            responder_id: self.id,
             recovery_package: message.ciphertext.create_recovery_package(
                 &self.enc_secret_key,
                 &self.random_oracle_extension(Recovery(self.id)),
@@ -308,7 +308,7 @@ where
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
             .nodes
-            .total_weight_of(responses.iter().map(|response| response.party_id))?;
+            .total_weight_of(responses.iter().map(|response| response.responder_id))?;
         if total_response_weight < self.threshold + 1 {
             return Err(FastCryptoError::InputTooShort(
                 (self.threshold + 1) as usize,
@@ -321,14 +321,14 @@ where
             .iter()
             .filter_map(|response| {
                 self.nodes
-                    .node_id_to_node(response.party_id)
+                    .node_id_to_node(response.responder_id)
                     .and_then(|node| {
                         message.ciphertext.decrypt_with_recovery_package(
                             &response.recovery_package,
                             &self.random_oracle_extension(Recovery(node.id)),
                             &ro_encryption,
                             &node.pk,
-                            response.party_id as usize,
+                            response.responder_id as usize,
                         )
                     })
                     .and_then(|bytes| {
@@ -338,7 +338,7 @@ where
                     .tap_err(|_| {
                         warn!(
                             "Ignoring invalid recovery package from {}",
-                            response.party_id
+                            response.responder_id
                         )
                     })
                     .ok()
@@ -437,17 +437,16 @@ where
         &self,
         message: &Message<G, EG>,
         complaint: &Complaint<EG>,
-        id: PartyId,
     ) -> FastCryptoResult<()> {
-        let enc_pk = &self.nodes.node_id_to_node(id)?.pk;
+        let enc_pk = &self.nodes.node_id_to_node(complaint.accuser_id)?.pk;
 
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
         let buffer = message.ciphertext.decrypt_with_recovery_package(
             &complaint.proof,
-            &self.random_oracle_extension(Recovery(complaint.party_id)),
+            &self.random_oracle_extension(Recovery(complaint.accuser_id)),
             &self.random_oracle_extension(Encryption),
             &enc_pk,
-            complaint.party_id as usize,
+            complaint.accuser_id as usize,
         )?;
 
         let shares: NonceShares<G::ScalarType> = match bcs::from_bytes(buffer.as_slice()) {
