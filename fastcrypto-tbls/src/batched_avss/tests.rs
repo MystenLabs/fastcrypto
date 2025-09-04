@@ -168,8 +168,7 @@ fn test_happy_path_non_equal_weights() {
 
     let all_shares = receivers
         .iter()
-        .map(|receiver| receiver.process_message(&message).unwrap().all_shares)
-        .flatten()
+        .flat_map(|receiver| receiver.process_message(&message).unwrap().all_shares)
         .collect::<Vec<_>>();
 
     let certificate = TestCertificate {
@@ -261,7 +260,7 @@ fn test_share_recovery() {
         _group: PhantomData,
     };
 
-    let mut receivers = sks
+    let receivers = sks
         .into_iter()
         .enumerate()
         .map(|(i, secret_key)| Receiver {
@@ -429,16 +428,16 @@ where
 
 impl<G: GroupElement, EG: GroupElement> ProcessCertificateResult<G, EG> {
     fn assert_complaint(&self) -> &Complaint<EG> {
-        match self {
-            ProcessCertificateResult::Complaint(c) => c,
-            _ => panic!("Expected a complaint"),
+        if let ProcessCertificateResult::Complaint(c) = self {
+            c
+        } else {
+            panic!("Expected a complaint");
         }
     }
 
     fn assert_no_complaint(&self) {
-        match self {
-            ProcessCertificateResult::Complaint(_) => panic!("Expected no complaint"),
-            _ => {}
+        if let ProcessCertificateResult::Complaint(_) = self {
+            panic!("Expected no complaint");
         }
     }
 }

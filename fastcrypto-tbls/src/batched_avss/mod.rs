@@ -49,7 +49,7 @@ pub struct DealerOutput<G: GroupElement> {
     pub nonces: Vec<G::ScalarType>,
 }
 
-/// The output of a receiver: The shares for each nonce.
+/// The output of a receiver: The shares for each nonce. This can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput<G: GroupElement> {
     pub all_shares: Vec<NonceShares<G::ScalarType>>,
@@ -258,7 +258,7 @@ where
         }
 
         // TODO: Verify message is called both in process_message and in create_complaint, so a receiver will call it up to three times
-        match self.process_message(&message) {
+        match self.process_message(message) {
             Ok(output) => Ok(ProcessCertificateResult::Valid(output)),
             Err(_) => {
                 // Create a complaint
@@ -299,12 +299,14 @@ where
     }
 
     /// 5. Upon receiving f+1 valid responses to a complaint, the accuser can recover its shares.
-    ///    Fails if there are not enough valid responses to recover the shares.
+    ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
     pub fn recover(
-        &mut self,
+        &self,
         message: &Message<G, EG>,
         responses: &[ComplaintResponse<EG>],
     ) -> FastCryptoResult<ReceiverOutput<G>> {
+        // TODO: This fails if one of the responses has an invalid responder_id. We could probably just ignore those instead.
+
         // Sanity check that we have enough responses (by weight) to recover the shares.
         let total_response_weight = self
             .nodes
@@ -445,7 +447,7 @@ where
             &complaint.proof,
             &self.random_oracle_extension(Recovery(complaint.accuser_id)),
             &self.random_oracle_extension(Encryption),
-            &enc_pk,
+            enc_pk,
             complaint.accuser_id as usize,
         )?;
 
