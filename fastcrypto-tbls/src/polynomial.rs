@@ -254,7 +254,10 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     }
 }
 
-pub fn interpolate<C: Scalar>(index: ShareIndex, points: &[Eval<C>]) -> FastCryptoResult<Eval<C>> {
+pub fn interpolate_at_index<C: Scalar>(
+    index: ShareIndex,
+    points: &[Eval<C>],
+) -> FastCryptoResult<Eval<C>> {
     if points.is_empty() {
         return Err(FastCryptoError::InvalidInput);
     }
