@@ -119,7 +119,7 @@ where
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<Message<G, EG>> {
-        let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
+        let polynomials = self.nonces.polynomials(self.threshold, rng);
 
         let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
 
@@ -741,7 +741,7 @@ mod tests {
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message<G, EG>> {
-            let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
+            let polynomials = self.nonces.polynomials(self.threshold, rng);
 
             let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
 

@@ -22,6 +22,7 @@ impl<T: Scalar> Nonces<T> {
         self.0.len() as u16
     }
 
+    /// Create nonces from given vector.
     fn given(nonces: Vec<T>) -> FastCryptoResult<Self> {
         if nonces.len() > u16::MAX as usize {
             return Err(InputTooLong(u16::MAX as usize));
@@ -29,11 +30,12 @@ impl<T: Scalar> Nonces<T> {
         Ok(Nonces(nonces))
     }
 
+    /// Sample n random nonces.
     fn random(n: u16, rng: &mut impl AllowedRng) -> Self {
         Nonces((0..n).map(|_| T::rand(rng)).collect())
     }
 
-    fn ss_polynomials(&self, degree: u16, rng: &mut impl AllowedRng) -> Vec<Poly<T>> {
+    fn polynomials(&self, degree: u16, rng: &mut impl AllowedRng) -> Vec<Poly<T>> {
         self.0
             .iter()
             .map(|c0| Poly::rand_fixed_c0(degree, *c0, rng))

@@ -119,7 +119,7 @@ where
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<Message<G, EG>> {
-        let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
+        let polynomials = self.nonces.polynomials(self.threshold, rng);
 
         // Random secrets (nonces) to be shared and their corresponding (full) public keys
         let public_keys = polynomials
