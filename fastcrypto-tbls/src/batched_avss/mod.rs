@@ -133,14 +133,17 @@ where
         let polynomials = (0..self.number_of_nonces)
             .map(|_| Poly::rand(self.threshold, rng))
             .collect_vec();
-        let public_keys = polynomials.iter().map(pk_from_sk).collect_vec();
 
-        // Random secrets (nonces) to be shared
-        let nonces = polynomials.iter().map(|p_l| *p_l.c0()).collect();
+        // Random secrets (nonces) to be shared and their corresponding (full) public keys
+        let (nonces, public_keys): (_, Vec<G>) = polynomials
+            .iter()
+            .map(Poly::c0)
+            .map(|c| (c, G::generator() * c))
+            .unzip();
 
         // "blinding" polynomials as defined in https://eprint.iacr.org/2023/536.pdf.
         let p_prime = Poly::rand(self.threshold, rng);
-        let c_prime = pk_from_sk(&p_prime);
+        let c_prime = G::generator() * p_prime.c0();
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
@@ -172,9 +175,8 @@ where
             rng,
         );
 
-        let gamma = self.compute_gamma(&public_keys, &c_prime, &ciphertext);
-
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
+        let gamma = self.compute_gamma(&public_keys, &c_prime, &ciphertext);
         let mut q = p_prime;
         for (p_l, gamma_l) in polynomials.into_iter().zip(&gamma) {
             q += &(p_l * gamma_l);
@@ -518,11 +520,6 @@ where
             &message.ciphertext,
         )
     }
-}
-
-/// Compute g^{p(0)} from the polynomial p.
-fn pk_from_sk<G: GroupElement>(p: &Poly<G::ScalarType>) -> G {
-    G::generator() * p.c0()
 }
 
 impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
