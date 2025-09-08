@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::batched_avss::dkg::Extension::{Encryption, Recovery};
+use crate::batched_avss::Nonces;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{interpolate_at_index, Eval, Poly, PublicPoly};
@@ -23,7 +24,7 @@ pub struct Dealer<G: GroupElement, EG: GroupElement> {
     threshold: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
-    nonces: Vec<G::ScalarType>,
+    nonces: Nonces<G::ScalarType>,
     _group: PhantomData<G>,
 }
 
@@ -38,12 +39,6 @@ where
     random_oracle: RandomOracle,
     threshold: u16,
     _group: PhantomData<G>,
-}
-
-/// The output of the dealer: The distributed nonces.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DealerOutput<G: GroupElement> {
-    pub nonces: Vec<G::ScalarType>,
 }
 
 /// The output of a receiver: The shares for each nonce. This can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
@@ -100,7 +95,7 @@ where
     G::ScalarType: FiatShamirChallenge,
 {
     pub fn new(
-        nonces: Vec<G::ScalarType>,
+        nonces: Nonces<G::ScalarType>,
         nodes: Nodes<EG>,
         threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
@@ -123,12 +118,8 @@ where
     pub fn create_message<Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
-    ) -> FastCryptoResult<(Message<G, EG>, DealerOutput<G>)> {
-        let polynomials = self
-            .nonces
-            .iter()
-            .map(|nonce| Poly::rand_fixed_c0(self.threshold, *nonce, rng))
-            .collect_vec();
+    ) -> FastCryptoResult<Message<G, EG>> {
+        let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
 
         let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
 
@@ -161,15 +152,10 @@ where
             rng,
         );
 
-        Ok((
-            Message {
-                ciphertext,
-                commitments,
-            },
-            DealerOutput {
-                nonces: self.nonces.clone(),
-            },
-        ))
+        Ok(Message {
+            ciphertext,
+            commitments,
+        })
     }
 }
 
@@ -461,20 +447,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::batched_avss::dkg::{Certificate, Dealer, Message, Receiver};
+    use crate::batched_avss::dkg::Extension::Encryption;
+    use crate::batched_avss::dkg::NonceShares;
+    use crate::batched_avss::dkg::{
+        Certificate, Dealer, Message, RandomOracleExtensions, Receiver,
+    };
     use crate::batched_avss::dkg::{Complaint, ProcessCertificateResult};
+    use crate::batched_avss::Nonces;
     use crate::ecies_v1;
-    use crate::ecies_v1::PublicKey;
+    use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
     use crate::polynomial::{Eval, Poly};
     use crate::random_oracle::RandomOracle;
     use crate::types::ShareIndex;
+    use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::bls12381::{G1Element, G2Element};
-    use fastcrypto::groups::{GroupElement, Scalar};
+    use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar};
+    use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use serde::Serialize;
     use std::collections::HashMap;
     use std::marker::PhantomData;
+    use std::num::NonZero;
+    use zeroize::Zeroize;
 
     pub struct TestCertificate<EG: GroupElement> {
         included: Vec<u16>,
@@ -537,14 +532,16 @@ mod tests {
 
         let random_oracle = RandomOracle::new("tbls test");
 
-        let nonces = (0..number_of_nonces)
+        let given_nonces = (0..number_of_nonces)
             .map(|_| Scalar::rand(&mut rng))
             .collect::<Vec<_>>();
 
-        let previous_round_commitments = nonces
+        let previous_round_commitments = given_nonces
             .iter()
             .map(|nonce| G1Element::generator() * nonce)
             .collect_vec();
+
+        let nonces = Nonces::given(given_nonces.clone()).unwrap();
 
         let dealer: Dealer<G1Element, G2Element> = Dealer {
             nonces,
@@ -568,7 +565,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (message, output) = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -613,7 +610,182 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], output.nonces[l as usize]);
+            assert_eq!(secrets[l as usize], given_nonces[l as usize]);
+        }
+    }
+
+    #[test]
+    fn test_share_recovery() {
+        let threshold = 2;
+        let n = 3 * threshold + 1;
+        let number_of_nonces = 3;
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: 1,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let random_oracle = RandomOracle::new("tbls test");
+        let nonces = Nonces::random(number_of_nonces, &mut rng);
+
+        let dealer: Dealer<G1Element, G2Element> = Dealer {
+            nonces: nonces.clone(),
+            threshold,
+            nodes: nodes.clone(),
+            random_oracle,
+            _group: PhantomData,
+        };
+
+        let previous_round_commitments = nonces
+            .0
+            .iter()
+            .map(|nonce| G1Element::generator() * nonce)
+            .collect_vec();
+
+        println!(
+            "Previous round commitments: {:?}",
+            previous_round_commitments
+        );
+
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(i, secret_key)| Receiver {
+                id: i as u16,
+                enc_secret_key: secret_key,
+                previous_round_commitments: previous_round_commitments.clone(),
+                random_oracle: RandomOracle::new("tbls test"),
+                threshold,
+                _group: PhantomData,
+                nodes: nodes.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let message = dealer.create_message_cheating(&mut rng).unwrap();
+
+        let mut all_shares = receivers
+            .iter()
+            .map(|receiver| receiver.process_message(&message).map(|s| (receiver.id, s)))
+            .filter_map(Result::ok)
+            .collect::<HashMap<_, _>>();
+
+        // First receiver should fail to decrypt/verify its shares
+        assert!(all_shares.get(&0).is_none());
+
+        let certificate = TestCertificate {
+            included: vec![2, 3, 4, 5, 6], // 2f+1
+            nodes: nodes.clone(),
+        };
+
+        for i in 0..n {
+            let complaint = receivers[i as usize]
+                .process_certificate(&message, &certificate, &mut rng)
+                .unwrap();
+            if i == 0 {
+                let c = complaint.assert_complaint();
+                let responses = receivers
+                    .iter()
+                    .skip(1)
+                    .map(|r| r.handle_complaint(&message, c, &mut rng).unwrap())
+                    .collect::<Vec<_>>();
+                let shares = receivers[0].recover(&message, &responses).unwrap();
+                all_shares.insert(0, shares);
+            } else {
+                complaint.assert_no_complaint();
+            }
+        }
+
+        // Recover with the first f+1 shares, including the reconstructed
+        let secrets = (0..number_of_nonces)
+            .map(|l| {
+                let shares = all_shares
+                    .iter()
+                    .map(|(id, s)| (*id, s.all_shares[0].r[l as usize]))
+                    .collect::<Vec<_>>();
+                Poly::recover_c0(
+                    threshold + 1,
+                    shares
+                        .iter()
+                        .take((threshold + 1) as usize)
+                        .map(|(id, v)| Eval {
+                            index: ShareIndex::try_from(id + 1).unwrap(),
+                            value: *v,
+                        }),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        for l in 0..number_of_nonces {
+            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
+        }
+    }
+
+    impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
+    where
+        EG::ScalarType: FiatShamirChallenge + Zeroize,
+        G::ScalarType: FiatShamirChallenge,
+    {
+        pub fn create_message_cheating<Rng: AllowedRng>(
+            &self,
+            rng: &mut Rng,
+        ) -> FastCryptoResult<Message<G, EG>> {
+            let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
+
+            let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
+
+            // Encrypt all shares to the receivers
+            let pk_and_msgs = self
+                .nodes
+                .iter()
+                .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+                .map(|(public_key, share_ids)| {
+                    (
+                        public_key,
+                        share_ids
+                            .into_iter()
+                            .map(|index| NonceShares {
+                                index,
+                                r: {
+                                    let r = polynomials
+                                        .iter()
+                                        .map(|p_l| p_l.eval(index).value)
+                                        .collect();
+                                    if index.get() == 1 {
+                                        // Cheating: First receiver gets invalid shares
+                                        vec![G::ScalarType::zero(); polynomials.len()]
+                                    } else {
+                                        r
+                                    }
+                                },
+                            })
+                            .collect_vec(),
+                    )
+                })
+                .map(|(pk, shares)| (pk, bcs::to_bytes(&shares).unwrap()))
+                .collect_vec();
+
+            let ciphertext = MultiRecipientEncryption::encrypt(
+                &pk_and_msgs,
+                &self.random_oracle_extension(Encryption),
+                rng,
+            );
+
+            Ok(Message {
+                commitments,
+                ciphertext,
+            })
         }
     }
 }

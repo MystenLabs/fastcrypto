@@ -1,4 +1,5 @@
 use crate::batched_avss::avss::Extension::{Challenge, Encryption, Recovery};
+use crate::batched_avss::Nonces;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{interpolate_at_index, Eval, Poly};
@@ -16,8 +17,8 @@ use tracing::{debug, warn};
 use zeroize::Zeroize;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
-pub struct Dealer<G, EG: GroupElement> {
-    number_of_nonces: u16,
+pub struct Dealer<G: GroupElement, EG: GroupElement> {
+    nonces: Nonces<G::ScalarType>,
     threshold: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
@@ -35,12 +36,6 @@ where
     random_oracle: RandomOracle,
     threshold: u16,
     _group: PhantomData<G>,
-}
-
-/// The output of the dealer: The distributed nonces.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DealerOutput<G: GroupElement> {
-    pub nonces: Vec<G::ScalarType>,
 }
 
 /// The output of a receiver: The shares for each nonce. This can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
@@ -100,7 +95,7 @@ where
     G::ScalarType: FiatShamirChallenge,
 {
     pub fn new(
-        number_of_nonces: u16,
+        nonces: Nonces<G::ScalarType>,
         nodes: Nodes<EG>,
         threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
@@ -110,7 +105,7 @@ where
             return Err(InvalidInput);
         }
         Ok(Self {
-            number_of_nonces,
+            nonces,
             threshold,
             nodes,
             random_oracle,
@@ -123,17 +118,14 @@ where
     pub fn create_message<Rng: AllowedRng>(
         &self,
         rng: &mut Rng,
-    ) -> FastCryptoResult<(Message<G, EG>, DealerOutput<G>)> {
-        let polynomials = (0..self.number_of_nonces)
-            .map(|_| Poly::rand(self.threshold, rng))
-            .collect_vec();
+    ) -> FastCryptoResult<Message<G, EG>> {
+        let polynomials = self.nonces.ss_polynomials(self.threshold, rng);
 
         // Random secrets (nonces) to be shared and their corresponding (full) public keys
-        let (nonces, public_keys): (_, Vec<G>) = polynomials
+        let public_keys = polynomials
             .iter()
-            .map(Poly::c0)
-            .map(|c| (c, G::generator() * c))
-            .unzip();
+            .map(|p| G::generator() * p.c0())
+            .collect_vec();
 
         // "blinding" polynomials as defined in https://eprint.iacr.org/2023/536.pdf.
         let p_prime = Poly::rand(self.threshold, rng);
@@ -176,15 +168,12 @@ where
             q += &(p_l * gamma_l);
         }
 
-        Ok((
-            Message {
-                public_keys,
-                c_prime,
-                ciphertext,
-                q,
-            },
-            DealerOutput { nonces },
-        ))
+        Ok(Message {
+            public_keys,
+            c_prime,
+            ciphertext,
+            q,
+        })
     }
 }
 
@@ -516,7 +505,7 @@ where
     }
 }
 
-impl<G, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
+impl<G: GroupElement, EG: GroupElement> RandomOracleExtensions for Dealer<G, EG> {
     fn base(&self) -> &RandomOracle {
         &self.random_oracle
     }
@@ -550,9 +539,10 @@ where
 mod tests {
     use super::Extension::Encryption;
     use super::{
-        Certificate, Complaint, Dealer, DealerOutput, FiatShamirImpl, Message, NonceShares,
+        Certificate, Complaint, Dealer, FiatShamirImpl, Message, NonceShares,
         ProcessCertificateResult, RandomOracleExtensions, Receiver,
     };
+    use crate::batched_avss::Nonces;
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
@@ -594,8 +584,10 @@ mod tests {
 
         let random_oracle = RandomOracle::new("tbls test");
 
+        let nonces = Nonces::random(number_of_nonces, &mut rng);
+
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            number_of_nonces,
+            nonces: nonces.clone(),
             threshold,
             nodes: nodes.clone(),
             random_oracle,
@@ -616,7 +608,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (message, output) = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -661,7 +653,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], output.nonces[l as usize]);
+            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
         }
     }
 
@@ -691,9 +683,9 @@ mod tests {
         .unwrap();
 
         let random_oracle = RandomOracle::new("tbls test");
-
+        let nonces = Nonces::random(number_of_nonces, &mut rng);
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            number_of_nonces,
+            nonces: nonces.clone(),
             threshold,
             nodes: nodes.clone(),
             random_oracle,
@@ -714,7 +706,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (message, output) = dealer.create_message(&mut rng).unwrap();
+        let message = dealer.create_message(&mut rng).unwrap();
 
         let all_shares = receivers
             .iter()
@@ -754,7 +746,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], output.nonces[l as usize]);
+            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
         }
     }
 
@@ -801,9 +793,10 @@ mod tests {
         .unwrap();
 
         let random_oracle = RandomOracle::new("tbls test");
+        let nonces = Nonces::random(number_of_nonces, &mut rng);
 
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            number_of_nonces,
+            nonces: nonces.clone(),
             threshold,
             nodes: nodes.clone(),
             random_oracle,
@@ -824,7 +817,7 @@ mod tests {
             })
             .collect::<Vec<_>>();
 
-        let (message, output) = dealer.create_message_cheating(&mut rng).unwrap();
+        let message = dealer.create_message_cheating(&mut rng).unwrap();
 
         let mut all_shares = receivers
             .iter()
@@ -880,7 +873,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], output.nonces[l as usize]);
+            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
         }
     }
 
@@ -893,10 +886,10 @@ mod tests {
         pub fn create_message_cheating<Rng: AllowedRng>(
             &self,
             rng: &mut Rng,
-        ) -> FastCryptoResult<(Message<G, EG>, DealerOutput<G>)> {
+        ) -> FastCryptoResult<Message<G, EG>> {
             let n = self.nodes.total_weight();
 
-            let polynomials = (0..self.number_of_nonces)
+            let polynomials = (0..self.nonces.len())
                 .map(|_| Poly::rand(self.threshold, rng))
                 .collect::<Vec<_>>();
             let public_keys = polynomials
@@ -962,17 +955,12 @@ mod tests {
                 q += &(p_l.clone() * gamma_l);
             }
 
-            let nonces = polynomials.iter().map(|p_l| *p_l.c0()).collect();
-
-            Ok((
-                Message {
-                    public_keys,
-                    c_prime,
-                    ciphertext,
-                    q,
-                },
-                DealerOutput { nonces },
-            ))
+            Ok(Message {
+                public_keys,
+                c_prime,
+                ciphertext,
+                q,
+            })
         }
     }
 
