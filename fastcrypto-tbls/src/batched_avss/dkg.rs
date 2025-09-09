@@ -5,7 +5,7 @@ use crate::batched_avss::dkg::Extension::{Encryption, Recovery};
 use crate::batched_avss::Nonces;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{interpolate_at_index, Eval, Poly, PublicPoly};
+use crate::polynomial::{interpolate_at_index, Eval, PublicPoly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidProof};
@@ -325,7 +325,7 @@ where
                                 .iter()
                                 .map(|s| Eval {
                                     index: s.index,
-                                    value: s.r[l as usize],
+                                    value: s.r[l],
                                 })
                                 .collect::<Vec<_>>(),
                         )
@@ -397,7 +397,7 @@ where
             }
         };
 
-        if shares.r.len() != self.previous_round_commitments.len() as usize {
+        if shares.r.len() != self.previous_round_commitments.len() {
             debug!("check_complaint_proof recovered invalid number of shares");
             return Ok(());
         }
@@ -424,7 +424,6 @@ trait RandomOracleExtensions {
         let extension_string = match extension {
             Recovery(accuser) => &format!("recovery of {accuser}"),
             Encryption => "encryption",
-            Challenge => "challenge",
         };
         self.base().extend(extension_string)
     }
@@ -468,7 +467,6 @@ mod tests {
     use serde::Serialize;
     use std::collections::HashMap;
     use std::marker::PhantomData;
-    use std::num::NonZero;
     use zeroize::Zeroize;
 
     pub struct TestCertificate<EG: GroupElement> {

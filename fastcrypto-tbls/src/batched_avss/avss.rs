@@ -658,6 +658,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::single_match)]
     fn test_happy_path_non_equal_weights() {
         // No complaints, all honest
         let threshold = 2;
@@ -825,7 +826,6 @@ mod tests {
             .filter_map(Result::ok)
             .collect::<HashMap<_, _>>();
 
-        // First receiver should fail to decrypt/verify its shares
         assert!(all_shares.get(&0).is_none());
 
         let certificate = TestCertificate {
@@ -889,9 +889,7 @@ mod tests {
         ) -> FastCryptoResult<Message<G, EG>> {
             let n = self.nodes.total_weight();
 
-            let polynomials = (0..self.nonces.len())
-                .map(|_| Poly::rand(self.threshold, rng))
-                .collect::<Vec<_>>();
+            let polynomials = self.nonces.polynomials(self.threshold, rng);
             let public_keys = polynomials
                 .iter()
                 .map(|p_l| G::generator() * p_l.c0())
