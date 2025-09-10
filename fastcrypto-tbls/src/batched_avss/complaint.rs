@@ -25,7 +25,7 @@ where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     /// Try to decrypt the shares for the accuser.
-    pub(crate) fn decrypt_shares<G: GroupElement, S: SharesForNode<G::ScalarType>>(
+    pub(crate) fn check<G: GroupElement, S: SharesForNode<G::ScalarType>>(
         &self,
         enc_pk: &ecies_v1::PublicKey<EG>,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,

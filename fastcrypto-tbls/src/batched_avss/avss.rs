@@ -1,14 +1,14 @@
 use crate::batched_avss::certificate::Certificate;
 use crate::batched_avss::complaint::{Complaint, ComplaintResponse};
-use crate::batched_avss::ro_extension::Extension::{Challenge, Encryption, Recovery};
+use crate::batched_avss::ro_extension::Extension::{Challenge, Encryption};
 use crate::batched_avss::ro_extension::RandomOracleExtensions;
 use crate::batched_avss::SharesForNode as _;
-use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
+use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{interpolate_at_index, Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
+use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{
     FiatShamirChallenge, GroupElement, HashToGroupElement, MultiScalarMul, Scalar,
@@ -118,15 +118,15 @@ impl<C: Scalar> super::SharesForNode<C> for SharesForNode<C> {
     }
 
     fn shares_for_secret(&self, i: usize) -> FastCryptoResult<Vec<Eval<C>>> {
-        if i >= self.batches[0].shares.len() {
+        if i >= self.batch_size() {
             return Err(InvalidInput);
         }
         Ok(self
             .batches
             .iter()
-            .map(|b| Eval {
-                index: b.index,
-                value: b.shares[i],
+            .map(|share_batch| Eval {
+                index: share_batch.index,
+                value: share_batch.shares[i],
             })
             .collect())
     }
@@ -368,7 +368,7 @@ where
         complaint: &Complaint<EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
-        let shares = complaint.decrypt_shares::<G, SharesForNode<G::ScalarType>>(
+        complaint.check::<G, SharesForNode<G::ScalarType>>(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             self,
@@ -514,18 +514,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Complaint, Dealer, Message, ProcessCertificateResult, Receiver};
-    use crate::batched_avss::certificate::Certificate;
+    use super::{Complaint, Dealer, ProcessCertificateResult, Receiver};
+    use crate::batched_avss::certificate::TestCertificate;
     use crate::ecies_v1;
     use crate::ecies_v1::PublicKey;
-    use crate::nodes::{Node, Nodes, PartyId};
+    use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
     use crate::random_oracle::RandomOracle;
     use crate::types::ShareIndex;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
     use fastcrypto::groups::{GroupElement, Scalar as _};
     use itertools::Itertools;
-    use serde::Serialize;
     use std::collections::HashMap;
     use std::marker::PhantomData;
 
@@ -629,124 +628,107 @@ mod tests {
         }
     }
 
-    pub struct TestCertificate<EG: GroupElement> {
-        included: Vec<u16>,
-        nodes: Nodes<EG>,
-    }
+    #[test]
+    #[allow(clippy::single_match)]
+    fn test_happy_path_non_equal_weights() {
+        // No complaints, all honest
+        let threshold = 2;
+        let weights: Vec<u16> = vec![1, 2, 3, 4];
+        let batch_size = 3;
 
-    impl<G: GroupElement, EG: GroupElement + Serialize> Certificate<Message<G, EG>>
-        for TestCertificate<EG>
-    {
-        fn is_valid(&self, _message: &Message<G, EG>, threshold: usize) -> bool {
-            let weights = self
-                .included
-                .iter()
-                .map(|id| self.nodes.share_ids_of(*id).unwrap().len())
-                .collect_vec();
-            weights.iter().sum::<usize>() >= threshold
+        let mut rng = rand::thread_rng();
+        let sks = weights
+            .iter()
+            .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            weights
+                .into_iter()
+                .enumerate()
+                .map(|(i, weight)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(&sks[i]),
+                    weight,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let random_oracle = RandomOracle::new("tbls test");
+        let secrets = (0..batch_size)
+            .map(|_| Scalar::rand(&mut rng))
+            .collect_vec();
+        let dealer: Dealer<G1Element, G2Element> = Dealer {
+            secrets: secrets.clone(),
+            threshold,
+            nodes: nodes.clone(),
+            random_oracle,
+            _group: PhantomData,
+        };
+
+        let mut receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(i, secret_key)| Receiver {
+                id: i as u16,
+                enc_secret_key: secret_key,
+                batch_size,
+                random_oracle: RandomOracle::new("tbls test"),
+                threshold,
+                nodes: nodes.clone(),
+                _group: PhantomData,
+            })
+            .collect::<Vec<_>>();
+
+        let message = dealer.create_message(&mut rng).unwrap();
+
+        let all_shares = receivers
+            .iter()
+            .flat_map(|receiver| {
+                receiver
+                    .process_message(&message)
+                    .unwrap()
+                    .my_shares
+                    .batches
+            })
+            .collect::<Vec<_>>();
+
+        let certificate = TestCertificate {
+            included: vec![0, 1, 2],
+            nodes: nodes.clone(),
+        };
+
+        for receiver in receivers.iter_mut() {
+            // Expect no complaints
+            match receiver
+                .process_certificate(&message, &certificate, &mut rng)
+                .unwrap()
+            {
+                ProcessCertificateResult::Complaint(_) => panic!("Expected no complaints"),
+                _ => {}
+            }
         }
 
-        fn includes(&self, index: &PartyId) -> bool {
-            self.included.contains(index)
+        let secrets = (0..batch_size)
+            .map(|l| {
+                Poly::recover_c0(
+                    threshold + 1,
+                    all_shares
+                        .iter()
+                        .take((threshold + 1) as usize)
+                        .map(|s| Eval {
+                            index: s.index,
+                            value: s.shares[l as usize],
+                        }),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        for l in 0..batch_size {
+            assert_eq!(secrets[l as usize], secrets[l as usize]);
         }
     }
-
-    //
-    // #[test]
-    // #[allow(clippy::single_match)]
-    // fn test_happy_path_non_equal_weights() {
-    //     // No complaints, all honest
-    //     let threshold = 2;
-    //     let weights: Vec<u16> = vec![1, 2, 3, 4];
-    //     let number_of_nonces = 3;
-    //
-    //     let mut rng = rand::thread_rng();
-    //     let sks = weights
-    //         .iter()
-    //         .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
-    //         .collect::<Vec<_>>();
-    //     let nodes = Nodes::new(
-    //         weights
-    //             .into_iter()
-    //             .enumerate()
-    //             .map(|(i, weight)| Node {
-    //                 id: i as u16,
-    //                 pk: PublicKey::from_private_key(&sks[i]),
-    //                 weight,
-    //             })
-    //             .collect::<Vec<_>>(),
-    //     )
-    //     .unwrap();
-    //
-    //     let random_oracle = RandomOracle::new("tbls test");
-    //     let nonces = (0..number_of_nonces)
-    //         .map(|_| Scalar::rand(&mut rng))
-    //         .collect_vec();
-    //     let dealer: Dealer<G1Element, G2Element> = Dealer {
-    //         nonces: nonces.clone(),
-    //         threshold,
-    //         nodes: nodes.clone(),
-    //         random_oracle,
-    //         _group: PhantomData,
-    //     };
-    //
-    //     let mut receivers = sks
-    //         .into_iter()
-    //         .enumerate()
-    //         .map(|(i, secret_key)| Receiver {
-    //             id: i as u16,
-    //             enc_secret_key: secret_key,
-    //             number_of_nonces,
-    //             random_oracle: RandomOracle::new("tbls test"),
-    //             threshold,
-    //             nodes: nodes.clone(),
-    //             _group: PhantomData,
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let message = dealer.create_message(&mut rng).unwrap();
-    //
-    //     let all_shares = receivers
-    //         .iter()
-    //         .flat_map(|receiver| receiver.process_message(&message).unwrap().shares)
-    //         .collect::<Vec<_>>();
-    //
-    //     let certificate = TestCertificate {
-    //         included: vec![0, 1, 2],
-    //         nodes: nodes.clone(),
-    //     };
-    //
-    //     for receiver in receivers.iter_mut() {
-    //         // Expect no complaints
-    //         match receiver
-    //             .process_certificate(&message, &certificate, &mut rng)
-    //             .unwrap()
-    //         {
-    //             ProcessCertificateResult::Complaint(_) => panic!("Expected no complaints"),
-    //             _ => {}
-    //         }
-    //     }
-    //
-    //     let secrets = (0..number_of_nonces)
-    //         .map(|l| {
-    //             Poly::recover_c0(
-    //                 threshold + 1,
-    //                 all_shares
-    //                     .iter()
-    //                     .take((threshold + 1) as usize)
-    //                     .map(|s| Eval {
-    //                         index: s.index,
-    //                         value: s.shares[l as usize],
-    //                     }),
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     for l in 0..number_of_nonces {
-    //         assert_eq!(secrets[l as usize], nonces[l as usize]);
-    //     }
-    // }
     //
     //
     // #[test]
