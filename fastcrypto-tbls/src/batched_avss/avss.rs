@@ -375,7 +375,6 @@ where
             |shares| self.verify_shares(message, shares),
         )?;
         Ok(ComplaintResponse::create(
-            &complaint,
             self.id,
             &message.ciphertext,
             &self.enc_secret_key,
@@ -514,19 +513,29 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{Complaint, Dealer, ProcessCertificateResult, Receiver};
-    use crate::batched_avss::certificate::TestCertificate;
+    use super::{
+        Complaint, Dealer, FiatShamirImpl, Message, ProcessCertificateResult, Receiver, ShareBatch,
+        SharesForNode,
+    };
+    use crate::batched_avss::certificate::test::TestCertificate;
+    use crate::batched_avss::ro_extension::Extension::Encryption;
+    use crate::batched_avss::ro_extension::RandomOracleExtensions;
+    use crate::batched_avss::SharesForNode as _;
     use crate::ecies_v1;
-    use crate::ecies_v1::PublicKey;
+    use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
     use crate::random_oracle::RandomOracle;
     use crate::types::ShareIndex;
+    use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar};
-    use fastcrypto::groups::{GroupElement, Scalar as _};
+    use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement, Scalar as _};
+    use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
+    use serde::Serialize;
     use std::collections::HashMap;
     use std::marker::PhantomData;
+    use zeroize::Zeroize;
 
     #[test]
     fn test_happy_path() {
@@ -729,204 +738,189 @@ mod tests {
             assert_eq!(secrets[l as usize], secrets[l as usize]);
         }
     }
-    //
-    //
-    // #[test]
-    // fn test_share_recovery() {
-    //     let threshold = 2;
-    //     let n = 3 * threshold + 1;
-    //     let number_of_nonces = 3;
-    //
-    //     let mut rng = rand::thread_rng();
-    //     let sks = (0..n)
-    //         .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
-    //         .collect::<Vec<_>>();
-    //     let nodes = Nodes::new(
-    //         sks.iter()
-    //             .enumerate()
-    //             .map(|(id, sk)| Node {
-    //                 id: id as u16,
-    //                 pk: PublicKey::from_private_key(sk),
-    //                 weight: 1,
-    //             })
-    //             .collect::<Vec<_>>(),
-    //     )
-    //     .unwrap();
-    //
-    //     let random_oracle = RandomOracle::new("tbls test");
-    //     let nonces = (0..number_of_nonces)
-    //         .map(|_| Scalar::rand(&mut rng))
-    //         .collect_vec();
-    //
-    //     let dealer: Dealer<G1Element, G2Element> = Dealer {
-    //         nonces: nonces.clone(),
-    //         threshold,
-    //         nodes: nodes.clone(),
-    //         random_oracle,
-    //         _group: PhantomData,
-    //     };
-    //
-    //     let receivers = sks
-    //         .into_iter()
-    //         .enumerate()
-    //         .map(|(i, secret_key)| Receiver {
-    //             id: i as u16,
-    //             enc_secret_key: secret_key,
-    //             number_of_nonces,
-    //             random_oracle: RandomOracle::new("tbls test"),
-    //             threshold,
-    //             _group: PhantomData,
-    //             nodes: nodes.clone(),
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     let message = dealer.create_message_cheating(&mut rng).unwrap();
-    //
-    //     let mut all_shares = receivers
-    //         .iter()
-    //         .map(|receiver| receiver.process_message(&message).map(|s| (receiver.id, s)))
-    //         .filter_map(Result::ok)
-    //         .collect::<HashMap<_, _>>();
-    //
-    //     assert!(all_shares.get(&0).is_none());
-    //
-    //     let certificate = TestCertificate {
-    //         included: vec![2, 3, 4, 5, 6], // 2f+1
-    //         nodes: nodes.clone(),
-    //     };
-    //
-    //     for i in 0..n {
-    //         let complaint = receivers[i as usize]
-    //             .process_certificate(&message, &certificate, &mut rng)
-    //             .unwrap();
-    //         if i == 0 {
-    //             let c = complaint.assert_complaint();
-    //             let responses = receivers
-    //                 .iter()
-    //                 .skip(1)
-    //                 .map(|r| r.handle_complaint(&message, c, &mut rng).unwrap())
-    //                 .collect::<Vec<_>>();
-    //             let shares = receivers[0].recover(&message, &responses).unwrap();
-    //             all_shares.insert(0, shares);
-    //         } else {
-    //             complaint.assert_no_complaint();
-    //         }
-    //     }
-    //
-    //     // Recover with the first f+1 shares, including the reconstructed
-    //     let secrets = (0..number_of_nonces)
-    //         .map(|l| {
-    //             let shares = all_shares
-    //                 .iter()
-    //                 .map(|(id, s)| (*id, s.shares[0].shares[l as usize]))
-    //                 .collect::<Vec<_>>();
-    //             Poly::recover_c0(
-    //                 threshold + 1,
-    //                 shares
-    //                     .iter()
-    //                     .take((threshold + 1) as usize)
-    //                     .map(|(id, v)| Eval {
-    //                         index: ShareIndex::try_from(id + 1).unwrap(),
-    //                         value: *v,
-    //                     }),
-    //             )
-    //             .unwrap()
-    //         })
-    //         .collect::<Vec<_>>();
-    //
-    //     for l in 0..number_of_nonces {
-    //         assert_eq!(secrets[l as usize], nonces[l as usize]);
-    //     }
-    // }
-    //
-    // impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
-    // where
-    //     EG::ScalarType: FiatShamirChallenge + Zeroize,
-    //     G::ScalarType: FiatShamirChallenge,
-    // {
-    //     /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
-    //     pub fn create_message_cheating<Rng: AllowedRng>(
-    //         &self,
-    //         rng: &mut Rng,
-    //     ) -> FastCryptoResult<Message<G, EG>> {
-    //         let n = self.nodes.total_weight();
-    //
-    //         let polynomials = self
-    //             .nonces
-    //             .iter()
-    //             .map(|nonce| Poly::rand_fixed_c0(self.threshold, *nonce, rng))
-    //             .collect::<Vec<_>>();
-    //         let public_keys = polynomials
-    //             .iter()
-    //             .map(|p_l| G::generator() * p_l.c0())
-    //             .collect::<Vec<_>>();
-    //
-    //         let p_prime = Poly::rand(self.threshold, rng);
-    //         let c_prime = G::generator() * p_prime.c0();
-    //
-    //         let mut r: Vec<Vec<G::ScalarType>> = polynomials
-    //             .iter()
-    //             .map(|p_l| {
-    //                 (0..n)
-    //                     .map(|j| p_l.eval(ShareIndex::try_from(j + 1).unwrap()).value)
-    //                     .collect()
-    //             })
-    //             .collect();
-    //         let r_prime: Vec<G::ScalarType> = (0..n)
-    //             .map(|j| p_prime.eval(ShareIndex::try_from(j + 1).unwrap()).value)
-    //             .collect();
-    //
-    //         // Modify the first share of the first nonce to be incorrect
-    //         r[0][0] += G::ScalarType::from(1u128);
-    //
-    //         let shares_for_node = self
-    //             .nodes
-    //             .iter()
-    //             .map(|node| {
-    //                 let share_ids = self.nodes.share_ids_of(node.id)?;
-    //                 Ok(share_ids
-    //                     .iter()
-    //                     .map(|share_id| ShareBatch {
-    //                         index: *share_id,
-    //                         shares: r.iter()
-    //                             .map(|r_l| r_l[share_id.get() as usize - 1])
-    //                             .collect(),
-    //                         blinding_share: r_prime[share_id.get() as usize - 1],
-    //                     })
-    //                     .collect::<Vec<ShareBatch<G::ScalarType>>>())
-    //             })
-    //             .collect::<FastCryptoResult<Vec<Vec<ShareBatch<G::ScalarType>>>>>()?;
-    //
-    //         let ciphertext = MultiRecipientEncryption::encrypt(
-    //             &self
-    //                 .nodes
-    //                 .iter()
-    //                 .map(|node| {
-    //                     (
-    //                         node.pk.clone(),
-    //                         bcs::to_bytes(&shares_for_node[node.id as usize]).unwrap(),
-    //                     )
-    //                 })
-    //                 .collect::<Vec<_>>(),
-    //             &self.random_oracle_extension(Encryption),
-    //             rng,
-    //         );
-    //
-    //         let gamma = self.compute_challenge(&public_keys, &c_prime, &ciphertext);
-    //
-    //         let mut q = p_prime;
-    //         for (p_l, gamma_l) in polynomials.iter().zip(&gamma) {
-    //             q += &(p_l.clone() * gamma_l);
-    //         }
-    //
-    //         Ok(Message {
-    //             full_public_keys: public_keys,
-    //             blinding_commit: c_prime,
-    //             ciphertext,
-    //             response: q,
-    //         })
-    //     }
-    // }
+
+    #[test]
+    fn test_share_recovery() {
+        let threshold = 2;
+        let n = 3 * threshold + 1;
+        let batch_size = 3;
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<G2Element>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(id, sk)| Node {
+                    id: id as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: 1,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let random_oracle = RandomOracle::new("tbls test");
+        let secrets = (0..batch_size)
+            .map(|_| Scalar::rand(&mut rng))
+            .collect_vec();
+
+        let dealer: Dealer<G1Element, G2Element> = Dealer {
+            secrets: secrets.clone(),
+            threshold,
+            nodes: nodes.clone(),
+            random_oracle,
+            _group: PhantomData,
+        };
+
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(i, secret_key)| Receiver {
+                id: i as u16,
+                enc_secret_key: secret_key,
+                batch_size,
+                random_oracle: RandomOracle::new("tbls test"),
+                threshold,
+                _group: PhantomData,
+                nodes: nodes.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let message = dealer.create_message_cheating(&mut rng).unwrap();
+
+        let mut all_shares = receivers
+            .iter()
+            .map(|receiver| receiver.process_message(&message).map(|s| (receiver.id, s)))
+            .filter_map(Result::ok)
+            .collect::<HashMap<_, _>>();
+
+        assert!(all_shares.get(&0).is_none());
+
+        let certificate = TestCertificate {
+            included: vec![2, 3, 4, 5, 6], // 2f+1
+            nodes: nodes.clone(),
+        };
+
+        for i in 0..n {
+            let complaint = receivers[i as usize]
+                .process_certificate(&message, &certificate, &mut rng)
+                .unwrap();
+            if i == 0 {
+                let c = complaint.assert_complaint();
+                let responses = receivers
+                    .iter()
+                    .skip(1)
+                    .map(|r| r.handle_complaint(&message, c, &mut rng).unwrap())
+                    .collect::<Vec<_>>();
+                let shares = receivers[0].recover(&message, &responses).unwrap();
+                all_shares.insert(0, shares);
+            } else {
+                complaint.assert_no_complaint();
+            }
+        }
+
+        // Recover with the first f+1 shares, including the reconstructed
+        let secrets = (0..batch_size)
+            .map(|l| {
+                let shares = all_shares
+                    .iter()
+                    .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l as usize]))
+                    .collect::<Vec<_>>();
+                Poly::recover_c0(
+                    threshold + 1,
+                    shares
+                        .iter()
+                        .take((threshold + 1) as usize)
+                        .map(|(id, v)| Eval {
+                            index: ShareIndex::try_from(id + 1).unwrap(),
+                            value: *v,
+                        }),
+                )
+                .unwrap()
+            })
+            .collect::<Vec<_>>();
+
+        for l in 0..batch_size {
+            assert_eq!(secrets[l as usize], secrets[l as usize]);
+        }
+    }
+
+    impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
+    where
+        EG::ScalarType: FiatShamirChallenge + Zeroize,
+        G::ScalarType: FiatShamirChallenge,
+    {
+        /// 1. The Dealer samples L nonces, generates shares and broadcasts the encrypted shares. This also returns the nonces to be secret shared along with their corresponding public keys.
+        pub fn create_message_cheating<Rng: AllowedRng>(
+            &self,
+            rng: &mut Rng,
+        ) -> FastCryptoResult<Message<G, EG>> {
+            let polynomials = self
+                .secrets
+                .iter()
+                .map(|c0| Poly::rand_fixed_c0(self.threshold, *c0, rng))
+                .collect_vec();
+
+            // Compute the (full) public keys for all secrets
+            let full_public_keys = polynomials
+                .iter()
+                .map(|p| G::generator() * p.c0())
+                .collect_vec();
+
+            // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
+            let blinding_poly = Poly::rand(self.threshold, rng);
+            let blinding_commit = G::generator() * blinding_poly.c0();
+
+            // Encrypt all shares to the receivers
+            let mut pk_and_msgs = self
+                .nodes
+                .iter()
+                .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
+                .map(|(public_key, share_ids)| {
+                    (
+                        public_key,
+                        SharesForNode {
+                            batches: share_ids
+                                .into_iter()
+                                .map(|index| ShareBatch {
+                                    index,
+                                    shares: polynomials
+                                        .iter()
+                                        .map(|p_l| p_l.eval(index).value)
+                                        .collect(),
+                                    blinding_share: blinding_poly.eval(index).value,
+                                })
+                                .collect_vec(),
+                        },
+                    )
+                })
+                .map(|(pk, shares_for_node)| (pk, shares_for_node.to_bytes()))
+                .collect_vec();
+
+            // Modify the first share of the first receiver to simulate a cheating dealer
+            pk_and_msgs[0].1[7] += 1;
+
+            let ciphertext =
+                MultiRecipientEncryption::encrypt(&pk_and_msgs, &self.extension(Encryption), rng);
+
+            // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
+            let challenge =
+                self.compute_challenge(&full_public_keys, &blinding_commit, &ciphertext);
+            let mut response = blinding_poly;
+            for (p_l, gamma_l) in polynomials.into_iter().zip(&challenge) {
+                response += &(p_l * gamma_l);
+            }
+
+            Ok(Message {
+                full_public_keys,
+                blinding_commit,
+                ciphertext,
+                response,
+            })
+        }
+    }
 
     impl<G: GroupElement, EG: GroupElement> ProcessCertificateResult<G, EG> {
         fn assert_complaint(&self) -> &Complaint<EG> {

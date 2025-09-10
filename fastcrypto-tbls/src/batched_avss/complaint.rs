@@ -53,16 +53,15 @@ where
         };
 
         match verifier(&s) {
-            Ok(_) => {}
-            Err(_) => {
+            Ok(_) => {
                 debug!(
                     "Complaint by party {} is invalid: could not verify shares",
                     self.accuser_id
                 );
-                return Err(InvalidProof);
+                Err(InvalidProof)
             }
+            Err(_) => Ok(()),
         }
-        Ok(())
     }
 
     pub(crate) fn create(
@@ -95,7 +94,6 @@ where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     pub(crate) fn create(
-        complaint: &Complaint<EG>,
         responder_id: PartyId,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
         enc_secret_key: &ecies_v1::PrivateKey<EG>,
@@ -105,8 +103,8 @@ where
         ComplaintResponse {
             responder_id,
             recovery_package: ciphertext.create_recovery_package(
-                &enc_secret_key,
-                &ro.extension(Recovery(complaint.accuser_id)),
+                enc_secret_key,
+                &ro.extension(Recovery(responder_id)),
                 rng,
             ),
         }

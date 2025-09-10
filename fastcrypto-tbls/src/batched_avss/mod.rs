@@ -1,12 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ecies_v1;
 use crate::polynomial::Eval;
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::InvalidInput;
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::{GroupElement, HashToGroupElement};
 use serde::{Deserialize, Serialize};
 
 pub mod avss;
