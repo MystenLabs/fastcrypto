@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::batched_avss::dkg::Extension::{Encryption, Recovery};
-use crate::batched_avss::Nonces;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey, RecoveryPackage};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{interpolate_at_index, Eval, PublicPoly};
+use crate::polynomial::{interpolate_at_index, Eval, Poly, PublicPoly};
 use crate::random_oracle::RandomOracle;
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InputLengthWrong, InvalidInput, InvalidProof};
@@ -24,7 +23,7 @@ pub struct Dealer<G: GroupElement, EG: GroupElement> {
     threshold: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
-    nonces: Nonces<G::ScalarType>,
+    nonces: Vec<G::ScalarType>,
     _group: PhantomData<G>,
 }
 
@@ -95,7 +94,7 @@ where
     G::ScalarType: FiatShamirChallenge,
 {
     pub fn new(
-        nonces: Nonces<G::ScalarType>,
+        nonces: Vec<G::ScalarType>,
         nodes: Nodes<EG>,
         threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
@@ -119,7 +118,11 @@ where
         &self,
         rng: &mut Rng,
     ) -> FastCryptoResult<Message<G, EG>> {
-        let polynomials = self.nonces.polynomials(self.threshold, rng);
+        let polynomials = self
+            .nonces
+            .iter()
+            .map(|c0| Poly::rand_fixed_c0(self.threshold, *c0, rng))
+            .collect_vec();
 
         let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
 
@@ -452,7 +455,6 @@ mod tests {
         Certificate, Dealer, Message, RandomOracleExtensions, Receiver,
     };
     use crate::batched_avss::dkg::{Complaint, ProcessCertificateResult};
-    use crate::batched_avss::Nonces;
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes, PartyId};
@@ -530,19 +532,17 @@ mod tests {
 
         let random_oracle = RandomOracle::new("tbls test");
 
-        let given_nonces = (0..number_of_nonces)
+        let nonces = (0..number_of_nonces)
             .map(|_| Scalar::rand(&mut rng))
             .collect::<Vec<_>>();
 
-        let previous_round_commitments = given_nonces
+        let previous_round_commitments = nonces
             .iter()
             .map(|nonce| G1Element::generator() * nonce)
             .collect_vec();
 
-        let nonces = Nonces::given(given_nonces.clone()).unwrap();
-
         let dealer: Dealer<G1Element, G2Element> = Dealer {
-            nonces,
+            nonces: nonces.clone(),
             threshold,
             nodes: nodes.clone(),
             random_oracle,
@@ -608,7 +608,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], given_nonces[l as usize]);
+            assert_eq!(secrets[l as usize], nonces[l as usize]);
         }
     }
 
@@ -635,7 +635,9 @@ mod tests {
         .unwrap();
 
         let random_oracle = RandomOracle::new("tbls test");
-        let nonces = Nonces::random(number_of_nonces, &mut rng);
+        let nonces = (0..number_of_nonces)
+            .map(|_| Scalar::rand(&mut rng))
+            .collect::<Vec<_>>();
 
         let dealer: Dealer<G1Element, G2Element> = Dealer {
             nonces: nonces.clone(),
@@ -646,7 +648,6 @@ mod tests {
         };
 
         let previous_round_commitments = nonces
-            .0
             .iter()
             .map(|nonce| G1Element::generator() * nonce)
             .collect_vec();
@@ -726,7 +727,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for l in 0..number_of_nonces {
-            assert_eq!(secrets[l as usize], nonces.0[l as usize]);
+            assert_eq!(secrets[l as usize], nonces[l as usize]);
         }
     }
 
@@ -739,7 +740,11 @@ mod tests {
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message<G, EG>> {
-            let polynomials = self.nonces.polynomials(self.threshold, rng);
+            let polynomials = self
+                .nonces
+                .iter()
+                .map(|nonce| Poly::rand_fixed_c0(self.threshold, *nonce, rng))
+                .collect_vec();
 
             let commitments = polynomials.iter().map(|p| p.commit()).collect_vec();
 
