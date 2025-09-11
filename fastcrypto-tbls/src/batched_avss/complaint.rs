@@ -41,26 +41,32 @@ where
             self.accuser_id as usize,
         )?;
 
-        let s = match S::from_bytes(buffer) {
+        let shares = match S::from_bytes(buffer) {
             Ok(s) => s,
             Err(_) => {
                 debug!(
-                    "Complaint by party {} is invalid: could not deserialize shares",
+                    "Complaint by party {} is valid: C complaint failed to deserialize shares",
                     self.accuser_id
                 );
-                return Err(InvalidInput);
+                return Ok(());
             }
         };
 
-        match verifier(&s) {
+        match verifier(&shares) {
             Ok(_) => {
                 debug!(
-                    "Complaint by party {} is invalid: could not verify shares",
+                    "Complaint by party {} is invalid: Shares verify correctly",
                     self.accuser_id
                 );
                 Err(InvalidProof)
             }
-            Err(_) => Ok(()),
+            Err(_) => {
+                debug!(
+                    "Complaint by party {} is valid: Shares do not verify correctly",
+                    self.accuser_id
+                );
+                Ok(())
+            }
         }
     }
 

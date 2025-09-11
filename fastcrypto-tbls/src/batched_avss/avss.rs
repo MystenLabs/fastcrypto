@@ -22,7 +22,8 @@ use tap::TapFallible;
 use tracing::warn;
 use zeroize::Zeroize;
 
-/// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
+/// This represents a Dealer in the AVSS.
+/// There is exactly one dealer,who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<G: GroupElement, EG: GroupElement> {
     secrets: Vec<G::ScalarType>,
     threshold: u16,
@@ -31,6 +32,7 @@ pub struct Dealer<G: GroupElement, EG: GroupElement> {
     _group: PhantomData<G>,
 }
 
+/// This represents a Receiver in the AVSS who receives shares from the [Dealer].
 pub struct Receiver<G, EG: GroupElement>
 where
     EG::ScalarType: Zeroize,
@@ -44,14 +46,14 @@ where
     _group: PhantomData<G>,
 }
 
-/// The output of a receiver: The shares for each secret.
+/// The output of a receiver which is a batch of shares.
 /// This can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput<G: GroupElement> {
     pub my_shares: SharesForNode<G::ScalarType>,
 }
 
-/// The message broadcast by the dealer, containing the encrypted shares and the public keys of the secrets.
+/// The message broadcast by the dealer.
 #[derive(Clone, Debug)]
 pub struct Message<G: GroupElement, EG: GroupElement> {
     full_public_keys: Vec<G>,
@@ -60,7 +62,10 @@ pub struct Message<G: GroupElement, EG: GroupElement> {
     response: Poly<G::ScalarType>,
 }
 
-/// The result of processing a certificate by a receiver: Either valid shares, a complaint, or ignore if the receiver was already included.
+/// The result of processing a certificate by a receiver:
+///  * Valid shares if the receiver managed to decrypt and verify its shares while processing,
+///  * a complaint, if the shares from the dealer could not be decrypted or verified,
+///  * Ignore if the receiver was already included in the certificate.
 #[derive(Debug, Clone)]
 pub enum ProcessCertificateResult<G: GroupElement, EG: GroupElement> {
     Valid(ReceiverOutput<G>),
@@ -69,6 +74,7 @@ pub enum ProcessCertificateResult<G: GroupElement, EG: GroupElement> {
 }
 
 impl<C: Scalar> ShareBatch<C> {
+    /// Verify a batch of shares using the given challenge.
     fn verify<G: GroupElement<ScalarType = C>, EG: GroupElement>(
         &self,
         message: &Message<G, EG>,
@@ -107,6 +113,7 @@ pub struct ShareBatch<C> {
     pub blinding_share: C,
 }
 
+/// All the shares given to a node -- one batch per share index/weight.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode<C> {
     batches: Vec<ShareBatch<C>>,
@@ -178,6 +185,7 @@ impl<C: Scalar> super::SharesForNode<C> for SharesForNode<C> {
     }
 
     fn batch_size(&self) -> usize {
+        assert!(!self.batches.is_empty());
         self.batches[0].shares.len()
     }
 }
