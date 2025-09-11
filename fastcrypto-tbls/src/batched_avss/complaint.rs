@@ -1,6 +1,6 @@
 use crate::batched_avss::ro_extension::Extension::{Encryption, Recovery};
 use crate::batched_avss::ro_extension::RandomOracleExtensions;
-use crate::batched_avss::SharesForNode;
+use crate::batched_avss::BCSSerialized;
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
 use crate::nodes::PartyId;
@@ -25,7 +25,7 @@ where
     EG::ScalarType: FiatShamirChallenge + Zeroize,
 {
     /// Try to decrypt the shares for the accuser.
-    pub(crate) fn check<G: GroupElement, S: SharesForNode<G::ScalarType>>(
+    pub(crate) fn check<S: BCSSerialized>(
         &self,
         enc_pk: &ecies_v1::PublicKey<EG>,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
@@ -41,7 +41,7 @@ where
             self.accuser_id as usize,
         )?;
 
-        let shares = match S::from_bytes(buffer) {
+        let shares = match S::from_bytes(&buffer) {
             Ok(s) => s,
             Err(_) => {
                 debug!(

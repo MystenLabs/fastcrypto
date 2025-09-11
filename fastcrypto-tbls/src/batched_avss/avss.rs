@@ -2,7 +2,7 @@ use crate::batched_avss::certificate::Certificate;
 use crate::batched_avss::complaint::{Complaint, ComplaintResponse};
 use crate::batched_avss::ro_extension::Extension::{Challenge, Encryption};
 use crate::batched_avss::ro_extension::RandomOracleExtensions;
-use crate::batched_avss::SharesForNode as _;
+use crate::batched_avss::BCSSerialized;
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{interpolate_at_index, Eval, Poly};
@@ -113,18 +113,22 @@ pub struct ShareBatch<C> {
     pub blinding_share: C,
 }
 
-/// All the shares given to a node -- one batch per share index/weight.
+/// This represents a set of shares for a node. A total of <i>L</i> secrets/nonces are being shared,
+/// If we say that node <i>i</i> has a weight `W_i`, we have
+/// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SharesForNode<C> {
-    batches: Vec<ShareBatch<C>>,
+    pub batches: Vec<ShareBatch<C>>,
 }
 
-impl<C: Scalar> super::SharesForNode<C> for SharesForNode<C> {
-    fn weight(&self) -> usize {
+impl<C: Scalar> SharesForNode<C> {
+    /// Get the weight of this node (number of shares it has).
+    pub fn weight(&self) -> usize {
         self.batches.len()
     }
 
-    fn shares_for_secret(&self, i: usize) -> FastCryptoResult<Vec<Eval<C>>> {
+    /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
+    pub fn shares_for_secret(&self, i: usize) -> FastCryptoResult<Vec<Eval<C>>> {
         if i >= self.batch_size() {
             return Err(InvalidInput);
         }
@@ -138,10 +142,7 @@ impl<C: Scalar> super::SharesForNode<C> for SharesForNode<C> {
             .collect())
     }
 
-    fn indices(&self) -> Vec<ShareIndex> {
-        self.batches.iter().map(|b| b.index).collect()
-    }
-
+    /// Assuming that enough shares are given, recover the shares for this node.
     fn recover(indices: Vec<ShareIndex>, other_shares: &[Self]) -> FastCryptoResult<Self> {
         if other_shares.is_empty() || !other_shares.iter().map(|s| s.batch_size()).all_equal() {
             return Err(InvalidInput);
@@ -184,11 +185,14 @@ impl<C: Scalar> super::SharesForNode<C> for SharesForNode<C> {
         Ok(Self { batches })
     }
 
+    /// The size of the batch, <i>L</i>.
     fn batch_size(&self) -> usize {
         assert!(!self.batches.is_empty());
         self.batches[0].shares.len()
     }
 }
+
+impl<C: Scalar + Serialize> BCSSerialized for SharesForNode<C> {}
 
 impl<G: GroupElement + Serialize, EG: GroupElement + HashToGroupElement + Serialize> Dealer<G, EG>
 where
@@ -376,7 +380,7 @@ where
         complaint: &Complaint<EG>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<ComplaintResponse<EG>> {
-        complaint.check::<G, SharesForNode<G::ScalarType>>(
+        complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
             self,
@@ -410,7 +414,7 @@ where
             ));
         }
 
-        let response_shares: Vec<SharesForNode<G::ScalarType>> = responses
+        let response_shares = responses
             .iter()
             .filter_map(|response| {
                 self.nodes
@@ -528,7 +532,7 @@ mod tests {
     use crate::batched_avss::certificate::test::TestCertificate;
     use crate::batched_avss::ro_extension::Extension::Encryption;
     use crate::batched_avss::ro_extension::RandomOracleExtensions;
-    use crate::batched_avss::SharesForNode as _;
+    use crate::batched_avss::BCSSerialized;
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
