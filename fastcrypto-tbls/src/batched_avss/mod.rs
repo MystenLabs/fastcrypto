@@ -9,6 +9,7 @@ mod certificate;
 pub(crate) mod complaint;
 pub mod dkg;
 mod ro_extension;
+pub mod si_matrix;
 
 /// Convenience trait for types that can be serialized/deserialized to/from bytes using BCS.
 pub trait BCSSerialized: Serialize + for<'de> Deserialize<'de> {
