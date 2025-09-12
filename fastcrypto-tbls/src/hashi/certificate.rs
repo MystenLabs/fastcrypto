@@ -8,7 +8,7 @@ pub trait Certificate<M> {
 
 #[cfg(test)]
 pub(crate) mod test {
-    use crate::batched_avss::certificate::Certificate;
+    use crate::hashi::certificate::Certificate;
     use crate::nodes::{Nodes, PartyId};
     use fastcrypto::groups::GroupElement;
     use itertools::Itertools;

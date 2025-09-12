@@ -16,7 +16,7 @@ impl PascalMatrix {
         assert_eq!(x.len(), self.m);
 
         let mut buffer = x.to_vec();
-        (0..self.n)
+        (0..self.m)
             .map(|_| {
                 for j in (0..(self.m - 1)).rev() {
                     let (buffer, tail) = buffer.split_at_mut(j + 1);
@@ -43,7 +43,7 @@ impl UTPascalMatrix {
         assert_eq!(x.len(), self.m);
 
         let mut buffer = x.to_vec();
-        (0..self.n)
+        (0..self.m)
             .map(|i| {
                 for j in (i..(self.m - 1)).rev() {
                     let (buffer, tail) = buffer.split_at_mut(j + 1);
@@ -102,4 +102,11 @@ fn test_small_ut_pascal_matrix() {
             .collect::<Vec<_>>();
         assert_eq!(&y, y_expected);
     }
+
+    let not_square = UTPascalMatrix::new(3, 4);
+    let x = [Scalar::from(1), Scalar::from(2), Scalar::from(3)];
+    let y = not_square.vector_mul(&x);
+    // TODO: Construct actual test vectors
+    let expected = [Scalar::from(6), Scalar::from(8), Scalar::from(3)];
+    assert_eq!(y, expected);
 }

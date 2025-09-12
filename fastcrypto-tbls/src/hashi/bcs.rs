@@ -1,15 +1,6 @@
-// Copyright (c) 2022, Mysten Labs, Inc.
-// SPDX-License-Identifier: Apache-2.0
-
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoResult;
 use serde::{Deserialize, Serialize};
-
-pub mod avss;
-mod certificate;
-pub(crate) mod complaint;
-pub mod dkg;
-mod ro_extension;
-pub mod si_matrix;
 
 /// Convenience trait for types that can be serialized/deserialized to/from bytes using BCS.
 pub trait BCSSerialized: Serialize + for<'de> Deserialize<'de> {
@@ -21,6 +12,6 @@ pub trait BCSSerialized: Serialize + for<'de> Deserialize<'de> {
     where
         Self: Sized,
     {
-        bcs::from_bytes(bytes).map_err(|_| FastCryptoError::InvalidInput)
+        bcs::from_bytes(bytes).map_err(|_| InvalidInput)
     }
 }

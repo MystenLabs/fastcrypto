@@ -1,8 +1,8 @@
-use crate::batched_avss::ro_extension::Extension::{Encryption, Recovery};
-use crate::batched_avss::ro_extension::RandomOracleExtensions;
-use crate::batched_avss::BCSSerialized;
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
+use crate::hashi::bcs::BCSSerialized;
+use crate::hashi::ro_extension::Extension::{Encryption, Recovery};
+use crate::hashi::ro_extension::RandomOracleExtensions;
 use crate::nodes::PartyId;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;

@@ -1,4 +1,4 @@
-use crate::batched_avss::ro_extension::Extension::{Challenge, Encryption, Recovery};
+use crate::hashi::ro_extension::Extension::{Challenge, Encryption, Recovery};
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
 
