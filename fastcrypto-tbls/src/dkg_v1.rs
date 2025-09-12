@@ -24,7 +24,6 @@ use zeroize::Zeroize;
 
 /// Generics below use `G: GroupElement' for the group of the VSS public key, and `EG: GroupElement'
 /// for the group of the ECIES public key.
-
 /// Party in the DKG protocol.
 #[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Party<G: GroupElement, EG: GroupElement>
@@ -160,7 +159,6 @@ where
 {
     /// 1. Create a new ECIES private key and send the public key to all parties.
     /// 2. After *all* parties have sent their ECIES public keys, create the (same) set of nodes.
-
     /// 3. Create a new Party instance with the ECIES private key and the set of nodes.
     pub fn new<R: AllowedRng>(
         enc_sk: ecies_v1::PrivateKey<EG>,
@@ -359,7 +357,6 @@ where
     ///
     ///    We split this function into two parts: process_message and merge, so that the caller can
     ///    process messages concurrently and then merge the results.
-
     ///    [process_message] processes a message and returns an intermediate object ProcessedMessage.
     ///
     ///    Returns error InvalidMessage if the message is invalid and should be ignored (note that we

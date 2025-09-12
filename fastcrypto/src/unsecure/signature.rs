@@ -31,7 +31,6 @@ use crate::{generate_bytes_representation, serialize_deserialize_with_to_from_by
 ///
 /// Define Structs
 ///
-
 // Set to same sizes as BLS
 pub const PRIVATE_KEY_LENGTH: usize = 32;
 pub const PUBLIC_KEY_LENGTH: usize = 96;
@@ -87,7 +86,6 @@ fn sign(pk: [u8; PUBLIC_KEY_LENGTH], msg: &[u8]) -> UnsecureSignature {
 ///
 /// Implement SigningKey
 ///
-
 impl InsecureDefault for UnsecurePublicKey {
     fn insecure_default() -> Self {
         Self([0; PUBLIC_KEY_LENGTH])
@@ -158,7 +156,6 @@ impl VerifyingKey for UnsecurePublicKey {
 ///
 /// Implement Authenticator
 ///
-
 impl Default for UnsecureSignature {
     fn default() -> Self {
         Self([0; SIGNATURE_LENGTH])
@@ -197,7 +194,6 @@ serialize_deserialize_with_to_from_bytes!(UnsecureSignature, SIGNATURE_LENGTH);
 ///
 /// Implement SigningKey
 ///
-
 impl AsRef<[u8]> for UnsecurePrivateKey {
     fn as_ref(&self) -> &[u8] {
         &self.0
@@ -224,7 +220,6 @@ serialize_deserialize_with_to_from_bytes!(UnsecurePrivateKey, PRIVATE_KEY_LENGTH
 ///
 /// Implement KeyPair
 ///
-
 impl From<UnsecurePrivateKey> for UnsecureKeyPair {
     fn from(secret: UnsecurePrivateKey) -> Self {
         let mut pk_bytes = [0; PUBLIC_KEY_LENGTH];
@@ -299,7 +294,6 @@ serialize_deserialize_with_to_from_bytes!(UnsecureKeyPair, PRIVATE_KEY_LENGTH);
 ///
 /// Implement AggregateAuthenticator. Aggregate signatures are implemented as xor's of the individual signatures.
 ///
-
 impl AsRef<[u8]> for UnsecureAggregateSignature {
     fn as_ref(&self) -> &[u8] {
         &self.0

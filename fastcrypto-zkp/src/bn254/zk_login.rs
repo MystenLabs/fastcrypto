@@ -685,7 +685,7 @@ fn base64_to_bitarray(input: &str) -> FastCryptoResult<Vec<u8>> {
             BASE64_URL_CHARSET
                 .find(c)
                 .map(|index| index as u8)
-                .map(|index| (0..6).rev().map(move |i| index >> i & 1))
+                .map(|index| (0..6).rev().map(move |i| (index >> i) & 1))
                 .ok_or(FastCryptoError::InvalidInput)
         })
         .flatten_ok()

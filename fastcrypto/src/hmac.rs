@@ -53,10 +53,8 @@ use hkdf::hmac::{Hmac, Mac};
 ///     let ikm = b"02345678001234567890123456789012";
 ///     let info = b"my_app";
 ///     let salt = b"some_salt";
-
 ///     let my_keypair = hkdf_generate_from_ikm::<Sha3_256, BLS12381KeyPair>(ikm, salt, info).unwrap();
 ///     let native_sk = blst::min_sig::SecretKey::key_gen_v4_5(ikm, salt, info).unwrap();
-
 ///     assert_ne!(native_sk.to_bytes(), my_keypair.private().as_bytes());
 /// # }
 /// ```
@@ -96,7 +94,6 @@ where
 
 ////////////////////////////////////////////////////////////////////////
 /// HMAC-SHA3-256 based functions
-
 const HMAC_KEY_RECOMMENDED_LENGTH: usize = 32;
 const HKDF_KEY_RECOMMENDED_LENGTH: usize = 32;
 

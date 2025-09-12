@@ -39,7 +39,7 @@ fn get_lendian_from_substring(byte: &u8, start: usize, end: usize) -> u8 {
     } else if end > 8 {
         return get_lendian_from_substring(byte, start, 8);
     }
-    byte >> start & ((1 << (end - start)) - 1) as u8
+    (byte >> start) & ((1 << (end - start)) - 1) as u8
 }
 
 /// Compute ceil(numerator / denominator).
