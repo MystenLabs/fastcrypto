@@ -240,20 +240,23 @@ mod group_benches {
         name: &str,
         len: usize,
         c: &mut BenchmarkGroup<M>,
-    )
-    where <G as Pairing>::Output: GroupElement
+    ) where
+        <G as Pairing>::Output: GroupElement,
     {
-        let (ps, qs): (Vec<G>, Vec<G::Other>) =
-            (0..len)
-                .map(|_| {
-                    (
-                        G::generator() * G::ScalarType::rand(&mut thread_rng()),
-                        G::Other::generator()
-                            * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(&mut thread_rng())
-                    )
-                })
-                .unzip();
-        c.bench_function(&format!("{}/{}", name.to_string(), len), move |b| b.iter(|| G::multi_pairing(&ps, &qs)));
+        let (ps, qs): (Vec<G>, Vec<G::Other>) = (0..len)
+            .map(|_| {
+                (
+                    G::generator() * G::ScalarType::rand(&mut thread_rng()),
+                    G::Other::generator()
+                        * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(
+                            &mut thread_rng(),
+                        ),
+                )
+            })
+            .unzip();
+        c.bench_function(format!("{}/{}", name, len), move |b| {
+            b.iter(|| G::multi_pairing(&ps, &qs))
+        });
     }
 
     fn multi_pairing(c: &mut Criterion) {
