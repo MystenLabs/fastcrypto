@@ -18,7 +18,7 @@ use crate::threshold_schnorr::ro_extension::Extension::{Challenge, Encryption};
 use crate::threshold_schnorr::ro_extension::RandomOracleExtensions;
 use crate::threshold_schnorr::{EG, G, S};
 use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::InvalidInput;
+use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
@@ -53,6 +53,11 @@ pub struct Receiver<const BATCH_SIZE: usize> {
 pub struct ReceiverOutput<const BATCH_SIZE: usize> {
     pub my_shares: SharesForNode<BATCH_SIZE>,
     pub public_keys: [G; BATCH_SIZE],
+}
+
+pub enum ProcessedMessage<const BATCH_SIZE: usize> {
+    Valid(ReceiverOutput<BATCH_SIZE>),
+    Complaint(Complaint),
 }
 
 /// The message broadcast by the dealer.
@@ -256,50 +261,69 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 }
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
-    /// 2. Each receiver processes the message, verifies and decrypts its shares. If this works, the shares are stored and the receiver can contribute a signature on the message to a certificate.
+    /// 2. Each receiver processes the message, verifies and decrypts its shares.
+    ///
+    /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
+    ///
+    /// This returns an [InvalidMessage] error if the ciphertext cannot be verified or if the commitments are invalid.
+    /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
+    ///
+    /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
+    ///
+    /// 3. When 2t+1 signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(
         &self,
         message: &Message<BATCH_SIZE>,
-    ) -> FastCryptoResult<ReceiverOutput<BATCH_SIZE>> {
+    ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
         // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
         if message.response.degree() <= self.threshold as usize - 1 {
-            return Err(InvalidInput);
+            return Err(InvalidMessage);
+        }
+
+        // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
+        let challenge = self.compute_challenge_from_message(message);
+        if G::generator() * message.response.c0()
+            != message.blinding_commit
+                + G::multi_scalar_mul(&challenge, &message.full_public_keys)
+                    .expect("Inputs have constant lengths")
+        {
+            return Err(InvalidMessage);
         }
 
         let random_oracle_encryption = self.extension(Encryption);
+        message
+            .ciphertext
+            .verify(&random_oracle_encryption)
+            .map_err(|_| InvalidMessage)?;
 
-        message.ciphertext.verify(&random_oracle_encryption)?;
+        // Decrypt my shares
         let plaintext = message.ciphertext.decrypt(
             &self.enc_secret_key,
             &random_oracle_encryption,
             self.id as usize,
         );
 
-        let my_shares = SharesForNode::from_bytes(&plaintext)?;
-
-        // Check that we received the correct number of shares.
-        if my_shares.weight() != self.my_weight() {
-            return Err(InvalidInput);
+        match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
+            if my_shares.weight() != self.my_weight() {
+                return Err(InvalidMessage);
+            }
+            self.verify_shares(message, &my_shares)?;
+            Ok(my_shares)
+        }) {
+            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
+                my_shares,
+                public_keys: message.full_public_keys,
+            })),
+            Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
+                self.id,
+                &message.ciphertext,
+                &self.enc_secret_key,
+                self,
+                &mut rand::thread_rng(),
+            ))),
         }
-
-        self.verify_shares(message, &my_shares)?;
-
-        // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = self.compute_challenge_from_message(message);
-        if G::generator() * message.response.c0()
-            != message.blinding_commit + G::multi_scalar_mul(&challenge, &message.full_public_keys)?
-        {
-            return Err(InvalidInput);
-        }
-
-        Ok(ReceiverOutput {
-            my_shares,
-            public_keys: message.full_public_keys,
-        })
     }
 
-    /// 3. When 2t+1 signatures have been collected in the certificate, the receivers can now verify it.
-    ///    If a receiver is not in the certificate, because it could not decrypt or verify its shares, it should broadcast a [Complaint].
     /// 4. Upon receiving a complaint, a receiver verifies it and responds with a recovery package for the shares of the accuser.
     pub fn handle_complaint(
         &self,
@@ -410,14 +434,7 @@ trait FiatShamirImpl<const BATCH_SIZE: usize>: RandomOracleExtensions {
         e: &MultiRecipientEncryption<EG>,
     ) -> [S; BATCH_SIZE] {
         let random_oracle = self.extension(Challenge);
-        array::from_fn(|l| {
-            S::fiat_shamir_reduction_to_group_element(&random_oracle.evaluate(&(
-                l,
-                c.to_vec(),
-                c_prime,
-                e,
-            )))
-        })
+        array::from_fn(|l| random_oracle.evaluate_to_group_element(&(l, c.to_vec(), c_prime, e)))
     }
 
     fn compute_challenge_from_message(&self, message: &Message<BATCH_SIZE>) -> [S; BATCH_SIZE] {
@@ -447,7 +464,10 @@ impl<const BATCH_SIZE: usize> FiatShamirImpl<BATCH_SIZE> for Receiver<BATCH_SIZE
 
 #[cfg(test)]
 mod tests {
-    use super::{Complaint, Dealer, FiatShamirImpl, Message, Receiver, ShareBatch, SharesForNode};
+    use super::{
+        Complaint, Dealer, FiatShamirImpl, Message, ProcessedMessage, Receiver, ReceiverOutput,
+        ShareBatch, SharesForNode,
+    };
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
@@ -508,7 +528,12 @@ mod tests {
 
         let all_shares = receivers
             .iter()
-            .map(|receiver| (receiver.id, receiver.process_message(&message).unwrap()))
+            .map(|receiver| {
+                (
+                    receiver.id,
+                    assert_valid(receiver.process_message(&message).unwrap()),
+                )
+            })
             .collect::<HashMap<_, _>>();
 
         let secrets = (0..BATCH_SIZE)
@@ -586,9 +611,7 @@ mod tests {
         let all_shares = receivers
             .iter()
             .flat_map(|receiver| {
-                receiver
-                    .process_message(&message)
-                    .unwrap()
+                assert_valid(receiver.process_message(&message).unwrap())
                     .my_shares
                     .batches
             })
@@ -658,26 +681,22 @@ mod tests {
 
         let mut all_shares = receivers
             .iter()
-            .map(|receiver| receiver.process_message(&message).map(|s| (receiver.id, s)))
-            .filter_map(Result::ok)
+            .map(|receiver| (receiver.id, receiver.process_message(&message).unwrap()))
             .collect::<HashMap<_, _>>();
-        assert!(all_shares.get(&0).is_none());
 
-        let complaint = Complaint::create(
-            receivers[0].id,
-            &message.ciphertext,
-            &receivers[0].enc_secret_key,
-            &receivers[0],
-            &mut rng,
-        )
-        .unwrap();
+        let complaint = assert_complaint(all_shares.remove(&receivers[0].id).unwrap());
+        let mut all_shares = all_shares
+            .into_iter()
+            .map(|(id, pm)| (id, assert_valid(pm)))
+            .collect::<HashMap<_, _>>();
+
         let responses = receivers
             .iter()
             .skip(1)
             .map(|r| r.handle_complaint(&message, &complaint, &mut rng).unwrap())
             .collect::<Vec<_>>();
         let shares = receivers[0].recover(&message, &responses).unwrap();
-        all_shares.insert(0, shares);
+        all_shares.insert(receivers[0].id, shares);
 
         // Recover with the first f+1 shares, including the reconstructed
         let secrets = (0..BATCH_SIZE)
@@ -763,6 +782,26 @@ mod tests {
                 ciphertext,
                 response,
             })
+        }
+    }
+
+    fn assert_valid<const BATCH_SIZE: usize>(
+        processed_message: ProcessedMessage<BATCH_SIZE>,
+    ) -> ReceiverOutput<BATCH_SIZE> {
+        if let ProcessedMessage::Valid(output) = processed_message {
+            output
+        } else {
+            panic!("Expected valid message");
+        }
+    }
+
+    fn assert_complaint<const BATCH_SIZE: usize>(
+        processed_message: ProcessedMessage<BATCH_SIZE>,
+    ) -> Complaint {
+        if let ProcessedMessage::Complaint(complaint) = processed_message {
+            complaint
+        } else {
+            panic!("Expected complaint");
         }
     }
 }

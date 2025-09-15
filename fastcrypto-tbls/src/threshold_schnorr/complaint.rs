@@ -72,15 +72,15 @@ impl Complaint {
         enc_sk: &ecies_v1::PrivateKey<EG>,
         random_oracle: &impl RandomOracleExtensions,
         rng: &mut impl AllowedRng,
-    ) -> FastCryptoResult<Self> {
-        Ok(Self {
+    ) -> Self {
+        Self {
             accuser_id,
             proof: ciphertext.create_recovery_package(
                 enc_sk,
                 &random_oracle.extension(Recovery(accuser_id)),
                 rng,
             ),
-        })
+        }
     }
 }
 

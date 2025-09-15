@@ -1,7 +1,9 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::threshold_schnorr::S;
 use digest::Digest;
+use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_512;
 use std::fmt::Debug;
@@ -48,6 +50,13 @@ impl RandomOracle {
         let serialized = bcs::to_bytes(obj).expect("serialize should never fail");
         hasher.update(&serialized);
         hasher.finalize().into()
+    }
+
+    pub fn evaluate_to_group_element<G: GroupElement + FiatShamirChallenge, T: Serialize>(
+        &self,
+        obj: &T,
+    ) -> G {
+        G::fiat_shamir_reduction_to_group_element(&self.evaluate(obj))
     }
 
     /// Derive a new random oracle from the current one and additional string (can be done multiple times).
