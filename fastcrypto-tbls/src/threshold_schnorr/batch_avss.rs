@@ -20,7 +20,7 @@ use crate::threshold_schnorr::{EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar};
+use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -35,7 +35,6 @@ use tracing::warn;
 pub struct Dealer<const BATCH_SIZE: usize> {
     secrets: [S; BATCH_SIZE],
     t: u16,
-    f: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
 }
@@ -46,8 +45,7 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
-    t: u16,
-    f: u16,
+    t: u16, // The number of parties that are needed to reconstruct the full key/signature.
 }
 
 /// The output of a receiver which is a batch of shares + the public keys for all nonces.
@@ -205,7 +203,6 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         Ok(Self {
             secrets,
             t,
-            f,
             nodes,
             random_oracle,
         })
@@ -528,7 +525,6 @@ mod tests {
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -609,7 +605,6 @@ mod tests {
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -681,7 +676,6 @@ mod tests {
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("batch avss test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();

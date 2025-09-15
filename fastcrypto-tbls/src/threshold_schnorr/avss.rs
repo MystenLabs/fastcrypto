@@ -33,7 +33,6 @@ use tracing::warn;
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<const BATCH_SIZE: usize> {
     t: u16,
-    f: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
     secrets: [S; BATCH_SIZE],
@@ -46,7 +45,6 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     commitments: [G; BATCH_SIZE], // Commitments to the polynomials of the previous round, used to verify the shares
     random_oracle: RandomOracle,
     t: u16,
-    f: u16,
 }
 
 /// The output of a receiver: The shares for each nonce.
@@ -179,7 +177,6 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         Ok(Self {
             secrets,
             t,
-            f,
             nodes,
             random_oracle,
         })
@@ -467,7 +464,6 @@ mod tests {
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
             t,
-            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -481,7 +477,6 @@ mod tests {
                 commitments: previous_round_commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -556,7 +551,6 @@ mod tests {
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
             t,
-            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -570,7 +564,6 @@ mod tests {
                 commitments: previous_round_commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -596,7 +589,6 @@ mod tests {
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
             t,
-            f,
             nodes: nodes.clone(),
             random_oracle: RandomOracle::new("tbls test 2"),
         };
@@ -608,7 +600,6 @@ mod tests {
                      id,
                      enc_secret_key,
                      t,
-                     f,
                      nodes,
                      ..
                  }| Receiver {
@@ -623,7 +614,6 @@ mod tests {
                         .clone(),
                     random_oracle: RandomOracle::new("tbls test 2"),
                     t,
-                    f,
                     nodes,
                 },
             )
@@ -697,7 +687,6 @@ mod tests {
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
             t,
-            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -713,7 +702,6 @@ mod tests {
                 commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
-                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
