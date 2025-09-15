@@ -18,7 +18,7 @@ impl PascalMatrix {
         let mut buffer = x.to_vec();
         (0..self.m)
             .map(|_| {
-                for j in (0..(self.m - 1)).rev() {
+                for j in (0..(self.n - 1)).rev() {
                     let (buffer, tail) = buffer.split_at_mut(j + 1);
                     buffer[j] += tail[0];
                 }
@@ -45,7 +45,7 @@ impl UTPascalMatrix {
         let mut buffer = x.to_vec();
         (0..self.m)
             .map(|i| {
-                for j in (i..(self.m - 1)).rev() {
+                for j in (i..(self.n - 1)).rev() {
                     let (buffer, tail) = buffer.split_at_mut(j + 1);
                     buffer[j] += tail[0];
                 }

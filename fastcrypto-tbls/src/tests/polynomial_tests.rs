@@ -18,6 +18,7 @@ const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
 #[generic_tests::define]
 mod scalar_tests {
     use super::*;
+    use itertools::Itertools;
 
     #[test]
     fn test_degree<S: Scalar>() {
@@ -75,6 +76,40 @@ mod scalar_tests {
             let used_shares = shares.iter().take(124);
             assert_eq!(c0, &Poly::<S>::recover_c0(124, used_shares).unwrap());
         }
+    }
+
+    #[test]
+    fn test_interpolate_at_index<S: Scalar>() {
+        let degree = 12;
+        let threshold = degree + 1;
+        let poly = Poly::<S>::rand(degree, &mut thread_rng());
+        let mut shares = (1..50)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect::<Vec<_>>();
+        for _ in 0..10 {
+            shares.shuffle(&mut thread_rng());
+            let index = ShareIndex::new(thread_rng().gen_range(300..600)).unwrap();
+            let used_shares = shares
+                .iter()
+                .take(threshold as usize)
+                .map(|i| i.clone())
+                .collect_vec();
+            let interpolated = interpolate_at_index(index, &used_shares).unwrap();
+            assert_eq!(interpolated, poly.eval(index));
+        }
+    }
+
+    #[test]
+    fn test_interpolate_at_index_errors<S: Scalar>() {
+        let degree = 4;
+        let threshold = degree + 1;
+        let poly = Poly::<S>::rand(4, &mut thread_rng());
+        // duplicate indices
+        let shares = (1..=threshold)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
+            .collect_vec(); // duplicate value 1
+        interpolate_at_index(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
     }
 
     #[instantiate_tests(<RistrettoScalar>)]

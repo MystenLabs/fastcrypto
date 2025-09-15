@@ -42,6 +42,10 @@ pub trait GroupElement:
 
     /// Return an instance of the generator for this group.
     fn generator() -> Self;
+
+    fn sum(terms: impl Iterator<Item = Self>) -> Self {
+        terms.fold(Self::zero(), |acc, x| acc + x)
+    }
 }
 
 // TODO: Move Serialize + DeserializeOwned to GroupElement.
@@ -52,6 +56,9 @@ pub trait Scalar:
 {
     fn rand<R: AllowedRng>(rng: &mut R) -> Self;
     fn inverse(&self) -> FastCryptoResult<Self>;
+    fn product(terms: impl Iterator<Item = Self>) -> Self {
+        terms.fold(Self::generator(), |acc, x| acc * x)
+    }
 }
 
 /// Trait for group elements that has a fast doubling operation.

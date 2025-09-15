@@ -254,6 +254,10 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     }
 }
 
+/// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
+/// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+///
+/// This is faster than first recovering the polynomial and then evaluating it at the given index.
 pub fn interpolate_at_index<C: Scalar>(
     index: ShareIndex,
     points: &[Eval<C>],
@@ -267,23 +271,20 @@ pub fn interpolate_at_index<C: Scalar>(
     let x = C::from(index.get() as u128);
 
     // Convert indices to scalars for interpolation.
-    let points = points
+    let indices = points
         .iter()
-        .map(|p| (C::from(p.index.get() as u128), p.value))
+        .map(|p| C::from(p.index.get() as u128))
         .collect::<Vec<_>>();
 
-    let value = points
-        .iter()
-        .enumerate()
-        .map(|(j, (x_j, y_j))| {
-            points
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| *i != j)
-                .map(|(_, (x_i, _))| ((x - x_i) / (*x_j - x_i)).expect("Divisor is never zero"))
-                .fold(*y_j, |acc, factor| acc * factor)
-        })
-        .fold(C::zero(), |acc, term| acc + term);
+    let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
+        points[j].value
+            * C::product(
+                indices
+                    .iter()
+                    .filter(|x_i| *x_i != x_j)
+                    .map(|x_i| ((x - x_i) / (*x_j - x_i)).expect("Divisor is never zero")),
+            )
+    }));
 
     Ok(Eval { index, value })
 }
