@@ -256,18 +256,6 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 }
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
-    pub fn my_indices(&self) -> Vec<ShareIndex> {
-        self.nodes.share_ids_of(self.id).unwrap()
-    }
-
-    pub fn my_weight(&self) -> usize {
-        self.nodes
-            .total_weight_of(std::iter::once(&self.id))
-            .unwrap() as usize
-    }
-}
-
-impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     /// 2. Each receiver processes the message, verifies and decrypts its shares. If this works, the shares are stored and the receiver can contribute a signature on the message to a certificate.
     pub fn process_message(
         &self,
@@ -397,12 +385,19 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     ) -> FastCryptoResult<()> {
         let challenge = self.compute_challenge_from_message(message);
         for shares in &nonce_shares.batches {
-            if shares.shares.len() != BATCH_SIZE {
-                return Err(InvalidInput);
-            }
             shares.verify(message, &challenge)?;
         }
         Ok(())
+    }
+
+    pub fn my_indices(&self) -> Vec<ShareIndex> {
+        self.nodes.share_ids_of(self.id).unwrap()
+    }
+
+    pub fn my_weight(&self) -> usize {
+        self.nodes
+            .total_weight_of(std::iter::once(&self.id))
+            .unwrap() as usize
     }
 }
 
