@@ -14,13 +14,13 @@
 pub mod dkg_v1;
 pub mod dl_verification;
 pub mod ecies_v1;
-pub mod hashi;
 pub mod mocked_dkg;
 pub mod nizk;
 pub mod nodes;
 pub mod polynomial;
 pub mod random_oracle;
 pub mod tbls;
+pub mod threshold_schnorr;
 pub mod types;
 
 // TODO: needs to use ecies_v1

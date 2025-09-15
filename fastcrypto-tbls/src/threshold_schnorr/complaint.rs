@@ -1,31 +1,27 @@
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
-use crate::hashi::bcs::BCSSerialized;
-use crate::hashi::ro_extension::Extension::{Encryption, Recovery};
-use crate::hashi::ro_extension::RandomOracleExtensions;
 use crate::nodes::PartyId;
+use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::ro_extension::Extension::{Encryption, Recovery};
+use crate::threshold_schnorr::ro_extension::RandomOracleExtensions;
+use crate::threshold_schnorr::EG;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
-use fastcrypto::groups::{FiatShamirChallenge, GroupElement, HashToGroupElement};
 use fastcrypto::traits::AllowedRng;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use tracing::debug;
-use zeroize::Zeroize;
 
 /// A complaint by an accuser that it could not decrypt or verify its shares.
 /// Given enough responses to the complaint, the accuser can recover its shares.
 #[derive(Clone, Debug)]
-pub struct Complaint<EG: GroupElement> {
+pub struct Complaint {
     pub(crate) accuser_id: PartyId,
     pub(crate) proof: RecoveryPackage<EG>,
 }
 
-impl<EG: GroupElement + HashToGroupElement + Serialize> Complaint<EG>
-where
-    EG::ScalarType: FiatShamirChallenge + Zeroize,
-{
+impl Complaint {
     /// Try to decrypt the shares for the accuser.
-    pub(crate) fn check<S: BCSSerialized>(
+    pub fn check<S: BCSSerialized>(
         &self,
         enc_pk: &ecies_v1::PublicKey<EG>,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
@@ -70,7 +66,7 @@ where
         }
     }
 
-    pub(crate) fn create(
+    pub fn create(
         accuser_id: PartyId,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
         enc_sk: &ecies_v1::PrivateKey<EG>,
@@ -90,15 +86,12 @@ where
 
 /// A response to a complaint, containing a recovery package for the accuser.
 #[derive(Debug, Clone)]
-pub struct ComplaintResponse<EG: GroupElement> {
+pub struct ComplaintResponse {
     pub(crate) responder_id: PartyId,
     pub(crate) recovery_package: RecoveryPackage<EG>,
 }
 
-impl<EG: GroupElement + Serialize + HashToGroupElement> ComplaintResponse<EG>
-where
-    EG::ScalarType: FiatShamirChallenge + Zeroize,
-{
+impl ComplaintResponse {
     pub(crate) fn create(
         responder_id: PartyId,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,

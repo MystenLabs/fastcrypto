@@ -1,14 +1,15 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::hashi::avss::ReceiverOutput;
-use crate::hashi::si_matrix::PascalMatrix;
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
+use crate::threshold_schnorr::batch_avss::ReceiverOutput;
+use crate::threshold_schnorr::si_matrix::PascalMatrix;
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use itertools::Itertools;
 use serde::Serialize;
@@ -16,12 +17,14 @@ use std::collections::BTreeMap;
 use std::iter::once;
 
 pub mod avss;
+pub mod batch_avss;
 mod bcs;
-mod certificate;
-pub(crate) mod complaint;
-pub mod dkg;
-mod ro_extension;
+pub mod certificate;
+pub mod complaint;
+pub mod ro_extension;
 pub mod si_matrix;
+
+type EG = G1Element;
 
 /// One output per index
 pub struct PresigningOutput<G: GroupElement> {

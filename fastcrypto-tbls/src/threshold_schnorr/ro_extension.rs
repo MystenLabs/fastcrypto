@@ -1,15 +1,15 @@
-use crate::hashi::ro_extension::Extension::{Challenge, Encryption, Recovery};
 use crate::nodes::PartyId;
 use crate::random_oracle::RandomOracle;
+use crate::threshold_schnorr::ro_extension::Extension::{Challenge, Encryption, Recovery};
 
-pub(crate) enum Extension {
+pub enum Extension {
     Recovery(PartyId),
     Encryption,
     Challenge,
 }
 
 /// Helper trait to extend a random oracle with context-specific strings.
-pub(crate) trait RandomOracleExtensions {
+pub trait RandomOracleExtensions {
     fn base(&self) -> &RandomOracle;
 
     /// Extend the base random oracle with a context-specific string.
