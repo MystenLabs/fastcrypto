@@ -94,7 +94,7 @@ mod scalar_tests {
                 .take(threshold as usize)
                 .map(|i| i.clone())
                 .collect_vec();
-            let interpolated = interpolate_at_index(index, &used_shares).unwrap();
+            let interpolated = Poly::interpolate_at_index(index, &used_shares).unwrap();
             assert_eq!(interpolated, poly.eval(index));
         }
     }
@@ -109,7 +109,7 @@ mod scalar_tests {
             .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
-        interpolate_at_index(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+        Poly::interpolate_at_index(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
     }
 
     #[instantiate_tests(<RistrettoScalar>)]

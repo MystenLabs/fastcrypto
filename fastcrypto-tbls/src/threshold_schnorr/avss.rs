@@ -11,7 +11,7 @@
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{interpolate_at_index, Eval, Poly, PublicPoly};
+use crate::polynomial::{Eval, Poly, PublicPoly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
@@ -104,7 +104,9 @@ impl<C: Scalar> SharesForNode<C> {
                             .iter()
                             .flat_map(|s| s.shares_for_secret(i).expect("Size checked above"))
                             .collect_vec();
-                        interpolate_at_index(index, &evaluations).unwrap().value
+                        Poly::interpolate_at_index(index, &evaluations)
+                            .unwrap()
+                            .value
                     })
                     .collect_vec();
 
@@ -330,6 +332,7 @@ where
         }
 
         // Verify shares against commitments.
+        // TODO: Use MSM for this
         for batch in shares.batches.iter() {
             for (share, c) in batch.shares.iter().zip(message.commitments.iter()) {
                 c.verify_share(batch.index, share)?;

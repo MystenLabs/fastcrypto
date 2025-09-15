@@ -10,7 +10,7 @@
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
-use crate::polynomial::{interpolate_at_index, Eval, Poly};
+use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
@@ -152,11 +152,13 @@ impl<C: Scalar> SharesForNode<C> {
                             .iter()
                             .flat_map(|s| s.shares_for_secret(i).expect("Size checked above"))
                             .collect_vec();
-                        interpolate_at_index(index, &evaluations).unwrap().value
+                        Poly::interpolate_at_index(index, &evaluations)
+                            .unwrap()
+                            .value
                     })
                     .collect_vec();
 
-                let blinding_share = interpolate_at_index(
+                let blinding_share = Poly::interpolate_at_index(
                     index,
                     &other_shares
                         .iter()
