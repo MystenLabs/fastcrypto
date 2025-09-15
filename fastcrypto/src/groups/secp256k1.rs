@@ -4,10 +4,13 @@
 //! Implementation of the Secp256k1 (aka K-256) curve.
 
 use crate::error::{FastCryptoError, FastCryptoResult};
-use crate::groups::{Doubling, GroupElement, MultiScalarMul, Scalar as ScalarTrait};
+use crate::groups::{
+    Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar as ScalarTrait,
+};
+use crate::hash::{HashFunction, Sha3_512};
 use crate::serde_helpers::ToFromByteArray;
-use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
+use crate::{serialize_deserialize_with_to_from_byte_array};
 use ark_ec::{AffineRepr, CurveGroup, Group, ScalarMul, VariableBaseMSM};
 use ark_ff::{BigInteger, Field, One, PrimeField, UniformRand, Zero};
 use ark_secp256k1::{Affine, Fq, Fr, Projective};
@@ -249,6 +252,14 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
             .to_bytes_be()
             .try_into()
             .expect("Always 32 bytes")
+    }
+}
+
+impl FiatShamirChallenge for Scalar {
+    fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
+        Scalar::from(Fr::from_be_bytes_mod_order(
+            &Sha3_512::digest(uniform_buffer).digest,
+        ))
     }
 }
 

@@ -9,6 +9,7 @@ use crate::threshold_schnorr::si_matrix::PascalMatrix;
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidInput};
 use fastcrypto::error::FastCryptoResult;
+use fastcrypto::groups;
 use fastcrypto::groups::bls12381::G1Element;
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use itertools::Itertools;
@@ -24,23 +25,29 @@ pub mod complaint;
 pub mod ro_extension;
 pub mod si_matrix;
 
+/// The group to use for the signing
+pub type G = groups::secp256k1::ProjectivePoint;
+
+/// Default scalar
+pub type S = <G as GroupElement>::ScalarType;
+
+/// The group used for multi-recipient encryption
 type EG = G1Element;
 
 /// One output per index
-pub struct PresigningOutput<G: GroupElement> {
+pub struct PresigningOutput {
     pub index: ShareIndex,
-    pub private: Vec<Vec<G::ScalarType>>,
+    pub private: Vec<Vec<S>>,
     pub public: Vec<Vec<G>>,
 }
 
 /// One output per weight
-pub fn presigning<G: GroupElement, EG: GroupElement + Serialize>(
+pub fn presigning<const BATCH_SIZE: usize>(
     my_id: &PartyId,
     nodes: &Nodes<EG>,
-    receiver_outputs: BTreeMap<PartyId, ReceiverOutput<G>>, // Dealer -> output
-    batch_size: usize,
+    receiver_outputs: BTreeMap<PartyId, ReceiverOutput<BATCH_SIZE>>, // Dealer -> output
     f: u16,
-) -> FastCryptoResult<Vec<PresigningOutput<G>>> {
+) -> FastCryptoResult<Vec<PresigningOutput>> {
     let J = nodes.total_weight_of(receiver_outputs.keys())?;
     if J < 2 * f + 1 {
         return Err(InvalidInput);
@@ -52,7 +59,7 @@ pub fn presigning<G: GroupElement, EG: GroupElement + Serialize>(
     let my_weight = nodes.total_weight_of(once(my_id))?;
 
     // This has dimensions L x J x W where W is my weight
-    let all_my_shares = (0..batch_size)
+    let all_my_shares = (0..BATCH_SIZE)
         .map(|l| {
             receiver_outputs
                 .values()
@@ -68,7 +75,7 @@ pub fn presigning<G: GroupElement, EG: GroupElement + Serialize>(
                 .collect_vec()
         })
         .collect_vec();
-    let all_public_keys = (0..batch_size)
+    let all_public_keys = (0..BATCH_SIZE)
         .map(|l| {
             receiver_outputs
                 .values()
@@ -79,7 +86,7 @@ pub fn presigning<G: GroupElement, EG: GroupElement + Serialize>(
 
     Ok((0..my_weight)
         .map(|w| {
-            let private = (0..batch_size)
+            let private = (0..BATCH_SIZE)
                 .map(|l| {
                     matrix.vector_mul(
                         &(0..J)
@@ -88,7 +95,7 @@ pub fn presigning<G: GroupElement, EG: GroupElement + Serialize>(
                     )
                 })
                 .collect_vec();
-            let public = (0..batch_size)
+            let public = (0..BATCH_SIZE)
                 .map(|l| matrix.vector_mul(&all_public_keys[l]))
                 .collect_vec();
             PresigningOutput {

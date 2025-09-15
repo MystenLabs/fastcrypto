@@ -92,7 +92,7 @@ mod scalar_tests {
             let used_shares = shares
                 .iter()
                 .take(threshold as usize)
-                .map(|i| i.clone())
+                .cloned()
                 .collect_vec();
             let interpolated = Poly::interpolate_at_index(index, &used_shares).unwrap();
             assert_eq!(interpolated, poly.eval(index));
