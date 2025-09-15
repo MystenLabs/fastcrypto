@@ -32,7 +32,8 @@ use tracing::warn;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<const BATCH_SIZE: usize> {
-    threshold: u16,
+    t: u16,
+    f: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
     secrets: [S; BATCH_SIZE],
@@ -44,7 +45,8 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     nodes: Nodes<EG>,
     commitments: [G; BATCH_SIZE], // Commitments to the polynomials of the previous round, used to verify the shares
     random_oracle: RandomOracle,
-    threshold: u16,
+    t: u16,
+    f: u16,
 }
 
 /// The output of a receiver: The shares for each nonce.
@@ -120,9 +122,24 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
     }
 
     /// Assuming that enough shares are given, recover the shares for this node.
-    fn recover(indices: Vec<ShareIndex>, other_shares: &[Self]) -> FastCryptoResult<Self> {
+    fn recover(
+        indices: Vec<ShareIndex>,
+        threshold: u16,
+        other_shares: &[Self],
+    ) -> FastCryptoResult<Self> {
         if other_shares.is_empty() {
             return Err(InvalidInput);
+        }
+
+        // Compute the total weight of the valid responses
+        let response_weight = other_shares
+            .iter()
+            .map(SharesForNode::weight)
+            .sum::<usize>();
+        if response_weight < threshold as usize {
+            return Err(FastCryptoError::GeneralError(
+                "Not enough valid responses".to_string(),
+            ));
         }
 
         let batches = indices
@@ -150,12 +167,19 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     pub fn new(
         secrets: [S; BATCH_SIZE],
         nodes: Nodes<EG>,
-        threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature
+        f: u16, // Upper bound for the number of Byzantine parties
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
     ) -> FastCryptoResult<Self> {
+        // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
+        if t <= f || t + 2 * f > nodes.total_weight() {
+            return Err(InvalidInput);
+        }
+
         Ok(Self {
             secrets,
-            threshold,
+            t,
+            f,
             nodes,
             random_oracle,
         })
@@ -168,7 +192,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
         let polynomials = self
             .secrets
-            .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
+            .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
 
         let commitments = polynomials.each_ref().map(Poly::commit);
 
@@ -214,7 +238,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     ///
-    /// 3. When 2t+1 signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
+    /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(
         &self,
         message: &Message<BATCH_SIZE>,
@@ -222,7 +246,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         if message
             .feldman_commitments
             .iter()
-            .any(|c| c.degree() >= self.threshold as usize)
+            .any(|c| c.degree() != self.t as usize - 1)
         {
             return Err(InvalidMessage);
         }
@@ -302,10 +326,8 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         let total_response_weight = self
             .nodes
             .total_weight_of(responses.iter().map(|response| &response.responder_id))?;
-        if total_response_weight < self.threshold + 1 {
-            return Err(FastCryptoError::InputTooShort(
-                (self.threshold + 1) as usize,
-            ));
+        if total_response_weight < self.t {
+            return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
         let response_shares = responses
@@ -326,18 +348,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             })
             .collect_vec();
 
-        // Compute the total weight of the valid responses
-        let response_weight = response_shares
-            .iter()
-            .map(SharesForNode::weight)
-            .sum::<usize>();
-        if response_weight < (self.threshold + 1) as usize {
-            return Err(FastCryptoError::GeneralError(
-                "Not enough valid responses".to_string(),
-            ));
-        }
-
-        let my_shares = SharesForNode::recover(self.my_indices(), &response_shares)?;
+        let my_shares = SharesForNode::recover(self.my_indices(), self.t, &response_shares)?;
         self.verify_shares(message, &my_shares)?;
 
         Ok(ReceiverOutput {
@@ -425,8 +436,9 @@ mod tests {
     #[test]
     fn test_sharing() {
         // No complaints, all honest. All have weight 1
-        let threshold = 2;
-        let n = 3 * threshold + 1;
+        let t = 3;
+        let f = 2;
+        let n = 7;
         const BATCH_SIZE: usize = 3;
 
         let mut rng = rand::thread_rng();
@@ -454,7 +466,8 @@ mod tests {
 
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
-            threshold,
+            t,
+            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -467,7 +480,8 @@ mod tests {
                 enc_secret_key,
                 commitments: previous_round_commitments,
                 random_oracle: RandomOracle::new("tbls test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -496,14 +510,11 @@ mod tests {
                     })
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold,
-                    shares
-                        .iter()
-                        .take((threshold) as usize)
-                        .map(|(id, v)| Eval {
-                            index: ShareIndex::try_from(id + 1).unwrap(),
-                            value: *v,
-                        }),
+                    t,
+                    shares.iter().take(t as usize).map(|(id, v)| Eval {
+                        index: ShareIndex::try_from(id + 1).unwrap(),
+                        value: *v,
+                    }),
                 )
                 .unwrap()
             })
@@ -515,8 +526,9 @@ mod tests {
     #[test]
     fn test_sharing_two_rounds() {
         // No complaints, all honest. All have weight 1
-        let threshold = 2;
-        let n = 3 * threshold + 1;
+        let t = 3;
+        let f = 2;
+        let n = 7;
         const BATCH_SIZE: usize = 7;
 
         let mut rng = rand::thread_rng();
@@ -543,7 +555,8 @@ mod tests {
         let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
-            threshold,
+            t,
+            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -556,7 +569,8 @@ mod tests {
                 enc_secret_key,
                 commitments: previous_round_commitments,
                 random_oracle: RandomOracle::new("tbls test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -581,7 +595,8 @@ mod tests {
 
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
-            threshold,
+            t,
+            f,
             nodes: nodes.clone(),
             random_oracle: RandomOracle::new("tbls test 2"),
         };
@@ -592,7 +607,8 @@ mod tests {
                 |Receiver {
                      id,
                      enc_secret_key,
-                     threshold,
+                     t,
+                     f,
                      nodes,
                      ..
                  }| Receiver {
@@ -606,7 +622,8 @@ mod tests {
                         .unwrap()
                         .clone(),
                     random_oracle: RandomOracle::new("tbls test 2"),
-                    threshold,
+                    t,
+                    f,
                     nodes,
                 },
             )
@@ -638,8 +655,8 @@ mod tests {
                     })
                     .collect_vec();
                 Poly::recover_c0(
-                    threshold,
-                    shares.iter().take(threshold as usize).map(|(id, v)| Eval {
+                    t,
+                    shares.iter().take(t as usize).map(|(id, v)| Eval {
                         index: ShareIndex::try_from(id + 1).unwrap(),
                         value: *v,
                     }),
@@ -653,8 +670,9 @@ mod tests {
 
     #[test]
     fn test_share_recovery() {
-        let threshold = 2;
-        let n = 3 * threshold + 1;
+        let t = 3;
+        let f = 2;
+        let n = 7;
         const BATCH_SIZE: usize = 3;
 
         let mut rng = rand::thread_rng();
@@ -678,7 +696,8 @@ mod tests {
 
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
-            threshold,
+            t,
+            f,
             nodes: nodes.clone(),
             random_oracle,
         };
@@ -693,7 +712,8 @@ mod tests {
                 enc_secret_key,
                 commitments,
                 random_oracle: RandomOracle::new("tbls test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -734,14 +754,11 @@ mod tests {
                     .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold,
-                    shares
-                        .iter()
-                        .take((threshold) as usize)
-                        .map(|(id, v)| Eval {
-                            index: ShareIndex::try_from(id + 1).unwrap(),
-                            value: *v,
-                        }),
+                    t,
+                    shares.iter().take(t as usize).map(|(id, v)| Eval {
+                        index: ShareIndex::try_from(id + 1).unwrap(),
+                        value: *v,
+                    }),
                 )
                 .unwrap()
             })
@@ -757,7 +774,7 @@ mod tests {
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
             let polynomials = self
                 .secrets
-                .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
+                .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
 
             let commitments = polynomials.each_ref().map(Poly::commit);
 

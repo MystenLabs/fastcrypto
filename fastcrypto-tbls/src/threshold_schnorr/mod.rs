@@ -133,7 +133,8 @@ where
 {
     let (l, j) = matrix_coordinate(public.len(), public[0].len(), message.0)?;
     let R = public[l][j] + G::generator() * beacon_value;
-    let sigma = private[l][j] + hash(random_oracle, message.1, &R, vk);
+    let sigma = private[l][j]
+        + random_oracle.evaluate_to_group_element::<G::ScalarType, _>(&(message.1, &R, vk));
     Ok(Eval {
         index,
         value: sigma,
@@ -159,17 +160,4 @@ pub fn signature_aggregation<G: GroupElement>(
     // TODO: Unhappy path
 
     Ok((R, sigma + beacon_value))
-}
-
-fn hash<G: GroupElement + Serialize>(
-    random_oracle: &RandomOracle,
-    message: &[u8],
-    r: &G,
-    vk: &[u8],
-) -> G::ScalarType
-where
-    G::ScalarType: FiatShamirChallenge,
-{
-    let output = random_oracle.evaluate(&(message, r, vk));
-    G::ScalarType::fiat_shamir_reduction_to_group_element(&output)
 }

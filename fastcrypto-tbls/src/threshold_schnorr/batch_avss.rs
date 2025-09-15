@@ -34,7 +34,8 @@ use tracing::warn;
 /// There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
 pub struct Dealer<const BATCH_SIZE: usize> {
     secrets: [S; BATCH_SIZE],
-    threshold: u16,
+    t: u16,
+    f: u16,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
 }
@@ -45,7 +46,8 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     random_oracle: RandomOracle,
-    threshold: u16,
+    t: u16,
+    f: u16,
 }
 
 /// The output of a receiver which is a batch of shares + the public keys for all nonces.
@@ -189,17 +191,24 @@ impl<const BATCH_SIZE: usize> BCSSerialized for SharesForNode<BATCH_SIZE> {}
 impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     pub fn new(
         nodes: Nodes<EG>,
-        threshold: u16, // The number of parties that are needed to reconstruct the full key/signature (f+1).
+        t: u16, // The number of parties that are needed to reconstruct the full key/signature.
+        f: u16, // The maximum number of Byzantine parties.
         random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
         rng: &mut impl AllowedRng,
-    ) -> Self {
+    ) -> FastCryptoResult<Self> {
+        // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
+        if t <= f || t + 2 * f > nodes.total_weight() {
+            return Err(InvalidInput);
+        }
+
         let secrets = array::from_fn(|_| S::rand(rng));
-        Self {
+        Ok(Self {
             secrets,
-            threshold,
+            t,
+            f,
             nodes,
             random_oracle,
-        }
+        })
     }
 
     /// 1. The Dealer generates shares for the secrets and broadcasts the encrypted shares.
@@ -209,13 +218,13 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
         let polynomials = self
             .secrets
-            .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
+            .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
 
         // Compute the (full) public keys for all secrets
         let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
 
         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-        let blinding_poly = Poly::rand(self.threshold - 1, rng);
+        let blinding_poly = Poly::rand(self.t - 1, rng);
         let blinding_commit = G::generator() * blinding_poly.c0();
 
         // Encrypt all shares to the receivers
@@ -272,13 +281,13 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
     ///
-    /// 3. When 2t+1 signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
+    /// 3. When f+t signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(
         &self,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
         // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
-        if message.response.degree() != self.threshold as usize - 1 {
+        if message.response.degree() != self.t as usize - 1 {
             return Err(InvalidMessage);
         }
 
@@ -361,10 +370,8 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         let total_response_weight = self
             .nodes
             .total_weight_of(responses.iter().map(|response| &response.responder_id))?;
-        if total_response_weight < self.threshold + 1 {
-            return Err(FastCryptoError::InputTooShort(
-                (self.threshold + 1) as usize,
-            ));
+        if total_response_weight < self.t {
+            return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
         let response_shares = responses
@@ -390,10 +397,8 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             .iter()
             .map(SharesForNode::weight)
             .sum::<usize>();
-        if response_weight < (self.threshold + 1) as usize {
-            return Err(FastCryptoError::InputTooShort(
-                (self.threshold + 1) as usize,
-            ));
+        if response_weight < self.t as usize {
+            return Err(FastCryptoError::InputTooShort(self.t as usize));
         }
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
@@ -490,8 +495,9 @@ mod tests {
     #[test]
     fn test_happy_path() {
         // No complaints, all honest. All have weight 1
-        let threshold = 2;
-        let n = 3 * threshold + 1;
+        let t = 3;
+        let f = 2;
+        let n = 7;
         const BATCH_SIZE: usize = 3;
 
         let mut rng = rand::thread_rng();
@@ -512,7 +518,7 @@ mod tests {
 
         let random_oracle = RandomOracle::new("tbls test");
         let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), threshold, random_oracle.clone(), &mut rng);
+            Dealer::new(nodes.clone(), t, f, random_oracle.clone(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -521,7 +527,8 @@ mod tests {
                 id: i as u16,
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("tbls test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -550,14 +557,11 @@ mod tests {
                     })
                     .collect_vec();
                 Poly::recover_c0(
-                    threshold,
-                    shares
-                        .iter()
-                        .take((threshold) as usize)
-                        .map(|(id, v)| Eval {
-                            index: ShareIndex::try_from(id + 1).unwrap(),
-                            value: *v,
-                        }),
+                    t,
+                    shares.iter().take(t as usize).map(|(id, v)| Eval {
+                        index: ShareIndex::try_from(id + 1).unwrap(),
+                        value: *v,
+                    }),
                 )
                 .unwrap()
             })
@@ -570,7 +574,8 @@ mod tests {
     #[allow(clippy::single_match)]
     fn test_happy_path_non_equal_weights() {
         // No complaints, all honest
-        let threshold = 2;
+        let t = 3;
+        let f = 2;
         let weights: Vec<u16> = vec![1, 2, 3, 4];
         const BATCH_SIZE: usize = 3;
 
@@ -594,7 +599,7 @@ mod tests {
 
         let random_oracle = RandomOracle::new("tbls test");
         let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), threshold, random_oracle.clone(), &mut rng);
+            Dealer::new(nodes.clone(), t, f, random_oracle.clone(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -603,7 +608,8 @@ mod tests {
                 id: i as u16,
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("tbls test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -622,8 +628,8 @@ mod tests {
         let secrets = (0..BATCH_SIZE)
             .map(|l| {
                 Poly::recover_c0(
-                    threshold,
-                    all_shares.iter().take((threshold) as usize).map(|s| Eval {
+                    t,
+                    all_shares.iter().take(t as usize).map(|s| Eval {
                         index: s.index,
                         value: s.shares[l],
                     }),
@@ -637,8 +643,9 @@ mod tests {
 
     #[test]
     fn test_share_recovery() {
-        let threshold = 2;
-        let n = 3 * threshold + 1;
+        let t = 3;
+        let f = 2;
+        let n = 7;
         const BATCH_SIZE: usize = 3;
 
         let mut rng = rand::thread_rng();
@@ -659,10 +666,12 @@ mod tests {
 
         let dealer: Dealer<BATCH_SIZE> = Dealer::new(
             nodes.clone(),
-            threshold,
+            t,
+            f,
             RandomOracle::new("batch avss test"),
             &mut rng,
-        );
+        )
+        .unwrap();
 
         let receivers = sks
             .into_iter()
@@ -671,7 +680,8 @@ mod tests {
                 id: i as u16,
                 enc_secret_key: secret_key,
                 random_oracle: RandomOracle::new("batch avss test"),
-                threshold,
+                t,
+                f,
                 nodes: nodes.clone(),
             })
             .collect::<Vec<_>>();
@@ -705,14 +715,11 @@ mod tests {
                     .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold,
-                    shares
-                        .iter()
-                        .take((threshold) as usize)
-                        .map(|(id, v)| Eval {
-                            index: ShareIndex::try_from(id + 1).unwrap(),
-                            value: *v,
-                        }),
+                    t,
+                    shares.iter().take(t as usize).map(|(id, v)| Eval {
+                        index: ShareIndex::try_from(id + 1).unwrap(),
+                        value: *v,
+                    }),
                 )
                 .unwrap()
             })
@@ -729,13 +736,13 @@ mod tests {
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
             let polynomials = self
                 .secrets
-                .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
+                .map(|c0| Poly::rand_fixed_c0(self.t - 1, c0, rng));
 
             // Compute the (full) public keys for all secrets
             let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
 
             // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-            let blinding_poly = Poly::rand(self.threshold - 1, rng);
+            let blinding_poly = Poly::rand(self.t - 1, rng);
             let blinding_commit = G::generator() * blinding_poly.c0();
 
             // Encrypt all shares to the receivers
