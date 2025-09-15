@@ -209,13 +209,13 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
         let polynomials = self
             .secrets
-            .map(|c0| Poly::rand_fixed_c0(self.threshold, c0, rng));
+            .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
 
         // Compute the (full) public keys for all secrets
         let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
 
         // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-        let blinding_poly = Poly::rand(self.threshold, rng);
+        let blinding_poly = Poly::rand(self.threshold - 1, rng);
         let blinding_commit = G::generator() * blinding_poly.c0();
 
         // Encrypt all shares to the receivers
@@ -251,6 +251,8 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             response += &(p_l * gamma_l);
         }
 
+        println!("Response polynomial: {:?}", response);
+
         Ok(Message {
             full_public_keys,
             blinding_commit,
@@ -276,7 +278,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
         // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
-        if message.response.degree() <= self.threshold as usize - 1 {
+        if message.response.degree() != self.threshold as usize - 1 {
             return Err(InvalidMessage);
         }
 
@@ -548,10 +550,10 @@ mod tests {
                     })
                     .collect_vec();
                 Poly::recover_c0(
-                    threshold + 1,
+                    threshold,
                     shares
                         .iter()
-                        .take((threshold + 1) as usize)
+                        .take((threshold) as usize)
                         .map(|(id, v)| Eval {
                             index: ShareIndex::try_from(id + 1).unwrap(),
                             value: *v,
@@ -620,14 +622,11 @@ mod tests {
         let secrets = (0..BATCH_SIZE)
             .map(|l| {
                 Poly::recover_c0(
-                    threshold + 1,
-                    all_shares
-                        .iter()
-                        .take((threshold + 1) as usize)
-                        .map(|s| Eval {
-                            index: s.index,
-                            value: s.shares[l],
-                        }),
+                    threshold,
+                    all_shares.iter().take((threshold) as usize).map(|s| Eval {
+                        index: s.index,
+                        value: s.shares[l],
+                    }),
                 )
                 .unwrap()
             })
@@ -706,10 +705,10 @@ mod tests {
                     .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold + 1,
+                    threshold,
                     shares
                         .iter()
-                        .take((threshold + 1) as usize)
+                        .take((threshold) as usize)
                         .map(|(id, v)| Eval {
                             index: ShareIndex::try_from(id + 1).unwrap(),
                             value: *v,
@@ -730,13 +729,13 @@ mod tests {
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
             let polynomials = self
                 .secrets
-                .map(|c0| Poly::rand_fixed_c0(self.threshold, c0, rng));
+                .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
 
             // Compute the (full) public keys for all secrets
             let full_public_keys = polynomials.each_ref().map(|p| G::generator() * p.c0());
 
             // "blinding" polynomial as defined in https://eprint.iacr.org/2023/536.pdf.
-            let blinding_poly = Poly::rand(self.threshold, rng);
+            let blinding_poly = Poly::rand(self.threshold - 1, rng);
             let blinding_commit = G::generator() * blinding_poly.c0();
 
             // Encrypt all shares to the receivers

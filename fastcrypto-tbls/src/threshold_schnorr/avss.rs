@@ -26,6 +26,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_big_array::BigArray;
 use std::array;
+use std::collections::HashMap;
 use tap::TapFallible;
 use tracing::warn;
 
@@ -41,7 +42,7 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
-    previous_round_commitments: [G; BATCH_SIZE], // Commitments to the polynomials of the previous round, used to verify the shares
+    commitments: [G; BATCH_SIZE], // Commitments to the polynomials of the previous round, used to verify the shares
     random_oracle: RandomOracle,
     threshold: u16,
 }
@@ -50,6 +51,9 @@ pub struct Receiver<const BATCH_SIZE: usize> {
 #[derive(Debug, Clone)]
 pub struct ReceiverOutput<const BATCH_SIZE: usize> {
     pub my_shares: SharesForNode<BATCH_SIZE>,
+
+    /// The commitments to the polynomials for the next round.
+    pub commitments: HashMap<ShareIndex, [G; BATCH_SIZE]>,
 }
 
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
@@ -58,7 +62,7 @@ pub struct Message<const BATCH_SIZE: usize> {
     ciphertext: MultiRecipientEncryption<EG>,
 
     #[serde(with = "BigArray")]
-    commitments: [Poly<G>; BATCH_SIZE], // Commitments to the polynomials for each nonce
+    feldman_commitments: [Poly<G>; BATCH_SIZE], // Commitments to the polynomials for each nonce
 }
 
 pub enum ProcessedMessage<const BATCH_SIZE: usize> {
@@ -79,7 +83,7 @@ pub struct ShareBatch<const BATCH_SIZE: usize> {
 
 impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
     fn verify(&self, message: &Message<BATCH_SIZE>) -> FastCryptoResult<()> {
-        for (share, c) in self.shares.iter().zip(message.commitments.iter()) {
+        for (share, c) in self.shares.iter().zip(message.feldman_commitments.iter()) {
             c.verify_share(self.index, share)?;
         }
         Ok(())
@@ -164,7 +168,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     ) -> FastCryptoResult<Message<BATCH_SIZE>> {
         let polynomials = self
             .secrets
-            .map(|c0| Poly::rand_fixed_c0(self.threshold, c0, rng));
+            .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
 
         let commitments = polynomials.each_ref().map(Poly::commit);
 
@@ -195,7 +199,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
         Ok(Message {
             ciphertext,
-            commitments,
+            feldman_commitments: commitments,
         })
     }
 }
@@ -205,7 +209,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
     ///
-    /// This returns an [InvalidMessage] error if the ciphertext cannot be verified or if the commitments are invalid.
+    /// This returns an [InvalidMessage] error if the ciphertext cannot be verified, if the commitments are invalid or do not match the commitments from a previous round.
     /// All honest receivers will reject such a message with the same error, and such a message should be ignored.
     ///
     /// If the message is valid but contains invalid shares for this receiver, the call will succeed but will return a [Complaint].
@@ -215,20 +219,26 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         &self,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
-        let random_oracle_encryption = self.extension(Encryption);
+        if message
+            .feldman_commitments
+            .iter()
+            .any(|c| c.degree() >= self.threshold as usize)
+        {
+            return Err(InvalidMessage);
+        }
 
+        // Verify that the secrets the dealer is distributing are consistent with the commitments.
+        for (commitment, previous) in message.feldman_commitments.iter().zip(&self.commitments) {
+            if commitment.c0() != previous {
+                return Err(InvalidMessage);
+            }
+        }
+
+        let random_oracle_encryption = self.extension(Encryption);
         message
             .ciphertext
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
-
-        if message
-            .commitments
-            .iter()
-            .any(|c| c.degree() >= self.threshold as usize - 1)
-        {
-            return Err(InvalidMessage);
-        }
 
         let plaintext = message.ciphertext.decrypt(
             &self.enc_secret_key,
@@ -243,7 +253,10 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             self.verify_shares(message, &my_shares)?;
             Ok(my_shares)
         }) {
-            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput { my_shares })),
+            Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
+                my_shares,
+                commitments: self.compute_commitments(&message),
+            })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
                 &message.ciphertext,
@@ -327,7 +340,10 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         let my_shares = SharesForNode::recover(self.my_indices(), &response_shares)?;
         self.verify_shares(message, &my_shares)?;
 
-        Ok(ReceiverOutput { my_shares })
+        Ok(ReceiverOutput {
+            my_shares,
+            commitments: self.compute_commitments(&message),
+        })
     }
 
     /// Helper function to verify the consistency of the shares, e.g., that <i>r' + &Sigma;<sub>l</sub> &gamma;<sub>l</sub> r<sub>li</sub> = p''(i)<i>.
@@ -336,23 +352,29 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         message: &Message<BATCH_SIZE>,
         shares: &SharesForNode<BATCH_SIZE>,
     ) -> FastCryptoResult<()> {
-        // Verify that the shares are consistent with the previous round's commitments.
-        for (commitment, previous) in message
-            .commitments
-            .iter()
-            .zip(&self.previous_round_commitments)
-        {
-            if commitment.c0() != previous {
-                return Err(InvalidInput);
-            }
-        }
-
         // Verify shares against commitments.
         // TODO: Use MSM for this
         for batch in shares.batches.iter() {
             batch.verify(message)?;
         }
         Ok(())
+    }
+
+    fn compute_commitments(
+        &self,
+        message: &Message<BATCH_SIZE>,
+    ) -> HashMap<ShareIndex, [G; BATCH_SIZE]> {
+        self.nodes
+            .share_ids_iter()
+            .map(|index| {
+                let commitments = message
+                    .feldman_commitments
+                    .iter()
+                    .map(|c| c.eval(index).value)
+                    .collect_vec();
+                (index, commitments.try_into().expect("correct length"))
+            })
+            .collect()
     }
 
     pub fn my_indices(&self) -> Vec<ShareIndex> {
@@ -443,7 +465,7 @@ mod tests {
             .map(|(id, enc_secret_key)| Receiver {
                 id: id as u16,
                 enc_secret_key,
-                previous_round_commitments,
+                commitments: previous_round_commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 threshold,
                 nodes: nodes.clone(),
@@ -474,10 +496,10 @@ mod tests {
                     })
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold + 1,
+                    threshold,
                     shares
                         .iter()
-                        .take((threshold + 1) as usize)
+                        .take((threshold) as usize)
                         .map(|(id, v)| Eval {
                             index: ShareIndex::try_from(id + 1).unwrap(),
                             value: *v,
@@ -488,6 +510,145 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(secrets, secrets);
+    }
+
+    #[test]
+    fn test_sharing_two_rounds() {
+        // No complaints, all honest. All have weight 1
+        let threshold = 2;
+        let n = 3 * threshold + 1;
+        const BATCH_SIZE: usize = 7;
+
+        let mut rng = rand::thread_rng();
+        let sks = (0..n)
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
+            .collect::<Vec<_>>();
+        let nodes = Nodes::new(
+            sks.iter()
+                .enumerate()
+                .map(|(i, sk)| Node {
+                    id: i as u16,
+                    pk: PublicKey::from_private_key(sk),
+                    weight: 1,
+                })
+                .collect::<Vec<_>>(),
+        )
+        .unwrap();
+
+        let random_oracle = RandomOracle::new("tbls test");
+
+        let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
+
+        // Mock a commitment to the previous round's secret.
+        let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
+        let dealer: Dealer<BATCH_SIZE> = Dealer {
+            secrets,
+            threshold,
+            nodes: nodes.clone(),
+            random_oracle,
+        };
+
+        let receivers = sks
+            .into_iter()
+            .enumerate()
+            .map(|(id, enc_secret_key)| Receiver {
+                id: id as u16,
+                enc_secret_key,
+                commitments: previous_round_commitments,
+                random_oracle: RandomOracle::new("tbls test"),
+                threshold,
+                nodes: nodes.clone(),
+            })
+            .collect::<Vec<_>>();
+
+        let message = dealer.create_message(&mut rng).unwrap();
+
+        // Get shares for all receivers
+        let all_shares = receivers
+            .iter()
+            .map(|receiver| {
+                (
+                    receiver.id,
+                    assert_valid(receiver.process_message(&message).unwrap()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        // Now, receiver 0 will be the dealer for the next round and will redistribute its shares as the new secrets.
+        let shares_for_dealer = all_shares.get(&receivers[0].id).unwrap();
+        let secrets = shares_for_dealer.my_shares.batches[0].shares;
+        let share_index = ShareIndex::new(1).unwrap(); // The index of the shares from the previous round
+
+        let dealer: Dealer<BATCH_SIZE> = Dealer {
+            secrets,
+            threshold,
+            nodes: nodes.clone(),
+            random_oracle: RandomOracle::new("tbls test 2"),
+        };
+
+        let receivers = receivers
+            .into_iter()
+            .map(
+                |Receiver {
+                     id,
+                     enc_secret_key,
+                     threshold,
+                     nodes,
+                     ..
+                 }| Receiver {
+                    id,
+                    enc_secret_key,
+                    commitments: all_shares
+                        .get(&id)
+                        .unwrap()
+                        .commitments
+                        .get(&share_index)
+                        .unwrap()
+                        .clone(),
+                    random_oracle: RandomOracle::new("tbls test 2"),
+                    threshold,
+                    nodes,
+                },
+            )
+            .collect::<Vec<_>>();
+
+        let message = dealer.create_message(&mut rng).unwrap();
+
+        // Shares for all receivers
+        let all_shares = receivers
+            .iter()
+            .map(|receiver| {
+                (
+                    receiver.id,
+                    assert_valid(receiver.process_message(&message).unwrap()),
+                )
+            })
+            .collect::<HashMap<_, _>>();
+
+        // Recover secrets
+        let recovered = (0..BATCH_SIZE)
+            .map(|l| {
+                let shares = receivers
+                    .iter()
+                    .map(|r| {
+                        (
+                            r.id,
+                            all_shares.get(&r.id).unwrap().my_shares.batches[0].shares[l],
+                        )
+                    })
+                    .collect_vec();
+                Poly::recover_c0(
+                    threshold,
+                    shares.iter().take(threshold as usize).map(|(id, v)| Eval {
+                        index: ShareIndex::try_from(id + 1).unwrap(),
+                        value: *v,
+                    }),
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        assert_eq!(secrets.to_vec(), recovered);
     }
 
     #[test]
@@ -522,12 +683,7 @@ mod tests {
             random_oracle,
         };
 
-        let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
-
-        println!(
-            "Previous round commitments: {:?}",
-            previous_round_commitments
-        );
+        let commitments = secrets.map(|nonce| G::generator() * nonce);
 
         let receivers = sks
             .into_iter()
@@ -535,7 +691,7 @@ mod tests {
             .map(|(i, enc_secret_key)| Receiver {
                 id: i as u16,
                 enc_secret_key,
-                previous_round_commitments,
+                commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 threshold,
                 nodes: nodes.clone(),
@@ -578,10 +734,10 @@ mod tests {
                     .map(|(id, s)| (*id, s.my_shares.batches[0].shares[l]))
                     .collect::<Vec<_>>();
                 Poly::recover_c0(
-                    threshold + 1,
+                    threshold,
                     shares
                         .iter()
-                        .take((threshold + 1) as usize)
+                        .take((threshold) as usize)
                         .map(|(id, v)| Eval {
                             index: ShareIndex::try_from(id + 1).unwrap(),
                             value: *v,
@@ -601,7 +757,7 @@ mod tests {
         ) -> FastCryptoResult<Message<BATCH_SIZE>> {
             let polynomials = self
                 .secrets
-                .map(|c0| Poly::rand_fixed_c0(self.threshold, c0, rng));
+                .map(|c0| Poly::rand_fixed_c0(self.threshold - 1, c0, rng));
 
             let commitments = polynomials.each_ref().map(Poly::commit);
 
@@ -635,7 +791,7 @@ mod tests {
 
             Ok(Message {
                 ciphertext,
-                commitments,
+                feldman_commitments: commitments,
             })
         }
     }
