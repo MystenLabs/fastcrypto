@@ -261,7 +261,8 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         &self,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ReceiverOutput<BATCH_SIZE>> {
-        if message.response.degree() <= self.threshold as usize {
+        // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
+        if message.response.degree() <= self.threshold as usize - 1 {
             return Err(InvalidInput);
         }
 
