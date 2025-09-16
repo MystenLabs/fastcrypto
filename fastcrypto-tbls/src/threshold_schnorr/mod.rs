@@ -68,7 +68,6 @@ pub fn presigning<const BATCH_SIZE: usize>(
                         .my_shares
                         .shares_for_secret(l)
                         .unwrap()
-                        .iter()
                         .map(|eval| eval.value)
                         .collect_vec()
                 })

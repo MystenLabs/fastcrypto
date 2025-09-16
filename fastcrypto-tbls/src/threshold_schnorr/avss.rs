@@ -310,7 +310,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         ))
     }
 
-    /// 5. Upon receiving f+1 valid responses to a complaint, the accuser can recover its shares.
+    /// 5. Upon receiving t valid responses to a complaint, the accuser can recover its shares.
     ///    Fails if there are not enough valid responses to recover the shares or if any of the responses come from an invalid party.
     pub fn recover(
         &self,
@@ -547,7 +547,7 @@ mod tests {
         let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
 
         // Mock a commitment to the previous round's secret.
-        let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
+        let commitments = secrets.map(|nonce| G::generator() * nonce);
         let dealer: Dealer<BATCH_SIZE> = Dealer {
             secrets,
             t,
@@ -561,7 +561,7 @@ mod tests {
             .map(|(id, enc_secret_key)| Receiver {
                 id: id as u16,
                 enc_secret_key,
-                commitments: previous_round_commitments,
+                commitments,
                 random_oracle: RandomOracle::new("tbls test"),
                 t,
                 nodes: nodes.clone(),

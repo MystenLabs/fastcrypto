@@ -67,7 +67,7 @@ pub struct Message<const BATCH_SIZE: usize> {
     full_public_keys: [G; BATCH_SIZE],
     blinding_commit: G,
     ciphertext: MultiRecipientEncryption<EG>,
-    response: Poly<S>,
+    response_polynomial: Poly<S>,
 }
 
 /// A batch of shares for a single share index, containing shares for each secret and one for the "blinding" polynomial.
@@ -99,7 +99,7 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
             .fold(self.blinding_share, |acc, (r_l, gamma_l)| {
                 acc + (*r_l * gamma_l)
             })
-            != message.response.eval(self.index).value
+            != message.response_polynomial.eval(self.index).value
         {
             return Err(InvalidInput);
         }
@@ -124,18 +124,17 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
     }
 
     /// Get all shares this node has for the <i>i</i>-th secret/nonce in the batch.
-    pub fn shares_for_secret(&self, i: usize) -> FastCryptoResult<Vec<Eval<S>>> {
+    pub fn shares_for_secret(
+        &self,
+        i: usize,
+    ) -> FastCryptoResult<impl Iterator<Item = Eval<S>> + '_> {
         if i >= BATCH_SIZE {
             return Err(InvalidInput);
         }
-        Ok(self
-            .batches
-            .iter()
-            .map(|share_batch| Eval {
-                index: share_batch.index,
-                value: share_batch.shares[i],
-            })
-            .collect())
+        Ok(self.batches.iter().map(move |share_batch| Eval {
+            index: share_batch.index,
+            value: share_batch.shares[i],
+        }))
     }
 
     /// Recover the shares for this node.
@@ -150,7 +149,7 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
             .my_indices()
             .into_iter()
             .map(|index| {
-                let shares = std::array::from_fn(|i| {
+                let shares = array::from_fn(|i| {
                     let evaluations: Vec<Eval<S>> = other_shares
                         .iter()
                         .flat_map(|s| s.shares_for_secret(i).expect("Size checked above"))
@@ -229,9 +228,9 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             .nodes
             .iter()
             .map(|node| (node.pk.clone(), self.nodes.share_ids_of(node.id).unwrap()))
-            .map(|(public_key, share_ids)| {
+            .map(|(pk, share_ids)| {
                 (
-                    public_key,
+                    pk,
                     SharesForNode {
                         batches: share_ids
                             .into_iter()
@@ -241,10 +240,10 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
                                 blinding_share: blinding_poly.eval(index).value,
                             })
                             .collect_vec(),
-                    },
+                    }
+                    .to_bytes(),
                 )
             })
-            .map(|(pk, shares_for_node)| (pk, shares_for_node.to_bytes()))
             .collect_vec();
 
         let ciphertext =
@@ -252,18 +251,16 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = self.compute_challenge(&full_public_keys, &blinding_commit, &ciphertext);
-        let mut response = blinding_poly;
+        let mut response_polynomial = blinding_poly;
         for (p_l, gamma_l) in polynomials.into_iter().zip(&challenge) {
-            response += &(p_l * gamma_l);
+            response_polynomial += &(p_l * gamma_l);
         }
-
-        println!("Response polynomial: {:?}", response);
 
         Ok(Message {
             full_public_keys,
             blinding_commit,
             ciphertext,
-            response,
+            response_polynomial,
         })
     }
 }
@@ -283,35 +280,42 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         &self,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<ProcessedMessage<BATCH_SIZE>> {
+        let Message {
+            full_public_keys,
+            blinding_commit,
+            ciphertext,
+            response_polynomial,
+        } = message;
+
         // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
-        if message.response.degree() != self.t as usize - 1 {
+        if response_polynomial.degree() != self.t as usize - 1 {
             return Err(InvalidMessage);
         }
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
         let challenge = self.compute_challenge_from_message(message);
-        if G::generator() * message.response.c0()
-            != message.blinding_commit
-                + G::multi_scalar_mul(&challenge, &message.full_public_keys)
+        if G::generator() * response_polynomial.c0()
+            != blinding_commit
+                + G::multi_scalar_mul(&challenge, full_public_keys)
                     .expect("Inputs have constant lengths")
         {
             return Err(InvalidMessage);
         }
 
         let random_oracle_encryption = self.extension(Encryption);
-        message
-            .ciphertext
+        ciphertext
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
 
         // Decrypt my shares
-        let plaintext = message.ciphertext.decrypt(
+        let plaintext = ciphertext.decrypt(
             &self.enc_secret_key,
             &random_oracle_encryption,
             self.id as usize,
         );
 
         match SharesForNode::from_bytes(&plaintext).and_then(|my_shares| {
+            // If there is an error in this scope, we create a complaint instead of returning an error
             if my_shares.weight() != self.my_weight() {
                 return Err(InvalidMessage);
             }
@@ -320,11 +324,11 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
-                public_keys: message.full_public_keys,
+                public_keys: *full_public_keys,
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
-                &message.ciphertext,
+                ciphertext,
                 &self.enc_secret_key,
                 self,
                 &mut rand::thread_rng(),
@@ -771,16 +775,16 @@ mod tests {
             // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
             let challenge =
                 self.compute_challenge(&full_public_keys, &blinding_commit, &ciphertext);
-            let mut response = blinding_poly;
+            let mut response_polynomial = blinding_poly;
             for (p_l, gamma_l) in polynomials.into_iter().zip(&challenge) {
-                response += &(p_l * gamma_l);
+                response_polynomial += &(p_l * gamma_l);
             }
 
             Ok(Message {
                 full_public_keys,
                 blinding_commit,
                 ciphertext,
-                response,
+                response_polynomial,
             })
         }
     }
