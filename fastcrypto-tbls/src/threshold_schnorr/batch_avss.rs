@@ -201,11 +201,18 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
 impl<const BATCH_SIZE: usize> BCSSerialized for SharesForNode<BATCH_SIZE> {}
 
 impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
+    /// Create a new dealer.
+    ///
+    /// `nodes` defines the set of receivers and their weights.
+    /// `t` is the number of shares that are needed to reconstruct the full key/signature.
+    /// `f` is the maximum number of Byzantine parties counted by weight.
+    /// `sid` is a session identifier that should be unique for each invocation, but the same for all parties.
+    /// `rng` is a random number generator.
     pub fn new(
         nodes: Nodes<EG>,
-        t: u16, // The number of parties that are needed to reconstruct the full key/signature.
-        f: u16, // The maximum number of Byzantine parties.
-        sid: &str, // Should be unique for each invocation, but the same for all parties.
+        t: u16,
+        f: u16,
+        sid: String,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
@@ -218,8 +225,8 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
+            random_oracle: RandomOracle::new(&sid).into(),
             sid: sid.to_string(),
-            random_oracle: RandomOracle::new(sid).into(),
         })
     }
 
@@ -290,6 +297,11 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 }
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
+    /// Create a new receiver.
+    ///
+    /// `nodes` defines the set of receivers and what shares they should receive.
+    /// `id` is the id of this receiver.
+    ///
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
@@ -499,7 +511,6 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
-    use crate::random_oracle::RandomOracle;
     use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::ro_extension::Extension::Encryption;
     use crate::threshold_schnorr::{EG, G};
@@ -536,7 +547,8 @@ mod tests {
         .unwrap();
 
         let sid = "tbls test";
-        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -609,7 +621,8 @@ mod tests {
         .unwrap();
 
         let sid = "tbls test";
-        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -669,7 +682,8 @@ mod tests {
 
         let sid = "tbls test";
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()

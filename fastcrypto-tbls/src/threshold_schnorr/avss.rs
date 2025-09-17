@@ -125,13 +125,14 @@ impl SharesForNode {
 impl BCSSerialized for SharesForNode {}
 
 impl Dealer {
-    pub fn new(
-        secret: S,
-        nodes: Nodes<EG>,
-        t: u16, // The number of parties that are needed to reconstruct the full key/signature
-        f: u16, // Upper bound for the number of Byzantine parties
-        sid: &str, // Should be unique for each invocation, but the same for all parties.
-    ) -> FastCryptoResult<Self> {
+    /// Create a new dealer.
+    ///
+    /// * `secret`: The secret to share.
+    /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
+    /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
+    /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
+    /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+    pub fn new(secret: S, nodes: Nodes<EG>, t: u16, f: u16, sid: String) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
             return Err(InvalidInput);
@@ -141,8 +142,8 @@ impl Dealer {
             secret,
             t,
             nodes,
-            sid: sid.to_string(),
-            random_oracle: RandomOracle::new(sid).into(),
+            random_oracle: RandomOracle::new(&sid).into(),
+            sid,
         })
     }
 
@@ -183,11 +184,19 @@ impl Dealer {
 }
 
 impl Receiver {
+    /// Create a new receiver.
+    ///
+    /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
+    /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
+    /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
+    /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
+    /// * `commitment`: A commitment to the secret being shared. This should be equal to `secret * G` and is typically found as the commitment from a previous round (see [ReceiverOutput]).
+    /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
     pub fn new(
         nodes: Nodes<EG>,
         id: PartyId,
         t: u16,
-        sid: &str,
+        sid: String,
         commitment: G,
         enc_secret_key: PrivateKey<EG>,
     ) -> Self {
@@ -195,8 +204,8 @@ impl Receiver {
             id,
             enc_secret_key,
             commitment,
-            sid: sid.to_string(),
-            random_oracle: RandomOracle::new(sid).into(),
+            random_oracle: RandomOracle::new(&sid).into(),
+            sid,
             t,
             nodes,
         }
@@ -392,7 +401,7 @@ mod tests {
         // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
         let previous_round_commitment = G::generator() * &secret;
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -402,7 +411,7 @@ mod tests {
                     nodes.clone(),
                     id as u16,
                     t,
-                    sid,
+                    sid.to_string(),
                     previous_round_commitment,
                     enc_secret_key,
                 )
@@ -459,13 +468,20 @@ mod tests {
 
         // Mock a commitment to the previous round's secret.
         let commitment = G::generator() * &secret;
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
             .map(|(id, enc_secret_key)| {
-                Receiver::new(nodes.clone(), id as u16, t, sid, commitment, enc_secret_key)
+                Receiver::new(
+                    nodes.clone(),
+                    id as u16,
+                    t,
+                    sid.to_string(),
+                    commitment,
+                    enc_secret_key,
+                )
             })
             .collect::<Vec<_>>();
 
@@ -487,7 +503,8 @@ mod tests {
         let secret = shares_for_dealer.my_shares.shares[0].clone();
 
         let sid2 = "tbls test 2";
-        let dealer: Dealer = Dealer::new(secret.value, nodes.clone(), t, f, sid2).unwrap();
+        let dealer: Dealer =
+            Dealer::new(secret.value, nodes.clone(), t, f, sid2.to_string()).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -500,7 +517,14 @@ mod tests {
                  }| {
                     let commitment = all_shares.get(&id).unwrap().commitments[0].clone();
                     assert_eq!(commitment.index, secret.index);
-                    Receiver::new(nodes, id, t, sid2, commitment.value, enc_secret_key)
+                    Receiver::new(
+                        nodes,
+                        id,
+                        t,
+                        sid2.to_string(),
+                        commitment.value,
+                        enc_secret_key,
+                    )
                 },
             )
             .collect::<Vec<_>>();
@@ -553,7 +577,7 @@ mod tests {
         let sid = "tbls test";
         let secret = Scalar::rand(&mut rng);
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
         let commitment = G::generator() * &secret;
 
@@ -561,7 +585,14 @@ mod tests {
             .into_iter()
             .enumerate()
             .map(|(i, enc_secret_key)| {
-                Receiver::new(nodes.clone(), i as u16, t, sid, commitment, enc_secret_key)
+                Receiver::new(
+                    nodes.clone(),
+                    i as u16,
+                    t,
+                    sid.to_string(),
+                    commitment,
+                    enc_secret_key,
+                )
             })
             .collect::<Vec<_>>();
 
