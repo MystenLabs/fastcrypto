@@ -36,6 +36,7 @@ pub struct Dealer<const BATCH_SIZE: usize> {
     secrets: [S; BATCH_SIZE],
     t: u16,
     nodes: Nodes<EG>,
+    sid: String,
     random_oracle: RandomOracleWrapper,
 }
 
@@ -44,6 +45,7 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
+    sid: String,
     random_oracle: RandomOracleWrapper,
     t: u16, // The number of parties that are needed to reconstruct the full key/signature.
 }
@@ -216,6 +218,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
+            sid: sid.to_string(),
             random_oracle: RandomOracle::new(sid).into(),
         })
     }
@@ -298,6 +301,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             id,
             enc_secret_key,
             nodes,
+            sid: sid.to_string(),
             random_oracle: RandomOracle::new(sid).into(),
             t,
         }

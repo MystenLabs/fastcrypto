@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute secret shares to a set of receivers.
+//! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute shares for a secret to a set of receivers.
 //! A receiver can verify that the secret being shared is the same as a share from a previous round (e.g., the secret key share of a threshold signature).
 //!
 //! Before the protocol starts, the following setup is needed:
@@ -31,6 +31,7 @@ use tracing::warn;
 pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
+    sid: String,
     random_oracle: RandomOracleWrapper,
     secret: S,
 }
@@ -40,6 +41,7 @@ pub struct Receiver {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     commitment: G,
+    sid: String,
     random_oracle: RandomOracleWrapper,
     t: u16,
 }
@@ -94,10 +96,6 @@ impl SharesForNode {
         threshold: u16,
         other_shares: &[Self],
     ) -> FastCryptoResult<Self> {
-        if other_shares.is_empty() {
-            return Err(InvalidInput);
-        }
-
         // Compute the total weight of the valid responses
         let response_weight = other_shares
             .iter()
@@ -143,6 +141,7 @@ impl Dealer {
             secret,
             t,
             nodes,
+            sid: sid.to_string(),
             random_oracle: RandomOracle::new(sid).into(),
         })
     }
@@ -196,6 +195,7 @@ impl Receiver {
             id,
             enc_secret_key,
             commitment,
+            sid: sid.to_string(),
             random_oracle: RandomOracle::new(sid).into(),
             t,
             nodes,
