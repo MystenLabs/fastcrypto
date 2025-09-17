@@ -16,7 +16,7 @@ use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
 use crate::threshold_schnorr::ro_extension::Extension::Encryption;
-use crate::threshold_schnorr::ro_extension::RandomOracleExtensions;
+use crate::threshold_schnorr::ro_extension::RandomOracleWrapper;
 use crate::threshold_schnorr::{EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
@@ -34,7 +34,7 @@ use tracing::warn;
 pub struct Dealer<const BATCH_SIZE: usize> {
     t: u16,
     nodes: Nodes<EG>,
-    random_oracle: RandomOracle,
+    random_oracle: RandomOracleWrapper,
     secrets: [S; BATCH_SIZE],
 }
 
@@ -43,7 +43,7 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     commitments: [G; BATCH_SIZE], // Commitments to the polynomials of the previous round, used to verify the shares
-    random_oracle: RandomOracle,
+    random_oracle: RandomOracleWrapper,
     t: u16,
 }
 
@@ -119,6 +119,13 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
             .collect())
     }
 
+    fn verify(&self, message: &Message<BATCH_SIZE>) -> FastCryptoResult<()> {
+        for batch in self.batches.iter() {
+            batch.verify(message)?;
+        }
+        Ok(())
+    }
+
     /// Assuming that enough shares are given, recover the shares for this node.
     fn recover(
         indices: Vec<ShareIndex>,
@@ -178,7 +185,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
-            random_oracle,
+            random_oracle: random_oracle.into(),
         })
     }
 
@@ -215,8 +222,11 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             .map(|(pk, shares)| (pk, shares.to_bytes()))
             .collect_vec();
 
-        let ciphertext =
-            MultiRecipientEncryption::encrypt(&pk_and_msgs, &self.extension(Encryption), rng);
+        let ciphertext = MultiRecipientEncryption::encrypt(
+            &pk_and_msgs,
+            &self.random_oracle.extend(Encryption),
+            rng,
+        );
 
         Ok(Message {
             ciphertext,
@@ -226,6 +236,24 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 }
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
+    pub fn new(
+        id: PartyId,
+        enc_secret_key: PrivateKey<EG>,
+        commitments: [G; BATCH_SIZE],
+        random_oracle: RandomOracle,
+        t: u16,
+        nodes: Nodes<EG>,
+    ) -> Self {
+        Self {
+            id,
+            enc_secret_key,
+            commitments,
+            random_oracle: random_oracle.into(),
+            t,
+            nodes,
+        }
+    }
+
     /// 2. Each receiver processes the message, verifies and decrypts its shares.
     ///
     /// If this works, the receiver can store the shares and contribute a signature on the message to a certificate.
@@ -255,7 +283,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             }
         }
 
-        let random_oracle_encryption = self.extension(Encryption);
+        let random_oracle_encryption = self.random_oracle.extend(Encryption);
         message
             .ciphertext
             .verify(&random_oracle_encryption)
@@ -271,7 +299,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             if my_shares.weight() != self.my_weight() {
                 return Err(InvalidInput);
             }
-            self.verify_shares(message, &my_shares)?;
+            my_shares.verify(message)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
@@ -282,7 +310,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
                 self.id,
                 &message.ciphertext,
                 &self.enc_secret_key,
-                self,
+                &self.random_oracle,
                 &mut rand::thread_rng(),
             ))),
         }
@@ -298,14 +326,14 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
-            self,
-            |shares| self.verify_shares(message, shares),
+            &self.random_oracle,
+            |shares: &SharesForNode<BATCH_SIZE>| shares.verify(message),
         )?;
         Ok(ComplaintResponse::create(
             self.id,
             &message.ciphertext,
             &self.enc_secret_key,
-            self,
+            &self.random_oracle,
             rng,
         ))
     }
@@ -333,7 +361,11 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
                 self.nodes
                     .node_id_to_node(response.responder_id)
                     .and_then(|node| {
-                        response.decrypt_with_response(self, &node.pk, &message.ciphertext)
+                        response.decrypt_with_response(
+                            &self.random_oracle,
+                            &node.pk,
+                            &message.ciphertext,
+                        )
                     })
                     .tap_err(|_| {
                         warn!(
@@ -346,26 +378,12 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             .collect_vec();
 
         let my_shares = SharesForNode::recover(self.my_indices(), self.t, &response_shares)?;
-        self.verify_shares(message, &my_shares)?;
+        my_shares.verify(message)?;
 
         Ok(ReceiverOutput {
             my_shares,
             commitments: self.compute_commitments(&message),
         })
-    }
-
-    /// Helper function to verify the consistency of the shares, e.g., that <i>r' + &Sigma;<sub>l</sub> &gamma;<sub>l</sub> r<sub>li</sub> = p''(i)<i>.
-    fn verify_shares(
-        &self,
-        message: &Message<BATCH_SIZE>,
-        shares: &SharesForNode<BATCH_SIZE>,
-    ) -> FastCryptoResult<()> {
-        // Verify shares against commitments.
-        // TODO: Use MSM for this
-        for batch in shares.batches.iter() {
-            batch.verify(message)?;
-        }
-        Ok(())
     }
 
     fn compute_commitments(
@@ -377,10 +395,9 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             .map(|index| {
                 let commitments = message
                     .feldman_commitments
-                    .iter()
-                    .map(|c| c.eval(index).value)
-                    .collect_vec();
-                (index, commitments.try_into().expect("correct length"))
+                    .each_ref()
+                    .map(|c| c.eval(index).value);
+                (index, commitments)
             })
             .collect()
     }
@@ -396,18 +413,6 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     }
 }
 
-impl<const BATCH_SIZE: usize> RandomOracleExtensions for Dealer<BATCH_SIZE> {
-    fn base(&self) -> &RandomOracle {
-        &self.random_oracle
-    }
-}
-
-impl<const BATCH_SIZE: usize> RandomOracleExtensions for Receiver<BATCH_SIZE> {
-    fn base(&self) -> &RandomOracle {
-        &self.random_oracle
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use crate::ecies_v1;
@@ -415,7 +420,7 @@ mod tests {
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
     use crate::random_oracle::RandomOracle;
-    use crate::threshold_schnorr::avss::{Dealer, Message, RandomOracleExtensions, Receiver};
+    use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::avss::{ShareBatch, SharesForNode};
     use crate::threshold_schnorr::bcs::BCSSerialized;
@@ -461,23 +466,21 @@ mod tests {
         // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
         let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer {
-            secrets,
-            t,
-            nodes: nodes.clone(),
-            random_oracle,
-        };
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(id, enc_secret_key)| Receiver {
-                id: id as u16,
-                enc_secret_key,
-                commitments: previous_round_commitments,
-                random_oracle: RandomOracle::new("tbls test"),
-                t,
-                nodes: nodes.clone(),
+            .map(|(id, enc_secret_key)| {
+                Receiver::new(
+                    id as u16,
+                    enc_secret_key,
+                    previous_round_commitments,
+                    RandomOracle::new("tbls test"),
+                    t,
+                    nodes.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -548,23 +551,21 @@ mod tests {
 
         // Mock a commitment to the previous round's secret.
         let commitments = secrets.map(|nonce| G::generator() * nonce);
-        let dealer: Dealer<BATCH_SIZE> = Dealer {
-            secrets,
-            t,
-            nodes: nodes.clone(),
-            random_oracle,
-        };
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(id, enc_secret_key)| Receiver {
-                id: id as u16,
-                enc_secret_key,
-                commitments,
-                random_oracle: RandomOracle::new("tbls test"),
-                t,
-                nodes: nodes.clone(),
+            .map(|(id, enc_secret_key)| {
+                Receiver::new(
+                    id as u16,
+                    enc_secret_key,
+                    commitments,
+                    RandomOracle::new("tbls test"),
+                    t,
+                    nodes.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -586,12 +587,14 @@ mod tests {
         let secrets = shares_for_dealer.my_shares.batches[0].shares;
         let share_index = ShareIndex::new(1).unwrap(); // The index of the shares from the previous round
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer {
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(
             secrets,
+            nodes.clone(),
             t,
-            nodes: nodes.clone(),
-            random_oracle: RandomOracle::new("tbls test 2"),
-        };
+            f,
+            RandomOracle::new("tbls test 2"),
+        )
+        .unwrap();
 
         let receivers = receivers
             .into_iter()
@@ -602,19 +605,21 @@ mod tests {
                      t,
                      nodes,
                      ..
-                 }| Receiver {
-                    id,
-                    enc_secret_key,
-                    commitments: all_shares
-                        .get(&id)
-                        .unwrap()
-                        .commitments
-                        .get(&share_index)
-                        .unwrap()
-                        .clone(),
-                    random_oracle: RandomOracle::new("tbls test 2"),
-                    t,
-                    nodes,
+                 }| {
+                    Receiver::new(
+                        id,
+                        enc_secret_key,
+                        all_shares
+                            .get(&id)
+                            .unwrap()
+                            .commitments
+                            .get(&share_index)
+                            .unwrap()
+                            .clone(),
+                        RandomOracle::new("tbls test 2"),
+                        t,
+                        nodes,
+                    )
                 },
             )
             .collect::<Vec<_>>();
@@ -684,25 +689,23 @@ mod tests {
         let random_oracle = RandomOracle::new("tbls test");
         let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer {
-            secrets,
-            t,
-            nodes: nodes.clone(),
-            random_oracle,
-        };
+        let dealer: Dealer<BATCH_SIZE> =
+            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
 
         let commitments = secrets.map(|nonce| G::generator() * nonce);
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, enc_secret_key)| Receiver {
-                id: i as u16,
-                enc_secret_key,
-                commitments,
-                random_oracle: RandomOracle::new("tbls test"),
-                t,
-                nodes: nodes.clone(),
+            .map(|(i, enc_secret_key)| {
+                Receiver::new(
+                    i as u16,
+                    enc_secret_key,
+                    commitments,
+                    RandomOracle::new("tbls test"),
+                    t,
+                    nodes.clone(),
+                )
             })
             .collect::<Vec<_>>();
 
@@ -791,8 +794,11 @@ mod tests {
             // Modify the first share of the first receiver to simulate a cheating dealer
             pk_and_msgs[0].1[7] += 1;
 
-            let ciphertext =
-                MultiRecipientEncryption::encrypt(&pk_and_msgs, &self.extension(Encryption), rng);
+            let ciphertext = MultiRecipientEncryption::encrypt(
+                &pk_and_msgs,
+                &self.random_oracle.extend(Encryption),
+                rng,
+            );
 
             Ok(Message {
                 ciphertext,

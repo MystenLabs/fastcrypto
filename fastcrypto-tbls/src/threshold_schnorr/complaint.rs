@@ -3,7 +3,7 @@ use crate::ecies_v1::RecoveryPackage;
 use crate::nodes::PartyId;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::ro_extension::Extension::{Encryption, Recovery};
-use crate::threshold_schnorr::ro_extension::RandomOracleExtensions;
+use crate::threshold_schnorr::ro_extension::RandomOracleWrapper;
 use crate::threshold_schnorr::EG;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -25,14 +25,14 @@ impl Complaint {
         &self,
         enc_pk: &ecies_v1::PublicKey<EG>,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
-        random_oracle: &impl RandomOracleExtensions,
+        random_oracle: &RandomOracleWrapper,
         verifier: impl Fn(&S) -> FastCryptoResult<()>,
     ) -> FastCryptoResult<()> {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
         let buffer = ciphertext.decrypt_with_recovery_package(
             &self.proof,
-            &random_oracle.extension(Recovery(self.accuser_id)),
-            &random_oracle.extension(Encryption),
+            &random_oracle.extend(Recovery(self.accuser_id)),
+            &random_oracle.extend(Encryption),
             enc_pk,
             self.accuser_id as usize,
         )?;
@@ -70,14 +70,14 @@ impl Complaint {
         accuser_id: PartyId,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
         enc_sk: &ecies_v1::PrivateKey<EG>,
-        random_oracle: &impl RandomOracleExtensions,
+        random_oracle: &RandomOracleWrapper,
         rng: &mut impl AllowedRng,
     ) -> Self {
         Self {
             accuser_id,
             proof: ciphertext.create_recovery_package(
                 enc_sk,
-                &random_oracle.extension(Recovery(accuser_id)),
+                &random_oracle.extend(Recovery(accuser_id)),
                 rng,
             ),
         }
@@ -96,14 +96,14 @@ impl ComplaintResponse {
         responder_id: PartyId,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
         enc_secret_key: &ecies_v1::PrivateKey<EG>,
-        ro: &impl RandomOracleExtensions,
+        ro: &RandomOracleWrapper,
         rng: &mut impl AllowedRng,
     ) -> Self {
         ComplaintResponse {
             responder_id,
             recovery_package: ciphertext.create_recovery_package(
                 enc_secret_key,
-                &ro.extension(Recovery(responder_id)),
+                &ro.extend(Recovery(responder_id)),
                 rng,
             ),
         }
@@ -111,14 +111,14 @@ impl ComplaintResponse {
 
     pub(crate) fn decrypt_with_response<T: for<'a> Deserialize<'a>>(
         &self,
-        ro: &impl RandomOracleExtensions,
+        ro: &RandomOracleWrapper,
         enc_pk: &ecies_v1::PublicKey<EG>,
         ciphertext: &ecies_v1::MultiRecipientEncryption<EG>,
     ) -> FastCryptoResult<T> {
         let bytes = ciphertext.decrypt_with_recovery_package(
             &self.recovery_package,
-            &ro.extension(Recovery(self.responder_id)),
-            &ro.extension(Encryption),
+            &ro.extend(Recovery(self.responder_id)),
+            &ro.extend(Encryption),
             enc_pk,
             self.responder_id as usize,
         )?;

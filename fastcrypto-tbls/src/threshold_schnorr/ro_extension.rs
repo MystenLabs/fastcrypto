@@ -8,17 +8,24 @@ pub enum Extension {
     Challenge,
 }
 
-/// Helper trait to extend a random oracle with context-specific strings.
-pub trait RandomOracleExtensions {
-    fn base(&self) -> &RandomOracle;
+/// A wrapper around [RandomOracle] to provide domain separation for different uses.
+pub struct RandomOracleWrapper {
+    random_oracle: RandomOracle,
+}
 
-    /// Extend the base random oracle with a context-specific string.
-    fn extension(&self, extension: Extension) -> RandomOracle {
+impl RandomOracleWrapper {
+    pub fn extend(self: &RandomOracleWrapper, extension: Extension) -> RandomOracle {
         let extension_string = match extension {
             Recovery(accuser) => &format!("recovery of {accuser}"),
             Encryption => "encryption",
             Challenge => "challenge",
         };
-        self.base().extend(extension_string)
+        self.random_oracle.extend(extension_string)
+    }
+}
+
+impl From<RandomOracle> for RandomOracleWrapper {
+    fn from(random_oracle: RandomOracle) -> Self {
+        RandomOracleWrapper { random_oracle }
     }
 }
