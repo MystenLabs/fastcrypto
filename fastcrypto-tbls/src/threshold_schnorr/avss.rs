@@ -356,12 +356,10 @@ mod tests {
     use crate::threshold_schnorr::complaint::Complaint;
     use crate::threshold_schnorr::ro_extension::Extension::Encryption;
     use crate::threshold_schnorr::{EG, G};
-    use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
-    use std::array;
     use std::collections::HashMap;
 
     #[test]
@@ -486,12 +484,10 @@ mod tests {
 
         // Now, receiver 0 will be the dealer for the next round and will redistribute its first shares as the new secret.
         let shares_for_dealer = all_shares.get(&receivers[0].id).unwrap();
-        let secret = shares_for_dealer.my_shares.shares[0].value;
-        let share_index = ShareIndex::new(1).unwrap(); // The index of the shares from the previous round
+        let secret = shares_for_dealer.my_shares.shares[0].clone();
 
         let sid2 = "tbls test 2";
-
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid2).unwrap();
+        let dealer: Dealer = Dealer::new(secret.value, nodes.clone(), t, f, sid2).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -502,14 +498,9 @@ mod tests {
                      nodes,
                      ..
                  }| {
-                    Receiver::new(
-                        nodes,
-                        id,
-                        t,
-                        sid2,
-                        all_shares.get(&id).unwrap().commitments[0].value,
-                        enc_secret_key,
-                    )
+                    let commitment = all_shares.get(&id).unwrap().commitments[0].clone();
+                    assert_eq!(commitment.index, secret.index);
+                    Receiver::new(nodes, id, t, sid2, commitment.value, enc_secret_key)
                 },
             )
             .collect::<Vec<_>>();
@@ -534,7 +525,7 @@ mod tests {
             .collect_vec();
         let recovered = Poly::recover_c0(t, shares.iter().take(t as usize)).unwrap();
 
-        assert_eq!(secret, recovered);
+        assert_eq!(secret.value, recovered);
     }
 
     #[test]
