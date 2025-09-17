@@ -45,10 +45,10 @@ pub struct PresigningOutput {
 pub fn presigning<const BATCH_SIZE: usize>(
     my_id: &PartyId,
     nodes: &Nodes<EG>,
-    receiver_outputs: BTreeMap<PartyId, ReceiverOutput<BATCH_SIZE>>, // Dealer -> output
+    dealer_to_output: BTreeMap<PartyId, ReceiverOutput<BATCH_SIZE>>,
     f: u16,
 ) -> FastCryptoResult<Vec<PresigningOutput>> {
-    let J = nodes.total_weight_of(receiver_outputs.keys())?;
+    let J = nodes.total_weight_of(dealer_to_output.keys())?;
     if J < 2 * f + 1 {
         return Err(InvalidInput);
     }
@@ -61,7 +61,7 @@ pub fn presigning<const BATCH_SIZE: usize>(
     // This has dimensions L x J x W where W is my weight
     let all_my_shares = (0..BATCH_SIZE)
         .map(|l| {
-            receiver_outputs
+            dealer_to_output
                 .values()
                 .map(|output| {
                     output
@@ -76,7 +76,7 @@ pub fn presigning<const BATCH_SIZE: usize>(
         .collect_vec();
     let all_public_keys = (0..BATCH_SIZE)
         .map(|l| {
-            receiver_outputs
+            dealer_to_output
                 .values()
                 .map(|output| output.public_keys[l])
                 .collect_vec()

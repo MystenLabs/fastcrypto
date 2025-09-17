@@ -48,18 +48,6 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     t: u16, // The number of parties that are needed to reconstruct the full key/signature.
 }
 
-/// The output of a receiver which is a batch of shares + the public keys for all nonces.
-#[derive(Debug, Clone)]
-pub struct ReceiverOutput<const BATCH_SIZE: usize> {
-    pub my_shares: SharesForNode<BATCH_SIZE>,
-    pub public_keys: [G; BATCH_SIZE],
-}
-
-pub enum ProcessedMessage<const BATCH_SIZE: usize> {
-    Valid(ReceiverOutput<BATCH_SIZE>),
-    Complaint(Complaint),
-}
-
 /// The message broadcast by the dealer.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message<const BATCH_SIZE: usize> {
@@ -68,6 +56,29 @@ pub struct Message<const BATCH_SIZE: usize> {
     blinding_commit: G,
     ciphertext: MultiRecipientEncryption<EG>,
     response_polynomial: Poly<S>,
+}
+
+/// The result of processing a message by a receiver: either valid shares or a complaint.
+pub enum ProcessedMessage<const BATCH_SIZE: usize> {
+    Valid(ReceiverOutput<BATCH_SIZE>),
+    Complaint(Complaint),
+}
+
+/// The output of a receiver which is a batch of shares and public keys for all nonces.
+#[derive(Debug, Clone)]
+pub struct ReceiverOutput<const BATCH_SIZE: usize> {
+    pub my_shares: SharesForNode<BATCH_SIZE>,
+    pub public_keys: [G; BATCH_SIZE],
+}
+
+/// This represents a set of shares for a node. A total of <i>L</i> secrets/nonces are being shared,
+/// If we say that node <i>i</i> has a weight `W_i`, we have
+/// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
+///
+/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SharesForNode<const BATCH_SIZE: usize> {
+    pub batches: Vec<ShareBatch<BATCH_SIZE>>,
 }
 
 /// A batch of shares for a single share index, containing shares for each secret and one for the "blinding" polynomial.
@@ -105,16 +116,6 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
         }
         Ok(())
     }
-}
-
-/// This represents a set of shares for a node. A total of <i>L</i> secrets/nonces are being shared,
-/// If we say that node <i>i</i> has a weight `W_i`, we have
-/// `indices().len() == shares_for_secret(i).len() == weight() = W_i`
-///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharesForNode<const BATCH_SIZE: usize> {
-    pub batches: Vec<ShareBatch<BATCH_SIZE>>,
 }
 
 impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
@@ -202,7 +203,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature.
         f: u16, // The maximum number of Byzantine parties.
-        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+        sid: &str, // Should be unique for each invocation, but the same for all parties.
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
@@ -215,7 +216,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
-            random_oracle: random_oracle.into(),
+            random_oracle: RandomOracle::new(sid).into(),
         })
     }
 
@@ -287,17 +288,17 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     pub fn new(
-        id: PartyId,
-        enc_secret_key: PrivateKey<EG>,
         nodes: Nodes<EG>,
+        id: PartyId,
         t: u16,
-        random_oracle: RandomOracle,
+        sid: &str,
+        enc_secret_key: PrivateKey<EG>,
     ) -> Self {
         Self {
             id,
             enc_secret_key,
             nodes,
-            random_oracle: random_oracle.into(),
+            random_oracle: RandomOracle::new(sid).into(),
             t,
         }
     }
@@ -530,22 +531,13 @@ mod tests {
         )
         .unwrap();
 
-        let random_oracle = RandomOracle::new("tbls test");
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, random_oracle.clone(), &mut rng).unwrap();
+        let sid = "tbls test";
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| {
-                Receiver::new(
-                    i as u16,
-                    secret_key,
-                    nodes.clone(),
-                    t,
-                    RandomOracle::new("tbls test"),
-                )
-            })
+            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
             .collect::<Vec<_>>();
 
         let message = dealer.create_message(&mut rng).unwrap();
@@ -612,22 +604,13 @@ mod tests {
         )
         .unwrap();
 
-        let random_oracle = RandomOracle::new("tbls test");
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, random_oracle.clone(), &mut rng).unwrap();
+        let sid = "tbls test";
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| {
-                Receiver::new(
-                    i as u16,
-                    secret_key,
-                    nodes.clone(),
-                    t,
-                    RandomOracle::new("tbls test"),
-                )
-            })
+            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
             .collect::<Vec<_>>();
 
         let message = dealer.create_message(&mut rng).unwrap();
@@ -680,27 +663,14 @@ mod tests {
         )
         .unwrap();
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer::new(
-            nodes.clone(),
-            t,
-            f,
-            RandomOracle::new("batch avss test"),
-            &mut rng,
-        )
-        .unwrap();
+        let sid = "tbls test";
+
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(nodes.clone(), t, f, sid, &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| {
-                Receiver::new(
-                    i as u16,
-                    secret_key,
-                    nodes.clone(),
-                    t,
-                    RandomOracle::new("batch avss test"),
-                )
-            })
+            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
             .collect::<Vec<_>>();
 
         let message = dealer.create_message_cheating(&mut rng).unwrap();

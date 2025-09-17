@@ -47,15 +47,6 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     t: u16,
 }
 
-/// The output of a receiver: The shares for each nonce.
-#[derive(Debug, Clone)]
-pub struct ReceiverOutput<const BATCH_SIZE: usize> {
-    pub my_shares: SharesForNode<BATCH_SIZE>,
-
-    /// The commitments to the polynomials for the next round.
-    pub commitments: HashMap<ShareIndex, [G; BATCH_SIZE]>,
-}
-
 /// The message broadcast by the dealer, containing the encrypted shares and the public keys of the nonces.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Message<const BATCH_SIZE: usize> {
@@ -65,9 +56,19 @@ pub struct Message<const BATCH_SIZE: usize> {
     feldman_commitments: [Poly<G>; BATCH_SIZE], // Commitments to the polynomials for each nonce
 }
 
+/// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
 pub enum ProcessedMessage<const BATCH_SIZE: usize> {
     Valid(ReceiverOutput<BATCH_SIZE>),
     Complaint(Complaint),
+}
+
+/// The output of a receiver: The shares for each nonce + commitments for the next round.
+#[derive(Debug, Clone)]
+pub struct ReceiverOutput<const BATCH_SIZE: usize> {
+    pub my_shares: SharesForNode<BATCH_SIZE>,
+
+    /// The commitments to the polynomials for the next round.
+    pub commitments: HashMap<ShareIndex, [G; BATCH_SIZE]>,
 }
 
 /// The shares for a receiver, containing shares for each nonce and one for the combined polynomial.
@@ -81,6 +82,14 @@ pub struct ShareBatch<const BATCH_SIZE: usize> {
     pub shares: [S; BATCH_SIZE],
 }
 
+/// All the shares given to a node -- one batch per share index/weight.
+///
+/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SharesForNode<const BATCH_SIZE: usize> {
+    pub batches: Vec<ShareBatch<BATCH_SIZE>>,
+}
+
 impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
     fn verify(&self, message: &Message<BATCH_SIZE>) -> FastCryptoResult<()> {
         for (share, c) in self.shares.iter().zip(message.feldman_commitments.iter()) {
@@ -88,14 +97,6 @@ impl<const BATCH_SIZE: usize> ShareBatch<BATCH_SIZE> {
         }
         Ok(())
     }
-}
-
-/// All the shares given to a node -- one batch per share index/weight.
-///
-/// These can be created either by decrypting the shares from the dealer (see [Receiver::process_message]) or by recovering them from complaint responses.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct SharesForNode<const BATCH_SIZE: usize> {
-    pub batches: Vec<ShareBatch<BATCH_SIZE>>,
 }
 
 impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
@@ -174,7 +175,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         nodes: Nodes<EG>,
         t: u16, // The number of parties that are needed to reconstruct the full key/signature
         f: u16, // Upper bound for the number of Byzantine parties
-        random_oracle: RandomOracle, // Should be unique for each invocation, but the same for all parties.
+        sid: &str, // Should be unique for each invocation, but the same for all parties.
     ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
@@ -185,7 +186,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
-            random_oracle: random_oracle.into(),
+            random_oracle: RandomOracle::new(sid).into(),
         })
     }
 
@@ -237,18 +238,18 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     pub fn new(
-        id: PartyId,
-        enc_secret_key: PrivateKey<EG>,
-        commitments: [G; BATCH_SIZE],
-        random_oracle: RandomOracle,
-        t: u16,
         nodes: Nodes<EG>,
+        id: PartyId,
+        t: u16,
+        sid: &str,
+        commitments: [G; BATCH_SIZE],
+        enc_secret_key: PrivateKey<EG>,
     ) -> Self {
         Self {
             id,
             enc_secret_key,
             commitments,
-            random_oracle: random_oracle.into(),
+            random_oracle: RandomOracle::new(sid).into(),
             t,
             nodes,
         }
@@ -459,27 +460,26 @@ mod tests {
         )
         .unwrap();
 
-        let random_oracle = RandomOracle::new("tbls test");
+        let sid = "tbls test";
 
         let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
 
         // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
         let previous_round_commitments = secrets.map(|nonce| G::generator() * nonce);
 
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(secrets, nodes.clone(), t, f, sid).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
             .map(|(id, enc_secret_key)| {
                 Receiver::new(
-                    id as u16,
-                    enc_secret_key,
-                    previous_round_commitments,
-                    RandomOracle::new("tbls test"),
-                    t,
                     nodes.clone(),
+                    id as u16,
+                    t,
+                    sid,
+                    previous_round_commitments,
+                    enc_secret_key,
                 )
             })
             .collect::<Vec<_>>();
@@ -545,26 +545,25 @@ mod tests {
         )
         .unwrap();
 
-        let random_oracle = RandomOracle::new("tbls test");
+        let sid = "tbls test";
 
         let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
 
         // Mock a commitment to the previous round's secret.
         let commitments = secrets.map(|nonce| G::generator() * nonce);
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(secrets, nodes.clone(), t, f, sid).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
             .map(|(id, enc_secret_key)| {
                 Receiver::new(
-                    id as u16,
-                    enc_secret_key,
-                    commitments,
-                    RandomOracle::new("tbls test"),
-                    t,
                     nodes.clone(),
+                    id as u16,
+                    t,
+                    sid,
+                    commitments,
+                    enc_secret_key,
                 )
             })
             .collect::<Vec<_>>();
@@ -587,14 +586,9 @@ mod tests {
         let secrets = shares_for_dealer.my_shares.batches[0].shares;
         let share_index = ShareIndex::new(1).unwrap(); // The index of the shares from the previous round
 
-        let dealer: Dealer<BATCH_SIZE> = Dealer::new(
-            secrets,
-            nodes.clone(),
-            t,
-            f,
-            RandomOracle::new("tbls test 2"),
-        )
-        .unwrap();
+        let sid2 = "tbls test 2";
+
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(secrets, nodes.clone(), t, f, sid2).unwrap();
 
         let receivers = receivers
             .into_iter()
@@ -607,8 +601,10 @@ mod tests {
                      ..
                  }| {
                     Receiver::new(
+                        nodes,
                         id,
-                        enc_secret_key,
+                        t,
+                        sid2,
                         all_shares
                             .get(&id)
                             .unwrap()
@@ -616,9 +612,7 @@ mod tests {
                             .get(&share_index)
                             .unwrap()
                             .clone(),
-                        RandomOracle::new("tbls test 2"),
-                        t,
-                        nodes,
+                        enc_secret_key,
                     )
                 },
             )
@@ -686,11 +680,10 @@ mod tests {
         )
         .unwrap();
 
-        let random_oracle = RandomOracle::new("tbls test");
+        let sid = "tbls test";
         let secrets = array::from_fn(|_| Scalar::rand(&mut rng));
 
-        let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(secrets, nodes.clone(), t, f, random_oracle).unwrap();
+        let dealer: Dealer<BATCH_SIZE> = Dealer::new(secrets, nodes.clone(), t, f, sid).unwrap();
 
         let commitments = secrets.map(|nonce| G::generator() * nonce);
 
@@ -698,14 +691,7 @@ mod tests {
             .into_iter()
             .enumerate()
             .map(|(i, enc_secret_key)| {
-                Receiver::new(
-                    i as u16,
-                    enc_secret_key,
-                    commitments,
-                    RandomOracle::new("tbls test"),
-                    t,
-                    nodes.clone(),
-                )
+                Receiver::new(nodes.clone(), i as u16, t, sid, commitments, enc_secret_key)
             })
             .collect::<Vec<_>>();
 
