@@ -233,7 +233,39 @@ mod group_benches {
 
     fn pairing(c: &mut Criterion) {
         let mut group: BenchmarkGroup<_> = c.benchmark_group("Pairing");
-        pairing_single::<G1Element, _>("BLS12381-G1", &mut group);
+        pairing_single::<G1Element, _>("BLS12381", &mut group);
+    }
+
+    fn multi_pairing_impl<G: GroupElement + Pairing, M: measurement::Measurement>(
+        name: &str,
+        len: usize,
+        c: &mut BenchmarkGroup<M>,
+    ) where
+        <G as Pairing>::Output: GroupElement,
+    {
+        let (ps, qs): (Vec<G>, Vec<G::Other>) = (0..len)
+            .map(|_| {
+                (
+                    G::generator() * G::ScalarType::rand(&mut thread_rng()),
+                    G::Other::generator()
+                        * <<G as Pairing>::Other as GroupElement>::ScalarType::rand(
+                            &mut thread_rng(),
+                        ),
+                )
+            })
+            .unzip();
+        c.bench_function(format!("{}/{}", name, len), move |b| {
+            b.iter(|| G::multi_pairing(&ps, &qs))
+        });
+    }
+
+    fn multi_pairing(c: &mut Criterion) {
+        static NUMBER_OF_INPUTS: [usize; 3] = [2, 4, 8];
+        let mut group: BenchmarkGroup<_> = c.benchmark_group("Multi-Pairing");
+
+        for n in NUMBER_OF_INPUTS {
+            multi_pairing_impl::<G1Element, _>("BLS12381", n, &mut group);
+        }
     }
 
     fn sum(c: &mut Criterion) {
@@ -365,6 +397,7 @@ mod group_benches {
             scale,
             hash_to_group,
             pairing,
+            multi_pairing,
             double_scale,
             msm,
             sum,
