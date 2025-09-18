@@ -443,6 +443,10 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
                             &message.ciphertext,
                         )
                     })
+                    .and_then(|shares: SharesForNode<BATCH_SIZE>| {
+                        // Verify the shares
+                        shares.verify(&self.random_oracle, message).map(|_| shares)
+                    })
                     .tap_err(|_| {
                         warn!(
                             "Ignoring invalid recovery package from {}",
