@@ -28,6 +28,7 @@ use tap::TapFallible;
 use tracing::warn;
 
 /// This represents a Dealer in the AVSS. There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
+#[allow(dead_code)]
 pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
@@ -36,6 +37,7 @@ pub struct Dealer {
     secret: S,
 }
 
+#[allow(dead_code)]
 pub struct Receiver {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
@@ -54,6 +56,7 @@ pub struct Message {
 }
 
 /// The result of a [Receiver] processing a [Message]: Either valid shares or a complaint.
+#[allow(clippy::large_enum_variant)] // Clippy complains because ReceiverOutput can be very small if BATCH_SIZE is small.
 pub enum ProcessedMessage {
     Valid(ReceiverOutput),
     Complaint(Complaint),
@@ -252,7 +255,7 @@ impl Receiver {
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
                 my_shares,
-                commitments: self.compute_commitments(&message),
+                commitments: self.compute_commitments(message),
             })),
             Err(_) => Ok(ProcessedMessage::Complaint(Complaint::create(
                 self.id,
@@ -330,7 +333,7 @@ impl Receiver {
 
         Ok(ReceiverOutput {
             my_shares,
-            commitments: self.compute_commitments(&message),
+            commitments: self.compute_commitments(message),
         })
     }
 
@@ -357,7 +360,7 @@ mod tests {
     use crate::ecies_v1;
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
-    use crate::polynomial::{Eval, Poly};
+    use crate::polynomial::Poly;
     use crate::threshold_schnorr::avss::SharesForNode;
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
@@ -399,7 +402,7 @@ mod tests {
         let secret = Scalar::rand(&mut rng);
 
         // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
-        let previous_round_commitment = G::generator() * &secret;
+        let previous_round_commitment = G::generator() * secret;
 
         let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
@@ -467,7 +470,7 @@ mod tests {
         let secret = Scalar::rand(&mut rng);
 
         // Mock a commitment to the previous round's secret.
-        let commitment = G::generator() * &secret;
+        let commitment = G::generator() * secret;
         let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
         let receivers = sks
@@ -579,7 +582,7 @@ mod tests {
 
         let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
 
-        let commitment = G::generator() * &secret;
+        let commitment = G::generator() * secret;
 
         let receivers = sks
             .into_iter()

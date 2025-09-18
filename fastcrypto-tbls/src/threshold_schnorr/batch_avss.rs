@@ -32,6 +32,7 @@ use tracing::warn;
 
 /// This represents a Dealer in the AVSS.
 /// There is exactly one dealer, who creates the shares and broadcasts the encrypted shares.
+#[allow(dead_code)]
 pub struct Dealer<const BATCH_SIZE: usize> {
     secrets: [S; BATCH_SIZE],
     t: u16,
@@ -41,6 +42,7 @@ pub struct Dealer<const BATCH_SIZE: usize> {
 }
 
 /// This represents a Receiver in the AVSS who receives shares from the [Dealer].
+#[allow(dead_code)]
 pub struct Receiver<const BATCH_SIZE: usize> {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
@@ -61,6 +63,7 @@ pub struct Message<const BATCH_SIZE: usize> {
 }
 
 /// The result of processing a message by a receiver: either valid shares or a complaint.
+#[allow(clippy::large_enum_variant)] // Clippy complains because ReceiverOutput can be very small if BATCH_SIZE is small.
 pub enum ProcessedMessage<const BATCH_SIZE: usize> {
     Valid(ReceiverOutput<BATCH_SIZE>),
     Complaint(Complaint),

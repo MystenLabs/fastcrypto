@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-use fastcrypto::groups::{GroupElement, Scalar};
+use fastcrypto::groups::GroupElement;
 use itertools::Itertools;
 
 /// Lazy evaluation of Pascal matrix-vector multiplication, returning one element at a time.
@@ -200,6 +200,7 @@ fn test_large_lazy_pascal_matrix() {
 #[test]
 fn random_test_vector() {
     use fastcrypto::groups::bls12381::Scalar;
+    use fastcrypto::groups::Scalar as _;
 
     // Full 7x7 Pascal matrix for comparison.
     let p7 = [
