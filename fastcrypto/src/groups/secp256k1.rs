@@ -281,8 +281,8 @@ pub mod schnorr {
 
     /// A Schnorr signature as defined in BIP-340. The r point must have an even y-coordinate and the s scalar cannot be zero.
     pub struct SchnorrSignature {
-        pub r: [u8; 32],
-        pub s: Scalar,
+        r: [u8; 32],
+        s: Scalar,
     }
 
     impl ToFromByteArray<SIGNATURE_SIZE_IN_BYTES> for SchnorrSignature {
@@ -313,7 +313,7 @@ pub mod schnorr {
 
     /// A Schnorr public key as defined in BIP-340.
     /// The point cannot be the point at infinity and the y-coordinate must be even.
-    pub struct SchnorrPublicKey(pub ProjectivePoint);
+    pub struct SchnorrPublicKey(ProjectivePoint);
 
     impl TryFrom<&ProjectivePoint> for SchnorrPublicKey {
         type Error = FastCryptoError;
@@ -350,7 +350,7 @@ pub mod schnorr {
     serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
 
     /// A Schnorr private key. The scalar cannot be zero.
-    pub struct SchnorrPrivateKey(pub Scalar);
+    pub struct SchnorrPrivateKey(Scalar);
 
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;

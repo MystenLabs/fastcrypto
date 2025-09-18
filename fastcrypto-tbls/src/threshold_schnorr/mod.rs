@@ -99,7 +99,7 @@ pub fn aggregate_signatures(
 }
 
 fn hash(r_g: &G, vk: &G, message: &[u8]) -> S {
-    let vk_bytes = SchnorrPublicKey(*vk).to_byte_array();
+    let vk_bytes = SchnorrPublicKey::try_from(vk).unwrap().to_byte_array();
     bip0340_hash_to_scalar(
         Challenge,
         [&r_g.x_as_be_bytes().unwrap(), &vk_bytes, message],
