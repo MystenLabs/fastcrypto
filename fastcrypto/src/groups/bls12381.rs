@@ -59,6 +59,7 @@ pub const G1_ELEMENT_BYTE_LENGTH: usize = 48;
 pub const G2_ELEMENT_BYTE_LENGTH: usize = 96;
 pub const GT_ELEMENT_BYTE_LENGTH: usize = 576;
 pub const FP_BYTE_LENGTH: usize = 48;
+pub const G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH: usize = 96;
 
 impl Add for G1Element {
     type Output = Self;
@@ -330,6 +331,35 @@ impl Debug for G1Element {
     }
 }
 
+impl G1Element {
+    /// Try to deserialize a G1 element from an uncompressed byte representation.
+    /// See https://github.com/supranational/blst for details on the serialization format.
+    pub fn try_from_uncompressed_bytes(
+        bytes: &[u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH],
+    ) -> FastCryptoResult<Self> {
+        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
+        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
+        // compressed points to indicate sign of the y-coordinate and should also not be set.
+        if bytes[0] & 0x20 != 0 || bytes[0] & 0x80 != 0 {
+            return Err(InvalidInput);
+        }
+
+        let mut ret = blst_p1::default();
+        unsafe {
+            let mut affine = blst_p1_affine::default();
+            if blst_p1_deserialize(&mut affine, bytes.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
+                return Err(InvalidInput);
+            }
+            blst_p1_from_affine(&mut ret, &affine);
+
+            if !blst_p1_in_g1(&ret) {
+                return Err(InvalidInput);
+            }
+        }
+        Ok(G1Element(ret))
+    }
+}
+
 serialize_deserialize_with_to_from_byte_array!(G1Element);
 generate_bytes_representation!(G1Element, G1_ELEMENT_BYTE_LENGTH, G1ElementAsBytes);
 
@@ -356,28 +386,7 @@ impl TryFrom<&G1ElementUncompressed> for G1Element {
     type Error = FastCryptoError;
 
     fn try_from(value: &G1ElementUncompressed) -> Result<Self, Self::Error> {
-        // See https://github.com/supranational/blst for details on the serialization format.
-
-        // Note that `blst_p1_deserialize` accepts both compressed and uncompressed serializations,
-        // so we check that the compressed bit flag (the 1st) is not set. The third is used for
-        // compressed points to indicate sign of the y-coordinate and should also not be set.
-        if value.0[0] & 0x20 != 0 || value.0[0] & 0x80 != 0 {
-            return Err(InvalidInput);
-        }
-
-        let mut ret = blst_p1::default();
-        unsafe {
-            let mut affine = blst_p1_affine::default();
-            if blst_p1_deserialize(&mut affine, value.0.as_ptr()) != BLST_ERROR::BLST_SUCCESS {
-                return Err(InvalidInput);
-            }
-            blst_p1_from_affine(&mut ret, &affine);
-
-            if !blst_p1_in_g1(&ret) {
-                return Err(InvalidInput);
-            }
-        }
-        Ok(G1Element(ret))
+        G1Element::try_from_uncompressed_bytes(&value.0)
     }
 }
 
@@ -386,12 +395,12 @@ impl G1ElementUncompressed {
     /// The input is not validated so it should come from a trusted source.
     ///
     /// See [the blst docs](https://github.com/supranational/blst/tree/master?tab=readme-ov-file#serialization-format) for details about the uncompressed serialization format.
-    pub fn from_trusted_byte_array(bytes: [u8; 2 * G1_ELEMENT_BYTE_LENGTH]) -> Self {
+    pub fn from_trusted_byte_array(bytes: [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH]) -> Self {
         Self(bytes)
     }
 
     /// Get the byte array representation of this element.
-    pub fn into_byte_array(self) -> [u8; 2 * G1_ELEMENT_BYTE_LENGTH] {
+    pub fn into_byte_array(self) -> [u8; G1_ELEMENT_UNCOMPRESSED_BYTE_LENGTH] {
         self.0
     }
 
