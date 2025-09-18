@@ -412,7 +412,10 @@ pub mod schnorr {
         hasher.finalize().into()
     }
 
-    pub fn bip0340_hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
+    pub fn bip0340_hash_to_scalar<'a>(
+        tag: Tag,
+        data: impl IntoIterator<Item = &'a [u8]>,
+    ) -> Scalar {
         Scalar::from_bytes_mod_order(&hash(tag, data))
     }
 
