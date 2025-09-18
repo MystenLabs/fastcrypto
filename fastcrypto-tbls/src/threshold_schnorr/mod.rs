@@ -40,7 +40,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     message: &[u8],
     presignatures: &mut Presignatures<BATCH_SIZE>,
     my_signing_key_shares: &[S],
-    vk: &G,
+    verifying_key: &G,
     beacon_value: &S,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
     // One share per weight for this party
@@ -49,19 +49,19 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     }
 
     // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
-    let (_, t, p) = presignatures
+    let (_, secret_presigs, public_presig) = presignatures
         .next()
         .ok_or(GeneralError("No more pre-signatures".to_string()))?;
 
-    let r = p + G::generator() * beacon_value;
-    let h = hash(&r, vk, message);
+    let r = public_presig + G::generator() * beacon_value;
+    let h = hash(&r, verifying_key, message);
 
     Ok((
-        p,
+        public_presig,
         my_indices
             .iter()
             .zip(my_signing_key_shares)
-            .zip(t)
+            .zip(secret_presigs)
             .map(|((index, si), ti)| Eval {
                 index: *index,
                 value: ti + h * si,
@@ -73,7 +73,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 /// Given enough partial signatures, aggregate them into a full signature and verify it.
 pub fn aggregate_signatures(
     message: &[u8],
-    public: &G,
+    public_presig: &G,
     partial_signatures: &[Eval<S>],
     beacon_value: &S,
     threshold: u16,
@@ -83,7 +83,7 @@ pub fn aggregate_signatures(
         return Err(InputTooShort(threshold as usize));
     }
 
-    let r = public + G::generator() * beacon_value;
+    let r = public_presig + G::generator() * beacon_value;
 
     let sigma_prime = Poly::recover_c0(
         threshold,

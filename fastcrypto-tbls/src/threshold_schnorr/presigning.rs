@@ -38,9 +38,7 @@ impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
 }
 
 impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
-    /// Based on the output if a batched AVSS from multiple dealers, complete the presigning.
-    ///
-    /// The resulting iterator can give
+    /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     pub fn new(
         my_indices: &[ShareIndex],
         avss_outputs: &[ReceiverOutput<BATCH_SIZE>],
@@ -49,9 +47,9 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
         if avss_outputs.len() < 2 * f + 1 {
             return Err(InputTooShort(2 * f + 1));
         }
-        let m = avss_outputs.len() - f;
+        let si_height = avss_outputs.len() - f;
 
-        // There is one secret presigning output per weight for this party.
+        // There is one secret presigning output per share index (weight) for this party.
         let secret = my_indices
             .iter()
             .enumerate()
@@ -60,12 +58,12 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
                     .iter()
                     .map(|output| output.my_shares.batches[i].shares.to_vec())
                     .collect();
-                LazyPascalMatrixMultiplier::new(m, rho)
+                LazyPascalMatrixMultiplier::new(si_height, rho)
             })
             .collect_vec();
 
         let public = LazyPascalMatrixMultiplier::new(
-            m,
+            si_height,
             avss_outputs
                 .iter()
                 .map(|output| output.public_keys.to_vec())
