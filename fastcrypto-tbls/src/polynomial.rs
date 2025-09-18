@@ -16,7 +16,6 @@ use std::collections::HashSet;
 use std::ops::AddAssign;
 
 /// Types
-
 pub type Eval<A> = IndexedValue<A>;
 
 /// A polynomial that is using a scalar for the variable x and a generic
@@ -28,7 +27,6 @@ pub type PrivatePoly<C> = Poly<<C as GroupElement>::ScalarType>;
 pub type PublicPoly<C> = Poly<C>;
 
 /// Vector related operations.
-
 impl<C> Poly<C> {
     /// Returns the degree of the polynomial
     pub fn degree(&self) -> usize {
@@ -55,7 +53,6 @@ impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
 }
 
 /// GroupElement operations.
-
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
@@ -201,7 +198,6 @@ impl<C: GroupElement> Poly<C> {
 }
 
 /// Scalar operations.
-
 impl<C: Scalar> Poly<C> {
     /// Returns a new polynomial of the given degree where each coefficients is
     /// sampled at random from the given RNG.

@@ -807,6 +807,7 @@ pub mod min_sig {
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
+    use rand::RngCore;
     define_tests!();
 
     #[test]
@@ -835,6 +836,7 @@ pub mod min_pk {
         BLS12381AggregateSignature, BLS12381AggregateSignatureAsBytes, BLS12381KeyPair,
         BLS12381PrivateKey, BLS12381PublicKey, BLS12381Signature,
     };
+    use rand::RngCore;
     define_tests!();
 
     #[test]

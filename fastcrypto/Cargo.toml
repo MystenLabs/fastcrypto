@@ -21,7 +21,7 @@ rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recov
 serde.workspace = true
 serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
 signature = { version = "2.0.0" }
-tokio = { version = "1.24.1", features = ["sync", "rt", "macros"] }
+tokio = { version = "1.40", features = ["sync", "rt", "macros"] }
 zeroize.workspace = true
 curve25519-dalek-ng = "4.1.1"
 generic-array = { version = "0.14.6", features = ["serde"] }
