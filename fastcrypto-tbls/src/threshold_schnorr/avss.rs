@@ -12,11 +12,10 @@
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
+use crate::random_oracle::Extensions::Encryption;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
-use crate::threshold_schnorr::ro_extension::Extension::Encryption;
-use crate::threshold_schnorr::ro_extension::RandomOracleWrapper;
 use crate::threshold_schnorr::{EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
@@ -32,8 +31,7 @@ use tracing::warn;
 pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
-    sid: String,
-    random_oracle: RandomOracleWrapper,
+    sid: Vec<u8>,
     secret: S,
 }
 
@@ -43,8 +41,7 @@ pub struct Receiver {
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
     commitment: G,
-    sid: String,
-    random_oracle: RandomOracleWrapper,
+    sid: Vec<u8>,
     t: u16,
 }
 
@@ -67,7 +64,7 @@ pub enum ProcessedMessage {
 pub struct ReceiverOutput {
     pub my_shares: SharesForNode,
 
-    /// The commitments to the polynomials for the next round.
+    /// The commitments to the polynomials will be used for key rotation.
     pub commitments: Vec<Eval<G>>,
 }
 
@@ -135,7 +132,13 @@ impl Dealer {
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
     /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
-    pub fn new(secret: S, nodes: Nodes<EG>, t: u16, f: u16, sid: String) -> FastCryptoResult<Self> {
+    pub fn new(
+        secret: S,
+        nodes: Nodes<EG>,
+        t: u16,
+        f: u16,
+        sid: Vec<u8>,
+    ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
         if t <= f || t + 2 * f > nodes.total_weight() {
             return Err(InvalidInput);
@@ -145,7 +148,6 @@ impl Dealer {
             secret,
             t,
             nodes,
-            random_oracle: RandomOracle::new(&sid).into(),
             sid,
         })
     }
@@ -175,7 +177,7 @@ impl Dealer {
 
         let ciphertext = MultiRecipientEncryption::encrypt(
             &pk_and_msgs,
-            &self.random_oracle.extend(Encryption),
+            &self.random_oracle().extend_for(Encryption),
             rng,
         );
 
@@ -183,6 +185,10 @@ impl Dealer {
             ciphertext,
             feldman_commitment: polynomial.commit(),
         })
+    }
+
+    fn random_oracle(&self) -> RandomOracle {
+        RandomOracle::from_sid(&self.sid)
     }
 }
 
@@ -199,7 +205,7 @@ impl Receiver {
         nodes: Nodes<EG>,
         id: PartyId,
         t: u16,
-        sid: String,
+        sid: Vec<u8>,
         commitment: G,
         enc_secret_key: PrivateKey<EG>,
     ) -> Self {
@@ -207,7 +213,6 @@ impl Receiver {
             id,
             enc_secret_key,
             commitment,
-            random_oracle: RandomOracle::new(&sid).into(),
             sid,
             t,
             nodes,
@@ -234,7 +239,7 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        let random_oracle_encryption = self.random_oracle.extend(Encryption);
+        let random_oracle_encryption = self.random_oracle().extend_for(Encryption);
         message
             .ciphertext
             .verify(&random_oracle_encryption)
@@ -261,7 +266,7 @@ impl Receiver {
                 self.id,
                 &message.ciphertext,
                 &self.enc_secret_key,
-                &self.random_oracle,
+                &self.random_oracle(),
                 &mut rand::thread_rng(),
             ))),
         }
@@ -277,14 +282,14 @@ impl Receiver {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
-            &self.random_oracle,
+            &self.random_oracle(),
             |shares: &SharesForNode| shares.verify(message),
         )?;
         Ok(ComplaintResponse::create(
             self.id,
             &message.ciphertext,
             &self.enc_secret_key,
-            &self.random_oracle,
+            &self.random_oracle(),
             rng,
         ))
     }
@@ -313,10 +318,14 @@ impl Receiver {
                     .node_id_to_node(response.responder_id)
                     .and_then(|node| {
                         response.decrypt_with_response(
-                            &self.random_oracle,
+                            &self.random_oracle(),
                             &node.pk,
                             &message.ciphertext,
                         )
+                    })
+                    .and_then(|shares: SharesForNode| {
+                        // Verify the shares are valid
+                        shares.verify(message).map(|_| shares)
                     })
                     .tap_err(|_| {
                         warn!(
@@ -353,6 +362,10 @@ impl Receiver {
             .total_weight_of(std::iter::once(&self.id))
             .unwrap() as usize
     }
+
+    fn random_oracle(&self) -> RandomOracle {
+        RandomOracle::from_sid(&self.sid)
+    }
 }
 
 #[cfg(test)]
@@ -361,12 +374,12 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::Poly;
+    use crate::random_oracle::Extensions::Encryption;
     use crate::threshold_schnorr::avss::SharesForNode;
     use crate::threshold_schnorr::avss::{Dealer, Message, Receiver};
     use crate::threshold_schnorr::avss::{ProcessedMessage, ReceiverOutput};
     use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::complaint::Complaint;
-    use crate::threshold_schnorr::ro_extension::Extension::Encryption;
     use crate::threshold_schnorr::{EG, G};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -397,14 +410,14 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
 
         let secret = Scalar::rand(&mut rng);
 
         // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
         let previous_round_commitment = G::generator() * secret;
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -414,7 +427,7 @@ mod tests {
                     nodes.clone(),
                     id as u16,
                     t,
-                    sid.to_string(),
+                    sid.clone(),
                     previous_round_commitment,
                     enc_secret_key,
                 )
@@ -465,13 +478,13 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
 
         let secret = Scalar::rand(&mut rng);
 
         // Mock a commitment to the previous round's secret.
         let commitment = G::generator() * secret;
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -481,7 +494,7 @@ mod tests {
                     nodes.clone(),
                     id as u16,
                     t,
-                    sid.to_string(),
+                    sid.clone(),
                     commitment,
                     enc_secret_key,
                 )
@@ -505,9 +518,8 @@ mod tests {
         let shares_for_dealer = all_shares.get(&receivers[0].id).unwrap();
         let secret = shares_for_dealer.my_shares.shares[0].clone();
 
-        let sid2 = "tbls test 2";
-        let dealer: Dealer =
-            Dealer::new(secret.value, nodes.clone(), t, f, sid2.to_string()).unwrap();
+        let sid2 = b"tbls test 2".to_vec();
+        let dealer: Dealer = Dealer::new(secret.value, nodes.clone(), t, f, sid2.clone()).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -520,14 +532,7 @@ mod tests {
                  }| {
                     let commitment = all_shares.get(&id).unwrap().commitments[0].clone();
                     assert_eq!(commitment.index, secret.index);
-                    Receiver::new(
-                        nodes,
-                        id,
-                        t,
-                        sid2.to_string(),
-                        commitment.value,
-                        enc_secret_key,
-                    )
+                    Receiver::new(nodes, id, t, sid2.clone(), commitment.value, enc_secret_key)
                 },
             )
             .collect::<Vec<_>>();
@@ -577,10 +582,10 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
         let secret = Scalar::rand(&mut rng);
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.to_string()).unwrap();
+        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
 
         let commitment = G::generator() * secret;
 
@@ -592,7 +597,7 @@ mod tests {
                     nodes.clone(),
                     i as u16,
                     t,
-                    sid.to_string(),
+                    sid.clone(),
                     commitment,
                     enc_secret_key,
                 )
@@ -669,7 +674,7 @@ mod tests {
 
             let ciphertext = MultiRecipientEncryption::encrypt(
                 &pk_and_msgs,
-                &self.random_oracle.extend(Encryption),
+                &self.random_oracle().extend_for(Encryption),
                 rng,
             );
 

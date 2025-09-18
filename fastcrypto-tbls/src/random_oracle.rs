@@ -1,7 +1,10 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::nodes::PartyId;
+use crate::random_oracle::Extensions::{Challenge, Encryption, Recovery};
 use digest::Digest;
+use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::groups::{FiatShamirChallenge, GroupElement};
 use serde::{Deserialize, Serialize};
 use sha3::Sha3_512;
@@ -36,6 +39,11 @@ impl RandomOracle {
         }
     }
 
+    pub fn from_sid(sid: &[u8]) -> Self {
+        let hex_sid = format!("sid({})", Hex::encode(sid));
+        Self::new(&hex_sid)
+    }
+
     /// Evaluate the random oracle on a given input.
     pub fn evaluate<T: Serialize>(&self, obj: &T) -> [u8; 64] {
         let mut hasher = Sha3_512::default();
@@ -65,6 +73,27 @@ impl RandomOracle {
         assert!(self.prefix.len() + extension.len() + 1 < u32::MAX as usize);
         Self {
             prefix: self.prefix.clone() + "-" + extension,
+        }
+    }
+
+    pub fn extend_for(&self, extension: Extensions) -> Self {
+        self.extend(&extension.get_extension_string())
+    }
+}
+
+/// Domain-specific extensions/tags for the random oracle.
+pub enum Extensions {
+    Recovery(PartyId),
+    Encryption,
+    Challenge,
+}
+
+impl Extensions {
+    fn get_extension_string(&self) -> String {
+        match self {
+            Recovery(accuser) => format!("recovery of {accuser}"),
+            Encryption => "encryption".to_string(),
+            Challenge => "challenge".to_string(),
         }
     }
 }

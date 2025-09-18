@@ -26,7 +26,7 @@ impl<C: GroupElement> LazyPascalVectorMultiplier<C> {
     }
 
     /// The remaining number of elements this iterator will yield.
-    pub fn remaining(&self) -> usize {
+    fn remaining(&self) -> usize {
         self.height - self.counter
     }
 }
@@ -51,6 +51,8 @@ impl<C: GroupElement> Iterator for LazyPascalVectorMultiplier<C> {
         (remaining, Some(remaining))
     }
 }
+
+impl<C: GroupElement> ExactSizeIterator for LazyPascalVectorMultiplier<C> {}
 
 /// Lazy evaluation of Pascal matrix multiplication, returning one element at a time.
 /// Computing the next element takes O(h) group additions, where h is the height of the given columns.
@@ -82,7 +84,7 @@ impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
         }
     }
 
-    pub fn remaining(&self) -> usize {
+    fn remaining(&self) -> usize {
         self.current_vector.remaining() + self.buffers.len() * self.height
     }
 }
@@ -110,6 +112,8 @@ impl<C: GroupElement> Iterator for LazyPascalMatrixMultiplier<C> {
         (remaining, Some(remaining))
     }
 }
+
+impl<C: GroupElement> ExactSizeIterator for LazyPascalMatrixMultiplier<C> {}
 
 #[test]
 fn test_small_lazy_pascal_vector() {
@@ -153,7 +157,7 @@ fn test_small_lazy_pascal_matrix() {
 
     let y = LazyPascalMatrixMultiplier::new(4, columns);
 
-    assert_eq!(y.remaining(), 12);
+    assert_eq!(y.len(), 12);
 
     let expected_flat: Vec<Scalar> = expected
         .iter()
@@ -187,7 +191,7 @@ fn test_large_lazy_pascal_matrix() {
 
     let y = LazyPascalMatrixMultiplier::new(7, columns);
 
-    assert_eq!(y.remaining(), 49);
+    assert_eq!(y.len(), 49);
 
     let expected_flat: Vec<Scalar> = expected
         .iter()

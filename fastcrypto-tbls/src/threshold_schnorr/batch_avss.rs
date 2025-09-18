@@ -11,11 +11,10 @@
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
+use crate::random_oracle::Extensions::Encryption;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
-use crate::threshold_schnorr::ro_extension::Extension::{Challenge, Encryption};
-use crate::threshold_schnorr::ro_extension::RandomOracleWrapper;
 use crate::threshold_schnorr::{EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
@@ -37,8 +36,7 @@ pub struct Dealer<const BATCH_SIZE: usize> {
     secrets: [S; BATCH_SIZE],
     t: u16,
     nodes: Nodes<EG>,
-    sid: String,
-    random_oracle: RandomOracleWrapper,
+    sid: Vec<u8>,
 }
 
 /// This represents a Receiver in the AVSS who receives shares from the [Dealer].
@@ -47,8 +45,7 @@ pub struct Receiver<const BATCH_SIZE: usize> {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
-    sid: String,
-    random_oracle: RandomOracleWrapper,
+    sid: Vec<u8>,
     t: u16, // The number of parties that are needed to reconstruct the full key/signature.
 }
 
@@ -145,7 +142,7 @@ impl<const BATCH_SIZE: usize> SharesForNode<BATCH_SIZE> {
 
     fn verify(
         &self,
-        random_oracle: &RandomOracleWrapper,
+        random_oracle: &RandomOracle,
         message: &Message<BATCH_SIZE>,
     ) -> FastCryptoResult<()> {
         let challenge = compute_challenge_from_message(random_oracle, message);
@@ -215,7 +212,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
         nodes: Nodes<EG>,
         t: u16,
         f: u16,
-        sid: String,
+        sid: Vec<u8>,
         rng: &mut impl AllowedRng,
     ) -> FastCryptoResult<Self> {
         // We need to collect t+f confirmations to make sure that at least t honest parties have confirmed.
@@ -228,8 +225,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             secrets,
             t,
             nodes,
-            random_oracle: RandomOracle::new(&sid).into(),
-            sid: sid.to_string(),
+            sid,
         })
     }
 
@@ -274,13 +270,13 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
         let ciphertext = MultiRecipientEncryption::encrypt(
             &pk_and_msgs,
-            &self.random_oracle.extend(Encryption),
+            &self.random_oracle().extend_for(Encryption),
             rng,
         );
 
         // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
         let challenge = compute_challenge(
-            &self.random_oracle,
+            &self.random_oracle(),
             &full_public_keys,
             &blinding_commit,
             &ciphertext,
@@ -297,6 +293,10 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
             response_polynomial,
         })
     }
+
+    fn random_oracle(&self) -> RandomOracle {
+        RandomOracle::from_sid(&self.sid)
+    }
 }
 
 impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
@@ -309,15 +309,14 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         nodes: Nodes<EG>,
         id: PartyId,
         t: u16,
-        sid: &str,
+        sid: Vec<u8>,
         enc_secret_key: PrivateKey<EG>,
     ) -> Self {
         Self {
             id,
             enc_secret_key,
             nodes,
-            sid: sid.to_string(),
-            random_oracle: RandomOracle::new(sid).into(),
+            sid,
             t,
         }
     }
@@ -349,7 +348,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
 
         // Verify that g^{p''(0)} == c' * prod_l c_l^{gamma_l}
-        let challenge = compute_challenge_from_message(&self.random_oracle, message);
+        let challenge = compute_challenge_from_message(&self.random_oracle(), message);
         if G::generator() * response_polynomial.c0()
             != blinding_commit
                 + G::multi_scalar_mul(&challenge, full_public_keys)
@@ -358,7 +357,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             return Err(InvalidMessage);
         }
 
-        let random_oracle_encryption = self.random_oracle.extend(Encryption);
+        let random_oracle_encryption = self.random_oracle().extend_for(Encryption);
         ciphertext
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
@@ -375,7 +374,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             if my_shares.weight() != self.my_weight() {
                 return Err(InvalidMessage);
             }
-            my_shares.verify(&self.random_oracle, message)?;
+            my_shares.verify(&self.random_oracle(), message)?;
             Ok(my_shares)
         }) {
             Ok(my_shares) => Ok(ProcessedMessage::Valid(ReceiverOutput {
@@ -386,7 +385,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
                 self.id,
                 ciphertext,
                 &self.enc_secret_key,
-                &self.random_oracle,
+                &self.random_oracle(),
                 &mut rand::thread_rng(),
             ))),
         }
@@ -402,14 +401,14 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         complaint.check(
             &self.nodes.node_id_to_node(complaint.accuser_id)?.pk,
             &message.ciphertext,
-            &self.random_oracle,
-            |shares: &SharesForNode<BATCH_SIZE>| shares.verify(&self.random_oracle, message),
+            &self.random_oracle(),
+            |shares: &SharesForNode<BATCH_SIZE>| shares.verify(&self.random_oracle(), message),
         )?;
         Ok(ComplaintResponse::create(
             self.id,
             &message.ciphertext,
             &self.enc_secret_key,
-            &self.random_oracle,
+            &self.random_oracle(),
             rng,
         ))
     }
@@ -438,14 +437,16 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
                     .node_id_to_node(response.responder_id)
                     .and_then(|node| {
                         response.decrypt_with_response(
-                            &self.random_oracle,
+                            &self.random_oracle(),
                             &node.pk,
                             &message.ciphertext,
                         )
                     })
                     .and_then(|shares: SharesForNode<BATCH_SIZE>| {
                         // Verify the shares
-                        shares.verify(&self.random_oracle, message).map(|_| shares)
+                        shares
+                            .verify(&self.random_oracle(), message)
+                            .map(|_| shares)
                     })
                     .tap_err(|_| {
                         warn!(
@@ -467,7 +468,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         }
 
         let my_shares = SharesForNode::recover(self, &response_shares)?;
-        my_shares.verify(&self.random_oracle, message)?;
+        my_shares.verify(&self.random_oracle(), message)?;
 
         Ok(ReceiverOutput {
             my_shares,
@@ -484,20 +485,23 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             .total_weight_of(std::iter::once(&self.id))
             .unwrap() as usize
     }
+
+    fn random_oracle(&self) -> RandomOracle {
+        RandomOracle::from_sid(&self.sid)
+    }
 }
 
 fn compute_challenge<const BATCH_SIZE: usize>(
-    random_oracle: &RandomOracleWrapper,
+    random_oracle: &RandomOracle,
     c: &[G; BATCH_SIZE],
     c_prime: &G,
     e: &MultiRecipientEncryption<EG>,
 ) -> [S; BATCH_SIZE] {
-    let random_oracle = random_oracle.extend(Challenge);
     array::from_fn(|l| random_oracle.evaluate_to_group_element(&(l, c.to_vec(), c_prime, e)))
 }
 
 fn compute_challenge_from_message<const BATCH_SIZE: usize>(
-    random_oracle: &RandomOracleWrapper,
+    random_oracle: &RandomOracle,
     message: &Message<BATCH_SIZE>,
 ) -> [S; BATCH_SIZE] {
     compute_challenge(
@@ -518,12 +522,11 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
+    use crate::random_oracle::Extensions::Encryption;
     use crate::threshold_schnorr::bcs::BCSSerialized;
-    use crate::threshold_schnorr::ro_extension::Extension::Encryption;
     use crate::threshold_schnorr::{EG, G};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
-    use fastcrypto::groups::bls12381::G1Element;
     use fastcrypto::groups::GroupElement;
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
@@ -553,14 +556,16 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
         let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
+            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
+            .map(|(i, secret_key)| {
+                Receiver::new(nodes.clone(), i as u16, t, sid.clone(), secret_key)
+            })
             .collect::<Vec<_>>();
 
         let message = dealer.create_message(&mut rng).unwrap();
@@ -612,7 +617,7 @@ mod tests {
         let mut rng = rand::thread_rng();
         let sks = weights
             .iter()
-            .map(|_| ecies_v1::PrivateKey::<G1Element>::new(&mut rng))
+            .map(|_| ecies_v1::PrivateKey::<EG>::new(&mut rng))
             .collect::<Vec<_>>();
         let nodes = Nodes::new(
             weights
@@ -627,14 +632,16 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
         let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
+            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
+            .map(|(i, secret_key)| {
+                Receiver::new(nodes.clone(), i as u16, t, sid.clone(), secret_key)
+            })
             .collect::<Vec<_>>();
 
         let message = dealer.create_message(&mut rng).unwrap();
@@ -687,15 +694,17 @@ mod tests {
         )
         .unwrap();
 
-        let sid = "tbls test";
+        let sid = b"tbls test".to_vec();
 
         let dealer: Dealer<BATCH_SIZE> =
-            Dealer::new(nodes.clone(), t, f, sid.to_string(), &mut rng).unwrap();
+            Dealer::new(nodes.clone(), t, f, sid.clone(), &mut rng).unwrap();
 
         let receivers = sks
             .into_iter()
             .enumerate()
-            .map(|(i, secret_key)| Receiver::new(nodes.clone(), i as u16, t, sid, secret_key))
+            .map(|(i, secret_key)| {
+                Receiver::new(nodes.clone(), i as u16, t, sid.clone(), secret_key)
+            })
             .collect::<Vec<_>>();
 
         let message = dealer.create_message_cheating(&mut rng).unwrap();
@@ -785,13 +794,13 @@ mod tests {
 
             let ciphertext = MultiRecipientEncryption::encrypt(
                 &pk_and_msgs,
-                &self.random_oracle.extend(Encryption),
+                &self.random_oracle().extend_for(Encryption),
                 rng,
             );
 
             // "response" polynomials from https://eprint.iacr.org/2023/536.pdf
             let challenge = compute_challenge(
-                &self.random_oracle,
+                &self.random_oracle(),
                 &full_public_keys,
                 &blinding_commit,
                 &ciphertext,

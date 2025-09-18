@@ -412,7 +412,7 @@ pub mod schnorr {
         hasher.finalize().into()
     }
 
-    pub fn hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
+    pub fn bip0340_hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
         Scalar::from_bytes_mod_order(&hash(tag, data))
     }
 
@@ -432,7 +432,7 @@ pub mod schnorr {
             let pk_bytes = pk.to_byte_array();
 
             let t = xor(&self.to_byte_array(), &hash(Aux, [aad]));
-            let k_prime = hash_to_scalar(Nonce, [&t, &pk_bytes, msg]);
+            let k_prime = bip0340_hash_to_scalar(Nonce, [&t, &pk_bytes, msg]);
             if k_prime.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
             }
@@ -445,7 +445,7 @@ pub mod schnorr {
             };
             let r = r.x_as_be_bytes()?;
 
-            let e = hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
+            let e = bip0340_hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
             let s = k + self.0 * e;
 
             let signature = SchnorrSignature { r, s };
@@ -459,7 +459,7 @@ pub mod schnorr {
         /// Verify a signature on a message with this public key.
         pub fn verify(&self, msg: &[u8], sig: &SchnorrSignature) -> FastCryptoResult<()> {
             let SchnorrSignature { r, s } = sig;
-            let e = hash_to_scalar(Challenge, [r, &self.to_byte_array(), msg]);
+            let e = bip0340_hash_to_scalar(Challenge, [r, &self.to_byte_array(), msg]);
             let expected = ProjectivePoint::multi_scalar_mul(
                 &[*s, -e],
                 &[ProjectivePoint::generator(), self.0],

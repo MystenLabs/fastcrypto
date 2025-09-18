@@ -3,13 +3,12 @@
 
 use crate::polynomial::{Eval, Poly};
 use crate::threshold_schnorr::presigning::Presignatures;
-use crate::types::ShareIndex;
-use fastcrypto::error::FastCryptoError::{GeneralError, InputTooShort, InvalidSignature};
-use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature, OutOfPresigs};
+use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
-use fastcrypto::groups::bls12381::G1Element;
+use fastcrypto::groups::ristretto255::RistrettoPoint;
 use fastcrypto::groups::secp256k1::schnorr::Tag::Challenge;
-use fastcrypto::groups::secp256k1::schnorr::{hash_to_scalar, SchnorrPublicKey};
+use fastcrypto::groups::secp256k1::schnorr::{bip0340_hash_to_scalar, SchnorrPublicKey};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use itertools::Itertools;
@@ -20,7 +19,6 @@ mod bcs;
 pub mod certificate;
 pub mod complaint;
 mod presigning;
-pub mod ro_extension;
 pub mod si_matrix;
 
 /// The group to use for the signing
@@ -29,40 +27,33 @@ pub type G = groups::secp256k1::ProjectivePoint;
 /// Default scalar
 pub type S = <G as GroupElement>::ScalarType;
 
-/// The group used for multi-recipient encryption
-type EG = G1Element;
+/// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can be used here.
+type EG = RistrettoPoint;
 
 /// Generate partial threshold Schnorr signatures for a given message using a presigning triple.
-///
 /// Returns also the public nonce R.
+///
+/// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
-    my_indices: &[ShareIndex],
     message: &[u8],
     presignatures: &mut Presignatures<BATCH_SIZE>,
-    my_signing_key_shares: &[S],
+    my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
     beacon_value: &S,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    // One share per weight for this party
-    if my_signing_key_shares.len() != my_indices.len() {
-        return Err(FastCryptoError::InvalidInput);
-    }
-
     // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
-    let (_, secret_presigs, public_presig) = presignatures
-        .next()
-        .ok_or(GeneralError("No more pre-signatures".to_string()))?;
+    let (_, secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
 
-    let r = public_presig + G::generator() * beacon_value;
-    let h = hash(&r, verifying_key, message);
+    let r_g = public_presig + G::generator() * beacon_value;
+    let h = hash(&r_g, verifying_key, message);
 
     Ok((
         public_presig,
-        my_indices
+        my_signing_key_shares
+            .shares
             .iter()
-            .zip(my_signing_key_shares)
             .zip(secret_presigs)
-            .map(|((index, si), ti)| Eval {
+            .map(|(Eval { index, value: si }, ti)| Eval {
                 index: *index,
                 value: ti + h * si,
             })
@@ -83,7 +74,7 @@ pub fn aggregate_signatures(
         return Err(InputTooShort(threshold as usize));
     }
 
-    let r = public_presig + G::generator() * beacon_value;
+    let r_g = public_presig + G::generator() * beacon_value;
 
     let sigma_prime = Poly::recover_c0(
         threshold,
@@ -91,14 +82,20 @@ pub fn aggregate_signatures(
     )?;
     let s = sigma_prime + beacon_value;
 
-    let signature = (r, s);
+    let signature = (r_g, s);
+
+    // TODO: Handle invalid signatures
     verify(vk, &signature, message)?;
+
     Ok(signature)
 }
 
-fn hash(r: &G, vk: &G, message: &[u8]) -> S {
+fn hash(r_g: &G, vk: &G, message: &[u8]) -> S {
     let vk_bytes = SchnorrPublicKey(*vk).to_byte_array();
-    hash_to_scalar(Challenge, [&r.x_as_be_bytes().unwrap(), &vk_bytes, message])
+    bip0340_hash_to_scalar(
+        Challenge,
+        [&r_g.x_as_be_bytes().unwrap(), &vk_bytes, message],
+    )
 }
 
 // TODO: Use verify from schnorr module
@@ -117,7 +114,7 @@ mod tests {
     use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::{
-        aggregate_signatures, generate_partial_signatures, hash, verify, G, S,
+        aggregate_signatures, avss, generate_partial_signatures, hash, verify, G, S,
     };
     use crate::types::ShareIndex;
     use fastcrypto::groups::{GroupElement, Scalar};
@@ -215,15 +212,11 @@ mod tests {
             .iter_mut()
             .enumerate()
             .map(|(i, presigning)| {
-                generate_partial_signatures(
-                    &[ShareIndex::new((i + 1) as u16).unwrap()],
-                    message,
-                    presigning,
-                    &[sk_shares[i].value],
-                    &vk,
-                    &beacon_value,
-                )
-                .unwrap()
+                let my_shares = avss::SharesForNode {
+                    shares: vec![sk_shares[i].clone()],
+                };
+                generate_partial_signatures(message, presigning, &my_shares, &vk, &beacon_value)
+                    .unwrap()
             })
             .collect_vec();
 

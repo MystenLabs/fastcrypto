@@ -35,7 +35,14 @@ impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
             _ => None,
         }
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.public.len();
+        (remaining, Some(remaining))
+    }
 }
+
+impl<const BATCH_SIZE: usize> ExactSizeIterator for Presignatures<BATCH_SIZE> {}
 
 impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
@@ -70,17 +77,12 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
                 .collect(),
         );
 
-        assert_eq!(secret[0].remaining(), public.remaining());
+        assert_eq!(secret[0].len(), public.len());
 
         Ok(Self {
             secret,
             public,
             index: 0,
         })
-    }
-
-    pub fn remaining(&self) -> usize {
-        // The public and secret iterators has the same number of elements
-        self.public.remaining()
     }
 }
