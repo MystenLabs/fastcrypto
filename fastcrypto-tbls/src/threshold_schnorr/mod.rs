@@ -52,7 +52,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
         my_signing_key_shares
             .shares
             .iter()
-            .zip(secret_presigs)
+            .zip_eq(secret_presigs)
             .map(
                 |(
                     Eval {
@@ -62,7 +62,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
                     presig,
                 )| Eval {
                     index: *index,
-                    value: sk_share + h * presig,
+                    value: presig + h * sk_share,
                 },
             )
             .collect_vec(),
