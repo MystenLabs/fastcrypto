@@ -1,62 +1,118 @@
-use fastcrypto::groups::GroupElement;
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
 
-/// Construction from https://eprint.iacr.org/2023/1175.pdf
-pub struct PascalMatrix {
-    m: usize,
-    n: usize,
+use fastcrypto::groups::{GroupElement, Scalar};
+use itertools::Itertools;
+
+/// Lazy evaluation of Pascal matrix-vector multiplication, returning one element at a time.
+/// Computing the next element takes O(h) group additions, where h is the height of the input column.
+/// The construction is from https://eprint.iacr.org/2023/1175.pdf.
+pub struct LazyPascalVectorMultiplier<C> {
+    height: usize,
+    buffer: Vec<C>,
+    counter: usize,
 }
 
-impl PascalMatrix {
-    pub fn new(m: usize, n: usize) -> Self {
-        assert!(m <= n && m > 0);
-        Self { m, n }
+impl<C: GroupElement> LazyPascalVectorMultiplier<C> {
+    /// Create a new lazy Pascal vector iterator that will yield `height` elements.
+    /// Panics if the input vector is shorter than `height` or if `height` is zero.
+    pub fn new(height: usize, vector: Vec<C>) -> Self {
+        assert!(height <= vector.len() && height > 0);
+        Self {
+            height,
+            buffer: vector,
+            counter: 0,
+        }
     }
 
-    pub fn vector_mul<C: GroupElement>(&self, x: &[C]) -> Vec<C> {
-        assert_eq!(x.len(), self.m);
+    /// The remaining number of elements this iterator will yield.
+    pub fn remaining(&self) -> usize {
+        self.height - self.counter
+    }
+}
 
-        let mut buffer = x.to_vec();
-        (0..self.m)
-            .map(|_| {
-                for j in (0..(self.n - 1)).rev() {
-                    let (buffer, tail) = buffer.split_at_mut(j + 1);
-                    buffer[j] += tail[0];
+impl<C: GroupElement> Iterator for LazyPascalVectorMultiplier<C> {
+    type Item = C;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.counter >= self.height {
+            return None;
+        }
+        for j in (0..self.buffer.len()).rev().skip(1) {
+            let term = self.buffer[j + 1];
+            *self.buffer.get_mut(j).unwrap() += term;
+        }
+        self.counter += 1;
+        Some(self.buffer[0])
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.height - self.counter;
+        (remaining, Some(remaining))
+    }
+}
+
+/// Lazy evaluation of Pascal matrix multiplication, returning one element at a time.
+/// Computing the next element takes O(h) group additions, where h is the height of the given columns.
+/// The construction is from https://eprint.iacr.org/2023/1175.pdf.
+pub struct LazyPascalMatrixMultiplier<C> {
+    height: usize,
+    buffers: Vec<Vec<C>>,
+    current_vector: LazyPascalVectorMultiplier<C>,
+}
+
+impl<C: GroupElement> LazyPascalMatrixMultiplier<C> {
+    /// Create a new lazy Pascal matrix iterator that will yield `height * columns.len()` elements.
+    /// Panics if
+    /// * `columns` is empty,
+    /// * if the columns are not all of the same length which is at least `height`,
+    /// * if `height` is zero.
+    pub fn new(height: usize, columns: Vec<Vec<C>>) -> Self {
+        assert!(!columns.is_empty());
+        assert!(columns.iter().map(|c| c.len()).all_equal());
+
+        let width = columns[0].len();
+        assert!(height <= width && height > 0);
+
+        let mut buffers = columns;
+        Self {
+            height,
+            current_vector: LazyPascalVectorMultiplier::new(height, buffers.pop().unwrap()),
+            buffers,
+        }
+    }
+
+    pub fn remaining(&self) -> usize {
+        self.current_vector.remaining() + self.buffers.len() * self.height
+    }
+}
+
+impl<C: GroupElement> Iterator for LazyPascalMatrixMultiplier<C> {
+    type Item = C;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.current_vector.next() {
+            Some(v) => Some(v),
+            None => {
+                if self.buffers.is_empty() {
+                    None
+                } else {
+                    self.current_vector =
+                        LazyPascalVectorMultiplier::new(self.height, self.buffers.pop().unwrap());
+                    self.current_vector.next()
                 }
-                buffer[0]
-            })
-            .collect()
-    }
-}
-
-pub struct UTPascalMatrix {
-    m: usize,
-    n: usize,
-}
-
-impl UTPascalMatrix {
-    pub fn new(m: usize, n: usize) -> Self {
-        assert!(m <= n && m > 0);
-        Self { m, n }
+            }
+        }
     }
 
-    pub fn vector_mul<C: GroupElement>(&self, x: &[C]) -> Vec<C> {
-        assert_eq!(x.len(), self.m);
-
-        let mut buffer = x.to_vec();
-        (0..self.m)
-            .map(|i| {
-                for j in (i..(self.n - 1)).rev() {
-                    let (buffer, tail) = buffer.split_at_mut(j + 1);
-                    buffer[j] += tail[0];
-                }
-                buffer[i]
-            })
-            .collect()
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.remaining();
+        (remaining, Some(remaining))
     }
 }
 
 #[test]
-fn test_small_pascal_matrix() {
+fn test_small_lazy_pascal_vector() {
     use fastcrypto::groups::bls12381::Scalar;
 
     let expected = [
@@ -64,49 +120,114 @@ fn test_small_pascal_matrix() {
         vec![1, 2, 3, 4],
         vec![1, 3, 6, 10],
         vec![1, 4, 10, 20],
+        vec![1, 5, 15, 35],
     ];
 
-    let pascal = PascalMatrix::new(4, 4);
-    for i in 0..4 {
-        let mut x = vec![Scalar::zero(); 4];
-        x[i] = Scalar::generator();
-        let y = pascal.vector_mul(&x);
-        let y_expected = &expected[i]
-            .iter()
-            .map(|v| Scalar::from(*v as u128))
-            .collect::<Vec<_>>();
-        assert_eq!(&y, y_expected);
+    for i in 0..5 {
+        let mut x = vec![Scalar::from(0u128); 5];
+        x[i] = Scalar::from(1u128);
+        let y = LazyPascalVectorMultiplier::new(4, x).collect::<Vec<_>>();
+        assert_eq!(
+            y,
+            expected[i]
+                .iter()
+                .map(|&v| Scalar::from(v))
+                .collect::<Vec<_>>()
+        );
     }
 }
 
 #[test]
-fn test_small_ut_pascal_matrix() {
+fn test_small_lazy_pascal_matrix() {
     use fastcrypto::groups::bls12381::Scalar;
 
-    // Returns transposed compared to paper, so lower triangular
+    let expected = [vec![1, 3, 6, 10], vec![1, 2, 3, 4], vec![1, 1, 1, 1]];
+
+    let columns = (0..3)
+        .map(|i| {
+            let mut x = vec![Scalar::from(0u128); 7];
+            x[i] = Scalar::from(1u128);
+            x
+        })
+        .collect::<Vec<_>>();
+
+    let y = LazyPascalMatrixMultiplier::new(4, columns);
+
+    assert_eq!(y.remaining(), 12);
+
+    let expected_flat: Vec<Scalar> = expected
+        .iter()
+        .flatten()
+        .map(|&v| Scalar::from(v))
+        .collect();
+    assert_eq!(y.collect_vec(), expected_flat);
+}
+
+#[test]
+fn test_large_lazy_pascal_matrix() {
+    use fastcrypto::groups::bls12381::Scalar;
+
     let expected = [
-        vec![1, 0, 0, 0],
-        vec![1, 1, 0, 0],
-        vec![1, 2, 1, 0],
-        vec![1, 3, 3, 1],
+        vec![1, 7, 28, 84, 210, 462, 924],
+        vec![1, 6, 21, 56, 126, 252, 462],
+        vec![1, 5, 15, 35, 70, 126, 210],
+        vec![1, 4, 10, 20, 35, 56, 84],
+        vec![1, 3, 6, 10, 15, 21, 28],
+        vec![1, 2, 3, 4, 5, 6, 7],
+        vec![1, 1, 1, 1, 1, 1, 1],
     ];
 
-    let pascal = UTPascalMatrix::new(4, 4);
-    for i in 0..4 {
-        let mut x = vec![Scalar::zero(); 4];
-        x[i] = Scalar::generator();
-        let y = pascal.vector_mul(&x);
-        let y_expected = &expected[i]
-            .iter()
-            .map(|v| Scalar::from(*v as u128))
-            .collect::<Vec<_>>();
-        assert_eq!(&y, y_expected);
-    }
+    let columns = (0..7)
+        .map(|i| {
+            let mut x = vec![Scalar::from(0u128); 7];
+            x[i] = Scalar::from(1u128);
+            x
+        })
+        .collect::<Vec<_>>();
 
-    let not_square = UTPascalMatrix::new(3, 4);
-    let x = [Scalar::from(1), Scalar::from(2), Scalar::from(3)];
-    let y = not_square.vector_mul(&x);
-    // TODO: Construct actual test vectors
-    let expected = [Scalar::from(6), Scalar::from(8), Scalar::from(3)];
-    assert_eq!(y, expected);
+    let y = LazyPascalMatrixMultiplier::new(7, columns);
+
+    assert_eq!(y.remaining(), 49);
+
+    let expected_flat: Vec<Scalar> = expected
+        .iter()
+        .flatten()
+        .map(|&v| Scalar::from(v))
+        .collect();
+    assert_eq!(y.collect_vec(), expected_flat);
+}
+
+#[test]
+fn random_test_vector() {
+    use fastcrypto::groups::bls12381::Scalar;
+
+    // Full 7x7 Pascal matrix for comparison.
+    let p7 = [
+        vec![1, 1, 1, 1, 1, 1, 1],
+        vec![1, 2, 3, 4, 5, 6, 7],
+        vec![1, 3, 6, 10, 15, 21, 28],
+        vec![1, 4, 10, 20, 35, 56, 84],
+        vec![1, 5, 15, 35, 70, 126, 210],
+        vec![1, 6, 21, 56, 126, 252, 462],
+        vec![1, 7, 28, 84, 210, 462, 924],
+    ];
+
+    let mut rng = rand::thread_rng();
+    let v = (0..7).map(|_| Scalar::rand(&mut rng)).collect_vec();
+
+    // Compute expected result using naive matrix-vector multiplication.
+    let expected = p7
+        .iter()
+        .map(|row| {
+            row.iter()
+                .zip(&v)
+                .map(|(&a, b)| Scalar::from(a) * b)
+                .reduce(|a, b| a + b)
+                .unwrap()
+        })
+        .collect_vec();
+
+    let actual = LazyPascalVectorMultiplier::new(7, v).collect_vec();
+
+    assert_eq!(actual, expected);
 }
