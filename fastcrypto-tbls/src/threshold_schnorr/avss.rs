@@ -20,6 +20,7 @@ use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
+use fastcrypto::groups::Scalar;
 use fastcrypto::traits::AllowedRng;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -32,7 +33,7 @@ pub struct Dealer {
     t: u16,
     nodes: Nodes<EG>,
     sid: Vec<u8>,
-    secret: S,
+    secret: Option<S>,
 }
 
 #[allow(dead_code)]
@@ -40,7 +41,7 @@ pub struct Receiver {
     id: PartyId,
     enc_secret_key: PrivateKey<EG>,
     nodes: Nodes<EG>,
-    commitment: G,
+    commitment: Option<G>,
     sid: Vec<u8>,
     t: u16,
 }
@@ -133,7 +134,7 @@ impl Dealer {
     /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
     pub fn new(
-        secret: S,
+        secret: Option<S>,
         nodes: Nodes<EG>,
         t: u16,
         f: u16,
@@ -154,7 +155,8 @@ impl Dealer {
 
     /// 1. The Dealer samples nonces, generates shares and broadcasts the encrypted shares.
     pub fn create_message<Rng: AllowedRng>(&self, rng: &mut Rng) -> FastCryptoResult<Message> {
-        let polynomial = Poly::rand_fixed_c0(self.t - 1, self.secret, rng);
+        let secret = self.secret.unwrap_or(S::rand(rng));
+        let polynomial = Poly::rand_fixed_c0(self.t - 1, secret, rng);
 
         // Encrypt all shares to the receivers
         let pk_and_msgs = self
@@ -206,7 +208,7 @@ impl Receiver {
         id: PartyId,
         t: u16,
         sid: Vec<u8>,
-        commitment: G,
+        commitment: Option<G>,
         enc_secret_key: PrivateKey<EG>,
     ) -> Self {
         Self {
@@ -234,9 +236,11 @@ impl Receiver {
             return Err(InvalidMessage);
         }
 
-        // Verify that the secrets the dealer is distributing are consistent with the commitments.
-        if *message.feldman_commitment.c0() != self.commitment {
-            return Err(InvalidMessage);
+        // If a commitment is given, verify that the secret the dealer is distributing is consistent
+        if let Some(c) = &self.commitment {
+            if message.feldman_commitment.c0() != c {
+                return Err(InvalidMessage);
+            }
         }
 
         let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
@@ -380,7 +384,7 @@ mod tests {
     use crate::threshold_schnorr::bcs::BCSSerialized;
     use crate::threshold_schnorr::complaint::Complaint;
     use crate::threshold_schnorr::Extensions::Encryption;
-    use crate::threshold_schnorr::{EG, G};
+    use crate::threshold_schnorr::{EG, G, S};
     use fastcrypto::error::FastCryptoResult;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
@@ -413,11 +417,9 @@ mod tests {
         let sid = b"tbls test".to_vec();
 
         let secret = Scalar::rand(&mut rng);
-
-        // TODO: Add test with multiple rounds. For now mock a commitment to the previous round's secret.
         let previous_round_commitment = G::generator() * secret;
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -428,7 +430,7 @@ mod tests {
                     id as u16,
                     t,
                     sid.clone(),
-                    previous_round_commitment,
+                    Some(previous_round_commitment),
                     enc_secret_key,
                 )
             })
@@ -480,11 +482,7 @@ mod tests {
 
         let sid = b"tbls test".to_vec();
 
-        let secret = Scalar::rand(&mut rng);
-
-        // Mock a commitment to the previous round's secret.
-        let commitment = G::generator() * secret;
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(None, nodes.clone(), t, f, sid.clone()).unwrap();
 
         let receivers = sks
             .into_iter()
@@ -495,7 +493,7 @@ mod tests {
                     id as u16,
                     t,
                     sid.clone(),
-                    commitment,
+                    None,
                     enc_secret_key,
                 )
             })
@@ -519,7 +517,8 @@ mod tests {
         let secret = shares_for_dealer.my_shares.shares[0].clone();
 
         let sid2 = b"tbls test 2".to_vec();
-        let dealer: Dealer = Dealer::new(secret.value, nodes.clone(), t, f, sid2.clone()).unwrap();
+        let dealer: Dealer =
+            Dealer::new(Some(secret.value), nodes.clone(), t, f, sid2.clone()).unwrap();
         let receivers = receivers
             .into_iter()
             .map(
@@ -532,7 +531,14 @@ mod tests {
                  }| {
                     let commitment = all_shares.get(&id).unwrap().commitments[0].clone();
                     assert_eq!(commitment.index, secret.index);
-                    Receiver::new(nodes, id, t, sid2.clone(), commitment.value, enc_secret_key)
+                    Receiver::new(
+                        nodes,
+                        id,
+                        t,
+                        sid2.clone(),
+                        Some(commitment.value),
+                        enc_secret_key,
+                    )
                 },
             )
             .collect::<Vec<_>>();
@@ -585,7 +591,7 @@ mod tests {
         let sid = b"tbls test".to_vec();
         let secret = Scalar::rand(&mut rng);
 
-        let dealer: Dealer = Dealer::new(secret, nodes.clone(), t, f, sid.clone()).unwrap();
+        let dealer: Dealer = Dealer::new(Some(secret), nodes.clone(), t, f, sid.clone()).unwrap();
 
         let commitment = G::generator() * secret;
 
@@ -598,7 +604,7 @@ mod tests {
                     i as u16,
                     t,
                     sid.clone(),
-                    commitment,
+                    Some(commitment),
                     enc_secret_key,
                 )
             })
@@ -647,7 +653,8 @@ mod tests {
             &self,
             rng: &mut Rng,
         ) -> FastCryptoResult<Message> {
-            let polynomial = Poly::rand_fixed_c0(self.t - 1, self.secret, rng);
+            let secret = self.secret.unwrap_or(S::rand(rng));
+            let polynomial = Poly::rand_fixed_c0(self.t - 1, secret, rng);
             let commitment = polynomial.commit();
 
             // Encrypt all shares to the receivers
