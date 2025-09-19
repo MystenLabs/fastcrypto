@@ -128,7 +128,7 @@ impl BCSSerialized for SharesForNode {}
 impl Dealer {
     /// Create a new dealer.
     ///
-    /// * `secret`: The secret to share.
+    /// * `secret`: The secret to share. If None, a random secret will be generated.
     /// * `nodes`: The set of nodes (parties) participating in the protocol, including their public keys and weights.
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
     /// * `f`: An upper bound on the number of Byzantine parties counted by weight.
@@ -201,7 +201,7 @@ impl Receiver {
     /// * `id`: The unique identifier of this receiver. Should match one of the party ids in `nodes`.
     /// * `t`: The threshold number of shares required to reconstruct the secret. One party can have multiple shares according to its weight.
     /// * `sid`: A session identifier that should be unique for each invocation of the protocol but the same for all parties in a single invocation.
-    /// * `commitment`: A commitment to the secret being shared. This should be equal to `secret * G` and is typically found as the commitment from a previous round (see [ReceiverOutput]).
+    /// * `commitment`: A commitment to the secret being shared. This should be equal to `secret * G` and is typically found as the commitment from a previous round (see [ReceiverOutput]). If None, no consistency check will be performed.
     /// * `enc_secret_key`: The private key used to decrypt the shares sent to this receiver.
     pub fn new(
         nodes: Nodes<EG>,
