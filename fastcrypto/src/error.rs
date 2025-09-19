@@ -52,6 +52,10 @@ pub enum FastCryptoError {
     #[error("Message should be ignored")]
     IgnoredMessage,
 
+    /// The presigs iterator has no more values. Please create a new iterator.
+    #[error("Out of presigs in the iterator, please create new presigs")]
+    OutOfPresigs,
+
     /// General cryptographic error.
     #[error("General cryptographic error: {0}")]
     GeneralError(String),

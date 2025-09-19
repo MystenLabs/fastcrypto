@@ -9,11 +9,11 @@ use crate::types::{IndexedValue, ShareIndex};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use fastcrypto::traits::AllowedRng;
-use itertools::Either;
+use itertools::{Either, Itertools};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
-use std::ops::AddAssign;
+use std::ops::{AddAssign, Mul};
 
 /// Types
 
@@ -51,6 +51,14 @@ impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
         if self.0.len() < other.0.len() {
             self.0.extend_from_slice(&other.0[self.0.len()..]);
         }
+    }
+}
+
+impl<C: Scalar> Mul<&C> for Poly<C> {
+    type Output = Poly<C>;
+
+    fn mul(self, rhs: &C) -> Self::Output {
+        Poly(self.0.into_iter().map(|c| c * rhs).collect())
     }
 }
 
@@ -229,6 +237,41 @@ impl<C: Scalar> Poly<C> {
             .collect::<Vec<P>>();
 
         Poly::<P>::from(commits)
+    }
+
+    /// Given a set of shares with unique indices, compute what the value of the interpolated polynomial is at the given index.
+    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+    ///
+    /// This is faster than first recovering the polynomial and then evaluating it at the given index.
+    pub fn interpolate_at_index(
+        index: ShareIndex,
+        points: &[Eval<C>],
+    ) -> FastCryptoResult<Eval<C>> {
+        if points.is_empty() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        if !points.iter().map(|p| p.index).all_unique() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let x = C::from(index.get() as u128);
+
+        // Convert indices to scalars for interpolation.
+        let indices = points
+            .iter()
+            .map(|p| C::from(p.index.get() as u128))
+            .collect::<Vec<_>>();
+
+        let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
+            points[j].value
+                * C::product(
+                    indices
+                        .iter()
+                        .filter(|x_i| *x_i != x_j)
+                        .map(|x_i| ((x - x_i) / (*x_j - x_i)).expect("Divisor is never zero")),
+                )
+        }));
+
+        Ok(Eval { index, value })
     }
 }
 

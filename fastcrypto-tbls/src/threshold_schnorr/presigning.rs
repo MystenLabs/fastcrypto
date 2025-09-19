@@ -1,0 +1,88 @@
+// Copyright (c) 2022, Mysten Labs, Inc.
+// SPDX-License-Identifier: Apache-2.0
+
+use crate::threshold_schnorr::batch_avss::ReceiverOutput;
+use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
+use crate::threshold_schnorr::{G, S};
+use crate::types::ShareIndex;
+use fastcrypto::error::FastCryptoError::InputTooShort;
+use fastcrypto::error::FastCryptoResult;
+use itertools::Itertools;
+
+/// An iterator that yields presigning tuples (i, t_i, p_i).
+pub struct Presignatures<const BATCH_SIZE: usize> {
+    secret: Vec<LazyPascalMatrixMultiplier<S>>,
+    public: LazyPascalMatrixMultiplier<G>,
+    index: usize,
+}
+
+impl<const BATCH_SIZE: usize> Iterator for Presignatures<BATCH_SIZE> {
+    type Item = (usize, Vec<S>, G);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let secret = self
+            .secret
+            .iter_mut()
+            .map(Iterator::next)
+            .collect::<Option<Vec<_>>>();
+        let public = self.public.next();
+
+        match (secret, public) {
+            (Some(s), Some(p)) => {
+                self.index += 1;
+                Some((self.index, s, p))
+            }
+            _ => None,
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = self.public.len();
+        (remaining, Some(remaining))
+    }
+}
+
+impl<const BATCH_SIZE: usize> ExactSizeIterator for Presignatures<BATCH_SIZE> {}
+
+impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
+    /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
+    pub fn new(
+        my_indices: &[ShareIndex],
+        avss_outputs: Vec<ReceiverOutput<BATCH_SIZE>>,
+        f: usize,
+    ) -> FastCryptoResult<Self> {
+        if avss_outputs.len() < 2 * f + 1 {
+            return Err(InputTooShort(2 * f + 1));
+        }
+        let si_height = avss_outputs.len() - f;
+
+        // There is one secret presigning output per share index (weight) for this party.
+        let secret = my_indices
+            .iter()
+            .enumerate()
+            .map(|(i, _index)| {
+                let rho = avss_outputs
+                    .iter()
+                    .map(|output| output.my_shares.batches[i].shares.to_vec())
+                    .collect();
+                LazyPascalMatrixMultiplier::new(si_height, rho)
+            })
+            .collect_vec();
+
+        let public = LazyPascalMatrixMultiplier::new(
+            si_height,
+            avss_outputs
+                .iter()
+                .map(|output| output.public_keys.to_vec())
+                .collect(),
+        );
+
+        assert_eq!(secret[0].len(), public.len());
+
+        Ok(Self {
+            secret,
+            public,
+            index: 0,
+        })
+    }
+}

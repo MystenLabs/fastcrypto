@@ -20,6 +20,8 @@ pub mod nodes;
 pub mod polynomial;
 pub mod random_oracle;
 pub mod tbls;
+#[cfg(any(test, feature = "experimental"))]
+pub mod threshold_schnorr;
 pub mod types;
 
 // TODO: needs to use ecies_v1

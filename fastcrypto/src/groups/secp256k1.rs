@@ -5,8 +5,9 @@
 
 use crate::error::{FastCryptoError, FastCryptoResult};
 use crate::groups::{
-    Doubling, GroupElement, HashToGroupElement, MultiScalarMul, Scalar as ScalarTrait,
+    Doubling, FiatShamirChallenge, GroupElement, MultiScalarMul, Scalar as ScalarTrait,
 };
+use crate::hash::{HashFunction, Sha3_512};
 use crate::serde_helpers::ToFromByteArray;
 use crate::serialize_deserialize_with_to_from_byte_array;
 use crate::traits::AllowedRng;
@@ -16,11 +17,6 @@ use ark_secp256k1::{Affine, Fq, Fr, Projective};
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
 use derive_more::{Add, From, Neg, Sub};
 use fastcrypto_derive::GroupOpsExtend;
-use k256::elliptic_curve::bigint::{ArrayDecoding, ArrayEncoding};
-use k256::elliptic_curve::hash2curve::{ExpandMsgXmd, GroupDigest};
-use k256::elliptic_curve::sec1::ToEncodedPoint;
-use k256::elliptic_curve::Group as GroupTrait;
-use k256::Secp256k1;
 use lazy_static::lazy_static;
 use num_bigint::BigUint;
 use std::ops::{Div, Mul};
@@ -177,42 +173,6 @@ impl MultiScalarMul for ProjectivePoint {
         .map(ProjectivePoint)
     }
 }
-impl From<&k256::ProjectivePoint> for ProjectivePoint {
-    fn from(from: &k256::ProjectivePoint) -> Self {
-        if from.is_identity().into() {
-            return ProjectivePoint(Projective::zero());
-        }
-
-        let encoded_point = from.to_encoded_point(false);
-        let x = convert_fq(encoded_point.x().expect("Uncompressed and not identity"));
-        let y = convert_fq(encoded_point.y().expect("Uncompressed and not identity"));
-
-        ProjectivePoint(Projective::from(Affine::new(x, y)))
-    }
-}
-
-/// Convert a representation of a field element in the k256 crate to a field element [Fq] in the arkworks library.
-fn convert_fq(fq: &k256::FieldBytes) -> Fq {
-    // Invert endianness to match arkworks representation
-    Fq::deserialize_uncompressed(fq.into_uint_le().to_be_byte_array().as_slice()).unwrap()
-}
-
-impl HashToGroupElement for ProjectivePoint {
-    fn hash_to_group_element(msg: &[u8]) -> Self {
-        // This uses the hash-to-curve construction from https://datatracker.ietf.org/doc/rfc9380/
-        // and the secp256k1_XMD:SHA-256_SSWU_RO_ suite defined in section 8.7.
-
-        // The call to `hash_from_bytes` will panic if the expected output is too big (always two field elements in this case)
-        // or if the output of the hash function (sha256) is too big. So since these are fixed, we can safely unwrap.
-        ProjectivePoint::from(
-            &Secp256k1::hash_from_bytes::<ExpandMsgXmd<sha2::Sha256>>(
-                &[msg],
-                b"secp256k1_XMD:SHA-256_SSWU_RO_",
-            )
-            .unwrap(),
-        )
-    }
-}
 
 /// A field element in the prime field of the same order as the curve.
 #[derive(Default, Clone, Copy, Debug, PartialEq, Eq, From, Add, Sub, Neg, GroupOpsExtend)]
@@ -292,6 +252,14 @@ impl ToFromByteArray<SCALAR_SIZE_IN_BYTES> for Scalar {
             .to_bytes_be()
             .try_into()
             .expect("Always 32 bytes")
+    }
+}
+
+impl FiatShamirChallenge for Scalar {
+    fn fiat_shamir_reduction_to_group_element(uniform_buffer: &[u8]) -> Self {
+        Scalar::from(Fr::from_be_bytes_mod_order(
+            &Sha3_512::digest(uniform_buffer).digest,
+        ))
     }
 }
 
@@ -382,7 +350,7 @@ pub mod schnorr {
     serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
 
     /// A Schnorr private key. The scalar cannot be zero.
-    pub struct SchnorrPrivateKey(Scalar);
+    pub struct SchnorrPrivateKey(pub Scalar);
 
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;
@@ -420,7 +388,7 @@ pub mod schnorr {
 
     serialize_deserialize_with_to_from_byte_array!(SchnorrPrivateKey);
 
-    enum Tag {
+    pub enum Tag {
         Aux,
         Nonce,
         Challenge,
@@ -444,7 +412,10 @@ pub mod schnorr {
         hasher.finalize().into()
     }
 
-    fn hash_to_scalar<'a>(tag: Tag, data: impl IntoIterator<Item = &'a [u8]>) -> Scalar {
+    pub fn bip0340_hash_to_scalar<'a>(
+        tag: Tag,
+        data: impl IntoIterator<Item = &'a [u8]>,
+    ) -> Scalar {
         Scalar::from_bytes_mod_order(&hash(tag, data))
     }
 
@@ -464,7 +435,7 @@ pub mod schnorr {
             let pk_bytes = pk.to_byte_array();
 
             let t = xor(&self.to_byte_array(), &hash(Aux, [aad]));
-            let k_prime = hash_to_scalar(Nonce, [&t, &pk_bytes, msg]);
+            let k_prime = bip0340_hash_to_scalar(Nonce, [&t, &pk_bytes, msg]);
             if k_prime.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
             }
@@ -477,7 +448,7 @@ pub mod schnorr {
             };
             let r = r.x_as_be_bytes()?;
 
-            let e = hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
+            let e = bip0340_hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
             let s = k + self.0 * e;
 
             let signature = SchnorrSignature { r, s };
@@ -491,7 +462,7 @@ pub mod schnorr {
         /// Verify a signature on a message with this public key.
         pub fn verify(&self, msg: &[u8], sig: &SchnorrSignature) -> FastCryptoResult<()> {
             let SchnorrSignature { r, s } = sig;
-            let e = hash_to_scalar(Challenge, [r, &self.to_byte_array(), msg]);
+            let e = bip0340_hash_to_scalar(Challenge, [r, &self.to_byte_array(), msg]);
             let expected = ProjectivePoint::multi_scalar_mul(
                 &[*s, -e],
                 &[ProjectivePoint::generator(), self.0],
