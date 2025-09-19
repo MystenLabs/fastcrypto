@@ -11,11 +11,11 @@
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};
 use crate::polynomial::{Eval, Poly};
-use crate::random_oracle::Extensions::Encryption;
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
-use crate::threshold_schnorr::{EG, G, S};
+use crate::threshold_schnorr::Extensions::Encryption;
+use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
 use fastcrypto::error::{FastCryptoError, FastCryptoResult};
@@ -270,7 +270,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
 
         let ciphertext = MultiRecipientEncryption::encrypt(
             &pk_and_msgs,
-            &self.random_oracle().extend_for(Encryption),
+            &self.random_oracle().extend(&Encryption.to_string()),
             rng,
         );
 
@@ -295,7 +295,7 @@ impl<const BATCH_SIZE: usize> Dealer<BATCH_SIZE> {
     }
 
     fn random_oracle(&self) -> RandomOracle {
-        RandomOracle::from_sid(&self.sid)
+        random_oracle_from_sid(&self.sid)
     }
 }
 
@@ -357,7 +357,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
             return Err(InvalidMessage);
         }
 
-        let random_oracle_encryption = self.random_oracle().extend_for(Encryption);
+        let random_oracle_encryption = self.random_oracle().extend(&Encryption.to_string());
         ciphertext
             .verify(&random_oracle_encryption)
             .map_err(|_| InvalidMessage)?;
@@ -487,7 +487,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
     }
 
     fn random_oracle(&self) -> RandomOracle {
-        RandomOracle::from_sid(&self.sid)
+        random_oracle_from_sid(&self.sid)
     }
 }
 
@@ -522,8 +522,8 @@ mod tests {
     use crate::ecies_v1::{MultiRecipientEncryption, PublicKey};
     use crate::nodes::{Node, Nodes};
     use crate::polynomial::{Eval, Poly};
-    use crate::random_oracle::Extensions::Encryption;
     use crate::threshold_schnorr::bcs::BCSSerialized;
+    use crate::threshold_schnorr::Extensions::Encryption;
     use crate::threshold_schnorr::{EG, G};
     use crate::types::ShareIndex;
     use fastcrypto::error::FastCryptoResult;
@@ -794,7 +794,7 @@ mod tests {
 
             let ciphertext = MultiRecipientEncryption::encrypt(
                 &pk_and_msgs,
-                &self.random_oracle().extend_for(Encryption),
+                &self.random_oracle().extend(&Encryption.to_string()),
                 rng,
             );
 

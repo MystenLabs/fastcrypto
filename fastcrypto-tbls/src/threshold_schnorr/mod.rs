@@ -1,17 +1,21 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+use crate::nodes::PartyId;
 use crate::polynomial::{Eval, Poly};
+use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::presigning::Presignatures;
+use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
+use fastcrypto::encoding::{Encoding, Hex};
 use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature, OutOfPresigs};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
-use fastcrypto::groups::secp256k1::schnorr::Tag::Challenge;
-use fastcrypto::groups::secp256k1::schnorr::{bip0340_hash_to_scalar, SchnorrPublicKey};
+use fastcrypto::groups::secp256k1::schnorr::{bip0340_hash_to_scalar, SchnorrPublicKey, Tag};
 use fastcrypto::groups::GroupElement;
 use fastcrypto::serde_helpers::ToFromByteArray;
 use itertools::Itertools;
+use std::fmt::{Display, Formatter};
 
 pub mod avss;
 pub mod batch_avss;
@@ -101,7 +105,7 @@ pub fn aggregate_signatures(
 fn hash(r_g: &G, vk: &G, message: &[u8]) -> S {
     let vk_bytes = SchnorrPublicKey::try_from(vk).unwrap().to_byte_array();
     bip0340_hash_to_scalar(
-        Challenge,
+        Tag::Challenge,
         [&r_g.x_as_be_bytes().unwrap(), &vk_bytes, message],
     )
 }
@@ -113,6 +117,29 @@ fn verify(vk: &G, signature: &(G, S), message: &[u8]) -> FastCryptoResult<()> {
         Ok(())
     } else {
         Err(InvalidSignature)
+    }
+}
+
+/// Helper function to create a random oracle from a session ID.
+fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
+    RandomOracle::new(&Hex::encode(sid))
+}
+
+/// Domain-specific extensions/tags for the random oracle.
+pub enum Extensions {
+    Recovery(PartyId),
+    Encryption,
+    Challenge,
+}
+
+impl Display for Extensions {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let result = match self {
+            Recovery(accuser) => format!("recovery of {accuser}"),
+            Encryption => "encryption".to_string(),
+            Challenge => "challenge".to_string(),
+        };
+        write!(f, "{result}")
     }
 }
 

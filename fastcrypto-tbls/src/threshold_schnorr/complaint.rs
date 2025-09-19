@@ -4,9 +4,9 @@
 use crate::ecies_v1;
 use crate::ecies_v1::RecoveryPackage;
 use crate::nodes::PartyId;
-use crate::random_oracle::Extensions::{Encryption, Recovery};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
+use crate::threshold_schnorr::Extensions::{Encryption, Recovery};
 use crate::threshold_schnorr::EG;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
@@ -34,8 +34,8 @@ impl Complaint {
         // Check that the recovery package is valid, and if not, return an error since the complaint is invalid.
         let buffer = ciphertext.decrypt_with_recovery_package(
             &self.proof,
-            &random_oracle.extend_for(Recovery(self.accuser_id)),
-            &random_oracle.extend_for(Encryption),
+            &random_oracle.extend(&Recovery(self.accuser_id).to_string()),
+            &random_oracle.extend(&Encryption.to_string()),
             enc_pk,
             self.accuser_id as usize,
         )?;
@@ -80,7 +80,7 @@ impl Complaint {
             accuser_id,
             proof: ciphertext.create_recovery_package(
                 enc_sk,
-                &random_oracle.extend_for(Recovery(accuser_id)),
+                &random_oracle.extend(&Recovery(accuser_id).to_string()),
                 rng,
             ),
         }
@@ -106,7 +106,7 @@ impl ComplaintResponse {
             responder_id,
             recovery_package: ciphertext.create_recovery_package(
                 enc_secret_key,
-                &ro.extend_for(Recovery(responder_id)),
+                &ro.extend(&Recovery(responder_id).to_string()),
                 rng,
             ),
         }
@@ -120,8 +120,8 @@ impl ComplaintResponse {
     ) -> FastCryptoResult<T> {
         let bytes = ciphertext.decrypt_with_recovery_package(
             &self.recovery_package,
-            &ro.extend_for(Recovery(self.responder_id)),
-            &ro.extend_for(Encryption),
+            &ro.extend(&Recovery(self.responder_id).to_string()),
+            &ro.extend(&Encryption.to_string()),
             enc_pk,
             self.responder_id as usize,
         )?;
