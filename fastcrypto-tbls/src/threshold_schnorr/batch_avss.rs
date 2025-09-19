@@ -1,7 +1,7 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
-//! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute secret shares of a batch of random nonces to a set of receivers.
+//! Implementation of an asynchronous verifiable secret sharing (AVSS) protocol to distribute secret shares for a batch of random nonces.
 //!
 //! Before the protocol starts, the following setup is needed:
 //! * Each receiver has a encryption key pair (ECIES) and these public keys are known to all parties.

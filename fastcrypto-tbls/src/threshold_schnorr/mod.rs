@@ -22,8 +22,8 @@ pub mod batch_avss;
 mod bcs;
 pub mod certificate;
 pub mod complaint;
+pub mod pascal_matrix;
 mod presigning;
-pub mod si_matrix;
 
 /// The group to use for the signing
 pub type G = groups::secp256k1::ProjectivePoint;

@@ -5,9 +5,9 @@
 //! A receiver can verify that the secret being shared is the same as a share from a previous round (e.g., the secret key share of a threshold signature).
 //!
 //! Before the protocol starts, the following setup is needed:
-//! * Each receiver has a encryption key pair (ECIES) and these public keys are known to all parties.
+//! * Each receiver has an encryption key pair (ECIES) and these public keys are known to all parties.
 //! * The public keys along with the weights of each receiver are known to all parties and defined in the [Nodes] structure.
-//! * Define a new [crate::threshold_schnorr::Dealer] with the secrets who begins by calling [crate::threshold_schnorr::Dealer::create_message].
+//! * Define a new [crate::threshold_schnorr::Dealer] with the secrets, who begins by calling [crate::threshold_schnorr::Dealer::create_message].
 
 use crate::ecies_v1::{MultiRecipientEncryption, PrivateKey};
 use crate::nodes::{Nodes, PartyId};

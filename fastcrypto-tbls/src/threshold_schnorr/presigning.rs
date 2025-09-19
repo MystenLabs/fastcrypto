@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::threshold_schnorr::batch_avss::ReceiverOutput;
-use crate::threshold_schnorr::si_matrix::LazyPascalMatrixMultiplier;
+use crate::threshold_schnorr::pascal_matrix::LazyPascalMatrixMultiplier;
 use crate::threshold_schnorr::{G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::InputTooShort;
