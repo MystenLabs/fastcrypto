@@ -93,11 +93,7 @@ impl<G: GroupElement + Serialize> Nodes<G> {
         &self,
         ids: impl Iterator<Item = &'a PartyId>,
     ) -> FastCryptoResult<u16> {
-        let mut total_weight = 0;
-        for id in ids {
-            total_weight += self.weight_of(*id)?;
-        }
-        Ok(total_weight)
+        ids.map(|id| self.weight_of(*id)).sum()
     }
 
     pub fn weight_of(&self, id: PartyId) -> FastCryptoResult<u16> {
