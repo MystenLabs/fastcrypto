@@ -125,6 +125,7 @@ mod tests {
         aggregate_signatures, avss, generate_partial_signatures, hash, verify, G, S,
     };
     use crate::types::ShareIndex;
+    use fastcrypto::groups::secp256k1::schnorr::SchnorrPrivateKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
@@ -142,7 +143,7 @@ mod tests {
     fn test_mock_signing() {
         let msg = b"Hello, world!";
         let mut rng = rand::thread_rng();
-        let sk = S::rand(&mut rng);
+        let sk = SchnorrPrivateKey::try_from(S::rand(&mut rng)).unwrap().0;
         let sig = sign(&sk, msg);
         let vk = G::generator() * sk;
         verify(&vk, &sig, msg).unwrap();
@@ -157,7 +158,9 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
-        let sk = S::rand(&mut rng);
+
+        // This is needed to ensure that the corresponding public key has even y coordinate.
+        let sk = SchnorrPrivateKey::try_from(S::rand(&mut rng)).unwrap().0;
         let sk_shares = mock_shares(&mut rng, sk, t, n);
 
         // Mock nonce generation
@@ -199,7 +202,7 @@ mod tests {
             .collect_vec();
 
         let mut presigning = outputs
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(i, output)| {
                 Presignatures::new(

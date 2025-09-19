@@ -350,7 +350,7 @@ pub mod schnorr {
     serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
 
     /// A Schnorr private key. The scalar cannot be zero.
-    pub struct SchnorrPrivateKey(Scalar);
+    pub struct SchnorrPrivateKey(pub Scalar);
 
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;

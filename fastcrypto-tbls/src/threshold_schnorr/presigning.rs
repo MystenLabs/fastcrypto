@@ -48,7 +48,7 @@ impl<const BATCH_SIZE: usize> Presignatures<BATCH_SIZE> {
     /// Based on the output of a batched AVSS from multiple dealers, create a presignature generator.
     pub fn new(
         my_indices: &[ShareIndex],
-        avss_outputs: &[ReceiverOutput<BATCH_SIZE>],
+        avss_outputs: Vec<ReceiverOutput<BATCH_SIZE>>,
         f: usize,
     ) -> FastCryptoResult<Self> {
         if avss_outputs.len() < 2 * f + 1 {
