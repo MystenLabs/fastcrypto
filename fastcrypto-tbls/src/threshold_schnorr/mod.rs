@@ -20,7 +20,6 @@ use std::fmt::{Display, Formatter};
 pub mod avss;
 pub mod batch_avss;
 mod bcs;
-pub mod certificate;
 pub mod complaint;
 pub mod pascal_matrix;
 mod presigning;
