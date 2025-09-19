@@ -14,7 +14,7 @@ use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
 use crate::threshold_schnorr::bcs::BCSSerialized;
 use crate::threshold_schnorr::complaint::{Complaint, ComplaintResponse};
-use crate::threshold_schnorr::Extensions::Encryption;
+use crate::threshold_schnorr::Extensions::{Challenge, Encryption};
 use crate::threshold_schnorr::{random_oracle_from_sid, EG, G, S};
 use crate::types::ShareIndex;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidMessage};
@@ -497,6 +497,7 @@ fn compute_challenge<const BATCH_SIZE: usize>(
     c_prime: &G,
     e: &MultiRecipientEncryption<EG>,
 ) -> [S; BATCH_SIZE] {
+    let random_oracle = random_oracle.extend(&Challenge.to_string());
     array::from_fn(|l| random_oracle.evaluate_to_group_element(&(l, c.to_vec(), c_prime, e)))
 }
 

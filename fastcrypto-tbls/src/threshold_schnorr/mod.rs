@@ -125,8 +125,8 @@ fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
     RandomOracle::new(&Hex::encode(sid))
 }
 
-/// Domain-specific extensions/tags for the random oracle.
-pub enum Extensions {
+/// Domain-specific extensions/tags for the random oracle for this module.
+enum Extensions {
     Recovery(PartyId),
     Encryption,
     Challenge,
