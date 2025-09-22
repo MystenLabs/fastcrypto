@@ -19,6 +19,7 @@ use itertools::Itertools;
 ///
 /// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element.
+/// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     message: &[u8],
     presignatures: &mut Presignatures<BATCH_SIZE>,
@@ -46,7 +47,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     // The verifying key must also have an even Y coordinate.
     // If this is not the case, we must negate the verifying key (and hence also the signing key).
     // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
-    let mut h = bip0340_hash(&r_g, verifying_key, message);
+    let mut h = bip0340_hash(&r_g, verifying_key, message)?;
     if !verifying_key.has_even_y()? {
         h = -h;
     }
@@ -79,6 +80,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
+/// `InvalidInput` is returned if the provided verifying key is the identity element.
 pub fn aggregate_signatures(
     message: &[u8],
     public_presig: &G,
@@ -115,22 +117,14 @@ pub fn aggregate_signatures(
     let signature = SchnorrSignature::try_from((r_g, s))?;
 
     // TODO: Handle invalid signatures
-    SchnorrPublicKey::try_from(vk)
-        .unwrap()
-        .verify(message, &signature)?;
+    SchnorrPublicKey::try_from(vk)?.verify(message, &signature)?;
 
     Ok(signature)
 }
 
-fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> S {
-    assert_ne!(r_g, &G::zero());
-    assert_ne!(vk, &G::zero());
-    bip0340_hash_to_scalar(
+fn bip0340_hash(r_g: &G, vk: &G, message: &[u8]) -> FastCryptoResult<S> {
+    Ok(bip0340_hash_to_scalar(
         Tag::Challenge,
-        [
-            &r_g.x_as_be_bytes().expect("Checked above"),
-            &vk.x_as_be_bytes().unwrap(),
-            message,
-        ],
-    )
+        [&r_g.x_as_be_bytes()?, &vk.x_as_be_bytes()?, message],
+    ))
 }
