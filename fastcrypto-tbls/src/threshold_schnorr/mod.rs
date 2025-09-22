@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements threshold Schnorr signatures.
-//! It allows a group of parties to jointly produce Schnorr signatures.
 //! The signatures are compatible with BIP-0340.
 //!
 //! It provides the following protocols:
@@ -12,7 +11,7 @@
 //! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module. The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
 //! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures. This is implemented in the [signing] module.
 //!
-//! For both the DKG and nonce generation protocols, it is assumed that each party has a encryption key pair (ECIES) and these public keys are known to all parties. These can be reused for all instances of the protocols.
+//! For both the DKG and nonce generation protocols, it is assumed that each party has an encryption key pair (ECIES) and these public keys are known to all parties. These can be reused for all instances of the protocols.
 //!
 //! The thresholds are defined as follows:
 //! * <i>n</i> = total number of parties
