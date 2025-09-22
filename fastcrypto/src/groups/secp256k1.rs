@@ -281,8 +281,19 @@ pub mod schnorr {
 
     /// A Schnorr signature as defined in BIP-340. The r point must have an even y-coordinate and the s scalar cannot be zero.
     pub struct SchnorrSignature {
-        r: [u8; 32],
-        s: Scalar,
+        pub r: [u8; 32],
+        pub s: Scalar,
+    }
+
+    impl TryFrom<(ProjectivePoint, Scalar)> for SchnorrSignature {
+        type Error = FastCryptoError;
+
+        fn try_from((r, s): (ProjectivePoint, Scalar)) -> FastCryptoResult<Self> {
+            Ok(Self {
+                r: r.x_as_be_bytes()?,
+                s,
+            })
+        }
     }
 
     impl ToFromByteArray<SIGNATURE_SIZE_IN_BYTES> for SchnorrSignature {
@@ -319,8 +330,11 @@ pub mod schnorr {
         type Error = FastCryptoError;
 
         fn try_from(value: &ProjectivePoint) -> Result<Self, Self::Error> {
-            if value.is_zero() || !value.has_even_y()? {
+            if value.is_zero() {
                 return Err(FastCryptoError::InvalidInput);
+            }
+            if !value.has_even_y()? {
+                return Ok(SchnorrPublicKey(-value));
             }
             Ok(SchnorrPublicKey(*value))
         }
@@ -350,7 +364,7 @@ pub mod schnorr {
     serialize_deserialize_with_to_from_byte_array!(SchnorrPublicKey);
 
     /// A Schnorr private key. The scalar cannot be zero.
-    pub struct SchnorrPrivateKey(pub Scalar);
+    pub struct SchnorrPrivateKey(Scalar);
 
     impl TryFrom<Scalar> for SchnorrPrivateKey {
         type Error = FastCryptoError;
@@ -360,10 +374,7 @@ pub mod schnorr {
                 return Err(FastCryptoError::InvalidInput);
             }
 
-            // Ensure that the corresponding public key has an even y-coordinate
-            //
-            // It would perhaps make more sense to fail here if the y-coordinate is not even,
-            // but in that case the test vectors do not pass.
+            // Ensure that the corresponding public key has an even y-coordinate. Otherwise, flip the sign of the scalar.
             let value = if (ProjectivePoint::generator() * value).has_even_y()? {
                 value
             } else {
