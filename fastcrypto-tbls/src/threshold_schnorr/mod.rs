@@ -76,7 +76,7 @@ mod tests {
     use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, EG, G, S};
+    use crate::threshold_schnorr::{avss, G, S};
     use crate::types::ShareIndex;
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
