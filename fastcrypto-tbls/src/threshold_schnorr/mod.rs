@@ -7,16 +7,10 @@
 //!
 //! It provides the following protocols:
 //!
-//! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer.
-//! The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
-//!
+//! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
 //! 2. A protocol to generate a batch of secret shared nonces for signing. This is implemented in the [batch_avss] module.
-//!
-//! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module.
-//! The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
-//!
-//! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures.
-//! This is implemented in the [signing] module.
+//! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module. The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
+//! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures. This is implemented in the [signing] module.
 //!
 //! For both the DKG and nonce generation protocols, it is assumed that each party has a encryption key pair (ECIES) and these public keys are known to all parties. These can be reused for all instances of the protocols.
 //!
@@ -24,6 +18,7 @@
 //! * <i>n</i> = total number of parties
 //! * <i>f</i> = maximum number of Byzantine parties
 //! * <i>t</i> = threshold for signing
+//!
 //! The following conditions must hold: <i>t + 2f &leq; n</i> and <i>t > f</i>.
 
 use crate::nodes::PartyId;
@@ -39,9 +34,9 @@ pub mod avss;
 pub mod batch_avss;
 mod bcs;
 pub mod complaint;
-pub mod pascal_matrix;
-mod presigning;
-mod signing;
+mod pascal_matrix;
+pub mod presigning;
+pub mod signing;
 
 /// The group to use for the signing
 pub type G = groups::secp256k1::ProjectivePoint;
@@ -81,13 +76,17 @@ mod tests {
     use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
-    use crate::threshold_schnorr::{avss, G, S};
+    use crate::threshold_schnorr::{avss, EG, G, S};
     use crate::types::ShareIndex;
     use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::array;
+    use crate::ecies_v1;
+    use crate::ecies_v1::PublicKey;
+    use crate::nodes::{Node, Nodes};
+    use crate::threshold_schnorr::avss::Dealer;
 
     #[test]
     fn test_signing() {
@@ -102,7 +101,7 @@ mod tests {
         let sk_element = S::rand(&mut rng);
         let vk_element = G::generator() * sk_element;
 
-        let sk_shares = mock_shares(&mut rng, sk_element.clone(), t, n);
+        let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
         const BATCH_SIZE: usize = 10;
