@@ -83,10 +83,6 @@ mod tests {
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::array;
-    use crate::ecies_v1;
-    use crate::ecies_v1::PublicKey;
-    use crate::nodes::{Node, Nodes};
-    use crate::threshold_schnorr::avss::Dealer;
 
     #[test]
     fn test_signing() {
