@@ -2,6 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements threshold Schnorr signatures.
+//! It allows a group of parties to jointly produce Schnorr signatures.
+//! The signatures are compatible with BIP-0340.
+//!
+//! It provides the following protocols:
 //!
 //! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer.
 //! The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
@@ -9,7 +13,7 @@
 //! 2. A protocol to generate a batch of secret shared nonces for signing. This is implemented in the [batch_avss] module.
 //!
 //! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module.
-//! The presigning tuples can be created in advance of knowing the message to be signed and one tuple is consumed for each signature.
+//! The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
 //!
 //! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures.
 //! This is implemented in the [signing] module.
