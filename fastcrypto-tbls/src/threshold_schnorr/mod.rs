@@ -1,28 +1,41 @@
 // Copyright (c) 2022, Mysten Labs, Inc.
 // SPDX-License-Identifier: Apache-2.0
 
+//! This module implements threshold Schnorr signatures.
+//! The signatures are compatible with BIP-0340.
+//!
+//! It provides the following protocols:
+//!
+//! 1. A Distributed Key Generation (DKG) protocol to generate a shared signing key without a trusted dealer. The protocol also allows resharing of a share from a previous DKG, allowing for key rotation. This is implemented in the [avss] module.
+//! 2. A protocol to generate a batch of secret shared nonces for signing. This is implemented in the [batch_avss] module.
+//! 3. A presigning protocol to create presigning tuples from the secret shared nonces. This is implemented in the [presigning] module. The presigning tuples can be created in advance of knowing the message to be signed, and one tuple is consumed for each signature.
+//! 4. A signing protocol which allows parties to create partial signatures from a presigning tuple and aggregate them into a full signature if there are enough partial signatures. This is implemented in the [signing] module.
+//!
+//! For both the DKG and nonce generation protocols, it is assumed that each party has an encryption key pair (ECIES) and these public keys are known to all parties. These can be reused for all instances of the protocols.
+//!
+//! The thresholds are defined as follows:
+//! * <i>n</i> = total number of parties
+//! * <i>f</i> = maximum number of Byzantine parties
+//! * <i>t</i> = threshold for signing
+//!
+//! The following conditions must hold: <i>t + 2f &leq; n</i> and <i>t > f</i>.
+
 use crate::nodes::PartyId;
-use crate::polynomial::{Eval, Poly};
 use crate::random_oracle::RandomOracle;
-use crate::threshold_schnorr::presigning::Presignatures;
 use crate::threshold_schnorr::Extensions::{Challenge, Encryption, Recovery};
 use fastcrypto::encoding::{Encoding, Hex};
-use fastcrypto::error::FastCryptoError::{InputTooShort, InvalidSignature, OutOfPresigs};
-use fastcrypto::error::FastCryptoResult;
 use fastcrypto::groups;
 use fastcrypto::groups::ristretto255::RistrettoPoint;
-use fastcrypto::groups::secp256k1::schnorr::{bip0340_hash_to_scalar, SchnorrPublicKey, Tag};
 use fastcrypto::groups::GroupElement;
-use fastcrypto::serde_helpers::ToFromByteArray;
-use itertools::Itertools;
 use std::fmt::{Display, Formatter};
 
 pub mod avss;
 pub mod batch_avss;
 mod bcs;
 pub mod complaint;
-pub mod pascal_matrix;
-mod presigning;
+mod pascal_matrix;
+pub mod presigning;
+pub mod signing;
 
 /// The group to use for the signing
 pub type G = groups::secp256k1::ProjectivePoint;
@@ -32,92 +45,6 @@ pub type S = <G as GroupElement>::ScalarType;
 
 /// The group used for multi-recipient encryption. Any group that has a secure hash-to-group can be used here.
 type EG = RistrettoPoint;
-
-/// Generate partial threshold Schnorr signatures for a given message using a presigning triple.
-/// Returns also the public nonce R.
-///
-/// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
-pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
-    message: &[u8],
-    presignatures: &mut Presignatures<BATCH_SIZE>,
-    my_signing_key_shares: &avss::SharesForNode,
-    verifying_key: &G,
-    beacon_value: &S,
-) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
-    // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
-    let (_, secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
-
-    let r_g = public_presig + G::generator() * beacon_value;
-    let h = hash(&r_g, verifying_key, message);
-
-    Ok((
-        public_presig,
-        my_signing_key_shares
-            .shares
-            .iter()
-            .zip_eq(secret_presigs)
-            .map(
-                |(
-                    Eval {
-                        index,
-                        value: sk_share,
-                    },
-                    presig,
-                )| Eval {
-                    index: *index,
-                    value: presig + h * sk_share,
-                },
-            )
-            .collect_vec(),
-    ))
-}
-
-/// Given enough partial signatures, aggregate them into a full signature and verify it.
-pub fn aggregate_signatures(
-    message: &[u8],
-    public_presig: &G,
-    partial_signatures: &[Eval<S>],
-    beacon_value: &S,
-    threshold: u16,
-    vk: &G,
-) -> FastCryptoResult<(G, S)> {
-    if partial_signatures.len() < threshold as usize {
-        return Err(InputTooShort(threshold as usize));
-    }
-
-    let r_g = public_presig + G::generator() * beacon_value;
-
-    let sigma_prime = Poly::recover_c0(
-        threshold,
-        partial_signatures.iter().take(threshold as usize),
-    )?;
-    let s = sigma_prime + beacon_value;
-
-    let signature = (r_g, s);
-
-    // TODO: Handle invalid signatures
-    verify(vk, &signature, message)?;
-
-    Ok(signature)
-}
-
-fn hash(r_g: &G, vk: &G, message: &[u8]) -> S {
-    let vk_bytes = SchnorrPublicKey::try_from(vk).unwrap().to_byte_array();
-    bip0340_hash_to_scalar(
-        Tag::Challenge,
-        [&r_g.x_as_be_bytes().unwrap(), &vk_bytes, message],
-    )
-}
-
-// TODO: Use verify from schnorr module
-fn verify(vk: &G, signature: &(G, S), message: &[u8]) -> FastCryptoResult<()> {
-    let r_prime = G::generator() * signature.1 - vk * hash(&signature.0, vk, message);
-    if r_prime == signature.0 {
-        Ok(())
-    } else {
-        Err(InvalidSignature)
-    }
-}
 
 /// Helper function to create a random oracle from a session ID.
 fn random_oracle_from_sid(sid: &[u8]) -> RandomOracle {
@@ -147,33 +74,14 @@ mod tests {
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
     use crate::threshold_schnorr::presigning::Presignatures;
-    use crate::threshold_schnorr::{
-        aggregate_signatures, avss, generate_partial_signatures, hash, verify, G, S,
-    };
+    use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
+    use crate::threshold_schnorr::{avss, G, S};
     use crate::types::ShareIndex;
-    use fastcrypto::groups::secp256k1::schnorr::SchnorrPrivateKey;
+    use fastcrypto::groups::secp256k1::schnorr::SchnorrPublicKey;
     use fastcrypto::groups::{GroupElement, Scalar};
     use fastcrypto::traits::AllowedRng;
     use itertools::Itertools;
     use std::array;
-
-    fn sign(sk: &S, message: &[u8]) -> (G, S) {
-        let mut rng = rand::thread_rng();
-        let k = S::rand(&mut rng);
-        let r = G::generator() * k;
-        let h = hash(&r, &(G::generator() * sk), message);
-        (r, k + h * sk)
-    }
-
-    #[test]
-    fn test_mock_signing() {
-        let msg = b"Hello, world!";
-        let mut rng = rand::thread_rng();
-        let sk = SchnorrPrivateKey::try_from(S::rand(&mut rng)).unwrap().0;
-        let sig = sign(&sk, msg);
-        let vk = G::generator() * sk;
-        verify(&vk, &sig, msg).unwrap();
-    }
 
     #[test]
     fn test_signing() {
@@ -184,10 +92,11 @@ mod tests {
         let mut rng = rand::thread_rng();
 
         // Mock DKG
+        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        let sk_element = S::rand(&mut rng);
+        let vk_element = G::generator() * sk_element;
 
-        // This is needed to ensure that the corresponding public key has even y coordinate.
-        let sk = SchnorrPrivateKey::try_from(S::rand(&mut rng)).unwrap().0;
-        let sk_shares = mock_shares(&mut rng, sk, t, n);
+        let sk_shares = mock_shares(&mut rng, sk_element, t, n);
 
         // Mock nonce generation
         const BATCH_SIZE: usize = 10;
@@ -240,7 +149,6 @@ mod tests {
             })
             .collect_vec();
 
-        let vk = G::generator() * sk;
         let message = b"Hello, world!";
 
         let beacon_value = S::rand(&mut rng);
@@ -252,8 +160,14 @@ mod tests {
                 let my_shares = avss::SharesForNode {
                     shares: vec![sk_shares[i].clone()],
                 };
-                generate_partial_signatures(message, presigning, &my_shares, &vk, &beacon_value)
-                    .unwrap()
+                generate_partial_signatures(
+                    message,
+                    presigning,
+                    &my_shares,
+                    &vk_element,
+                    &beacon_value,
+                )
+                .unwrap()
             })
             .collect_vec();
 
@@ -272,11 +186,15 @@ mod tests {
                 .collect_vec(),
             &beacon_value,
             t,
-            &vk,
+            &vk_element,
         )
         .unwrap();
 
-        verify(&vk, &signature, message).unwrap();
+        // Check that this produced a valid signature
+        SchnorrPublicKey::try_from(&vk_element)
+            .unwrap()
+            .verify(message, &signature)
+            .unwrap();
     }
 
     fn mock_shares(rng: &mut impl AllowedRng, secret: S, t: u16, n: u16) -> Vec<Eval<S>> {
