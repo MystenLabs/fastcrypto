@@ -18,7 +18,7 @@ use itertools::Itertools;
 /// The signatures produced follow the BIP-0340 standard (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 ///
 /// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
-/// `GeneralOpaqueError` is returned if the generated nonce R is the identity element.
+/// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     message: &[u8],
@@ -31,6 +31,8 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     let (_, mut secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
 
     let r_g = public_presig + G::generator() * beacon_value;
+
+    // Since both the public_presig and the beacon_value are random, this should happen only with negligible probability.
     if r_g == G::zero() {
         return Err(FastCryptoError::GeneralOpaqueError);
     }
@@ -87,10 +89,14 @@ pub fn aggregate_signatures(
     partial_signatures: &[Eval<S>],
     beacon_value: &S,
     threshold: u16,
-    vk: &G,
+    verifying_key: &G,
 ) -> FastCryptoResult<SchnorrSignature> {
     if partial_signatures.len() < threshold as usize {
         return Err(InputTooShort(threshold as usize));
+    }
+
+    if !partial_signatures.iter().map(|s| s.index).all_unique() {
+        return Err(FastCryptoError::InvalidInput);
     }
 
     // Interpolate the partial signatures to get the full signature.
@@ -106,7 +112,7 @@ pub fn aggregate_signatures(
     }
 
     // In acc. with BIP-0340, we need to ensure the nonce R has an even Y coordinate.
-    // If it doesn't, we subtract the beacon value instead of adding it.
+    // If it doesn't, we subtract the beacon value instead of adding it like it is done for the secret shares.
     // We don't need to change R itself since only the X coordinate of this is used in the hash and signature below.
     if r_g.has_even_y()? {
         s += beacon_value
@@ -117,7 +123,7 @@ pub fn aggregate_signatures(
     let signature = SchnorrSignature::try_from((r_g, s))?;
 
     // TODO: Handle invalid signatures
-    SchnorrPublicKey::try_from(vk)?.verify(message, &signature)?;
+    SchnorrPublicKey::try_from(verifying_key)?.verify(message, &signature)?;
 
     Ok(signature)
 }
