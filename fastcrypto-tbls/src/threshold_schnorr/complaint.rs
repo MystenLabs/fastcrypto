@@ -11,12 +11,12 @@ use crate::threshold_schnorr::EG;
 use fastcrypto::error::FastCryptoError::{InvalidInput, InvalidProof};
 use fastcrypto::error::FastCryptoResult;
 use fastcrypto::traits::AllowedRng;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tracing::debug;
 
 /// A complaint by an accuser that it could not decrypt or verify its shares.
 /// Given enough responses to the complaint, the accuser can recover its shares.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Complaint {
     pub(crate) accuser_id: PartyId,
     pub(crate) proof: RecoveryPackage<EG>,
@@ -88,7 +88,7 @@ impl Complaint {
 }
 
 /// A response to a complaint, containing a recovery package for the accuser.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComplaintResponse {
     pub(crate) responder_id: PartyId,
     pub(crate) recovery_package: RecoveryPackage<EG>,
