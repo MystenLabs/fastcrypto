@@ -165,9 +165,9 @@ mod tests {
                 generate_partial_signatures(
                     message,
                     presigning,
+                    &beacon_value,
                     &my_shares,
                     &vk_element,
-                    &beacon_value,
                     None,
                 )
                 .unwrap()
@@ -183,11 +183,11 @@ mod tests {
         let signature = aggregate_signatures(
             message,
             &public,
+            &beacon_value,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
                 .collect_vec(),
-            &beacon_value,
             t,
             &vk_element,
             None,
@@ -288,9 +288,9 @@ mod tests {
                 generate_partial_signatures(
                     message,
                     presigning,
+                    &beacon_value,
                     &my_shares,
                     &vk_element,
-                    &beacon_value,
                     Some(7),
                 )
                 .unwrap()
@@ -306,11 +306,11 @@ mod tests {
         let signature = aggregate_signatures(
             message,
             &public,
+            &beacon_value,
             &partial_signatures
                 .iter()
                 .flat_map(|(_, sigs)| sigs.clone())
                 .collect_vec(),
-            &beacon_value,
             t,
             &vk_element,
             Some(7),

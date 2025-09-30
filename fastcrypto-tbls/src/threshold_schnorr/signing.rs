@@ -18,15 +18,19 @@ use itertools::Itertools;
 ///
 /// The signatures produced follow the BIP-0340 standard (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 ///
+/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// The signature will be valid for the derived verifying key.
+///
 /// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     message: &[u8],
     presignatures: &mut Presignatures<BATCH_SIZE>,
+    beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
-    beacon_value: &S,
     derivation_index: Option<u64>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
     // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
@@ -88,6 +92,10 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 /// Given enough partial signatures, aggregate them into a full signature and verify it.
 /// The signature produced follows the BIP-0340 standard.
 ///
+/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// The signature will be valid for the derived verifying key.
+///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
@@ -95,8 +103,8 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 pub fn aggregate_signatures(
     message: &[u8],
     public_presig: &G,
-    partial_signatures: &[Eval<S>],
     beacon_value: &S,
+    partial_signatures: &[Eval<S>],
     threshold: u16,
     verifying_key: &G,
     derivation_index: Option<u64>,
