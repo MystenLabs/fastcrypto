@@ -180,8 +180,8 @@ pub struct Scalar(pub(crate) Fr);
 
 impl Scalar {
     /// Create a scalar from a big-endian byte representation, reducing it modulo the group order if necessary.
-    pub fn from_bytes_mod_order(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Self {
-        Scalar(Fr::from_be_bytes_mod_order(bytes.as_slice()))
+    pub fn from_bytes_mod_order(bytes: &[u8]) -> Self {
+        Scalar(Fr::from_be_bytes_mod_order(bytes))
     }
 
     pub fn is_zero(&self) -> bool {

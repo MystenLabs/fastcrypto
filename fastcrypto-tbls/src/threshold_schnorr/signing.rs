@@ -130,25 +130,22 @@ pub fn aggregate_signatures(
         s -= beacon_value
     };
 
-    // Add the tweak to the signature if a derivation index is provided.
-    if let Some(index) = derivation_index {
-        let tweak = compute_tweak(verifying_key, index);
-        let delta_s =
-            tweak * bip0340_hash(&r_g, &derive_verifying_key(verifying_key, index), message)?;
-        if derive_verifying_key(verifying_key, index).has_even_y()? {
-            s += delta_s;
-        } else {
-            s -= delta_s;
-        }
-    }
-
-    let signature = SchnorrSignature::try_from((r_g, s))?;
-
+    // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(index) = derivation_index {
-        derive_verifying_key(verifying_key, index)
+        let tweak = compute_tweak(verifying_key, index);
+        let derived_vk = derive_verifying_key(verifying_key, index);
+        if derived_vk.has_even_y()? {
+            s += tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+        } else {
+            s -= tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+        }
+        derived_vk
     } else {
         *verifying_key
     };
+
+    let signature = SchnorrSignature::try_from((r_g, s))?;
+
     // TODO: Handle invalid signatures
     SchnorrPublicKey::try_from(&verifying_key)?.verify(message, &signature)?;
 
