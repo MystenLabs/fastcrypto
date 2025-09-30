@@ -33,6 +33,7 @@ pub mod avss;
 pub mod batch_avss;
 mod bcs;
 pub mod complaint;
+mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
 pub mod signing;
@@ -73,6 +74,7 @@ impl Display for Extensions {
 mod tests {
     use crate::polynomial::{Eval, Poly};
     use crate::threshold_schnorr::batch_avss::{ReceiverOutput, ShareBatch, SharesForNode};
+    use crate::threshold_schnorr::key_derivation::derive_verifying_key;
     use crate::threshold_schnorr::presigning::Presignatures;
     use crate::threshold_schnorr::signing::{aggregate_signatures, generate_partial_signatures};
     use crate::threshold_schnorr::{avss, G, S};
@@ -166,6 +168,7 @@ mod tests {
                     &my_shares,
                     &vk_element,
                     &beacon_value,
+                    None,
                 )
                 .unwrap()
             })
@@ -187,6 +190,7 @@ mod tests {
             &beacon_value,
             t,
             &vk_element,
+            None,
         )
         .unwrap();
 
@@ -202,5 +206,121 @@ mod tests {
         (1..=n)
             .map(|i| p.eval(ShareIndex::new(i).unwrap()))
             .collect_vec()
+    }
+
+    #[test]
+    fn test_derived_signing() {
+        let f = 2;
+        let t = f + 1;
+        let n = 3 * f + 1;
+
+        let mut rng = rand::thread_rng();
+
+        // Mock DKG
+        // Here, we don't assume anything about the partity of the vk's Y coordinate since we can't do that in a real DKG.
+        let sk_element = S::rand(&mut rng);
+        let vk_element = G::generator() * sk_element;
+
+        let sk_shares = mock_shares(&mut rng, sk_element, t, n);
+
+        // Mock nonce generation
+        const BATCH_SIZE: usize = 10;
+        let nonces_for_dealer = (0..n)
+            .map(|_| {
+                let nonces: [S; BATCH_SIZE] = array::from_fn(|_| S::rand(&mut rng));
+                let public_keys = nonces.map(|s| G::generator() * s);
+                let nonce_shares: [Vec<S>; BATCH_SIZE] = nonces.map(|nonce| {
+                    mock_shares(&mut rng, nonce, t, n)
+                        .iter()
+                        .map(|s| s.value)
+                        .collect_vec()
+                });
+                (nonces, public_keys, nonce_shares)
+            })
+            .collect_vec();
+
+        let outputs = (0..n)
+            .map(|i| {
+                let index = ShareIndex::new(i + 1).unwrap();
+                (0..n)
+                    .map(|j| {
+                        ReceiverOutput {
+                            my_shares: SharesForNode {
+                                batches: vec![ShareBatch {
+                                    index,
+                                    shares: array::from_fn(|l| {
+                                        nonces_for_dealer[j as usize].2[l][i as usize]
+                                    }),
+                                    blinding_share: Default::default(), // Not used for this test
+                                }],
+                            },
+                            public_keys: nonces_for_dealer[j as usize].1,
+                        }
+                    })
+                    .collect_vec()
+            })
+            .collect_vec();
+
+        let mut presigning = outputs
+            .into_iter()
+            .enumerate()
+            .map(|(i, output)| {
+                Presignatures::new(
+                    &[ShareIndex::new((i + 1) as u16).unwrap()],
+                    output,
+                    f as usize,
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        let message = b"Hello, world!";
+
+        let beacon_value = S::rand(&mut rng);
+
+        let partial_signatures = presigning
+            .iter_mut()
+            .enumerate()
+            .map(|(i, presigning)| {
+                let my_shares = avss::SharesForNode {
+                    shares: vec![sk_shares[i].clone()],
+                };
+                generate_partial_signatures(
+                    message,
+                    presigning,
+                    &my_shares,
+                    &vk_element,
+                    &beacon_value,
+                    Some(7),
+                )
+                .unwrap()
+            })
+            .collect_vec();
+
+        assert!(partial_signatures
+            .iter()
+            .map(|partial_signature| partial_signature.0)
+            .all_equal());
+        let public = partial_signatures[0].0;
+
+        let signature = aggregate_signatures(
+            message,
+            &public,
+            &partial_signatures
+                .iter()
+                .flat_map(|(_, sigs)| sigs.clone())
+                .collect_vec(),
+            &beacon_value,
+            t,
+            &vk_element,
+            Some(7),
+        )
+        .unwrap();
+
+        // Check that this produced a valid signature
+        SchnorrPublicKey::try_from(&derive_verifying_key(&vk_element, 7))
+            .unwrap()
+            .verify(message, &signature)
+            .unwrap();
     }
 }

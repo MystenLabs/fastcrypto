@@ -451,21 +451,36 @@ pub mod schnorr {
                 return Err(FastCryptoError::InvalidInput);
             }
 
-            let r = ProjectivePoint::generator() * k_prime;
-            let k = if r.has_even_y().expect("r is not infinity") {
-                k_prime
+            self.sign_with_nonce(msg, &k_prime)
+        }
+
+        pub fn sign_with_nonce(
+            &self,
+            msg: &[u8],
+            nonce: &Scalar,
+        ) -> FastCryptoResult<SchnorrSignature> {
+            let pk = SchnorrPublicKey::from(self);
+            let pk_bytes = pk.to_byte_array();
+
+            let r = ProjectivePoint::generator() * nonce;
+            let nonce = if r.has_even_y().expect("r is not infinity") {
+                *nonce
             } else {
-                -k_prime
+                -nonce
             };
             let r = r.x_as_be_bytes()?;
 
             let e = bip0340_hash_to_scalar(Challenge, [&r, &pk_bytes, msg]);
-            let s = k + self.0 * e;
+            let s = nonce + self.0 * e;
 
             let signature = SchnorrSignature { r, s };
             pk.verify(msg, &signature)?;
 
             Ok(signature)
+        }
+
+        pub fn as_scalar(&self) -> &Scalar {
+            &self.0
         }
     }
 
@@ -487,6 +502,10 @@ pub mod schnorr {
                 return Err(FastCryptoError::InvalidSignature);
             }
             Ok(())
+        }
+
+        pub fn as_point(&self) -> &ProjectivePoint {
+            &self.0
         }
     }
 
