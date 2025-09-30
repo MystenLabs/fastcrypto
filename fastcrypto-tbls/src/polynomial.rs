@@ -13,7 +13,8 @@ use itertools::{Either, Itertools};
 use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
-use std::ops::{AddAssign, Mul};
+use std::mem::swap;
+use std::ops::{AddAssign, Div, Mul, SubAssign};
 
 /// Types
 
@@ -29,18 +30,26 @@ pub type PublicPoly<C> = Poly<C>;
 
 /// Vector related operations.
 
-impl<C> Poly<C> {
+impl<C: GroupElement> Poly<C> {
     /// Returns the degree of the polynomial
     pub fn degree(&self) -> usize {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
     }
+
+    fn reduce(&mut self) {
+        while self.0.len() > 1 && self.0.last() == Some(&C::zero()) {
+            self.0.pop();
+        }
+    }
 }
 
-impl<C> From<Vec<C>> for Poly<C> {
+impl<C: GroupElement> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
-        Self(c)
+        let mut p = Self(c);
+        p.reduce();
+        p
     }
 }
 
@@ -51,6 +60,7 @@ impl<C: GroupElement> AddAssign<&Self> for Poly<C> {
         if self.0.len() < other.0.len() {
             self.0.extend_from_slice(&other.0[self.0.len()..]);
         }
+        self.reduce();
     }
 }
 
@@ -58,7 +68,24 @@ impl<C: Scalar> Mul<&C> for Poly<C> {
     type Output = Poly<C>;
 
     fn mul(self, rhs: &C) -> Self::Output {
-        Poly(self.0.into_iter().map(|c| c * rhs).collect())
+        Poly::from(self.0.into_iter().map(|c| c * rhs).collect_vec())
+    }
+}
+
+impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
+    type Output = Poly<C>;
+
+    fn mul(self, rhs: &Poly<C>) -> Poly<C> {
+        if self.is_zero() || rhs.is_zero() {
+            return Poly::zero();
+        }
+        let mut result = vec![C::zero(); self.degree() + rhs.degree() + 1];
+        for (i, a) in self.0.iter().enumerate() {
+            for (j, b) in rhs.0.iter().enumerate() {
+                result[i + j] += *a * *b;
+            }
+        }
+        Poly::from(result)
     }
 }
 
@@ -286,5 +313,117 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
         let plain_shares = shares.map(|s| s.borrow().value).collect::<Vec<_>>();
         let res = C::multi_scalar_mul(&coeffs, &plain_shares).expect("sizes match");
         Ok(res)
+    }
+}
+
+struct Monomial<C> {
+    coefficient: C,
+    degree: usize,
+}
+
+impl<C: Scalar> Div<&Self> for Monomial<C> {
+    type Output = Monomial<C>;
+
+    fn div(self, rhs: &Self) -> Self {
+        if rhs.coefficient == C::zero() {
+            panic!("Division by zero monomial");
+        }
+        if self.degree < rhs.degree {
+            panic!("Division would result in negative degree");
+        }
+        Monomial {
+            coefficient: (self.coefficient / rhs.coefficient)
+                .expect("Safe since rhs.coefficient != 0"),
+            degree: self.degree - rhs.degree,
+        }
+    }
+}
+
+impl<C: GroupElement> AddAssign<&Monomial<C>> for Poly<C> {
+    fn add_assign(&mut self, rhs: &Monomial<C>) {
+        if self.0.len() <= rhs.degree {
+            self.0.resize(rhs.degree + 1, C::zero());
+        }
+        self.0[rhs.degree] += rhs.coefficient;
+        self.reduce();
+    }
+}
+
+impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
+    fn sub_assign(&mut self, rhs: Poly<C>) {
+        if self.0.len() < rhs.0.len() {
+            self.0.resize(rhs.0.len(), C::zero());
+        }
+        for (a, b) in self.0.iter_mut().zip(&rhs.0) {
+            *a -= *b;
+        }
+        self.reduce();
+    }
+}
+
+impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
+    type Output = Poly<C>;
+
+    fn mul(self, rhs: &Monomial<C>) -> Poly<C> {
+        if rhs.coefficient == C::zero() {
+            return Poly::zero();
+        }
+        let mut result = vec![C::zero(); self.degree() + rhs.degree + 1];
+        for (i, coefficient) in self.0.iter().enumerate() {
+            result[i + rhs.degree] = *coefficient * rhs.coefficient;
+        }
+        Poly::from(result)
+    }
+}
+
+impl<C: Scalar> Poly<C> {
+    fn is_zero(&self) -> bool {
+        self.0.len() == 1 && self.0[0] == C::zero()
+    }
+
+    fn one() -> Self {
+        Self::from(vec![C::generator()])
+    }
+
+    fn lead(&self) -> Monomial<C> {
+        if self.is_zero() {
+            return Monomial {
+                coefficient: C::zero(),
+                degree: 0,
+            };
+        }
+        Monomial {
+            coefficient: *self.0.last().unwrap(),
+            degree: self.degree(),
+        }
+    }
+
+    pub fn div_rem(&self, divisor: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
+        if divisor.is_zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut remainder = self.clone();
+        let mut quotient = Self::zero();
+        while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
+            let tmp = remainder.lead() / &divisor.lead();
+            quotient += &tmp;
+            remainder -= divisor * &tmp;
+        }
+        Ok((quotient, remainder))
+    }
+
+    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        let mut r = (self.clone(), other.clone());
+        let mut s = (Poly::one(), Poly::zero());
+        let mut t = (Poly::zero(), Poly::one());
+        while !r.1.is_zero() {
+            let (q, r_new) = r.0.div_rem(&r.1)?;
+            r = (r.1, r_new);
+            s.0 -= &q * &s.1;
+            swap(&mut s.0, &mut s.1);
+            t.0 -= &q * &t.1;
+            swap(&mut t.0, &mut t.1);
+        }
+        Ok((r.0, s.0, t.0))
     }
 }

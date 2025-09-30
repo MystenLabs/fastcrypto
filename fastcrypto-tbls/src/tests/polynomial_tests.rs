@@ -10,7 +10,9 @@ use crate::types::ShareIndex;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
+use itertools::Itertools;
 use rand::prelude::*;
+use std::iter;
 use std::num::NonZeroU16;
 
 const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
@@ -236,4 +238,27 @@ mod points_tests {
 
     #[instantiate_tests(<G2Element>)]
     mod g2_element {}
+}
+
+#[test]
+fn test_xgcd() {
+    let mut rng = thread_rng();
+    let degree_a = 7;
+    let degree_b = 5;
+    let a = Poly::from(
+        iter::from_fn(|| Some(BlsScalar::rand(&mut rng)))
+            .take(degree_a + 1)
+            .collect_vec(),
+    );
+    let b = Poly::from(
+        iter::from_fn(|| Some(BlsScalar::rand(&mut rng)))
+            .take(degree_b + 1)
+            .collect_vec(),
+    );
+
+    let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
+
+    let mut lhs = &x * &a;
+    lhs += &(&y * &b);
+    assert_eq!(lhs, g);
 }
