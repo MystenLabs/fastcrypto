@@ -47,6 +47,9 @@ impl<C: GroupElement> Poly<C> {
 
 impl<C: GroupElement> From<Vec<C>> for Poly<C> {
     fn from(c: Vec<C>) -> Self {
+        if c.is_empty() {
+            return Self::zero();
+        }
         let mut p = Self(c);
         p.reduce();
         p
@@ -398,6 +401,8 @@ impl<C: Scalar> Poly<C> {
         }
     }
 
+    /// Divide self by divisor, returning the quotient and remainder.
+    /// Returns an error if divisor is zero.
     pub fn div_rem(&self, divisor: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
         if divisor.is_zero() {
             return Err(FastCryptoError::InvalidInput);
@@ -412,6 +417,8 @@ impl<C: Scalar> Poly<C> {
         Ok((quotient, remainder))
     }
 
+    /// Compute the extended GCD of two polynomials.
+    /// Returns (g, x, y) such that g = self * x + other * y.
     pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
         let mut r = (self.clone(), other.clone());
         let mut s = (Poly::one(), Poly::zero());
