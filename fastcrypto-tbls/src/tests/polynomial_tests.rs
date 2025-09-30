@@ -10,7 +10,6 @@ use crate::types::ShareIndex;
 use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
-use itertools::Itertools;
 use rand::prelude::*;
 use std::iter;
 use std::num::NonZeroU16;
@@ -112,6 +111,53 @@ mod scalar_tests {
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
         Poly::interpolate_at_index(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+    }
+
+    #[test]
+    fn test_division<S: Scalar>() {
+        let mut rng = thread_rng();
+        let degree_a = 8;
+        let degree_b = 5;
+        let a = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_a + 1)
+                .collect_vec(),
+        );
+        let b = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_b + 1)
+                .collect_vec(),
+        );
+
+        let (q, r) = a.div_rem(&b).unwrap();
+        assert!(r.degree() < b.degree());
+
+        let mut lhs = &q * &b;
+        lhs += &r;
+        assert_eq!(lhs, a);
+    }
+
+    #[test]
+    fn test_extended_gcd<S: Scalar>() {
+        let mut rng = thread_rng();
+        let degree_a = 8;
+        let degree_b = 5;
+        let a = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_a + 1)
+                .collect_vec(),
+        );
+        let b = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_b + 1)
+                .collect_vec(),
+        );
+
+        let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
+
+        let mut lhs = &x * &a;
+        lhs += &(&y * &b);
+        assert_eq!(lhs, g);
     }
 
     #[instantiate_tests(<RistrettoScalar>)]
@@ -238,27 +284,4 @@ mod points_tests {
 
     #[instantiate_tests(<G2Element>)]
     mod g2_element {}
-}
-
-#[test]
-fn test_xgcd() {
-    let mut rng = thread_rng();
-    let degree_a = 7;
-    let degree_b = 5;
-    let a = Poly::from(
-        iter::from_fn(|| Some(BlsScalar::rand(&mut rng)))
-            .take(degree_a + 1)
-            .collect_vec(),
-    );
-    let b = Poly::from(
-        iter::from_fn(|| Some(BlsScalar::rand(&mut rng)))
-            .take(degree_b + 1)
-            .collect_vec(),
-    );
-
-    let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
-
-    let mut lhs = &x * &a;
-    lhs += &(&y * &b);
-    assert_eq!(lhs, g);
 }

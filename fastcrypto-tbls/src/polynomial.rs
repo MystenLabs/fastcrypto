@@ -419,9 +419,11 @@ impl<C: Scalar> Poly<C> {
         while !r.1.is_zero() {
             let (q, r_new) = r.0.div_rem(&r.1)?;
             r = (r.1, r_new);
+
             s.0 -= &q * &s.1;
-            swap(&mut s.0, &mut s.1);
             t.0 -= &q * &t.1;
+
+            swap(&mut s.0, &mut s.1);
             swap(&mut t.0, &mut t.1);
         }
         Ok((r.0, s.0, t.0))
