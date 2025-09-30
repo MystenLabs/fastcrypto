@@ -467,10 +467,6 @@ pub mod schnorr {
 
             Ok(signature)
         }
-
-        pub fn as_scalar(&self) -> &Scalar {
-            &self.0
-        }
     }
 
     impl SchnorrPublicKey {
