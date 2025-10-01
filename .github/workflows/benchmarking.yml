@@ -9,9 +9,9 @@ jobs:
     name: Continuous benchmarking
     runs-on: ubuntu-ghcloud
     steps:
-      - uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # pin@v3
       - name: Get old benchmarks
-        uses: actions/checkout@ac593985615ec2ede58e132d2e21d2b1cbd6127c # pin@v3
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # pin@v3
         with:
           ref: gh-pages
           path: gh-pages
