@@ -766,8 +766,7 @@ pub mod schnorr {
         assert!(pk.verify(&secp, &message, &sig).is_ok());
 
         // Verify with the above implementation
-        let signature =
-            SchnorrSignature::from_byte_array(&sig.to_byte_array().try_into().unwrap()).unwrap();
+        let signature = SchnorrSignature::from_byte_array(&sig.to_byte_array()).unwrap();
         let vk = SchnorrPublicKey::from(&sk1);
         assert!(vk.verify(&message, &signature).is_ok());
 
