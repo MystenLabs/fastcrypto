@@ -33,7 +33,7 @@ pub mod avss;
 pub mod batch_avss;
 mod bcs;
 pub mod complaint;
-mod key_derivation;
+pub mod key_derivation;
 mod pascal_matrix;
 pub mod presigning;
 pub mod signing;
@@ -318,8 +318,7 @@ mod tests {
         .unwrap();
 
         // Check that this produced a valid signature
-        SchnorrPublicKey::try_from(&derive_verifying_key(&vk_element, 7))
-            .unwrap()
+        derive_verifying_key(&vk_element, 7, &[])
             .verify(message, &signature)
             .unwrap();
     }

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::{Eval, Poly};
-use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key};
+use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::presigning::Presignatures;
 use crate::threshold_schnorr::{avss, G, S};
 use fastcrypto::error::FastCryptoError::{InputTooShort, OutOfPresigs};
@@ -54,7 +54,7 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 
     // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
     let verifying_key = if let Some(index) = derivation_index {
-        derive_verifying_key(verifying_key, index)
+        derive_verifying_key_internal(verifying_key, index, &[]) // TODO: Should the derived key depend on some context info?
     } else {
         *verifying_key
     };
@@ -140,8 +140,8 @@ pub fn aggregate_signatures(
 
     // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
     let verifying_key = if let Some(index) = derivation_index {
-        let tweak = compute_tweak(verifying_key, index);
-        let derived_vk = derive_verifying_key(verifying_key, index);
+        let tweak = compute_tweak(verifying_key, index, &[]);
+        let derived_vk = derive_verifying_key_internal(verifying_key, index, &[]);
         if derived_vk.has_even_y()? {
             s += tweak * bip0340_hash(&r_g, &derived_vk, message)?;
         } else {
