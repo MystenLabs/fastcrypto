@@ -718,4 +718,50 @@ pub mod schnorr {
             }
         }
     }
+
+    #[test]
+    fn test_bitcoin_alignment_sign() {
+        use super::schnorr::{SchnorrSignature, SchnorrPrivateKey, SchnorrPublicKey};
+        use crate::groups::Scalar as ScalarTrait;
+
+        let mut rng = rand::thread_rng();
+        let sk = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
+        let message = [1u8; 32];
+        let signature: SchnorrSignature = sk.sign(&message, b"").unwrap();
+        let vk = SchnorrPublicKey::from(&sk);
+        assert!(vk.verify(&message, &signature).is_ok());
+
+        // Deserialize with sep256k1 and verify
+        use secp256k1::Secp256k1;
+        let secp = Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_byte_array(sk.to_byte_array()).unwrap();
+        let pk = secp256k1::PublicKey::from_secret_key(&secp, &sk).x_only_public_key().0;
+        let sig = secp256k1::schnorr::Signature::from_byte_array(signature.to_byte_array());
+        assert!(pk.verify(&secp, &message, &sig).is_ok());
+    }
+
+    #[test]
+    fn test_bitcoin_alignment_verify() {
+        use super::schnorr::{SchnorrSignature, SchnorrPrivateKey, SchnorrPublicKey};
+        use crate::groups::Scalar as ScalarTrait;
+
+        let mut rng = rand::thread_rng();
+        let sk1 = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
+
+        // Sign using secp256k1
+        use secp256k1::Secp256k1;
+        let secp = Secp256k1::new();
+        let message = [1u8; 32];
+        let sk2 = secp256k1::SecretKey::from_byte_array(sk1.to_byte_array()).unwrap();
+        let kp = secp256k1::Keypair::from_secret_key(&secp, &sk2);
+        let sig = kp.sign_schnorr_no_aux_rand(&message);
+        let pk = secp256k1::PublicKey::from_secret_key(&secp, &sk2).x_only_public_key().0;
+        assert!(pk.verify(&secp, &message, &sig).is_ok());
+
+        // Verify with the above implementation
+        let signature =
+            SchnorrSignature::from_byte_array(&sig.to_byte_array().try_into().unwrap()).unwrap();
+        let vk = SchnorrPublicKey::from(&sk1);
+        assert!(vk.verify(&message, &signature).is_ok());
+    }
 }
