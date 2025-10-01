@@ -17,6 +17,7 @@ hex = "0.4.3"
 hex-literal = "0.4.1"
 hkdf = { version = "0.12.3", features = ["std"] }
 rand.workspace = true
+rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
 serde.workspace = true
 serde_with = { version = "3", default-features = false, features = ["alloc", "macros"] }
 signature = { version = "2.0.0" }
@@ -136,4 +137,3 @@ radix64 = "0.6.2"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
 secp256k1 = { version = "0.31.1", features = ["global-context"] }
-rust_secp256k1 = { version = "0.27.0", package = "secp256k1", features = ["recovery", "rand-std", "bitcoin_hashes", "global-context"] }
