@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::polynomial::{Eval, Poly};
+use crate::threshold_schnorr::key_derivation::{compute_tweak, derive_verifying_key_internal};
 use crate::threshold_schnorr::presigning::Presignatures;
 use crate::threshold_schnorr::{avss, G, S};
 use fastcrypto::error::FastCryptoError::{InputTooShort, OutOfPresigs};
@@ -17,15 +18,20 @@ use itertools::Itertools;
 ///
 /// The signatures produced follow the BIP-0340 standard (https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki).
 ///
+/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// The signature will be valid for the derived verifying key.
+///
 /// Returns an `OutOfPresigs` error if the presignatures iterator is exhausted.
 /// `GeneralOpaqueError` is returned if the generated nonce R is the identity element (should happen only with negligible probability).
 /// `InvalidInput` is returned if the verifying key is the identity element.
 pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
     message: &[u8],
     presignatures: &mut Presignatures<BATCH_SIZE>,
+    beacon_value: &S,
     my_signing_key_shares: &avss::SharesForNode,
     verifying_key: &G,
-    beacon_value: &S,
+    derivation_index: Option<u64>,
 ) -> FastCryptoResult<(G, Vec<Eval<S>>)> {
     // TODO: Each output from an instance of Presigning has a unique index. Perhaps this is needed for coordination?
     let (_, mut secret_presigs, public_presig) = presignatures.next().ok_or(OutOfPresigs)?;
@@ -46,10 +52,17 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
         }
     }
 
+    // If a derivation index is provided, derive a new verifying key (and implicitly also signing key) for this index.
+    let verifying_key = if let Some(index) = derivation_index {
+        derive_verifying_key_internal(verifying_key, index)
+    } else {
+        *verifying_key
+    };
+
     // The verifying key must also have an even Y coordinate.
     // If this is not the case, we must negate the verifying key (and hence also the signing key).
     // Since the signing key shares are multiplied with the challenge, we just change the sign of the challenge instead.
-    let mut h = bip0340_hash(&r_g, verifying_key, message)?;
+    let mut h = bip0340_hash(&r_g, &verifying_key, message)?;
     if !verifying_key.has_even_y()? {
         h = -h;
     }
@@ -79,6 +92,10 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 /// Given enough partial signatures, aggregate them into a full signature and verify it.
 /// The signature produced follows the BIP-0340 standard.
 ///
+/// If a derivation index is provided, a new verifying key is derived for this index (see
+/// [derive_verifying_key]), and the signature is adjusted accordingly.
+/// The signature will be valid for the derived verifying key.
+///
 /// Returns an `InputTooShort` error if not enough partial signatures are provided.
 /// `GeneralOpaqueError` is returned if the computed nonce R is the identity element.
 /// `InvalidSignature` is returned if the aggregated signature does not verify.
@@ -86,10 +103,11 @@ pub fn generate_partial_signatures<const BATCH_SIZE: usize>(
 pub fn aggregate_signatures(
     message: &[u8],
     public_presig: &G,
-    partial_signatures: &[Eval<S>],
     beacon_value: &S,
+    partial_signatures: &[Eval<S>],
     threshold: u16,
     verifying_key: &G,
+    derivation_index: Option<u64>,
 ) -> FastCryptoResult<SchnorrSignature> {
     if partial_signatures.len() < threshold as usize {
         return Err(InputTooShort(threshold as usize));
@@ -120,10 +138,24 @@ pub fn aggregate_signatures(
         s -= beacon_value
     };
 
+    // If a derivation index is provided, compute the derived verifying key and adjust the signature accordingly.
+    let verifying_key = if let Some(index) = derivation_index {
+        let tweak = compute_tweak(verifying_key, index);
+        let derived_vk = derive_verifying_key_internal(verifying_key, index);
+        if derived_vk.has_even_y()? {
+            s += tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+        } else {
+            s -= tweak * bip0340_hash(&r_g, &derived_vk, message)?;
+        }
+        derived_vk
+    } else {
+        *verifying_key
+    };
+
     let signature = SchnorrSignature::try_from((r_g, s))?;
 
     // TODO: Handle invalid signatures
-    SchnorrPublicKey::try_from(verifying_key)?.verify(message, &signature)?;
+    SchnorrPublicKey::try_from(&verifying_key)?.verify(message, &signature)?;
 
     Ok(signature)
 }

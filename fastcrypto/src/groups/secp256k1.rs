@@ -180,8 +180,8 @@ pub struct Scalar(pub(crate) Fr);
 
 impl Scalar {
     /// Create a scalar from a big-endian byte representation, reducing it modulo the group order if necessary.
-    pub fn from_bytes_mod_order(bytes: &[u8; SCALAR_SIZE_IN_BYTES]) -> Self {
-        Scalar(Fr::from_be_bytes_mod_order(bytes.as_slice()))
+    pub fn from_bytes_mod_order(bytes: &[u8]) -> Self {
+        Scalar(Fr::from_be_bytes_mod_order(bytes))
     }
 
     pub fn is_zero(&self) -> bool {
@@ -488,6 +488,10 @@ pub mod schnorr {
             }
             Ok(())
         }
+
+        pub fn as_point(&self) -> &ProjectivePoint {
+            &self.0
+        }
     }
 
     #[test]
@@ -713,5 +717,60 @@ pub mod schnorr {
                 verify_test_vector(v);
             }
         }
+    }
+
+    #[test]
+    fn test_bitcoin_alignment_sign() {
+        use super::schnorr::{SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature};
+        use crate::groups::Scalar as ScalarTrait;
+
+        let mut rng = rand::thread_rng();
+        let sk = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
+        let message = [1u8; 32];
+        let signature: SchnorrSignature = sk.sign(&message, b"").unwrap();
+        let vk = SchnorrPublicKey::from(&sk);
+        assert!(vk.verify(&message, &signature).is_ok());
+
+        // Deserialize with sep256k1 and verify
+        use secp256k1::Secp256k1;
+        let secp = Secp256k1::new();
+        let sk = secp256k1::SecretKey::from_byte_array(sk.to_byte_array()).unwrap();
+        let vk = secp256k1::PublicKey::from_secret_key(&secp, &sk)
+            .x_only_public_key()
+            .0;
+        let sig = secp256k1::schnorr::Signature::from_byte_array(signature.to_byte_array());
+        assert!(vk.verify(&secp, &message, &sig).is_ok());
+
+        // Sanity check that verification fails for a different message
+        assert!(vk.verify(&secp, &[2u8; 32], &sig).is_err());
+    }
+
+    #[test]
+    fn test_bitcoin_alignment_verify() {
+        use super::schnorr::{SchnorrPrivateKey, SchnorrPublicKey, SchnorrSignature};
+        use crate::groups::Scalar as ScalarTrait;
+
+        let mut rng = rand::thread_rng();
+        let sk1 = SchnorrPrivateKey::try_from(super::Scalar::rand(&mut rng)).unwrap();
+
+        // Sign using secp256k1
+        use secp256k1::Secp256k1;
+        let secp = Secp256k1::new();
+        let message = [1u8; 32];
+        let sk2 = secp256k1::SecretKey::from_byte_array(sk1.to_byte_array()).unwrap();
+        let kp = secp256k1::Keypair::from_secret_key(&secp, &sk2);
+        let sig = kp.sign_schnorr_no_aux_rand(&message);
+        let pk = secp256k1::PublicKey::from_secret_key(&secp, &sk2)
+            .x_only_public_key()
+            .0;
+        assert!(pk.verify(&secp, &message, &sig).is_ok());
+
+        // Verify with the above implementation
+        let signature = SchnorrSignature::from_byte_array(&sig.to_byte_array()).unwrap();
+        let vk = SchnorrPublicKey::from(&sk1);
+        assert!(vk.verify(&message, &signature).is_ok());
+
+        // Sanity check that verification fails for a different message
+        assert!(vk.verify(&[2u8; 32], &signature).is_err());
     }
 }

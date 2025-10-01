@@ -136,3 +136,4 @@ base64 = "0.21.0"
 radix64 = "0.6.2"
 base58 = "0.2.0"
 rust-base58 = "0.0.4"
+secp256k1 = { version = "0.31.1", features = ["global-context"] }
