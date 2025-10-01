@@ -325,20 +325,16 @@ struct Monomial<C> {
 }
 
 impl<C: Scalar> Div<&Self> for Monomial<C> {
-    type Output = Monomial<C>;
+    type Output = FastCryptoResult<Monomial<C>>;
 
-    fn div(self, rhs: &Self) -> Self {
-        if rhs.coefficient == C::zero() {
-            panic!("Division by zero monomial");
-        }
+    fn div(self, rhs: &Self) -> Self::Output {
         if self.degree < rhs.degree {
-            panic!("Division would result in negative degree");
+            return Err(FastCryptoError::InvalidInput);
         }
-        Monomial {
-            coefficient: (self.coefficient / rhs.coefficient)
-                .expect("Safe since rhs.coefficient != 0"),
+        Ok(Monomial {
+            coefficient: (self.coefficient / rhs.coefficient)?,
             degree: self.degree - rhs.degree,
-        }
+        })
     }
 }
 
@@ -410,7 +406,8 @@ impl<C: Scalar> Poly<C> {
         let mut remainder = self.clone();
         let mut quotient = Self::zero();
         while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-            let tmp = remainder.lead() / &divisor.lead();
+            // TODO: The divisor lead is always the same, so we can precompute its inverse.
+            let tmp = (remainder.lead() / &divisor.lead())?;
             quotient += &tmp;
             remainder -= divisor * &tmp;
         }
