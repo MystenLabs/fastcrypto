@@ -291,7 +291,7 @@ mod tests {
                     &beacon_value,
                     &my_shares,
                     &vk_element,
-                    Some((7, b"test")),
+                    Some(7),
                 )
                 .unwrap()
             })
@@ -313,12 +313,12 @@ mod tests {
                 .collect_vec(),
             t,
             &vk_element,
-            Some((7, b"test")),
+            Some(7),
         )
         .unwrap();
 
         // Check that this produced a valid signature
-        derive_verifying_key(&vk_element, 7, b"test")
+        derive_verifying_key(&vk_element, 7)
             .verify(message, &signature)
             .unwrap();
     }
