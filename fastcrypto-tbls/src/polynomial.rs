@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::ops::{AddAssign, Div, Mul, SubAssign};
+use std::ops::{Add, AddAssign, Div, Mul, SubAssign};
 
 /// Types
 
@@ -92,12 +92,25 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
     }
 }
 
+impl<C: GroupElement> Add<&Poly<C>> for Poly<C> {
+    type Output = Poly<C>;
+
+    fn add(mut self, rhs: &Poly<C>) -> Poly<C> {
+        self += rhs;
+        self
+    }
+}
+
 /// GroupElement operations.
 
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
         Self::from(vec![C::zero()])
+    }
+
+    pub fn one() -> Self {
+        Self::from(vec![C::generator()])
     }
 
     // TODO: Some of the functions/steps below may be executed many times in practice thus cache can be
@@ -303,6 +316,33 @@ impl<C: Scalar> Poly<C> {
 
         Ok(Eval { index, value })
     }
+
+    /// Given a set of shares with unique indices, compute the polynomial that
+    /// goes through all the points. The degree of the resulting polynomial is
+    /// at most `points.len() - 1`.
+    /// Returns an error if the input is invalid (e.g., empty or duplicate indices).
+    pub fn interpolate(points: &[Eval<C>]) -> FastCryptoResult<Poly<C>> {
+        if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let result = points
+            .iter()
+            .map(|p_j| {
+                let x_j = C::from(p_j.index.get() as u128);
+                points
+                    .iter()
+                    .filter(|p_i| p_i.index != p_j.index)
+                    .map(|p_i| {
+                        let x_i = C::from(p_i.index.get() as u128);
+                        Poly::from(vec![-x_i, C::generator()])
+                            * &(x_j - x_i).inverse().expect("Divisor is never zero")
+                    })
+                    .fold(Poly::<C>::one(), |product, factor| &product * &factor)
+                    * &p_j.value
+            })
+            .fold(Poly::zero(), |acc, p| acc + &p);
+        Ok(result)
+    }
 }
 
 impl<C: GroupElement + MultiScalarMul> Poly<C> {
@@ -376,12 +416,8 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
 }
 
 impl<C: Scalar> Poly<C> {
-    fn is_zero(&self) -> bool {
-        self.0.len() == 1 && self.0[0] == C::zero()
-    }
-
-    fn one() -> Self {
-        Self::from(vec![C::generator()])
+    pub(crate) fn is_zero(&self) -> bool {
+        self.0 == vec![C::zero()]
     }
 
     fn lead(&self) -> Monomial<C> {
@@ -415,12 +451,17 @@ impl<C: Scalar> Poly<C> {
     }
 
     /// Compute the extended GCD of two polynomials.
-    /// Returns (g, x, y) such that g = self * x + other * y.
-    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+    /// Returns (g, x, y, s, t) such that g = self * x + other * y.
+    ///
+    pub fn partial_extended_gcd(
+        &self,
+        other: &Poly<C>,
+        degree_bound: usize,
+    ) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
         let mut r = (self.clone(), other.clone());
         let mut s = (Poly::one(), Poly::zero());
         let mut t = (Poly::zero(), Poly::one());
-        while !r.1.is_zero() {
+        while r.0.degree() >= degree_bound && !r.1.is_zero() {
             let (q, r_new) = r.0.div_rem(&r.1)?;
             r = (r.1, r_new);
 
@@ -431,5 +472,9 @@ impl<C: Scalar> Poly<C> {
             swap(&mut t.0, &mut t.1);
         }
         Ok((r.0, s.0, t.0))
+    }
+
+    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        self.partial_extended_gcd(other, 0)
     }
 }

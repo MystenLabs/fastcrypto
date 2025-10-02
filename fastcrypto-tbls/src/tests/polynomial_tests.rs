@@ -114,6 +114,45 @@ mod scalar_tests {
     }
 
     #[test]
+    fn test_interpolate<S: Scalar>() {
+        let degree = 12;
+        let threshold = degree + 1;
+        let poly = Poly::<S>::rand(degree, &mut thread_rng());
+        let mut shares = (1..50)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect::<Vec<_>>();
+        for _ in 0..10 {
+            shares.shuffle(&mut thread_rng());
+            let used_shares = shares
+                .iter()
+                .take(threshold as usize)
+                .cloned()
+                .collect_vec();
+            let interpolated = Poly::interpolate(&used_shares).unwrap();
+            assert_eq!(interpolated, poly);
+        }
+
+        // Using too few shares
+        for _ in 0..10 {
+            shares.shuffle(&mut thread_rng());
+            let used_shares = shares
+                .iter()
+                .take(threshold as usize - 1)
+                .cloned()
+                .collect_vec();
+            let interpolated = Poly::interpolate(&used_shares).unwrap();
+            assert_ne!(interpolated, poly);
+        }
+
+        // Using duplicate shares should fail
+        let mut shares = (1..=threshold)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect_vec(); // duplicate value 1
+        shares.push(poly.eval(ShareIndex::new(1).unwrap()));
+        Poly::interpolate(&shares).unwrap_err();
+    }
+
+    #[test]
     fn test_division<S: Scalar>() {
         let mut rng = thread_rng();
         let degree_a = 8;
@@ -155,9 +194,7 @@ mod scalar_tests {
 
         let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
 
-        let mut lhs = &x * &a;
-        lhs += &(&y * &b);
-        assert_eq!(lhs, g);
+        assert_eq!(&x * &a + &(&y * &b), g);
     }
 
     #[instantiate_tests(<RistrettoScalar>)]
