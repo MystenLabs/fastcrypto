@@ -136,7 +136,7 @@ impl<C: GroupElement> Poly<C> {
     /// Evaluates the polynomial at the specified value.
     pub fn eval(&self, i: ShareIndex) -> Eval<C> {
         // Use Horner's Method to evaluate the polynomial.
-        let xi = C::ScalarType::from(i.get().into());
+        let xi: C::ScalarType = to_scalar(i);
         let res = self
             .0
             .iter()
@@ -180,9 +180,8 @@ impl<C: GroupElement> Poly<C> {
             return Err(FastCryptoError::InvalidInput);
         }
 
-        let full_numerator = indices.iter().fold(C::ScalarType::generator(), |acc, i| {
-            acc * C::ScalarType::from(*i)
-        });
+        let full_numerator =
+            C::ScalarType::product(indices.iter().map(|i| C::ScalarType::from(*i)));
 
         let mut coeffs = Vec::new();
         for i in &indices {
@@ -227,10 +226,7 @@ impl<C: GroupElement> Poly<C> {
     ) -> FastCryptoResult<C> {
         let coeffs = Self::get_lagrange_coefficients_for_c0(t, shares.clone())?;
         let plain_shares = shares.map(|s| s.borrow().value);
-        let res = coeffs
-            .iter()
-            .zip(plain_shares)
-            .fold(C::zero(), |acc, (c, s)| acc + (s * *c));
+        let res = C::sum(coeffs.iter().zip(plain_shares).map(|(c, s)| s * c));
         Ok(res)
     }
 
@@ -345,14 +341,14 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let indices = points.iter().map(|e| to_scalar::<C>(e.index)).collect_vec();
+        let indices: Vec<C> = points.iter().map(|e| to_scalar(e.index)).collect_vec();
 
         Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
             let x_j = indices[j];
             let denominator = C::product(
                 indices
                     .iter()
-                    .filter(|x_i| *x_i != &x_j)
+                    .filter(|&&x_i| x_i != x_j)
                     .map(|x_i| x_j - x_i),
             )
             .inverse();
@@ -360,8 +356,8 @@ impl<C: Scalar> Poly<C> {
                 indices
                     .iter()
                     .enumerate()
-                    .filter(|(i, _)| *i != j)
-                    .map(|(_, x_i)| Poly::from(vec![-*x_i, C::generator()])),
+                    .filter(|(i, _)| i != &j)
+                    .map(|(_, &x_i)| Poly::from(vec![-x_i, C::generator()])),
             ) * &p_j.value;
             numerator * &denominator.expect("Denominator is never zero")
         })))
