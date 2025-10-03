@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 use std::borrow::Borrow;
 use std::collections::HashSet;
 use std::mem::swap;
-use std::ops::{Add, AddAssign, Div, Mul, SubAssign};
+use std::ops::{Add, AddAssign, Mul, SubAssign};
 
 /// Types
 
@@ -101,12 +101,28 @@ impl<C: GroupElement> Add<&Poly<C>> for Poly<C> {
     }
 }
 
+impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
+    fn sub_assign(&mut self, rhs: Poly<C>) {
+        if self.0.len() < rhs.0.len() {
+            self.0.resize(rhs.0.len(), C::zero());
+        }
+        for (a, b) in self.0.iter_mut().zip(&rhs.0) {
+            *a -= *b;
+        }
+        self.reduce();
+    }
+}
+
 /// GroupElement operations.
 
 impl<C: GroupElement> Poly<C> {
     /// Returns a polynomial with the zero element.
     pub fn zero() -> Self {
         Self::from(vec![C::zero()])
+    }
+
+    pub(crate) fn is_zero(&self) -> bool {
+        self.0 == vec![C::zero()]
     }
 
     pub fn one() -> Self {
@@ -249,6 +265,10 @@ impl<C: GroupElement> Poly<C> {
     pub fn as_vec(&self) -> &Vec<C> {
         &self.0
     }
+
+    fn sum(terms: impl Iterator<Item = Poly<C>>) -> Poly<C> {
+        terms.fold(Poly::zero(), |acc, x| acc + &x)
+    }
 }
 
 /// Scalar operations.
@@ -296,12 +316,12 @@ impl<C: Scalar> Poly<C> {
         if !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let x = C::from(index.get() as u128);
+        let x: C = to_scalar(index);
 
         // Convert indices to scalars for interpolation.
         let indices = points
             .iter()
-            .map(|p| C::from(p.index.get() as u128))
+            .map(|e| to_scalar(e.index))
             .collect::<Vec<_>>();
 
         let value = C::sum(indices.iter().enumerate().map(|(j, x_j)| {
@@ -325,23 +345,100 @@ impl<C: Scalar> Poly<C> {
         if points.is_empty() || !points.iter().map(|p| p.index).all_unique() {
             return Err(FastCryptoError::InvalidInput);
         }
-        let result = points
-            .iter()
-            .map(|p_j| {
-                let x_j = C::from(p_j.index.get() as u128);
-                points
+        let indices = points.iter().map(|e| to_scalar::<C>(e.index)).collect_vec();
+
+        Ok(Poly::sum(points.iter().enumerate().map(|(j, p_j)| {
+            let x_j = indices[j];
+            let denominator = C::product(
+                indices
                     .iter()
-                    .filter(|p_i| p_i.index != p_j.index)
-                    .map(|p_i| {
-                        let x_i = C::from(p_i.index.get() as u128);
-                        Poly::from(vec![-x_i, C::generator()])
-                            * &(x_j - x_i).inverse().expect("Divisor is never zero")
-                    })
-                    .fold(Poly::<C>::one(), |product, factor| &product * &factor)
-                    * &p_j.value
-            })
-            .fold(Poly::zero(), |acc, p| acc + &p);
-        Ok(result)
+                    .filter(|x_i| *x_i != &x_j)
+                    .map(|x_i| x_j - x_i),
+            )
+            .inverse();
+            let numerator = Poly::product(
+                indices
+                    .iter()
+                    .enumerate()
+                    .filter(|(i, _)| *i != j)
+                    .map(|(_, x_i)| Poly::from(vec![-*x_i, C::generator()])),
+            ) * &p_j.value;
+            numerator * &denominator.expect("Denominator is never zero")
+        })))
+    }
+
+    /// Returns the leading term of the polynomial.
+    /// If the polynomial is zero, returns a monomial with coefficient zero and degree zero.
+    fn lead(&self) -> Monomial<C> {
+        if self.is_zero() {
+            return Monomial {
+                coefficient: C::zero(),
+                degree: 0,
+            };
+        }
+        Monomial {
+            coefficient: *self.0.last().expect("coefficients are never empty"),
+            degree: self.degree(),
+        }
+    }
+
+    /// Divide self by divisor, returning the quotient and remainder.
+    /// Returns an error if divisor is zero.
+    pub fn div_rem(&self, divisor: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
+        if divisor.is_zero() {
+            return Err(FastCryptoError::InvalidInput);
+        }
+        let mut remainder = self.clone();
+        let mut quotient = Self::zero();
+
+        let lead_inverse = divisor.lead().coefficient.inverse()?;
+
+        // Function to divide a term by the leading term of the divisor.
+        // This panics if the degree of the given term is less than that of the divisor.
+        let divider = |p: Monomial<C>| Monomial {
+            coefficient: p.coefficient * lead_inverse,
+            degree: p.degree - divisor.degree(),
+        };
+
+        while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
+            let tmp = divider(remainder.lead());
+            quotient += &tmp;
+            remainder -= divisor * &tmp;
+        }
+        Ok((quotient, remainder))
+    }
+
+    /// Compute the extended GCD of two polynomials.
+    /// Returns (g, x, y, s, t) such that g = self * x + other * y.
+    /// The loop stops when the degree of g is less than degree_bound.
+    pub fn partial_extended_gcd(
+        &self,
+        other: &Poly<C>,
+        degree_bound: usize,
+    ) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        let mut r = (self.clone(), other.clone());
+        let mut s = (Poly::one(), Poly::zero());
+        let mut t = (Poly::zero(), Poly::one());
+
+        while r.0.degree() >= degree_bound && !r.1.is_zero() {
+            let (q, r_new) = r.0.div_rem(&r.1)?;
+            r = (r.1, r_new);
+
+            s.0 -= &q * &s.1;
+            t.0 -= &q * &t.1;
+
+            swap(&mut s.0, &mut s.1);
+            swap(&mut t.0, &mut t.1);
+        }
+        Ok((r.0, s.0, t.0))
+    }
+
+    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        self.partial_extended_gcd(other, 0)
+    }
+
+    fn product(terms: impl Iterator<Item = Poly<C>>) -> Poly<C> {
+        terms.fold(Poly::one(), |acc, x| &acc * &x)
     }
 }
 
@@ -359,23 +456,15 @@ impl<C: GroupElement + MultiScalarMul> Poly<C> {
     }
 }
 
+#[inline]
+fn to_scalar<C: Scalar>(index: ShareIndex) -> C {
+    C::from(index.get() as u128)
+}
+
+/// This represents a monomial, e.g., 3 * x^2, where 3 is the coefficient and 2 is the degree.
 struct Monomial<C> {
     coefficient: C,
     degree: usize,
-}
-
-impl<C: Scalar> Div<&Self> for Monomial<C> {
-    type Output = FastCryptoResult<Monomial<C>>;
-
-    fn div(self, rhs: &Self) -> Self::Output {
-        if self.degree < rhs.degree {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        Ok(Monomial {
-            coefficient: (self.coefficient / rhs.coefficient)?,
-            degree: self.degree - rhs.degree,
-        })
-    }
 }
 
 impl<C: GroupElement> AddAssign<&Monomial<C>> for Poly<C> {
@@ -384,18 +473,6 @@ impl<C: GroupElement> AddAssign<&Monomial<C>> for Poly<C> {
             self.0.resize(rhs.degree + 1, C::zero());
         }
         self.0[rhs.degree] += rhs.coefficient;
-        self.reduce();
-    }
-}
-
-impl<C: GroupElement> SubAssign<Poly<C>> for Poly<C> {
-    fn sub_assign(&mut self, rhs: Poly<C>) {
-        if self.0.len() < rhs.0.len() {
-            self.0.resize(rhs.0.len(), C::zero());
-        }
-        for (a, b) in self.0.iter_mut().zip(&rhs.0) {
-            *a -= *b;
-        }
         self.reduce();
     }
 }
@@ -412,69 +489,5 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
             result[i + rhs.degree] = *coefficient * rhs.coefficient;
         }
         Poly::from(result)
-    }
-}
-
-impl<C: Scalar> Poly<C> {
-    pub(crate) fn is_zero(&self) -> bool {
-        self.0 == vec![C::zero()]
-    }
-
-    fn lead(&self) -> Monomial<C> {
-        if self.is_zero() {
-            return Monomial {
-                coefficient: C::zero(),
-                degree: 0,
-            };
-        }
-        Monomial {
-            coefficient: *self.0.last().unwrap(),
-            degree: self.degree(),
-        }
-    }
-
-    /// Divide self by divisor, returning the quotient and remainder.
-    /// Returns an error if divisor is zero.
-    pub fn div_rem(&self, divisor: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>)> {
-        if divisor.is_zero() {
-            return Err(FastCryptoError::InvalidInput);
-        }
-        let mut remainder = self.clone();
-        let mut quotient = Self::zero();
-        while !remainder.is_zero() && remainder.degree() >= divisor.degree() {
-            // TODO: The divisor lead is always the same, so we can precompute its inverse.
-            let tmp = (remainder.lead() / &divisor.lead())?;
-            quotient += &tmp;
-            remainder -= divisor * &tmp;
-        }
-        Ok((quotient, remainder))
-    }
-
-    /// Compute the extended GCD of two polynomials.
-    /// Returns (g, x, y, s, t) such that g = self * x + other * y.
-    ///
-    pub fn partial_extended_gcd(
-        &self,
-        other: &Poly<C>,
-        degree_bound: usize,
-    ) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
-        let mut r = (self.clone(), other.clone());
-        let mut s = (Poly::one(), Poly::zero());
-        let mut t = (Poly::zero(), Poly::one());
-        while r.0.degree() >= degree_bound && !r.1.is_zero() {
-            let (q, r_new) = r.0.div_rem(&r.1)?;
-            r = (r.1, r_new);
-
-            s.0 -= &q * &s.1;
-            t.0 -= &q * &t.1;
-
-            swap(&mut s.0, &mut s.1);
-            swap(&mut t.0, &mut t.1);
-        }
-        Ok((r.0, s.0, t.0))
-    }
-
-    pub fn extended_gcd(&self, other: &Poly<C>) -> FastCryptoResult<(Poly<C>, Poly<C>, Poly<C>)> {
-        self.partial_extended_gcd(other, 0)
     }
 }
