@@ -11,6 +11,7 @@ use fastcrypto::groups::bls12381::{G1Element, G2Element, Scalar as BlsScalar};
 use fastcrypto::groups::ristretto255::{RistrettoPoint, RistrettoScalar};
 use fastcrypto::groups::{GroupElement, MultiScalarMul, Scalar};
 use rand::prelude::*;
+use std::iter;
 use std::num::NonZeroU16;
 
 const I10: NonZeroU16 = unsafe { NonZeroU16::new_unchecked(10) };
@@ -110,6 +111,90 @@ mod scalar_tests {
             .chain(std::iter::once(poly.eval(ShareIndex::new(1).unwrap())))
             .collect_vec(); // duplicate value 1
         Poly::interpolate_at_index(ShareIndex::new(7).unwrap(), &shares).unwrap_err();
+    }
+
+    #[test]
+    fn test_interpolate<S: Scalar>() {
+        let degree = 12;
+        let threshold = degree + 1;
+        let poly = Poly::<S>::rand(degree, &mut thread_rng());
+        let mut shares = (1..50)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect::<Vec<_>>();
+        for _ in 0..10 {
+            shares.shuffle(&mut thread_rng());
+            let used_shares = shares
+                .iter()
+                .take(threshold as usize)
+                .cloned()
+                .collect_vec();
+            let interpolated = Poly::interpolate(&used_shares).unwrap();
+            assert_eq!(interpolated, poly);
+        }
+
+        // Using too few shares
+        for _ in 0..10 {
+            shares.shuffle(&mut thread_rng());
+            let used_shares = shares
+                .iter()
+                .take(threshold as usize - 1)
+                .cloned()
+                .collect_vec();
+            let interpolated = Poly::interpolate(&used_shares).unwrap();
+            assert_ne!(interpolated, poly);
+        }
+
+        // Using duplicate shares should fail
+        let mut shares = (1..=threshold)
+            .map(|i| poly.eval(ShareIndex::new(i).unwrap()))
+            .collect_vec(); // duplicate value 1
+        shares.push(poly.eval(ShareIndex::new(1).unwrap()));
+        Poly::interpolate(&shares).unwrap_err();
+    }
+
+    #[test]
+    fn test_division<S: Scalar>() {
+        let mut rng = thread_rng();
+        let degree_a = 8;
+        let degree_b = 5;
+        let a = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_a + 1)
+                .collect_vec(),
+        );
+        let b = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_b + 1)
+                .collect_vec(),
+        );
+
+        let (q, r) = a.div_rem(&b).unwrap();
+        assert!(r.degree() < b.degree());
+
+        let mut lhs = &q * &b;
+        lhs += &r;
+        assert_eq!(lhs, a);
+    }
+
+    #[test]
+    fn test_extended_gcd<S: Scalar>() {
+        let mut rng = thread_rng();
+        let degree_a = 8;
+        let degree_b = 5;
+        let a = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_a + 1)
+                .collect_vec(),
+        );
+        let b = crate::polynomial::Poly::from(
+            iter::from_fn(|| Some(S::rand(&mut rng)))
+                .take(degree_b + 1)
+                .collect_vec(),
+        );
+
+        let (g, x, y) = Poly::extended_gcd(&a, &b).unwrap();
+
+        assert_eq!(&x * &a + &(&y * &b), g);
     }
 
     #[instantiate_tests(<RistrettoScalar>)]
