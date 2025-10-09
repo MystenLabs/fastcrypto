@@ -79,7 +79,7 @@ impl RSDecoder {
 
         // Step 3: Long division
         let (f1, r) = g.div_rem(&v)?;
-        if !r.is_zero() || f1.degree() >= self.k {
+        if !r.is_zero() || f1.degree_bound() >= self.k {
             return Err(FastCryptoError::TooManyErrors((self.distance() - 1) / 2));
         }
         Ok(f1)

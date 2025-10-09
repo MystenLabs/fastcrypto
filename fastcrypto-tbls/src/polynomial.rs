@@ -32,10 +32,14 @@ pub type PublicPoly<C> = Poly<C>;
 
 impl<C: GroupElement> Poly<C> {
     /// Returns the degree of the polynomial
-    pub fn degree(&self) -> usize {
+    pub fn degree_bound(&self) -> usize {
         // e.g. c_0 + c_1 * x + c_2 * x^2 + c_3 * x^3
         // ^ 4 coefficients correspond to a 3rd degree poly
         self.0.len() - 1
+    }
+
+    pub fn degree(&self) -> usize {
+        self.0.iter().rposition(|&c| c != C::zero()).unwrap_or(0)
     }
 
     fn reduce(&mut self) {
@@ -76,7 +80,7 @@ impl<C: Scalar> Mul<&Poly<C>> for &Poly<C> {
         if self.is_zero() || rhs.is_zero() {
             return Poly::zero();
         }
-        let mut result = vec![C::zero(); self.degree() + rhs.degree() + 1];
+        let mut result = vec![C::zero(); self.degree_bound() + rhs.degree_bound() + 1];
         for (i, a) in self.0.iter().enumerate() {
             for (j, b) in rhs.0.iter().enumerate() {
                 result[i + j] += *a * *b;
@@ -244,7 +248,7 @@ impl<C: GroupElement> Poly<C> {
             panic!(
                 "Index out of bounds: requested {}, but polynomial has degree {}",
                 i,
-                self.degree()
+                self.degree_bound()
             );
         }
         &self.0[i]
@@ -365,9 +369,10 @@ impl<C: Scalar> Poly<C> {
                 degree: 0,
             };
         }
+        let degree = self.degree();
         Monomial {
-            coefficient: *self.0.last().expect("coefficients are never empty"),
-            degree: self.degree(),
+            coefficient: self.0[degree],
+            degree,
         }
     }
 
@@ -470,7 +475,7 @@ impl<C: Scalar> Mul<&Monomial<C>> for &Poly<C> {
         if rhs.coefficient == C::zero() {
             return Poly::zero();
         }
-        let mut result = vec![C::zero(); self.degree() + rhs.degree + 1];
+        let mut result = vec![C::zero(); self.degree_bound() + rhs.degree + 1];
         for (i, coefficient) in self.0.iter().enumerate() {
             result[i + rhs.degree] = *coefficient * rhs.coefficient;
         }

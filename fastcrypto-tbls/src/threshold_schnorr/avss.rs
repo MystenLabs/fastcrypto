@@ -232,7 +232,7 @@ impl Receiver {
     ///
     /// 3. When t+f signatures have been collected in the certificate, the receivers can now verify the certificate and finish the protocol.
     pub fn process_message(&self, message: &Message) -> FastCryptoResult<ProcessedMessage> {
-        if message.feldman_commitment.degree() != self.t as usize - 1 {
+        if message.feldman_commitment.degree_bound() != self.t as usize - 1 {
             return Err(InvalidMessage);
         }
 

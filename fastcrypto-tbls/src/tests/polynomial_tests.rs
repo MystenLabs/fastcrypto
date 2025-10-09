@@ -25,7 +25,7 @@ mod scalar_tests {
     fn test_degree<S: Scalar>() {
         let s: usize = 5;
         let p = Poly::<S>::rand(s as u16, &mut thread_rng());
-        assert_eq!(p.degree(), s);
+        assert_eq!(p.degree_bound(), s);
     }
 
     #[test]
@@ -169,7 +169,7 @@ mod scalar_tests {
         );
 
         let (q, r) = a.div_rem(&b).unwrap();
-        assert!(r.degree() < b.degree());
+        assert!(r.degree_bound() < b.degree_bound());
 
         let mut lhs = &q * &b;
         lhs += &r;
@@ -226,7 +226,7 @@ mod points_tests {
         let one = G::ScalarType::generator();
         let coeff = vec![one, one, one];
         let p = Poly::<G::ScalarType>::from(coeff);
-        assert_eq!(p.degree(), 2);
+        assert_eq!(p.degree_bound(), 2);
         let s1 = p.eval(NonZeroU16::new(10).unwrap());
         let s2 = p.eval(NonZeroU16::new(20).unwrap());
         let s3 = p.eval(NonZeroU16::new(30).unwrap());
@@ -258,7 +258,7 @@ mod points_tests {
         let one = G::generator();
         let coeff = vec![one, one, one];
         let p = Poly::<G>::from(coeff);
-        assert_eq!(p.degree(), 2);
+        assert_eq!(p.degree_bound(), 2);
         let s1 = p.eval(NonZeroU16::new(10).unwrap());
         let s2 = p.eval(NonZeroU16::new(20).unwrap());
         let s3 = p.eval(NonZeroU16::new(30).unwrap());
