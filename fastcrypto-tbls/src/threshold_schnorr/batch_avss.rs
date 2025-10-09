@@ -343,7 +343,7 @@ impl<const BATCH_SIZE: usize> Receiver<BATCH_SIZE> {
         } = message;
 
         // The response polynomial should have degree t - 1, but with some negligible probability (if the highest coefficient is zero) it will be smaller.
-        if response_polynomial.degree_bound() != self.t as usize - 1 {
+        if response_polynomial.degree() != self.t as usize - 1 {
             return Err(InvalidMessage);
         }
 
